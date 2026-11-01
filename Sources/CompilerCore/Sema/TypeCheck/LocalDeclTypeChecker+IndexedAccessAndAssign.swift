@@ -149,7 +149,7 @@ extension LocalDeclTypeChecker {
         let getCall = CallExpr(range: range, calleeName: getName, args: zip(indices, indexTypes).map { index, type in
             let literal = driver.callChecker.integerLiteralValues(index, ast: ast)
             return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
-        }, dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type))
+        }, dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type), isOperatorCall: true)
         // Member existence does not imply applicability. Probe without emitting
         // diagnostics, retaining even ambiguous viable members ahead of extensions.
         if ctx.resolver.probeCall(
@@ -240,7 +240,8 @@ extension LocalDeclTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: getName,
-                        args: callArgs
+                        args: callArgs,
+                        isOperatorCall: true
                     ),
                     expectedType: expectedType,
                     implicitReceiverType: receiverType,
@@ -290,7 +291,9 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.sema.diagnostics
+            diagnostics: ctx.sema.diagnostics,
+            diagnosticCode: "KSWIFTK-SEMA-0473",
+            failureMessage: "Argument type mismatch."
         )
         if sema.types.isSubtype(receiverType, sema.types.stringType) {
             sema.bindings.bindExprType(id, type: sema.types.charType)
@@ -485,7 +488,8 @@ extension LocalDeclTypeChecker {
                             range: range,
                             calleeName: setName,
                             args: indexArgs + [CallArg(type: paramType, bindsToLastParameter: true)],
-                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                            isOperatorCall: true
                         )
                         if ctx.resolver.probeCall(
                             candidates: [candidate], call: probe, expectedType: nil,
@@ -569,7 +573,8 @@ extension LocalDeclTypeChecker {
             range: range,
             calleeName: setName,
             args: setCallArgs,
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            isOperatorCall: true
         )
         // A single-index member cannot handle a multi-index assignment.
         // Preserve applicable (including ambiguous) members, but try lexical
@@ -743,7 +748,9 @@ extension LocalDeclTypeChecker {
             range: ast.arena.exprRange(indices[0]) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.sema.diagnostics
+            diagnostics: ctx.sema.diagnostics,
+            diagnosticCode: "KSWIFTK-SEMA-0473",
+            failureMessage: "Argument type mismatch."
         )
         let elementExpectedType = driver.helpers.arrayElementType(
             for: receiverType, sema: sema, interner: interner
@@ -755,7 +762,9 @@ extension LocalDeclTypeChecker {
                 range: ast.arena.exprRange(valueExpr) ?? range,
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
         }
         sema.bindings.bindExprType(id, type: sema.types.unitType)

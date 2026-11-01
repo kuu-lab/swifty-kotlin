@@ -127,7 +127,7 @@ struct TypeParameterUpperBoundArgumentTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
-            assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
         }
     }
 

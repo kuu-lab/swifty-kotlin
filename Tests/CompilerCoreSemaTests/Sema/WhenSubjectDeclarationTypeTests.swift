@@ -32,7 +32,7 @@ struct WhenSubjectDeclarationTypeTests {
         try? runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(!errors.isEmpty)
-        #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0468" })
     }
 
     @Test func exhaustivenessUsesDeclaredSubjectType() throws {

@@ -9,9 +9,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
+      "code": "KSWIFTK-SEMA-0468",
       "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
+      "message": "Initializer type mismatch.",
       "codeActions": []
     }
   ]

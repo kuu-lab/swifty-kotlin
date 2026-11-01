@@ -110,7 +110,12 @@ struct FinallyCompletionTests {
         try runSema(ctx)
         for index in sources.indices {
             let diagnostics = diagnosticsForPath(ctx.options.inputs[index], in: ctx)
-            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: diagnostics)
+            // The `try/finally` result or the non-local return mismatches the
+            // enclosing expected type — both surface as position-specific
+            // diagnostics (initializer 0458 or return 0459).
+            #expect(diagnostics.contains {
+                $0.severity == .error && ($0.code == "KSWIFTK-SEMA-0468" || $0.code == "KSWIFTK-SEMA-0469")
+            }, "\(diagnostics)")
         }
     }
 
@@ -125,7 +130,7 @@ struct FinallyCompletionTests {
         ])
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0096", in: ctx)
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0469", in: ctx)
     }
 }
 #endif

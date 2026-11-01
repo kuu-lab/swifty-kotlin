@@ -119,7 +119,9 @@ extension DeclTypeChecker {
                 driver.emitSubtypeConstraint(
                     left: getterType, right: declaredType,
                     range: getter.range, solver: solver,
-                    sema: sema, diagnostics: diagnostics
+                    sema: sema, diagnostics: diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0469",
+                    failureMessage: "Return type mismatch."
                 )
             }
             return inferredPropertyType
@@ -1151,7 +1153,9 @@ extension DeclTypeChecker {
         driver.emitSubtypeConstraint(
             left: setterType, right: sema.types.unitType,
             range: setter.range, solver: solver,
-            sema: sema, diagnostics: diagnostics
+            sema: sema, diagnostics: diagnostics,
+            diagnosticCode: "KSWIFTK-SEMA-0469",
+            failureMessage: "Return type mismatch."
         )
     }
 }

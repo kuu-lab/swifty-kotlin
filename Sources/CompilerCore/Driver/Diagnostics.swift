@@ -366,7 +366,12 @@ public final class DiagnosticEngine: @unchecked Sendable {
         switch code {
         case "KSWIFTK-SEMA-0003":
             "candidate declared here"
-        case "KSWIFTK-TYPE-0001":
+        case "KSWIFTK-TYPE-0001",
+             // The position-specific mismatch codes (KUU-3953) reuse the
+             // constraint solver's expected-type secondary range, so they
+             // share its label.
+             "KSWIFTK-SEMA-0467", "KSWIFTK-SEMA-0468", "KSWIFTK-SEMA-0469",
+             "KSWIFTK-SEMA-0470", "KSWIFTK-SEMA-0473":
             "expected type declared here"
         default:
             "related location"

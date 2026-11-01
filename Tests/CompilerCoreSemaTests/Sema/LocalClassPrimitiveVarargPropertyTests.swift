@@ -102,7 +102,7 @@ struct LocalClassPrimitiveVarargPropertyTests {
         try runSema(context)
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "\(context.diagnostics.diagnostics)")
-        #expect(errors.first?.code == "KSWIFTK-TYPE-0001", "\(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0468", "\(errors)")
         #expect(errors.first?.primaryRange.map { context.sourceManager.lineColumn(of: $0.start).line == 3 } == true)
     }
 

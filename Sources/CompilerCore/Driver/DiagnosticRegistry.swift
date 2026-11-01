@@ -130,7 +130,7 @@ enum DiagnosticRegistry {
         // through the generic KSWIFTK-TYPE-0001 constraint diagnostic, which
         // is deliberately not mapped so the name cannot silence unrelated
         // constraint errors.
-        "CONDITION_TYPE_MISMATCH": ["KSWIFTK-SEMA-0032"],
+        "CONDITION_TYPE_MISMATCH": ["KSWIFTK-SEMA-0032", "KSWIFTK-SEMA-0467"],
         // kotlinc reports an impossible `is` check as IMPOSSIBLE_IS_CHECK_ERROR
         // (the pre-2.4 name was IMPOSSIBLE_IS_CHECK_DEPRECATION). The K1 name
         // INCOMPATIBLE_TYPES deliberately does not map here: kotlinc does not
@@ -152,7 +152,19 @@ enum DiagnosticRegistry {
         "ANNOTATION_TARGET": ["KSWIFTK-SEMA-ANNOTATION-TARGET"],
         "NON_REPEATABLE_ANNOTATION": ["KSWIFTK-SEMA-ANNOTATION-NOT-REPEATABLE"],
         "ANNOTATION_ARGUMENT_MUST_BE_CONST": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-CONST"],
-        "ARGUMENT_TYPE_MISMATCH": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE"],
+        // kotlinc K2 position-specific type-mismatch names (verified against
+        // kotlinc 2.4.20): each maps to the dedicated internal code emitted at
+        // the matching position, not to the generic KSWIFTK-TYPE-0001
+        // constraint code, so the name cannot silence unrelated failures.
+        "INCOMPATIBLE_TYPES": ["KSWIFTK-SEMA-0466"],
+        "INITIALIZER_TYPE_MISMATCH": ["KSWIFTK-SEMA-0468"],
+        "RETURN_TYPE_MISMATCH": ["KSWIFTK-SEMA-0469"],
+        "ASSIGNMENT_TYPE_MISMATCH": ["KSWIFTK-SEMA-0470"],
+        "EQUALITY_NOT_APPLICABLE": ["KSWIFTK-SEMA-0471"],
+        "FORBIDDEN_IDENTITY_EQUALS": ["KSWIFTK-SEMA-0472"],
+        "ARGUMENT_TYPE_MISMATCH": [
+            "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE", "KSWIFTK-SEMA-0473",
+        ],
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
@@ -1309,6 +1321,54 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "delegation cannot be used in interfaces."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0466",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Incompatible types in when branch condition."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0467",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Condition type mismatch: expected Boolean."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0468",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Initializer type mismatch."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0469",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Return type mismatch."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0470",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Assignment type mismatch."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0471",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Equality operator cannot be applied to incompatible types."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0472",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Identity equality is prohibited between these types."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0473",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Argument type mismatch."
         ),
     ]
 

@@ -216,7 +216,7 @@ struct IntersectionTypeFlowTests {
             }
 
             let nullableErrors = diagnosticsForPath(paths[2], in: ctx).filter { $0.severity == .error }
-            #expect(nullableErrors.map(\.code) == ["KSWIFTK-TYPE-0001"])
+            #expect(nullableErrors.map(\.code) == ["KSWIFTK-SEMA-0469"])
         }
     }
 

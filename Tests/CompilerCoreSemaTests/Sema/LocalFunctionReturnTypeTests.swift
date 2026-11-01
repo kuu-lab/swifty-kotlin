@@ -16,7 +16,7 @@ struct LocalFunctionReturnTypeTests {
     ])
     func rejectsMismatchedExplicitReturnType(declaration: String) throws {
         let diagnostics = try check("fun main() { \(declaration)\n}")
-        #expect(diagnostics.contains { $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001" }, "\(diagnostics)")
+        #expect(diagnostics.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-0469" }, "\(diagnostics)")
     }
 
     @Test(arguments: [
@@ -55,7 +55,7 @@ struct LocalFunctionReturnTypeTests {
         """)
         #expect(diagnostics.contains { $0.severity == .error } == rejects, "\(diagnostics)")
         if rejects {
-            #expect(diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" }, "\(diagnostics)")
+            #expect(diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" }, "\(diagnostics)")
         }
     }
 

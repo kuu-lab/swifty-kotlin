@@ -394,7 +394,8 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
-                if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002",
+                if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
+                       || resolved.diagnostic?.code == "KSWIFTK-SEMA-0473",
                    let calleeName,
                    let recovered = resolveOuterImplicitReceiverExtensionCall(
                        candidates: resolvedCandidates,
@@ -465,7 +466,8 @@ extension CallTypeChecker {
                 // per-candidate expected types, so only retry plain calls.
                 if let calleeName,
                    resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
-                       || resolved.diagnostic?.code == "KSWIFTK-SEMA-0044",
+                       || resolved.diagnostic?.code == "KSWIFTK-SEMA-0044"
+                       || resolved.diagnostic?.code == "KSWIFTK-SEMA-0473",
                    !args.contains(where: { isLambdaOrCallableRefArg($0.expr, ast: ast) })
                 {
                     let mergedCandidates = ctx.scope.lookupMergingChain(calleeName).filter { candidate in

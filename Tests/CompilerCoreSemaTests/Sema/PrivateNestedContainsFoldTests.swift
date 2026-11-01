@@ -55,7 +55,7 @@ struct PrivateNestedContainsFoldTests {
         arguments: ["Int", "String", "Boolean"],
         [
             ("{ wrong in it }", "KSWIFTK-TYPE-0001"),
-            ("{ it.contains(wrong) }", "KSWIFTK-SEMA-0002"),
+            ("{ it.contains(wrong) }", "KSWIFTK-SEMA-0473"),
         ]
     )
     func nonLongContainsArgumentsRemainRejected(

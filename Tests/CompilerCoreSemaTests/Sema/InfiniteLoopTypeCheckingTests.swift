@@ -195,7 +195,7 @@ struct InfiniteLoopTypeCheckingTests {
             try runSema(ctx)
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(!errors.isEmpty)
-            #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors.map(\.message))")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0469" }, "\(errors.map(\.message))")
         }
     }
 

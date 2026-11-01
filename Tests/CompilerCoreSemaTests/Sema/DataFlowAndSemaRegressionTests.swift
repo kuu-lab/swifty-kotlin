@@ -773,7 +773,7 @@ struct DataFlowAndSemaRegressionTests {
                 // diagnostics must not hide a return-type mismatch that the second,
                 // authoritative pass still finds once `value`'s real type (`Int`) is
                 // known -- `get()` declares `String`, which `Int` never satisfies.
-                    assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sample7Diagnostics)
+                    assertHasDiagnostic("KSWIFTK-SEMA-0469", in: sample7Diagnostics)
 
             }
 
@@ -792,7 +792,7 @@ struct DataFlowAndSemaRegressionTests {
                 // own initializer type mismatch is checked once, in source order,
                 // and must still be reported even though it textually follows a
                 // function that refers to it.
-                    assertHasDiagnostic("KSWIFTK-TYPE-0001", in: sample8Diagnostics)
+                    assertHasDiagnostic("KSWIFTK-SEMA-0468", in: sample8Diagnostics)
 
             }
 

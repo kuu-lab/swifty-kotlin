@@ -56,7 +56,8 @@ extension LocalDeclTypeChecker {
                 let literal = driver.callChecker.integerLiteralValues(index, ast: ctx.ast)
                 return CallArg(type: type, signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned)
             },
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            isOperatorCall: true
         )
         if ctx.resolver.probeCall(
             candidates: getCandidates, call: getCall, expectedType: nil,
@@ -155,7 +156,9 @@ extension LocalDeclTypeChecker {
             driver.emitSubtypeConstraint(
                 left: indexTypes[0], right: intType,
                 range: ctx.ast.arena.exprRange(indices[0]) ?? range,
-                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
         }
 
@@ -420,7 +423,7 @@ extension LocalDeclTypeChecker {
         ctx: TypeInferenceContext
     ) -> (CallBinding, TypeID)? {
         let sema = ctx.sema
-        let call = CallExpr(range: range, calleeName: names[0], args: args)
+        let call = CallExpr(range: range, calleeName: names[0], args: args, isOperatorCall: true)
         var candidates = driver.exprChecker.collectOperatorCandidates(
             names: names, receiverType: elementType, call: call, locals: locals, ctx: ctx
         )
@@ -556,7 +559,8 @@ extension LocalDeclTypeChecker {
             range: range,
             calleeName: setName,
             args: callArgs,
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            isOperatorCall: true
         )
         if ctx.resolver.probeCall(
             candidates: setCandidates, call: setCall, expectedType: nil,
@@ -1215,7 +1219,9 @@ extension LocalDeclTypeChecker {
                     range: range,
                     solver: driver.solver,
                     sema: sema,
-                    diagnostics: sema.diagnostics
+                    diagnostics: sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0469",
+                    failureMessage: "Return type mismatch."
                 )
             }
             if returnTypeRef != nil, resolvedReturnType == sema.types.unitType,

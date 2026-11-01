@@ -137,7 +137,9 @@ final class LocalDeclTypeChecker {
                         driver.emitSubtypeConstraint(
                             left: initializerType, right: declaredType,
                             range: range, solver: ConstraintSolver(),
-                            sema: sema, diagnostics: ctx.sema.diagnostics
+                            sema: sema, diagnostics: ctx.sema.diagnostics,
+                            diagnosticCode: "KSWIFTK-SEMA-0468",
+                            failureMessage: "Initializer type mismatch."
                         )
                     }
                 }
@@ -401,7 +403,9 @@ final class LocalDeclTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
-                    diagnostics: ctx.sema.diagnostics
+                    diagnostics: ctx.sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0470",
+                    failureMessage: "Assignment type mismatch."
                 )
                 // A stable nullable local assigned a non-null value remains
                 // non-null until its next assignment, including captured
@@ -571,7 +575,9 @@ final class LocalDeclTypeChecker {
                         range: range,
                         solver: ConstraintSolver(),
                         sema: ctx.sema,
-                        diagnostics: ctx.sema.diagnostics
+                        diagnostics: ctx.sema.diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0470",
+                        failureMessage: "Assignment type mismatch."
                     )
                     driver.helpers.recordMemberValInitializationSmartCast(
                         property: writeSymbol,
@@ -631,7 +637,9 @@ final class LocalDeclTypeChecker {
                     range: range,
                     solver: ConstraintSolver(),
                     sema: ctx.sema,
-                    diagnostics: ctx.sema.diagnostics
+                    diagnostics: ctx.sema.diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0470",
+                    failureMessage: "Assignment type mismatch."
                 )
             }
             ctx.sema.bindings.bindExprType(id, type: ctx.sema.types.unitType)

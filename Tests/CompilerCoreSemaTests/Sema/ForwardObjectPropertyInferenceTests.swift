@@ -62,7 +62,7 @@ struct ForwardObjectPropertyInferenceTests {
             try runSema(context)
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.count == 1, "\(errors.map { "\($0.code): \($0.message)" })")
-            #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
+            #expect(errors.first?.code == "KSWIFTK-SEMA-0469")
         }
     }
 

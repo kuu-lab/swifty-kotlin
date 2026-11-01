@@ -47,7 +47,7 @@ struct ResultNothingGetOrElseInferenceTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0469", in: ctx)
         }
     }
 }

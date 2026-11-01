@@ -23,7 +23,8 @@ extension CallExpr {
             boundObjectDispatchReceiverCandidates: boundObjectDispatchReceiverCandidates,
             typeAliasConstructor: typeAliasConstructor,
             elvisLhsExpectedTypeHint: elvisLhsExpectedTypeHint,
-            elvisRhsCallResultTypeHint: elvisRhsCallResultTypeHint
+            elvisRhsCallResultTypeHint: elvisRhsCallResultTypeHint,
+            isOperatorCall: isOperatorCall
         )
     }
 }
@@ -394,6 +395,19 @@ extension OverloadResolver {
             case let .viable(value):
                 viable.append(value)
             case let .constraintFailure(diagnostic):
+                // kotlinc names an argument mismatch ARGUMENT_TYPE_MISMATCH,
+                // including when several candidates were evaluated, but
+                // reports NONE_APPLICABLE for operator-syntax calls whose
+                // overload set has several inapplicable candidates (`1 + x`
+                // listing every `Int.plus` overload). Keep the generic
+                // no-viable-overload diagnostic for that case so the upstream
+                // name does not suppress it.
+                if diagnostic.code == "KSWIFTK-SEMA-0473",
+                   candidates.count > 1,
+                   call.isOperatorCall
+                {
+                    continue
+                }
                 failures.append(diagnostic)
             case .rejected:
                 continue
@@ -1800,7 +1814,7 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: call.range
-                ))
+                ).map { $0.withOrigin(.callArgument) })
                 continue
             }
             // A spread argument supplies an array, so reject candidate types
@@ -1823,21 +1837,25 @@ extension OverloadResolver {
                     typeSystem: typeSystem,
                     blameRange: call.range
                 )
-                constraints.append(contentsOf: decomposed)
+                constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
                 continue
             }
 
-            if ignoredLambdaReturnTypeArgumentIndices.contains(argIndex),
-               appendLambdaInputConstraintsIgnoringReturn(
-                   to: &constraints,
-                   argType: argType,
-                   paramType: paramType,
-                   typeVarBySymbol: typeVarBySymbol,
-                   typeSystem: typeSystem,
-                   blameRange: call.range
-               )
-            {
-                continue
+            if ignoredLambdaReturnTypeArgumentIndices.contains(argIndex) {
+                let constraintCountBeforeLambda = constraints.count
+                if appendLambdaInputConstraintsIgnoringReturn(
+                    to: &constraints,
+                    argType: argType,
+                    paramType: paramType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: typeSystem,
+                    blameRange: call.range
+                ) {
+                    for index in constraintCountBeforeLambda ..< constraints.count {
+                        constraints[index] = constraints[index].withOrigin(.callArgument)
+                    }
+                    continue
+                }
             }
 
             // SAM adaptation is a call-site conversion, not nominal subtyping.
@@ -1884,7 +1902,7 @@ extension OverloadResolver {
                 typeSystem: typeSystem,
                 blameRange: call.range
             )
-            constraints.append(contentsOf: decomposed)
+            constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
         }
         if !processedAll {
             return !(constraints.isEmpty && !call.args.isEmpty)
@@ -2061,10 +2079,24 @@ extension OverloadResolver {
     ) -> ConstraintSolveResult {
         let varsToSolve = usedTypeVariables(from: constraints)
         if varsToSolve.isEmpty {
-            let allSatisfied = constraints.allSatisfy {
-                isConstraintSatisfiedWithoutVariables($0, typeSystem: typeSystem)
+            for constraint in constraints
+            where !isConstraintSatisfiedWithoutVariables(constraint, typeSystem: typeSystem) {
+                // A call-argument constraint failing without inference
+                // variables is an argument/parameter type mismatch — the
+                // single-candidate diagnostic upstream reports as
+                // ARGUMENT_TYPE_MISMATCH (KUU-3953).
+                if constraint.origin == .callArgument {
+                    return .constraintFailure(Diagnostic(
+                        severity: .error,
+                        code: "KSWIFTK-SEMA-0473",
+                        message: "Argument type mismatch.",
+                        primaryRange: constraint.blameRange,
+                        secondaryRanges: []
+                    ))
+                }
+                return .rejected
             }
-            return allSatisfied ? .success([:]) : .rejected
+            return .success([:])
         }
         let solution = solver.solve(
             vars: varsToSolve,

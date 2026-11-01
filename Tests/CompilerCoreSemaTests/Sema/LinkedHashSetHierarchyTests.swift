@@ -36,7 +36,7 @@ struct LinkedHashSetHierarchyTests {
         """, useArtifact: useArtifact)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 3, "\(ctx.diagnostics.diagnostics)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0469" })
     }
 
     private func context(_ source: String, useArtifact: Bool) throws -> CompilationContext {

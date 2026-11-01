@@ -71,7 +71,7 @@ struct ObjectQualifiedNestedConstructorTests {
     @Test(arguments: [
         ("object Holder { private class Child }; fun result() = Holder.Child()", "KSWIFTK-SEMA-0040"),
         ("object Holder { class Child private constructor() }; fun result() = Holder.Child()", "KSWIFTK-SEMA-0040"),
-        ("object Holder { class Child(val n: Int) }; fun result() = Holder.Child(\"bad\")", "KSWIFTK-SEMA-0002"),
+        ("object Holder { class Child(val n: Int) }; fun result() = Holder.Child(\"bad\")", "KSWIFTK-SEMA-0473"),
         ("object Holder { class Child(val n: Int) }; fun result() = Holder.Child()", "KSWIFTK-SEMA-0002"),
         ("object Holder { class Child }; fun result() { val holder = Holder; holder.Child() }", "KSWIFTK-SEMA-0024"),
         ("object Holder { class Child }; fun result() = Holder?.Child()", "KSWIFTK-SEMA-0024"),

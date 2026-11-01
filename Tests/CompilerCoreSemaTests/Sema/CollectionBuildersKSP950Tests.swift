@@ -29,7 +29,7 @@ struct CollectionBuildersKSP950Tests {
         fun invalid(action: MutableMap<String, Int>.() -> Unit): Map<Any, Int> = buildMap<String, Int>(action)
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
     }
 
     @Test

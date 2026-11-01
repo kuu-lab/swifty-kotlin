@@ -74,8 +74,8 @@ struct FunctionParameterDefaultArgumentTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         for (call, range) in zip(calls, ranges) {
-            // A lambda return-type mismatch uses the ordinary type diagnostic.
-            let code = call == "l({ 1 })" ? "KSWIFTK-TYPE-0001" : "KSWIFTK-SEMA-0002"
+            // A lambda return-type mismatch is the return-type diagnostic.
+            let code = call == "l({ 1 })" ? "KSWIFTK-SEMA-0469" : "KSWIFTK-SEMA-0002"
             #expect(ctx.diagnostics.diagnostics.contains {
                 $0.code == code && $0.primaryRange.map { range.contains($0.start.offset) } == true
             }, "Expected \(code) for \(call): \(ctx.diagnostics.diagnostics)")

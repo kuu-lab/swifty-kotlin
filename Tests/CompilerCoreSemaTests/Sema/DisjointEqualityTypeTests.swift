@@ -22,7 +22,7 @@ struct DisjointEqualityTypeTests {
             try runSema(ctx)
 
             let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.count == 1 && errors.first?.code == "KSWIFTK-SEMA-0002",
+            #expect(errors.count == 1 && errors.first?.code == "KSWIFTK-SEMA-0471",
                 "Only the unrelated direct Int/String comparison should be rejected: \(errors)")
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -92,7 +92,7 @@ struct DisjointEqualityTypeTests {
             try runSema(ctx)
 
             let invalid = diagnosticsForPath(paths[0], in: ctx)
-            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0002" }.count == 6)
+            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0471" }.count == 6)
             let valid = diagnosticsForPath(paths[1], in: ctx)
             #expect(valid.isEmpty, "Compatible equality operands should remain accepted: \(valid)")
         }
@@ -158,7 +158,7 @@ struct DisjointEqualityTypeTests {
             let valid = diagnosticsForPath(paths[0], in: ctx)
             #expect(valid.isEmpty, "Smart-cast lambda parameters should use their declared types: \(valid)")
             let invalid = diagnosticsForPath(paths[1], in: ctx)
-            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0002" }.count == 4)
+            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0471" }.count == 4)
         }
     }
 
@@ -198,7 +198,7 @@ struct DisjointEqualityTypeTests {
             let valid = diagnosticsForPath(paths[0], in: ctx)
             #expect(valid.isEmpty, "Range operands should use their source-level types: \(valid)")
             let invalid = diagnosticsForPath(paths[1], in: ctx)
-            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0002" }.count == 6)
+            #expect(invalid.filter { $0.code == "KSWIFTK-SEMA-0471" }.count == 6)
         }
     }
 }

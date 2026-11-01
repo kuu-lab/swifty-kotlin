@@ -19,8 +19,8 @@ struct WhenSubjectConditionTypeCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "Got: \(errors)")
-        #expect(errors.first?.code == "KSWIFTK-SEMA-0002")
-        #expect(errors.first?.message.contains("unrelated types") == true)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0466")
+        #expect(errors.first?.message.contains("Incompatible types in when branch condition") == true)
     }
 
     @Test func rejectsConditionsIncompatibleWithTheSubjectType() throws {
@@ -36,8 +36,8 @@ struct WhenSubjectConditionTypeCompatibilityTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "Got: \(errors)")
-        #expect(errors.first?.code == "KSWIFTK-SEMA-0002")
-        #expect(errors.first?.message.contains("unrelated types") == true)
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0466")
+        #expect(errors.first?.message.contains("Incompatible types in when branch condition") == true)
     }
 
     @Test func preservesValidBooleanTypeAndMembershipConditions() throws {

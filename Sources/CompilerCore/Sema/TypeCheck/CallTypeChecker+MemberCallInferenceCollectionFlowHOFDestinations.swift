@@ -86,7 +86,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     )
                     ctx.sema.diagnostics.emit(Diagnostic(
                         severity: .error,
-                        code: "KSWIFTK-TYPE-0001",
+                        code: "KSWIFTK-SEMA-0473",
                         message: "Type mismatch: destination has type '\(actualTypeName)', but '\(requiredTypeName)' is required for '\(calleeStr)'.",
                         primaryRange: ast.arena.exprRange(args[0].expr) ?? range,
                         secondaryRanges: []

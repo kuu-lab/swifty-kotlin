@@ -115,7 +115,7 @@ struct CollectionBuilderExpectedTypeTests {
         fun invalid(): Map<Any,Int> = buildMap<String,Int> { put("key", 1) }
         """, frontendFlags: flags)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
     }
 
     @Test(arguments: [[], ["new-inference"]])

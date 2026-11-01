@@ -30,7 +30,7 @@ struct ChannelSendChannelSubtypeTests {
                 #expect(errors.isEmpty, "\(errors)")
             } else {
                 #expect(errors.count == pairs.count, "\(errors)")
-                #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors)")
+                #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0469" }, "\(errors)")
             }
         }
     }

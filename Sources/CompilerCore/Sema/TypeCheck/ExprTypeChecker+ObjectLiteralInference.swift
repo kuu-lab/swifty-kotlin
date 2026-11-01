@@ -875,7 +875,9 @@ extension ExprTypeChecker {
                         range: propertyDecl.range,
                         solver: ConstraintSolver(),
                         sema: sema,
-                        diagnostics: ctx.sema.diagnostics
+                        diagnostics: ctx.sema.diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0468",
+                        failureMessage: "Initializer type mismatch."
                     )
                 }
                 inferredType = type

@@ -119,7 +119,7 @@ struct AnyConstructorRegressionTests {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0473" })
         let sema = try #require(ctx.sema)
         #expect(delegationBindings(for: "P", sema: sema, interner: ctx.interner).isEmpty)
     }
@@ -197,7 +197,7 @@ struct AnyConstructorRegressionTests {
 
         let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.code)
         #expect(
-            codes.contains("KSWIFTK-SEMA-0002") || codes.contains("KSWIFTK-TYPE-0001"),
+            codes.contains("KSWIFTK-SEMA-0002") || codes.contains("KSWIFTK-SEMA-0473"),
             "Wrong super(...) argument should be rejected by overload resolution: \(codes)"
         )
     }

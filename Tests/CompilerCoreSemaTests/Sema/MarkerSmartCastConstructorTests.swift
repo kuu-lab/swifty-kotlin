@@ -97,7 +97,9 @@ struct MarkerSmartCastConstructorTests {
             try runSema(ctx)
             #expect(ctx.diagnostics.hasError)
             #expect(ctx.diagnostics.diagnostics.contains {
-                $0.code == "KSWIFTK-TYPE-0001" || $0.code == "KSWIFTK-SEMA-0002"
+                // Argument-position rejections are SEMA-0473, return-position
+                // rejections are SEMA-0469; older shapes keep the generic codes.
+                ["KSWIFTK-TYPE-0001", "KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0473", "KSWIFTK-SEMA-0469"].contains($0.code)
             })
         }
     }
