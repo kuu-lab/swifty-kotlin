@@ -1259,35 +1259,34 @@ extension ExprTypeChecker {
         // over `abstract fun speak()` is an error in Kotlin. The named-nominal
         // check (`Inheritance.validateAbstractOverrides`) ran during header
         // validation, before this symbol existed.
-        var overriddenNames: Set<InternedString> = []
-        var overriddenMemberExtensionNames: Set<InternedString> = []
+        var overriddenMembers: Set<MemberRequirementKey> = []
         for functionDeclID in memberFunctionDecls {
             guard let decl = ast.arena.decl(functionDeclID),
                   case let .funDecl(functionDecl) = decl
             else { continue }
             // Member extensions and regular members are distinct override
             // families — a regular `toString()` cannot implement an abstract
-            // `Any?.toString()` requirement (KUU-3656).
-            if functionDecl.receiverType != nil {
-                overriddenMemberExtensionNames.insert(functionDecl.name)
-            } else {
-                overriddenNames.insert(functionDecl.name)
-            }
+            // `Any?.toString()` requirement (KUU-3656). Function and property
+            // requirements are likewise separate namespaces (KUU-4106).
+            overriddenMembers.insert(MemberRequirementKey(
+                name: functionDecl.name,
+                isMemberExtension: functionDecl.receiverType != nil,
+                kind: .function
+            ))
         }
         for propertyDeclID in memberPropertyDecls {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
             else { continue }
-            if propertyDecl.receiverType != nil {
-                overriddenMemberExtensionNames.insert(propertyDecl.name)
-            } else {
-                overriddenNames.insert(propertyDecl.name)
-            }
+            overriddenMembers.insert(MemberRequirementKey(
+                name: propertyDecl.name,
+                isMemberExtension: propertyDecl.receiverType != nil,
+                kind: .property
+            ))
         }
         for missingMember in unimplementedAbstractMembers(
             for: ownerSymbol,
-            overriddenNames: overriddenNames,
-            overriddenMemberExtensionNames: overriddenMemberExtensionNames,
+            overriddenMembers: overriddenMembers,
             delegatedInterfaces: sema.symbols.delegatedInterfaces(forClass: ownerSymbol),
             symbols: sema.symbols,
             types: sema.types,
