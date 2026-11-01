@@ -193,6 +193,13 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         let resultRaw = runtimeMakeStringRaw(resultName)
         let property = kk_kproperty_stub_create_cached_typed(nameRaw, resultRaw, runtimeMakeStringRaw("kotlin.\(descriptor.name).\(name)"), 0, 1, 0)
         _ = kk_callable_ref_tag_kproperty(property, nameRaw, resultRaw, 1)
+        // KUU-3947: JVM memberProperties renders e.g.
+        // `val kotlin.IntArray.size: kotlin.Int` — pin the same text.
+        __kk_function_set_description(
+            property,
+            runtimeMakeStringRaw("val kotlin.\(descriptor.name).\(name): \(resultName)"),
+            0
+        )
         _ = kk_object_register_itable_iface(property, Int(kProperty1RuntimeTypeID), 1)
         _ = kk_object_register_itable_method(property, 1, 0, unsafeBitCast(arrayPropertyGet, to: Int.self))
         _ = kk_object_register_itable_method(property, 1, 1, unsafeBitCast(arrayPropertyDelegate, to: Int.self))
@@ -222,6 +229,12 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         let function = __kk_kfunction_create(nameRaw, arity, resultRaw, 4, 0, 0)
         _ = kk_callable_ref_tag_kfunction(function, nameRaw, resultRaw, arity, 4)
         let receiverName = "kotlin.\(descriptor.name)"
+        // KUU-3947: `fun kotlin.IntArray.set(kotlin.Int, kotlin.Int): kotlin.Unit`.
+        __kk_function_set_description(
+            function,
+            runtimeMakeStringRaw("fun \(receiverName).\(name)(kotlin.Int\(setter ? ", kotlin.\(descriptor.element)" : "")): \(resultName)"),
+            0
+        )
         let receiver = __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw(receiverName), 0, 0, classBox.typeToken, function)
         runtimeKParameterBox(from: receiver)?.reflectedTypeRaw = arrayClassType(descriptor, classRaw: classRaw)
         let position = __kk_kparameter_create_typed(1, runtimeMakeStringRaw("index"), runtimeMakeStringRaw("kotlin.Int"), 0, 2, Int(RuntimeTypeTokenEncoding.intBase), function)
@@ -247,6 +260,12 @@ func ensureBuiltinArrayMembers(_ classRaw: Int) {
         let function = __kk_kfunction_create(nameRaw, arity, resultRaw, flags, 0, 0)
         _ = kk_callable_ref_tag_kfunction(function, nameRaw, resultRaw, arity, flags)
         let receiverName = "kotlin.\(descriptor.name)"
+        // KUU-3947: `fun kotlin.IntArray.equals(kotlin.Any?): kotlin.Boolean`.
+        __kk_function_set_description(
+            function,
+            runtimeMakeStringRaw("fun \(receiverName).\(name)(\(argument.map { $0.1 } ?? "")): \(resultName)"),
+            0
+        )
         let receiver = __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw(receiverName), 0, 0, classBox.typeToken, function)
         runtimeKParameterBox(from: receiver)?.reflectedTypeRaw = arrayClassType(descriptor, classRaw: classRaw)
         var parameters = [receiver]

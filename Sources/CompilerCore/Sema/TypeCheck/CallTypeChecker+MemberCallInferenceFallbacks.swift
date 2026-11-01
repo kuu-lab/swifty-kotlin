@@ -814,6 +814,51 @@ extension CallTypeChecker {
         return closeableSymbols.contains(where: { directSupertypes.contains($0) })
     }
 
+    /// Resolves the bundled stdlib `use` overload applicable to a closeable
+    /// `receiverType` for the `.use {}` scope interception. `kotlin.io.use`
+    /// (`T : Closeable?`) is the more specific overload for `Closeable`
+    /// receivers; `kotlin.use` (`T : AutoCloseable?`) covers the rest.
+    /// The bound symbol is validation metadata only — lowering expands the
+    /// intrinsic try/finally scope itself (KUU-3915).
+    func resolveUseScopeCallee(
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let kotlinPackage = interner.intern("kotlin")
+        let ioUseFQName = [kotlinPackage, interner.intern("io"), interner.intern("use")]
+        let autoCloseableUseFQName = [kotlinPackage, interner.intern("use")]
+        func useExtension(at fqName: [InternedString]) -> SymbolID? {
+            sema.symbols.lookupAll(fqName: fqName).first { symbolID in
+                guard sema.symbols.symbol(symbolID)?.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.receiverType != nil && signature.parameterTypes.count == 1
+            }
+        }
+        let prefersIOUse = sema.types.ioCloseableInterfaceSymbol.map { ioCloseableSymbol in
+            sema.types.isSubtype(
+                receiverType,
+                sema.types.make(.classType(ClassType(
+                    classSymbol: ioCloseableSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            )
+        } ?? false
+        let orderedFQNames = prefersIOUse
+            ? [ioUseFQName, autoCloseableUseFQName]
+            : [autoCloseableUseFQName, ioUseFQName]
+        for fqName in orderedFQNames {
+            if let symbol = useExtension(at: fqName) {
+                return symbol
+            }
+        }
+        return nil
+    }
+
     func extractCValueCStructContentType(
         _ receiverType: TypeID,
         sema: SemaModule,

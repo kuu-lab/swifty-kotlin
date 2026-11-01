@@ -232,10 +232,10 @@ extension DataFlowSemaPhase {
         var stack = Array(symbols.directSupertypes(for: ownerID).reversed())
         while let currentOwner = stack.popLast() {
             guard visited.insert(currentOwner).inserted else { continue }
-            guard let ownerSym = symbols.symbol(currentOwner) else { continue }
+            guard symbols.symbol(currentOwner) != nil else { continue }
 
             var matched = false
-            for candidateID in symbols.children(ofFQName: ownerSym.fqName) {
+            for candidateID in symbols.declaredChildren(of: currentOwner) {
                 guard let candidate = symbols.symbol(candidateID),
                       candidate.kind == .function,
                       candidate.name == sym.name,

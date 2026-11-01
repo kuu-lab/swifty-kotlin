@@ -581,4 +581,44 @@ struct CodegenRuntimeObjectDiscoveryTests {
         )
         #expect(retouched == edited)
     }
+
+    // KUU-3773: a persisted-fingerprint hit must not re-read Runtime sources —
+    // the stat-signature guard exists so an unchanged tree pays only stat(2)
+    // calls plus the small sidecar read, never ~236 file reads. After seeding
+    // the sidecar, make a source unreadable: the hit still returns the seeded
+    // fingerprint, while a regression that re-reads content would hash an
+    // empty payload for the unreadable file (or throw) and change it. Mode
+    // bits are not part of the signature, so the chmod keeps the hit valid.
+    // (Vacuous when run as root, which can read mode-000 files anyway.)
+    @Test
+    func testPersistedRuntimeFingerprintHitReadsNoFileContents() throws {
+        let fileManager = FileManager.default
+        let packageRoot = try makeFakeRuntimePackageRoot()
+        defer { try? fileManager.removeItem(at: packageRoot) }
+        let scratchRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("runtimefp-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: scratchRoot) }
+
+        let runtimeFile = packageRoot
+            .appendingPathComponent("Sources/Runtime/RuntimeArrayBasics.swift")
+        try "func runtimeA() {}".write(to: runtimeFile, atomically: true, encoding: .utf8)
+
+        let first = try CodegenRuntimeSupport.runtimeSourceFingerprint(
+            packageRoot: packageRoot, scratchRoot: scratchRoot
+        )
+
+        try fileManager.setAttributes(
+            [.posixPermissions: 0o000], ofItemAtPath: runtimeFile.path
+        )
+        defer {
+            try? fileManager.setAttributes(
+                [.posixPermissions: 0o644], ofItemAtPath: runtimeFile.path
+            )
+        }
+
+        let second = try CodegenRuntimeSupport.runtimeSourceFingerprint(
+            packageRoot: packageRoot, scratchRoot: scratchRoot
+        )
+        #expect(second == first)
+    }
 }

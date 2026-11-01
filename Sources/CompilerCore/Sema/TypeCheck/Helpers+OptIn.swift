@@ -153,16 +153,35 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
-        var visitedSupertypes: Set<SymbolID> = []
-        var queuedSupertypes = ctx.sema.symbols.directSupertypes(for: symbol)
-        let optedInMarkers = activeOptInMarkers(in: ctx)
-
-        while let supertype = queuedSupertypes.first {
-            queuedSupertypes.removeFirst()
-            guard visitedSupertypes.insert(supertype).inserted else {
-                continue
+        // Only direct supertypes impose the requirement. A subclass that
+        // consents via '@OptIn'/the marker consumes it and does not re-impose
+        // it on its own subclasses; '@SubclassOptInRequired' is the only form
+        // that propagates the requirement further, matching kotlinc.
+        var optedInMarkers = activeOptInMarkers(in: ctx)
+        // '@SubclassOptInRequired(M::class)' on the checked class or an
+        // enclosing declaration consents to subclassing M-gated supertypes
+        // within its scope — including nested classes — without consenting to
+        // ordinary usages of M-marked API the way '@OptIn' does.
+        var consentingDecl: SymbolID? = symbol
+        while let current = consentingDecl {
+            let file = sourceFile(for: current, ctx: ctx) ?? currentFile(in: ctx)
+            for annotation in ctx.sema.symbols.annotations(for: current)
+                where KnownCompilerAnnotation.subclassOptInRequired.matches(annotation.annotationFQName)
+            {
+                for markerName in parseOptInMarkerNames(annotation.arguments) {
+                    if let markerSymbol = resolveAnnotationClassSymbol(
+                        named: markerName,
+                        file: file,
+                        ctx: ctx
+                    ) {
+                        optedInMarkers.insert(markerSymbol)
+                    }
+                }
             }
+            consentingDecl = ctx.sema.symbols.parentSymbol(for: current)
+        }
 
+        for supertype in ctx.sema.symbols.directSupertypes(for: symbol) {
             for annotation in ctx.sema.symbols.annotations(for: supertype)
                 where KnownCompilerAnnotation.subclassOptInRequired.matches(annotation.annotationFQName)
             {
@@ -175,8 +194,6 @@ extension TypeCheckHelpers {
                     diagnostics: diagnostics
                 )
             }
-
-            queuedSupertypes.append(contentsOf: ctx.sema.symbols.directSupertypes(for: supertype))
         }
     }
 
@@ -326,7 +343,7 @@ extension TypeCheckHelpers {
             let supertypeName = renderSymbolName(supertype, ctx: ctx)
             let messageSuffix = requirement.message.isEmpty ? "" : " \(requirement.message)"
             let message = "Subclassing '\(supertypeName)' requires opt-in to '\(requirement.markerName)'. " +
-                "Annotate the subclass with '@\(requirement.markerName)' or '@OptIn(\(requirement.markerName)::class)'." + messageSuffix
+                "Annotate the subclass with '@\(requirement.markerName)', '@OptIn(\(requirement.markerName)::class)' or '@SubclassOptInRequired(\(requirement.markerName)::class)'." + messageSuffix
             switch requirement.level {
             case .warning:
                 diagnostics.warning("KSWIFTK-SEMA-SUBCLASS-OPT-IN", message, range: range)

@@ -773,7 +773,10 @@ extension CallTypeChecker {
                 return functionType
             }
             if let samLambda = samConstructorLambdaArgument(argument.expr, ctx: ctx),
-               let functionType = sema.bindings.samUnderlyingFunctionType(for: samLambda) {
+               let functionType = sema.bindings.samUnderlyingFunctionType(for: samLambda),
+               samConstructorArgumentNeedsFunctionTypeWitness(
+                   for: samLambda, candidates: candidates, ctx: ctx
+               ) {
                 return functionType
             }
             let type = argTypes[index]
@@ -797,6 +800,40 @@ extension CallTypeChecker {
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,
             blockedLambdaRefinement: blockedLambdaRefinement,
             hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter
+        )
+    }
+
+    /// A nested SAM constructor call like `Sup { 7 }` produces a value whose
+    /// type IS the bound interface, so the outer call must check it directly
+    /// (`listOf<Sup>(Sup { 7 })` needs `Sup <: Sup`, not `() -> Int <: Sup`,
+    /// KUU-4027). The lambda's function type is only the right witness when
+    /// the interface's own type arguments still depend on the enclosing
+    /// call's inference — a star projection or one of the call's type
+    /// variables inside the bound interface type, e.g. `Converter<String, R>`
+    /// in `apply(Converter { it }, "abc")`.
+    private func samConstructorArgumentNeedsFunctionTypeWitness(
+        for samLambda: ExprID,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let interfaceType = sema.bindings.samInterfaceType(for: samLambda),
+              case .classType = sema.types.kind(of: interfaceType)
+        else {
+            return true
+        }
+        if ctx.resolver.containsStarProjection(interfaceType, typeSystem: sema.types) {
+            return true
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(
+            candidates.flatMap {
+                sema.symbols.functionSignature(for: $0)?.typeParameterSymbols ?? []
+            }
+        )
+        return ctx.resolver.containsTypeVariable(
+            interfaceType,
+            typeVarBySymbol: typeVarBySymbol,
+            typeSystem: sema.types
         )
     }
 

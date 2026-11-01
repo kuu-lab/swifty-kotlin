@@ -920,6 +920,15 @@ extension TypeCheckHelpers {
                       // being searched.
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       sym.kind == .property || sym.kind == .field,
+                      // A `.static` member (the enum class's synthetic
+                      // `entries` EnumEntries stub) is a classifier-scope
+                      // member, not an instance member: it is invisible to an
+                      // instance-typed receiver — the same rule that keeps
+                      // companion members unreachable through `c.x`. It must
+                      // not shadow an inherited interface member of the same
+                      // name, which BFS finds on a later supertype owner
+                      // (KUU-3891).
+                      !sym.flags.contains(.static),
                       // A member extension shares the owner's member FQName
                       // but is not part of the receiver's member scope:
                       // `r.name` supplies only one receiver, while the
@@ -1194,6 +1203,10 @@ extension TypeCheckHelpers {
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       property.kind == .property || property.kind == .field,
                       // Same member-scope rule as `lookupMemberProperty`:
+                      // `.static` members are classifier-scope, never
+                      // writable through an instance receiver (KUU-3891).
+                      !property.flags.contains(.static),
+                      // Same member-scope rule as `lookupMemberProperty`:
                       // a member extension is not a writable member of the
                       // receiver — its setter resolves through the implicit
                       // receiver member-extension machinery (KUU-3746).
@@ -1269,6 +1282,99 @@ extension TypeCheckHelpers {
 
         return MemberPropertyLookupResult(
             symbol: readResult.symbol, type: readResult.type, writeSymbol: firstMutable.symbol
+        )
+    }
+
+    /// Probes a classifier's *static scope*: `.static` members only. Kotlin
+    /// keeps them out of the instance member scope (they are unreachable
+    /// through `instance.name`) but still exposes them to unqualified
+    /// references inside the class body, interleaved into the implicit
+    /// receiver tower after that classifier's own `this` receiver (KUU-3891).
+    /// Statics are not inherited, so only each nominal's own declarations are
+    /// probed; the lexical parent chain is walked because a nested
+    /// classifier's scope also surfaces its enclosing nominals' statics (for
+    /// example an enum entry's anonymous class body sees `Enum.entries`).
+    private func lookupStaticPropertyFromClassifierScope(
+        named name: InternedString,
+        startingAt nominal: SymbolID,
+        sema: SemaModule
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        var owner: SymbolID? = nominal
+        var visited: Set<SymbolID> = []
+        while let current = owner, visited.insert(current).inserted {
+            owner = sema.symbols.parentSymbol(for: current)
+            guard let ownerSymbol = sema.symbols.symbol(current) else {
+                continue
+            }
+            for candidate in sema.symbols.lookupAll(fqName: ownerSymbol.fqName + [name]) {
+                guard let sym = sema.symbols.symbol(candidate),
+                      sema.symbols.parentSymbol(for: candidate) == current,
+                      sym.kind == .property || sym.kind == .field,
+                      sym.flags.contains(.static),
+                      sym.visibility != .private,
+                      let propType = sema.symbols.propertyType(for: candidate)
+                else {
+                    continue
+                }
+                let ownerType = sema.types.make(.classType(ClassType(
+                    classSymbol: current,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                return (
+                    candidate,
+                    resolveMemberPropertyType(
+                        propertyReadType(for: candidate, declaredType: propType, sema: sema) ?? propType,
+                        receiverType: ownerType,
+                        ownerSymbol: current,
+                        sema: sema
+                    )
+                )
+            }
+        }
+        return nil
+    }
+
+    /// Static-scope member of an enclosing classifier, for implicit-receiver
+    /// member lookup: fires only when `receiverType` is a classifier that
+    /// lexically encloses the use site, so an extension or `with` receiver
+    /// does not import the enclosing class's statics ahead of its own tower
+    /// position (KUU-3891).
+    func lookupStaticPropertyInClassScope(
+        named name: InternedString,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        let sema = ctx.sema
+        guard let receiverNominal = nominalSymbol(of: receiverType, types: sema.types) else {
+            return nil
+        }
+        var ancestor = ctx.enclosingClassSymbol
+        var seenAncestors: Set<SymbolID> = []
+        while let current = ancestor, seenAncestors.insert(current).inserted {
+            if current == receiverNominal {
+                return lookupStaticPropertyFromClassifierScope(
+                    named: name, startingAt: receiverNominal, sema: sema
+                )
+            }
+            ancestor = sema.symbols.parentSymbol(for: current)
+        }
+        return nil
+    }
+
+    /// Static-scope member anywhere on the enclosing classifier chain — the
+    /// use-site-level counterpart of `lookupStaticPropertyInClassScope` for
+    /// paths that have already exhausted the implicit receiver tower
+    /// (KUU-3891).
+    func lookupStaticPropertyInEnclosingClassScope(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> (symbol: SymbolID, type: TypeID)? {
+        guard let enclosing = ctx.enclosingClassSymbol else {
+            return nil
+        }
+        return lookupStaticPropertyFromClassifierScope(
+            named: name, startingAt: enclosing, sema: ctx.sema
         )
     }
 

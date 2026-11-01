@@ -69,53 +69,30 @@ extension InlineLoweringPass {
     private func lambdaSymbolRef(
         for expr: KIRExprID,
         arena: KIRArena,
-        callerBody: [KIRInstruction]
+        callerBodyIndex: InlineCallerBodyIndex
     ) -> SymbolID? {
         if case let .symbolRef(symbol)? = arena.expr(expr) {
             return symbol
         }
-        for instruction in callerBody {
-            if case let .constValue(result, .symbolRef(symbol)) = instruction,
-               result == expr
-            {
-                return symbol
-            }
-        }
-        return nil
+        return callerBodyIndex.symbolRefBound(to: expr)
     }
 
     func resolveLambdaFunction(
         argExpr: KIRExprID,
         arena: KIRArena,
         allFunctionsBySymbol: [SymbolID: KIRFunction],
-        callerBody: [KIRInstruction],
+        callerBodyIndex: InlineCallerBodyIndex,
         ctx: KIRContext? = nil
     ) -> KIRFunction? {
         // A callable spliced from its producer must be written exactly once:
         // a slot assigned again — e.g. a tailrec parameter slot rebound each
         // loop iteration — can hold a different lambda by the time the invoke
         // runs, so the dispatch has to stay dynamic (KUU-3222). Mirrors the
-        // register-def notion of `exprIsDefined` (call/copy/thrownResult).
-        var producerCount = 0
-        for instruction in callerBody {
-            let defines: Bool
-            switch instruction {
-            case let .copy(_, to):
-                defines = to == argExpr
-            case let .call(_, _, _, result, _, thrownResult, _, _),
-                 let .virtualCall(_, _, _, _, result, _, thrownResult, _):
-                defines = result == argExpr || thrownResult == argExpr
-            case let .beginNonLocalReturnScope(value, _, function):
-                defines = function != nil && value == argExpr
-            default:
-                defines = InlineExprAliasing.definedResult(in: instruction) == argExpr
-            }
-            if defines {
-                producerCount += 1
-                if producerCount > 1 { return nil }
-            }
-        }
-        if let symbol = lambdaSymbolRef(for: argExpr, arena: arena, callerBody: callerBody),
+        // register-def notion of `InlineDefinedExprIndex`
+        // (call/copy/thrownResult).
+        stats.resolveLambdaCalls += 1
+        guard callerBodyIndex.producerCount(of: argExpr) <= 1 else { return nil }
+        if let symbol = lambdaSymbolRef(for: argExpr, arena: arena, callerBodyIndex: callerBodyIndex),
            let fn = allFunctionsBySymbol[symbol]
         {
             return fn
@@ -125,14 +102,12 @@ extension InlineLoweringPass {
         // rewrites suspend factories to `kk_suspend_function_create`, so both
         // factory forms must be visible here for inline HOF callbacks.
         if let ctx {
-            for instruction in callerBody {
-                guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction,
-                      result == argExpr,
-                      let calleeName = Optional(ctx.interner.resolve(callee)),
-                      calleeName.hasPrefix("kk_function_create")
+            for callSite in callerBodyIndex.callSites(producing: argExpr) {
+                let calleeName = ctx.interner.resolve(callSite.callee)
+                guard calleeName.hasPrefix("kk_function_create")
                       || calleeName == "kk_suspend_function_create",
-                      let first = arguments.first,
-                      let symbol = lambdaSymbolRef(for: first, arena: arena, callerBody: callerBody),
+                      let first = callSite.arguments.first,
+                      let symbol = lambdaSymbolRef(for: first, arena: arena, callerBodyIndex: callerBodyIndex),
                       let fn = allFunctionsBySymbol[symbol]
                 else {
                     continue
@@ -141,8 +116,8 @@ extension InlineLoweringPass {
                 // environment handed to the callable's leading closure
                 // parameter. Preserve it for `lambdaCaptureArguments` when
                 // the factory is expanded.
-                if arguments.count > 1 {
-                    lambdaCaptureArgsByExpr[argExpr] = [arguments[1]]
+                if callSite.arguments.count > 1 {
+                    lambdaCaptureArgsByExpr[argExpr] = [callSite.arguments[1]]
                 }
                 return fn
             }
@@ -161,6 +136,7 @@ extension InlineLoweringPass {
         expansionBudget: InlineExpansionBudget? = nil,
         externalLoopAliases: [InlineLoopLabelAliases] = []
     ) -> InlineExpansion? {
+        stats.lambdaExpansions += 1
         let budget = expansionBudget ?? InlineExpansionBudget(arena: module.arena)
         guard budget.enter(lambdaFunction, arena: module.arena) else { return nil }
         defer { budget.leave() }

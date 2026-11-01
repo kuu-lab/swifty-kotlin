@@ -24,10 +24,10 @@ extension TypeCheckHelpers {
         for interfaceSymbol: SymbolID,
         symbols: SymbolTable
     ) -> SymbolID? {
-        guard let sym = symbols.symbol(interfaceSymbol) else { return nil }
+        guard symbols.symbol(interfaceSymbol) != nil else { return nil }
         var ownNames: Set<InternedString> = []
         var candidates: [SymbolID] = []
-        for childID in symbols.children(ofFQName: sym.fqName) {
+        for childID in symbols.declaredChildren(of: interfaceSymbol) {
             guard let child = symbols.symbol(childID),
                   child.kind == .function || child.kind == .property
             else { continue }

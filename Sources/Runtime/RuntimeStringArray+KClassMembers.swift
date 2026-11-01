@@ -73,6 +73,10 @@ private func ensureBuiltinStringMembers(_ kclassRaw: Int) {
         if property {
             raw = kk_kproperty_stub_create_cached_typed(nameRaw, resultRaw, runtimeMakeStringRaw("kotlin.String.length"), 0, 1, 0)
             _ = kk_callable_ref_tag_kproperty(raw, nameRaw, resultRaw, arguments.count + 1)
+            // KUU-3947: render the builtin member handle like the JVM —
+            // `val kotlin.String.length: kotlin.Int` — not the stub's bare
+            // `val length: kotlin.Int`.
+            __kk_function_set_description(raw, runtimeMakeStringRaw("val kotlin.String.\(name): \(result)"), 0)
             _ = kk_object_register_itable_iface(raw, Int(kProperty1RuntimeTypeID), 1)
             _ = kk_object_register_itable_method(raw, 1, 0, unsafeBitCast(builtinStringLengthGet, to: Int.self))
             _ = kk_object_register_itable_method(raw, 1, 1, unsafeBitCast(builtinStringLengthDelegate, to: Int.self))
@@ -80,6 +84,10 @@ private func ensureBuiltinStringMembers(_ kclassRaw: Int) {
         } else {
             raw = __kk_kfunction_create(nameRaw, arguments.count + 1, resultRaw, flags, 0, 0)
             _ = kk_callable_ref_tag_kfunction(raw, nameRaw, resultRaw, arguments.count + 1, flags)
+            // KUU-3947: builtin member-function handles render like the JVM —
+            // `fun kotlin.String.get(kotlin.Int): kotlin.Char`.
+            let paramTypes = arguments.map { $0.type }.joined(separator: ", ")
+            __kk_function_set_description(raw, runtimeMakeStringRaw("fun kotlin.String.\(name)(\(paramTypes)): \(result)"), 0)
         }
         let receiver = __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw("kotlin.String"), 0, 0, Int(RuntimeTypeTokenEncoding.stringBase), raw)
         runtimeKParameterBox(from: receiver)?.reflectedTypeRaw = makeType("kotlin.String", token: RuntimeTypeTokenEncoding.stringBase)

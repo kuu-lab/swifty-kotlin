@@ -385,7 +385,7 @@ extension CallLowerer {
         let memberCountExpr = arena.appendExpr(.intLiteral(memberCount), type: intType)
         instructions.append(.constValue(result: memberCountExpr, value: .intLiteral(memberCount)))
 
-        let constructorCount = Int64(sema.symbols.children(ofFQName: symbol.fqName).filter { sema.symbols.symbol($0)?.kind == .constructor }.count)
+        let constructorCount = Int64(sema.symbols.declaredChildren(of: classSymbol).filter { sema.symbols.symbol($0)?.kind == .constructor }.count)
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
         instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
 
@@ -573,7 +573,7 @@ extension CallLowerer {
             ))
         }
 
-        for childID in sema.symbols.children(ofFQName: owner.fqName) {
+        for childID in sema.symbols.declaredChildren(of: owner.id) {
             guard let child = sema.symbols.symbol(childID) else { continue }
             switch child.kind {
             case .function:

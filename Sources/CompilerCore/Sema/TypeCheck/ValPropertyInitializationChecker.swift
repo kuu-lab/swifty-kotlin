@@ -56,6 +56,7 @@ final class ValPropertyInitializationChecker {
     private let interner: StringInterner
     private let declarationValidator: DeclarationPositionValidator
     private var checkingConstructorBody = false
+    private var checkingDelegationArguments = false
     private var owner: SymbolID?
     private var fields: Set<SymbolID> = []
     private var backedFields: Set<SymbolID> = []
@@ -64,6 +65,7 @@ final class ValPropertyInitializationChecker {
     private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
     private var reportedReads: Set<ExprID> = []
+    private var reportedDelegationAccess: Set<ExprID> = []
     private var inlineLambdaBodyDepth = 0
     private var deferredLambdaBodyDepth = 0
 
@@ -90,6 +92,7 @@ final class ValPropertyInitializationChecker {
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: decl.secondaryConstructors,
                            parameters: decl.primaryConstructorParams,
+                           superConstructorArgs: decl.superTypeEntries.flatMap(\.constructorArgs),
                            hasPrimaryConstructor: decl.hasPrimaryConstructorSyntax || decl.secondaryConstructors.isEmpty,
                            checksDefiniteInitialization: !isExpectDeclaration && !decl.modifiers.contains(.annotationClass))
                 if sema.symbols.symbol(symbol)?.kind == .enumClass,
@@ -116,6 +119,7 @@ final class ValPropertyInitializationChecker {
             case let .objectDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: [],
+                           superConstructorArgs: decl.superTypeConstructorArgs,
                            checksDefiniteInitialization: !isExpectDeclaration)
             default:
                 break
@@ -126,6 +130,7 @@ final class ValPropertyInitializationChecker {
     private func checkOwner(
         _ symbol: SymbolID, properties: [DeclID], blocks: [FunctionBody],
         order: [ClassBodyInitMember], constructors: [ConstructorDecl], parameters: [ValueParamDecl] = [],
+        superConstructorArgs: [CallArgument] = [],
         hasPrimaryConstructor: Bool = true, checksDefiniteInitialization: Bool = true
     ) {
         owner = symbol
@@ -184,6 +189,13 @@ final class ValPropertyInitializationChecker {
                 return field
             }) : []
         let declaredFields = Set(properties.compactMap { sema.bindings.declSymbol(for: $0) })
+        // Supertype-constructor arguments in the class header or an `object`
+        // declaration evaluate before the instance exists — `this` and its
+        // members are unavailable there (kotlinc: "cannot access '<this>'").
+        // The bundled stdlib is exempt like the other field checks above.
+        if !isBundledStdlibOwner {
+            checkDelegationArguments(superConstructorArgs)
+        }
         // Primary constructor property parameters have already been initialized.
         let parameterNames = Set(parameters.filter(\.isProperty).map(\.name))
         let parameterFields = fields.filter { field in
@@ -251,11 +263,31 @@ final class ValPropertyInitializationChecker {
             reportMissing(required, in: initial)
         }
         for ctor in constructors {
+            // Delegation-call arguments evaluate before the delegated
+            // constructor runs — and before the instance exists — so reading
+            // a member of the class being constructed is invalid regardless
+            // of initialization order.
+            if !isBundledStdlibOwner {
+                checkDelegationArguments(ctor.delegationCall?.args ?? [])
+            }
             if let symbol = constructorSymbol(ctor) {
                 let flow = summary(symbol)
                 if hasNormalInitializationPath { reportMissing(required, in: flow) }
             }
         }
+    }
+
+    /// Walks constructor-delegation arguments (`: this(...)`, `: super(...)`,
+    /// and supertype-constructor arguments) with `checkingDelegationArguments`
+    /// set so member reads/writes report "cannot access '<this>'" instead of
+    /// the initialization-order diagnostic. The scratch flow starts empty:
+    /// even an already-initialized member is unreachable without `this`.
+    private func checkDelegationArguments(_ args: [CallArgument]) {
+        guard !args.isEmpty else { return }
+        checkingDelegationArguments = true
+        var scratch = Flow()
+        for arg in args { walk(arg.expr, flow: &scratch) }
+        checkingDelegationArguments = false
     }
 
     private func isFieldless(_ property: PropertyDecl, symbol: SymbolID) -> Bool {
@@ -293,23 +325,54 @@ final class ValPropertyInitializationChecker {
         }
     }
 
+    /// Whether `receiver` denotes the instance being initialized: an implicit
+    /// access (nil) or `this` whose type is the checked owner.
+    private func isOwnReceiver(_ receiver: ExprID?) -> Bool {
+        guard let receiver else { return true }
+        if case .thisRef = ast.arena.expr(receiver),
+           let type = sema.bindings.exprType(for: receiver),
+           case let .classType(classType) = sema.types.kind(of: type)
+        {
+            return classType.classSymbol == owner
+        }
+        return false
+    }
+
+    /// kotlinc's "cannot access '<this>' before the instance has been
+    /// initialized": constructor-delegation arguments and supertype-constructor
+    /// arguments evaluate before the instance exists, so any access to a
+    /// member of the class being constructed is invalid regardless of
+    /// initialization order. Deferred lambdas and local functions are exempt —
+    /// they run after construction — while inline lambda bodies still execute
+    /// during argument evaluation (`permitsInitialization` stays true there).
+    private func checkPreInstanceAccess(_ id: ExprID, receiver: ExprID?, memberName: InternedString?, permitsInitialization: Bool) {
+        guard permitsInitialization, deferredLambdaBodyDepth == 0 else { return }
+        let field = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap { name in
+            fields.first { sema.symbols.symbol($0)?.name == name }
+        }
+        guard let field,
+              fields.contains(field),
+              isOwnReceiver(receiver),
+              reportedDelegationAccess.insert(id).inserted
+        else { return }
+        sema.diagnostics.error(
+            "KSWIFTK-SEMA-0058",
+            "cannot access '<this>' before the instance has been initialized.",
+            range: ast.arena.exprRange(id)
+        )
+    }
+
     private func write(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: inout Flow, permitsInitialization: Bool) {
+        if checkingDelegationArguments {
+            checkPreInstanceAccess(id, receiver: receiver, memberName: memberName,
+                                   permitsInitialization: permitsInitialization)
+            return
+        }
         guard let field = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap({ name in
             fields.first { sema.symbols.symbol($0)?.name == name }
         }), fields.contains(field),
               let initialized = flow.paths[.normal] else { return }
-        let ownReceiver: Bool
-        if let receiver {
-            if case .thisRef = ast.arena.expr(receiver),
-               let type = sema.bindings.exprType(for: receiver),
-               case let .classType(classType) = sema.types.kind(of: type) {
-                ownReceiver = classType.classSymbol == owner
-            } else {
-                ownReceiver = false
-            }
-        } else {
-            ownReceiver = true
-        }
+        let ownReceiver = isOwnReceiver(receiver)
         let range = ast.arena.exprRange(id)
         let beforeDeclaration = !checkingConstructorBody && (sema.symbols.symbol(field)?.declSite.map { declaration in
             range.map { $0.start.file == declaration.start.file && $0.start.offset < declaration.start.offset } ?? false
@@ -336,6 +399,11 @@ final class ValPropertyInitializationChecker {
     /// initializer code (`permitsInitialization` and outside any lambda) is
     /// checked. Bound callable references (`this::y`) do not read the field.
     private func read(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: Flow, permitsInitialization: Bool) {
+        if checkingDelegationArguments {
+            checkPreInstanceAccess(id, receiver: receiver, memberName: memberName,
+                                   permitsInitialization: permitsInitialization)
+            return
+        }
         guard permitsInitialization,
               deferredLambdaBodyDepth == 0,
               inlineLambdaBodyDepth == 0,
@@ -351,18 +419,7 @@ final class ValPropertyInitializationChecker {
               backedFields.contains(field),
               !initialized.definite.contains(field)
         else { return }
-        let ownReceiver: Bool
-        if let receiver {
-            if case .thisRef = ast.arena.expr(receiver),
-               let type = sema.bindings.exprType(for: receiver),
-               case let .classType(classType) = sema.types.kind(of: type) {
-                ownReceiver = classType.classSymbol == owner
-            } else {
-                ownReceiver = false
-            }
-        } else {
-            ownReceiver = true
-        }
+        let ownReceiver = isOwnReceiver(receiver)
         guard ownReceiver, reportedReads.insert(id).inserted else { return }
         let name = sema.symbols.symbol(field).map { interner.resolve($0.name) } ?? ""
         sema.diagnostics.error(

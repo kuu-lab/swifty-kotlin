@@ -147,7 +147,7 @@ func emitKClassCompanionAndNestedRegistration(
         emitRegistration("__kk_kclass_register_companion", nested: companion)
     }
 
-    for child in sema.symbols.children(ofFQName: symbol.fqName) {
+    for child in sema.symbols.declaredChildren(of: symbol.id) {
         guard let childSym = sema.symbols.symbol(child),
               !childSym.flags.contains(.synthetic)
         else { continue }

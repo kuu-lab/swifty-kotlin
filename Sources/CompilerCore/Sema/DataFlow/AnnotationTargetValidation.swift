@@ -344,7 +344,13 @@ extension DataFlowSemaPhase {
             default:
                 break
             }
+            // `validateTypeAnnotationTargets` only acts on `.annotated` refs,
+            // so skip the enclosing-owner filter+sort entirely when none of
+            // the expression's type references can carry a type annotation —
+            // otherwise every typed expression pays an `owners`-scale pass
+            // (a real quadratic on source-profile stdlib compiles, KUU-3956).
             guard !typeRefs.isEmpty,
+                  typeRefs.contains(where: { typeRefContainsAnnotations($0, arena: ast.arena) }),
                   let range = ast.arena.exprRange(exprID),
                   let file = ast.file(for: range.start.file) else { continue }
             let enclosingOwners = owners.filter { $0.0.contains(range) }.sorted {
@@ -371,6 +377,36 @@ extension DataFlowSemaPhase {
                     resolutionContext: resolutionContext
                 )
             }
+        }
+    }
+
+    /// Mirrors the `validateTypeAnnotationTargets(typeRefID:)` descent so the
+    /// caller can cheaply skip expressions whose type references contain no
+    /// `.annotated` node (which the validator would no-op on anyway).
+    private func typeRefContainsAnnotations(_ typeRefID: TypeRefID, arena: ASTArena) -> Bool {
+        guard let typeRef = arena.typeRef(typeRefID) else {
+            return false
+        }
+        switch typeRef {
+        case let .named(_, args, _):
+            return args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    typeRefContainsAnnotations(inner, arena: arena)
+                case .star:
+                    false
+                }
+            }
+        case let .functionType(_, receiver, params, returnType, _, _):
+            if let receiver, typeRefContainsAnnotations(receiver, arena: arena) {
+                return true
+            }
+            return params.contains { typeRefContainsAnnotations($0, arena: arena) }
+                || typeRefContainsAnnotations(returnType, arena: arena)
+        case let .intersection(parts):
+            return parts.contains { typeRefContainsAnnotations($0, arena: arena) }
+        case .annotated:
+            return true
         }
     }
 

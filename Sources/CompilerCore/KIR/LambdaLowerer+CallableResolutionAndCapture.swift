@@ -428,19 +428,29 @@ extension LambdaLowerer {
     ) -> Bool {
         if let symbolID = sema.bindings.identifierSymbols[exprID],
            let symbol = sema.symbols.symbol(symbolID),
-           symbol.kind == .property || symbol.kind == .field,
-           let parentID = sema.symbols.parentSymbol(for: symbolID),
-           let parent = sema.symbols.symbol(parentID)
+           symbol.kind == .property || symbol.kind == .field
         {
-            let memberOwner: SymbolID?
-            if parent.kind == .class || parent.kind == .object || parent.kind == .interface {
+            let parentID = sema.symbols.parentSymbol(for: symbolID)
+            let parent = parentID.flatMap { sema.symbols.symbol($0) }
+            var memberOwner: SymbolID?
+            if let parentID, let parent,
+               parent.kind == .class || parent.kind == .object || parent.kind == .interface
+            {
                 memberOwner = parentID
             } else if symbol.kind == .property {
                 // Enum-entry body properties are parented by the entry field
                 // in Sema, but their implicit receiver is the enum value.
-                memberOwner = driver.callLowerer.enumClassOwnerSymbol(forEntryField: parentID, sema: sema)
-            } else {
-                memberOwner = nil
+                memberOwner = parentID.flatMap {
+                    driver.callLowerer.enumClassOwnerSymbol(forEntryField: $0, sema: sema)
+                }
+                    // A package-level extension property has no member owner,
+                    // but the tower entry it bound to is the receiver a
+                    // receiver-typed lambda must capture — treat the declared
+                    // extension receiver's nominal as its effective owner
+                    // (KUU-3914).
+                    ?? sema.symbols.extensionPropertyReceiverType(for: symbolID).flatMap {
+                        nominalSymbol(for: sema.types.makeNonNullable($0), types: sema.types)
+                    }
             }
             if let memberOwner,
                excludingReceiverType == nil || memberNeedsOuterReceiver(

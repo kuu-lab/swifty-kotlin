@@ -235,6 +235,10 @@ public struct InterfaceDecl: Codable {
     public let isFunInterface: Bool
     public let typeParams: [TypeParamDecl]
     public let superTypes: [TypeRefID]
+    /// Full supertype entries, mirroring `ClassDecl.superTypeEntries`. Kotlin
+    /// prohibits `by`-delegation on interfaces, but the entries are retained
+    /// so sema can report the `I by d` specifier instead of dropping it.
+    public let superTypeEntries: [SuperTypeEntry]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let memberFunctions: [DeclID]
     public let memberProperties: [DeclID]
@@ -253,6 +257,7 @@ public struct InterfaceDecl: Codable {
         isFunInterface: Bool = false,
         typeParams: [TypeParamDecl] = [],
         superTypes: [TypeRefID] = [],
+        superTypeEntries: [SuperTypeEntry] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
         memberFunctions: [DeclID] = [],
         memberProperties: [DeclID] = [],
@@ -268,6 +273,9 @@ public struct InterfaceDecl: Codable {
         self.isFunInterface = isFunInterface
         self.typeParams = typeParams
         self.superTypes = superTypes
+        self.superTypeEntries = superTypeEntries.isEmpty
+            ? superTypes.map { SuperTypeEntry(typeRef: $0) }
+            : superTypeEntries
         self.nestedTypeAliases = nestedTypeAliases
         self.memberFunctions = memberFunctions
         self.memberProperties = memberProperties
@@ -275,6 +283,37 @@ public struct InterfaceDecl: Codable {
         self.nestedObjects = nestedObjects
         self.companionObject = companionObject
         self.companionBlockObject = companionBlockObject
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case range, name, modifiers, annotations, isFunInterface, typeParams
+        case superTypes, superTypeEntries, nestedTypeAliases
+        case memberFunctions, memberProperties, nestedClasses, nestedObjects
+        case companionObject, companionBlockObject
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        range = try container.decode(SourceRange.self, forKey: .range)
+        name = try container.decode(InternedString.self, forKey: .name)
+        modifiers = try container.decode(Modifiers.self, forKey: .modifiers)
+        annotations = try container.decode([AnnotationNode].self, forKey: .annotations)
+        isFunInterface = try container.decodeIfPresent(Bool.self, forKey: .isFunInterface) ?? false
+        typeParams = try container.decode([TypeParamDecl].self, forKey: .typeParams)
+        superTypes = try container.decode([TypeRefID].self, forKey: .superTypes)
+        // Payloads written before `superTypeEntries` existed decode it as
+        // absent and rebuild plain entries from `superTypes`.
+        let decodedEntries = try container.decodeIfPresent([SuperTypeEntry].self, forKey: .superTypeEntries) ?? []
+        superTypeEntries = decodedEntries.isEmpty
+            ? superTypes.map { SuperTypeEntry(typeRef: $0) }
+            : decodedEntries
+        nestedTypeAliases = try container.decode([TypeAliasDecl].self, forKey: .nestedTypeAliases)
+        memberFunctions = try container.decode([DeclID].self, forKey: .memberFunctions)
+        memberProperties = try container.decode([DeclID].self, forKey: .memberProperties)
+        nestedClasses = try container.decode([DeclID].self, forKey: .nestedClasses)
+        nestedObjects = try container.decode([DeclID].self, forKey: .nestedObjects)
+        companionObject = try container.decodeIfPresent(DeclID.self, forKey: .companionObject)
+        companionBlockObject = try container.decodeIfPresent(DeclID.self, forKey: .companionBlockObject)
     }
 }
 
