@@ -118,8 +118,40 @@ extension CallTypeChecker {
                     }
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 }
-                let resolvedArgTypes = args.map { arg in
+                var resolvedArgTypes = args.map { arg in
                     sema.bindings.exprType(for: arg.expr) ?? sema.types.anyType
+                }
+                // KUU-4125: the placeholder `(Char) -> Any?` expected type
+                // above pins the bound lambda type's return to `Any?`.
+                // Feeding that to overload resolution gives map's `R` a
+                // lower bound of `Any?` that conflicts with the upper bound
+                // coming from an expected `List<R>` (Conflicting bounds,
+                // TYPE-0001). Substitute the lambda body's inferred return
+                // type so `R` unifies the way regular resolution does. When
+                // the body really is `Any?` the refinement is a no-op, so a
+                // genuine `List<Any?>`-vs-`List<X>` mismatch still surfaces.
+                if stringHOFCalleeStr == "map" || stringHOFCalleeStr == "mapIndexed"
+                    || stringHOFCalleeStr == "mapNotNull",
+                   case let .functionType(boundFunctionType) = sema.types.kind(of: resolvedArgTypes[0]),
+                   boundFunctionType.returnType == sema.types.nullableAnyType
+                {
+                    let inferredReturnType = inferredLambdaReturnType(
+                        argExpr: args[0].expr,
+                        ast: ast,
+                        sema: sema
+                    )
+                    if inferredReturnType != boundFunctionType.returnType {
+                        resolvedArgTypes[0] = sema.types.make(.functionType(FunctionType(
+                            contextReceivers: boundFunctionType.contextReceivers,
+                            receiver: boundFunctionType.receiver,
+                            params: boundFunctionType.params,
+                            returnType: inferredReturnType,
+                            isSuspend: boundFunctionType.isSuspend,
+                            isCallableReference: boundFunctionType.isCallableReference,
+                            nullability: boundFunctionType.nullability,
+                            throws: boundFunctionType.`throws`
+                        )))
+                    }
                 }
                 let stringMapResultElementType: TypeID? = if explicitTypeArgs.count <= 1 {
                     switch stringHOFCalleeStr {
