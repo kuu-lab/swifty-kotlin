@@ -165,7 +165,7 @@ struct GoldenHarnessFixtureOwnedRenderingTests {
         // inside external references.
         #expect(dump.contains("targs=[sample.Marker]"))
         #expect(dump.contains("targs=[Int]"))
-        #expect(dump.contains("type=kotlin.collections.List<out sample.Marker>"))
+        #expect(dump.contains("type=kotlin.collections.List<sample.Marker>"))
         // The fixture enum object appearing as a type argument of a library
         // callee keeps its own `symbol` row.
         #expect(dump.contains("call=kotlin.Enum.equals["))

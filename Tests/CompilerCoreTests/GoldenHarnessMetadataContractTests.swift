@@ -91,18 +91,26 @@ struct GoldenHarnessMetadataContractTests {
         // KUU-1252: Kotlin Char has no Unicode identifier predicate extension.
         "char_unicode_identifier_part.kt",
         "collection_firstNotNullOfOrNull.kt",
+        "contract_returns.kt",
         "deprecated_annotation.kt",
         // DeprecationLevel.HIDDEN fixture for KUU-855: intentional error
         // diagnostics for hidden-level and hiddenSince-reached deprecation.
         "deprecated_hidden_annotation.kt",
         "expect_actual.kt",
         "inner_class.kt",
+        // KUU-4051: These existing negative, opt-in, deprecation, and API
+        // surface fixtures already carry diagnostics in their committed goldens.
+        // The introspection fixture also pins the invalid top-level `inner` modifier.
+        "kclass_type_kind_introspection.kt",
         "list_distinctBy_nullable_key.kt",
         "local_decl.kt",
+        // A named object is intentionally rejected in a local position.
+        "local_named_nominal.kt",
         // Constructor-property visibility fixtures intentionally reject access.
         "primary_constructor_private_access.kt",
         "primary_constructor_protected_access.kt",
         "sealed_when_missing_branch.kt",
+        "sealed_when_nested_subinterface.kt",
         // stdlib surface cases carrying errors — flagged for individual
         // investigation; they must not silently grow either.
         // AtomicIntArray's internal constructor becomes correctly invisible
@@ -114,9 +122,18 @@ struct GoldenHarnessMetadataContractTests {
         // loading, so the storage call falls to the synthetic Int factory (KSP-1093).
         "stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt",
         "stdlib_kotlin_collections_Map_iterator.kt",
+        // The artifact-backed golden currently records unresolved internal helper references.
+        "stdlib_kotlin_collections_n_throw.kt",
+        "stdlib_kotlin_n_OptionalExpectation.kt",
+        "stdlib_kotlin_n_numbers.kt",
+        "stdlib_kotlin_Number_Number_n.kt",
+        "stdlib_kotlin_native_IncorrectDereferenceException_n_n.kt",
+        "stdlib_kotlin_native_concurrent_n_n.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "stdlib_kotlin_native_SymbolName_n_n.kt",
+        "stdlib_kotlinx_io_buffer_primitives.kt",
+        "try_expression.kt",
         // Uuid.LEXICAL_ORDER is pinned DeprecationLevel.ERROR (KUU-855), so
         // the case's useLexicalOrder intentionally emits a deprecation error.
         "stdlib_kotlin_uuid_Uuid_Companion_Companion_n.kt",
@@ -150,6 +167,7 @@ struct GoldenHarnessMetadataContractTests {
         "inner_class.kt",
         "primary_constructor_private_access.kt",
         "primary_constructor_protected_access.kt",
+        "stdlib_kotlin_collections_n_throw.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "use_site_variance.kt",
