@@ -5,7 +5,7 @@ public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
     let box = RuntimeObjectBox(length: length, classID: Int64(classId))
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     let key = UInt(bitPattern: opaque)
-    let threadID = ObjectIdentifier(Thread.current)
+    let threadID = runtimeGCCurrentThreadID()
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(key)
         state.managedObjectPointers.insert(key)
