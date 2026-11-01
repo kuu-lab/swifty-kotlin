@@ -31,6 +31,7 @@ struct LoweringPassRegressionTests {
         case anyHashCode = "kk_any_hashCode"
         case anyMemberToString = "kk_any_member_to_string"
         case anyToString = "kk_any_to_string"
+        case anyToStringThrowing = "__kk_any_to_string_throwing"
         case arrayGet = "kk_array_get"
         case arrayGetInbounds = "kk_array_get_inbounds"
         case arrayNew = "kk_array_new"
