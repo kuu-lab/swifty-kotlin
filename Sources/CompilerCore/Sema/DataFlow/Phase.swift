@@ -1,10 +1,38 @@
 import Foundation
 import Dispatch
 
+/// Cache key for `declaredSupertypeInstanceTypes` fresh-start calls
+/// (KUU-4013). The transitive supertype-instance closure only depends on the
+/// owner, the requesting context's package/imports, and the symbol-table
+/// shape — captured by the monotonic symbol count, which any registration or
+/// lazy materialization bumps — so a same-key hit replays identical work.
+struct HeaderSupertypeClosureKey: Hashable {
+    struct ImportKey: Hashable {
+        var path: [InternedString]
+        var alias: InternedString?
+        var isWildcard: Bool
+    }
+
+    var ownerID: SymbolID
+    var ownerFQName: [InternedString]
+    var packageFQName: [InternedString]
+    var imports: [ImportKey]
+    var symbolCount: Int
+}
+
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"
 
     private let capturesImportedStdlibSnapshot: Bool
+
+    /// KUU-4013: memoized transitive supertype-instance closures keyed by
+    /// ``HeaderSupertypeClosureKey``, plus the set of closures still being
+    /// computed. Resolving a written supertype clause can re-enter the same
+    /// owner closure through unqualified-name recovery; the in-progress set
+    /// turns that cyclic descent into an empty contribution instead of an
+    /// exponential re-enumeration.
+    var declaredSupertypeClosureMemo: [HeaderSupertypeClosureKey: [TypeID]] = [:]
+    var declaredSupertypeClosuresInProgress: Set<HeaderSupertypeClosureKey> = []
 
     func builtinTypeNames(interner: StringInterner) -> BuiltinTypeNames {
         BuiltinTypeNames(interner: interner)

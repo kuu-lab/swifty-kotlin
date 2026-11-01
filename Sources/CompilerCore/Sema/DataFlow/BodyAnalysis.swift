@@ -561,50 +561,59 @@ extension DataFlowSemaPhase {
         // prefix contributes. Supertype edges are not bound yet at header
         // time, so the written supertype clauses are resolved instead; only
         // class-kind owners qualify, matching Kotlin's superclass-only rule.
-        let inheritedNestedParentIDs: Set<SymbolID> = {
-            guard let relativeOwnerFQName,
-                  recursionDepth < DataFlowSemaPhase.maxStructuralRecursionDepth
-            else { return [] }
-            var ownerPath = relativeOwnerFQName
-            var result: Set<SymbolID> = []
-            while !ownerPath.isEmpty {
-                defer { ownerPath.removeLast() }
-                guard let ownerID = symbols.lookupAll(fqName: ownerPath)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
-                else { continue }
-                for instanceType in declaredSupertypeInstanceTypes(
-                    of: ownerID,
-                    ownerFQName: ownerPath,
-                    ast: ast,
-                    symbols: symbols,
-                    types: types,
-                    interner: interner,
-                    currentPackageFQName: currentPackageFQName,
-                    imports: imports,
-                    visited: [ownerID],
-                    depth: recursionDepth + 1
-                ) {
-                    guard case let .classType(classType) = types.kind(of: types.makeNonNullable(instanceType)),
-                          symbols.symbol(classType.classSymbol)?.kind == .class
+        // The set is consulted only for candidates with a non-package parent,
+        // so compute it lazily: a short name with no same-named nominal must
+        // not pay for the transitive supertype walk at all (KUU-4013).
+        var inheritedNestedParentIDsStorage: Set<SymbolID>?
+        func inheritedNestedParentIDs() -> Set<SymbolID> {
+            if let inheritedNestedParentIDsStorage { return inheritedNestedParentIDsStorage }
+            let computed: Set<SymbolID> = {
+                guard let relativeOwnerFQName,
+                      recursionDepth < DataFlowSemaPhase.maxStructuralRecursionDepth
+                else { return [] }
+                var ownerPath = relativeOwnerFQName
+                var result: Set<SymbolID> = []
+                while !ownerPath.isEmpty {
+                    defer { ownerPath.removeLast() }
+                    guard let ownerID = symbols.lookupAll(fqName: ownerPath)
+                        .compactMap({ symbols.symbol($0) })
+                        .first(where: { isNominalTypeSymbol($0.kind) })?.id
                     else { continue }
-                    result.insert(classType.classSymbol)
+                    for instanceType in declaredSupertypeInstanceTypes(
+                        of: ownerID,
+                        ownerFQName: ownerPath,
+                        ast: ast,
+                        symbols: symbols,
+                        types: types,
+                        interner: interner,
+                        currentPackageFQName: currentPackageFQName,
+                        imports: imports,
+                        visited: [ownerID],
+                        depth: recursionDepth + 1
+                    ) {
+                        guard case let .classType(classType) = types.kind(of: types.makeNonNullable(instanceType)),
+                              symbols.symbol(classType.classSymbol)?.kind == .class
+                        else { continue }
+                        result.insert(classType.classSymbol)
+                    }
                 }
-            }
-            return result
-        }()
+                return result
+            }()
+            inheritedNestedParentIDsStorage = computed
+            return computed
+        }
         return symbols.lookupByShortName(shortName).compactMap { symbols.symbol($0) }.filter { symbol in
             guard isNominalTypeSymbol(symbol.kind) else { return false }
             // kotlin.reflect declarations require an explicit import.
             guard !symbol.fqName.starts(with: kotlinReflectPackage) else { return false }
             let parentID = symbols.parentSymbol(for: symbol.id)
             // The classifier legitimately visible through an enclosing
-            // owner's superclass chain is in scope regardless of import shape.
-            if let parentID, inheritedNestedParentIDs.contains(parentID) { return true }
-            if let parentID,
-               symbols.symbol(parentID)?.kind != .package
-            {
-                return false
+            // owner's superclass chain is in scope regardless of import
+            // shape. Package parents can never be in the set (it holds only
+            // class-kind symbols), so this also skips forcing the lazy
+            // computation for package-parented candidates entirely.
+            if let parentID, symbols.symbol(parentID)?.kind != .package {
+                return inheritedNestedParentIDs().contains(parentID)
             }
             // Wildcard imports must not widen short-name recovery beyond the
             // current/default/imported package paths (KUU-3295). Other header
@@ -743,6 +752,43 @@ extension DataFlowSemaPhase {
         else {
             return []
         }
+        var closureKey: HeaderSupertypeClosureKey?
+        if visited == [ownerID] {
+            // Fresh-start queries (the only shape the lexical-owner walks
+            // issue) replay the same transitive closure. The memo must not
+            // outlive the symbol-table state it was computed against, so the
+            // monotonic symbol count is part of the key (KUU-4013).
+            let key = HeaderSupertypeClosureKey(
+                ownerID: ownerID,
+                ownerFQName: ownerFQName,
+                packageFQName: currentPackageFQName ?? [],
+                imports: imports.map {
+                    HeaderSupertypeClosureKey.ImportKey(
+                        path: $0.path, alias: $0.alias, isWildcard: $0.isWildcard
+                    )
+                },
+                symbolCount: symbols.count
+            )
+            if let memoized = declaredSupertypeClosureMemo[key] {
+                return memoized
+            }
+            // An unresolved supertype clause name re-enters this owner's own
+            // closure: unqualified-name recovery probes the owner chain for
+            // inherited nested classifiers, which enumerates the same
+            // supertypes again. Recursion depth only bounds the descent —
+            // every level redoes the same enumeration, which is the
+            // KUU-4013 exponential. A still-open closure is a cyclic
+            // dependency: its contribution is empty by definition.
+            guard declaredSupertypeClosuresInProgress.insert(key).inserted else {
+                return []
+            }
+            closureKey = key
+        }
+        defer {
+            if let closureKey {
+                declaredSupertypeClosuresInProgress.remove(closureKey)
+            }
+        }
         let superTypeRefs: [TypeRefID]
         switch decl {
         case let .classDecl(classDecl):
@@ -794,6 +840,9 @@ extension DataFlowSemaPhase {
                 visited: visited,
                 depth: depth + 1
             ))
+        }
+        if let closureKey {
+            declaredSupertypeClosureMemo[closureKey] = instanceTypes
         }
         return instanceTypes
     }
