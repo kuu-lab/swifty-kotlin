@@ -10,7 +10,8 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
-        safeCall: Bool
+        safeCall: Bool,
+        receiverIsConditionallyEvaluated: Bool?
     ) -> TypeID {
         ctx.sema.types.attribution?.increment(.callSites)
         let request = MemberCallInferenceRequest(
@@ -47,8 +48,7 @@ extension CallTypeChecker {
         // the `!!` on the conditional path so it cannot leak to following
         // code when the whole call was already conditional (KUU-3966).
         var receiverCtx = ctx
-        receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
-        if !safeCall, case let .nameRef(name, nameRange) = ctx.ast.arena.expr(receiverID) {
+        receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated        if !safeCall, case let .nameRef(name, nameRange) = ctx.ast.arena.expr(receiverID) {
             receiverType = driver.exprChecker.inferNameRefExpr(
                 receiverID, name: name, nameRange: nameRange, ctx: receiverCtx,
                 locals: &locals, isQualifier: true
