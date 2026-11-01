@@ -906,6 +906,31 @@ struct DataFlowAndSemaRegressionTests {
         }
     }
 
+    // kotlinc exempts a @LowPriorityInOverloadResolution constructor or
+    // factory function from that clash (KUU-2295 diff case).
+    @Test(arguments: [
+        """
+        class Baz
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        constructor(val s: String)
+        fun Baz(s: String): Baz = Baz(s + "!")
+        """,
+        """
+        class Baz(val s: String)
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        fun Baz(s: String): Baz = Baz(s + "!")
+        """,
+    ])
+    func testLowPriorityConstructorOrFunctionDoesNotConflict(source: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0001" })
+        }
+    }
+
     // Regression for KSP-663: builtin companion types remain resolvable in extensions.
     @Test
     func testBuiltinCharCompanionTypeResolvesInExtensionSignature() throws {
