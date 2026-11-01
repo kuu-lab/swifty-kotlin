@@ -287,14 +287,33 @@ public func __kk_string_builder_insert_char_sequence(
         return sbRaw
     }
 
-    // `runtimeStringOrBuilderUTF16Units` shares the builder's live buffer as an
-    // array value; copy-on-write turns it into a stable snapshot once the
-    // destination mutates, so a self-referential CharSequence inserts the
-    // pre-insert contents (JVM inserts `toString()` semantics).
-    let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
-        ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
-    sb.ensureCapacity(sb.units.count + inserted.count)
-    sb.units.insert(contentsOf: inserted, at: index)
+    guard let sourceBuilder = runtimeStringBuilderBox(from: valueRaw) else {
+        let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+            ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+        sb.ensureCapacity(sb.units.count + inserted.count)
+        sb.units.insert(contentsOf: inserted, at: index)
+        return sbRaw
+    }
+
+    let sourceLength = sourceBuilder.units.count
+    sb.ensureCapacity(sb.units.count + sourceLength)
+    if sourceBuilder === sb {
+        // Java shifts the destination tail before reading a self-referential
+        // CharSequence. Keep that overlap behavior by reading the working buffer
+        // after the shift while filling the inserted window.
+        let originalLength = sb.units.count
+        sb.units.append(contentsOf: repeatElement(0, count: sourceLength))
+        if index < originalLength {
+            for sourceIndex in stride(from: originalLength - 1, through: index, by: -1) {
+                sb.units[sourceIndex + sourceLength] = sb.units[sourceIndex]
+            }
+        }
+        for offset in 0 ..< sourceLength {
+            sb.units[index + offset] = sb.units[offset]
+        }
+    } else {
+        sb.units.insert(contentsOf: sourceBuilder.units, at: index)
+    }
     return sbRaw
 }
 
