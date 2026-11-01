@@ -164,5 +164,49 @@ struct CallableRefSamConversionTests {
             "SAM constructor with an incompatible function value should fail type-checking"
         )
     }
+
+    /// KUU-2427: an argument that already implements a `fun interface` with a
+    /// function supertype passes through unchanged — marking it as a SAM
+    /// conversion makes KIR wrap it in a fresh thunk and breaks `===`. A plain
+    /// function value of the same shape still converts.
+    @Test func testFunctionSupertypeSamSubtypeArgumentIsNotConverted() throws {
+        let source = """
+        fun interface Foo : () -> Int
+
+        fun id(foo: Foo): Any = foo
+
+        fun main() {
+            val already = object : Foo {
+                override fun invoke(): Int = 42
+            }
+            val function: () -> Int = { 1 }
+            id(already)
+            id(function)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        var argumentsByName: [String: ExprID] = [:]
+        for index in ast.arena.exprs.indices {
+            let call = ExprID(rawValue: Int32(index))
+            guard case let .call(callee, _, arguments, _)? = ast.arena.expr(call),
+                  case let .nameRef(calleeName, _)? = ast.arena.expr(callee),
+                  ctx.interner.resolve(calleeName) == "id",
+                  let argument = arguments.first,
+                  case let .nameRef(argumentName, _)? = ast.arena.expr(argument.expr)
+            else { continue }
+            argumentsByName[ctx.interner.resolve(argumentName)] = argument.expr
+        }
+        let already = try #require(argumentsByName["already"])
+        let function = try #require(argumentsByName["function"])
+        #expect(!sema.bindings.isSamConversion(already))
+        #expect(sema.bindings.isSamConversion(function))
+    }
 }
 #endif
