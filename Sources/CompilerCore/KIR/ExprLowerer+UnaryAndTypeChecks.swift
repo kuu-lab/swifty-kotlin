@@ -508,7 +508,19 @@ extension ExprLowerer {
            sameNominalCastClass(operandType, targetType, sema: sema),
            !operandCrossesErasedBoundary
         {
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
+            // `v? as V` keeps the operand's `V?` type: kotlinc lets null
+            // through the box checkcast and elides the unbox/re-box pair, so
+            // the value must stay in its box form. Typing the copy as `V`
+            // would unbox a null `V?` into a null payload, which a
+            // nullable-underlying `V` re-boxes as `V(null)` on the way back.
+            let keepsNullableValueClassBox = !isSafe
+                && castTypeRequiresNonNull(targetType, sema: sema)
+                && !castTypeRequiresNonNull(operandType, sema: sema)
+                && isValueClassCastTarget(targetType, sema: sema)
+            let resultType = keepsNullableValueClassBox
+                ? operandType
+                : (boundType ?? sema.types.anyType)
+            let result = arena.appendTemporary(type: resultType)
             if !isSafe,
                castTypeRequiresNonNull(targetType, sema: sema),
                !castTypeRequiresNonNull(operandType, sema: sema),
