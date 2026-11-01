@@ -141,6 +141,7 @@ extension CallLowerer {
         "__kk_output_stream_flush",
         "__kk_reader_copyTo",
         "__kk_reader_copyTo_default",
+        "__kk_reader_read_range",
         "kk_iterator_next",
         "kk_list_iterator_next",
         "kk_array_of_nulls",

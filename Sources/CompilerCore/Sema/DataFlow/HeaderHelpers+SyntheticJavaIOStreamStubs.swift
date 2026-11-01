@@ -409,6 +409,33 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
         types.setNominalDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
 
+        // `java.io.Reader` declares `read(CharArray, Int, Int)` abstract — the
+        // char-source contract every concrete reader implements (JVM parity).
+        // It is the class's sole virtual member, so every subclass override
+        // lands in vtable slot 0 — `RuntimeIoStreamVTableSlot.readerReadChars`
+        // on box handles and the slot `RuntimeKotlinReaderCharSource` uses to
+        // pull chars from Kotlin-source Reader objects (StringReader, user
+        // subclasses — KUU-4031).
+        let charArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("CharArray")]
+        if let charArraySymbol = symbols.lookup(fqName: charArrayFQName) {
+            let charArrayType = types.make(.classType(ClassType(
+                classSymbol: charArraySymbol, args: [], nullability: .nonNull
+            )))
+            let readerMembers = fileMemberRows(of: readerSymbol, type: readerType, symbols: symbols, interner: interner)
+            readerMembers.fn(
+                "read",
+                "__kk_reader_read_range",
+                [("buffer", charArrayType), ("offset", intType), ("length", intType)],
+                ret: intType
+            )
+            let readRangeFQName: [InternedString] = (symbols.symbol(readerSymbol)?.fqName ?? [])
+                + [interner.intern("read")]
+            for candidate in symbols.lookupAll(fqName: readRangeFQName)
+            where symbols.externalLinkName(for: candidate) == "__kk_reader_read_range" {
+                symbols.insertFlags([.abstractType, .openType], for: candidate)
+            }
+        }
+
         bufferedReaderMembers.fn("read", "__kk_buffered_reader_read", ret: intType)
         bufferedReaderMembers.fn("ready", "__kk_buffered_reader_ready", ret: types.booleanType)
 

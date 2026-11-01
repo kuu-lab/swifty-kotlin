@@ -75,11 +75,24 @@ private let ioStringWriterToStringEntry: @convention(c) (Int, UnsafeMutablePoint
     return __kk_string_writer_to_string(raw)
 }
 
+/// Reader-box vtable entry for `java.io.Reader.read(CharArray, Int, Int)` —
+/// forwards to `__kk_reader_read_range`, which resolves the underlying
+/// `RuntimeReaderCharSource` (box fast path or Kotlin-reader vtable source).
+private let ioReaderReadRangeEntry: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    raw, bufferRaw, offset, count, thrown in
+    __kk_reader_read_range(raw, bufferRaw, offset, count, thrown)
+}
+
 /// These slots follow the synthetic java.io stream layouts in
 /// `HeaderHelpers+SyntheticJavaIOStreamStubs.swift`. Keep them aligned with
 /// those declarations: runtime stream boxes have no generated KTypeInfo
 /// vtable, so each allocation installs its bridge implementations directly.
-private enum RuntimeIoStreamVTableSlot {
+enum RuntimeIoStreamVTableSlot {
+    // `java.io.Reader` declares `read(CharArray, Int, Int)` as its sole
+    // virtual member — slot 0 in every subclass vtable (BufferedReader /
+    // InputStreamReader / StringReader / user subclasses).
+    static let readerReadChars = 0
+
     static let inputRead = 1
     static let inputAvailable = 2
     static let inputSkip = 3
@@ -137,6 +150,15 @@ func runtimeRegisterJavaReader(_ objectRaw: Int, fqName: String, parentFQName: S
         )
         _ = kk_object_register_itable_method(objectRaw, interfaceSlot, 0, closeEntry)
     }
+    // Install `Reader.read(CharArray, Int, Int)` (vtable slot
+    // `readerReadChars`) so `reader.read(buf, off, len)` on a Reader-typed
+    // receiver reaches the box through the same entry Kotlin subclasses
+    // dispatch (KUU-4031).
+    _ = kk_object_register_vtable_method(
+        objectRaw,
+        RuntimeIoStreamVTableSlot.readerReadChars,
+        unsafeBitCast(ioReaderReadRangeEntry, to: Int.self)
+    )
 }
 
 func runtimeRegisterJavaWriter(

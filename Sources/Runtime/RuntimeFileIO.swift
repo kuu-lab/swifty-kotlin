@@ -416,6 +416,29 @@ private func runtimeBufferedReaderBox(from raw: Int) -> RuntimeBufferedReaderBox
     return tryCast(ptr, to: RuntimeBufferedReaderBox.self)
 }
 
+/// Non-box `java.io.Reader` handles are Kotlin-source subclass objects
+/// (StringReader, user-defined subclasses). Their nominal typeID + recorded
+/// `typeParents` ancestry mark them as `java.io.Reader` assignable, so a
+/// vtable-dispatching `RuntimeKotlinReaderCharSource` can read from them
+/// (KUU-4031).
+func runtimeKotlinReaderCharSource(from raw: Int) -> RuntimeKotlinReaderCharSource? {
+    guard raw != runtimeNullSentinelInt,
+          let typeID = runtimeObjectTypeID(rawValue: raw),
+          runtimeIsAssignable(
+              sourceTypeID: typeID,
+              targetTypeID: runtimeStableNominalTypeID(fqName: "java.io.Reader")
+          )
+    else { return nil }
+    return RuntimeKotlinReaderCharSource(readerRaw: raw)
+}
+
+/// Resolves any `java.io.Reader` handle — a reader box or a Kotlin-source
+/// subclass object — to the char source the reader bridges consume.
+func runtimeReaderCharSource(from raw: Int) -> (any RuntimeReaderCharSource)? {
+    if let reader = runtimeBufferedReaderBox(from: raw) { return reader }
+    return runtimeKotlinReaderCharSource(from: raw)
+}
+
 private func runtimeInputStreamBox(from raw: Int) -> RuntimeInputStreamBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeInputStreamBox.self)
@@ -434,9 +457,12 @@ public func __kk_input_stream_reader_new(_ streamRaw: Int) -> Int {
     return readerRaw
 }
 
+/// Accepts any `java.io.Reader` handle — a reader box (`BufferedReader`,
+/// `InputStreamReader`) or a Kotlin-source subclass object such as
+/// `StringReader` / a user `Reader` subclass (KUU-4031).
 @_cdecl("__kk_buffered_reader_new")
 public func __kk_buffered_reader_new(_ readerRaw: Int) -> Int {
-    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+    guard let reader = runtimeReaderCharSource(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_new received invalid Reader handle")
     }
     let bufferedReaderRaw = registerRuntimeObject(RuntimeBufferedReaderBox(reader: reader))
@@ -640,10 +666,57 @@ public func __kk_buffered_reader_forEachLine(
 // so the only ABI argument is the receiver handle — no `outThrown` parameter.
 @_cdecl("__kk_reader_readText")
 public func __kk_reader_readText(_ readerRaw: Int) -> Int {
-    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+    guard let reader = runtimeReaderCharSource(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_readText received invalid Reader handle")
     }
     return runtimeMakeUTF8StringRaw(reader.readText())
+}
+
+/// `java.io.Reader.read(CharArray, Int, Int)` — the class's sole virtual
+/// member (vtable slot `RuntimeIoStreamVTableSlot.readerReadChars` on box
+/// handles; source subclasses land their override in the same slot). Reads
+/// UTF-16 code units through the resolved `RuntimeReaderCharSource`, so
+/// Kotlin-reader receivers (StringReader, user subclasses) behave exactly
+/// like their source-level `read` implementation.
+@_cdecl("__kk_reader_read_range")
+public func __kk_reader_read_range(
+    _ readerRaw: Int,
+    _ bufferRaw: Int,
+    _ offsetRaw: Int,
+    _ lengthRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let source = runtimeReaderCharSource(from: readerRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_read_range received invalid Reader handle")
+    }
+    guard let array = runtimeArrayBox(from: bufferRaw) else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected CharArray buffer")
+        return -1
+    }
+    let offset = offsetRaw
+    let length = lengthRaw
+    guard offset >= 0, length >= 0, offset <= array.count - length else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "offset=\(offset) length=\(length) size=\(array.count)"
+        )
+        return -1
+    }
+    if length == 0 { return 0 }
+    var copied = 0
+    while copied < length {
+        let value = source.read()
+        if value < 0 { break }
+        array[offset + copied] = value
+        copied += 1
+    }
+    if copied == 0 {
+        if let kotlinSource = source as? RuntimeKotlinReaderCharSource, kotlinSource.thrown != 0 {
+            outThrown?.pointee = kotlinSource.thrown
+        }
+        return -1
+    }
+    return copied
 }
 
 //
@@ -1282,10 +1355,11 @@ private let kReaderCopyToDefaultBufferSize: Int = 16 * 1024
 ///   - A non-positive `bufferSize` raises `IllegalArgumentException` to match
 ///     the behaviour of `kotlin.io.copyTo` on the JVM.
 ///
-/// Concrete `Reader` / `Writer` boxes currently supported by the runtime are
-/// `RuntimeBufferedReaderBox` and `RuntimeBufferedWriterBox` — the only
-/// character-stream types modelled in the synthetic stubs.  Passing any other
-/// box panics with a clear diagnostic so test failures surface immediately.
+/// `Reader` handles are any `RuntimeReaderCharSource` — reader boxes plus
+/// Kotlin-source `java.io.Reader` subclasses (StringReader, user subclasses,
+/// KUU-4031) — and `Writer` handles are any `RuntimeJavaWriter` (`BufferedWriter`,
+/// `StringWriter`). Passing any other box panics with a clear diagnostic so
+/// test failures surface immediately.
 @_cdecl("__kk_reader_copyTo")
 public func __kk_reader_copyTo(
     _ readerRaw: Int,
@@ -1295,10 +1369,11 @@ public func __kk_reader_copyTo(
 ) -> Int {
     outThrown?.pointee = 0
 
-    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+    guard let source = runtimeReaderCharSource(from: readerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Reader handle")
     }
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
+    guard let writer = runtimeBufferedWriterBox(from: writerRaw).map({ $0 as any RuntimeJavaWriter })
+        ?? runtimeStringWriterBox(from: writerRaw).map({ $0 as any RuntimeJavaWriter }) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Writer handle")
     }
 
@@ -1309,12 +1384,54 @@ public func __kk_reader_copyTo(
         return kk_box_long(0)
     }
 
+    if let kotlinSource = source as? RuntimeKotlinReaderCharSource {
+        // UTF-16-unit path — keeps surrogate pairs together and preserves
+        // the internal lone-surrogate marker encoding a scalar loop would
+        // reject (KUU-4031).
+        var copied: Int = 0
+        var pendingUnits: [UInt16] = []
+        pendingUnits.reserveCapacity(bufferSizeRaw)
+
+        while true {
+            let unit = kotlinSource.read()
+            if unit < 0 {
+                break
+            }
+            pendingUnits.append(UInt16(truncatingIfNeeded: unit))
+            copied += 1
+
+            if pendingUnits.count >= bufferSizeRaw {
+                do {
+                    try writer.write(runtimeKotlinStringFromUTF16CodeUnits(pendingUnits))
+                } catch {
+                    outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
+                    return kk_box_long(copied)
+                }
+                pendingUnits.removeAll(keepingCapacity: true)
+            }
+        }
+
+        if !pendingUnits.isEmpty {
+            do {
+                try writer.write(runtimeKotlinStringFromUTF16CodeUnits(pendingUnits))
+            } catch {
+                outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
+                return kk_box_long(copied)
+            }
+        }
+
+        if kotlinSource.thrown != 0 {
+            outThrown?.pointee = kotlinSource.thrown
+        }
+        return kk_box_long(copied)
+    }
+
     var copied: Int = 0
     var pending = String.UnicodeScalarView()
     pending.reserveCapacity(bufferSizeRaw)
 
     while true {
-        let charCode = reader.read()
+        let charCode = source.read()
         if charCode < 0 {
             break
         }
