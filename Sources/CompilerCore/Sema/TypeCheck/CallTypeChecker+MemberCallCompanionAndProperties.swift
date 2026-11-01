@@ -278,6 +278,34 @@ extension CallTypeChecker {
                     || importDecl.path == symbol.fqName
             }
         }
+        // kotlin.reflect.full is not a Kotlin default import: its extension
+        // properties are visible only through an explicit import or from the
+        // same package (KUU-4070). The short-name recoveries below must not
+        // surface them unqualified.
+        let reflectFullPackage = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("reflect"),
+            ctx.interner.intern("full"),
+        ]
+        func isUnavailableReflectFullProperty(_ candidate: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(candidate),
+                  Array(symbol.fqName.dropLast()) == reflectFullPackage,
+                  !reachableScopeCandidates.contains(candidate)
+            else {
+                return false
+            }
+            guard let sourceFile = ctx.currentASTFile else {
+                return true
+            }
+            if sourceFile.packageFQName == reflectFullPackage {
+                return false
+            }
+            return !sourceFile.imports.contains { importDecl in
+                if importDecl.isWildcard { return importDecl.path == reflectFullPackage }
+                return importDecl.path == symbol.fqName
+                    && (importDecl.alias ?? symbol.name) == calleeName
+            }
+        }
         // Canonical and legacy atomic aliases expand to the same runtime class,
         // so a source-backed extension property must be selected by the package
         // imported at the call site rather than by nominal type alone.
@@ -324,6 +352,7 @@ extension CallTypeChecker {
         if getterCandidates.isEmpty {
             for candidate in sema.symbols.lookupByShortName(calleeName)
                 where !isUnavailableKotlinMathProperty(candidate)
+                    && !isUnavailableReflectFullProperty(candidate)
             {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)
             }
@@ -335,6 +364,7 @@ extension CallTypeChecker {
             for candidate in sema.symbols.lookupByShortName(calleeName)
                 where sema.symbols.isSourceBackedSymbol(candidate)
                     && !isUnavailableKotlinMathProperty(candidate)
+                    && !isUnavailableReflectFullProperty(candidate)
             {
                 collectGetterCandidate(from: candidate, requireSynthetic: false)
             }

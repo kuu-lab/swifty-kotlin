@@ -170,14 +170,17 @@ extension CallTypeChecker {
                     }
                 }()
                 let isSourceBackedExtension = sema.symbols.isSourceBackedSymbol(candidate)
-                // findAnnotation belongs to reflect.full, outside default
-                // imports. Short-name recovery must respect aliases as well.
-                if symbol.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
+                // kotlin.reflect.full is not a Kotlin default import: its
+                // extensions are visible only through an explicit import or
+                // from the same package (KUU-4070). The short-name fallback
+                // must not surface them unqualified — this package check
+                // subsumes the earlier findAnnotation-only special case.
+                let reflectFullPackage = knownNames.kotlinReflectFullPackage
+                if Array(symbol.fqName.dropLast()) == reflectFullPackage,
                    !scopedCandidates.contains(candidate) {
-                    let package = Array(symbol.fqName.dropLast())
                     guard let file = ctx.currentASTFile,
-                          file.packageFQName == package || file.imports.contains(where: { importDecl in
-                              if importDecl.isWildcard { return importDecl.path == package }
+                          file.packageFQName == reflectFullPackage || file.imports.contains(where: { importDecl in
+                              if importDecl.isWildcard { return importDecl.path == reflectFullPackage }
                               return importDecl.path == symbol.fqName
                                   && (importDecl.alias ?? symbol.name) == calleeName
                           }) else { return false }
