@@ -370,11 +370,21 @@ struct CallableReferenceExtensionReceiverTests {
         let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
         #expect(signature.reifiedTypeParameterIndices == Set([0]))
         #expect(binding.substitutedTypeArguments.count == 1)
-        guard case let .classType(receiverType) = sema.types.kind(of: binding.substitutedTypeArguments[0]) else {
-            Issue.record("Expected the reified receiver argument to be kotlin.String.")
-            return
+        // `String` in `String::id` resolves to the canonical `.stringStruct`
+        // builtin TypeID (`sema.types.stringType`); the `kotlin.String` class
+        // symbol is only the nominal member-surface disguise that `isSubtype`
+        // normalizes back to it. Accept either representation.
+        let reifiedArgument = binding.substitutedTypeArguments[0]
+        let isKotlinString: Bool
+        if reifiedArgument == sema.types.stringType {
+            isKotlinString = true
+        } else if case let .classType(receiverType) = sema.types.kind(of: reifiedArgument) {
+            isKotlinString = sema.symbols.symbol(receiverType.classSymbol)?.fqName
+                == ["kotlin", "String"].map(ctx.interner.intern)
+        } else {
+            isKotlinString = false
         }
-        #expect(sema.symbols.symbol(receiverType.classSymbol)?.fqName == ["kotlin", "String"].map(ctx.interner.intern))
+        #expect(isKotlinString, "Expected the reified receiver argument to be kotlin.String.")
 
         let property = try #require(sema.bindings.identifierSymbol(for: reference))
         let module = try #require(ctx.kir)
