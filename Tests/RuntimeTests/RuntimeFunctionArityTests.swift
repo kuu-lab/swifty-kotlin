@@ -202,6 +202,14 @@ struct RuntimeFunctionArityTests {
         #expect(kk_op_is(suspendFunctionAction, functionToken(1)) == 1)
         #expect(kk_op_is(suspendFunctionAction, functionToken(0, suspend: true)) == 1)
 
+        // A plain nominal object (no SAM identity) whose interface inherits
+        // `suspend () -> T` is also a Function1, like on the JVM.
+        let plainSuspendFunctionAction = kk_object_new(2, Int(suspendWrapperID))
+        #expect(kk_op_is(plainSuspendFunctionAction, functionToken(1)) == 1)
+        #expect(kk_op_is(plainSuspendFunctionAction, functionToken(0, suspend: true)) == 1)
+        #expect(kk_op_is(plainSuspendFunctionAction, functionToken(0)) == 0)
+        #expect(kk_op_is(plainSuspendFunctionAction, functionToken(2)) == 0)
+
         let function = kk_function_create_0(0x123400, 0, nil)
         __kk_callable_adapter_set_identity(function, 0, 0x123400, runtimeNullSentinelInt, 0, 0, 0)
         #expect(kk_op_is(function, functionToken(0)) == 1)
