@@ -4,10 +4,17 @@ extension CallTypeChecker {
         args: [CallArgument], range: SourceRange, ctx: TypeInferenceContext,
         locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
+        // Same foreign-typeParam guard as `inferCallExpr`: an enclosing
+        // call's own inference variable must not reach the callee as a
+        // same-symbol pin target (e.g. `xs.listOf(x.listOf(y))`).
+        var memberExpectedType = expectedType
+        if let expected = expectedType {
+            memberExpectedType = dropForeignTypeParamExpectedType(expected, ctx: ctx)
+        }
         let result = inferMemberCallImpl(
             id, receiverID: receiverID, calleeName: calleeName,
             args: args, range: range, ctx: ctx, locals: &locals,
-            expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
+            expectedType: memberExpectedType, explicitTypeArgs: explicitTypeArgs,
             safeCall: false
         )
         guard ctx.ast.arena.isInfixCall(id), result != ctx.sema.types.errorType else {
@@ -67,7 +74,9 @@ extension CallTypeChecker {
         inferMemberCallImpl(
             id, receiverID: receiverID, calleeName: calleeName,
             args: args, range: range, ctx: ctx, locals: &locals,
-            expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
+            expectedType: expectedType.flatMap {
+                dropForeignTypeParamExpectedType($0, ctx: ctx)
+            }, explicitTypeArgs: explicitTypeArgs,
             safeCall: true
         )
     }

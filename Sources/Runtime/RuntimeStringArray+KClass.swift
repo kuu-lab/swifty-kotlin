@@ -149,14 +149,33 @@ private func runtimeAmbiguousKClassNameHint(typeToken: Int, nameHint: Int) -> St
 /// unbounded memory growth when `T::class` is evaluated in a loop.
 @_cdecl("__kk_kclass_create")
 public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
+    runtimeInternKClassBox(typeToken: typeToken, nameHint: nameHint, arrayComponent: 0)
+}
+
+/// `Array<E>::class` — same interning as `__kk_kclass_create`, but the cache
+/// key also carries E's interned component descriptor id so the JVM
+/// per-component array Class identity holds (`Integer[].class !=
+/// String[].class` while `simpleName`/`qualifiedName` stay `Array`/
+/// `kotlin.Array`). `component` comes from `__kk_array_component_type` or
+/// `__kk_array_component_element`; an unknown id degrades to the erased
+/// `kotlin.Array` box.
+@_cdecl("__kk_kclass_create_array")
+public func __kk_kclass_create_array(_ typeToken: Int, _ nameHint: Int, _ component: Int) -> Int {
+    let validComponent = component != 0 && runtimeArrayComponentDescriptorIsValid(component)
+        ? component : 0
+    return runtimeInternKClassBox(typeToken: typeToken, nameHint: nameHint, arrayComponent: validComponent)
+}
+
+private func runtimeInternKClassBox(typeToken: Int, nameHint: Int, arrayComponent: Int) -> Int {
     let cacheKey = KClassCacheKey(
         typeToken: typeToken,
-        ambiguousNameHint: runtimeAmbiguousKClassNameHint(typeToken: typeToken, nameHint: nameHint)
+        ambiguousNameHint: runtimeAmbiguousKClassNameHint(typeToken: typeToken, nameHint: nameHint),
+        arrayComponent: arrayComponent
     )
     if let cached = runtimeStorage.withMetadataLock({ state in state.kClassBoxCache[cacheKey] }) {
         return cached
     }
-    let box = RuntimeKClassBox(typeToken: typeToken, nameHint: nameHint)
+    let box = RuntimeKClassBox(typeToken: typeToken, nameHint: nameHint, arrayComponent: arrayComponent)
     registerReflectionRuntimeTypeMetadata()
     let result = registerRuntimeObject(box, typeID: kClassRuntimeTypeID)
     let winner = runtimeStorage.withMetadataLock { state -> Int in
@@ -194,10 +213,16 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
     if value == 0, fallbackBase == RuntimeTypeTokenEncoding.anyBase {
         return __kk_kclass_create(Int(RuntimeTypeTokenEncoding.unitBase), 0)
     }
-    if runtimeArrayBoxExcludingObjects(from: value) != nil,
+    if let array = runtimeArrayBoxExcludingObjects(from: value),
        let arrayClass = runtimeArrayKClassIdentity(rawValue: value)
     {
-        return __kk_kclass_create(arrayClass.typeToken, arrayClass.nameHint)
+        // The tagged component descriptor (installed at allocation by
+        // `__kk_array_tag_component`) gives `x::class` the same per-element
+        // KClass identity as the `Array<E>::class` literal: both key on the
+        // element descriptor, so `arrayOf(1)::class == Array<Int>::class`.
+        return __kk_kclass_create_array(
+            arrayClass.typeToken, arrayClass.nameHint, array.componentType ?? 0
+        )
     }
     if let typeID = runtimeObjectTypeID(rawValue: value) {
         let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift

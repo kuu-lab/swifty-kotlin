@@ -429,10 +429,16 @@ let runtimeKNestedClassRegistry = RuntimeKNestedClassRegistry()
 final class RuntimeKClassBox {
     let typeToken: Int
     let nameHint: Int
+    /// Interned `RuntimeArrayComponentType` descriptor id carried by
+    /// `Array<E>` class literals (0 for every other classifier and for erased
+    /// or unknown element identity). Lets `isInstance`/`cast`/`safeCast`
+    /// apply the JVM per-component array check on top of the nominal token.
+    let arrayComponent: Int
 
-    init(typeToken: Int, nameHint: Int) {
+    init(typeToken: Int, nameHint: Int, arrayComponent: Int = 0) {
         self.typeToken = typeToken
         self.nameHint = nameHint
+        self.arrayComponent = arrayComponent
     }
 
     var metadata: RuntimeKClassMetadataEntry? {

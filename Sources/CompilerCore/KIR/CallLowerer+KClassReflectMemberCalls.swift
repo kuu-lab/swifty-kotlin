@@ -52,6 +52,53 @@ extension CallLowerer {
         return result
     }
 
+    /// KUU-4018: JVM array classes are reified per component type —
+    /// `Integer[].class != String[].class` while `simpleName`/`qualifiedName`
+    /// stay `Array`/`kotlin.Array`. The KClass interner therefore keys
+    /// `Array<E>` class literals on E's component descriptor
+    /// (`__kk_array_component_type`), the same descriptor tagged onto array
+    /// values at allocation — so `Array<Int>::class`, `arrayOf(1)::class`,
+    /// and `T::class` (reified T = `Array<Int>`) share one box, and the
+    /// erased-Array box stays the fallback whenever the element is unknown.
+    ///
+    /// An element that is a reified type parameter erases to its bound on the
+    /// `::class` left-hand side (`Array<T>::class` is `Object[].class` on the
+    /// JVM), so the component is built with `useReifiedToken: false`; a
+    /// reified `T::class` target instead reads the *element* of the captured
+    /// component descriptor via `__kk_array_component_element`.
+    ///
+    /// Returns nil for non-array classifiers and unbound reified captures —
+    /// callers then emit the plain `__kk_kclass_create` / `__kk_kclass_of`.
+    func emitArrayKClassComponentExpr(
+        classRefTargetType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        if let element = referenceArrayElementType(classRefTargetType, sema: sema, interner: interner) {
+            return runtimeArrayComponentTypeExpr(
+                for: element, useReifiedToken: false, context: driver.ctx, sema: sema,
+                arena: arena, interner: interner, instructions: &instructions
+            )
+        }
+        if case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
+            let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(
+                for: typeParam.symbol
+            )
+            guard let capturedComponent = driver.ctx.localValue(for: componentSymbol) else {
+                return nil
+            }
+            let element = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                callee: interner.intern("__kk_array_component_element"),
+                arguments: [capturedComponent], result: element, canThrow: false
+            ))
+            return element
+        }
+        return nil
+    }
+
     func lowerKClassReflectMemberCall(
         _ exprID: ExprID,
         classRefTargetType: TypeID,
@@ -92,9 +139,16 @@ extension CallLowerer {
 
         let kClassFallback = sema.types.makeKClassType(argument: classRefTargetType)
         let kclassExpr = arena.appendTemporary(type: kClassFallback)
+        let arrayComponentExpr = emitArrayKClassComponentExpr(
+            classRefTargetType: classRefTargetType,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions
+        )
         instructions.append(.call(
-            callee: interner.intern("__kk_kclass_create"),
-            arguments: [tokenExpr, nameHintExpr],
+            callee: interner.intern(
+                arrayComponentExpr == nil ? "__kk_kclass_create" : "__kk_kclass_create_array"
+            ),
+            arguments: [tokenExpr, nameHintExpr] + (arrayComponentExpr.map { [$0] } ?? []),
             result: kclassExpr,
             canThrow: false
         ))
