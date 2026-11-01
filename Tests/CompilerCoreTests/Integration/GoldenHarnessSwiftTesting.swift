@@ -168,13 +168,46 @@ private func goldenStdlibLibraryPath() -> String? {
 }
 
 private func runGoldenTests(suiteName: String, batch: GoldenHarnessCaseBatch) throws {
+    let stdlibLibraryPath = goldenStdlibLibraryPath()
+    // Committed Sema/Diagnostics goldens are artifact-mode renders. When the
+    // shared stdlib artifact is unavailable, workers silently fall back to
+    // bundled-source injection, whose output legitimately diverges for
+    // implicit-profile cases (imported inline metadata, `nonlocal=`/`targs=`
+    // fields, RF-GOLDEN-002 origin classification). Comparing such renders
+    // reports a misleading "Golden mismatch", and UPDATE_GOLDEN would persist
+    // output CI cannot reproduce — report the missing artifact directly
+    // instead. Cases whose spec pins `.source`/`.noStdlib` still render and
+    // verify normally.
+    let artifactMissing = stdlibLibraryPath == nil
+        && (suiteName == "Sema" || suiteName == "Diagnostics")
+    let runnableCases = artifactMissing
+        ? batch.cases.filter {
+            $0.spec?.stdlibProfile == .source || $0.spec?.stdlibProfile == .noStdlib
+        }
+        : batch.cases
     let results = try GoldenHarness.renderBatchInSubprocess(
         suiteName: suiteName,
-        sourcePaths: batch.cases.map(\.sourcePath),
-        stdlibLibraryPath: goldenStdlibLibraryPath()
+        sourcePaths: runnableCases.map(\.sourcePath),
+        stdlibLibraryPath: stdlibLibraryPath
+    )
+    let resultsByPath = Dictionary(
+        uniqueKeysWithValues: zip(runnableCases.map(\.sourcePath), results)
     )
 
-    for (caseFile, result) in zip(batch.cases, results) {
+    for caseFile in batch.cases {
+        guard let result = resultsByPath[caseFile.sourcePath] else {
+            if artifactMissing {
+                let message = "Shared stdlib artifact unavailable for \(caseFile.basename): "
+                    + "committed \(suiteName) goldens are artifact-mode renders "
+                    + "that bundled-source fallback output cannot match — rebuild "
+                    + "the TestStdlibCache artifact instead of regenerating or "
+                    + "editing the .golden file."
+                Issue.record(Comment(rawValue: message))
+            } else {
+                Issue.record("Golden worker returned no result for \(caseFile.basename)")
+            }
+            continue
+        }
         if let specErrorDescription = caseFile.specErrorDescription {
             Issue.record("Invalid .golden-spec for \(caseFile.basename): \(specErrorDescription)")
             continue
