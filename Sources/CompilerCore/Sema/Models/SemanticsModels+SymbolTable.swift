@@ -343,6 +343,23 @@ public final class SymbolTable {
     /// in flight. Claimed entries are consumed, so an in-flight key simply
     /// has nothing left to register.
     private var fqNameDrainInProgress: Set<[InternedString]> = []
+    /// Per-FQ-name drain coverage: the highest provider `importOrder` already
+    /// asked `drainEntries(fqName:)`. Claimed entries are consumed, so once
+    /// every provider in range answered, repeat lookups for that name skip
+    /// the per-provider index probes entirely (KUU-4021). Providers append
+    /// with ascending orders and `importDrainEpoch` only grows (bounded while
+    /// a library imports, `.max` afterwards), so coverage never shrinks.
+    private var fqNameEntriesDrainedThrough: [[InternedString]: Int] = [:]
+    /// Per-FQ-name package-synthesis coverage: the highest `importOrder`
+    /// already asked `containsEntriesNested(under:)`, or `.max` once a
+    /// package occupies the name — that check early-returns forever after.
+    private var fqNamePackageProbedThrough: [[InternedString]: Int] = [:]
+    /// Mutation counter for each `byFQName` binding list, bumped by
+    /// `appendNewSymbol` whenever a symbol registers or reorders under that
+    /// exact name. Scope-level candidate memos validate a snapshot against
+    /// this version instead of re-running the drain+filter pipeline on every
+    /// query (KUU-4021).
+    private var fqNameListVersions: [[InternedString]: Int] = [:]
     private var childrenDrainInProgress: Set<[InternedString]> = []
     private var shortNameDrainInProgress: Set<InternedString> = []
     private var importedLayoutSynthesizer: ((SymbolID) -> Void)?
@@ -404,6 +421,7 @@ public final class SymbolTable {
         worker.byShortName = byShortName
         worker.byKind = byKind
         worker.byParentFQName = byParentFQName
+        worker.fqNameListVersions = fqNameListVersions
         worker.byDeclSite = byDeclSite
         worker.functionSignatures = functionSignatures
         worker.valueParameterOwners = valueParameterOwners
@@ -603,21 +621,47 @@ public final class SymbolTable {
     /// ahead of the symbol it is mid-way through registering — the eager pass
     /// always placed packages after same-path declarations in `byFQName`.
     private func drainIndexedEntries(fqName: [InternedString], synthesizePackage: Bool = true) {
-        guard !indexedLibraryProviders.isEmpty, !fqName.isEmpty,
-              fqNameDrainInProgress.insert(fqName).inserted
+        guard !indexedLibraryProviders.isEmpty, !fqName.isEmpty else { return }
+        // Repeat lookups dominate the type-check hot path: once every in-range
+        // provider answered for this name, its pending entries are consumed and
+        // its `containsEntriesNested` answer is frozen, so asking again is a
+        // pure index-probe waste. Coverage is keyed on provider `importOrder`
+        // so a later provider or a grown `importDrainEpoch` re-drains only the
+        // uncovered tail.
+        let coverageLimit = min(importDrainEpoch, indexedLibraryProviders.last?.importOrder ?? .min)
+        let drainedThrough = fqNameEntriesDrainedThrough[fqName] ?? .min
+        guard drainedThrough < coverageLimit
+                || (synthesizePackage
+                    && (fqNamePackageProbedThrough[fqName] ?? .min) < coverageLimit)
         else { return }
+        guard fqNameDrainInProgress.insert(fqName).inserted else { return }
         attribution?.increment(.indexDrainCalls)
         defer { fqNameDrainInProgress.remove(fqName) }
-        for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
+        var entriesDrainedThrough = drainedThrough
+        for provider in indexedLibraryProviders
+            where provider.importOrder > drainedThrough && provider.importOrder <= importDrainEpoch {
             provider.drainEntries(fqName: fqName)
+            entriesDrainedThrough = max(entriesDrainedThrough, provider.importOrder)
         }
+        fqNameEntriesDrainedThrough[fqName] = entriesDrainedThrough
         guard synthesizePackage else { return }
         let alreadyHasPackage = byFQName[fqName]?.contains(where: { symbol($0)?.kind == .package }) == true
-        guard !alreadyHasPackage,
-              indexedLibraryProviders.contains(where: {
-                  $0.importOrder <= importDrainEpoch && $0.containsEntriesNested(under: fqName)
-              })
-        else { return }
+        guard !alreadyHasPackage else {
+            fqNamePackageProbedThrough[fqName] = .max
+            return
+        }
+        var packageProbedThrough = fqNamePackageProbedThrough[fqName] ?? .min
+        var contributesPackage = false
+        for provider in indexedLibraryProviders
+            where provider.importOrder > packageProbedThrough && provider.importOrder <= importDrainEpoch {
+            packageProbedThrough = max(packageProbedThrough, provider.importOrder)
+            if provider.containsEntriesNested(under: fqName) {
+                contributesPackage = true
+                break
+            }
+        }
+        fqNamePackageProbedThrough[fqName] = packageProbedThrough
+        guard contributesPackage else { return }
         let package = define(
             kind: .package,
             name: fqName.last ?? .invalid,
@@ -904,6 +948,7 @@ public final class SymbolTable {
             return
         }
         symbolsStorage[index].flags.formUnion(flags)
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func removeFlags(_ flags: SymbolFlags, for symbol: SymbolID) {
@@ -912,6 +957,7 @@ public final class SymbolTable {
             return
         }
         symbolsStorage[index].flags.subtract(flags)
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func setDeclSite(_ declSite: SourceRange?, for symbol: SymbolID) {
@@ -920,6 +966,7 @@ public final class SymbolTable {
             return
         }
         symbolsStorage[index].declSite = declSite
+        bumpBindingVersions(startingAt: symbol)
     }
 
     /// ARCH-031: deduplicated and sorted by source position so diagnostics
@@ -978,6 +1025,50 @@ public final class SymbolTable {
         defer { lock.unlock() }
         drainIndexedEntries(fqName: fqName)
         return byFQName[fqName] ?? []
+    }
+
+    /// `lookupAll` plus the binding list's mutation version in one critical
+    /// section, so a concurrent `define` cannot slip between the read and its
+    /// version stamp. Callers memoizing the result revalidate with
+    /// `fqNameListVersionsMatch` instead of re-querying (KUU-4021).
+    func lookupAllWithVersion(fqName: [InternedString]) -> (symbols: [SymbolID], version: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        drainIndexedEntries(fqName: fqName)
+        return (byFQName[fqName] ?? [], fqNameListVersions[fqName] ?? 0)
+    }
+
+    /// Whether every `(fqName, version)` pair still matches the live binding
+    /// list — one critical section for a whole batch of memoized snapshots.
+    /// A symbol registering or reordering under any listed name bumps its
+    /// version and fails the check.
+    func fqNameListVersionsMatch<S: Sequence>(
+        _ expected: S
+    ) -> Bool where S.Element == (fqName: [InternedString], version: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        for entry in expected where (fqNameListVersions[entry.fqName] ?? 0) != entry.version {
+            return false
+        }
+        return true
+    }
+
+    /// Bumps the binding-list version of `symbol`'s own FQ name and of every
+    /// descendant reachable through `childrenByParent`. Scope-level candidate
+    /// memos key on member FQ names, and the filters they replay read a
+    /// candidate's ancestor chain (visibility walks parents, companion and
+    /// protected checks read owner edges), so a mutation to an ancestor's
+    /// record must invalidate the descendants' memos too (KUU-4021). The
+    /// `byFQName` list itself is untouched — only its version counter moves.
+    private func bumpBindingVersions(startingAt symbol: SymbolID) {
+        var stack: [SymbolID] = [symbol]
+        while let current = stack.popLast() {
+            guard let fqName = self.symbol(current)?.fqName else { continue }
+            fqNameListVersions[fqName, default: 0] += 1
+            if let children = childrenByParent[current] {
+                stack.append(contentsOf: children)
+            }
+        }
     }
 
     public func lookupByShortName(_ name: InternedString) -> [SymbolID] {
@@ -1122,6 +1213,7 @@ public final class SymbolTable {
         } else {
             byFQName[fqName, default: []].append(id)
         }
+        fqNameListVersions[fqName, default: 0] += 1
         byShortName[name, default: []].append(id)
         byKind[kind, default: []].append(id)
         if fqName.count >= 1 {
@@ -1316,6 +1408,7 @@ public final class SymbolTable {
                 valueParameterOwners[parameterSymbol] = symbol
             }
         }
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func valueParameterOwner(for symbol: SymbolID) -> SymbolID? {
@@ -1415,6 +1508,7 @@ public final class SymbolTable {
                 directSubtypesIndex[supertype, default: []].append(symbol)
             }
         }
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func directSupertypes(for symbol: SymbolID) -> [SymbolID] {
@@ -1588,10 +1682,12 @@ public final class SymbolTable {
 
     public func setExternalLinkName(_ linkName: String, for symbol: SymbolID) {
         externalLinkNames[symbol] = linkName
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func clearExternalLinkName(for symbol: SymbolID) {
         externalLinkNames.removeValue(forKey: symbol)
+        bumpBindingVersions(startingAt: symbol)
     }
 
     /// Import registration records compact-index link names before body decoding.
@@ -1656,6 +1752,9 @@ public final class SymbolTable {
         }
         parentSymbols[child] = parent
         childrenByParent[parent, default: []].insert(child)
+        // The child's ancestor chain changed; descendants' candidate memos
+        // validated against their own FQ names must not observe the old chain.
+        bumpBindingVersions(startingAt: child)
     }
 
     /// Returns registered ownership without decoding imported metadata. Lazy
@@ -1805,6 +1904,8 @@ public final class SymbolTable {
 
     public func setAccessorOwnerProperty(_ propertySymbol: SymbolID, for accessorSymbol: SymbolID) {
         accessorOwnerProperties[accessorSymbol] = propertySymbol
+        // Signature reads on the accessor redirect to this owner.
+        bumpBindingVersions(startingAt: accessorSymbol)
     }
 
     public func accessorOwnerProperty(for accessorSymbol: SymbolID) -> SymbolID? {
@@ -1864,6 +1965,7 @@ public final class SymbolTable {
 
     public func setSourceFileID(_ fileID: FileID, for symbol: SymbolID) {
         sourceFileIDs[symbol] = fileID
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func sourceFileID(for symbol: SymbolID) -> FileID? {
@@ -1890,6 +1992,7 @@ public final class SymbolTable {
 
     public func setAnnotations(_ annotations: [MetadataAnnotationRecord], for symbol: SymbolID) {
         annotationsStorage[symbol] = annotations
+        bumpBindingVersions(startingAt: symbol)
     }
 
     public func annotations(for symbol: SymbolID) -> [MetadataAnnotationRecord] {
@@ -1899,6 +2002,9 @@ public final class SymbolTable {
 
     public func setCompanionObjectSymbol(_ companion: SymbolID, for owner: SymbolID) {
         companionObjectSymbols[owner] = companion
+        // Members reach their companion through this owner edge; their
+        // ancestor-dependent candidate memos must be invalidated too.
+        bumpBindingVersions(startingAt: owner)
     }
 
     public func companionObjectSymbol(for owner: SymbolID) -> SymbolID? {

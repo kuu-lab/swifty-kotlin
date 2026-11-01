@@ -1,3 +1,5 @@
+import Foundation
+
 public protocol Scope: AnyObject {
     func lookup(_ name: InternedString) -> [SymbolID]
     /// Stops at the innermost scope containing matching bindings, so declarations
@@ -190,6 +192,24 @@ final class PackageMembersScope: BaseScope {
     private var memberSources: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
     private let symbols: SymbolTable
 
+    /// One memoized `deferredCandidates` answer: the binding-list version of
+    /// every source FQ name read while producing it, plus the filtered and
+    /// deduplicated result. A pending-index claim, `define`, or record
+    /// mutation under a listed name bumps its version, so a match proves the
+    /// memo still reflects the symbol table (KUU-4021).
+    private struct DeferredResult {
+        /// Index-aligned with `memberSources` at build time.
+        let versions: [(fqName: [InternedString], version: Int)]
+        let candidates: [SymbolID]
+    }
+
+    /// `name` → memoized deferred candidates. Guards with
+    /// `deferredCacheLock`: the shared default-import scope is reached from
+    /// per-file scope chains, which `sema-parallel` workers may traverse
+    /// concurrently.
+    private var deferredResults: [InternedString: DeferredResult] = [:]
+    private let deferredCacheLock = NSLock()
+
     init(
         parent: Scope?,
         symbols: SymbolTable,
@@ -204,21 +224,56 @@ final class PackageMembersScope: BaseScope {
     /// Wildcard imports append each imported path instead of eagerly
     /// inserting every member the package provides.
     func addPackage(_ path: [InternedString], include: @escaping (SymbolID) -> Bool) {
+        deferredCacheLock.lock()
         memberSources.append((path: path, include: include))
+        deferredResults.removeAll(keepingCapacity: true)
+        deferredCacheLock.unlock()
     }
 
+    /// Repeat lookups dominate the type-check hot path: the same names are
+    /// resolved per call site, but the lazily materialized symbol table only
+    /// changes under them when a claim, `define`, or record mutation bumps a
+    /// binding-list version. Memoize the filtered result and revalidate the
+    /// per-source versions instead of re-running `lookupAll` + the include
+    /// filters on every query (KUU-4021).
     override func deferredCandidates(for name: InternedString) -> [SymbolID] {
         symbols.attribution?.increment(.packageScopeQueries)
         return withAttributionTiming(.deferredScopeCandidates, attribution: symbols.attribution) {
+            deferredCacheLock.lock()
+            let cached = deferredResults[name]
+            let sourceCount = memberSources.count
+            deferredCacheLock.unlock()
+            if let cached,
+               cached.versions.count == sourceCount,
+               symbols.fqNameListVersionsMatch(cached.versions)
+            {
+                return cached.candidates
+            }
+
+            deferredCacheLock.lock()
+            let sources = memberSources
+            deferredCacheLock.unlock()
+            var versions: [(fqName: [InternedString], version: Int)] = []
+            versions.reserveCapacity(sources.count)
             var result: [SymbolID] = []
             var seen: Set<SymbolID> = []
-            for source in memberSources {
-                for symbol in symbols.lookupAll(fqName: source.path + [name])
+            for source in sources {
+                let fqName = source.path + [name]
+                let read = symbols.lookupAllWithVersion(fqName: fqName)
+                versions.append((fqName: fqName, version: read.version))
+                for symbol in read.symbols
                 where symbols.symbol(symbol)?.kind != .package
                     && source.include(symbol) && seen.insert(symbol).inserted {
                     result.append(symbol)
                 }
             }
+            deferredCacheLock.lock()
+            // A source appended mid-computation is picked up by the next query —
+            // count mismatches are never stored.
+            if memberSources.count == sources.count {
+                deferredResults[name] = DeferredResult(versions: versions, candidates: result)
+            }
+            deferredCacheLock.unlock()
             return result
         }
     }
