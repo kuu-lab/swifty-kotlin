@@ -86,6 +86,10 @@ extension LoweringABIAndPropertyRegressionTests {
                 // (-0.0 is bit-identical to the null sentinel) box here too.
                 let shouldBoxReceiver = receiverType == primitiveType && targetType == genericType
                     && (primitive == .float || primitive == .double)
+                // #11737: a raw primitive passed as a nullable (boxed) extension
+                // receiver crosses the same boxing boundary as a value argument.
+                let shouldBoxNullableReceiver = isReceiver && receiverType == primitiveType
+                    && targetType == types.makeNullable(primitiveType)
                 let targetCallIndex = try #require(lowered.body.firstIndex { instruction in
                     if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                         return callee == targetName
@@ -110,7 +114,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     let expectedUnbox = try loweringBoxingABI(.unbox, for: primitive, nonNull: true, staticPrimitive: true)
                     guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[unboxIndex] else { continue }
                     #expect(callee == interner.intern(expectedUnbox.name))
-                } else if shouldBoxReceiver {
+                } else if shouldBoxReceiver || shouldBoxNullableReceiver {
                     #expect(arguments[0] != receiver)
                     let boxIndex = try #require(lowered.body.firstIndex { instruction in
                         if case let .call(_, _, args, result, canThrow, thrownResult, _, _) = instruction {
@@ -123,7 +127,8 @@ extension LoweringABIAndPropertyRegressionTests {
                     // variant (raw -0.0 is the null sentinel); Float has no
                     // override and keeps the plain static callee.
                     let expectedBox = try loweringBoxingABI(
-                        .box, for: primitive, nonNull: primitive == .double, staticPrimitive: true
+                        .box, for: primitive, nonNull: shouldBoxNullableReceiver || primitive == .double,
+                        staticPrimitive: true
                     )
                     guard case let .call(_, callee, _, _, _, _, _, _) = lowered.body[boxIndex] else { continue }
                     #expect(callee == interner.intern(expectedBox.name))

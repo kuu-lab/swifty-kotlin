@@ -20,7 +20,8 @@ extension LoweringPassRegressionTests {
             let charsetCallees = extractCallees(from: charset.body, interner: ctx.interner)
             #expect(indexCallees.contains { $0.contains("encodeToByteArray") && $0.contains("$default") })
             #expect(!indexCallees.contains("__kk_string_encodeToByteArray_charset_flat"))
-            #expect(charsetCallees.contains("__kk_string_encodeToByteArray_charset_flat"))
+            // The Charset overload is source-backed (#8325); its bundled body calls the flat helper.
+            #expect(charsetCallees == ["encodeToByteArray"], "Callees: \(charsetCallees)")
         }
     }
 }

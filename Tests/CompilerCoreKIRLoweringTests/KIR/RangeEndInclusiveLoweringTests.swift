@@ -17,9 +17,18 @@ struct RangeEndInclusiveLoweringTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "bounds", in: module, interner: ctx.interner)
         let calls = kirCalls(in: body)
-        #expect(kirCalls(to: .floatingRangeEndpoint, in: body, interner: ctx.interner).count == 2)
+        let endpointProbes = kirCalls(to: .floatingRangeEndpoint, in: body, interner: ctx.interner)
+        #expect(endpointProbes.count == 2)
+        // `start`/`endInclusive` are declared as `T`, so the erased read keeps
+        // the box and the claim site converts it (#11819); KIR has no unbox yet.
         let unbox: KIRRuntimeFunction = element == "Double" ? .unboxDouble : .unboxFloat
-        #expect(kirCalls(to: unbox, in: body, interner: ctx.interner).count == 2)
+        #expect(kirCalls(to: unbox, in: body, interner: ctx.interner).isEmpty)
+        #expect(endpointProbes.allSatisfy { probe in
+            body.contains { instruction in
+                if case let .copy(from, _) = instruction { return from == probe.result }
+                return false
+            }
+        })
         let getterDispatches = body.compactMap { instruction -> KIRDispatchKind? in
             guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else { return nil }
             return dispatch
