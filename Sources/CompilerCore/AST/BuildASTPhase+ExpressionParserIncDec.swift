@@ -145,10 +145,22 @@ extension BuildASTPhase.ExpressionParser {
             // Prefix mutation evaluates the property again after the setter.
             // This preserves observable custom getter behavior and returns a
             // setter-normalized value, matching Kotlin's `{ x += 1; x }`.
+            // The re-read is stored in a fresh immutable local so the block
+            // yields a snapshot register (KUU-4038): a bare `x` trailing read
+            // returns the variable's own storage cell, so `val p = ++x` and
+            // `++x + ++x` would alias it and observe later writes.
             astArena.markIncrementDecrement(assignExpr, cachedValue: readExpr)
+            let resultName = makeTempName(range)
+            let resultDecl = astArena.appendExpr(.localDecl(
+                name: resultName,
+                isMutable: false,
+                typeAnnotation: nil,
+                initializer: readExpr,
+                range: operandRange
+            ))
             return astArena.appendExpr(.blockExpr(
-                statements: statements + [assignExpr],
-                trailingExpr: readExpr,
+                statements: statements + [assignExpr, resultDecl],
+                trailingExpr: astArena.appendExpr(.nameRef(resultName, operandRange)),
                 range: range
             ))
         }
