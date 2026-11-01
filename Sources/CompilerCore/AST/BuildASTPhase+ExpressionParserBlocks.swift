@@ -108,7 +108,11 @@ extension BuildASTPhase.ExpressionParser {
             case .localDecl, .localAssign, .memberAssign, .safeMemberAssign, .indexedAssign, .compoundAssign, .indexedCompoundAssign, .memberCompoundAssign, .localFunDecl, .localNominalDecl:
                 break
             default:
-                trailingExpr = statements.removeLast()
+                // A compound-assign desugar block (`this += x`, `a?.b += x`)
+                // is a statement, not the block's value.
+                if !astArena.isCallResultCompoundAssignmentBlock(lastID) {
+                    trailingExpr = statements.removeLast()
+                }
             }
         }
 

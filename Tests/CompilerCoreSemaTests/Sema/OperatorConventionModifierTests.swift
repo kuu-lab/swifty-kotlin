@@ -181,6 +181,71 @@ struct OperatorConventionModifierTests {
     }
 
     @Test
+    func thisCompoundAssignInsideReceiverLambda() throws {
+        // KUU-4099: `this += x` as the only statement of an apply/with/run
+        // lambda desugars to `plusAssign` on the receiver. The desugared
+        // blockExpr must classify as a statement so the lambda body is not
+        // reparsed as a bare `this` expression (which reported PARSE-0018).
+        let source = """
+        fun main() {
+            val l = mutableListOf(1)
+            l.apply { this += 2 }
+            l.apply { this@apply += 3 }
+            l.run { this += 4 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func thisCompoundAssignInsideMultiStatementLambda() throws {
+        let source = """
+        fun main() {
+            val l = mutableListOf(1)
+            l.apply { this += 2; this += 3 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func thisCompoundAssignWithoutPlusAssignIsRejected() throws {
+        // kotlinc rejects `this += x` when the receiver has no applicable
+        // plusAssign — `this` is never assignable so the `a = a + b`
+        // fallback cannot apply.
+        let source = """
+        class Box { var v = 0 }
+        fun main() {
+            Box().apply { this += 1 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
+
+    @Test
+    func safeCallCompoundAssignAsOnlyLambdaStatement() throws {
+        // Same desugar-classification hole as `this += x`: `b?.v += x`
+        // wraps the conditional assignment in a blockExpr that must count
+        // as a statement inside a single-statement lambda body.
+        let source = """
+        class B { var v = 0 }
+        fun main() {
+            val b: B? = B()
+            run { b?.v += 1 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func nullAssertedIndexedCompoundAssignCompiles() throws {
         // `map[key]!! += v` — `get` returns `V?`, so the compound assign must
         // read through the `!!` non-null type. Used by ktor-http's

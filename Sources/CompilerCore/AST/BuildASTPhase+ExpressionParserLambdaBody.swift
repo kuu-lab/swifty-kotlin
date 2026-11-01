@@ -52,6 +52,12 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         let hasStatementOnlyBody = statements.contains { statementID in
+            // Compound assignments on non-assignable targets (`this += x`,
+            // `a?.b += x`, call results) desugar to a marked blockExpr — still
+            // a statement, never a value-producing tail.
+            if astArena.isCallResultCompoundAssignmentBlock(statementID) {
+                return true
+            }
             guard let statement = astArena.expr(statementID) else { return false }
             switch statement {
             case .localDecl, .localAssign, .memberAssign, .safeMemberAssign, .indexedAssign,
@@ -194,6 +200,9 @@ extension BuildASTPhase.ExpressionParser {
              .localFunDecl, .localNominalDecl:
             return nil
         default:
+            if astArena.isCallResultCompoundAssignmentBlock(lastID) {
+                return nil
+            }
             _ = statements.popLast()
             return lastID
         }
