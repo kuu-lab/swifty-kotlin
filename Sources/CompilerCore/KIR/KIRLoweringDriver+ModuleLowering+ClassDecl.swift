@@ -1254,7 +1254,8 @@ extension KIRLoweringDriver {
             instructions: &body.instructions,
             arguments: &argIDs,
             valueArgOffsetOverride: receiver == nil ? 0 : 1,
-            parameterMapping: callBinding?.chosenCallee == target ? callBinding?.parameterMapping : nil
+            parameterMapping: callBinding?.chosenCallee == target ? callBinding?.parameterMapping : nil,
+            callBinding: callBinding?.chosenCallee == target ? callBinding : nil
         )
         if defaultMaskWords.contains(where: { $0 != 0 }),
            let target,

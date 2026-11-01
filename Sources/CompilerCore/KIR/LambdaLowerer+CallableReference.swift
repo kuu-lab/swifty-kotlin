@@ -1790,7 +1790,8 @@ extension LambdaLowerer {
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
                     captureArguments: callableInfo.captureArguments,
-                    hasClosureParam: callableInfo.hasClosureParam
+                    hasClosureParam: callableInfo.hasClosureParam,
+                    isFunctionValueBox: callableInfo.isFunctionValueBox
                 )
             }
             return taggedExpr

@@ -911,6 +911,28 @@ final class CallSupportLowerer {
                 // into the erased array -- the same erased-boundary wrapping
                 // a typeParam-typed argument gets in
                 // materializeSourceBackedFunctionValueArguments (KUU-548).
+                // `concreteArrayType` carries the call's `Array<T>`; a
+                // function-typed `T` is the signature elements are read back
+                // and invoked as, letting an already-boxed value keep its own
+                // object (KUU-4037).
+                let arrayElementFunctionType: FunctionType? = {
+                    guard case let .classType(arrayClass) = sema.types.kind(
+                        of: sema.types.makeNonNullable(concreteArrayType)
+                    ), let firstArgument = arrayClass.args.first else {
+                        return nil
+                    }
+                    let elementType: TypeID
+                    switch firstArgument {
+                    case let .invariant(type), let .in(type), let .out(type):
+                        elementType = type
+                    case .star:
+                        return nil
+                    }
+                    guard case let .functionType(functionType) = sema.types.kind(
+                        of: sema.types.makeNonNullable(elementType)
+                    ) else { return nil }
+                    return functionType
+                }()
                 for argIndex in argIndices {
                     guard argIndex < boxedArguments.count,
                           argIndex < sourceArgExprs.count,
@@ -921,7 +943,8 @@ final class CallSupportLowerer {
                               sema: sema,
                               arena: arena,
                               interner: interner,
-                              instructions: &instructions
+                              instructions: &instructions,
+                              identityCheckFunctionType: arrayElementFunctionType
                           )
                     else {
                         continue

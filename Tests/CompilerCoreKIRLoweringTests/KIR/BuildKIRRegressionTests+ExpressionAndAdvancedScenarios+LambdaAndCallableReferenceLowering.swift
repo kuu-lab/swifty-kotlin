@@ -987,6 +987,44 @@ extension BuildKIRRegressionTests {
                 "Expected both anonymous Int.() -> String receivers boxed via kk_function_create_1, got \(boxedReceivers.count)")
     }
 
+    @Test func testBuildKIRDoesNotRewrapBoxedFunctionValueForCollectionStorage() throws {
+        // KUU-4037: storing a function value in an array-backed generic
+        // container re-wrapped an already-boxed `kk_function_create_N`
+        // object in a second box, minting a new handle per crossing — so
+        // `listOf(f)[0] === f`, `contains`, `indexOf`, `remove` and map-key
+        // lookups all failed while kotlinc keeps one object. An element
+        // whose invocation ABI already serves the declared element/key
+        // type must pass through with its own identity, leaving exactly
+        // one `kk_function_create_1` per function value.
+        let runtime = try RuntimeNames()
+        let source = """
+        fun main() {
+            val f: (Int) -> Unit = { }
+            println(listOf(f)[0] === f)
+            println(arrayOf(f)[0] === f)
+            println(f in listOf(f))
+            val g: (Int) -> Int = { it + 1 }
+            val m = mutableMapOf<(Int) -> Int, String>()
+            m[g] = "a"
+            println(m[g])
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let functionCreates = body.filter { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == ctx.interner.intern(runtime[.functionCreate1])
+        }
+        // One box for `f`, one for `g`: the list/array/set stores, the map
+        // put and the map get all reuse each value's own object.
+        #expect(functionCreates.count == 2,
+                "Expected each function value boxed exactly once, got \(functionCreates.count)")
+    }
+
     // MARK: - P5-39: vararg call lowering / ABI regression tests
 }
 #endif

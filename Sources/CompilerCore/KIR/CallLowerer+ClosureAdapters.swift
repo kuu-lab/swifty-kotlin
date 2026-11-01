@@ -374,7 +374,8 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        identityCheckFunctionType: FunctionType? = nil
     ) -> KIRExprID {
         var loweredCallableID = loweredArgID
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
@@ -435,6 +436,27 @@ extension CallLowerer {
             && functionType.receiver == nil
             && resolvedCallableInfo.captureArguments.isEmpty
             && !hasStringSignature
+        // KUU-4037: this value is already a heap function-value object (a
+        // `kk_function_create_N` box or a callable-ref tag target sharing its
+        // handle). Re-wrapping it in a fresh box mints a new object, so
+        // `listOf(f)[0] === f`, `contains`, `indexOf`, `remove` and map-key
+        // lookups silently fail even though calls still work — kotlinc stores
+        // the same object. Pass it through verbatim when its existing
+        // invocation ABI already serves the signature the stored value will
+        // be read back as — `identityCheckFunctionType`, the declared element/
+        // parameter type when the caller could resolve it, else the erased
+        // signature — while a genuinely different erased signature still
+        // needs the adapter path below.
+        if resolvedCallableInfo.isFunctionValueBox,
+           let concreteFunctionType,
+           functionValueBoxSatisfiesExpectedABI(
+               concreteFunctionType,
+               expectedFunctionType: identityCheckFunctionType ?? functionType,
+               sema: sema
+           )
+        {
+            return loweredArgID
+        }
         // Keep the original continuation for this shape: an erased adapter
         // would create a second coroutine frame and intercept it separately.
         let requiresFunctionValueAdapter = !resolvedCallableInfo.hasClosureParam
@@ -518,9 +540,58 @@ extension CallLowerer {
             symbol: resolvedCallableInfo.symbol,
             callee: resolvedCallableInfo.callee,
             captureArguments: canForwardZeroArgumentSuspendCallable ? [] : [closureRaw],
-            hasClosureParam: canForwardZeroArgumentSuspendCallable ? false : true
+            hasClosureParam: canForwardZeroArgumentSuspendCallable ? false : true,
+            isFunctionValueBox: true
         )
         return materialized
+    }
+
+    /// Whether a function value already materialized into a
+    /// `kk_function_create_N` box for `boxFunctionType` can serve an
+    /// invocation site expecting `expectedFunctionType`'s erased ABI as-is
+    /// (KUU-4037). The box's adapter already normalizes erased arguments for
+    /// its own concrete signature, so an erased (`Any` / type-parameter)
+    /// expected slot needs no further bridging; a concrete expected slot must
+    /// be exactly the type the adapter casts to. The return is compatible
+    /// when the box already delivers a handle — reference kinds and `Unit`
+    /// qualify — or when no additional boxing would be required for a raw
+    /// value return.
+    private func functionValueBoxSatisfiesExpectedABI(
+        _ boxFunctionType: FunctionType,
+        expectedFunctionType: FunctionType,
+        sema: SemaModule
+    ) -> Bool {
+        guard boxFunctionType.isSuspend == expectedFunctionType.isSuspend,
+              boxFunctionType.contextReceivers.count == expectedFunctionType.contextReceivers.count,
+              (boxFunctionType.receiver == nil) == (expectedFunctionType.receiver == nil),
+              boxFunctionType.params.count == expectedFunctionType.params.count
+        else {
+            return false
+        }
+        let boxParamTypes = boxFunctionType.contextReceivers
+            + (boxFunctionType.receiver.map { [$0] } ?? [])
+            + boxFunctionType.params
+        let expectedParamTypes = expectedFunctionType.contextReceivers
+            + (expectedFunctionType.receiver.map { [$0] } ?? [])
+            + expectedFunctionType.params
+        for (boxParamType, expectedParamType) in zip(boxParamTypes, expectedParamTypes) {
+            if isErasedRepresentationType(expectedParamType, sema: sema) {
+                continue
+            }
+            guard boxParamType == expectedParamType else {
+                return false
+            }
+        }
+        if isNonNullValueRepresentationType(boxFunctionType.returnType, sema: sema),
+           functionValueBoxedReturnType(
+               concreteReturnType: boxFunctionType.returnType,
+               expectedReturnType: expectedFunctionType.returnType,
+               sema: sema
+           ) != nil
+        {
+            return false
+        }
+        return true
     }
 
     func materializeSourceBackedFunctionValueArguments(
@@ -533,7 +604,8 @@ extension CallLowerer {
         arguments: inout [KIRExprID],
         valueArgOffsetOverride: Int? = nil,
         parameterMapping: [Int: Int]? = nil,
-        callDispatchesVirtually: Bool = false
+        callDispatchesVirtually: Bool = false,
+        callBinding: CallBinding? = nil
     ) {
         guard let chosenCallee,
               let signature = sema.symbols.functionSignature(for: chosenCallee)
@@ -683,6 +755,7 @@ extension CallLowerer {
             }
             let parameterType = sema.types.makeNonNullable(signature.parameterTypes[parameterIndex])
             let functionType: FunctionType
+            var identityCheckFunctionType: FunctionType?
             switch sema.types.kind(of: parameterType) {
             case let .functionType(declaredFunctionType):
                 functionType = declaredFunctionType
@@ -731,6 +804,22 @@ extension CallLowerer {
                     isSuspend: concreteFunctionType.isSuspend,
                     isCallableReference: concreteFunctionType.isCallableReference
                 )
+                // KUU-4037: the erased mirror above is a conservative proxy for
+                // "some erased consumer". A generic container slot (e.g.
+                // `MutableMap<K, V>.set`'s `key: K`) is actually read back and
+                // invoked as the SUBSTITUTED parameter type, so when this
+                // call's binding resolves `parameterType` to a concrete
+                // function signature, use that as the ABI reference for the
+                // already-boxed pass-through check.
+                identityCheckFunctionType = resolvedDeclaredParameterFunctionType(
+                    parameterType: parameterType,
+                    signature: signature,
+                    callBinding: callBinding,
+                    receiverArenaType: valueArgOffset > 0 && valueArgOffset - 1 < arguments.count
+                        ? arena.exprType(arguments[valueArgOffset - 1])
+                        : nil,
+                    sema: sema
+                )
             default:
                 continue
             }
@@ -767,9 +856,76 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                instructions: &instructions
+                instructions: &instructions,
+                identityCheckFunctionType: identityCheckFunctionType
             )
         }
+    }
+
+    /// KUU-4037: resolves the concrete function signature a type-parameter
+    /// slot carries at this call site. Function type parameters substitute
+    /// through the call binding's `substitutedTypeArguments`; owner-class
+    /// type parameters (e.g. `MutableMap<K, V>.set`'s `K`) lift from the
+    /// receiver value's concrete class type through
+    /// `liftedNominalSupertypeArgs`. Returns `nil` when nothing resolves,
+    /// letting callers fall back to the fully-erased expected signature.
+    private func resolvedDeclaredParameterFunctionType(
+        parameterType: TypeID,
+        signature: FunctionSignature,
+        callBinding: CallBinding?,
+        receiverArenaType: TypeID?,
+        sema: SemaModule
+    ) -> FunctionType? {
+        let typeVariables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        if let callBinding {
+            for (symbol, argument) in zip(signature.typeParameterSymbols, callBinding.substitutedTypeArguments) {
+                if let variable = typeVariables[symbol] {
+                    substitution[variable] = argument
+                }
+            }
+        }
+        if signature.classTypeParameterCount > 0,
+           let receiverArenaType,
+           let ownerSymbol = signature.receiverType.flatMap({ receiverType -> SymbolID? in
+               guard case let .classType(receiverClass) = sema.types.kind(
+                   of: sema.types.makeNonNullable(receiverType)
+               ) else { return nil }
+               return receiverClass.classSymbol
+           }),
+           case let .classType(hintClass) = sema.types.kind(
+               of: sema.types.makeNonNullable(receiverArenaType)
+           ),
+           let ownerArgs = sema.types.liftedNominalSupertypeArgs(
+               from: hintClass, to: ownerSymbol
+           )
+        {
+            for (index, paramSymbol) in signature.typeParameterSymbols
+                .prefix(signature.classTypeParameterCount)
+                .enumerated()
+            {
+                guard index < ownerArgs.count,
+                      let variable = typeVariables[paramSymbol],
+                      substitution[variable] == nil
+                else { continue }
+                switch ownerArgs[index] {
+                case let .invariant(type), let .in(type), let .out(type):
+                    substitution[variable] = type
+                case .star:
+                    break
+                }
+            }
+        }
+        guard !substitution.isEmpty else { return nil }
+        let resolved = sema.types.substituteTypeParameters(
+            in: parameterType,
+            substitution: substitution,
+            typeVarBySymbol: typeVariables
+        )
+        guard case let .functionType(functionType) = sema.types.kind(
+            of: sema.types.makeNonNullable(resolved)
+        ) else { return nil }
+        return functionType
     }
 
     /// Unlike sequenceOf(...)/listOf(...), which box each element explicitly at

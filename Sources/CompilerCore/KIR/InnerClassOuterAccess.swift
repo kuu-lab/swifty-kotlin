@@ -657,7 +657,8 @@ extension CallLowerer {
             arena: arena,
             interner: interner,
             instructions: &instructions,
-            arguments: &finalArguments
+            arguments: &finalArguments,
+            callBinding: sema.bindings.callBindings[exprID]
         )
         appendReifiedTypeTokens(
             chosenCallee: chosenCtor,
