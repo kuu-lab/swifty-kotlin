@@ -520,10 +520,10 @@ public fun <T, R> Sequence<T>.zipWithNext(transform: (T, T) -> R): Sequence<R> {
 
 public fun <T> Sequence<T>.distinct(): Sequence<T> {
     val source = this
-    val seen = mutableListOf<Any?>()
     return object : Sequence<T> {
         override fun iterator(): Iterator<T> = object : Iterator<T> {
             val sourceIterator = source.iterator()
+            val seen = mutableSetOf<Any?>()
             var nextState = -2
             var nextItem: T? = null
 
@@ -532,8 +532,7 @@ public fun <T> Sequence<T>.distinct(): Sequence<T> {
                 while (sourceIterator.hasNext()) {
                     val item = sourceIterator.next()
                     val key = item as Any?
-                    if (!seen.contains(key)) {
-                        seen.add(key)
+                    if (seen.add(key)) {
                         nextItem = item
                         nextState = 0
                         return
@@ -562,10 +561,10 @@ public fun <T> Sequence<T>.distinct(): Sequence<T> {
 
 public fun <T, K> Sequence<T>.distinctBy(selector: (T) -> K): Sequence<T> {
     val source = this
-    val seen = mutableListOf<Any?>()
     return object : Sequence<T> {
         override fun iterator(): Iterator<T> = object : Iterator<T> {
             val sourceIterator = source.iterator()
+            val seen = mutableSetOf<Any?>()
             var nextState = -2
             var nextItem: T? = null
 
@@ -574,8 +573,7 @@ public fun <T, K> Sequence<T>.distinctBy(selector: (T) -> K): Sequence<T> {
                 while (sourceIterator.hasNext()) {
                     val item = sourceIterator.next()
                     val key = selector(item) as Any?
-                    if (!seen.contains(key)) {
-                        seen.add(key)
+                    if (seen.add(key)) {
                         nextItem = item
                         nextState = 0
                         return

@@ -88,6 +88,15 @@ public struct CallableValueCallBinding {
     public let implicitInvokeReceiverExpr: ExprID?
     public let contextArgumentCount: Int
     public let receiverArgumentOffset: Int
+    /// Per-context-receiver slot of `functionType.contextReceivers`: the
+    /// implicit receiver / context parameter symbol that supplies that
+    /// context argument when the call omits it (`contextArgumentCount == 0`).
+    /// A `nil` entry defers to the lowering-time context receiver stack, the
+    /// same contract as `CallBinding.contextParameterReceiverSymbols`. Needed
+    /// so multi-context invocations reach *every* matching tower receiver —
+    /// not just the innermost `with`/`context` receiver in scope — and so
+    /// capture analysis forwards those receiver symbols into nested lambdas.
+    public let contextReceiverSymbols: [SymbolID?]
 
     public init(
         target: CallableTarget?,
@@ -96,7 +105,8 @@ public struct CallableValueCallBinding {
         extensionCallableExpr: ExprID? = nil,
         implicitInvokeReceiverExpr: ExprID? = nil,
         contextArgumentCount: Int = 0,
-        receiverArgumentOffset: Int = 0
+        receiverArgumentOffset: Int = 0,
+        contextReceiverSymbols: [SymbolID?] = []
     ) {
         self.target = target
         self.functionType = functionType
@@ -105,6 +115,7 @@ public struct CallableValueCallBinding {
         self.implicitInvokeReceiverExpr = implicitInvokeReceiverExpr
         self.contextArgumentCount = contextArgumentCount
         self.receiverArgumentOffset = receiverArgumentOffset
+        self.contextReceiverSymbols = contextReceiverSymbols
     }
 }
 

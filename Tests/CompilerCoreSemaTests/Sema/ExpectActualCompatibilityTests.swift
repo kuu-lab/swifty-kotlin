@@ -931,6 +931,192 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3774: members nested inside an `expect class` body are expected
+    /// implicitly — companion-object properties need no initializer.
+    @Test func testExpectClassCompanionObjectPropertiesNeedNoInitializer() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class E {
+                companion object {
+                    val ZERO: E
+                    internal val MIN: E
+                }
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0424" },
+                "Companion-object properties of an expect class declare contracts only: \(errors)"
+            )
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-3774: a secondary constructor inside an `expect class` is a
+    /// bodiless declaration — the actual supplies the delegation call.
+    @Test func testExpectClassSecondaryConstructorNeedsNoDelegation() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class E(x: Int) {
+                constructor()
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0054" },
+                "Expect-class secondary constructors are bodiless declarations: \(errors)"
+            )
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-3774: the expect exemption propagates through nested nominal
+    /// members — a class/object nested inside an `expect class` declares
+    /// signatures only.
+    @Test func testNestedTypeMembersInsideExpectClassNeedNoImplementation() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class E {
+                class N { val x: Int }
+                object O { val y: Int }
+                class C(x: Int) { constructor() }
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0424" || $0.code == "KSWIFTK-SEMA-0054" },
+                "Members of nested types inside an expect class are also contracts: \(errors)"
+            )
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-3774: the propagated expect context keeps kotlinc's positive
+    /// diagnostics — implementations inside an expect companion still fail.
+    @Test func testExpectClassCompanionMemberBodiesAreStillDiagnosed() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class E {
+                companion object {
+                    val x: Int = 0
+                    fun f() {}
+                }
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.code)
+            #expect(
+                codes.contains("KSWIFTK-SEMA-0453"),
+                "Expected 'expect' initializer diagnostic: \(ctx.diagnostics.diagnostics)"
+            )
+            #expect(
+                codes.contains("KSWIFTK-SEMA-0452"),
+                "Expected 'expect' body diagnostic: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    /// KUU-3930: the okio shape — mutable (`var`) and annotated (`@JvmField`)
+    /// members of a nested class inside an `expect class` need no
+    /// initializer either, at any nesting depth.
+    @Test func testNestedClassVarMembersInsideExpectClassNeedNoInitializer() throws {
+        try withTemporaryFile(
+            contents: """
+            interface Closeable { fun close() }
+            class Segment
+            expect class Buffer {
+                internal var head: Segment?
+                var size: Long
+                    internal set
+
+                class UnsafeCursor constructor() : Closeable {
+                    @JvmField var buffer: Buffer?
+                    @JvmField var readWrite: Boolean
+                    internal var segment: Segment?
+                    @JvmField var offset: Long
+                    val data: ByteArray?
+                    fun next(): Int
+                    override fun close()
+
+                    class Deeper { val x: Int }
+                }
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0424" },
+                "Nested-class members inside an expect class are contracts too: \(errors)"
+            )
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-3774: `actual` members are real implementations — the expect
+    /// exemption must not leak into the actual side of the pair.
+    @Test func testActualCompanionPropertyStillRequiresInitializer() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            expect class E {
+                companion object {
+                    val ZERO: E
+                }
+            }
+            """,
+            """
+            actual class E {
+                actual companion object {
+                    actual val ZERO: E
+                }
+            }
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-SEMA-0424" },
+                "Actual companion properties still need an initializer: \(errors)"
+            )
+        }
+    }
+
     private func makeImportedExpectLibrary(indexed: Bool) throws -> URL {
         let libraryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kklib")

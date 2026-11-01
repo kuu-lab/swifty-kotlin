@@ -2,14 +2,21 @@ import Dispatch
 import Foundation
 
 private final class RuntimeResumeContinuationBox: @unchecked Sendable {
-    let closure: @Sendable () -> Void
+    /// The optional thrown slot mirrors a Kotlin call's outThrown channel: when
+    /// the resume continuation is invoked synchronously on the resumer's own
+    /// stack (the `resumesInline` path), an exception escaping the resumed
+    /// burst — e.g. a completion continuation whose `resumeWith` rethrows —
+    /// must reach the resumer's caller exactly like a JVM `resume` call frame.
+    /// Dispatched/queued invocations pass nil and keep the legacy
+    /// processUnhandledException fallback.
+    let closure: @Sendable (UnsafeMutablePointer<Int>?) -> Void
 
-    init(_ closure: @escaping @Sendable () -> Void) {
+    init(_ closure: @escaping @Sendable (UnsafeMutablePointer<Int>?) -> Void) {
         self.closure = closure
     }
 
-    func invoke() {
-        closure()
+    func invoke(_ outThrown: UnsafeMutablePointer<Int>?) {
+        closure(outThrown)
     }
 }
 
@@ -29,7 +36,7 @@ final class RuntimeCoroutineSyncGate: @unchecked Sendable {
             resumeContinuation = nil
             lock.unlock()
             DispatchQueue.global(qos: .userInitiated).async {
-                cont.invoke()
+                cont.invoke(nil)
             }
             return
         }
@@ -54,7 +61,7 @@ final class RuntimeCoroutineSyncGate: @unchecked Sendable {
             return false
         }
         if let continuation {
-            resumeContinuation = RuntimeResumeContinuationBox(continuation)
+            resumeContinuation = RuntimeResumeContinuationBox { _ in continuation() }
             lock.unlock()
             return true
         }
@@ -608,12 +615,26 @@ final class RuntimeContinuationState: @unchecked Sendable {
                 interceptedContinuationRaw = wrappedRaw
                 return wrappedRaw
             }
-            // A custom interceptor product cannot be retargeted at this
-            // frame; the anchor's single `interceptContinuation` still keeps
-            // the interception count JVM reports while this frame resolves
-            // to itself so `resume` drives this machine directly.
-            interceptedContinuationRaw = continuationRaw
-            return continuationRaw
+            // A custom (source-level) interceptor product cannot be
+            // retargeted at this frame. On JVM this frame's suspend points
+            // bind the anchor machine, so `intercepted()` would return the
+            // anchor's product; KSwiftK keeps a distinct child machine, so
+            // invoke `interceptContinuation` on this frame's own continuation
+            // — the equivalent per-machine interception — letting a
+            // `ContinuationDispatcher` dispatch every resume hop (KUU-3783).
+            interceptionDerived = false
+            var frameThrown = 0
+            let frameProduct = runtimeInterceptGeneratedContinuation(
+                interceptor: interceptor,
+                continuation: continuationRaw,
+                outThrown: &frameThrown
+            )
+            outThrown?.pointee = frameThrown
+            guard frameThrown == 0 else {
+                return continuationRaw
+            }
+            interceptedContinuationRaw = frameProduct
+            return frameProduct
         }
         var thrown = 0
         let context = generatedCoroutineContext(outThrown: &thrown)
@@ -693,7 +714,23 @@ final class RuntimeContinuationState: @unchecked Sendable {
         timer.resume()
     }
 
-    func installResumeContinuation(_ continuation: @escaping @Sendable () -> Void) {
+    /// The installed closure takes an optional thrown slot, forwarded to it
+    /// Convenience for resume continuations that ignore the resumer's thrown
+    /// slot (dispatcher queues and pending signals always invoke with nil).
+    func installResumeContinuation(
+        _ continuation: @escaping @Sendable () -> Void
+    ) {
+        installResumeContinuation { _ in continuation() }
+    }
+
+    /// only when it is invoked synchronously on a resumer's stack (see
+    /// `signalResume`). A pending signal consumed here means the resumer's
+    /// `resume` call already returned, so every eager path passes nil —
+    /// exceptions inside the continuation keep the processUnhandledException
+    /// fallback instead of escaping into the suspending caller.
+    func installResumeContinuation(
+        _ continuation: @escaping @Sendable (UnsafeMutablePointer<Int>?) -> Void
+    ) {
         let boxedContinuation = RuntimeResumeContinuationBox(continuation)
         stateLock.lock()
         if resumeSignalPending {
@@ -704,15 +741,15 @@ final class RuntimeContinuationState: @unchecked Sendable {
             let inlineResume = resumesInline
             stateLock.unlock()
             if let scheduler {
-                scheduler.enqueueResume { boxedContinuation.invoke() }
+                scheduler.enqueueResume { boxedContinuation.invoke(nil) }
                 return
             }
             if let dispatcher {
-                dispatcher.dispatchAsync { boxedContinuation.invoke() }
+                dispatcher.dispatchAsync { boxedContinuation.invoke(nil) }
                 return
             }
             if inlineResume {
-                boxedContinuation.invoke()
+                boxedContinuation.invoke(nil)
                 return
             }
             // On a runBlocking event loop this lands at the TAIL of the queue,
@@ -722,10 +759,10 @@ final class RuntimeContinuationState: @unchecked Sendable {
             // handler flushes the coroutines this burst launched, and only then
             // installs -- so the yielding coroutine queues up behind them.
             if let loop {
-                loop.enqueue { boxedContinuation.invoke() }
+                loop.enqueue { boxedContinuation.invoke(nil) }
             } else {
                 DispatchQueue.global().async {
-                    boxedContinuation.invoke()
+                    boxedContinuation.invoke(nil)
                 }
             }
             return
@@ -885,7 +922,15 @@ final class RuntimeContinuationState: @unchecked Sendable {
 
     /// Cancellation from a replaced Job must not resume a shielded withContext
     /// caller, but ordinary block completion still can.
-    func signalResume(isCancellation: Bool = false) {
+    ///
+    /// `outThrown` is the resumer's own thrown slot. It is forwarded to the
+    /// installed continuation only on the synchronous `resumesInline` path,
+    /// where the whole resume-to-completion drive is one call stack — matching
+    /// the JVM, where an exception escaping `resume` (such as a completion
+    /// continuation rethrowing inside `resumeWith`) propagates to the resumer's
+    /// caller. Queued/dispatched invocations cannot reach that frame, so they
+    /// keep the processUnhandledException fallback.
+    func signalResume(isCancellation: Bool = false, outThrown: UnsafeMutablePointer<Int>? = nil) {
         stateLock.lock()
         if isCancellation, cancellationShieldDepth > 0 {
             stateLock.unlock()
@@ -893,7 +938,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
         }
         if let child = suspendedCallChild {
             stateLock.unlock()
-            child.signalResume(isCancellation: isCancellation)
+            child.signalResume(isCancellation: isCancellation, outThrown: outThrown)
             return
         }
         if let cont = resumeContinuation {
@@ -904,23 +949,23 @@ final class RuntimeContinuationState: @unchecked Sendable {
             let dispatcher = resumeDispatcher
             stateLock.unlock()
             if let scheduler {
-                scheduler.enqueueResume { cont.invoke() }
+                scheduler.enqueueResume { cont.invoke(nil) }
                 return
             }
             if let dispatcher {
-                dispatcher.dispatchAsync { cont.invoke() }
+                dispatcher.dispatchAsync { cont.invoke(nil) }
                 return
             }
             // Queue the resumption on the coroutine's event loop when it has
             // one, so resumptions keep the loop's FIFO order instead of being
             // ordered by whichever global-pool thread happens to pick them up.
             if inlineResume {
-                cont.invoke()
+                cont.invoke(outThrown)
             } else if let loop {
-                loop.enqueue { cont.invoke() }
+                loop.enqueue { cont.invoke(nil) }
             } else {
                 DispatchQueue.global().async {
-                    cont.invoke()
+                    cont.invoke(nil)
                 }
             }
             return
@@ -938,8 +983,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// (one-shot guard), returns a raw pointer to a `RuntimeIllegalStateExceptionBox`
     /// describing the double-resume violation (STDLIB-CORO-BUG-01).
     /// The flag is set BEFORE delivering the result to prevent re-entrant resume.
+    /// `outThrown` is the resumer's own thrown slot: when the resume drives the
+    /// coroutine synchronously to completion, an exception escaping the
+    /// completion continuation's `resumeWith` lands there so the resumer's
+    /// call site rethrows it like a JVM `resume` frame (KUU-3783).
     @discardableResult
-    func resume(with value: Int) -> Int? {
+    func resume(with value: Int, outThrown: UnsafeMutablePointer<Int>? = nil) -> Int? {
         stateLock.lock()
         if hasResumed {
             stateLock.unlock()
@@ -955,7 +1004,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
             orReturnResumeDelivered = true
         }
         stateLock.unlock()
-        signalResume()
+        signalResume(outThrown: outThrown)
         return nil
     }
 
@@ -964,7 +1013,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// describing the double-resume violation (STDLIB-CORO-BUG-01).
     /// The flag is set BEFORE delivering the result to prevent re-entrant resume.
     @discardableResult
-    func resume(withException exception: Int) -> Int? {
+    func resume(withException exception: Int, outThrown: UnsafeMutablePointer<Int>? = nil) -> Int? {
         stateLock.lock()
         if hasResumed {
             stateLock.unlock()
@@ -980,7 +1029,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
             orReturnResumeDelivered = true
         }
         stateLock.unlock()
-        signalResume()
+        signalResume(outThrown: outThrown)
         return nil
     }
 

@@ -2090,12 +2090,12 @@ func kk_with_context_impl(
             _ = runSuspendEntryLoopWithContinuation(
                 entryPointRaw: blockFnPtr,
                 continuation: capturedContinuation,
-                onCompletion: { result, thrown in
+                onCompletion: { result, thrown, resumeThrown in
                     let failure = restoreJobHandle?(thrown) ?? thrown
                     if failure != 0 {
-                        callerState.resume(withException: failure)
+                        callerState.resume(withException: failure, outThrown: resumeThrown)
                     } else {
-                        callerState.resume(with: result)
+                        callerState.resume(with: result, outThrown: resumeThrown)
                     }
                 }
             )

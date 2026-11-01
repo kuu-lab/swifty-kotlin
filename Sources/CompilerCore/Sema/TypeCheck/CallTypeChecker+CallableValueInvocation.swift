@@ -613,6 +613,19 @@ extension CallTypeChecker {
                 sema.bindings.markImplicitExtensionReceiver(id, symbol: receiverSymbol)
             }
         }
+        // When every context argument is implicit, pin down which receiver
+        // tower entry supplies each `contextReceivers` slot — the same
+        // resolution a direct call's `contextParameterReceiverSymbols` gets.
+        // Without it, lowering sees only the innermost implicit receiver and
+        // drops context arguments of other types (KUU-3897).
+        let callableContextReceiverSymbols: [SymbolID?] = contextArgumentCount == 0
+            ? contextParameterReceiverSymbols(
+                contextParameterTypes: contextTypes,
+                typeParameterSymbols: [],
+                substitution: [:],
+                ctx: ctx
+            )
+            : []
         sema.bindings.bindCallableValueCall(
             id,
             binding: CallableValueCallBinding(
@@ -621,7 +634,8 @@ extension CallTypeChecker {
                 parameterMapping: parameterMapping,
                 extensionCallableExpr: extensionCallableExpr,
                 contextArgumentCount: contextArgumentCount,
-                receiverArgumentOffset: receiverArgOffset
+                receiverArgumentOffset: receiverArgOffset,
+                contextReceiverSymbols: callableContextReceiverSymbols
             )
         )
         if let callableTarget {

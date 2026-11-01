@@ -160,12 +160,23 @@ extension CollectionLiteralConstructionLoweringPass {
     private func isJavaUtilSortedConstructor(
         callee: InternedString,
         symbol: SymbolID?,
+        arguments: [KIRExprID],
         result: KIRExprID?,
         module: KIRModule,
         className: InternedString,
         ctx: KIRContext
     ) -> Bool {
         guard let sema = ctx.sema else { return false }
+        // Same delegated `super(...)` / `this(...)` exclusion as
+        // `isHashSetConstructor`: a factory here would drop the subclass's
+        // comparator into a discarded box instead of running `__kk_tree_*_init`.
+        if callee == ctx.interner.intern("<init>"),
+           let symbol,
+           let signature = sema.symbols.functionSignature(for: symbol),
+           arguments.count == signature.parameterTypes.count + 1
+        {
+            return false
+        }
         let expectedFQName = [
             ctx.interner.intern("java"),
             ctx.interner.intern("util"),
@@ -193,28 +204,30 @@ extension CollectionLiteralConstructionLoweringPass {
     func isTreeSetConstructor(
         callee: InternedString,
         symbol: SymbolID?,
+        arguments: [KIRExprID],
         result: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
         isJavaUtilSortedConstructor(
-            callee: callee, symbol: symbol, result: result, module: module,
-            className: lookup.treeSetName, ctx: ctx
+            callee: callee, symbol: symbol, arguments: arguments,
+            result: result, module: module, className: lookup.treeSetName, ctx: ctx
         )
     }
 
     func isTreeMapConstructor(
         callee: InternedString,
         symbol: SymbolID?,
+        arguments: [KIRExprID],
         result: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
         isJavaUtilSortedConstructor(
-            callee: callee, symbol: symbol, result: result, module: module,
-            className: lookup.treeMapName, ctx: ctx
+            callee: callee, symbol: symbol, arguments: arguments,
+            result: result, module: module, className: lookup.treeMapName, ctx: ctx
         )
     }
 

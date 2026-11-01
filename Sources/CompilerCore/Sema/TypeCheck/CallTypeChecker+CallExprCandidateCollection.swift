@@ -52,20 +52,17 @@ extension CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
+            // A nearer implicit receiver carrying a DslMarker annotation hides
+            // farther receivers marked with the same annotation. Scope
+            // candidates must not bind to those hidden receivers.
+            let dslHiddenReceiverTypes = ctx.dslHiddenImplicitReceiverTypes()
             let matchingReceiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                allCallCandidates.contains { candidate in
-                    guard let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
-                        return false
+                !dslHiddenReceiverTypes.contains(entry.type)
+                    && allCallCandidates.contains { candidate in
+                        callCandidateDeclaredReceiver(
+                            candidate, matchesTowerEntryType: entry.type, ctx: ctx
+                        )
                     }
-                    if sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil {
-                        return implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
-                    }
-                    return extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: entry.type,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                }
             })
             if let matchingReceiverEntry {
                 callImplicitReceiverType = matchingReceiverEntry.type
@@ -78,8 +75,16 @@ extension CallTypeChecker {
                     nullability: .nonNull
                 )))
             }
-            let dslBlockedCandidates = allCallCandidates.filter { ctx.isCandidateBlockedByDslMarker($0) }
-            let dslFiltered = allCallCandidates.filter { !ctx.isCandidateBlockedByDslMarker($0) }
+            func isScopeCandidateDslBlocked(_ candidate: SymbolID) -> Bool {
+                ctx.isCandidateBlockedByDslMarker(candidate)
+                    || isCallCandidateBlockedByDslHiddenReceivers(
+                        candidate,
+                        hiddenReceiverTypes: dslHiddenReceiverTypes,
+                        ctx: ctx
+                    )
+            }
+            let dslBlockedCandidates = allCallCandidates.filter(isScopeCandidateDslBlocked)
+            let dslFiltered = allCallCandidates.filter { !isScopeCandidateDslBlocked($0) }
             let (vis, invis) = ctx.filterByVisibility(
                 dslFiltered,
                 protectedAccessReceiverType: callImplicitReceiverType

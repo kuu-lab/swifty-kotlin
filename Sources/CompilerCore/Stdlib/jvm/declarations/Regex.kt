@@ -6,7 +6,7 @@ class Regex {
     constructor(pattern: String, options: Set<RegexOption>)
     val pattern: String get() = null!!
     val options: Set<RegexOption> get() = null!!
-    fun matches(input: CharSequence): Boolean = false
+    infix fun matches(input: CharSequence): Boolean = false
     fun containsMatchIn(input: CharSequence): Boolean = false
     fun find(input: CharSequence, startIndex: Int = 0): MatchResult? = null
     fun findAll(input: CharSequence, startIndex: Int = 0): kotlin.sequences.Sequence<MatchResult> = null!!

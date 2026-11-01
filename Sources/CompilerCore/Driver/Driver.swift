@@ -331,6 +331,9 @@ public final class CompilerDriver {
 
         if timePhasesEnabled, let timer = ctx.phaseTimer {
             timer.printSummary()
+            if let attribution = ctx.typeCheckAttribution {
+                FileHandle.standardError.write(Data(attribution.summary().utf8))
+            }
         }
 
         return (ctx.diagnostics.hasError ? 1 : 0, ctx.diagnostics.diagnostics)

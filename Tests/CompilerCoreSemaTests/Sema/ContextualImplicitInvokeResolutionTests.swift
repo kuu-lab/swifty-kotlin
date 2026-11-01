@@ -88,6 +88,44 @@ struct ContextualImplicitInvokeResolutionTests {
         #expect(signature.receiverType != nil)
     }
 
+    /// KUU-3897: `g()` on a `context(String, Int) () -> String` value must bind
+    /// a receiver symbol for *every* context slot — the outer `with` String
+    /// receiver for slot 0 and the inner `with` Int receiver for slot 1 — or
+    /// lowering drops the unresolvable argument and calls the runtime invoke
+    /// bridge with a mismatched arity.
+    @Test func callableValueInvokeBindsEveryContextReceiverSlot() throws {
+        let ctx = context("""
+        fun <T, R> with(receiver: T, block: T.() -> R): R = block(receiver)
+
+        context(a: String, n: Int) fun tag(): String = "$a$n"
+
+        fun main() {
+            val g: context(String, Int) () -> String = ::tag
+            with("x") { with(7) { g() } }
+        }
+        """)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let binding = try #require(ast.arena.exprs.indices.compactMap { index -> CallableValueCallBinding? in
+            sema.bindings.callableValueCallBinding(for: ExprID(rawValue: Int32(index)))
+        }.first { binding in
+            guard case let .functionType(functionType) = sema.types.kind(
+                of: sema.types.makeNonNullable(binding.functionType)
+            ) else { return false }
+            return functionType.contextReceivers.count == 2
+        })
+        #expect(binding.contextReceiverSymbols.count == 2)
+        #expect(binding.contextReceiverSymbols.allSatisfy { $0 != nil })
+        // Each slot resolves to a *different* tower entry: the outer `with`
+        // String receiver for slot 0 and the inner `with` Int receiver for
+        // slot 1.
+        #expect(binding.contextReceiverSymbols[0] != binding.contextReceiverSymbols[1])
+    }
+
     @Test func invokeWithoutRequiredContextKeepsContextDiagnostic() throws {
         let ctx = context("""
         class Bar {

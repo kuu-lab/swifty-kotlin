@@ -1146,19 +1146,22 @@ extension ExprLowerer {
             // A bare reference to an extension property inside a body whose
             // implicit receiver matches the extension receiver (e.g. `id`
             // inside another `Worker` extension body) must call the
-            // property's getter on that receiver. Without this branch the
-            // symbol falls through to `loadGlobal` below, which reads a
+            // property's getter on that receiver — the active receiver, or
+            // the captured enclosing receiver Sema recorded when a
+            // receiver-typed lambda's own receiver does not satisfy the
+            // declared extension receiver (KUU-3914). Without this branch
+            // the symbol falls through to `loadGlobal` below, which reads a
             // global slot that is never initialized (Int reads as 0,
             // String reads as null).
             if let sym = sema.symbols.symbol(symbol),
                sym.kind == .property,
                let extensionReceiverType = sema.symbols.extensionPropertyReceiverType(for: symbol),
                let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol),
-               let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
-               let activeReceiverType = arena.exprType(receiverExprID),
-               sema.types.isSubtype(
-                   sema.types.makeNonNullable(activeReceiverType),
-                   sema.types.makeNonNullable(extensionReceiverType)
+               let receiverExprID = implicitExtensionPropertyReceiverExpr(
+                   for: exprID,
+                   extensionReceiverType: extensionReceiverType,
+                   sema: sema,
+                   arena: arena
                )
             {
                 let resultType = boundType
@@ -1338,6 +1341,41 @@ extension ExprLowerer {
         let id = arena.appendExpr(.unit, type: boundType ?? sema.types.errorType)
         instructions.append(.constValue(result: id, value: .unit))
         return id
+    }
+
+    /// The receiver value for an unqualified extension-property read. Sema
+    /// may have bound the reference to an enclosing receiver-tower entry —
+    /// a receiver-typed lambda's captured `this` (KUU-3914) — recorded as
+    /// `implicitReceiverOuterReceiver`; its captured value supplies the
+    /// extension receiver while the active implicit receiver (the lambda's
+    /// own) does not match. Otherwise the active implicit receiver itself
+    /// must satisfy the declared extension receiver type.
+    private func implicitExtensionPropertyReceiverExpr(
+        for exprID: ExprID,
+        extensionReceiverType: TypeID,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> KIRExprID? {
+        if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
+           let capturedReceiver = driver.ctx.localValue(for: receiverSymbol),
+           let capturedType = arena.exprType(capturedReceiver),
+           sema.types.isSubtype(
+               sema.types.makeNonNullable(capturedType),
+               sema.types.makeNonNullable(extensionReceiverType)
+           )
+        {
+            return capturedReceiver
+        }
+        guard let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
+              let activeReceiverType = arena.exprType(activeReceiver),
+              sema.types.isSubtype(
+                  sema.types.makeNonNullable(activeReceiverType),
+                  sema.types.makeNonNullable(extensionReceiverType)
+              )
+        else {
+            return nil
+        }
+        return activeReceiver
     }
 
     private func materializeSmartcastedPrimitiveGlobal(

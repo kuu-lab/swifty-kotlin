@@ -112,7 +112,7 @@ public func kk_coroutine_call_direct_suspend(
     _ = runSuspendEntryLoopWithContinuation(
         entryPointRaw: entryPointRaw,
         continuation: childContinuation,
-        onCompletion: { result, thrown in
+        onCompletion: { result, thrown, resumeThrown in
             if let childState {
                 callerState.unbindSuspendedCallChild(childState)
             }
@@ -125,7 +125,12 @@ public func kk_coroutine_call_direct_suspend(
                 callerState.completion = Int64(result)
             }
             if completion.record(result: result, thrown: thrown) {
-                callerState.signalResume()
+                // Forward the resumer's thrown slot: when this signal drives the
+                // caller synchronously to its own completion, an exception the
+                // caller's completion continuation throws inside `resumeWith`
+                // must propagate back to the original `resume` call site — the
+                // single-call-stack behavior JVM `resume` exhibits (KUU-3783).
+                callerState.signalResume(outThrown: resumeThrown)
             }
         }
     )
@@ -492,13 +497,15 @@ private func startUninterceptedCoroutineFromResume(
 private func continueUninterceptedCoroutineToCompletion(
     entryPointRaw: Int,
     continuation: Int,
-    completionContinuation: Int
+    completionContinuation: Int,
+    outThrown: UnsafeMutablePointer<Int>?
 ) {
     runtimeContinuationState(from: continuation)?.resetResumeState()
     startUninterceptedCoroutineFromResume(
         entryPointRaw: entryPointRaw,
         continuation: continuation,
-        completionContinuation: completionContinuation
+        completionContinuation: completionContinuation,
+        outThrown: outThrown
     )
 }
 
@@ -577,11 +584,12 @@ private func startCoroutineUninterceptedOrReturn(
     }
 
     outThrown?.pointee = 0
-    state.installResumeContinuation {
+    state.installResumeContinuation { resumeThrown in
         continueUninterceptedCoroutineToCompletion(
             entryPointRaw: entryPointRaw,
             continuation: continuation,
-            completionContinuation: completionContinuation
+            completionContinuation: completionContinuation,
+            outThrown: resumeThrown
         )
     }
     return suspendedToken
@@ -827,9 +835,9 @@ public func __kk_coroutine_continuation_resume_with(
         let resultBox = access.box
         let ise: Int?
         if resultBox.isSuccess {
-            ise = state.resume(with: resultBox.value)
+            ise = state.resume(with: resultBox.value, outThrown: outThrown)
         } else {
-            ise = state.resume(withException: resultBox.exception)
+            ise = state.resume(withException: resultBox.exception, outThrown: outThrown)
         }
         if let ise {
             state.deliverDoubleResumeException(ise)
@@ -837,7 +845,7 @@ public func __kk_coroutine_continuation_resume_with(
         return
     }
 
-    if let ise = state.resume(with: resultRaw) {
+    if let ise = state.resume(with: resultRaw, outThrown: outThrown) {
         state.deliverDoubleResumeException(ise)
     }
 }
@@ -912,7 +920,7 @@ func runtimeStartLaunchedBody(
     _ = runSuspendEntryLoopWithContinuation(
         entryPointRaw: entryPointRaw,
         continuation: continuation,
-        onCompletion: onFinished
+        onCompletion: { result, thrown, _ in onFinished(result, thrown) }
     )
 }
 

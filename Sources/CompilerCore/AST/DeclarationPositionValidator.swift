@@ -822,6 +822,14 @@ struct DeclarationPositionValidator {
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
 
+        // kotlinc prohibits `by`-delegation in `expect` classes (one error
+        // per delegated supertype entry, at the `I by d` specifier). Kept in
+        // its own expect-context block so it stays independent of the
+        // KUU-3898 expect-shape checks above.
+        if isExpectContext(modifiers, site: site) {
+            emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
+        }
+
         if modifiers.contains(.data), !isEnum, !isAnnotation, decl.primaryConstructorParams.isEmpty {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0404",
@@ -888,7 +896,7 @@ struct DeclarationPositionValidator {
         let memberSite = NominalSite(
             kind: isEnum ? .enum : (isAnnotation ? .annotationClass : .class),
             isLocal: site == .function,
-            ownerModifiers: modifiers,
+            ownerModifiers: memberOwnerModifiers(modifiers, site: site),
             allowsImperativeInit: !decl.initBlocks.isEmpty
                 || !decl.secondaryConstructors.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
@@ -926,7 +934,7 @@ struct DeclarationPositionValidator {
             let entrySite = OwnerSite.nominal(NominalSite(
                 kind: .enumEntry,
                 isLocal: site.isLocal,
-                ownerModifiers: [],
+                ownerModifiers: site.ownerModifiers.intersection(.expect),
                 allowsImperativeInit: !entry.initBlocks.isEmpty,
                 defersPropertyInitialization: !entry.initBlocks.isEmpty
             ))
@@ -985,10 +993,25 @@ struct DeclarationPositionValidator {
             }
         }
 
+        // kotlinc prohibits `by`-delegation on interfaces outright: each
+        // delegated supertype entry reports at its type portion (`I` in
+        // `I by d`). An `expect` interface still collects the SEMA-0460
+        // delegation error on the same specifier, like kotlinc.
+        for entry in decl.superTypeEntries where entry.delegateExpression != nil {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0461",
+                "delegation cannot be used in interfaces.",
+                range: entry.range ?? decl.range
+            )
+        }
+        if isExpectContext(modifiers, site: site) {
+            emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
+        }
+
         let memberSite = NominalSite(
             kind: .interface,
             isLocal: site == .function,
-            ownerModifiers: modifiers
+            ownerModifiers: memberOwnerModifiers(modifiers, site: site)
         )
         validateInterfaceMembers(decl, site: memberSite)
     }
@@ -1090,11 +1113,17 @@ struct DeclarationPositionValidator {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
         }
 
+        // kotlinc reports the same 'expect' delegation error on objects
+        // (`expect object O : I by d`), still phrased "'expect' classes".
+        if isExpectContext(modifiers, site: site) {
+            emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
+        }
+
         let isCompanion = modifiers.contains(.companion)
         let memberSite = NominalSite(
             kind: isCompanion ? .companionObject : .object,
             isLocal: site == .function,
-            ownerModifiers: modifiers,
+            ownerModifiers: memberOwnerModifiers(modifiers, site: site),
             allowsImperativeInit: !decl.initBlocks.isEmpty,
             defersPropertyInitialization: !decl.initBlocks.isEmpty
                 || hasPropertyInitializationExpression(decl.memberProperties)
@@ -1382,6 +1411,14 @@ struct DeclarationPositionValidator {
         return false
     }
 
+    /// Members of an `expect` owner are themselves expected implicitly at any
+    /// nesting depth — e.g. properties of a `companion object` inside an
+    /// `expect class` need no initializer — so the marker propagates into
+    /// each member site.
+    private func memberOwnerModifiers(_ modifiers: Modifiers, site: OwnerSite) -> Modifiers {
+        isExpectContext(modifiers, site: site) ? modifiers.union(.expect) : modifiers
+    }
+
     private func emitExpectNotPrivate(range: SourceRange) {
         diagnostics?.error(
             "KSWIFTK-SEMA-0451",
@@ -1396,6 +1433,36 @@ struct DeclarationPositionValidator {
             "'expect' declaration cannot have a body.",
             range: range
         )
+    }
+
+    /// kotlinc emits "implementation by delegation in 'expect' classes is
+    /// prohibited." once per delegated supertype entry (`I by d`), covering
+    /// the whole `Type by expr` specifier. Applies to classes, objects,
+    /// enum classes, and their nested members inside an `expect` owner —
+    /// anywhere `isExpectContext` holds.
+    private func emitExpectDelegationDiagnostics(
+        _ entries: [SuperTypeEntry],
+        fallbackRange: SourceRange
+    ) {
+        for entry in entries {
+            guard let delegateExpression = entry.delegateExpression else {
+                continue
+            }
+            let delegateRange = astArena.exprRange(delegateExpression)
+            let range: SourceRange
+            if let typeRange = entry.range, let delegateRange,
+               typeRange.start.file == delegateRange.end.file
+            {
+                range = SourceRange(start: typeRange.start, end: delegateRange.end)
+            } else {
+                range = delegateRange ?? entry.range ?? fallbackRange
+            }
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0460",
+                "implementation by delegation in 'expect' classes is prohibited.",
+                range: range
+            )
+        }
     }
 
     private func functionTargetName(site: OwnerSite) -> String {

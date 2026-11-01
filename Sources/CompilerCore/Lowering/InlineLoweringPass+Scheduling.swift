@@ -30,6 +30,10 @@ extension InlineLoweringPass {
             guard visited.insert(symbol).inserted,
                   let original = index.originalBodies[symbol] else { continue }
             var dependencies: Set<SymbolID> = []
+            // One scan per snapshot body answers every per-argument lambda
+            // lookup below; rescanning the body per argument made this
+            // dependency pass quadratic in the body size (KUU-3777).
+            let bodyIndex = InlineCallerBodyIndex(body: original.body, stats: stats)
             for instruction in original.body {
                 guard case let .call(callSymbol, callee, arguments, _, _, _, _, _) = instruction else {
                     continue
@@ -49,7 +53,7 @@ extension InlineLoweringPass {
                     if let lambda = resolveLambdaFunction(
                         argExpr: argument, arena: module.arena,
                         allFunctionsBySymbol: index.allFunctionsBySymbol,
-                        callerBody: original.body
+                        callerBodyIndex: bodyIndex
                     ) {
                         dependencies.insert(lambda.symbol)
                     }

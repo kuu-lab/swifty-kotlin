@@ -325,11 +325,14 @@ extension KIRLoweringDriver {
             let endLabel = ctx.makeLoopLabel()
             var resultExprID: KIRExprID?
             if signature.returnType != sema.types.unitType {
-                let resultExpr = arena.appendExpr(
-                    delegationDefaultValue(for: signature.returnType, sema: sema),
-                    type: signature.returnType
-                )
-                resultExprID = resultExpr
+                // The result temp is assigned inside every dispatch branch
+                // below, so it must be a real temporary rather than a
+                // literal-kind default value. A `.null`/zero literal kind is
+                // read as a constant by NativeEmitter.isZeroConstant, and
+                // flat-string argument marshalling then substitutes a null
+                // aggregate -- which made suspend delegated forwards of
+                // String results exit their coroutine state with null.
+                resultExprID = arena.appendTemporary(type: signature.returnType)
             }
 
             for (target, label) in zip(dispatchTargets, branchLabels) {
@@ -632,10 +635,11 @@ extension KIRLoweringDriver {
 
         var resultExprID: KIRExprID?
         if returnType != sema.types.unitType {
-            resultExprID = arena.appendExpr(
-                delegationDefaultValue(for: returnType, sema: sema),
-                type: returnType
-            )
+            // Same as the method-forwarding path above: the dispatch
+            // branches assign this slot, so it must be a `.temporary` and
+            // not a literal-kind default value that codegen would misread
+            // as a constant.
+            resultExprID = arena.appendTemporary(type: returnType)
         }
 
         for (target, label) in zip(dispatchTargets, branchLabels) {

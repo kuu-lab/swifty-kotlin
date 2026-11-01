@@ -56,6 +56,20 @@ private func runtimeReflectionStdlibQualifiedName(for simpleName: String) -> Str
     }
 }
 
+/// `KClass.toString` renders the JVM classifier name for Kotlin platform
+/// typealiases — `Nothing::class` is `Void::class` — while `qualifiedName`
+/// keeps the registered Kotlin reflection name.
+private func runtimeKClassToStringDisplayName(_ name: String) -> String {
+    switch name {
+    case "kotlin.Nothing":
+        return "java.lang.Void"
+    case "kotlin.RuntimeException":
+        return "java.lang.RuntimeException"
+    default:
+        return name
+    }
+}
+
 /// Renders class handles consistently across Any.toString, printing, and collections.
 func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
     if let arrayName = runtimeArrayKClassQualifiedName(typeToken: box.typeToken) {
@@ -64,7 +78,7 @@ func runtimeKClassToString(_ box: RuntimeKClassBox) -> String {
     let className = box.metadata.map { metadata in
         metadata.isLocal ? metadata.simpleName : (metadata.displayName ?? metadata.qualifiedName)
     } ?? box.reflectionQualifiedName
-    return "class \(className)"
+    return "class \(runtimeKClassToStringDisplayName(className))"
 }
 
 
@@ -845,7 +859,7 @@ private func runtimeKTypeToString(raw ktypeRaw: Int) -> String {
     return runtimeKTypeToString(box)
 }
 
-private func runtimeQualifiedTypeName(_ name: String) -> String {
+func runtimeQualifiedTypeName(_ name: String) -> String {
     switch name {
     case "Unit", "Nothing", "Any", "String", "Boolean", "Byte", "Short", "Int", "Long", "Float", "Double", "Char",
          "UByte", "UShort", "UInt", "ULong":

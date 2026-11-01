@@ -94,21 +94,29 @@ struct DataFlowState: Equatable {
         for symbol in locals.invalidatedVariableFacts {
             state.variables[symbol]?.valueFacts = DataFlowValueFacts()
         }
+        // Assignments update local bindings. Do not revive a stale fact from
+        // an enclosing branch when splitting flow again after such a write.
+        // Immutable locals diverge the same way: a `flowState` snapshot taken
+        // at a branch entry does not see narrowings applied inside the branch
+        // (smart casts, `require`/`check`-style contracts), so a single-type
+        // entry disagreeing with the local's current type is stale either way
+        // and must not overwrite the local when the split result is applied
+        // back (KUU-3928). Run before the facts merge so still-valid
+        // `variableFacts` are re-attached to a fresh entry instead of being
+        // dropped with the stale one.
+        for local in locals.values {
+            if let variable = state.variables[local.symbol],
+               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
+            {
+                state.variables.removeValue(forKey: local.symbol)
+            }
+        }
         for (symbol, facts) in locals.variableFacts {
             var variable = state.variables[symbol] ?? VariableFlowState(
                 possibleTypes: [], nullability: .nonNull, isStable: true
             )
             variable.valueFacts = variable.valueFacts.combining(facts)
             state.variables[symbol] = variable
-        }
-        // Assignments update local bindings. Do not revive a stale fact from
-        // an enclosing branch when splitting flow again after such a write.
-        for local in locals.values where local.isMutable {
-            if let variable = state.variables[local.symbol],
-               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
-            {
-                state.variables.removeValue(forKey: local.symbol)
-            }
         }
         return state
     }
@@ -166,6 +174,13 @@ final class DataFlowAnalyzer {
         guard let conditionExpr = ast.arena.expr(conditionID) else {
             return ConditionBranch(trueState: base, falseState: base)
         }
+        // `x!!` proves `x` non-null on every path where it is evaluated, so
+        // unconditionally-evaluated asserts narrow both outcome states. This
+        // is what publishes an `x!!` nested inside an `&&`/`||` operand into
+        // the branch bodies (KUU-3943).
+        let base = evaluatedNullAssertState(
+            conditionID, base: base, locals: locals, ast: ast, sema: sema, interner: interner
+        )
         switch conditionExpr {
         case .call, .memberCall:
             return ConditionBranch(
@@ -196,6 +211,101 @@ final class DataFlowAnalyzer {
             return branch
         default:
             return ConditionBranch(trueState: base, falseState: base)
+        }
+    }
+
+    /// Narrows every stable `x!!` operand that this condition evaluates
+    /// unconditionally. A `!!` that completes proves its operand non-null on
+    /// both the true and the false outcome path, so both branch states derive
+    /// from the returned state (KUU-3943).
+    private func evaluatedNullAssertState(
+        _ conditionID: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        var state = base
+        forEachUnconditionallyEvaluatedNullAssertOperand(in: conditionID, ast: ast) { operandID in
+            state = narrowNonNull(
+                operandID, base: state, locals: locals,
+                ast: ast, sema: sema, interner: interner
+            )
+        }
+        return state
+    }
+
+    /// Visits the operands of `!!` operators that are guaranteed to evaluate
+    /// whenever `id` itself evaluates. Short-circuit right-hand sides (`&&`,
+    /// `||`), the `?:` fallback, safe-call arguments, and nested branch bodies
+    /// stay conditional — `branchOnBinary` re-enters `branchOnCondition` for
+    /// the `&&`/`||` operands under the state where that side actually runs,
+    /// so they must not be widened into the unconditional set here.
+    private func forEachUnconditionallyEvaluatedNullAssertOperand(
+        in id: ExprID,
+        ast: ASTModule,
+        visit: (ExprID) -> Void
+    ) {
+        guard let expr = ast.arena.expr(id) else { return }
+        switch expr {
+        case let .nullAssert(operand, _):
+            visit(operand)
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: operand, ast: ast, visit: visit)
+        case let .memberCall(receiver, _, _, args, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+            for arg in args {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: arg.expr, ast: ast, visit: visit)
+            }
+        case let .safeMemberCall(receiver, _, _, _, _):
+            // `a?.f(x!!)` evaluates `x!!` only when `a` is non-null.
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+        case let .call(callee, _, args, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: callee, ast: ast, visit: visit)
+            for arg in args {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: arg.expr, ast: ast, visit: visit)
+            }
+        case let .indexedAccess(receiver, indices, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+            for index in indices {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: index, ast: ast, visit: visit)
+            }
+        case let .binary(op, lhsID, rhsID, _):
+            switch op {
+            case .logicalAnd, .logicalOr:
+                break
+            case .elvis:
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: lhsID, ast: ast, visit: visit)
+            default:
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: lhsID, ast: ast, visit: visit)
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: rhsID, ast: ast, visit: visit)
+            }
+        case let .unaryExpr(_, operand, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: operand, ast: ast, visit: visit)
+        case let .isCheck(operand, _, _, _), let .asCast(operand, _, _, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: operand, ast: ast, visit: visit)
+        case let .inExpr(lhsID, rhsID, _), let .notInExpr(lhsID, rhsID, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: lhsID, ast: ast, visit: visit)
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: rhsID, ast: ast, visit: visit)
+        case let .stringTemplate(parts, _):
+            for part in parts {
+                if case let .expression(partID) = part {
+                    forEachUnconditionallyEvaluatedNullAssertOperand(in: partID, ast: ast, visit: visit)
+                }
+            }
+        case let .whenExpr(subject, _, _, _):
+            if let subject {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: subject, ast: ast, visit: visit)
+            }
+        case let .ifExpr(nestedCondition, _, _, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: nestedCondition, ast: ast, visit: visit)
+        case let .callableRef(receiver, _, _):
+            // A bound callable reference evaluates its receiver.
+            if let receiver {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+            }
+        default:
+            break
         }
     }
 
@@ -1288,13 +1398,54 @@ final class DataFlowAnalyzer {
         guard !subtypes.isEmpty else {
             return nil
         }
-        let missing = subtypes.filter {
-            !isSealedSubtypeCovered($0, branches: branches, sema: sema, valueFacts: valueFacts)
+        let missing = subtypes.flatMap {
+            uncoveredSealedBranchSymbols($0, branches: branches, sema: sema, valueFacts: valueFacts)
         }
         guard !missing.isEmpty else {
             return nil
         }
         return Array(Set(missing.compactMap { sema.symbols.symbol($0)?.name }))
+    }
+
+    /// Returns the still-uncovered symbols under `subtype`: kotlinc names the
+    /// missing leaf branches (`is B`) rather than a partially covered sealed
+    /// intermediate (`N`), so a sealed subtype descends to its uncovered
+    /// children when it cannot be proven covered as a whole (KUU-3775).
+    private func uncoveredSealedBranchSymbols(
+        _ subtype: SymbolID,
+        branches: WhenBranchSummary,
+        sema: SemaModule,
+        valueFacts: DataFlowValueFacts?
+    ) -> [SymbolID] {
+        if isSealedSubtypeCovered(subtype, branches: branches, sema: sema, valueFacts: valueFacts) {
+            return []
+        }
+        guard let subtypeSymbol = sema.symbols.symbol(subtype) else {
+            return [subtype]
+        }
+        if subtypeSymbol.kind == .enumClass {
+            // A partially covered enum child reports its uncovered entries
+            // (`E.Y`), matching the subject-level enum exhaustiveness rule.
+            let entries = enumEntrySymbols(for: subtypeSymbol, sema: sema)
+            guard !entries.isEmpty else {
+                return [subtype]
+            }
+            let uncovered = entries.filter {
+                valueMayReach(.symbol($0), facts: valueFacts)
+                    && !isWhenBranchCovered(.symbol($0), branches: branches, sema: sema)
+            }
+            return uncovered.isEmpty ? [subtype] : uncovered
+        }
+        guard subtypeSymbol.flags.contains(.sealedType) else {
+            return [subtype]
+        }
+        let nested = sealedSubtypeSymbols(for: subtypeSymbol, sema: sema)
+        guard !nested.isEmpty else {
+            return [subtype]
+        }
+        return nested.flatMap {
+            uncoveredSealedBranchSymbols($0, branches: branches, sema: sema, valueFacts: valueFacts)
+        }
     }
 
     /// Exposes nominal components of a captured parameter's upper bound for
@@ -1377,7 +1528,17 @@ final class DataFlowAnalyzer {
         sema: SemaModule,
         valueFacts: DataFlowValueFacts? = nil
     ) -> Bool {
-        if let possibleValues = valueFacts?.possibleValues,
+        // A sealed intermediate or enum class is never a value itself, so
+        // `.symbol(subtype)` can never appear in a finite value set — the
+        // leaf-oriented possibleValues shortcut would mark it covered
+        // unconditionally. Its reachability is decided by the recursive
+        // inhabitant check below.
+        let enumeratesInhabitants: Bool = {
+            guard let symbol = sema.symbols.symbol(subtype) else { return false }
+            return symbol.flags.contains(.sealedType) || symbol.kind == .enumClass
+        }()
+        if !enumeratesInhabitants,
+           let possibleValues = valueFacts?.possibleValues,
            !possibleValues.contains(.symbol(subtype))
         {
             return true
@@ -1400,9 +1561,31 @@ final class DataFlowAnalyzer {
         }) {
             return true
         }
-        return branches.negatedTypeCheckTypes.contains {
+        if branches.negatedTypeCheckTypes.contains(where: {
             isSealedSubtypeDisjointFrom(subtype, targetType: $0, sema: sema)
+        }) {
+            return true
         }
+        // Inhabitant-enumerating subtypes propagate coverage upward: `is A` +
+        // `is B` exhaust a sealed child `N : F`, and `E.X` + `E.Y` exhaust an
+        // enum child `E : F` inside `when (f: F)` (KUU-3775).
+        guard let subtypeSymbol = sema.symbols.symbol(subtype) else {
+            return false
+        }
+        if subtypeSymbol.kind == .enumClass {
+            let entries = enumEntrySymbols(for: subtypeSymbol, sema: sema)
+            return !entries.isEmpty && entries.allSatisfy {
+                !valueMayReach(.symbol($0), facts: valueFacts)
+                    || isWhenBranchCovered(.symbol($0), branches: branches, sema: sema)
+            }
+        }
+        if subtypeSymbol.flags.contains(.sealedType) {
+            let nested = sealedSubtypeSymbols(for: subtypeSymbol, sema: sema)
+            return !nested.isEmpty && nested.allSatisfy {
+                isSealedSubtypeCovered($0, branches: branches, sema: sema, valueFacts: valueFacts)
+            }
+        }
+        return false
     }
 
     private func valueMayReach(_ value: DataFlowValue, facts: DataFlowValueFacts?) -> Bool {

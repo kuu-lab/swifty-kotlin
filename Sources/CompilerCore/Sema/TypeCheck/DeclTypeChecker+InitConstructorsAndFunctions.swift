@@ -553,7 +553,13 @@ extension DeclTypeChecker {
             }
 
             constructorCtx.allowsValPropertyInitialization = true
-            if ctor.delegationCall == nil, hasPrimaryConstructor {
+            // Secondary constructors of `expect` classes — including classes
+            // nested inside an `expect` owner — are bodiless declarations;
+            // the actual declaration supplies the delegation.
+            let ownerIsExpectDeclaration = [ownerSymbol, currentCtorSymbolID]
+                .compactMap { $0 }
+                .contains { sema.symbols.symbol($0)?.flags.contains(.expectDeclaration) == true }
+            if ctor.delegationCall == nil, hasPrimaryConstructor, !ownerIsExpectDeclaration {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0054",
                     "Secondary constructor must delegate to another constructor via this() or super().",

@@ -201,7 +201,7 @@ extension KIRLoweringDriver {
         )
         emitAnnotationFactories(shared: shared, compilationCtx: compilationCtx)
         resolveDeferredObjectLazyInitGuards(arena: arena)
-        insertEnumLazyInitTriggers(arena: arena, sema: sema)
+        insertEnumLazyInitTriggers(arena: arena, sema: sema, interner: compilationCtx.interner)
         let module = KIRModule(files: files, arena: arena)
         module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
         module.arena.receiverFirstLauncherLambdaSymbols = ctx.receiverFirstLauncherLambdaSymbols

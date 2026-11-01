@@ -290,6 +290,19 @@ extension ExprTypeChecker {
         let inferredRhs = rhs
         rhs = sema.types.capturedOperatorReceiverType(of: inferredRhs)
 
+        // `==`/`!=` lower to Intrinsics.areEqual and `===`/`!==` to IF_ACMP
+        // on the JVM — both consume the raw operand as `Any?` without
+        // claiming its substituted type. Recording that consumer keeps an
+        // erased generic result uncheckcast here: `foo<Other>() != null`
+        // must observe the erased value, not throw ClassCastException
+        // (KUU-3893).
+        if op == .equal || op == .notEqual
+            || op == .identityEqual || op == .notIdentityEqual
+        {
+            driver.recordGenericCallConsumer(lhsID, type: sema.types.nullableAnyType)
+            driver.recordGenericCallConsumer(rhsID, type: sema.types.nullableAnyType)
+        }
+
         // Numeric operators on a type parameter are resolved against its
         // concrete primitive upper bound (for example, `T : Double`). Keep
         // the operand bindings generic; the resulting primitive expression
@@ -1130,6 +1143,23 @@ extension ExprTypeChecker {
                 sema.bindings.markCharRangeExpr(id)
             }
         case .step:
+            // kotlin.ranges declares `step` only for the integral range and
+            // progression types; floating-point ranges have no `step` (kotlinc
+            // reports "unresolved reference 'step'" on the
+            // ClosedFloatingPointRange/OpenEndRange receiver). Without this
+            // gate the builtin path types the expression as IntProgression and
+            // lowers `__kk_op_step` on a floating-point range box, which panics
+            // at runtime with `invalid range handle in kk_range_step`
+            // (KUU-4039).
+            if sema.bindings.isFloatingPointRangeExpr(lhsID) {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0024",
+                    "Unresolved member function 'step'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // An Int range expression uses the scalar Int type plus a range
             // marker, but `step` returns IntProgression, not IntRange. Keep that
             // nominal distinction so source-backed HOF lookup does not bind a

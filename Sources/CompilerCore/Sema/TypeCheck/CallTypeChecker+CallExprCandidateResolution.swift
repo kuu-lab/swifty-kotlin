@@ -539,6 +539,18 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
             if let diagnostic = resolved.diagnostic {
+                // A callable value sharing the callee's name — a
+                // function-typed property like `var resume: () -> Unit`, or
+                // an invoke-bearing object in scope — is part of the same
+                // Kotlin candidate set. With no viable function candidate the
+                // call can still bind through that value's implicit `invoke`,
+                // so defer to the callable-value path rather than diagnosing.
+                if let calleeName,
+                   diagnostic.severity == .error,
+                   callableValueCalleeInScope(named: calleeName, ctx: ctx, locals: locals)
+                {
+                    return nil
+                }
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
@@ -883,6 +895,27 @@ extension CallTypeChecker {
         else {
             return []
         }
+        return contextParameterReceiverSymbols(
+            contextParameterTypes: signature.contextParameterTypes,
+            typeParameterSymbols: signature.typeParameterSymbols,
+            substitution: substitution,
+            ctx: ctx
+        )
+    }
+
+    /// Same nearest-receiver resolution as `contextParameterReceiverSymbols(for:)`
+    /// but driven by an explicit context-parameter type list — used by
+    /// callable-value invocations (`f()` on a `context(A, B) () -> T`), where
+    /// the "signature" is the function type itself rather than a callee symbol.
+    func contextParameterReceiverSymbols(
+        contextParameterTypes: [TypeID],
+        typeParameterSymbols: [SymbolID],
+        substitution: [TypeVarID: TypeID],
+        ctx: TypeInferenceContext
+    ) -> [SymbolID?] {
+        guard !contextParameterTypes.isEmpty else {
+            return []
+        }
 
         // Kotlin resolves the *nearest* receiver for an implicit context
         // argument: receivers a lambda introduces inside the enclosing
@@ -919,8 +952,8 @@ extension CallTypeChecker {
         let contextReceiverTypes = ctx.contextReceiverTypes.map {
             ctx.sema.types.makeNonNullable($0)
         }
-        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        return signature.contextParameterTypes.map { requestedType in
+        let typeVariables = ctx.sema.types.makeTypeVarBySymbol(typeParameterSymbols)
+        return contextParameterTypes.map { requestedType in
             let resolvedType = ctx.sema.types.substituteTypeParameters(
                 in: requestedType,
                 substitution: substitution,

@@ -107,6 +107,23 @@ extension CallLowerer {
                 return nil
             }
 
+            // `use` is an inline function: a nested block may own the
+            // non-local return before inline expansion exposes it in this
+            // block. Every literal use block must expand into its caller
+            // together with its cleanup (mirrors scopeUsePinned).
+            if case .lambdaLiteral = ast.arena.expr(args[0].expr) {
+                arena.transformFunctions { function in
+                    guard function.symbol == info.symbol else { return function }
+                    return KIRFunction(
+                        symbol: function.symbol, name: function.name, params: function.params,
+                        returnType: function.returnType, body: function.body,
+                        isSuspend: function.isSuspend, isInline: true, isInlineOnly: true,
+                        isTailrec: function.isTailrec, sourceRange: function.sourceRange,
+                        instructionLocations: function.instructionLocations
+                    )
+                }
+            }
+
             let intType = sema.types.make(.primitive(.int, .nonNull))
 
             let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
@@ -121,6 +138,17 @@ extension CallLowerer {
             let finallyLabel = driver.ctx.makeLoopLabel()
             let rethrowLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
+
+            // Inline expansion must route a non-local return through close(),
+            // then resume it through any enclosing try/finally scopes
+            // (mirrors scopeUsePinned).
+            let nonLocalReturnLabel = driver.ctx.makeLoopLabel()
+            let nonLocalReturnValue = arena.appendTemporary(type: nil)
+            let returningNonLocally = arena.appendTemporary(type: sema.types.booleanType)
+            let notReturning = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
+            instructions.append(.constValue(result: notReturning, value: .boolLiteral(false)))
+            instructions.append(.copy(from: notReturning, to: returningNonLocally))
+            instructions.append(.beginNonLocalReturnScope(value: nonLocalReturnValue, target: nonLocalReturnLabel))
 
             // Collection-HOF-marked lambdas take a leading closureRaw argument:
             // no captures -> 0, one capture -> the raw capture value, two or more
@@ -170,6 +198,11 @@ extension CallLowerer {
                 instructions: &instructions
             )
             instructions.append(.endFinallyGuard)
+            instructions.append(.jump(finallyLabel))
+
+            instructions.append(.endNonLocalReturnScope)
+            instructions.append(.label(nonLocalReturnLabel))
+            instructions.append(.constValue(result: returningNonLocally, value: .boolLiteral(true)))
             instructions.append(.jump(finallyLabel))
 
             // finally: call the source-backed closeFinally() helper. It preserves the
@@ -286,6 +319,10 @@ extension CallLowerer {
             instructions.append(.rethrow(value: exceptionSlot))
 
             instructions.append(.label(endLabel))
+            let afterReturnLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfEqual(lhs: returningNonLocally, rhs: notReturning, target: afterReturnLabel))
+            instructions.append(.resumeNonLocalReturn(nonLocalReturnValue))
+            instructions.append(.label(afterReturnLabel))
             return result
 
         case .scopeUsePinned:

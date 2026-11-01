@@ -7,9 +7,24 @@ func runtimeKPropertyStubToString(_ property: RuntimeKPropertyStub) -> String {
         from: property.returnTypeKTypeRaw,
         as: RuntimeKTypeBox.self
     ).map(runtimeKTypeToString)
-        ?? extractString(from: UnsafeMutableRawPointer(bitPattern: property.returnType))
+        ?? runtimeReturnTypeDescriptorToString(property.returnType)
         ?? "kotlin.Any?"
     return "\(property.isMutable ? "var" : "val") \(name): \(returnType)"
+}
+
+/// KUU-3896: renders a stored return-type descriptor the way
+/// `runtimeKTypeToString` renders the same descriptor on a RuntimeKTypeBox —
+/// builtin simple names print qualified (`Int` → `kotlin.Int`), so a stub's
+/// `val x: T` signature spells the type like `property.returnType` does.
+private func runtimeReturnTypeDescriptorToString(_ raw: Int) -> String? {
+    guard let descriptor = extractString(from: UnsafeMutableRawPointer(bitPattern: raw)),
+          !descriptor.isEmpty
+    else {
+        return nil
+    }
+    let isNullable = descriptor.hasSuffix("?")
+    let baseName = isNullable ? String(descriptor.dropLast()) : descriptor
+    return runtimeQualifiedTypeName(baseName) + (isNullable ? "?" : "")
 }
 
 @_cdecl("__kk_print_raw")
@@ -76,6 +91,12 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     // pointer-type gate drops them into the numeric fallback.
     if let rendered = runtimeJobHandleDebugString(value) {
         return rendered
+    }
+    // KUU-3947: accessor-backed callable-reference wrappers (KProperty /
+    // KFunction) carry a compiler-emitted description — render it like
+    // `runtimeElementToString` does instead of `<object 0x…>`.
+    if let description = runtimeFunctionDescription(value) {
+        return description
     }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: raw))

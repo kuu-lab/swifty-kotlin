@@ -1101,7 +1101,7 @@ extension DataFlowSemaPhase {
                   let currentSym = symbols.symbol(current),
                   currentSym.kind == .class || currentSym.kind == .interface
             else { continue }
-            for memberID in symbols.children(ofFQName: currentSym.fqName) {
+            for memberID in symbols.declaredChildren(of: current) {
                 guard let member = symbols.symbol(memberID),
                       member.kind == .function,
                       member.name == name,

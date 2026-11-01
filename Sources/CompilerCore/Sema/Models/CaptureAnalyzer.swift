@@ -255,6 +255,12 @@ struct CaptureAnalyzer {
                 captured.formUnion(callBinding?.contextParameterReceiverSymbols.compactMap { $0 }.filter {
                     outerSymbols.contains($0)
                 } ?? [])
+                // A `f()` invoke on a `context(A, B) () -> T` value resolves
+                // its implicit context arguments from receiver tower entries —
+                // keep them alive across this lambda boundary (KUU-3897).
+                captured.formUnion(sema.bindings.callableValueCalls[currentExprID]?.contextReceiverSymbols.compactMap { $0 }.filter {
+                    outerSymbols.contains($0)
+                } ?? [])
                 if let receiverSymbol = callBinding?.dispatchReceiverSymbol,
                    outerSymbols.contains(receiverSymbol)
                 {
@@ -323,6 +329,9 @@ struct CaptureAnalyzer {
                         outerSymbols.contains($0)
                     } ?? []
                 )
+                captured.formUnion(sema.bindings.callableValueCalls[currentExprID]?.contextReceiverSymbols.compactMap { $0 }.filter {
+                    outerSymbols.contains($0)
+                } ?? [])
                 if let receiverSymbol = callBinding?.dispatchReceiverSymbol,
                    outerSymbols.contains(receiverSymbol)
                 {
@@ -408,6 +417,9 @@ struct CaptureAnalyzer {
                 for arg in args {
                     visit(arg.expr)
                 }
+                captured.formUnion(sema.bindings.callableValueCalls[currentExprID]?.contextReceiverSymbols.compactMap { $0 }.filter {
+                    outerSymbols.contains($0)
+                } ?? [])
                 // Same lexical function-typed callee as `.memberCall` above:
                 // `recv?.fn(args)` binds fn's symbol on the call expr so this
                 // pass can keep it as a capture.

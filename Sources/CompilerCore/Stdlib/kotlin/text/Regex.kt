@@ -79,7 +79,7 @@ public class Regex {
     public fun containsMatchIn(input: CharSequence): Boolean =
         __kkRegexContainsMatchIn(this, input.regexInputString())
 
-    public fun matches(input: CharSequence): Boolean =
+    public infix fun matches(input: CharSequence): Boolean =
         __kkRegexMatches(this, input.regexInputString())
 
     public fun matchesAt(input: CharSequence, index: Int): Boolean =

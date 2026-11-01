@@ -22,7 +22,7 @@ expr e@14:26 bool(true) type=Boolean
 expr e@14:9 call callee=e@14:9#1 args=[_:e@14:26] type=golden.sema.ThrowingResource call=golden.sema.ThrowingResource.<init>[kind=ctor;recv=golden.sema.ThrowingResource;params=Boolean;ret=golden.sema.ThrowingResource;names=[throwOnClose];origin=fixture]
 expr e@14:38 string(body) type=String
 expr e@14:36 lambda params=[] body=e@14:38 label=use type=(golden.sema.ThrowingResource) -> String
-expr e@14:9#2 memberCall recv=e@14:9 callee=use args=[_:e@14:36] type=String
+expr e@14:9#2 memberCall recv=e@14:9 callee=use args=[_:e@14:36] type=String call=kotlin.use[kind=fun;recv=T0;params=fn{p=T0;ret=T1};ret=T1;gen=2;bounds=[kotlin.AutoCloseable?,_];names=[block]] targs=[golden.sema.ThrowingResource,String]
 expr e@13:16 blockExpr stmts=[] trailing=e@14:9#2 type=String
 expr e@16:9 name(e) type=kotlin.Throwable ref=__try_0_catch_0.e[kind=local;type=kotlin.Throwable;origin=fixture]
 expr e@16:9#1 memberCall recv=e@16:9 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop;type=String?]
@@ -37,7 +37,7 @@ expr e@23:41 string(primary) type=String
 expr e@23:19 call callee=e@23:19#1 args=[_:e@23:41] type=kotlin.IllegalStateException call=kotlin.IllegalStateException.<init>[kind=ctor;recv=kotlin.IllegalStateException;params=String?;ret=kotlin.IllegalStateException;names=[message]]
 expr e@23:13 throw value=e@23:19 type=Nothing
 expr e@22:36 lambda params=[] body=e@23:13 label=use type=(golden.sema.ThrowingResource) -> kotlin.Throwable
-expr e@22:9#2 memberCall recv=e@22:9 callee=use args=[_:e@22:36] type=kotlin.Throwable
+expr e@22:9#2 memberCall recv=e@22:9 callee=use args=[_:e@22:36] type=kotlin.Throwable call=kotlin.use[kind=fun;recv=T0;params=fn{p=T0;ret=T1};ret=T1;gen=2;bounds=[kotlin.AutoCloseable?,_];names=[block]] targs=[golden.sema.ThrowingResource,kotlin.Throwable]
 expr e@21:16 blockExpr stmts=[] trailing=e@22:9#2 type=kotlin.Throwable
 expr e@26:9 name(e) type=kotlin.Throwable ref=__try_1_catch_0.e[kind=local;type=kotlin.Throwable;origin=fixture]
 expr e@25:28 blockExpr stmts=[] trailing=e@26:9 type=kotlin.Throwable ref=__try_1_catch_0.e[kind=local;type=kotlin.Throwable;origin=fixture]
@@ -53,5 +53,5 @@ expr e@32:43 string(null) type=String
 expr e@32:55 string(resource) type=String
 expr e@32:27 if cond=e@32:31#1 then=e@32:43 else=e@32:55 type=String
 expr e@32:25 lambda params=[] body=e@32:27 label=use type=(kotlin.AutoCloseable?) -> String
-expr e@32:12#1 memberCall recv=e@32:12 callee=use args=[_:e@32:25] type=String
+expr e@32:12#1 memberCall recv=e@32:12 callee=use args=[_:e@32:25] type=String call=kotlin.use[kind=fun;recv=T0;params=fn{p=T0;ret=T1};ret=T1;gen=2;bounds=[kotlin.AutoCloseable?,_];names=[block]] targs=[kotlin.AutoCloseable?,String]
 expr e@32:5 return value=e@32:12#1 type=Nothing

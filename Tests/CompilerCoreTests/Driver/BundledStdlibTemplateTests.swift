@@ -198,6 +198,25 @@ struct BundledStdlibTemplateTests {
         #expect(text.hasSuffix("public fun CharArray.toSortedSet(): java.util.SortedSet<Char> = asList().toSortedSet()\n"))
     }
 
+    /// `StableSort.kt.tmpl` replaced one hand-written file whose generic
+    /// comparator helpers became the header and whose eleven per-type
+    /// `stableSortImpl` blocks became the body. Only Double and Float compare
+    /// through `compareTo`, keeping total ordering for NaN and signed zero.
+    @Test
+    func testStableSortTemplateKeepsPathAndFloatingCompare() throws {
+        let sources = try BundledStdlib.collectBundledStdlibSources()
+        let path = "__bundled_kotlin/collections/StableSort.kt"
+        #expect(sources.map(\.path).filter { $0.contains("StableSort") } == [path])
+        let source = try #require(sources.first { $0.path == path })
+        let text = String(decoding: source.contents, as: UTF8.self)
+        let types = ["Int", "Long", "Byte", "Short", "Char", "Double", "Float", "UByte", "UShort", "UInt", "ULong"]
+        let blockStarts = types.compactMap { text.range(of: "internal fun \($0)Array.stableSortImpl(")?.lowerBound }
+        #expect(blockStarts.count == types.count && blockStarts == blockStarts.sorted())
+        #expect(text.contains("internal fun <T> MutableList<T>.stableSortWith(comparator: Comparator<T>)"))
+        #expect(text.components(separatedBy: "this[j].compareTo(element) < 0").count - 1 == 2)
+        #expect(text.components(separatedBy: "this[j] < element").count - 1 == types.count - 2)
+    }
+
     @Test
     func testBrokenTemplateEmits0102AndThrows() throws {
         try withStdlibResources(["kotlin/x/Foo.kt.tmpl": "//@ body\n"]) { root in

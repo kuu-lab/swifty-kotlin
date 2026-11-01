@@ -840,7 +840,11 @@ extension BuildASTPhase {
             // kotlinc rejects named nominal declarations inside enum entry
             // bodies: classes/interfaces outright, enum classes via the
             // modifier check, annotation classes as both local and prohibited.
-            if enumEntrySite {
+            // `inner class` is the exception: kotlinc accepts it inside an
+            // enum entry body (the entry's anonymous class is a legal inner
+            // owner — `validateInnerPosition` allows `.enumEntry` sites too),
+            // and the KUU-3672 delegation test relies on it.
+            if enumEntrySite, !classDecl.modifiers.contains(.inner) {
                 if classDecl.modifiers.contains(.enumModifier) {
                     diagnostics?.error(
                         "KSWIFTK-SEMA-0400",

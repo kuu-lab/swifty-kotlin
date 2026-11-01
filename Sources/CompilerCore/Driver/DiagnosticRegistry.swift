@@ -117,6 +117,20 @@ enum DiagnosticRegistry {
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_WARNING": ["KSWIFTK-SEMA-BOUND"],
         "UPPER_BOUND_VIOLATED_IN_TYPE_OPERATOR_OR_PARAMETER_BOUNDS_ERROR": ["KSWIFTK-SEMA-BOUND"],
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
+        // kotlinc reports every non-exhaustive `when` error as NO_ELSE_IN_WHEN:
+        // sealed subjects name the missing branches (KSWIFTK-SEMA-0071) while
+        // enum/Boolean/subject-less and other closed-domain subjects take the
+        // generic KSWIFTK-SEMA-0004. NON_EXHAUSTIVE_WHEN is a distinct
+        // warning-level upstream name and deliberately does not map here —
+        // suppressing it does not silence the error in kotlinc either.
+        "NO_ELSE_IN_WHEN": ["KSWIFTK-SEMA-0071", "KSWIFTK-SEMA-0004"],
+        // kotlinc reports a non-Boolean `when`-branch condition (and `if`
+        // condition) as CONDITION_TYPE_MISMATCH; only the subject-less `when`
+        // form has a dedicated internal code — the `if` condition check goes
+        // through the generic KSWIFTK-TYPE-0001 constraint diagnostic, which
+        // is deliberately not mapped so the name cannot silence unrelated
+        // constraint errors.
+        "CONDITION_TYPE_MISMATCH": ["KSWIFTK-SEMA-0032"],
         // kotlinc reports an impossible `is` check as IMPOSSIBLE_IS_CHECK_ERROR
         // (the pre-2.4 name was IMPOSSIBLE_IS_CHECK_DEPRECATION). The K1 name
         // INCOMPATIBLE_TYPES deliberately does not map here: kotlinc does not
@@ -380,8 +394,7 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-SEMA-0004",
             pass: "SEMA",
             defaultSeverity: .error,
-            summary: "Return type mismatch.",
-            codeActions: [DiagnosticCodeAction(title: "Change return type annotation to match expression")]
+            summary: "Non-exhaustive when expression."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0005",
@@ -579,6 +592,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "'super' cannot be a callee."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0058",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot access 'this' before the instance has been initialized."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-UNCHECKED-CAST",
@@ -1278,6 +1297,18 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "One of the overloads of operator 'of' must have a single 'vararg' parameter."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0460",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "implementation by delegation in 'expect' classes is prohibited."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0461",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "delegation cannot be used in interfaces."
         ),
     ]
 

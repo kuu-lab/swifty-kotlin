@@ -70,6 +70,12 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// Already-checked typed when subjects reused by synthesized is/in conditions.
     /// Keep initializer bindings intact while conditions see the declared variable type.
     var whenSubjectTypes: [ExprID: TypeID] = [:]
+    /// The subject ExprID of the enclosing `when` while one of its branch
+    /// conditions is being inferred. The parser reuses that exact ExprID as
+    /// the operand of a synthesized `is` condition, so consumer recording on
+    /// the operand must not erase the claim the subject still owes its
+    /// synthetic typed local (KUU-3893).
+    var whenConditionSubject: ExprID?
     var implicitReceiverType: TypeID?
     /// Receiver values in lexical order, including shadowed lambda receivers.
     var implicitReceiverStack: [(type: TypeID, symbol: SymbolID)] = []
@@ -1008,6 +1014,24 @@ struct TypeInferenceContext: CustomStringConvertible {
         )))
         let parentDslMarkers = collectDslMarkerAnnotations(for: parentType)
         return !activeDslMarkerAnnotations.isDisjoint(with: parentDslMarkers)
+    }
+
+    /// Implicit receiver tower entries hidden by the Kotlin DSL marker rule:
+    /// walking innermost to outermost, an entry is hidden when a strictly
+    /// nearer entry carries at least one DslMarker annotation it also
+    /// carries. `implicitReceiverMemberLookupEntries` deduplicates entries
+    /// by `TypeID`, so a type identifies exactly one tower position.
+    func dslHiddenImplicitReceiverTypes() -> Set<TypeID> {
+        var hidden: Set<TypeID> = []
+        var nearerMarkers: Set<String> = []
+        for entry in implicitReceiverMemberLookupEntries() {
+            let markers = collectDslMarkerAnnotations(for: entry.type)
+            if !nearerMarkers.isDisjoint(with: markers) {
+                hidden.insert(entry.type)
+            }
+            nearerMarkers.formUnion(markers)
+        }
+        return hidden
     }
 
     var description: String {

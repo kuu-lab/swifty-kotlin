@@ -346,7 +346,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // / `TreeSet(sortedSet)` -> a sorted RuntimeSetBox. The comparator form
         // forwards its object handle raw (0 means natural ordering).
         if isTreeSetConstructor(
-            callee: callee, symbol: symbol, result: result,
+            callee: callee, symbol: symbol, arguments: arguments, result: result,
             module: module, lookup: lookup, ctx: ctx
         ) {
             switch treeSetConstructorKind(
@@ -385,7 +385,7 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         if isTreeMapConstructor(
-            callee: callee, symbol: symbol, result: result,
+            callee: callee, symbol: symbol, arguments: arguments, result: result,
             module: module, lookup: lookup, ctx: ctx
         ) {
             switch treeMapConstructorKind(

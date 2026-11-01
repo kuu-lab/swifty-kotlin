@@ -328,12 +328,19 @@ extension ControlFlowTypeChecker {
                 for cond in branch.conditions {
                     var conditionCtx = ctx.copying(flowState: cumulativeFalseState)
                     conditionCtx.isConditionallyEvaluated = false
+                    conditionCtx.whenConditionSubject = subjectID
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
                     let isTypeOrMembershipCondition: Bool = switch ast.arena.expr(cond) {
                     case .isCheck, .inExpr, .notInExpr:
                         true
                     default:
                         false
+                    }
+                    if !isTypeOrMembershipCondition {
+                        // `subject == cond` lowers to Intrinsics.areEqual on
+                        // the JVM — the condition consumes the raw erased
+                        // value, never a claim checkcast first (KUU-3893).
+                        driver.recordGenericCallConsumer(cond, type: sema.types.nullableAnyType)
                     }
                     if !isTypeOrMembershipCondition,
                        subjectType != sema.types.errorType,

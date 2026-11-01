@@ -72,7 +72,9 @@ enum KIRLabelRelocation {
             return nil
         })
         for instruction in instructions {
-            labelIDs.formUnion(Self.labelIDs(of: instruction))
+            if let id = Self.maxLabelID(of: instruction) {
+                labelIDs.insert(id)
+            }
             if case let .jump(target) = instruction,
                let externalTarget = KIRExternalLoopJump.label(for: target),
                locallyDefinedLabels.contains(externalTarget)
@@ -97,11 +99,31 @@ enum KIRLabelRelocation {
     static func maxLabelID(in instructions: some Sequence<KIRInstruction>) -> Int32? {
         var highest: Int32?
         for instruction in instructions {
-            for labelID in labelIDs(of: instruction) where labelID > (highest ?? Int32.min) {
+            if let labelID = maxLabelID(of: instruction), labelID > (highest ?? Int32.min) {
                 highest = labelID
             }
         }
         return highest
+    }
+
+    /// Single-instruction form of `maxLabelID(in:)`: every label-carrying
+    /// case yields at most one ID, so the answer needs no array allocation —
+    /// emit-heavy paths call this per appended instruction (KUU-3777).
+    static func maxLabelID(of instruction: KIRInstruction) -> Int32? {
+        switch instruction {
+        case let .label(id):
+            return id
+        case let .jump(target):
+            return KIRExternalLoopJump.label(for: target) == nil ? target : nil
+        case let .jumpIfEqual(_, _, target):
+            return target
+        case let .jumpIfNotNull(_, target):
+            return target
+        case let .beginNonLocalReturnScope(_, target, _):
+            return target
+        default:
+            return nil
+        }
     }
 
     /// The single place that enumerates the label-carrying instruction cases,

@@ -165,6 +165,14 @@ extension CallTypeChecker {
     /// Uses a generic call's expected result to specialize callable-reference
     /// inputs that use the same type parameter. The reference's return remains
     /// open for final call inference.
+    ///
+    /// The result can fix a type parameter wherever it occurs in the callee's
+    /// return type — directly (`fun <T> id(f: (T) -> Int): T`) or nested
+    /// inside a composite (`fun <T> make(f: (T) -> Int): (T) -> Int`, whose
+    /// `(T) -> Int` result determines `T` contravariantly). Without the
+    /// composite case a vararg reference such as `::countG` sees an
+    /// unspecialized `(T) -> Int` expectation and binds its scalar vararg
+    /// adaptation instead of the packed-array shape (KUU-3805).
     private func contextualCallableReferenceInputType(
         _ expectation: TypeID,
         callResultType: TypeID?,
@@ -180,16 +188,24 @@ extension CallTypeChecker {
               candidates.count == 1,
               let candidate = candidates.first,
               let signature = sema.symbols.functionSignature(for: candidate),
-              case let .typeParam(resultParameter) = sema.types.kind(of: sema.types.makeNonNullable(signature.returnType)),
               case let .functionType(function) = sema.types.kind(of: expectation)
         else { return nil }
 
         let inputs = (function.receiver.map { [$0] } ?? []) + function.params + function.contextReceivers
-        guard inputs.contains(where: { sema.types.typeContainsTypeParam($0, symbol: resultParameter.symbol) }),
-              !sema.types.typeContainsTypeParam(function.returnType, symbol: resultParameter.symbol),
-              let resultParameterIndex = signature.typeParameterSymbols.firstIndex(of: resultParameter.symbol),
-              resultParameterIndex >= signature.classTypeParameterCount
-        else { return nil }
+        // Function-level type parameters that the call's expected result can
+        // fix: each occurs in the callee's return type and in the reference's
+        // inputs, while the reference's own return stays open.
+        let resultParameters: [(symbol: SymbolID, index: Int)] = signature.typeParameterSymbols
+            .enumerated()
+            .compactMap { index, symbol in
+                guard index >= signature.classTypeParameterCount,
+                      sema.types.typeContainsTypeParam(signature.returnType, symbol: symbol),
+                      inputs.contains(where: { sema.types.typeContainsTypeParam($0, symbol: symbol) }),
+                      !sema.types.typeContainsTypeParam(function.returnType, symbol: symbol)
+                else { return nil }
+                return (symbol: symbol, index: index)
+            }
+        guard !resultParameters.isEmpty else { return nil }
 
         if let parameterIndex = parameterIndexForCallArgument(
             at: argumentIndex,
@@ -209,10 +225,12 @@ extension CallTypeChecker {
                       otherParameterIndex != parameterIndex,
                       signature.parameterTypes.indices.contains(otherParameterIndex)
                 else { continue }
-                if sema.types.typeContainsTypeParam(
-                    signature.parameterTypes[otherParameterIndex],
-                    symbol: resultParameter.symbol
-                ) {
+                if resultParameters.contains(where: {
+                    sema.types.typeContainsTypeParam(
+                        signature.parameterTypes[otherParameterIndex],
+                        symbol: $0.symbol
+                    )
+                }) {
                     return nil
                 }
             }
@@ -220,7 +238,6 @@ extension CallTypeChecker {
 
         let resolver = OverloadResolver()
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        guard let resultVariable = typeVarBySymbol[resultParameter.symbol] else { return nil }
         var constraints = resolver.decomposeSubtypeConstraint(
             subtype: signature.returnType,
             supertype: callResultType,
@@ -228,38 +245,46 @@ extension CallTypeChecker {
             typeSystem: sema.types,
             blameRange: nil
         )
-        let declaredBounds = resultParameterIndex < signature.typeParameterUpperBoundsList.count
-            ? signature.typeParameterUpperBoundsList[resultParameterIndex] : []
-        let bounds = declaredBounds + sema.symbols.typeParameterUpperBounds(for: resultParameter.symbol)
-            .filter { !declaredBounds.contains($0) }
-        for bound in bounds
-            where !resolver.containsTypeVariable(bound, typeVarBySymbol: typeVarBySymbol, typeSystem: sema.types)
-        {
-            constraints.append(VariableConstraint(
-                kind: .subtype,
-                left: .variable(resultVariable),
-                right: .type(bound)
-            ))
+        var boundsByParameter: [SymbolID: [TypeID]] = [:]
+        for (resultParameter, resultParameterIndex) in resultParameters {
+            let declaredBounds = resultParameterIndex < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[resultParameterIndex] : []
+            let bounds = declaredBounds + sema.symbols.typeParameterUpperBounds(for: resultParameter)
+                .filter { !declaredBounds.contains($0) }
+            boundsByParameter[resultParameter] = bounds
+            guard let variable = typeVarBySymbol[resultParameter] else { continue }
+            for bound in bounds
+                where !resolver.containsTypeVariable(bound, typeVarBySymbol: typeVarBySymbol, typeSystem: sema.types)
+            {
+                constraints.append(VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(variable),
+                    right: .type(bound)
+                ))
+            }
         }
         let solution = ConstraintSolver().solve(
             vars: resolver.usedTypeVariables(from: constraints),
             constraints: constraints,
             typeSystem: sema.types
         )
-        guard solution.isSuccess,
-              let resultType = solution.substitution[resultVariable],
-              resultType != sema.types.errorType,
-              !sema.types.typeContainsAnyTypeParam(resultType)
-        else { return nil }
+        guard solution.isSuccess else { return nil }
 
-        for bound in bounds {
-            let substitutedBound = sema.types.substituteTypeParameters(
-                in: bound,
-                substitution: solution.substitution,
-                typeVarBySymbol: typeVarBySymbol
-            )
-            guard !sema.types.typeContainsAnyTypeParam(substitutedBound) else { continue }
-            guard sema.types.isSubtype(resultType, substitutedBound) else { return nil }
+        for (resultParameter, _) in resultParameters {
+            guard let variable = typeVarBySymbol[resultParameter],
+                  let resultType = solution.substitution[variable],
+                  resultType != sema.types.errorType,
+                  !sema.types.typeContainsAnyTypeParam(resultType)
+            else { return nil }
+            for bound in boundsByParameter[resultParameter] ?? [] {
+                let substitutedBound = sema.types.substituteTypeParameters(
+                    in: bound,
+                    substitution: solution.substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                guard !sema.types.typeContainsAnyTypeParam(substitutedBound) else { continue }
+                guard sema.types.isSubtype(resultType, substitutedBound) else { return nil }
+            }
         }
 
         func substitute(_ type: TypeID) -> TypeID {
@@ -748,7 +773,10 @@ extension CallTypeChecker {
                 return functionType
             }
             if let samLambda = samConstructorLambdaArgument(argument.expr, ctx: ctx),
-               let functionType = sema.bindings.samUnderlyingFunctionType(for: samLambda) {
+               let functionType = sema.bindings.samUnderlyingFunctionType(for: samLambda),
+               samConstructorArgumentNeedsFunctionTypeWitness(
+                   for: samLambda, candidates: candidates, ctx: ctx
+               ) {
                 return functionType
             }
             let type = argTypes[index]
@@ -772,6 +800,40 @@ extension CallTypeChecker {
             inputOnlyLambdaIndices: inputOnlyLambdaIndices,
             blockedLambdaRefinement: blockedLambdaRefinement,
             hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter
+        )
+    }
+
+    /// A nested SAM constructor call like `Sup { 7 }` produces a value whose
+    /// type IS the bound interface, so the outer call must check it directly
+    /// (`listOf<Sup>(Sup { 7 })` needs `Sup <: Sup`, not `() -> Int <: Sup`,
+    /// KUU-4027). The lambda's function type is only the right witness when
+    /// the interface's own type arguments still depend on the enclosing
+    /// call's inference — a star projection or one of the call's type
+    /// variables inside the bound interface type, e.g. `Converter<String, R>`
+    /// in `apply(Converter { it }, "abc")`.
+    private func samConstructorArgumentNeedsFunctionTypeWitness(
+        for samLambda: ExprID,
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let interfaceType = sema.bindings.samInterfaceType(for: samLambda),
+              case .classType = sema.types.kind(of: interfaceType)
+        else {
+            return true
+        }
+        if ctx.resolver.containsStarProjection(interfaceType, typeSystem: sema.types) {
+            return true
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(
+            candidates.flatMap {
+                sema.symbols.functionSignature(for: $0)?.typeParameterSymbols ?? []
+            }
+        )
+        return ctx.resolver.containsTypeVariable(
+            interfaceType,
+            typeVarBySymbol: typeVarBySymbol,
+            typeSystem: sema.types
         )
     }
 
