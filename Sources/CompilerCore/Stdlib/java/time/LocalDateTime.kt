@@ -62,20 +62,20 @@ public class LocalDateTime private constructor(
 
     public fun plusHours(hours: Long): LocalDateTime {
         val days = javaTimeFloorDiv(hours, 24L)
-        val hoursWithinDay = javaTimeFloorMod(hours, 24L)
-        return of(date.plusDays(days), time.plusHours(hoursWithinDay))
+        val nanosWithinDay = javaTimeFloorMod(hours, 24L) * javaTimeNanosPerHour
+        return of(date.plusDays(days), time).plusNanos(nanosWithinDay)
     }
 
     public fun plusMinutes(minutes: Long): LocalDateTime {
         val days = javaTimeFloorDiv(minutes, 1_440L)
-        val minutesWithinDay = javaTimeFloorMod(minutes, 1_440L)
-        return of(date.plusDays(days), time.plusMinutes(minutesWithinDay))
+        val nanosWithinDay = javaTimeFloorMod(minutes, 1_440L) * javaTimeNanosPerMinute
+        return of(date.plusDays(days), time).plusNanos(nanosWithinDay)
     }
 
     public fun plusSeconds(seconds: Long): LocalDateTime {
         val days = javaTimeFloorDiv(seconds, javaTimeSecondsPerDay)
-        val secondsWithinDay = javaTimeFloorMod(seconds, javaTimeSecondsPerDay)
-        return of(date.plusDays(days), time.plusSeconds(secondsWithinDay))
+        val nanosWithinDay = javaTimeFloorMod(seconds, javaTimeSecondsPerDay) * javaTimeNanosPerSecond
+        return of(date.plusDays(days), time).plusNanos(nanosWithinDay)
     }
 
     public fun plusNanos(nanos: Long): LocalDateTime {
@@ -118,6 +118,9 @@ public class LocalDateTime private constructor(
     public fun isAfter(other: LocalDateTime): Boolean = compareTo(other) > 0
 
     public fun format(formatter: java.time.format.DateTimeFormatter): String = formatter.format(this)
+
+    /** Combines this date-time with an offset to create an [OffsetDateTime]. */
+    public fun atOffset(offset: ZoneOffset): OffsetDateTime = OffsetDateTime.of(this, offset)
 
     override fun compareTo(other: LocalDateTime): Int {
         val dateComparison = date.compareTo(other.date)
