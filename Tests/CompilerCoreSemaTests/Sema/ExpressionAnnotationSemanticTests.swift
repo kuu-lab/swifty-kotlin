@@ -137,7 +137,7 @@ struct ExpressionAnnotationSemanticTests {
             try runSema(context)
             let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
             #expect(errors.count >= 2, "\(errors)")
-            #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" })
+            #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0469" })
             #expect(errors.contains { $0.message.lowercased().contains("private") || $0.message.lowercased().contains("visible") })
         }
     }

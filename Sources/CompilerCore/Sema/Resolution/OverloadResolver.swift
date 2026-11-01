@@ -164,8 +164,14 @@ public struct CallExpr {
     /// A non-null Elvis LHS type may fill unresolved RHS call type variables,
     /// without constraining variables already inferred from call inputs.
     public let elvisRhsCallResultTypeHint: TypeID?
+    /// `true` when the call was written with operator syntax (`a + b`,
+    /// `x in y`, `a[i]`, `a += b`, `l..r`). kotlinc reports NONE_APPLICABLE
+    /// for such calls when several operator candidates are inapplicable,
+    /// rather than an argument-type mismatch, so a multi-candidate operator
+    /// call keeps the generic no-viable-overload diagnostic.
+    public let isOperatorCall: Bool
 
-    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil, elvisLhsExpectedTypeHint: Bool = false, elvisRhsCallResultTypeHint: TypeID? = nil) {
+    public init(range: SourceRange, calleeName: InternedString, args: [CallArg], explicitTypeArgs: [TypeID] = [], dispatchReceiverTypes: [TypeID] = [], boundObjectDispatchReceiverCandidates: Set<SymbolID> = [], typeAliasConstructor: TypeAliasConstructorContext? = nil, elvisLhsExpectedTypeHint: Bool = false, elvisRhsCallResultTypeHint: TypeID? = nil, isOperatorCall: Bool = false) {
         self.range = range
         self.calleeName = calleeName
         self.args = args
@@ -175,6 +181,7 @@ public struct CallExpr {
         self.typeAliasConstructor = typeAliasConstructor
         self.elvisLhsExpectedTypeHint = elvisLhsExpectedTypeHint
         self.elvisRhsCallResultTypeHint = elvisRhsCallResultTypeHint
+        self.isOperatorCall = isOperatorCall
     }
 }
 

@@ -71,7 +71,7 @@ struct ValueNameScopeResolutionTests {
         try withTemporaryFile(contents: source) { path in
             let context = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(context)
-            #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+            #expect(context.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0468" })
         }
     }
 

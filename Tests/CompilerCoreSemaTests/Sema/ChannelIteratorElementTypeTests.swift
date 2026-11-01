@@ -46,11 +46,15 @@ struct ChannelIteratorElementTypeTests {
             """) { nextPath in
                 let ctx = makeCompilationContext(inputs: [loopPath, nextPath], stdlibLibraryPath: library)
                 try runSema(ctx)
-                for path in [loopPath, nextPath] {
+                // The loop variable is a plain Int, so the String init emits the
+                // dedicated initializer code. The `next()` call instead folds the
+                // expected type into its own inference and fails with a bounds
+                // conflict, which stays on the generic constraint code.
+                for (path, code) in [(loopPath, "KSWIFTK-SEMA-0468"), (nextPath, "KSWIFTK-TYPE-0001")] {
                     let file = try #require(ctx.sourceManager.fileID(forPath: path))
                     #expect(ctx.diagnostics.diagnostics.contains {
-                        $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001" && $0.primaryRange?.start.file == file
-                    }, "Expected a type mismatch in \(path): \(ctx.diagnostics.diagnostics)")
+                        $0.severity == .error && $0.code == code && $0.primaryRange?.start.file == file
+                    }, "Expected \(code) in \(path): \(ctx.diagnostics.diagnostics)")
                 }
             }
         }

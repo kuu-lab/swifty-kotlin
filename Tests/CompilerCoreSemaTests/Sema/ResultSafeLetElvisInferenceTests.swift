@@ -53,7 +53,7 @@ struct ResultSafeLetElvisInferenceTests {
                 assertNoDiagnostic("KSWIFTK-TYPE-0001", in: diagnostics)
             }
             assertHasDiagnostic(
-                "KSWIFTK-TYPE-0001",
+                "KSWIFTK-SEMA-0469",
                 in: diagnosticsForPath(paths[2], in: ctx)
             )
             assertNoDiagnostic(

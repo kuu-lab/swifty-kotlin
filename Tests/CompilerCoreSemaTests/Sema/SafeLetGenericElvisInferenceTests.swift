@@ -41,7 +41,7 @@ struct SafeLetGenericElvisInferenceTests {
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: positiveDiagnostics)
             #expect(positiveDiagnostics.filter { $0.severity == .error }.isEmpty,
                     "got: \(positiveDiagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })")
-            assertHasDiagnostic("KSWIFTK-TYPE-0001", in: diagnosticsForPath(paths[1], in: ctx))
+            assertHasDiagnostic("KSWIFTK-SEMA-0469", in: diagnosticsForPath(paths[1], in: ctx))
         }
     }
 }

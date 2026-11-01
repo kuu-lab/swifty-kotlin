@@ -558,7 +558,9 @@ final class ControlFlowTypeChecker {
             driver.emitSubtypeConstraint(
                 left: elementType, right: declaredLoopType,
                 range: range, solver: ConstraintSolver(),
-                sema: sema, diagnostics: ctx.sema.diagnostics
+                sema: sema, diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0468",
+                failureMessage: "Initializer type mismatch."
             )
         }
         let loopValueType = declaredLoopType ?? elementType
@@ -647,7 +649,9 @@ final class ControlFlowTypeChecker {
             range: ast.arena.exprRange(conditionExpr) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.sema.diagnostics
+            diagnostics: ctx.sema.diagnostics,
+            diagnosticCode: "KSWIFTK-SEMA-0467",
+            failureMessage: "Condition type mismatch: expected Boolean."
         )
         let branch = ctx.dataFlow.branchOnCondition(
             conditionExpr, base: ctx.flowState.includingMembers(from: locals), locals: locals,
@@ -748,7 +752,9 @@ final class ControlFlowTypeChecker {
             range: ast.arena.exprRange(conditionExpr) ?? range,
             solver: ConstraintSolver(),
             sema: sema,
-            diagnostics: ctx.sema.diagnostics
+            diagnostics: ctx.sema.diagnostics,
+            diagnosticCode: "KSWIFTK-SEMA-0467",
+            failureMessage: "Condition type mismatch: expected Boolean."
         )
         var loopExitStates = loopFlowScope.breakLocalStates
         if !isConstantTrueCondition(conditionExpr, ast: ast),
@@ -1018,7 +1024,9 @@ final class ControlFlowTypeChecker {
                 range: ast.arena.exprRange(condition),
                 solver: ConstraintSolver(),
                 sema: sema,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0467",
+                failureMessage: "Condition type mismatch: expected Boolean."
             )
         }
         let branch = ctx.dataFlow.branchOnCondition(

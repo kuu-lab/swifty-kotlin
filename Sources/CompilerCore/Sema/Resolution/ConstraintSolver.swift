@@ -33,22 +33,44 @@ enum ConstraintOperand: Equatable {
     case variable(TypeVarID)
 }
 
+/// Where a constraint originates inside a call candidate's evaluation.
+/// kotlinc names argument-vs-parameter mismatches ARGUMENT_TYPE_MISMATCH, so
+/// call-argument constraints carry `.callArgument` to let a failed solve
+/// surface the position-specific code instead of the generic one.
+enum VariableConstraintOrigin: Equatable {
+    case general
+    case callArgument
+}
+
 struct VariableConstraint {
     let kind: ConstraintKind
     let left: ConstraintOperand
     let right: ConstraintOperand
     let blameRange: SourceRange?
+    let origin: VariableConstraintOrigin
 
     init(
         kind: ConstraintKind,
         left: ConstraintOperand,
         right: ConstraintOperand,
-        blameRange: SourceRange? = nil
+        blameRange: SourceRange? = nil,
+        origin: VariableConstraintOrigin = .general
     ) {
         self.kind = kind
         self.left = left
         self.right = right
         self.blameRange = blameRange
+        self.origin = origin
+    }
+
+    func withOrigin(_ origin: VariableConstraintOrigin) -> VariableConstraint {
+        VariableConstraint(
+            kind: kind,
+            left: left,
+            right: right,
+            blameRange: blameRange,
+            origin: origin
+        )
     }
 }
 
@@ -122,7 +144,17 @@ final class ConstraintSolver {
                 switch (relation.left, relation.right) {
                 case let (.type(leftType), .type(rightType)):
                     if !typeSystem.isSubtype(leftType, rightType) {
-                        return failureSolution(vars: vars, typeSystem: typeSystem, blameRange: relation.blame)
+                        return failureSolution(
+                            vars: vars,
+                            typeSystem: typeSystem,
+                            blameRange: relation.blame,
+                            code: constraint.origin == .callArgument
+                                ? "KSWIFTK-SEMA-0473"
+                                : nil,
+                            message: constraint.origin == .callArgument
+                                ? "Argument type mismatch."
+                                : nil
+                        )
                     }
 
                 case let (.variable(variable), .type(boundType)):
@@ -356,7 +388,8 @@ final class ConstraintSolver {
         vars: [TypeVarID],
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
-        message: String = "Type constraint could not be satisfied."
+        code: String? = nil,
+        message: String? = nil
     ) -> Solution {
         var substitution: [TypeVarID: TypeID] = [:]
         for variable in vars {
@@ -364,8 +397,8 @@ final class ConstraintSolver {
         }
         let diagnostic = Diagnostic(
             severity: .error,
-            code: "KSWIFTK-TYPE-0001",
-            message: message,
+            code: code ?? "KSWIFTK-TYPE-0001",
+            message: message ?? "Type constraint could not be satisfied.",
             primaryRange: blameRange,
             secondaryRanges: []
         )

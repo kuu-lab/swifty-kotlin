@@ -34,7 +34,7 @@ struct DiagnosticSecondaryRangeTests {
         }
         """
         try compileDiagnostics(source) { ctx in
-            let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-TYPE-0001" }
+            let mismatches = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0468" }
             let mismatch = try #require(mismatches.first)
             let file = try #require(mismatch.primaryRange?.start.file)
             let secondary = try #require(mismatch.secondaryRanges.first)

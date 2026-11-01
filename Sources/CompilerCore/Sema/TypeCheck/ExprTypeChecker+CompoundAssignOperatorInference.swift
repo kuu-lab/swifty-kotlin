@@ -41,7 +41,8 @@ extension ExprTypeChecker {
             ? operatorFunctionNames(for: op, interner: interner)
             : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
         let call = CallExpr(
-            range: range, calleeName: operatorNames[0], args: [CallArg(type: valueType)]
+            range: range, calleeName: operatorNames[0], args: [CallArg(type: valueType)],
+            isOperatorCall: true
         )
         var operatorCandidates = collectOperatorCandidates(
             names: operatorNames,
@@ -84,11 +85,15 @@ extension ExprTypeChecker {
 
         if usesScopedCharExtensions, resolved.chosenCallee == nil,
            resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
+               || resolved.diagnostic?.code == "KSWIFTK-SEMA-0473"
         {
             return nil
         }
         if let diagnostic = resolved.diagnostic {
-            if allowFallbackOnNoViableOverload, diagnostic.code == "KSWIFTK-SEMA-0002" {
+            if allowFallbackOnNoViableOverload,
+               diagnostic.code == "KSWIFTK-SEMA-0002"
+                   || diagnostic.code == "KSWIFTK-SEMA-0473"
+            {
                 return nil
             }
             if emitDiagnostics {
@@ -183,7 +188,8 @@ extension ExprTypeChecker {
         let call = CallExpr(
             range: range,
             calleeName: operatorName,
-            args: []
+            args: [],
+            isOperatorCall: true
         )
         let operatorCandidates = collectOperatorCandidates(
             names: [operatorName],

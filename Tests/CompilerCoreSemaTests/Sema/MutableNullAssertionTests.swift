@@ -73,7 +73,7 @@ struct MutableNullAssertionTests {
         let context = makeContext(declarations + "\nfun check(head: Node?, flag: Boolean): Int {\n" + body + "\n}")
         try runSema(context)
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0002" }, "\(errors)")
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0473" }, "\(errors)")
     }
 
     // KUU-3943: `x!!` inside an `&&`/`||` operand narrows on every branch where

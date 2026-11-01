@@ -90,7 +90,7 @@ struct ImmediateCallableInvocationTests {
         let getterContext = annotatedContextPropertyCompilation(includeWrongArgument: true)
         try runSema(getterContext)
         let errors = getterContext.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.count == 1 && errors.first?.code == "KSWIFTK-TYPE-0001",
+        #expect(errors.count == 1 && errors.first?.code == "KSWIFTK-SEMA-0473",
             "Getter typing must not accept an unrelated Int: \(errors)")
         let range = try #require(errors.first?.primaryRange)
         #expect(getterContext.sourceManager.slice(range) == "17")
@@ -110,7 +110,7 @@ struct ImmediateCallableInvocationTests {
         """)
         try runSema(ctx)
 
-        assertHasDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
     }
 
     @Test(arguments: [

@@ -94,7 +94,7 @@ struct StarProjectedMemberPropertyReadTests {
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "Expected only the star-projected write to fail: \(errors)")
-        #expect(errors.first?.code == "KSWIFTK-SEMA-0002" || errors.first?.code == "KSWIFTK-TYPE-0001")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0470")
     }
 
     @Test func starProjectedReadDoesNotExposeUnrelatedOrNullableMembers() throws {

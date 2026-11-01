@@ -63,7 +63,7 @@ struct GenericBranchUpperBoundReturnTests {
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
             let typeErrors = diagnosticsForPath(path, in: ctx).filter {
-                $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-0469"
             }
             #expect(typeErrors.count >= 3, "Expected all incompatible returns to fail, got: \(ctx.diagnostics.diagnostics)")
         }

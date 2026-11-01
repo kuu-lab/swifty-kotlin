@@ -20,7 +20,7 @@ struct DistinctSingletonIdentityTests {
 
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "Only distinct anonymous object types should be rejected: \(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0471" })
         #expect(errors.first?.message.contains("unrelated anonymous object types") == true)
     }
 
@@ -40,7 +40,7 @@ struct DistinctSingletonIdentityTests {
         try runSema(context)
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 5, "\(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" && $0.message.contains("unrelated singleton types") })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0471" && $0.message.contains("unrelated singleton types") })
     }
 
     @Test(arguments: ["===", "!=="])

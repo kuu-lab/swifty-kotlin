@@ -102,7 +102,7 @@ struct GenericGetterNullableTraversalTests {
 
     @Test(arguments: [
         ("node = node.next(); node.next()", "KSWIFTK-SEMA-0002"),
-        ("var required: Node<T> = node; required = node.next()", "KSWIFTK-TYPE-0001"),
+        ("var required: Node<T> = node; required = node.next()", "KSWIFTK-SEMA-0470"),
         ("val fixed = node; fixed = node.next()", "KSWIFTK-SEMA-0014"),
     ])
     func getterStillRejectsInvalidAssignmentsAndNullableReads(body: String, expected: String) throws {

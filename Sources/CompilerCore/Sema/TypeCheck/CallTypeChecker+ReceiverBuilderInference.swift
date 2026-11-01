@@ -497,7 +497,9 @@ extension CallTypeChecker {
             driver.emitSubtypeConstraint(
                 left: argTypes[argumentIndex], right: specialize(parameterType),
                 range: ctx.ast.arena.exprRange(args[argumentIndex].expr) ?? range,
-                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics
+                solver: ConstraintSolver(), sema: sema, diagnostics: ctx.sema.diagnostics,
+                diagnosticCode: "KSWIFTK-SEMA-0473",
+                failureMessage: "Argument type mismatch."
             )
         }
         sema.bindings.bindCall(id, binding: CallBinding(

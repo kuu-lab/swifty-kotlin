@@ -205,7 +205,7 @@ struct IntegerLiteralRangeTests {
         let (ctx, _, _) = try buildFrontend(source)
         try SemaPhase().run(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" },
+        #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0468" },
                 "Expected non-constant Int expression to be rejected with KSWIFTK-TYPE-0001")
     }
 

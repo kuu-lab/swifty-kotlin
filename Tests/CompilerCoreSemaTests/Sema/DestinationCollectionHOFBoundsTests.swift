@@ -20,7 +20,7 @@ struct DestinationCollectionHOFBoundsTests {
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 3, "Expected one destination-bound error per invalid call, got: \(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0473" })
         #expect(errors.allSatisfy { $0.message.contains("destination has type") })
     }
 

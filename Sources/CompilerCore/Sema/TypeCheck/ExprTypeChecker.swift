@@ -417,7 +417,9 @@ final class ExprTypeChecker {
                         sema: sema,
                         diagnostics: ctx.sema.diagnostics,
                         secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
-                        suppressPlatformWarning: ctx.suppressPlatformReturnWarning
+                        suppressPlatformWarning: ctx.suppressPlatformReturnWarning,
+                        diagnosticCode: "KSWIFTK-SEMA-0469",
+                        failureMessage: "Return type mismatch."
                     )
                 }
             } else {
@@ -432,7 +434,9 @@ final class ExprTypeChecker {
                         sema: sema,
                         diagnostics: ctx.sema.diagnostics,
                         secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
-                        suppressPlatformWarning: ctx.suppressPlatformReturnWarning
+                        suppressPlatformWarning: ctx.suppressPlatformReturnWarning,
+                        diagnosticCode: "KSWIFTK-SEMA-0469",
+                        failureMessage: "Return type mismatch."
                     )
                 }
             }
@@ -1074,7 +1078,7 @@ final class ExprTypeChecker {
             let extensions = visibleExtensions(ctx.cachedScopeLookup(containsName))
             if !ctx.resolver.probeCall(
                 candidates: extensions,
-                call: CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)]),
+                call: CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)], isOperatorCall: true),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
                 ctx: ctx.sema
@@ -1087,7 +1091,7 @@ final class ExprTypeChecker {
         func hasApplicableContainsExtension(receiverType: TypeID) -> Bool {
             !ctx.resolver.probeCall(
                 candidates: containsExtensionCandidates(receiverType: receiverType),
-                call: CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)]),
+                call: CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)], isOperatorCall: true),
                 expectedType: nil,
                 implicitReceiverType: receiverType,
                 ctx: ctx.sema
@@ -1111,7 +1115,7 @@ final class ExprTypeChecker {
             return nil
         }()
         if let sourceReceiver = nullableRangeReceiver {
-            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)])
+            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)], isOperatorCall: true)
             let members = driver.helpers.collectMemberFunctionCandidates(
                 named: containsName, receiverType: sourceReceiver, sema: sema, interner: interner
             )
@@ -1143,7 +1147,7 @@ final class ExprTypeChecker {
             sema: sema,
             interner: interner
         ) {
-            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)])
+            let call = CallExpr(range: range, calleeName: containsName, args: [CallArg(type: elementType)], isOperatorCall: true)
             let members = driver.helpers.collectMemberFunctionCandidates(
                 named: containsName,
                 receiverType: floatingPointRangeReceiver,
@@ -1239,7 +1243,8 @@ final class ExprTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: containsName,
-                        args: [CallArg(type: elementType)]
+                        args: [CallArg(type: elementType)],
+                        isOperatorCall: true
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
@@ -1284,7 +1289,8 @@ final class ExprTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: containsName,
-                        args: [CallArg(type: elementType)]
+                        args: [CallArg(type: elementType)],
+                        isOperatorCall: true
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
@@ -1337,7 +1343,8 @@ final class ExprTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: containsName,
-                        args: [CallArg(type: elementType)]
+                        args: [CallArg(type: elementType)],
+                        isOperatorCall: true
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
@@ -1390,7 +1397,8 @@ final class ExprTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: containsName,
-                        args: [CallArg(type: elementType)]
+                        args: [CallArg(type: elementType)],
+                        isOperatorCall: true
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
@@ -1435,7 +1443,8 @@ final class ExprTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: containsName,
-                        args: [CallArg(type: elementType)]
+                        args: [CallArg(type: elementType)],
+                        isOperatorCall: true
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
@@ -1488,7 +1497,8 @@ final class ExprTypeChecker {
                     call: CallExpr(
                         range: range,
                         calleeName: containsName,
-                        args: [CallArg(type: elementType)]
+                        args: [CallArg(type: elementType)],
+                        isOperatorCall: true
                     ),
                     expectedType: nil,
                     implicitReceiverType: rangeSourceReceiverType,
@@ -1578,7 +1588,8 @@ final class ExprTypeChecker {
                         call: CallExpr(
                             range: range,
                             calleeName: containsName,
-                            args: [CallArg(type: resolvedElementType)]
+                            args: [CallArg(type: resolvedElementType)],
+                            isOperatorCall: true
                         ),
                         expectedType: nil,
                         implicitReceiverType: rangeSourceReceiverType,
@@ -1873,7 +1884,7 @@ final class ExprTypeChecker {
             signedIntegerLiteral: integerLiteral.signed,
             unsignedIntegerLiteral: integerLiteral.unsigned
         )]
-        let call = CallExpr(range: range, calleeName: containsName, args: callArgs)
+        let call = CallExpr(range: range, calleeName: containsName, args: callArgs, isOperatorCall: true)
         let retainedMembers = candidates.filter { memberCandidates.contains($0) }
         if case .primitive = sema.types.kind(of: nonNullContainerType),
            ctx.resolver.probeCall(
@@ -2257,7 +2268,8 @@ final class ExprTypeChecker {
             range: range,
             calleeName: operatorNames[0],
             args: [],
-            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+            isOperatorCall: true
         )
         let operatorCandidates = collectOperatorCandidates(
             names: operatorNames,

@@ -95,7 +95,9 @@ extension DeclTypeChecker {
                 driver.emitSubtypeConstraint(
                     left: defaultType, right: defaultExpectedType,
                     range: ctx.ast.arena.exprRange(defaultExprID),
-                    solver: solver, sema: sema, diagnostics: diagnostics
+                    solver: solver, sema: sema, diagnostics: diagnostics,
+                    diagnosticCode: "KSWIFTK-SEMA-0468",
+                    failureMessage: "Initializer type mismatch."
                 )
             }
             locals[param.name] = (type, paramSymbol, false, true)
@@ -1252,7 +1254,9 @@ extension DeclTypeChecker {
                 diagnostics: diagnostics,
                 // Suppress platform warning when return type is inferred (not explicitly declared):
                 // the placeholder anyType is not a user-declared non-null constraint.
-                suppressPlatformWarning: function.returnType == nil
+                suppressPlatformWarning: function.returnType == nil,
+                diagnosticCode: "KSWIFTK-SEMA-0469",
+                failureMessage: "Return type mismatch."
             )
         }
 

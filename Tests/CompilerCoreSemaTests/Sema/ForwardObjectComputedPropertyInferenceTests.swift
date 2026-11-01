@@ -85,7 +85,7 @@ struct ForwardObjectComputedPropertyInferenceTests {
         object Later { val value = 41 }
         """])
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
     }
 
     @Test
@@ -96,7 +96,7 @@ struct ForwardObjectComputedPropertyInferenceTests {
         object Later { val value = Chain.value }
         """])
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
         let sema = try #require(ctx.sema)
         for owner in ["Chain", "Later"] {
             let property = try #require(sema.symbols.lookup(

@@ -1070,7 +1070,9 @@ extension DeclTypeChecker {
                         range: ctx.ast.arena.exprRange(argument.expr),
                         solver: solver,
                         sema: sema,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0473",
+                        failureMessage: "Argument type mismatch."
                     )
                 }
             }

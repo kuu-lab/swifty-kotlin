@@ -936,7 +936,8 @@ extension CallTypeChecker {
                 call: CallExpr(
                     range: callRange,
                     calleeName: calleeName,
-                    args: callArgs
+                    args: callArgs,
+                    isOperatorCall: true
                 ),
                 expectedType: nil,
                 implicitReceiverType: sourceLookupReceiverType,

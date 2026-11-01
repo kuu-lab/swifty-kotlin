@@ -58,7 +58,7 @@ struct JavaLinkedListPlatformReturnTests {
         let ctx = makeContextFromSource("import java.util.LinkedList\n" + source)
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.filter { $0.code == "KSWIFTK-TYPE-0001" }.count == sources.count, "\(errors)")
+        #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0469" }.count == sources.count, "\(errors)")
     }
 
     @Test
@@ -91,7 +91,7 @@ struct JavaLinkedListPlatformReturnTests {
         """) { path in
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0469" })
         }
     }
 

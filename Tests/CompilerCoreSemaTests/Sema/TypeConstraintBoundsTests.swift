@@ -84,7 +84,7 @@ struct TypeConstraintBoundsTests {
             let unbounded = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(unbounded)
             #expect(unbounded.diagnostics.diagnostics.contains {
-                $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-0468"
             }, "Got diagnostics: \(unbounded.diagnostics.diagnostics.map { ($0.code, $0.message) })")
         }
     }

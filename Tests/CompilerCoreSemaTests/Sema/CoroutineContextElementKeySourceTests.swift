@@ -27,7 +27,7 @@ struct CoroutineContextElementKeySourceTests {
         if useLibrary { #expect(context.options.stdlibLibraryPath != nil) }
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "\(errors)")
-        #expect(errors.first?.code == "KSWIFTK-TYPE-0001")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0468")
         let sema = try #require(context.sema)
         let ast = try #require(context.ast)
         let keyObject = try #require(sema.symbols.lookup(fqName: [context.interner.intern("Key")]))

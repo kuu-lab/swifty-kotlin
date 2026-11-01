@@ -29,11 +29,11 @@ struct TopLevelFunctionReachabilityTests {
     @Test
     func deadCodeBodyIsNotCheckedWhenFlagEnabled() throws {
         let off = try semaDiagnosticCodes(flags: [])
-        #expect(off.codes.contains("KSWIFTK-TYPE-0001"))
+        #expect(off.codes.contains("KSWIFTK-SEMA-0468"))
         #expect(off.skipped == 0)
 
         let on = try semaDiagnosticCodes(flags: ["reachability-sema"])
-        #expect(!on.codes.contains("KSWIFTK-TYPE-0001"))
+        #expect(!on.codes.contains("KSWIFTK-SEMA-0468"))
         // Only `unused` is skipped: `used`/`helper`/`overloaded` are reachable
         // by name and the `operator` function is a root.
         #expect(on.skipped == 1)
@@ -42,7 +42,7 @@ struct TopLevelFunctionReachabilityTests {
     @Test
     func nonExecutableEmitKeepsAllBodies() throws {
         let result = try semaDiagnosticCodes(flags: ["reachability-sema"], emit: .library)
-        #expect(result.codes.contains("KSWIFTK-TYPE-0001"))
+        #expect(result.codes.contains("KSWIFTK-SEMA-0468"))
         #expect(result.skipped == 0)
     }
 }

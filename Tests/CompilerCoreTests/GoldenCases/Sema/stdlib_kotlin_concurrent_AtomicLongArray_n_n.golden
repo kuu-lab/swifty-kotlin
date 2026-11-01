@@ -9,4 +9,4 @@ expr e@8:75 name(size) type=Int ref=golden.sema.atomicLongArrayFromSize.$0.size[
 expr e@8:59 call callee=e@8:59#1 args=[_:e@8:75] type=kotlin.concurrent.AtomicLongArray
 expr e@9:86 name(values) type=kotlin.LongArray ref=golden.sema.atomicLongArrayFromStorage.$1.values[kind=vparam;origin=fixture]
 expr e@9:70 call callee=e@9:70#1 args=[_:e@9:86] type=kotlin.concurrent.AtomicLongArray
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=9:86 msg=Type constraint could not be satisfied.
+diagnostic severity=error code=KSWIFTK-SEMA-0473 at=9:86 msg=Argument type mismatch.

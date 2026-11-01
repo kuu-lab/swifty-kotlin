@@ -49,7 +49,7 @@ struct MutableLocalAssignmentFlowRefinementTests {
         }
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
     }
 
     @Test func doesNotLeakBranchAssignmentRefinementPastMerge() throws {
@@ -61,7 +61,7 @@ struct MutableLocalAssignmentFlowRefinementTests {
         }
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
     }
 
     @Test func broadReassignmentClearsBranchLocalRefinement() throws {
@@ -78,7 +78,7 @@ struct MutableLocalAssignmentFlowRefinementTests {
         }
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-TYPE-0001" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
     }
 }
 #endif

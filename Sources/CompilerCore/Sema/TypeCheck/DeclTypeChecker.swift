@@ -226,7 +226,9 @@ final class DeclTypeChecker {
                     driver.emitSubtypeConstraint(
                         left: initializerType, right: declaredType,
                         range: property.range, solver: solver,
-                        sema: sema, diagnostics: diagnostics
+                        sema: sema, diagnostics: diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0468",
+                        failureMessage: "Initializer type mismatch."
                     )
                 }
             } else {
@@ -327,13 +329,17 @@ final class DeclTypeChecker {
                     driver.emitSubtypeConstraint(
                         left: initializerType, right: explicitFieldType,
                         range: property.range, solver: solver,
-                        sema: sema, diagnostics: diagnostics
+                        sema: sema, diagnostics: diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0468",
+                        failureMessage: "Initializer type mismatch."
                     )
                 } else if let declaredPropertyType = inferredPropertyType {
                     driver.emitSubtypeConstraint(
                         left: initializerType, right: declaredPropertyType,
                         range: property.range, solver: solver,
-                        sema: sema, diagnostics: diagnostics
+                        sema: sema, diagnostics: diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0468",
+                        failureMessage: "Initializer type mismatch."
                     )
                     if !property.isVar,
                        !sema.symbols.propertyHasCustomGetter(for: symbol),

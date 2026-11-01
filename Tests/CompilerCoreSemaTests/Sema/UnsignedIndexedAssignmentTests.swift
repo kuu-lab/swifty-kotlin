@@ -60,7 +60,7 @@ struct UnsignedIndexedAssignmentTests {
         try runSema(ctx)
         let diagnostics = ctx.diagnostics.diagnostics
         #expect(diagnostics.contains {
-            $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-0473"
         }, "Expected a type error: \(diagnostics)")
     }
 

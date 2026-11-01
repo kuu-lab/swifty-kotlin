@@ -9,9 +9,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
+      "code": "KSWIFTK-SEMA-0469",
       "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
+      "message": "Return type mismatch.",
       "codeActions": [],
               "relatedInformation": [{ "location": { "uri": "error_return_type.kt", "range": { "start": { "line": 3, "character": 0 }, "end": { "line": 5, "character": 1 } } }, "message": "expected type declared here" }]
     },
@@ -23,9 +23,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
+      "code": "KSWIFTK-SEMA-0469",
       "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
+      "message": "Return type mismatch.",
       "codeActions": []
     },
     {
@@ -36,9 +36,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
+      "code": "KSWIFTK-SEMA-0469",
       "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
+      "message": "Return type mismatch.",
       "codeActions": [],
               "relatedInformation": [{ "location": { "uri": "error_return_type.kt", "range": { "start": { "line": 14, "character": 0 }, "end": { "line": 20, "character": 1 } } }, "message": "expected type declared here" }]
     },
@@ -50,9 +50,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
+      "code": "KSWIFTK-SEMA-0469",
       "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
+      "message": "Return type mismatch.",
       "codeActions": []
     },
     {
@@ -63,9 +63,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-TYPE-0001",
+      "code": "KSWIFTK-SEMA-0469",
       "source": "kswiftk",
-      "message": "Type constraint could not be satisfied.",
+      "message": "Return type mismatch.",
       "codeActions": [],
               "relatedInformation": [{ "location": { "uri": "error_return_type.kt", "range": { "start": { "line": 28, "character": 0 }, "end": { "line": 30, "character": 1 } } }, "message": "expected type declared here" }]
     }

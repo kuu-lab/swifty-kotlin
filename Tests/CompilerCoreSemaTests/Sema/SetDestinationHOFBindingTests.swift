@@ -86,7 +86,7 @@ struct SetDestinationHOFBindingTests {
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
             #expect(errors.count == 2, "Expected both Map.filter*To list-destination calls to be rejected, got \(errors)")
             for error in errors {
-                #expect(error.code == "KSWIFTK-TYPE-0001", "Expected destination type-mismatch, got \(error)")
+                #expect(error.code == "KSWIFTK-SEMA-0473", "Expected destination type-mismatch, got \(error)")
             }
         }
     }

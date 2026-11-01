@@ -70,7 +70,7 @@ struct BranchLongLiteralJoinTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
         }
     }
 }

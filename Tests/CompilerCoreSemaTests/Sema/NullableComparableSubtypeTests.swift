@@ -83,6 +83,6 @@ struct NullableComparableSubtypeTests {
         try runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 1, "\(errors)")
-        #expect(errors.first?.code == "KSWIFTK-TYPE-0001", "\(errors)")
+        #expect(errors.first?.code == "KSWIFTK-SEMA-0468", "\(errors)")
     }
 }

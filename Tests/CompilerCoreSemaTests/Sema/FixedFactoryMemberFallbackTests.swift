@@ -59,7 +59,7 @@ struct FixedFactoryMemberFallbackTests {
         fun use(receiver: Receiver): Int = receiver.pick(makeToken())
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
     }
 
     private func makeContext(_ source: String) -> CompilationContext {

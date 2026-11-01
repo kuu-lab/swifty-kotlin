@@ -117,7 +117,9 @@ extension ExprTypeChecker {
                     }
                     driver.emitSubtypeConstraint(
                         left: valueType, right: writeType, range: range, solver: ConstraintSolver(),
-                        sema: sema, diagnostics: sema.diagnostics
+                        sema: sema, diagnostics: sema.diagnostics,
+                        diagnosticCode: "KSWIFTK-SEMA-0470",
+                        failureMessage: "Assignment type mismatch."
                     )
                     driver.helpers.recordMemberValInitializationSmartCast(
                         property: writeSymbol,
