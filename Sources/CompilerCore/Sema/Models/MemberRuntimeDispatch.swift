@@ -220,6 +220,40 @@ enum MemberRuntimeDispatch {
         return nil
     }
 
+    /// `x downTo y` materializes a progression object at runtime. Int `downTo`
+    /// already binds the nominal IntProgression type; non-Int operands keep
+    /// the scalar range marker, so member-call dispatch must still see the
+    /// progression kind for the bound member to live on the class the runtime
+    /// object actually instantiates — selecting the range member would emit a
+    /// call whose receiver type can never hold the materialized object (a JVM
+    /// `invokevirtual` on `IntRange` against an `IntProgression` fails
+    /// verification).
+    static func memberCallReceiverKind(
+        _ kind: MemberDispatchReceiverKind?,
+        receiverExpr: ExprID,
+        ast: ASTModule
+    ) -> MemberDispatchReceiverKind? {
+        guard case let .binary(op, _, _, _) = ast.arena.expr(receiverExpr),
+              op == .downTo
+        else {
+            return kind
+        }
+        switch kind {
+        case .intRange:
+            return .intProgression
+        case .longRange:
+            return .longProgression
+        case .charRange:
+            return .charProgression
+        case .uintRange:
+            return .uintProgression
+        case .ulongRange:
+            return .ulongProgression
+        default:
+            return kind
+        }
+    }
+
     static func collectionReceiverKind(
         receiverType: TypeID,
         sema: SemaModule,

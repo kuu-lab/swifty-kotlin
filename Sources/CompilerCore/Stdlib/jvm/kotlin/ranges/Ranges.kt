@@ -59,3 +59,21 @@ public infix fun IntProgression.step(step: Int): IntProgression {
     if (step <= 0) throw IllegalArgumentException("Step must be positive, was: $step.")
     return IntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
+
+// Mirrors the common containsInt: widened Long arithmetic keeps `value - first`
+// from wrapping when the endpoints sit near Int.MIN_VALUE / Int.MAX_VALUE.
+public operator fun IntProgression.contains(value: Int): Boolean {
+    if (step > 0) {
+        if (value < first || value > last) return false
+    } else if (step < 0) {
+        if (value > first || value < last) return false
+    } else {
+        return false
+    }
+    return (value.toLong() - first.toLong()) % step.toLong() == 0L
+}
+
+// Upstream reverses by swapping the endpoints and negating the step; the
+// result is still an IntProgression, not the generic Iterable.reversed list.
+public fun IntProgression.reversed(): IntProgression =
+    IntProgression.fromClosedRange(last, first, -step)
