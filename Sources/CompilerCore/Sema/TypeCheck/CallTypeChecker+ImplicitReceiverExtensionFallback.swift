@@ -24,12 +24,13 @@ extension CallTypeChecker {
         // Same-package properties do not occupy the callable namespace, so
         // they must not hide default-imported functions in call syntax.
         let samePackage = ctx.currentASTFile?.packageFQName
-        // Top-level properties whose type has no function shape cannot be
-        // invoked, so they never occupy the callable namespace.
-        func isNonCallableTopLevelProperty(_ candidate: SymbolID) -> Bool {
+        // A property whose type has no function shape cannot be invoked, so
+        // it never occupies the callable namespace — at any tier. A
+        // non-callable member `val` must not hide a same-named outer-tier
+        // function in call syntax either (KUU-3913). An imported property
+        // likewise yields to default-imported functions (KUU-2731).
+        func isNonCallableProperty(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate), symbol.kind == .property,
-                  ctx.sema.symbols.parentSymbol(for: candidate)
-                  .map({ ctx.sema.symbols.symbol($0)?.kind == .package }) ?? true,
                   let type = ctx.sema.symbols.propertyType(for: candidate)
             else { return false }
             if case .functionType = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(type)) {
@@ -40,34 +41,19 @@ extension CallTypeChecker {
                 named: ctx.interner.intern("invoke"), receiverType: type, sema: ctx.sema, interner: ctx.interner
             ).isEmpty
         }
-        func scopeLookup(excludingAllProperties: Bool) -> [SymbolID] {
-            ctx.scope.lookup(name, matching: { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      !ctx.isExpectDeclarationSupersededByActual(candidate),
-                      !ctx.isImportedCallableShadowedBySource(candidate)
-                else { return false }
-                if symbol.kind == .property {
-                    if excludingAllProperties { return !isNonCallableTopLevelProperty(candidate) }
-                    if let samePackage, Array(symbol.fqName.dropLast()) == samePackage {
-                        return false
-                    }
+        let callableCandidates = ctx.scope.lookup(name, matching: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  !ctx.isExpectDeclarationSupersededByActual(candidate),
+                  !ctx.isImportedCallableShadowedBySource(candidate)
+            else { return false }
+            if symbol.kind == .property {
+                if isNonCallableProperty(candidate) { return false }
+                if let samePackage, Array(symbol.fqName.dropLast()) == samePackage {
+                    return false
                 }
-                return true
-            })
-        }
-        var callableCandidates = scopeLookup(excludingAllProperties: false)
-        // A star-imported property from another package must not hide an
-        // outer-tier function (e.g. default-imported `emptyMap()`) in call
-        // syntax. Keep the property when no function exists farther out, so
-        // function-typed property invocation still resolves.
-        if !callableCandidates.isEmpty,
-           callableCandidates.allSatisfy({ isNonCallableTopLevelProperty($0) })
-        {
-            let functionsOnly = scopeLookup(excludingAllProperties: true)
-            if !functionsOnly.isEmpty {
-                callableCandidates = functionsOnly
             }
-        }
+            return true
+        })
         let candidates = scopeCallCandidatesWithExplicitImportOverloads(
             named: name,
             candidates: callableCandidates,
