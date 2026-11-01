@@ -771,7 +771,7 @@ final class LambdaLowerer {
            semanticSymbol.flags.contains(.reifiedTypeParameter)
         {
             let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
-            let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capture.capturedSymbol)
+            let componentSymbol = SyntheticSymbolScheme.reifiedKTypeSymbol(for: capture.capturedSymbol)
             let classToken = arena.appendTemporary(type: sema.types.intType)
             let componentToken = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(callee: interner.intern("__kk_pair_first"), arguments: [capturedValue], result: classToken, canThrow: false))

@@ -66,11 +66,14 @@ extension CallLowerer {
                     arguments.append(tokenExpr)
                 }
                 if carriesComponent {
-                    let component = runtimeArrayComponentTypeExpr(
-                        for: componentType, context: driver.ctx, sema: sema, arena: arena,
+                    // KUU-4022: the slot carries the substituted type's full
+                    // KType, so `typeOf<U>` inside the callee keeps its type
+                    // arguments; a forwarded reified parameter reuses the
+                    // enclosing function's captured box.
+                    arguments.append(driver.lowerKTypeExpr(
+                        for: componentType, sema: sema, arena: arena,
                         interner: interner, instructions: &instructions
-                    )
-                    arguments.append(component)
+                    ))
                 }
                 continue
             }
@@ -82,11 +85,11 @@ extension CallLowerer {
             instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
             arguments.append(tokenExpr)
             if carriesComponent {
-                let component = runtimeArrayComponentTypeExpr(
-                    for: componentType, context: driver.ctx, sema: sema, arena: arena,
+                // See above: this hidden argument is the substitution's KType.
+                arguments.append(driver.lowerKTypeExpr(
+                    for: componentType, sema: sema, arena: arena,
                     interner: interner, instructions: &instructions
-                )
-                arguments.append(component)
+                ))
             }
         }
     }

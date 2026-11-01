@@ -257,6 +257,23 @@ extension KIRLoweringDriver {
                     result: ktype,
                     canThrow: false
                 ))
+            } else if case let .typeParam(reifiedParameter) = sema.types.kind(of: reflectedType),
+                      sema.symbols.symbol(reifiedParameter.symbol)?.flags.contains(.reifiedTypeParameter) == true,
+                      let capturedKType = ctx.localValue(
+                          for: SyntheticSymbolScheme.reifiedKTypeSymbol(for: reifiedParameter.symbol)
+                      ) {
+                // KUU-4022: the hidden reified slot carries the substituted
+                // type's full KType — copy it instead of rebuilding an
+                // argument-less box from the nominal token. The copy keeps
+                // each `typeOf` evaluation's reference identity and applies
+                // this use site's nullability (`typeOf<T?>` under a non-null
+                // substitution is still nullable).
+                instructions.append(.call(
+                    callee: interner.intern("__kk_ktype_with_nullability"),
+                    arguments: [capturedKType, nullability],
+                    result: ktype,
+                    canThrow: false
+                ))
             } else {
                 instructions.append(.call(
                     callee: interner.intern("kk_typeof"),

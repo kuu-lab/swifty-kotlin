@@ -182,7 +182,7 @@ struct PackedConstructorCallByLoweringTests {
         let signature = try #require(sema.symbols.functionSignature(for: token.symbol))
         let typeParameter = try #require(signature.typeParameterSymbols.first)
         #expect(token.params[1].symbol == SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameter))
-        #expect(token.params[2].symbol == SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: typeParameter))
+        #expect(token.params[2].symbol == SyntheticSymbolScheme.reifiedKTypeSymbol(for: typeParameter))
         let defaults = try findKIRFunction(named: "defaults$default", in: module, interner: ctx.interner)
         #expect(defaults.params.count == 4, "value/class/component/default-mask slots")
         let probe = try findKIRFunction(named: "probe", in: module, interner: ctx.interner)
@@ -191,12 +191,15 @@ struct PackedConstructorCallByLoweringTests {
             return nil
         }.first)
         #expect(arguments.count == 3)
-        #expect(extractCallees(from: probe.body, interner: ctx.interner).contains("__kk_array_component_type"))
+        // KUU-4022: the second hidden slot carries the substitution's KType,
+        // so the probe materializes it via kk_typeof rather than emitting a
+        // nominal-only __kk_array_component_type descriptor.
+        #expect(extractCallees(from: probe.body, interner: ctx.interner).contains("kk_typeof"))
         let ordered = try findKIRFunction(named: "ordered", in: module, interner: ctx.interner)
         let orderedSignature = try #require(sema.symbols.functionSignature(for: ordered.symbol))
         try #require(orderedSignature.typeParameterSymbols.count == 2)
         let hiddenSymbols = orderedSignature.typeParameterSymbols.flatMap { parameter in
-            [SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter), SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: parameter)]
+            [SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: parameter), SyntheticSymbolScheme.reifiedKTypeSymbol(for: parameter)]
         }
         #expect(ordered.params.count == 5, "closure plus class/component pairs for A and B")
         #expect(Array(ordered.params.suffix(4)).map(\.symbol) == hiddenSymbols, "ordered class-A/component-A/class-B/component-B slots")
@@ -380,10 +383,21 @@ struct PackedConstructorCallByLoweringTests {
         let descriptorCalls = extractCallees(from: instructions, interner: interner)
             .filter { $0 == "__kk_array_component_type" }
         if shape == "reified" {
-            let token = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: tSymbol)
-            #expect(arena.expr(result) == .symbolRef(token))
+            let ktypeSlot = SyntheticSymbolScheme.reifiedKTypeSymbol(for: tSymbol)
             #expect(descriptorCalls.isEmpty)
-            #expect(instructions.count == 1, "reified tokens bypass erasure of their bounds")
+            // KUU-4022: the slot carries the substituted KType, so the
+            // descriptor is derived from it at runtime instead of erasing
+            // the parameter's bounds here.
+            #expect(instructions.count == 2)
+            guard instructions.count == 2,
+                  case let .constValue(constResult, .symbolRef(constSymbol)) = instructions[0],
+                  case let .call(_, callee, callArguments, callResult, _, _, _, _) = instructions[1]
+            else { Issue.record("expected symbolRef + __kk_ktype_component_descriptor call"); return }
+            #expect(constResult != result)
+            #expect(constSymbol == ktypeSlot)
+            #expect(interner.resolve(callee) == "__kk_ktype_component_descriptor")
+            #expect(callArguments == [constResult])
+            #expect(callResult == result)
         } else if shape == "valid" {
             #expect(arena.expr(result) != .intLiteral(0))
             #expect(descriptorCalls.count == 3, "valid nested components still use each concrete classifier")

@@ -717,7 +717,7 @@ final class ObjectLiteralLowerer {
             driver.ctx.setLocalDeclaredType(logicalType, for: capturedSymbol)
             if isReifiedTypeParameter {
                 let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capturedSymbol)
-                let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(for: capturedSymbol)
+                let componentSymbol = SyntheticSymbolScheme.reifiedKTypeSymbol(for: capturedSymbol)
                 let classToken = arena.appendTemporary(type: intType)
                 instructions.append(.call(callee: interner.intern("__kk_pair_first"), arguments: [loadedExpr], result: classToken, canThrow: false))
                 let componentToken = arena.appendTemporary(type: intType)

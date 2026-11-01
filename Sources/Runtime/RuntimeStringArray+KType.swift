@@ -197,14 +197,96 @@ private func runtimeKTypeCreate(
             argumentRaws = listBox.elements
         }
     }
-    let box = RuntimeKTypeBox(
-        classifierRaw: classifierRaw,
+    return runtimeKTypeCreate(
+        classifierRaw,
         argumentRaws: argumentRaws,
         isMarkedNullable: isNullable != 0,
         typeNameRaw: typeNameRaw
     )
+}
+
+private func runtimeKTypeCreate(
+    _ classifierRaw: Int,
+    argumentRaws: [Int],
+    isMarkedNullable: Bool,
+    typeNameRaw: Int = 0
+) -> Int {
+    let box = RuntimeKTypeBox(
+        classifierRaw: classifierRaw,
+        argumentRaws: argumentRaws,
+        isMarkedNullable: isMarkedNullable,
+        typeNameRaw: typeNameRaw
+    )
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(box)
+}
+
+/// Copies a KType box, optionally overriding `isMarkedNullable`
+/// (`isNullable < 0` keeps the source flag). The compiler emits this where a
+/// reified `typeOf<T>`/`typeOf<T?>` reuses the type parameter's captured
+/// KType: every `typeOf` evaluation must hand out a fresh box because
+/// reference identity (`===`) is observable, and a `T?` use site adds
+/// nullability the captured substitution may not carry.
+@_cdecl("__kk_ktype_with_nullability")
+public func __kk_ktype_with_nullability(_ ktypeRaw: Int, _ isNullable: Int) -> Int {
+    guard let box = runtimeKTypeBox(from: ktypeRaw) else {
+        return ktypeRaw
+    }
+    return runtimeKTypeCreate(
+        box.classifierRaw,
+        argumentRaws: box.argumentRaws,
+        isMarkedNullable: isNullable < 0 ? box.isMarkedNullable : isNullable != 0,
+        typeNameRaw: box.typeNameRaw
+    )
+}
+
+/// Derives the `__kk_array_component_type` descriptor equivalent to a KType
+/// box: the classifier's nominal token plus, for `kotlin.Array`, the element
+/// type's descriptor (mirroring `referenceArrayElementType` — `in`/`star`
+/// projections collapse to `Any`). A `KTypeParameter` classifier resolves to
+/// its first upper bound, matching the bound-erasure the descriptor path
+/// used before this slot carried KTypes.
+@_cdecl("__kk_ktype_component_descriptor")
+public func __kk_ktype_component_descriptor(_ ktypeRaw: Int) -> Int {
+    var visited = 0
+    return runtimeKTypeComponentDescriptor(ktypeRaw, visited: &visited)
+}
+
+private func runtimeKTypeComponentDescriptor(_ raw: Int, visited: inout Int) -> Int {
+    let anyDescriptor = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.anyBase), 0)
+    guard visited < 64, let box = runtimeKTypeBox(from: raw) else {
+        return 0
+    }
+    visited += 1
+    guard let kclass = runtimeKClassBox(from: box.classifierRaw) else {
+        guard let parameter = runtimeReflectionObject(
+            from: box.classifierRaw, as: RuntimeKTypeParameterBox.self
+        ),
+            let bounds = runtimeReflectionObject(
+                from: parameter.upperBoundsRaw, as: RuntimeListBox.self
+            ),
+            let firstBound = bounds.elements.first
+        else {
+            return anyDescriptor
+        }
+        return runtimeKTypeComponentDescriptor(firstBound, visited: &visited)
+    }
+    var element = 0
+    let token = Int64(truncatingIfNeeded: kclass.typeToken)
+    let isKotlinArray = token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase
+        && (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+            == runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    if isKotlinArray {
+        element = anyDescriptor
+        if let projectionRaw = box.argumentRaws.first,
+           let projection = runtimeKTypeProjectionBox(from: projectionRaw),
+           projection.variance != .in,
+           projection.typeRaw != 0
+        {
+            element = runtimeKTypeComponentDescriptor(projection.typeRaw, visited: &visited)
+        }
+    }
+    return __kk_array_component_type(kclass.typeToken, element)
 }
 
 @_cdecl("__kk_ktype_create")

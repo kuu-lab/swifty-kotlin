@@ -112,6 +112,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_ktype_arguments", "ktypeRaw"),
         abi.nt("__kk_ktype_isMarkedNullable", "ktypeRaw"),
         abi.nt("__kk_ktype_create", "classifierRaw argsRaw isNullable"),
+        abi.nt("__kk_ktype_with_nullability", "ktypeRaw isNullable"),
+        abi.nt("__kk_ktype_component_descriptor", "ktypeRaw"),
         abi.nt("__kk_ktypeparameter_create", "identity nameRaw varianceOrdinal isReified"),
         abi.nt("__kk_ktypeparameter_set_upper_bounds", "parameterRaw boundsRaw"),
         abi.nt("__kk_ktypeparameter_is_runtime", "parameterRaw"),
