@@ -49,23 +49,15 @@ public func __kk_foundation_object_kind(_ handle: Int, _ outThrown: UnsafeMutabl
 @_cdecl("__kk_foundation_object_equals")
 public func __kk_foundation_object_equals(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     guard let a = runtimeForeignResource(lhs, as: NSObject.self), let b = runtimeForeignResource(rhs, as: NSObject.self) else { return foundationFailure("Invalid SDK equality receiver", outThrown) }
     return a.isEqual(b) ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_object_hash")
 public func __kk_foundation_object_hash(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     guard let object = runtimeForeignResource(handle, as: NSObject.self) else { return foundationFailure("Invalid SDK hash receiver", outThrown) }
     return Int(Int32(truncatingIfNeeded: object.hash))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_data_create")
@@ -418,8 +410,9 @@ public func __kk_foundation_port_create(_ outThrown: UnsafeMutablePointer<Int>?)
     #endif
 }
 
-#if canImport(Darwin)
-private final class RuntimeFoundationThread: Thread, @unchecked Sendable {
+/// Pins the Kotlin callback only once the thread starts, so a thread that is
+/// created but never started does not keep its block alive.
+private final class RuntimeFoundationThreadBody: @unchecked Sendable {
     private let lock = NSLock()
     private let callback: RuntimeFoundationCallback
     private var queuedRoots: RuntimeQueuedGCRoots?
@@ -427,22 +420,19 @@ private final class RuntimeFoundationThread: Thread, @unchecked Sendable {
 
     init(callback: RuntimeFoundationCallback) {
         self.callback = callback
-        super.init()
     }
 
-    override func start() {
+    /// False when the thread was already started.
+    func begin() -> Bool {
         lock.lock()
-        guard !started else {
-            lock.unlock()
-            return
-        }
+        defer { lock.unlock() }
+        guard !started else { return false }
         started = true
         queuedRoots = RuntimeQueuedGCRoots(callback.roots)
-        lock.unlock()
-        super.start()
+        return true
     }
 
-    override func main() {
+    func run() {
         defer {
             lock.lock()
             let roots = queuedRoots
@@ -457,67 +447,102 @@ private final class RuntimeFoundationThread: Thread, @unchecked Sendable {
         }
     }
 }
+
+#if canImport(Darwin)
+private final class RuntimeFoundationThread: Thread, @unchecked Sendable {
+    private let body: RuntimeFoundationThreadBody
+
+    init(callback: RuntimeFoundationCallback) {
+        body = RuntimeFoundationThreadBody(callback: callback)
+        super.init()
+    }
+
+    override func start() {
+        guard body.begin() else { return }
+        super.start()
+    }
+
+    override func main() {
+        body.run()
+    }
+}
+#else
+// swift-corelibs-foundation's Thread cannot be subclassed from another module,
+// so off Darwin the body rides beside a block-based Thread. java.lang.Thread,
+// Timer and Executors are built over NSThread and need it on Linux too.
+private let runtimeFoundationThreadBodiesLock = NSLock()
+nonisolated(unsafe) private var runtimeFoundationThreadBodies: [ObjectIdentifier: RuntimeFoundationThreadBody] = [:]
+nonisolated(unsafe) private var runtimeFoundationMainThreadNamed = false
 #endif
 
 @_cdecl("__kk_foundation_thread_create")
 public func __kk_foundation_thread_create(_ block: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     guard let callback = RuntimeFoundationCallback(block), runtimeFunctionValueBox(from: block)?.arity == 0 else { return foundationFailure("SDK thread needs Function0", outThrown) }
+    #if canImport(Darwin)
     let thread = RuntimeFoundationThread(callback: callback)
-    return runtimeForeignResourceCreate(thread, roots: callback.rootKeys)
     #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    let body = RuntimeFoundationThreadBody(callback: callback)
+    let thread = Thread { body.run() }
+    runtimeFoundationThreadBodiesLock.withLock {
+        runtimeFoundationThreadBodies[ObjectIdentifier(thread)] = body
+    }
     #endif
+    return runtimeForeignResourceCreate(thread, roots: callback.rootKeys)
 }
 
 @_cdecl("__kk_foundation_thread_current")
 public func __kk_foundation_thread_current(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     let current = Thread.current
+    #if canImport(Darwin)
     if Thread.isMainThread, current.name?.isEmpty != false {
         current.name = "main"
     }
-    return runtimeForeignResourceCreate(current)
     #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    // Linux names the main thread after the process, so name it once
+    // instead of only when the name is empty.
+    if Thread.isMainThread {
+        runtimeFoundationThreadBodiesLock.withLock {
+            if !runtimeFoundationMainThreadNamed {
+                runtimeFoundationMainThreadNamed = true
+                current.name = "main"
+            }
+        }
+    }
     #endif
+    return runtimeForeignResourceCreate(current)
 }
 
 @_cdecl("__kk_foundation_thread_name")
 public func __kk_foundation_thread_name(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     guard let thread = runtimeForeignResource(handle, as: Thread.self) else { return foundationFailure("Invalid SDK thread", outThrown) }
     return thread.name.map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_thread_set_name")
 public func __kk_foundation_thread_set_name(_ handle: Int, _ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     guard let thread = runtimeForeignResource(handle, as: Thread.self) else { return foundationFailure("Invalid SDK thread", outThrown) }
     thread.name = runtimeStringFromRaw(name)
     return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_thread_start")
 public func __kk_foundation_thread_start(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    #if canImport(Darwin)
     guard let thread = runtimeForeignResource(handle, as: Thread.self) else { return foundationFailure("Invalid SDK thread", outThrown) }
+    #if !canImport(Darwin)
+    // A second start is a no-op like the Darwin override; a thread the runtime
+    // did not create has no body.
+    let body = runtimeFoundationThreadBodiesLock.withLock {
+        runtimeFoundationThreadBodies[ObjectIdentifier(thread)]
+    }
+    if let body, !body.begin() { return 0 }
+    #endif
     thread.start()
     return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_pinned_bytes_address")
