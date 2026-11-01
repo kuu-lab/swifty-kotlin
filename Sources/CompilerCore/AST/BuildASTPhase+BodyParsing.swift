@@ -650,6 +650,14 @@ extension BuildASTPhase {
         if let expr = parseLocalDeclarationExpr(from: strippedFiltered, interner: interner, astArena: astArena) {
             return expr
         }
+        // `val`/`var` is a hard keyword, so no later probe can parse the group;
+        // keep the declaration's own diagnostics (`val r = ::`) instead of
+        // rolling them back and dropping the statement silently.
+        if Self.startsLocalPropertyDeclaration(strippedFiltered),
+           let speculationCheckpoint, (diagnostics?.checkpoint() ?? 0) > speculationCheckpoint
+        {
+            return nil
+        }
         undoFailedSpeculation()
         if let expr = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
             return expr
@@ -845,6 +853,20 @@ extension BuildASTPhase {
             index = parsed.nextIndex
         }
         return index == 0 ? tokens : Array(tokens[index...])
+    }
+
+    /// Whether the statement head, after labels and local modifiers, is `val`/`var`.
+    static func startsLocalPropertyDeclaration(_ tokens: [Token]) -> Bool {
+        let tokens = skipLeadingLocalDeclarationLabels(tokens)
+        var index = 0
+        while index < tokens.count,
+              case let .keyword(keyword) = tokens[index].kind,
+              isLocalStatementModifierKeyword(keyword)
+        {
+            index += 1
+        }
+        guard index < tokens.count else { return false }
+        return tokens[index].kind == .keyword(.val) || tokens[index].kind == .keyword(.var)
     }
 
     /// Local declaration dispatch consumes leading labels as part of the statement.

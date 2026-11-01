@@ -264,6 +264,7 @@ struct CallableReferenceParsingTests {
         "fun main() { consume(::) }",
         "fun main() { println(\"d\")\n:: }",
         "fun main() { val r = { :: } }",
+        "fun main() { val f = { val r = :: } }",
         "fun ref() = ::",
         "val r = ::",
         "fun main() {\n::\nprintln(\"d\")::\nval r = ::\n}",

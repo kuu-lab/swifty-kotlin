@@ -66,6 +66,12 @@ extension BuildASTPhase.ExpressionParser {
                 undoFailedSpeculation()
                 statement = parseLocalDeclFromSlice(group)
             }
+            // A failed `val`/`var` keeps its diagnostics, as in parseStatementGroup.
+            if statement == nil, BuildASTPhase.startsLocalPropertyDeclaration(strippedGroup),
+               let speculationCheckpoint, (diagnostics?.checkpoint() ?? 0) > speculationCheckpoint
+            {
+                continue
+            }
             if statement == nil {
                 undoFailedSpeculation()
                 if rangeIndex == ranges.count - 1 {
