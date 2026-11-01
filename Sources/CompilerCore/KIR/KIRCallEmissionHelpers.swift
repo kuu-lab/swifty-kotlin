@@ -595,6 +595,117 @@ func emitValueClassUnboxCall<C: RangeReplaceableCollection>(
     instructions.append(.call(callee: interner.intern("kk_value_class_unbox"), arguments: [value, classIDExpr], result: result, canThrow: false))
 }
 
+/// Normalizes a possibly-boxed value-class receiver back to the
+/// representation the class's own member implementations expect.
+///
+/// `V`-typed member bodies consume the *unboxed* underlying representation,
+/// while `V?`/erased slots carry a wrapper: a nominal `RuntimeObjectBox` for
+/// nullable-underlying or reference-backed payloads (`V(val x: String?)`,
+/// `V(val s: Any)`), or the tagged `kk_box_*` product for primitive-backed
+/// ones. Calling an implementation directly with the slot value hands it the
+/// box, and a synthesized `toString()` that inspects its payload re-renders
+/// the wrapper — `IC(s=IC(s=…))` — and used to recurse through the nominal
+/// Any bridge instead (KUU-3902).
+///
+/// Emits `kk_value_class_unbox` for nominal boxes — plus the erased-generic
+/// primitive unbox the Any `toString` bridge applies — or the matching
+/// `kk_unbox_*` for tagged primitive boxes. Both callees are idempotent:
+/// payloads and unrelated objects pass through unchanged, so the result is
+/// always a receiver the implementation accepts. `String`-backed value
+/// classes need no unbox: their `V`/`V?` slots already carry the flat
+/// aggregate (a `String?` slot flattens null to a nil data pointer, so the
+/// tagged `StringBox` only exists across erased boundaries, where the Any
+/// bridge's `kk_string_to_flat` handles it).
+///
+/// Returns `value` unchanged when `receiverType` is not a non-null value
+/// class or its slots never carry a box.
+func unboxedValueClassReceiverExpr<C: RangeReplaceableCollection>(
+    value: KIRExprID,
+    receiverType: TypeID,
+    types: TypeSystem,
+    symbols: SymbolTable,
+    interner: StringInterner,
+    arena: KIRArena,
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
+    let rawReceiverKind = types.kind(of: receiverType)
+    guard case let .classType(receiverClass) = rawReceiverKind,
+          receiverClass.nullability == .nonNull,
+          symbols.symbol(receiverClass.classSymbol)?.flags.contains(.valueType) == true
+    else {
+        return value
+    }
+    if let valueClassSymbol = nullableUnderlyingValueClassSymbol(
+        of: rawReceiverKind, types: types, symbols: symbols
+    ) ?? referenceBackedValueClassSymbol(
+        of: rawReceiverKind, types: types, symbols: symbols
+    ) {
+        let unboxedReceiver = arena.appendTemporary(type: receiverType)
+        emitValueClassUnboxCall(
+            value: value,
+            classSymbol: valueClassSymbol,
+            result: unboxedReceiver,
+            types: types,
+            symbols: symbols,
+            interner: interner,
+            arena: arena,
+            into: &instructions
+        )
+        // Erased-generic value classes may carry a tagged primitive box
+        // inside the nominal wrapper; extract the scalar the implementation
+        // ABI expects — the same sub-step the Any `toString` bridge applies.
+        if let declaredUnderlyingType = symbols.effectiveValueClassUnderlyingType(for: valueClassSymbol) {
+            let underlyingType = types.substituteNominalTypeParameters(
+                in: declaredUnderlyingType,
+                owner: valueClassSymbol,
+                ownerArgs: receiverClass.args
+            )
+            if let primitiveUpperBound = resolvePrimitiveValueUpperBound(
+                of: underlyingType,
+                types: types,
+                symbols: symbols
+            ), case .primitive(_, .nonNull) = types.kind(of: primitiveUpperBound),
+               let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+                   for: primitiveUpperBound,
+                   types: types,
+                   requireNonNull: true,
+                   preferStaticPrimitive: true
+               )
+            {
+                let primitiveReceiver = arena.appendTemporary(type: primitiveUpperBound)
+                instructions.append(.call(
+                    callee: unboxCallee,
+                    arguments: [unboxedReceiver],
+                    result: primitiveReceiver,
+                    canThrow: false
+                ))
+                return primitiveReceiver
+            }
+        }
+        return unboxedReceiver
+    }
+    // Primitive-backed value classes carry the tagged `kk_box_*` product in
+    // `V?` slots; `kk_unbox_*` extracts it and passes the already-raw payload
+    // through.
+    let resolvedReceiverKind = resolveValueClassKind(rawReceiverKind, types: types, symbols: symbols)
+    if case .primitive = resolvedReceiverKind,
+       let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+           for: resolvedReceiverKind,
+           requireNonNull: true
+       )
+    {
+        let unboxedReceiver = arena.appendTemporary(type: types.make(resolvedReceiverKind))
+        instructions.append(.call(
+            callee: unboxCallee,
+            arguments: [value],
+            result: unboxedReceiver,
+            canThrow: false
+        ))
+        return unboxedReceiver
+    }
+    return value
+}
+
 /// Value classes are unboxed to their underlying primitive everywhere
 /// (ValueClassUnboxingPass) except at reference-type boundaries, where every
 /// boxing-callee lookup in ABILoweringPass and CollectionLiteralLoweringPass

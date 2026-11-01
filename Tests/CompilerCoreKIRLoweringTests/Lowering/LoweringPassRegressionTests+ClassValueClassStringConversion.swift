@@ -182,7 +182,10 @@ extension LoweringPassRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains(RuntimeCall.anyToString.name),
+            // Object-typed conversions go through the throwing variant so a
+            // throwing toString can propagate; both are the generic Any path.
+            #expect(callees.contains(RuntimeCall.anyToString.name)
+                    || callees.contains("__kk_any_to_string_throwing"),
                     "a class with no toString of its own must keep the generic Any conversion; callees: \(callees)")
         }
     }

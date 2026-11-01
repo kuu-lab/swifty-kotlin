@@ -524,7 +524,7 @@ func anyToStringBridgeSymbolForImplementation(
     // Unbox the bridge receiver before calling the implementation; otherwise
     // `toString()` implementations that inspect their receiver recurse back
     // through the same Any override.
-    let receiverForCall: KIRExprID
+    var receiverForCall: KIRExprID
     if case let .classType(receiverClass) = rawReceiverKind,
        sema.symbols.symbol(receiverClass.classSymbol)?.kind == .enumClass {
         // Enum overrides consume ordinals; erased dispatch supplies a tagged box.
@@ -534,70 +534,42 @@ func anyToStringBridgeSymbolForImplementation(
             arguments: [receiverExpr], result: ordinal, canThrow: false
         ))
         receiverForCall = ordinal
-    } else if let vcSymbol = nullableUnderlyingValueClassSymbol(
-        of: rawReceiverKind, types: sema.types, symbols: sema.symbols
-    ) {
-        // A nullable-underlying value class crosses `Any` as a nominal
-        // `RuntimeObjectBox`; unwrap it so the implementation sees the
-        // payload its unboxed ABI expects (KUU-3115).
-        let unboxedReceiver = arena.appendTemporary(type: receiverType)
-        emitValueClassUnboxCall(
-            value: receiverExpr, classSymbol: vcSymbol, result: unboxedReceiver, types: sema.types, symbols: sema.symbols,
-            interner: interner, arena: arena, into: &body
+    } else {
+        // A value-class receiver crosses `Any` in its erased representation:
+        // a nominal `RuntimeObjectBox` for nullable-underlying (KUU-3115) or
+        // reference-backed payloads (KUU-3902), or a tagged `kk_box_*` box
+        // for primitive-backed ones. Unwrap it so the implementation sees
+        // the payload its unboxed ABI expects — skipping this passed the box
+        // itself as the receiver, and a `toString()` that inspects its
+        // payload recursed back through this same Any override
+        // (`IC(s=IC(s=…`).
+        receiverForCall = unboxedValueClassReceiverExpr(
+            value: receiverExpr,
+            receiverType: receiverType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            into: &body
         )
-        if case let .classType(receiverClass) = rawReceiverKind,
-           let declaredUnderlyingType = sema.symbols.effectiveValueClassUnderlyingType(for: vcSymbol)
+        // A String-backed value class arrives as the tagged `StringBox`:
+        // `unboxedValueClassReceiverExpr` deliberately skips `.stringStruct`
+        // (a flat `V` repr needs no unbox), so the bridge still converts the
+        // box to the flat aggregate itself. Any other resolved kind the
+        // helper did not cover lands on the same `kk_unbox_*` passthrough.
+        if receiverForCall == receiverExpr,
+           rawReceiverKind != resolvedReceiverKind,
+           let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
+               for: resolvedReceiverKind,
+               requireNonNull: true
+           )
         {
-            let underlyingType = sema.types.substituteNominalTypeParameters(
-                in: declaredUnderlyingType,
-                owner: vcSymbol,
-                ownerArgs: receiverClass.args
+            let unboxedReceiver = arena.appendTemporary(
+                type: sema.types.make(resolvedReceiverKind)
             )
-            let primitiveUpperBound = resolvePrimitiveValueUpperBound(
-                of: underlyingType,
-                types: sema.types,
-                symbols: sema.symbols
-            )
-            if let primitiveUpperBound,
-               case .primitive(_, .nonNull) = sema.types.kind(of: primitiveUpperBound),
-               let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
-                   for: primitiveUpperBound,
-                   types: sema.types,
-                   requireNonNull: true,
-                   preferStaticPrimitive: true
-               )
-            {
-                // Erased generic value classes may arrive as a primitive box
-                // tagged with the value-class ID. The nominal unbox above
-                // unwraps RuntimeObjectBox payloads, while this static unbox
-                // also extracts primitive boxes such as RuntimeFloatBox.
-                let primitiveReceiver = arena.appendTemporary(type: primitiveUpperBound)
-                body.append(.call(
-                    callee: unboxCallee,
-                    arguments: [unboxedReceiver],
-                    result: primitiveReceiver,
-                    canThrow: false
-                ))
-                receiverForCall = primitiveReceiver
-            } else {
-                receiverForCall = unboxedReceiver
-            }
-        } else {
+            body.append(.call(callee: unboxCallee, arguments: [receiverExpr], result: unboxedReceiver, canThrow: false))
             receiverForCall = unboxedReceiver
         }
-    } else if rawReceiverKind != resolvedReceiverKind,
-       let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
-           for: resolvedReceiverKind,
-           requireNonNull: true
-       )
-    {
-        let unboxedReceiver = arena.appendTemporary(
-            type: sema.types.make(resolvedReceiverKind)
-        )
-        body.append(.call(callee: unboxCallee, arguments: [receiverExpr], result: unboxedReceiver, canThrow: false))
-        receiverForCall = unboxedReceiver
-    } else {
-        receiverForCall = receiverExpr
     }
     let callResult = arena.appendTemporary(type: implementationReturnType)
     let thrownResult: KIRExprID? = implementationSig.canThrow

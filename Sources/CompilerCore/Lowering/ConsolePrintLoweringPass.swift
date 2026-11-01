@@ -571,6 +571,20 @@ final class ConsolePrintLoweringPass: LoweringPass {
             toStringName
         }
         let toStringResult = arena.appendTemporary(type: stringType)
+        // A `V?`/erased value-class slot carries the tagged or nominal box,
+        // but the member ABI expects the unboxed payload — normalize before
+        // the direct call or a `toString()` that inspects its payload
+        // re-renders its own wrapper (`IC(s=IC(s=…))`, KUU-3902). The unbox
+        // callees are idempotent, so already-unboxed receivers pass through.
+        let callReceiver = unboxedValueClassReceiverExpr(
+            value: argument,
+            receiverType: receiverType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner,
+            arena: arena,
+            into: &instructions
+        )
         // A base-typed receiver holding a derived instance (e.g. `val a: Animal
         // = Dog()`) must call the *runtime* type's override, not classSymbol's
         // own -- resolveVirtualDispatchKind returns the vtable/itable slot for
@@ -582,7 +596,7 @@ final class ConsolePrintLoweringPass: LoweringPass {
             instructions.append(.virtualCall(
                 symbol: toStringSym,
                 callee: toStringCallee,
-                receiver: argument,
+                receiver: callReceiver,
                 arguments: [],
                 result: toStringResult,
                 canThrow: false,
@@ -592,7 +606,7 @@ final class ConsolePrintLoweringPass: LoweringPass {
             instructions.append(.call(
                 symbol: toStringSym,
                 callee: toStringCallee,
-                arguments: [argument],
+                arguments: [callReceiver],
                 result: toStringResult,
                 canThrow: false,
                 isSuperCall: false

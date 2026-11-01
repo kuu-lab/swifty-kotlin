@@ -693,22 +693,37 @@ extension CallLowerer {
         // derived override is selected at runtime.
         if let classToString = resolveClassOwnToStringCallee(for: valueType, sema: sema, interner: interner) {
             let converted = arena.appendTemporary(type: stringType)
-            func emitToStringCall(into result: KIRExprID) -> KIRInstruction {
-                tryEmitVirtualDispatch(
-                    chosenCallee: classToString.symbol,
-                    calleeName: classToString.callee,
-                    receiverExpr: nil,
-                    loweredReceiverID: valueID,
-                    isSuperCall: false,
-                    finalArguments: [],
-                    result: result,
-                    sema: sema,
+            func emitToStringCall(into result: KIRExprID) {
+                // A `V?`/erased value-class slot carries the tagged or
+                // nominal box, but the member ABI expects the unboxed
+                // payload — normalize before the direct call or the impl
+                // re-renders its own wrapper (`IC(s=IC(s=…))`, KUU-3902).
+                let receiverID = unboxedValueClassReceiverExpr(
+                    value: valueID,
+                    receiverType: sema.types.makeNonNullable(valueType),
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
                     arena: arena,
-                    interner: interner
-                ) ?? .call(symbol: classToString.symbol, callee: classToString.callee, arguments: [valueID], result: result, canThrow: false)
+                    into: &instructions
+                )
+                instructions.append(
+                    tryEmitVirtualDispatch(
+                        chosenCallee: classToString.symbol,
+                        calleeName: classToString.callee,
+                        receiverExpr: nil,
+                        loweredReceiverID: receiverID,
+                        isSuperCall: false,
+                        finalArguments: [],
+                        result: result,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner
+                    ) ?? .call(symbol: classToString.symbol, callee: classToString.callee, arguments: [receiverID], result: result, canThrow: false)
+                )
             }
             guard needsNullGuard else {
-                instructions.append(emitToStringCall(into: converted))
+                emitToStringCall(into: converted)
                 return converted
             }
             let nonNullLabel = driver.ctx.makeLoopLabel()
@@ -721,7 +736,7 @@ extension CallLowerer {
             instructions.append(.jump(endLabel))
             instructions.append(.label(nonNullLabel))
             let innerConverted = arena.appendTemporary(type: stringType)
-            instructions.append(emitToStringCall(into: innerConverted))
+            emitToStringCall(into: innerConverted)
             instructions.append(.copy(from: innerConverted, to: converted))
             instructions.append(.label(endLabel))
             return converted
