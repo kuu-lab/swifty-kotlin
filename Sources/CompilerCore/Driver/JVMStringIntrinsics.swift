@@ -16,6 +16,33 @@ extension JVMFunctionBuilder {
         try appendText(builder, left); try appendText(builder, right)
         return try jdkCall("java/lang/StringBuilder", "toString", [], .string, receiver: builder)!
     }
+    /// kotlinc folds a String `+` or template whose operands are all
+    /// compile-time constants into one interned literal — `("ab" + "c")
+    /// === "abc"` is true because `ldc` observes the shared instance
+    /// (KUU-3983). Mirrors the KIR fold in CallLowerer+Operators — same
+    /// collector, same `const val`/`literalConstantExpr` operand rules —
+    /// so JVM output stays consistent with the native pipeline. A
+    /// non-constant operand such as a plain `val`/`var` read leaves nil,
+    /// keeping the fresh non-interned StringBuilder result.
+    func constantFoldedText(_ id: ExprID) throws -> JVMValue? {
+        switch arena.expr(id) {
+        case .binary(.add, _, _, _), .memberCall, .stringTemplate:
+            break
+        default:
+            return nil
+        }
+        guard program.sema.bindings.exprType(for: id) == program.sema.types.stringType,
+              ConstantCollector.isBuiltinStringPlusCallee(id, sema: program.sema, interner: context.interner)
+        else { return nil }
+        var collector = ConstantCollector(floatingPointComparisonSemantics: .ieee754)
+        collector.resolvedConstant = { expr in
+            ConstantCollector.compileTimeConstantRef(expr, ast: self.program.ast, sema: self.program.sema)
+        }
+        guard let text = collector.constantStringConcatOperandText(
+            id, ast: program.ast, sema: program.sema, interner: context.interner
+        ) else { return nil }
+        return try constant(.string(text), .string)
+    }
     func compoundOperand(_ id: ExprID, target: JVMValueType) throws -> JVMValue {
         if target.isText { return try stringPart(id) ?? value(.string) }
         return try requireValue(id)

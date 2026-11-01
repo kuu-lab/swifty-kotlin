@@ -541,7 +541,7 @@ final class JVMFunctionBuilder {
             terminated = true
             mark(nonNull)
             return try convert(source, to: target)
-        case let .stringTemplate(parts, _): return try stringTemplate(parts)
+        case let .stringTemplate(parts, _): return try constantFoldedText(id) ?? stringTemplate(parts)
         case let .stringLiteral(s, _): return try constant(.string(context.interner.resolve(s)), .string)
         case .thisRef, .superRef:
             if case .thisRef = expr, let symbol = program.sema.bindings.identifierSymbol(for: id), let receiver = contextualReceivers[symbol] { return try convert(receiver, to: program.expressionType(id)) }
@@ -700,7 +700,9 @@ final class JVMFunctionBuilder {
             }
             try compoundInstruction(binary, old, right, result); try writeLocal(local, result)
             return arena.incrementDecrementReturnsValue(id) ? result : nil
-        case let .binary(op, lhs, rhs, _): return try binary(op, lhs, rhs, id)
+        case let .binary(op, lhs, rhs, _):
+            if op == .add, let folded = try constantFoldedText(id) { return folded }
+            return try binary(op, lhs, rhs, id)
         case let .unaryExpr(op, operand, _):
             if let call = try inlineCall([], receiver: operand, id: id)
                 ?? sourceCall([], receiver: operand, id: id) { return call.value }
@@ -762,6 +764,7 @@ final class JVMFunctionBuilder {
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
             return try propertyCompound(property, receiver: requireValue(receiver), op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
         case let .memberCall(receiver, name, typeArgs, args, _):
+            if let folded = try constantFoldedText(id) { return folded }
             return try memberExpression(id, receiver: receiver, name: name, typeArgs: typeArgs, args: args)
         case let .safeMemberCall(receiver, name, typeArgs, args, _):
             return try safeMemberExpression(id, receiver: receiver, name: name, typeArgs: typeArgs, args: args, discarded: discarded)
