@@ -1140,6 +1140,25 @@ extension ExprTypeChecker {
                 sema.bindings.markCharRangeExpr(id)
             }
         case .step:
+            // kotlin.ranges declares `step` only on the progression/range
+            // classes. The builtin `..`/`..<`/`downTo` receivers reach this
+            // fallback as a scalar plus the range-expression marker, and a
+            // nominal IntRange/IntProgression receiver resolves through the
+            // bundled `step` extension overloads above. A plain scalar
+            // (`i step 2`) has no `step` overload, so kotlinc reports
+            // "unresolved reference 'step'" (KUU-4056).
+            if lhs != sema.types.errorType,
+               !sema.bindings.isRangeExpr(lhsID),
+               !isStepReceiverType(lhs, sema: sema, interner: interner)
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0024",
+                    "Unresolved member function 'step'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // An Int range expression uses the scalar Int type plus a range
             // marker, but `step` returns IntProgression, not IntRange. Keep that
             // nominal distinction so source-backed HOF lookup does not bind a
@@ -1233,6 +1252,27 @@ extension ExprTypeChecker {
         default:
             return false
         }
+    }
+
+    /// A nominal `step` receiver is valid only when it is one of the concrete
+    /// `kotlin.ranges` range/progression classes — the only types that carry a
+    /// bundled `step` overload. The generic `ClosedRange`/`OpenEndRange`
+    /// interfaces are deliberately excluded: kotlinc rejects `step` on those
+    /// receivers too. A user class that merely shares the simple name is not a
+    /// range receiver either (KUU-4056).
+    private func isStepReceiverType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.isRangeLikeClassName(symbol.name) else {
+            return false
+        }
+        return symbol.fqName.isEmpty || knownNames.isRangeLikeSymbol(symbol)
     }
 
     private func nominalRangeType(
