@@ -37,8 +37,17 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        // The caller reparses the tokens as an expression when this probe
+        // cannot form a block, so discarded diagnostics must not leak.
+        let diagnosticsCheckpoint = diagnostics?.checkpoint()
+        func rollbackSpeculativeDiagnostics() {
+            if let diagnosticsCheckpoint {
+                diagnostics?.rollback(to: diagnosticsCheckpoint)
+            }
+        }
         var statements = parseLambdaBodyStatements(ranges: ranges, tokens: bodyTokens)
         guard !statements.isEmpty else {
+            rollbackSpeculativeDiagnostics()
             return nil
         }
 
@@ -56,6 +65,7 @@ extension BuildASTPhase.ExpressionParser {
         // A leading empty statement is omitted from `ranges`, so a single
         // expression after it must stay a block body with a trailing value.
         if ranges.count == 1, !hasStatementOnlyBody, ranges[0].0 == 0 {
+            rollbackSpeculativeDiagnostics()
             return nil
         }
 
