@@ -76,6 +76,15 @@ extension CallTypeChecker {
                 substitution: resolved.substitutedTypeArguments,
                 typeVarBySymbol: typeVars
             )
+            // A value that already implements the SAM interface (e.g. an
+            // object of `fun interface Foo : () -> Int`) passes through as-is;
+            // wrapping it in a thunk would break `===` identity (KUU-2427).
+            if !hasNominalSamType,
+               case .classType = sema.types.kind(of: sema.types.makeNonNullable(expressionType)),
+               sema.types.isSubtype(expressionType, interfaceType)
+            {
+                continue
+            }
             guard let function = driver.helpers.samFunctionType(for: interfaceType, sema: sema) else { continue }
             let functionType = sema.types.make(.functionType(function))
             let hasFunctionView: Bool
