@@ -216,6 +216,57 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-4123: enum elements emitted through the suspend-builder `emit` and
+    /// channel `send`/`trySend` erased boundaries must reach `toList` with
+    /// their enum identity — not as bare ordinals.
+    @Test(arguments: [false, true])
+    func testFlowEnumErasedElements(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/flow_enum_erased_elements.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowEnumErasedElements",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                [RED]
+                [RED, GREEN]
+                true
+                true
+                [GREEN]
+                true
+                [BLUE]
+                [BLUE]
+                RED
+                GREEN
+                BLUE
+                true
+                [null]
+                [42]
+                [kotlin.Unit]
+
+                """)
+        }
+    }
+
     @Test
     func testFlowCollectSuspendConversionThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
