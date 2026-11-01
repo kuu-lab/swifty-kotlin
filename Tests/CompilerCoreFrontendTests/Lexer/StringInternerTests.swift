@@ -147,26 +147,14 @@ struct StringInternerTests {
 
     // MARK: - Thread safety
 
-    /// Runs `body` on 10 concurrent global-queue tasks and waits for all of them.
+    /// Runs `body` for 10 concurrent iterations and returns once all finish.
     ///
-    /// The timeout is deliberately generous: the bodies below are ~1000 trivial
-    /// dictionary operations, but on a heavily loaded CI runner the
-    /// `DispatchQueue.global()` tasks can sit unscheduled for a while before
-    /// they even start, so a tight bound flakes under load rather than
-    /// catching a genuine deadlock.
-    private func runConcurrently(
-        _ label: String,
-        _ body: @escaping @Sendable (Int) -> Void
-    ) {
-        let group = DispatchGroup()
-        for task in 0 ..< 10 {
-            group.enter()
-            DispatchQueue.global().async {
-                defer { group.leave() }
-                body(task)
-            }
-        }
-        #expect(group.wait(timeout: .now() + .seconds(60)) == .success, "\(label) timed out")
+    /// `concurrentPerform` also runs iterations on the calling thread, so it
+    /// makes progress even when parallel tests have saturated the global
+    /// pool; enqueuing `DispatchQueue.global()` tasks and waiting with a
+    /// timeout starved there and timed out under heavy machine load.
+    private func runConcurrently(_ body: @escaping @Sendable (Int) -> Void) {
+        DispatchQueue.concurrentPerform(iterations: 10, execute: body)
     }
 
     @Test func testConcurrentInternDoesNotCrash() {
@@ -176,7 +164,7 @@ struct StringInternerTests {
         // the actual values produced under contention, not re-interned ones.
         let capturedIDs = CapturedIDBuffer()
 
-        runConcurrently("Concurrent intern") { task in
+        runConcurrently { task in
             capturedIDs.append(contentsOf: (0 ..< 100).map { index in
                 let string = "string_\(task)_\(index)"
                 return (string, interner.intern(string))
@@ -195,7 +183,7 @@ struct StringInternerTests {
 
         // Resolving concurrently must return the same strings as a serial read.
         let mismatches = CapturedIDBuffer()
-        runConcurrently("Concurrent resolve") { _ in
+        runConcurrently { _ in
             let resolved = ids.map(interner.resolve)
             if resolved != expected {
                 mismatches.append(contentsOf: zip(resolved, ids).map { ($0, $1) })
