@@ -69,6 +69,12 @@ struct MemberPropertyReadBeforeInitializationTests {
         "class Box { var value = 1; init { TARGET += 1 } }",
         // Companion members belong to a different receiver.
         "class Box { val x = TARGET; companion object { val value = 1 } }",
+        // `+=` on an initialized `val` resolved to `plusAssign` mutates the
+        // object in place; it is not a reassignment of the field.
+        "class Acc { operator fun plusAssign(x: Int) {} }; class Box { val value = Acc(); init { TARGET += 1 } }",
+        "class Acc { operator fun plusAssign(x: Int) {} }; class Box { val value = Acc(); init { this.TARGET += 1 } }",
+        "class Acc { operator fun plusAssign(x: Int) {} }; object Box { val value = Acc(); init { TARGET += 1 } }",
+        "class Acc { operator fun plusAssign(x: Int) {} }; class Box { companion object { val value = Acc(); init { TARGET += 1 } } }",
     ]
 
     @Test(arguments: rejected)
@@ -85,6 +91,17 @@ struct MemberPropertyReadBeforeInitializationTests {
             source.replacingOccurrences(of: "TARGET", with: "value"),
             expectedReadErrors: 0
         )
+    }
+
+    // Without a `plusAssign` operator, `+=` on an initialized `val` is still
+    // a reassignment.
+    @Test
+    func valCompoundAssignWithoutAssignOperatorStillReportsReassignment() throws {
+        try withTemporaryFile(contents: "class Box { val value = 1; init { value += 1 } }") { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0014" })
+        }
     }
 
     private func check(_ source: String, expectedReadErrors: Int) throws {

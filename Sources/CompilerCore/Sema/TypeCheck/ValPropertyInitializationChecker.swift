@@ -362,6 +362,13 @@ final class ValPropertyInitializationChecker {
         )
     }
 
+    private func resolvesToAssignOperator(_ id: ExprID) -> Bool {
+        guard let callee = sema.bindings.callBinding(for: id)?.chosenCallee,
+              let name = sema.symbols.symbol(callee).map({ interner.resolve($0.name) })
+        else { return false }
+        return ["plusAssign", "minusAssign", "timesAssign", "divAssign", "remAssign", "modAssign"].contains(name)
+    }
+
     private func write(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: inout Flow, permitsInitialization: Bool) {
         if checkingDelegationArguments {
             checkPreInstanceAccess(id, receiver: receiver, memberName: memberName,
@@ -563,13 +570,18 @@ final class ValPropertyInitializationChecker {
             visit(value)
             // A compound assignment both reads the field and writes it back,
             // which also counts as initialization for definite-init purposes.
+            // `val list += x` resolved to `plusAssign` only reads the field.
             read(id, receiver: nil, memberName: name, flow: flow, permitsInitialization: permitsInitialization)
-            write(id, receiver: nil, memberName: name, flow: &flow, permitsInitialization: permitsInitialization)
+            if !resolvesToAssignOperator(id) {
+                write(id, receiver: nil, memberName: name, flow: &flow, permitsInitialization: permitsInitialization)
+            }
         case let .memberCompoundAssign(_, receiver, callee, value, _):
             visit(receiver)
             visit(value)
             read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
-            write(id, receiver: receiver, memberName: callee, flow: &flow, permitsInitialization: permitsInitialization)
+            if !resolvesToAssignOperator(id) {
+                write(id, receiver: receiver, memberName: callee, flow: &flow, permitsInitialization: permitsInitialization)
+            }
         case let .unaryExpr(_, operand, _), let .isCheck(operand, _, _, _),
              let .asCast(operand, _, _, _), let .nullAssert(operand, _): visit(operand)
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _): visit(lhs); visit(rhs)
