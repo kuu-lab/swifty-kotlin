@@ -552,8 +552,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     let lambdaBodyType = inferredLambdaReturnType(
                         argExpr: args[0].expr, ast: ast, sema: sema
                     )
-                    let innerElementType = extractIterableOrSequenceElementType(
-                        lambdaBodyType, sema: sema, interner: interner
+                    let innerElementType = flatMapTransformElementType(
+                        lambdaArgExpr: args[0].expr,
+                        returnType: lambdaBodyType
                     )
                     if isSequenceReceiver {
                         resultType = makeSyntheticSequenceType(
@@ -574,7 +575,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     let boundIterableSource = bindBundledIterableFlatMapSourceFunction(
                         collectionElementType: collectionElementType,
                         resultElementType: innerElementType,
-                        returnsSequence: receiverClassifier.isSequenceLikeType(lambdaBodyType)
+                        returnsSequence: receiverClassifier.isSequenceLikeType(lambdaBodyType),
+                        allowConcreteListReceiver: transformReturnsNonListFlattenable(
+                            lambdaBodyType,
+                            lambdaArgExpr: args[0].expr
+                        )
                     )
                     if !boundIterableSource,
                        bindBundledListSourceFunction(typeArguments: [collectionElementType, innerElementType])
@@ -597,10 +602,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     let lambdaBodyType = inferredLambdaReturnType(
                         argExpr: args[0].expr, ast: ast, sema: sema
                     )
-                    let innerElementType = extractIterableOrSequenceElementType(
-                        lambdaBodyType,
-                        sema: sema,
-                        interner: interner
+                    let innerElementType = flatMapTransformElementType(
+                        lambdaArgExpr: args[0].expr,
+                        returnType: lambdaBodyType
                     )
                     if isSequenceReceiver {
                         resultType = makeSyntheticSequenceType(

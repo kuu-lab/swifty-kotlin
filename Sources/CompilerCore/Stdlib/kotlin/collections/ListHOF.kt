@@ -56,47 +56,47 @@ public fun <T, R : Any, C : MutableCollection<R>> List<T>.mapNotNullTo(destinati
     return destination
 }
 
-public inline fun <T, R> List<T>.flatMap(transform: (T) -> List<R>): List<R> {
+// KUU-4060: these List specializations accept any Iterable transform result,
+// matching the Kotlin stdlib's `Iterable<T>.flatMap(transform: (T) -> Iterable<R>)`
+// surface. The previous `(T) -> List<R>` shape was bound even for lambdas
+// returning other Iterables (ranges, sets), silently dropping all elements.
+public inline fun <T, R> List<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     while (i < size) {
-        val sub = transform(this[i])
-        var j = 0
-        while (j < sub.size) { result.add(sub[j]); j += 1 }
+        val nestedIterator = transform(this[i]).iterator()
+        while (nestedIterator.hasNext()) { result.add(nestedIterator.next()) }
         i += 1
     }
     return result
 }
 
-public fun <T, R, C : MutableCollection<R>> List<T>.flatMapTo(destination: C, transform: (T) -> List<R>): C {
+public fun <T, R, C : MutableCollection<R>> List<T>.flatMapTo(destination: C, transform: (T) -> Iterable<R>): C {
     var i = 0
     while (i < size) {
-        val sub = transform(this[i])
-        var j = 0
-        while (j < sub.size) { destination.add(sub[j]); j += 1 }
+        val nestedIterator = transform(this[i]).iterator()
+        while (nestedIterator.hasNext()) { destination.add(nestedIterator.next()) }
         i += 1
     }
     return destination
 }
 
-public fun <T, R> List<T>.flatMapIndexed(transform: (Int, T) -> List<R>): List<R> {
+public fun <T, R> List<T>.flatMapIndexed(transform: (Int, T) -> Iterable<R>): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     while (i < size) {
-        val sub = transform(i, this[i])
-        var j = 0
-        while (j < sub.size) { result.add(sub[j]); j += 1 }
+        val nestedIterator = transform(i, this[i]).iterator()
+        while (nestedIterator.hasNext()) { result.add(nestedIterator.next()) }
         i += 1
     }
     return result
 }
 
-public fun <T, R, C : MutableCollection<R>> List<T>.flatMapIndexedTo(destination: C, transform: (Int, T) -> List<R>): C {
+public fun <T, R, C : MutableCollection<R>> List<T>.flatMapIndexedTo(destination: C, transform: (Int, T) -> Iterable<R>): C {
     var i = 0
     while (i < size) {
-        val sub = transform(i, this[i])
-        var j = 0
-        while (j < sub.size) { destination.add(sub[j]); j += 1 }
+        val nestedIterator = transform(i, this[i]).iterator()
+        while (nestedIterator.hasNext()) { destination.add(nestedIterator.next()) }
         i += 1
     }
     return destination

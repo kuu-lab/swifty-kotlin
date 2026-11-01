@@ -559,10 +559,17 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         collectionElementType: TypeID,
         resultElementType: TypeID,
         returnsSequence: Bool,
-        destinationType: TypeID? = nil) -> Bool {
+        destinationType: TypeID? = nil,
+        allowConcreteListReceiver: Bool = false) -> Bool {
+        // KUU-4060: concrete List receivers are normally kept on the bundled
+        // List flatMap specialization, but a transform returning a non-List
+        // Iterable or a Sequence must resolve to the JVM `Iterable.flatMap*`
+        // overloads (the `returnsSequence` switch below picks the right one).
+        // The caller passes `allowConcreteListReceiver` only for that shape.
         guard !isSequenceReceiver,
-              isIterableReceiver,
-              !receiverClassification.isListReceiver,
+              isIterableReceiver
+                || (allowConcreteListReceiver && receiverClassification.isListReceiver),
+              allowConcreteListReceiver || !receiverClassification.isListReceiver,
               !receiverClassification.isSetReceiver,
               !receiverClassification.isMapReceiver
         else {
@@ -620,6 +627,61 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             }
         }
         return true
+    }
+
+    /// KUU-4060: The bundled `List.flatMap*` overloads accept
+    /// `(T) -> Iterable<R>` transforms, so a transform that yields a non-List
+    /// Iterable, a range/progression, or a Sequence resolves to the JVM
+    /// `Iterable.flatMap*` declarations instead of the List specialization.
+    /// List-returning transforms stay on the List overloads.
+    func transformReturnsNonListFlattenable(
+        _ returnType: TypeID,
+        lambdaArgExpr: ExprID
+    ) -> Bool {
+        guard !receiverClassifier.isConcreteListLikeType(returnType) else {
+            return false
+        }
+        if receiverClassifier.isIterableLikeType(returnType)
+            || receiverClassifier.isSequenceLikeType(returnType)
+            || MemberRuntimeDispatch.rangeReceiverKind(
+                for: returnType, sema: sema, interner: interner
+            ) != nil
+        {
+            return true
+        }
+        // A range literal keeps its scalar element type as the bound expr
+        // type; range-ness lives in the expr-level marker instead.
+        if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr),
+           sema.bindings.isRangeExpr(bodyExpr)
+        {
+            return true
+        }
+        return false
+    }
+
+    /// Element type contributed to the flattened result by a `flatMap*`
+    /// transform. Covers List/Set/Collection/Iterable/Sequence returns via
+    /// `extractIterableOrSequenceElementType` plus nominal ranges and range
+    /// literals, whose bound expr type is the scalar element type.
+    func flatMapTransformElementType(
+        lambdaArgExpr: ExprID,
+        returnType: TypeID
+    ) -> TypeID {
+        let extracted = extractIterableOrSequenceElementType(returnType, sema: sema, interner: interner)
+        if extracted != sema.types.anyType {
+            return extracted
+        }
+        if let rangeElementType = nominalRangeElementType(for: returnType, sema: sema, interner: interner) {
+            return rangeElementType
+        }
+        if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(lambdaArgExpr),
+           sema.bindings.isRangeExpr(bodyExpr)
+        {
+            return driver.helpers.rangeExprActualElementType(
+                for: bodyExpr, bodyType: returnType, sema: sema, interner: interner
+            )
+        }
+        return extracted
     }
 
     @discardableResult

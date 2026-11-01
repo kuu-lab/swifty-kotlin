@@ -171,9 +171,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 {
                     // The Iterable and Sequence overloads are distinguished by
                     // the lambda return type; infer that return before binding.
+                    // KUU-4060: List receivers also need an unconstrained
+                    // transform return so a non-List Iterable (range, set) or
+                    // Sequence result can reach the matching bundled overload.
                     if !isSequenceReceiver,
-                       isIterableReceiver,
-                       !receiverClassification.isListReceiver,
+                       isIterableReceiver || receiverClassification.isListReceiver,
                        !receiverClassification.isSetReceiver,
                        !receiverClassification.isMapReceiver
                     {
@@ -231,9 +233,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 {
                     // The Iterable and Sequence overloads are distinguished by
                     // the lambda return type; infer that return before binding.
+                    // KUU-4060: List receivers also need an unconstrained
+                    // transform return so a non-List Iterable (range, set) or
+                    // Sequence result can reach the matching bundled overload.
                     if !isSequenceReceiver,
-                       isIterableReceiver,
-                       !receiverClassification.isListReceiver,
+                       isIterableReceiver || receiverClassification.isListReceiver,
                        !receiverClassification.isSetReceiver,
                        !receiverClassification.isMapReceiver
                     {
@@ -338,12 +342,14 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 case "mapNotNullTo", "mapIndexedNotNullTo":
                     sema.types.makeNonNullable(rawLambdaReturnType)
                 case "flatMapTo", "flatMapIndexedTo":
-                    !isSequenceReceiver && isIterableReceiver
-                        && !receiverClassification.isListReceiver
-                        && !receiverClassification.isSetReceiver
-                        && !receiverClassification.isMapReceiver
-                        ? extractIterableOrSequenceElementType(rawLambdaReturnType, sema: sema, interner: interner)
-                        : extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
+                    // KUU-4060: flattenable transform results include ranges
+                    // and other non-List Iterables, so extract through the
+                    // shared flatMap element helper rather than the List-only
+                    // or plain-Iterable-only branches.
+                    flatMapTransformElementType(
+                        lambdaArgExpr: args[1].expr,
+                        returnType: rawLambdaReturnType
+                    )
                 default:
                     sema.types.anyType
                 }
@@ -655,17 +661,10 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     resultElementType = rawLambdaReturnType
                 } else if calleeStr == "mapNotNullTo" || calleeStr == "mapIndexedNotNullTo" {
                     resultElementType = sema.types.makeNonNullable(rawLambdaReturnType)
-                } else if (calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo"),
-                          !isSequenceReceiver,
-                          isIterableReceiver,
-                          !receiverClassification.isListReceiver,
-                          !receiverClassification.isSetReceiver,
-                          !receiverClassification.isMapReceiver
-                {
-                    resultElementType = extractIterableOrSequenceElementType(
-                        rawLambdaReturnType,
-                        sema: sema,
-                        interner: interner
+                } else if calleeStr == "flatMapTo" || calleeStr == "flatMapIndexedTo" {
+                    resultElementType = flatMapTransformElementType(
+                        lambdaArgExpr: args[1].expr,
+                        returnType: rawLambdaReturnType
                     )
                 } else {
                     resultElementType = extractListElementType(rawLambdaReturnType, sema: sema, interner: interner)
@@ -675,7 +674,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         collectionElementType: collectionElementType,
                         resultElementType: resultElementType,
                         returnsSequence: receiverClassifier.isSequenceLikeType(rawLambdaReturnType),
-                        destinationType: nonNullableDestinationType
+                        destinationType: nonNullableDestinationType,
+                        allowConcreteListReceiver: transformReturnsNonListFlattenable(
+                            rawLambdaReturnType,
+                            lambdaArgExpr: args[1].expr
+                        )
                     )
                 let didBindListSource: Bool
                 if boundIterableDestination {
