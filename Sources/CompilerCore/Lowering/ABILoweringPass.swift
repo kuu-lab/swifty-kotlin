@@ -127,6 +127,26 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_sequence_minus"),
         ]
 
+        // Channel element-send entry points all take `(handle, element, ...)`:
+        // the element crosses into the channel's erased storage, where readers
+        // (`receive`, `tryReceive`/`receiveCatching`, `channelFlow`/
+        // `callbackFlow` collectors, `select` arms) observe it as an
+        // Any-erased value — the same convention `typeParamBoxingBoundaryCallees`
+        // applies to generic containers. A statically enum- or primitive-typed
+        // `element` otherwise arrives as a raw ordinal/scalar: it prints as
+        // its ordinal in a collected list and fails `==` against the canonical
+        // singleton box (KUU-4123). Typed `Channel<E>` receivers still work:
+        // the declared-`E` return boundary unboxes the box back to the scalar.
+        let channelElementSendCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_channel_send"),
+            ctx.interner.intern("kk_channel_send_suspending"),
+            ctx.interner.intern("kk_channel_try_send"),
+            ctx.interner.intern("__kk_channel_try_send"),
+            ctx.interner.intern("__kk_channel_send_blocking"),
+        ]
+
+        let kkFlowEmitCallee = ctx.interner.intern("kk_flow_emit")
+
         // Type-check intrinsics: `value` is a bare Int that the runtime can only
         // tell apart as Int/UInt/ULong/Long/Double/Float/Char by inspecting a
         // boxed pointer's Swift type — unlike Boolean/Unit, none of these share a
@@ -305,6 +325,34 @@ final class ABILoweringPass: LoweringPass {
             var newBody = KIRLoweringEmitContext()
             newBody.instructions.reserveCapacity(function.body.count)
             var nullableGenericResults: Set<KIRExprID> = []
+
+            // `.constValue` bindings for literal operands the lowering passes
+            // stage in temporaries (e.g. `kk_flow_emit`'s op tag): the arg's
+            // own expr is `.temporary`, not `.intLiteral`. An expr rebound to
+            // a different literal (or overwritten by another instruction kind)
+            // is ambiguous and dropped.
+            var intLiteralConstants: [KIRExprID: Int64] = [:]
+            var mutableIntConstants: Set<KIRExprID> = []
+            for ins in function.body {
+                switch ins {
+                case let .constValue(result, .intLiteral(value)):
+                    if let previous = intLiteralConstants[result], previous != value {
+                        mutableIntConstants.insert(result)
+                    }
+                    intLiteralConstants[result] = value
+                case let .constValue(result, _):
+                    mutableIntConstants.insert(result)
+                case let .copy(_, to):
+                    mutableIntConstants.insert(to)
+                case let .call(_, _, _, result, _, _, _, _):
+                    if let result { mutableIntConstants.insert(result) }
+                case let .virtualCall(_, _, _, _, result, _, _, _):
+                    if let result { mutableIntConstants.insert(result) }
+                default:
+                    break
+                }
+            }
+            for key in mutableIntConstants { intLiteralConstants.removeValue(forKey: key) }
 
             let functionReturnKind: TypeKind? = types.map { $0.kind(of: function.returnType) }
 
@@ -888,6 +936,69 @@ final class ABILoweringPass: LoweringPass {
                         symbols: symbols,
                         interner: ctx.interner,
                         arena: module.arena,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
+                        into: &newBody
+                    )
+                }
+
+                // `kk_flow_emit` tagged `.emit` stores its value into the
+                // emitted-values slot that collectors read back as Any-erased
+                // elements (toList/collect lambdas/terminal operators) — the
+                // same convention `flowOf` meets by emitting vararg-boxed
+                // elements. A statically enum- or primitive-typed `emit`
+                // argument otherwise arrives as a raw ordinal/scalar: it
+                // prints as the ordinal in a collected list and fails `==`
+                // against the canonical singleton box (KUU-4123). Other
+                // `kk_flow_emit` tags carry function pointers/operator
+                // arguments at this slot, so only the literal `.emit` tag is
+                // boxed. Values already boxed upstream keep their `.any`
+                // type and pass through untouched.
+                let flowEmitTag: Int64? = {
+                    guard boxedArguments.count == 3 else { return nil }
+                    if case let .intLiteral(value)? = module.arena.expr(boxedArguments[2]) {
+                        return value
+                    }
+                    return intLiteralConstants[boxedArguments[2]]
+                }()
+                if (effectiveCallee == kkFlowEmitCallee || runtimeLink == kkFlowEmitCallee),
+                   boxedArguments.count == 3,
+                   let types,
+                   flowEmitTag == RuntimeFlowTag.emit.rawValue,
+                   let emittedType = intrinsicArgType(boxedArguments[1], arena: module.arena, types: types)
+                {
+                    boxedArguments[1] = boxValueForAnySlot(
+                        boxedArguments[1],
+                        sourceType: emittedType,
+                        types: types,
+                        symbols: symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        resultType: types.anyType,
+                        boxingCalleeTable: boxingCalleeTable,
+                        sema: ctx.sema,
+                        cache: ctx.nominalDispatchCache,
+                        into: &newBody
+                    )
+                }
+
+                // See `channelElementSendCallees` above: the element argument
+                // of a channel send must meet readers in its Any-erased form.
+                if channelElementSendCallees.contains(effectiveCallee)
+                    || channelElementSendCallees.contains(runtimeLink),
+                   boxedArguments.count >= 2,
+                   let types,
+                   let elementType = intrinsicArgType(boxedArguments[1], arena: module.arena, types: types)
+                {
+                    boxedArguments[1] = boxValueForAnySlot(
+                        boxedArguments[1],
+                        sourceType: elementType,
+                        types: types,
+                        symbols: symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        resultType: types.anyType,
+                        boxingCalleeTable: boxingCalleeTable,
                         sema: ctx.sema,
                         cache: ctx.nominalDispatchCache,
                         into: &newBody

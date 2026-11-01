@@ -537,6 +537,12 @@ private func runtimeFlowMaybeUnbox(_ value: Int) -> Int {
         return value
     }
     if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
+        // Enum identity boxes carry the entry name/class metadata that erased
+        // consumers (collect lambdas, toList) rely on. Unwrapping them here
+        // would degrade the element to a bare ordinal (KUU-4123).
+        if intBox.enumClassID != nil {
+            return value
+        }
         return intBox.value
     }
     if let boolBox = tryCast(ptr, to: RuntimeBoolBox.self) {
