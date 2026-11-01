@@ -35,4 +35,21 @@ fun main() {
 
     // Non-null-underlying value class self-casts.
     println(S("s") as S)
+
+    // A null payload is a real instance: it must not collapse into the null
+    // `N?` above when it crosses the same self-cast.
+    val np: N? = N(null)
+    println(np as N)
+    val npCast: N? = np as N
+    println(npCast)
+    println(N(null) as N?)
+    println(npCast == null)
+    println(nnCast == null)
+
+    // The `v? as V` result still behaves as a `V`.
+    println((n1 as N).x)
+    println(payloadOf(n1 as N))
+    println(payloadOf(np as N))
 }
+
+fun payloadOf(n: N): Int? = n.x
