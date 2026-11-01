@@ -157,6 +157,54 @@ extension CallTypeChecker {
         return true
     }
 
+    /// A candidate parameter type can keep the candidate's own *function*
+    /// type parameters after the known-argument probe — for example
+    /// `Collector<String, A, R>` from `Stream<String>.collect`. Those
+    /// variables are bound by the outer call from the nested call's result,
+    /// so offered plainly to the nested call they either fail as rigid
+    /// bounds (`Long <: R`) or self-bind the outer variable. Erasing each
+    /// residual occurrence inside a class type argument to `*` —
+    /// `Collector<String, *, *>` — keeps the concrete positions binding, so
+    /// `Collectors.counting()`'s return-only `T` still infers to `String`
+    /// (KUU-4066).
+    ///
+    /// Only class type arguments can hold a star projection; a bare residual
+    /// type parameter or a non-class shape returns nil and the caller keeps
+    /// its existing drop behavior.
+    func nestedCallExpectedTypeErasingTypeParameters(
+        _ type: TypeID,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        guard case let .classType(classType) = ctx.sema.types.kind(of: type) else {
+            return nil
+        }
+        var changed = false
+        let erasedArgs = classType.args.map { argument -> TypeArg in
+            switch argument {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                if ctx.resolver.containsTypeVariable(
+                    inner,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                ) {
+                    changed = true
+                    return .star
+                }
+                return argument
+            case .star:
+                return argument
+            }
+        }
+        guard changed else { return nil }
+        return ctx.sema.types.make(.classType(ClassType(
+            classSymbol: classType.classSymbol,
+            args: erasedArgs,
+            enclosingTypeArgs: classType.enclosingTypeArgs,
+            nullability: classType.nullability
+        )))
+    }
+
     /// Restricting the retry to an argument-less stdlib `LinkedHashMap()`
     /// avoids treating arbitrary `Any`-typed expressions as deferred nested
     /// calls.
@@ -244,6 +292,7 @@ extension CallTypeChecker {
         }
 
         var expectedTypesByCandidate: [SymbolID: [Int: TypeID]] = [:]
+        var erasedExpectedIndicesByCandidate: [SymbolID: Set<Int>] = [:]
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
                 return nil
@@ -320,12 +369,39 @@ extension CallTypeChecker {
                 } else {
                     return nil
                 }
-                guard expectedType != ctx.sema.types.errorType,
-                      !ctx.resolver.containsTypeVariable(
-                          expectedType,
-                          typeVarBySymbol: typeVarBySymbol,
-                          typeSystem: ctx.sema.types
-                      )
+                guard expectedType != ctx.sema.types.errorType else {
+                    return nil
+                }
+                var candidateExpectedType = expectedType
+                var expectedTypeWasErased = false
+                // A residual *function* type parameter is bound by the outer
+                // call from the nested call's result, so offered plainly it
+                // either fails as a rigid bound or self-binds the outer
+                // variable. Erase those occurrences to `*` so the surviving
+                // concrete positions still pin the nested call's return-only
+                // variables (KUU-4066). Residual *class* type parameters keep
+                // bailing below: they self-bind legitimately and are already
+                // covered by the first-pass expected-type hints.
+                let functionTypeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(
+                    Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+                )
+                if ctx.resolver.containsTypeVariable(
+                    candidateExpectedType,
+                    typeVarBySymbol: functionTypeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                ), let erasedExpectedType = nestedCallExpectedTypeErasingTypeParameters(
+                    candidateExpectedType,
+                    typeVarBySymbol: functionTypeVarBySymbol,
+                    ctx: ctx
+                ) {
+                    candidateExpectedType = erasedExpectedType
+                    expectedTypeWasErased = true
+                }
+                guard !ctx.resolver.containsTypeVariable(
+                    candidateExpectedType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                )
                 else {
                     // A callable reference whose parameter is still generic
                     // under this candidate keeps its first-pass binding —
@@ -337,7 +413,10 @@ extension CallTypeChecker {
                     }
                     return nil
                 }
-                candidateExpectedTypes[index] = expectedType
+                candidateExpectedTypes[index] = candidateExpectedType
+                if expectedTypeWasErased {
+                    erasedExpectedIndicesByCandidate[candidate, default: []].insert(index)
+                }
             }
             expectedTypesByCandidate[candidate] = candidateExpectedTypes
         }
@@ -404,6 +483,16 @@ extension CallTypeChecker {
                       argumentType != ctx.sema.types.errorType,
                       !typeContainsErrorType(argumentType, sema: ctx.sema)
                 else {
+                    // An erased expected type is only a hint: its failure does
+                    // not prove the candidate inapplicable — the first-pass
+                    // argument (a self-bound `Result<T>` leaked-parameter type,
+                    // or an already-failed type the resolver reports on its own)
+                    // can still be judged against the real parameter. Keep it
+                    // and drop the unusable hint.
+                    if erasedExpectedIndicesByCandidate[candidate]?.contains(index) == true {
+                        expectedTypesByCandidate[candidate]?.removeValue(forKey: index)
+                        continue
+                    }
                     candidateIsInapplicable = true
                     break
                 }
@@ -432,7 +521,11 @@ extension CallTypeChecker {
         }
 
         if !argumentTypesByCandidate.isEmpty {
-            for index in nestedArgumentIndices {
+            // Only arguments actually re-inferred under a candidate's expected
+            // type lose their first-pass diagnostics; an index skipped after a
+            // failed erased-hint probe keeps whatever error it already had.
+            let probedIndices = Set(argumentTypesByCandidate.values.flatMap { $0.keys })
+            for index in nestedArgumentIndices where probedIndices.contains(index) {
                 if let argumentRange = ctx.ast.arena.exprRange(args[index].expr) {
                     ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
                 }
