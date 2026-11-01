@@ -301,6 +301,39 @@ struct NestedCallArgumentCandidateFailureTests {
         }
     }
 
+    @Test
+    func streamCollectInfersReturnOnlyCollectorTypeParameter() throws {
+        // `Collectors.counting`/`toSet` take no arguments and their `T`
+        // occurs only in the return type. `Stream<T>.collect`'s own function
+        // type parameters `A`/`R` are bound by the outer call from the nested
+        // call's result, so the candidate expected type erases them to `*`
+        // while the concrete `Collector` head still pins `T` (KUU-4066).
+        let context = makeContext("""
+        import java.util.stream.*
+        fun main() {
+            val count: Long = Stream.of("a", "b", "c").collect(Collectors.counting())
+            val set: Set<String> = Stream.of("a", "a", "b").collect(Collectors.toSet())
+            println(count)
+            println(set.size)
+        }
+        """)
+
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        for factoryName in ["counting", "toSet"] {
+            let factoryCall = try #require(
+                firstMemberCall(named: factoryName, in: ast, interner: context.interner)
+            )
+            #expect(
+                sema.bindings.callBinding(for: factoryCall)?.substitutedTypeArguments == [sema.types.stringType],
+                "Expected \(factoryName)'s T to bind to String"
+            )
+        }
+    }
+
     private func makeContext(_ source: String) -> CompilationContext {
         TestStdlibCache.shared.prepare()
         return makeContextFromSource(source, allowDefaultStdlibLibrary: true)
