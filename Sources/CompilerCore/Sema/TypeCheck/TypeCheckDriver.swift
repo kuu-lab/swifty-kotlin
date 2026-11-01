@@ -205,6 +205,7 @@ final class TypeCheckDriver {
         expectedType: TypeID? = nil,
         isStatementContext: Bool = false
     ) -> TypeID {
+        sema.types.attribution?.increment(.exprInferences)
         if let subjectType = ctx.whenSubjectTypes[id] {
             return subjectType
         }

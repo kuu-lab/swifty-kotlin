@@ -39,16 +39,19 @@ extension OverloadResolver {
         resultIsDiscarded: Bool = false,
         ctx: SemaModule
     ) -> ProbedCallResult {
-        let (viable, _) = evaluateCandidates(
-            candidates,
-            call: call,
-            expectedType: expectedType,
-            implicitReceiverType: implicitReceiverType,
-            candidateArgumentTypes: candidateArgumentTypes,
-            ignoredLambdaReturnTypeArgumentIndices: ignoringLambdaReturnTypeArgumentIndices,
-            resultIsDiscarded: resultIsDiscarded,
-            ctx: ctx
-        )
+        ctx.types.attribution?.increment(.probeCallAttempts)
+        let (viable, _) = withAttributionTiming(.resolveCall, attribution: ctx.types.attribution) {
+            evaluateCandidates(
+                candidates,
+                call: call,
+                expectedType: expectedType,
+                implicitReceiverType: implicitReceiverType,
+                candidateArgumentTypes: candidateArgumentTypes,
+                ignoredLambdaReturnTypeArgumentIndices: ignoringLambdaReturnTypeArgumentIndices,
+                resultIsDiscarded: resultIsDiscarded,
+                ctx: ctx
+            )
+        }
         return ProbedCallResult(
             viableCandidates: viable.map { $0.toProbedCallCandidate() }
         )
@@ -220,12 +223,15 @@ extension OverloadResolver {
         resultIsDiscarded: Bool = false,
         ctx: SemaModule
     ) -> ResolvedCall {
-        let result = resolveCallWithoutJavaWarnings(
-            candidates: candidates, call: call, expectedType: expectedType,
-            implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes,
-            preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
-            resultIsDiscarded: resultIsDiscarded, ctx: ctx
-        )
+        ctx.types.attribution?.increment(.resolveCallAttempts)
+        let result = withAttributionTiming(.resolveCall, attribution: ctx.types.attribution) {
+            resolveCallWithoutJavaWarnings(
+                candidates: candidates, call: call, expectedType: expectedType,
+                implicitReceiverType: implicitReceiverType, candidateArgumentTypes: candidateArgumentTypes,
+                preserveMemberExtensionAmbiguity: preserveMemberExtensionAmbiguity,
+                resultIsDiscarded: resultIsDiscarded, ctx: ctx
+            )
+        }
         if let chosen = result.chosenCallee {
             warnJavaCollectionsNullableArguments(call, expectedType: expectedType, chosen: chosen, ctx: ctx)
         }
@@ -368,6 +374,7 @@ extension OverloadResolver {
         resultIsDiscarded: Bool,
         ctx: SemaModule
     ) -> (viable: [ViableCandidate], failures: [Diagnostic]) {
+        ctx.types.attribution?.increment(.candidatesEvaluated, by: candidates.count)
         let solver = ConstraintSolver()
         var viable: [ViableCandidate] = []
         var failures: [Diagnostic] = []
@@ -392,6 +399,7 @@ extension OverloadResolver {
                 continue
             }
         }
+        ctx.types.attribution?.increment(.viableCandidates, by: viable.count)
         return (viable, failures)
     }
 

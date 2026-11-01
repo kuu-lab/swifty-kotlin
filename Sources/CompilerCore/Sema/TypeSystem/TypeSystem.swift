@@ -34,6 +34,11 @@ struct TypeSystemSemaSnapshot: Codable {
 public final class TypeSystem {
     private var nextCaptureIdentity = 0
 
+    /// KUU-3779: hot-path collector live only while `TypeCheckSemaPhase`'s
+    /// `type-check` sub-phase runs under `time-phases`; nil otherwise, so
+    /// instrumentation reduces to an optional load.
+    var attribution: TypeCheckAttribution?
+
     func makeCapturedType(
         parameter: SymbolID,
         lower: TypeID,
