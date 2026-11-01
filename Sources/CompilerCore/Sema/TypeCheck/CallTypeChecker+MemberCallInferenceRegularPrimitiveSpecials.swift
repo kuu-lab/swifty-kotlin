@@ -121,6 +121,21 @@ extension CallTypeChecker {
             let isFloating = { (t: TypeID) -> Bool in
                 t == floatType || t == doubleType
             }
+            // Kotlin's unsigned arithmetic members (plus/minus/times/div/rem)
+            // only take unsigned operands — e.g. UInt.plus(UByte/UShort/UInt/
+            // ULong). Signed, floating-point, or nullable operands have no
+            // overload, so such calls must fall through to normal resolution
+            // instead of being bound here (KUU-3936). A non-null Nothing
+            // argument (`u.plus(TODO())`) still typechecks, matching kotlinc.
+            let unsignedOperandResultType = { (operand: TypeID) -> TypeID? in
+                if isUnsignedInteger(operand) {
+                    receiverForCheck == ulongType || operand == ulongType ? ulongType : uintType
+                } else if case .nothing(.nonNull) = sema.types.kind(of: operand) {
+                    receiverForCheck == ulongType ? ulongType : uintType
+                } else {
+                    nil
+                }
+            }
             let rhsType = sema.types.makeNonNullable(rawRhsType)
             let arithmeticOp: BinaryOp? = switch interner.resolve(calleeName) {
             case "plus": .add
@@ -153,17 +168,18 @@ extension CallTypeChecker {
                     driver.exprChecker.collectScopedOperatorExtensionCandidates(
                         names: [calleeName], receiverType: receiverForCheck, argumentType: rawRhsType, ctx: ctx
                     ).isEmpty ? sema.types.stringType : nil
+                } else if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rhsType) {
+                    // Signed/floating receivers have no unsigned-operand
+                    // overload either (`x.plus(1u)` fails in kotlinc).
+                    nil
                 } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rhsType == floatType {
                     floatType
                 } else if receiverForCheck == longType || rhsType == longType {
                     longType
-                } else if receiverForCheck == ulongType || rhsType == ulongType {
-                    ulongType
-                } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
-                    // UByte/UShort arithmetic promotes to UInt in Kotlin stdlib
-                    uintType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
                     && (rhsType == intType || rhsType == byteType || rhsType == shortType)
                 {
@@ -184,16 +200,16 @@ extension CallTypeChecker {
                     intType
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
+                } else if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rhsType) {
+                    nil
                 } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rhsType == floatType {
                     floatType
                 } else if receiverForCheck == longType || rhsType == longType {
                     longType
-                } else if receiverForCheck == ulongType || rhsType == ulongType {
-                    ulongType
-                } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
-                    uintType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
                     && (rhsType == intType || rhsType == byteType || rhsType == shortType) {
                     intType
@@ -207,16 +223,16 @@ extension CallTypeChecker {
                 }
             case "times", "div", "rem":
                 // times/div/rem: small unsigned types promote to UInt (Kotlin stdlib)
-                let resultType: TypeID? = if receiverForCheck == doubleType || rhsType == doubleType {
+                let resultType: TypeID? = if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rhsType) {
+                    nil
+                } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rhsType == floatType {
                     floatType
                 } else if receiverForCheck == longType || rhsType == longType {
                     longType
-                } else if receiverForCheck == ulongType || rhsType == ulongType {
-                    ulongType
-                } else if receiverForCheck == uintType || rhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rhsType) {
-                    uintType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType),
                     rhsType == intType || rhsType == byteType || rhsType == shortType
                 {
@@ -246,8 +262,8 @@ extension CallTypeChecker {
                 }
                 let resultType: TypeID? = if isSignedInteger(receiverForCheck), isSignedInteger(rhsType) {
                     receiverForCheck == longType || rhsType == longType ? longType : intType
-                } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rhsType) {
-                    receiverForCheck == ulongType || rhsType == ulongType ? ulongType : uintType
+                } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rawRhsType) {
+                    receiverForCheck == ulongType || rawRhsType == ulongType ? ulongType : uintType
                 } else {
                     nil
                 }
@@ -263,8 +279,8 @@ extension CallTypeChecker {
                     receiverForCheck == doubleType || rhsType == doubleType ? doubleType : floatType
                 } else if isSignedInteger(receiverForCheck), isSignedInteger(rhsType) {
                     rhsType == longType ? longType : intType
-                } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rhsType) {
-                    rhsType
+                } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rawRhsType) {
+                    rawRhsType
                 } else {
                     nil
                 }

@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 20, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 21, "character": 4 },
+        "end": { "line": 21, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 22, "character": 4 },
+        "end": { "line": 22, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 23, "character": 4 },
+        "end": { "line": 23, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 24, "character": 4 },
+        "end": { "line": 24, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 25, "character": 4 },
+        "end": { "line": 25, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 26, "character": 4 },
+        "end": { "line": 26, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 27, "character": 4 },
+        "end": { "line": 27, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 28, "character": 4 },
+        "end": { "line": 28, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'minus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 29, "character": 4 },
+        "end": { "line": 29, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'times'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 30, "character": 4 },
+        "end": { "line": 30, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'div'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 31, "character": 4 },
+        "end": { "line": 31, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'rem'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 32, "character": 4 },
+        "end": { "line": 32, "character": 17 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'floorDiv'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 33, "character": 4 },
+        "end": { "line": 33, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'mod'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 34, "character": 4 },
+        "end": { "line": 34, "character": 18 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'floorDiv'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 35, "character": 4 },
+        "end": { "line": 35, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'mod'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 36, "character": 4 },
+        "end": { "line": 36, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 37, "character": 4 },
+        "end": { "line": 37, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 38, "character": 4 },
+        "end": { "line": 38, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 39, "character": 4 },
+        "end": { "line": 39, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 40, "character": 4 },
+        "end": { "line": 40, "character": 15 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 41, "character": 4 },
+        "end": { "line": 41, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'plus'.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_member_call_signed_operand.kt",
+      "range": {
+        "start": { "line": 42, "character": 4 },
+        "end": { "line": 42, "character": 18 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'compareTo'.",
+      "codeActions": []
+    }
+  ]
+}
