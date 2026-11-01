@@ -184,13 +184,19 @@ struct UnsignedPrimitiveMemberCallTests {
             let diagnostics = diagnosticsForPath(path, in: ctx)
             var checkedExpressions = 0
             for (index, expr) in ast.arena.exprs.enumerated() {
-                guard case let .unaryExpr(_, _, range) = expr,
+                guard case let .unaryExpr(_, operand, range) = expr,
                       ctx.sourceManager.path(of: range.start.file) == path
                 else { continue }
                 let id = ExprID(rawValue: Int32(index))
                 #expect(sema.bindings.exprType(for: id) == sema.types.errorType)
+                // KUU-3756: a failed unary operator on a nullable receiver
+                // reports SEMA-0026 (kotlinc UNSAFE_CALL) rather than the
+                // generic no-viable-overload SEMA-0002.
+                let operandIsNullable = sema.bindings.exprType(for: operand)
+                    .map { sema.types.nullability(of: $0) == .nullable } ?? false
+                let expectedCode = operandIsNullable ? "KSWIFTK-SEMA-0026" : "KSWIFTK-SEMA-0002"
                 #expect(diagnostics.contains {
-                    $0.code == "KSWIFTK-SEMA-0002" && $0.severity == .error && $0.primaryRange == range
+                    $0.code == expectedCode && $0.severity == .error && $0.primaryRange == range
                 })
                 checkedExpressions += 1
             }
@@ -556,7 +562,12 @@ struct UnsignedPrimitiveMemberCallTests {
 
 
 
-                assertDiagnosticCount("KSWIFTK-SEMA-0002", expected: 2, in: ctx)
+                // The bundled-source stdlib exposes the generic
+                // coerceIn(range: ClosedFloatingPointRange<T>) overload, so
+                // passing a scalar fails the chosen candidate's constraints
+                // — kotlinc likewise reports an argument type mismatch
+                // against ClosedRange — instead of SEMA-0002.
+                assertDiagnosticCount("KSWIFTK-TYPE-0001", expected: 2, in: ctx)
 
             }
 
