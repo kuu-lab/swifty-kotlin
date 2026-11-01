@@ -61,9 +61,13 @@ extension CallLowerer {
             }
         }
 
+        let selectsUserNumericExtension = selectsUserNumericExtension(
+            calleeNameStr, chosenCallee: chosenCalleeForArgumentAdaptation, sema: sema, interner: interner
+        )
+
         // Float.mod(other) / Double.mod(other): Kotlin mod uses floor-style
         // modulo, while rem/% use truncating remainder.
-        if args.count == 1,
+        if !selectsUserNumericExtension, args.count == 1,
            calleeNameStr == "mod"
         {
             let floatType = sema.types.make(.primitive(.float, .nonNull))
@@ -156,7 +160,7 @@ extension CallLowerer {
         let isRangePlusMinusReceiver = ["plus", "minus"].contains(calleeNameStr)
             && (sema.bindings.isRangeExpr(receiverExpr)
                 || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
-        if !isSourceArithmeticExtension, args.count == 1,
+        if !isSourceArithmeticExtension, !selectsUserNumericExtension, args.count == 1,
            !isRangePlusMinusReceiver,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold),
            isNumericPrimitiveOperand(args[0].expr, sema: sema)
@@ -465,6 +469,21 @@ extension CallLowerer {
             }
         }
         return nil
+    }
+
+    /// `floorDiv`/`mod` are extensions, so Sema may bind a same-named user
+    /// extension in a nearer scope; only the kotlin-package ones may become
+    /// `kk_op_*` intrinsics.
+    func selectsUserNumericExtension(
+        _ name: String,
+        chosenCallee: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard name == "floorDiv" || name == "mod",
+              let chosenCallee, let symbol = sema.symbols.symbol(chosenCallee)
+        else { return false }
+        return symbol.fqName.first != interner.intern("kotlin")
     }
 
     func explicitFloatingOrCharArithmeticOp(_ name: String) -> KIRBinaryOp? {

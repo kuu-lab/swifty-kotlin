@@ -291,7 +291,10 @@ extension CallLowerer {
 
         // Float?.mod(other) / Double?.mod(other): keep safe-call argument
         // evaluation behind the null check and use Kotlin floor-style modulo.
-        if args.count == 1,
+        let selectsUserNumericExtension = selectsUserNumericExtension(
+            calleeStr, chosenCallee: sema.bindings.callBinding(for: exprID)?.chosenCallee, sema: sema, interner: interner
+        )
+        if !selectsUserNumericExtension, args.count == 1,
            calleeStr == "mod"
         {
             let floatType = sema.types.make(.primitive(.float, .nonNull))
@@ -410,7 +413,7 @@ extension CallLowerer {
             }
         }
 
-        if args.count == 1 {
+        if !selectsUserNumericExtension, args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
             let uintType = sema.types.make(.primitive(.uint, .nonNull))

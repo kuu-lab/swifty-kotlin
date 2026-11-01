@@ -79,6 +79,23 @@ extension BuildKIRRegressionTests {
         })
     }
 
+    @Test(arguments: [
+        "private fun Long.floorDiv(value: Int): Int = value + 100\nfun useMemberCall(n: Long, d: Int): Int = n.floorDiv(d)",
+        "private fun Int.mod(value: Int): Int = value + 80\nfun useMemberCall(n: Int, d: Int): Int = n.mod(d)",
+        "class Holder {\n    fun Long.mod(value: Int): Int = value + 40\n    fun useMemberCall(n: Long, d: Int): Int = n.mod(d)\n}",
+    ])
+    func testBuildKIRUsesUserNumericExtensionOverFloorIntrinsic(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        try BuildKIRPhase().run(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "useMemberCall", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
+        #expect(!callees.isDisjoint(with: ["floorDiv", "mod"]), "Expected a call to the user extension, got \(callees)")
+        #expect(callees.isDisjoint(with: ["kk_op_floor_div", "kk_op_floor_mod", "kk_op_lfloor_mod"]))
+    }
+
     @Test
     func testBuildKIRLowersExplicitCharPlusStringToFlatConcat() throws {
         let ctx = makeContextFromSource("fun useMemberCall(c: Char, s: String): String = c.plus(s)")
