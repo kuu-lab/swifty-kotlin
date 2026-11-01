@@ -229,5 +229,86 @@ struct AssertionHelperRegressionTests {
         #expect(!symbols.isEmpty)
         #expect(symbols.allSatisfy { sema.symbols.contractImplicationEffects(for: $0).isEmpty })
     }
+
+    // KUU-3935: contract narrowing applied to an immutable local lives only in
+    // `locals`; a later `check`/`require`/branch recomputing flow from the
+    // branch-entry snapshot must not widen it back (okio FileHandle.reposition).
+    @Test func contractNarrowingInElseBranchSurvivesInterveningCheckCall() throws {
+        let ctx = makeContextFromSource("""
+        interface S
+        interface B : S
+        class RB : B
+        class C(val tag: Int, var p: Long) : S { var closed = false }
+        fun probe(s: S) {
+            if (s is RB) {
+            } else {
+                require(s is C)
+                check(!s.closed)
+                s.p = 1
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func contractNarrowingInElseBranchSurvivesSecondContractCall() throws {
+        let ctx = makeContextFromSource("""
+        interface S
+        interface B : S
+        class RB : B
+        class C(val tag: Int, var p: Long) : S { var closed = false }
+        fun probe(s: S) {
+            if (s is RB) {
+            } else {
+                require(s is C)
+                require(s.tag == 0)
+                s.p = 1
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func contractNarrowingInElseBranchSurvivesNestedIf() throws {
+        let ctx = makeContextFromSource("""
+        interface S
+        interface B : S
+        class RB : B
+        class C(val tag: Int, var p: Long) : S { var closed = false }
+        fun probe(s: S, flag: Boolean) {
+            if (s is RB) {
+            } else {
+                require(s is C)
+                if (flag) {
+                    s.p = 1
+                }
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func mutableLocalReassignmentStillDropsContractNarrowing() throws {
+        let ctx = makeContextFromSource("""
+        interface S
+        interface B : S
+        class RB : B
+        class C(val tag: Int, var p: Long) : S { var closed = false }
+        fun probe(s: S, other: S) {
+            var x: S = s
+            if (x is RB) {
+            } else {
+                require(x is C)
+                x = other
+                x.p = 1
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0022" })
+    }
 }
 #endif
