@@ -28,6 +28,30 @@ extension CallLowerer {
     }
 
 
+    /// A setter declared with an erased type parameter (`Base<T>.x: T`) takes
+    /// its value boxed, like a generic method argument: an override's vtable
+    /// bridge checkcasts and unboxes it, and a raw `-0.0` or `Long.MIN_VALUE`
+    /// would read as the null sentinel there.
+    private func erasedVirtualSetterValue(
+        _ value: KIRExprID,
+        propertySymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let declaredType = sema.symbols.propertyType(for: propertySymbol),
+              kirIsNonReifiedErasedABIType(declaredType, sema: sema),
+              let valueType = arena.exprType(value)
+        else {
+            return value
+        }
+        return boxValueForAnySlot(
+            value, sourceType: valueType, types: sema.types, symbols: sema.symbols,
+            interner: interner, arena: arena, sema: sema, into: &instructions
+        )
+    }
+
     func lowerMemberAssignExpr(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -143,8 +167,12 @@ extension CallLowerer {
                 interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
+                let setterValueID = erasedVirtualSetterValue(
+                    valueID, propertySymbol: propertySymbol,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 let virtualAccessorArguments = propertyAccessorArguments(
-                    for: accessorSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    for: accessorSymbol, arguments: [receiverID, setterValueID], callExprID: exprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -311,8 +339,12 @@ extension CallLowerer {
                 interner: interner
             ) {
                 let result = arena.appendTemporary(type: sema.types.unitType)
+                let setterValueID = erasedVirtualSetterValue(
+                    valueID, propertySymbol: propertySymbol,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 let virtualAccessorArguments = propertyAccessorArguments(
-                    for: accessorSymbol, arguments: [receiverID, valueID], callExprID: exprID,
+                    for: accessorSymbol, arguments: [receiverID, setterValueID], callExprID: exprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -983,8 +1015,14 @@ extension CallLowerer {
                 // slot (the helper already emitted the call).
             } else if let virtualSetterDispatch {
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                let setterValueID = propertySymbol.map {
+                    erasedVirtualSetterValue(
+                        newValue, propertySymbol: $0,
+                        sema: sema, arena: arena, interner: interner, instructions: &instructions
+                    )
+                } ?? newValue
                 let virtualAccessorArguments = propertyAccessorArguments(
-                    for: virtualSetterDispatch.accessorSymbol, arguments: [receiverID, newValue], callExprID: exprID,
+                    for: virtualSetterDispatch.accessorSymbol, arguments: [receiverID, setterValueID], callExprID: exprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
