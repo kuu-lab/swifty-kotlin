@@ -384,6 +384,81 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
+    func testWhileBodyLocalFunctionCaptureCellDominatesLoop() throws {
+        // KUU-4120: a `var` captured by a local/anonymous function created
+        // inside a `while` body must be boxed at its declaration so the
+        // shared cell dominates the loop. Boxing it lazily at the capture
+        // site re-created the cell every iteration while the loop condition
+        // kept reading the stale unboxed register — an infinite loop.
+        let source = """
+        fun main() {
+            var j = 0
+            while (j < 3) {
+                fun f(): Int = j
+                j++
+            }
+            println("done")
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "while-body local function capture should compile: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let mainName = KnownCompilerNames(interner: ctx.interner).main
+        let main = try #require(findAllKIRFunctions(in: module).first { $0.name == mainName })
+        let arrayNew = ctx.interner.intern(runtimeCallee(.arrayNew))
+        let arrayGet = ctx.interner.intern(runtimeCallee(.arrayGetInbounds))
+
+        var labelIndexByID: [Int32: Int] = [:]
+        for (index, instruction) in main.body.enumerated() {
+            if case let .label(label) = instruction {
+                labelIndexByID[label] = index
+            }
+        }
+        // The while head is the earliest label that is the target of a
+        // backward jump (the loop's back-edge).
+        var loopHeadIndex: Int?
+        for (index, instruction) in main.body.enumerated() {
+            guard case let .jump(target) = instruction,
+                  let targetIndex = labelIndexByID[target],
+                  targetIndex < index
+            else {
+                continue
+            }
+            loopHeadIndex = targetIndex
+            break
+        }
+        let headIndex = try #require(loopHeadIndex, "expected the while loop back-edge")
+
+        // The capture cell must be allocated before the loop head — never
+        // inside the re-executing body.
+        for (index, instruction) in main.body.enumerated() {
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction,
+                  callee == arrayNew
+            else {
+                continue
+            }
+            #expect(index < headIndex, "the `j` capture cell must dominate the while loop")
+        }
+
+        // The condition read sits between the loop head and its exit branch;
+        // it must load the shared cell (kk_array_get_inbounds), not a stale
+        // unboxed register.
+        var conditionReadsCell = false
+        for instruction in main.body[headIndex...] {
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction,
+               callee == arrayGet
+            {
+                conditionReadsCell = true
+            }
+            if case .jumpIfEqual = instruction {
+                break
+            }
+        }
+        #expect(conditionReadsCell, "the `j < 3` condition must read `j` through its shared capture cell")
+    }
+
+    @Test
     func testNestedLocalFunctionDefaultParamCapturesOuterLocal() throws {
         // KUU-3182: `x` is referenced only by `bar`'s default parameter
         // expression, one nesting level below its declaring scope. Both the

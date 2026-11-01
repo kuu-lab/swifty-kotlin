@@ -671,23 +671,12 @@ extension ExprLowerer {
             // a self-referential closure such as `f = { ... f(...) ... }`
             // -- needs `f`'s mutable-capture cell to already exist so it
             // can capture a reference to it, but `ensureMutableCaptureCell`
-            // requires a current value to seed the cell with. Seed a
-            // transient null placeholder for that case only (mutable,
-            // reference-like, and actually captured), mirroring how a
+            // requires a current value to seed the cell with. Captured
+            // mutable locals get a seeded cell below (reference-like types
+            // seed `.null`, primitives a zero bit pattern), mirroring how a
             // lateinit *property*'s backing storage is seeded with `.null`
-            // in lowerPropertyInitializer. Scoped this narrowly because a
-            // primitive local's `.null` representation is a distinct
-            // sentinel (see `declaredTypeIsReferenceLike` above), not a
-            // plain null constant. Other uninitialized mutable locals retain
-            // their existing first-assignment and capture-cell paths;
-            // immutable locals receive a shared slot below so branch
-            // assignments survive joins.
-            let declaredTypeIsReferenceLike: Bool = switch sema.types.kind(of: declaredType) {
-            case .any, .classType, .functionType, .typeParam:
-                true
-            default:
-                false
-            }
+            // in lowerPropertyInitializer. Immutable locals receive a
+            // shared slot below so branch assignments survive joins.
             if !isMutable, !isDelegated {
                 // A definitely-assigned `val` may be written in mutually
                 // exclusive branches. Keep one stable slot so each branch
@@ -729,16 +718,19 @@ extension ExprLowerer {
                         instructions: &instructions
                     )
                 }
-            } else if isMutable, declaredTypeIsReferenceLike, isCapturedByLambda(symbol, sema: sema) {
-                let placeholder = arena.appendExpr(.null, type: declaredType)
-                instructions.append(.constValue(result: placeholder, value: .null))
-                driver.ctx.setLocalValue(placeholder, for: symbol)
-                _ = ensureMutableCaptureCell(
-                    for: symbol,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    instructions: &instructions
+            } else if isMutable, !isDelegated, isCapturedByLambda(symbol, sema: sema) {
+                // Any captured `var` without an initializer needs its shared
+                // cell at the declaration site, not just reference-like types:
+                // a capture created later (e.g. inside a loop body) would
+                // otherwise allocate the cell there, re-seeding it every
+                // iteration from a stale unboxed register (KUU-4120). Definite
+                // assignment guarantees the seed is never observed.
+                let seed = deferredLocalCaptureCellSeedValue(
+                    for: declaredType, sema: sema, arena: arena, instructions: &instructions
+                )
+                emitMutableCaptureCellInitialization(
+                    driver: driver, symbol: symbol, currentValue: seed,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
             }
         }
