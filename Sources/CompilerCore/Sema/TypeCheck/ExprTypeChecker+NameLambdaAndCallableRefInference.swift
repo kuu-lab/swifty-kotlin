@@ -234,6 +234,31 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }
+        // An unqualified extension property resolves against the whole
+        // implicit-receiver tower, not only the innermost receiver: a
+        // receiver-typed lambda (`buildString { ... }`) pushes its own
+        // receiver in front, but an extension on an enclosing `this` stays
+        // applicable unqualified (KUU-3914). For each extension candidate,
+        // find the innermost tower entry whose type satisfies the declared
+        // receiver; only candidates at the earliest matching level survive —
+        // a nearer receiver's extension shadows same-named extensions on
+        // outer entries.
+        var extensionPropertyMatchedEntries: [SymbolID: (index: Int, type: TypeID, symbol: SymbolID?)] = [:]
+        for candidate in candidates {
+            guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
+                continue
+            }
+            for (index, entry) in implicitReceiverLookupEntries.enumerated() {
+                if sema.types.isSubtype(
+                    sema.types.makeNonNullable(entry.type),
+                    sema.types.makeNonNullable(declaredReceiver)
+                ) {
+                    extensionPropertyMatchedEntries[candidate.id] = (index, entry.type, entry.symbol)
+                    break
+                }
+            }
+        }
+        let earliestExtensionMatchIndex = extensionPropertyMatchedEntries.values.map(\.index).min()
         var deferredPropertyReceiverConstraints: [SymbolID: [VariableConstraint]] = [:]
         candidates.removeAll { candidate in
             guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
@@ -252,6 +277,11 @@ extension ExprTypeChecker {
             {
                 return false
             }
+            if let match = extensionPropertyMatchedEntries[candidate.id],
+               match.index == earliestExtensionMatchIndex
+            {
+                return false
+            }
             guard let originalReceiverType = ctx.implicitReceiverType else {
                 // Package-scope extension properties remain in import scopes
                 // so `receiver.property` can resolve them, but a bare name in
@@ -259,12 +289,6 @@ extension ExprTypeChecker {
                 return implicitReceiverLookupEntries.isEmpty
             }
             let receiverType = implicitReceiverLookupEntries.first?.type ?? originalReceiverType
-            if sema.types.isSubtype(
-                sema.types.makeNonNullable(receiverType),
-                sema.types.makeNonNullable(declaredReceiver)
-            ) {
-                return false
-            }
             guard let constraints = driver.callChecker.deferredBuilderReceiverConstraints(
                 callSiteReceiver: receiverType,
                 declaredReceiver: declaredReceiver,
@@ -420,16 +444,31 @@ extension ExprTypeChecker {
         }
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
-            if let receiverType = ctx.implicitReceiverType.map({
-                driver.callChecker.resolvedBuilderInferenceType($0, ctx: ctx)
-            }),
-               let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id),
-               sema.types.isSubtype(
-                   sema.types.makeNonNullable(receiverType),
-                   sema.types.makeNonNullable(declaredReceiver)
-               )
-            {
-                sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: receiverType)
+            if let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id) {
+                if let receiverType = ctx.implicitReceiverType.map({
+                    driver.callChecker.resolvedBuilderInferenceType($0, ctx: ctx)
+                }),
+                   sema.types.isSubtype(
+                       sema.types.makeNonNullable(receiverType),
+                       sema.types.makeNonNullable(declaredReceiver)
+                   )
+                {
+                    sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: receiverType)
+                } else if let match = extensionPropertyMatchedEntries[preferredCandidate.id],
+                          match.index == earliestExtensionMatchIndex
+                {
+                    // The extension bound to an enclosing receiver-tower
+                    // entry (e.g. `this@authority` inside a `buildString`
+                    // lambda). Record that receiver type and — when the
+                    // entry carries a materializable receiver symbol — the
+                    // captured `this`, so KIR lowering calls the getter on
+                    // the enclosing receiver instead of the lambda's own
+                    // (KUU-3914).
+                    sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: match.type)
+                    if let receiverSymbol = match.symbol {
+                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                    }
+                }
             }
             driver.helpers.checkDeprecation(
                 for: preferredCandidate.id,
