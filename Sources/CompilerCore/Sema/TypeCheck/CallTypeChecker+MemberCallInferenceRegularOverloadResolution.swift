@@ -334,6 +334,7 @@ extension CallTypeChecker {
             locals: locals,
             preInferredArgumentTypes: cachedNonLambdaArgTypes,
             withContextExpectedLambdaType: nil,
+            receiverType: effectiveReceiverType,
             expectedTypeOverrides: &argumentExpectedTypeOverrides,
             lambdaContextOverrides: &lambdaContextOverrides
         )
@@ -498,6 +499,7 @@ extension CallTypeChecker {
             }
             if !extensionCandidates.isEmpty {
                 var extensionExpectedTypeOverrides = directArgumentExpectedTypeOverrides
+                var extensionExpectedTypeHintIndices: Set<Int> = []
                 prepareUnambiguousNestedCallExpectedTypes(
                     args: args,
                     callRange: range,
@@ -505,7 +507,10 @@ extension CallTypeChecker {
                     preInferredArgumentTypes: cachedNonLambdaArgTypes,
                     ctx: ctx,
                     locals: locals,
-                    expectedTypeOverrides: &extensionExpectedTypeOverrides
+                    receiverType: receiverForExtensionLookup,
+                    expectedType: expectedType,
+                    expectedTypeOverrides: &extensionExpectedTypeOverrides,
+                    expectedTypeHintIndices: &extensionExpectedTypeHintIndices
                 )
                 let extensionArgs = prepareCallArguments(
                     args: args,
@@ -513,6 +518,7 @@ extension CallTypeChecker {
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                     expectedTypeOverrides: extensionExpectedTypeOverrides,
+                    expectedTypeHintIndices: extensionExpectedTypeHintIndices,
                     contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
                         ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,
