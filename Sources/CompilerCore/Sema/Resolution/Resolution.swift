@@ -1644,7 +1644,7 @@ extension OverloadResolver {
         return typeSystem.isSubtype(nonNullBound, nonNullReceiver)
     }
 
-    private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
+    func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
         switch typeSystem.kind(of: type) {
         case let .classType(classType):
             typeSystem.allTypeArguments(for: classType).contains { argument in
