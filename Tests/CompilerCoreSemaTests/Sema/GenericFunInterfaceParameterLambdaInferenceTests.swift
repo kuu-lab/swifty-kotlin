@@ -121,6 +121,81 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
         #expect(binding.substitutedTypeArguments == [sema.types.stringType, sema.types.stringType])
     }
 
+    @Test
+    func samConstructorValueSatisfiesExplicitGenericCallArgument() throws {
+        // KUU-4027: `Sup { 3 }` is a value of type `Sup`; the argument check
+        // must be `Sup <: Sup`, not `() -> Int <: Sup`.
+        let ctx = context("""
+        fun interface Sup { fun get(): Int }
+        fun <T> takeIt(x: T): T = x
+        fun main() {
+            val s = takeIt<Sup>(Sup { 3 })
+            s.get()
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The SAM value must satisfy the explicit type argument: \(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let supSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Sup")]).first)
+        let call = try #require(nameRefCallExprID(named: "takeIt", in: ast, interner: ctx.interner))
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(binding.substitutedTypeArguments.count == 1)
+        guard case let .classType(substituted) = binding.substitutedTypeArguments.first.flatMap({ sema.types.kind(of: $0) }) else {
+            Issue.record("Expected the substituted type argument to be the interface type")
+            return
+        }
+        #expect(substituted.classSymbol == supSymbol)
+    }
+
+    @Test
+    func samConstructorValueInfersGenericCallTypeArgument() throws {
+        // KUU-4027: without an explicit type argument the call's type variable
+        // binds to the SAM interface, so the converted value stays callable as `Sup`.
+        let ctx = context("""
+        fun interface Sup { fun get(): Int }
+        fun <T> takeIt(x: T): T = x
+        fun main() {
+            val s = takeIt(Sup { 3 })
+            s.get()
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "The call must infer T = Sup and expose get(): \(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let supSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("Sup")]).first)
+        let call = try #require(nameRefCallExprID(named: "takeIt", in: ast, interner: ctx.interner))
+        let binding = try #require(sema.bindings.callBinding(for: call))
+        #expect(binding.substitutedTypeArguments.count == 1)
+        guard case let .classType(substituted) = binding.substitutedTypeArguments.first.flatMap({ sema.types.kind(of: $0) }) else {
+            Issue.record("Expected the inferred type argument to be the interface type")
+            return
+        }
+        #expect(substituted.classSymbol == supSymbol)
+    }
+
+    @Test
+    func samConstructorValueSatisfiesBundledGenericCallArgument() throws {
+        let ctx = bundledStdlibContext("""
+        fun interface Sup { fun get(): Int }
+        fun main() {
+            val lst = listOf<Sup>(Sup { 7 })
+            println(lst[0].get())
+            val inferred = listOf(Sup { 8 })
+            println(inferred[0].get())
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "listOf<Sup>(Sup { 7 }) must type-check like kotlinc: \(errors)")
+    }
+
     @Test(arguments: ["make", "Factory.make"])
     func annotatedSamInputInfersGenericFactoryResult(factory: String) throws {
         let ctx = context("""

@@ -1016,6 +1016,24 @@ struct TypeInferenceContext: CustomStringConvertible {
         return !activeDslMarkerAnnotations.isDisjoint(with: parentDslMarkers)
     }
 
+    /// Implicit receiver tower entries hidden by the Kotlin DSL marker rule:
+    /// walking innermost to outermost, an entry is hidden when a strictly
+    /// nearer entry carries at least one DslMarker annotation it also
+    /// carries. `implicitReceiverMemberLookupEntries` deduplicates entries
+    /// by `TypeID`, so a type identifies exactly one tower position.
+    func dslHiddenImplicitReceiverTypes() -> Set<TypeID> {
+        var hidden: Set<TypeID> = []
+        var nearerMarkers: Set<String> = []
+        for entry in implicitReceiverMemberLookupEntries() {
+            let markers = collectDslMarkerAnnotations(for: entry.type)
+            if !nearerMarkers.isDisjoint(with: markers) {
+                hidden.insert(entry.type)
+            }
+            nearerMarkers.formUnion(markers)
+        }
+        return hidden
+    }
+
     var description: String {
         return "\(useNewInference) \(useUnrestrictedBuilderInference) \(useProperTypeInferenceConstraintsProcessing)"
     }

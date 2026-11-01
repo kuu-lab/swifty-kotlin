@@ -100,6 +100,51 @@ extension LambdaLowerer {
         return "\(prefix)\(receiverText)\(renderedName)(\(params)): \(result)"
     }
 
+    /// KUU-3947 — JVM kotlin-reflect renders a property reference and the
+    /// `property` object handed to a non-local delegate's accessors as
+    /// `val pkg.Owner.name: kotlin.T` (or `var …`). The owner prefix is the
+    /// declaring class's qualified name; a top-level extension property shows
+    /// its receiver (`val kotlin.String.x: kotlin.Int`), and a member
+    /// extension shows `pkg.Owner.(kotlin.String.)name`. Bound references
+    /// render identically to unbound ones (no capture appears in the text).
+    func propertyReferenceDescription(
+        memberName: InternedString,
+        propertySymbol: SymbolID?,
+        isMutable: Bool,
+        returnType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        let keyword = isMutable ? "var" : "val"
+        let ownerText = propertyReferenceOwnerPrefix(propertySymbol: propertySymbol, sema: sema, interner: interner)
+        let typeName = reflectionTypeName(returnType, sema: sema, interner: interner)
+        return "\(keyword) \(ownerText)\(interner.resolve(memberName)): \(typeName)"
+    }
+
+    private func propertyReferenceOwnerPrefix(
+        propertySymbol: SymbolID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String {
+        guard let propertySymbol else { return "" }
+        let extensionReceiver = sema.symbols.extensionPropertyReceiverType(for: propertySymbol)
+        let ownerName = sema.symbols.parentSymbol(for: propertySymbol).flatMap { owner -> String? in
+            guard let info = sema.symbols.symbol(owner),
+                  [.class, .interface, .object, .enumClass, .annotationClass].contains(info.kind)
+            else { return nil }
+            let fqName = info.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            return fqName.isEmpty ? nil : fqName
+        }
+        if let extensionReceiver {
+            let receiverName = reflectionTypeName(extensionReceiver, sema: sema, interner: interner)
+            if let ownerName {
+                return "\(ownerName).(\(receiverName).)"
+            }
+            return "\(receiverName)."
+        }
+        return ownerName.map { "\($0)." } ?? ""
+    }
+
     func functionTypeDescription(
         _ function: FunctionType,
         sema: SemaModule,

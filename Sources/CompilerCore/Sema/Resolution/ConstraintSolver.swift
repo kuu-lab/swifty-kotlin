@@ -82,6 +82,18 @@ final class ConstraintSolver {
         constraints: [VariableConstraint],
         typeSystem: TypeSystem
     ) -> Solution {
+        typeSystem.attribution?.increment(.constraintSolves)
+        typeSystem.attribution?.increment(.constraintsSolved, by: constraints.count)
+        return withAttributionTiming(.constraintSolve, attribution: typeSystem.attribution) {
+            solveInner(vars: vars, constraints: constraints, typeSystem: typeSystem)
+        }
+    }
+
+    private func solveInner(
+        vars: [TypeVarID],
+        constraints: [VariableConstraint],
+        typeSystem: TypeSystem
+    ) -> Solution {
         var lowerBounds: [TypeVarID: [TypeID]] = [:]
         var upperBounds: [TypeVarID: [TypeID]] = [:]
         var varRelations: [(left: TypeVarID, right: TypeVarID, blame: SourceRange?)] = []

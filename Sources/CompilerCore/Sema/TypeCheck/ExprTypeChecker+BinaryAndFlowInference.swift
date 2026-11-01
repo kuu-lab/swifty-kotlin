@@ -1140,16 +1140,22 @@ extension ExprTypeChecker {
                 sema.bindings.markCharRangeExpr(id)
             }
         case .step:
-            // kotlin.ranges declares `step` only on the progression/range
-            // classes. The builtin `..`/`..<`/`downTo` receivers reach this
-            // fallback as a scalar plus the range-expression marker, and a
-            // nominal IntRange/IntProgression receiver resolves through the
-            // bundled `step` extension overloads above. A plain scalar
-            // (`i step 2`) has no `step` overload, so kotlinc reports
-            // "unresolved reference 'step'" (KUU-4056).
-            if lhs != sema.types.errorType,
-               !sema.bindings.isRangeExpr(lhsID),
-               !isStepReceiverType(lhs, sema: sema, interner: interner)
+            // kotlin.ranges declares `step` only on the integral
+            // progression/range classes. The builtin `..`/`..<`/`downTo`
+            // receivers reach this fallback as a scalar plus the
+            // range-expression marker, and a nominal IntRange/IntProgression
+            // receiver resolves through the bundled `step` extension overloads
+            // above. A plain scalar (`i step 2`) has no `step` overload, so
+            // kotlinc reports "unresolved reference 'step'" (KUU-4056).
+            // Floating-point ranges carry the range marker too but have no
+            // `step` either; without this gate the builtin path types the
+            // expression as IntProgression and lowers `__kk_op_step` on a
+            // floating-point range box, which panics at runtime with
+            // `invalid range handle in kk_range_step` (KUU-4039).
+            if sema.bindings.isFloatingPointRangeExpr(lhsID)
+                || (lhs != sema.types.errorType
+                    && !sema.bindings.isRangeExpr(lhsID)
+                    && !isStepReceiverType(lhs, sema: sema, interner: interner))
             {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0024",

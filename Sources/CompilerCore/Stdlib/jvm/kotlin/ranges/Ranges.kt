@@ -57,5 +57,5 @@ public operator fun Float.rangeTo(that: Float): ClosedFloatingPointRange<Float> 
 
 public infix fun IntProgression.step(step: Int): IntProgression {
     if (step <= 0) throw IllegalArgumentException("Step must be positive, was: $step.")
-    return IntProgression(this.first, this.last, step)
+    return IntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }

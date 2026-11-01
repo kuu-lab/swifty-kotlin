@@ -118,6 +118,9 @@ public extension TypeSystem {
         for (index, symbol) in symbols.enumerated() {
             mapping[symbol] = TypeVarID(rawValue: Int32(index))
         }
+        if !mapping.isEmpty {
+            attribution?.increment(.genericInstantiations)
+        }
         return mapping
     }
 

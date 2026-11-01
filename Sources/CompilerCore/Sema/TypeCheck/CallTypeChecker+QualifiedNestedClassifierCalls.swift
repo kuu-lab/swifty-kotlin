@@ -66,6 +66,7 @@ extension CallTypeChecker {
             candidates: candidates,
             locals: locals,
             withContextExpectedLambdaType: nil,
+            receiverType: target.receiverType,
             expectedTypeOverrides: &expectedTypeOverrides,
             lambdaContextOverrides: &lambdaContextOverrides
         )

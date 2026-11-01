@@ -811,7 +811,11 @@ final class ExprTypeChecker {
                 driver.recordGenericCallConsumer(exprID, type: sema.types.anyType)
             }
             let type = sema.types.definitelyNonNullForm(of: operandType)
-            if let assertSubjectExpr = ast.arena.expr(exprID),
+            // Like `x as T` above, `x!!` narrows the local only when the assert
+            // itself runs. On a conditionally-evaluated `?.` tail the write
+            // must not leak past the conditional point (KUU-3943).
+            if !ctx.isConditionallyEvaluated,
+               let assertSubjectExpr = ast.arena.expr(exprID),
                case let .nameRef(assertVarName, _) = assertSubjectExpr,
                let assertLocal = locals[assertVarName],
                let reference = ctx.dataFlow.resolveStableReference(

@@ -1,0 +1,97 @@
+symbol fq=__local_0.u[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_1.ul[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_2.ub[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_3.us[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=__local_4.a[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_5.b[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_6.c[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_7.d[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_8.e[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_9.f[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_10.g[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_11.h[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_12.i[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_13.j[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_14.k[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_15.l[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_16.m[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_17.n[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=__local_18.o[kind=local;type=UInt;origin=fixture] kind=local vis=private flags=_ type=UInt
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=golden.sema.plus.$0.other[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.plus[kind=fun;recv=UInt;params=Int;ret=UInt;names=[other];origin=fixture] kind=function vis=public flags=operatorFunction sig=recv=UInt params=[Int] ret=UInt
+file funsigned_member_call_operands package=golden.sema
+  decl golden.sema.plus[kind=fun;recv=UInt;params=Int;ret=UInt;names=[other];origin=fixture] fun plus sym=golden.sema.plus[kind=fun;recv=UInt;params=Int;ret=UInt;names=[other];origin=fixture]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@6:44 this type=UInt ref=s-0
+expr e@6:51 name(other) type=Int ref=golden.sema.plus.$0.other[kind=vparam;origin=fixture]
+expr e@6:51#1 memberCall recv=e@6:51 callee=toUInt args=[] type=UInt
+expr e@6:44#1 binary(add) lhs=e@6:44 rhs=e@6:51#1 type=UInt
+expr e@9:19 uint(1) type=UInt
+expr e@9:5 localDecl u mutable=0 type=UInt init=e@9:19 type=Unit ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@10:21 ulong(1) type=ULong
+expr e@10:5 localDecl ul mutable=0 type=ULong init=e@10:21 type=Unit ref=__local_1.ul[kind=local;type=ULong;origin=fixture]
+expr e@11:21 uint(1) type=UByte
+expr e@11:5 localDecl ub mutable=0 type=UByte init=e@11:21 type=Unit ref=__local_2.ub[kind=local;type=UByte;origin=fixture]
+expr e@12:22 uint(1) type=UShort
+expr e@12:5 localDecl us mutable=0 type=UShort init=e@12:22 type=Unit ref=__local_3.us[kind=local;type=UShort;origin=fixture]
+expr e@14:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@14:20 uint(0) type=UInt
+expr e@14:13#1 memberCall recv=e@14:13 callee=plus args=[_:e@14:20] type=UInt
+expr e@14:5 localDecl a mutable=0 type=_ init=e@14:13#1 type=Unit ref=__local_4.a[kind=local;type=UInt;origin=fixture]
+expr e@15:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@15:20 name(ub) type=UByte ref=__local_2.ub[kind=local;type=UByte;origin=fixture]
+expr e@15:13#1 memberCall recv=e@15:13 callee=plus args=[_:e@15:20] type=UInt
+expr e@15:5 localDecl b mutable=0 type=_ init=e@15:13#1 type=Unit ref=__local_5.b[kind=local;type=UInt;origin=fixture]
+expr e@16:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@16:20 name(us) type=UShort ref=__local_3.us[kind=local;type=UShort;origin=fixture]
+expr e@16:13#1 memberCall recv=e@16:13 callee=plus args=[_:e@16:20] type=UInt
+expr e@16:5 localDecl c mutable=0 type=_ init=e@16:13#1 type=Unit ref=__local_6.c[kind=local;type=UInt;origin=fixture]
+expr e@17:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@17:20 ulong(2) type=ULong
+expr e@17:13#1 memberCall recv=e@17:13 callee=plus args=[_:e@17:20] type=ULong
+expr e@17:5 localDecl d mutable=0 type=_ init=e@17:13#1 type=Unit ref=__local_7.d[kind=local;type=ULong;origin=fixture]
+expr e@18:13 name(ul) type=ULong ref=__local_1.ul[kind=local;type=ULong;origin=fixture]
+expr e@18:21 uint(2) type=UInt
+expr e@18:13#1 memberCall recv=e@18:13 callee=plus args=[_:e@18:21] type=ULong
+expr e@18:5 localDecl e mutable=0 type=_ init=e@18:13#1 type=Unit ref=__local_8.e[kind=local;type=ULong;origin=fixture]
+expr e@19:13 name(ub) type=UByte ref=__local_2.ub[kind=local;type=UByte;origin=fixture]
+expr e@19:21 name(ub) type=UByte ref=__local_2.ub[kind=local;type=UByte;origin=fixture]
+expr e@19:13#1 memberCall recv=e@19:13 callee=plus args=[_:e@19:21] type=UInt
+expr e@19:5 localDecl f mutable=0 type=_ init=e@19:13#1 type=Unit ref=__local_9.f[kind=local;type=UInt;origin=fixture]
+expr e@20:13 name(us) type=UShort ref=__local_3.us[kind=local;type=UShort;origin=fixture]
+expr e@20:21 uint(1) type=UInt
+expr e@20:13#1 memberCall recv=e@20:13 callee=plus args=[_:e@20:21] type=UInt
+expr e@20:5 localDecl g mutable=0 type=_ init=e@20:13#1 type=Unit ref=__local_10.g[kind=local;type=UInt;origin=fixture]
+expr e@21:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@21:21 uint(1) type=UInt
+expr e@21:13#1 memberCall recv=e@21:13 callee=minus args=[_:e@21:21] type=UInt
+expr e@21:5 localDecl h mutable=0 type=_ init=e@21:13#1 type=Unit ref=__local_11.h[kind=local;type=UInt;origin=fixture]
+expr e@22:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@22:21 uint(2) type=UInt
+expr e@22:13#1 memberCall recv=e@22:13 callee=times args=[_:e@22:21] type=UInt
+expr e@22:5 localDecl i mutable=0 type=_ init=e@22:13#1 type=Unit ref=__local_12.i[kind=local;type=UInt;origin=fixture]
+expr e@23:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@23:19 uint(2) type=UInt
+expr e@23:13#1 memberCall recv=e@23:13 callee=div args=[_:e@23:19] type=UInt
+expr e@23:5 localDecl j mutable=0 type=_ init=e@23:13#1 type=Unit ref=__local_13.j[kind=local;type=UInt;origin=fixture]
+expr e@24:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@24:19 uint(2) type=UInt
+expr e@24:13#1 memberCall recv=e@24:13 callee=rem args=[_:e@24:19] type=UInt
+expr e@24:5 localDecl k mutable=0 type=_ init=e@24:13#1 type=Unit ref=__local_14.k[kind=local;type=UInt;origin=fixture]
+expr e@25:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@25:24 uint(2) type=UInt
+expr e@25:13#1 memberCall recv=e@25:13 callee=floorDiv args=[_:e@25:24] type=UInt
+expr e@25:5 localDecl l mutable=0 type=_ init=e@25:13#1 type=Unit ref=__local_15.l[kind=local;type=UInt;origin=fixture]
+expr e@26:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@26:19 uint(2) type=UInt
+expr e@26:13#1 memberCall recv=e@26:13 callee=mod args=[_:e@26:19] type=UInt
+expr e@26:5 localDecl m mutable=0 type=_ init=e@26:13#1 type=Unit ref=__local_16.m[kind=local;type=UInt;origin=fixture]
+expr e@27:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@27:20 call callee=e@27:20#1 args=[] type=Nothing call=kotlin.TODO[kind=fun;params=;ret=Nothing]
+expr e@27:13#1 memberCall recv=e@27:13 callee=plus args=[_:e@27:20] type=UInt
+expr e@27:5 localDecl n mutable=0 type=_ init=e@27:13#1 type=Unit ref=__local_17.n[kind=local;type=UInt;origin=fixture]
+expr e@28:13 name(u) type=UInt ref=__local_0.u[kind=local;type=UInt;origin=fixture]
+expr e@28:20 int(5) type=Int
+expr e@28:13#1 memberCall recv=e@28:13 callee=plus args=[_:e@28:20] type=UInt call=golden.sema.plus[kind=fun;recv=UInt;params=Int;ret=UInt;names=[other];origin=fixture]
+expr e@28:5 localDecl o mutable=0 type=_ init=e@28:13#1 type=Unit ref=__local_18.o[kind=local;type=UInt;origin=fixture]

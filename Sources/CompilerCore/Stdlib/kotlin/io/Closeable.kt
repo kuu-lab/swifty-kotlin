@@ -25,7 +25,7 @@ public interface Closeable : AutoCloseable {
 @KsSymbolName("__kk_closeable_create")
 public external fun Closeable(closeAction: () -> Unit): Closeable
 
-public fun <T : Closeable?, R> T.use(block: (T) -> R): R {
+public inline fun <T : Closeable?, R> T.use(block: (T) -> R): R {
     val resource = this
     val closeable: Closeable? = resource
     try {

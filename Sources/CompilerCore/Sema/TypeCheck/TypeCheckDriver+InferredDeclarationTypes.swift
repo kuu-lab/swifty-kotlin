@@ -33,6 +33,7 @@ extension TypeCheckDriver {
             declID: declaration.declaration,
             symbol: symbol,
             ctx: declaration.context,
+            initialLocals: declaration.initialLocals,
             solver: solver,
             diagnostics: diagnostics
         )

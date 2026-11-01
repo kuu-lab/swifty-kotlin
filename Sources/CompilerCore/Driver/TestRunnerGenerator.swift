@@ -261,7 +261,7 @@ final class TestRunnerGenerator {
             error("A test suite must be accessible from its file and must not be generic or inner.", suite.range)
         }
         guard !suite.isObject else { return }
-        let constructors = sema.symbols.children(ofFQName: symbol.fqName).compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .constructor }
+        let constructors = sema.symbols.declaredChildren(of: symbol.id).compactMap { sema.symbols.symbol($0) }.filter { $0.kind == .constructor }
         let usable = constructors.contains { constructor in
             guard visibility.isAccessible(constructor, fromFile: suite.file, enclosingClass: nil),
                   let signature = sema.symbols.functionSignature(for: constructor.id) else { return false }

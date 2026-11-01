@@ -232,6 +232,7 @@ final class InlineExpansionIndex {
         if originalBodies[symbol] == nil {
             originalBodies[symbol] = function
         }
+        calleeFactsCache[symbol] = nil
         return function
     }
 
@@ -427,5 +428,142 @@ final class InlineExpansionIndex {
         if allFunctionsBySymbol[symbol] != nil {
             allFunctionsBySymbol[symbol] = function
         }
+        calleeFactsCache[symbol] = nil
+    }
+
+    /// Body-derived facts shared by every expansion of the same callee.
+    /// `expandInlineCall` used to rescan these per call site; with dozens of
+    /// sites per stdlib callee that repeated ~7 full body scans per site
+    /// (KUU-3777). Keyed by symbol because expansion targets always come from
+    /// `inlineFunctionsBySymbol`; `recordExpansion` and
+    /// `materializeImportedBody` invalidate the entry when the body changes.
+    private var calleeFactsCache: [SymbolID: InlineCalleeFacts] = [:]
+
+    func facts(for function: KIRFunction, sema: SemaModule?) -> InlineCalleeFacts {
+        if let cached = calleeFactsCache[function.symbol] {
+            return cached
+        }
+        let facts = InlineCalleeFacts(function: function, sema: sema)
+        calleeFactsCache[function.symbol] = facts
+        return facts
+    }
+}
+
+/// Everything `expandInlineCall` derived from the callee body alone,
+/// computed once per body instead of once per call site. The call-site
+/// pieces (arguments, scratch labels, erased-ABI boxing) stay per site.
+struct InlineCalleeFacts {
+    /// Parameter-bound storage slots written again after their binding
+    /// `constValue` — a tailrec rebind means the callable can change between
+    /// iterations and the invoke must stay dynamic (KUU-3222).
+    var reboundParamSymbols: Set<SymbolID> = []
+    /// The body itself contains `nonLocalReturn` targeted at this function.
+    /// Combined at the call site with the pass-level `nonLocalReturnTargets`.
+    var bodyOwnsNonLocalReturn = false
+    /// `returnUnit`/`returnValue`/`returnIfEqual` terminators in the body.
+    var inlineReturnCount = 0
+    var hasReturnIfEqual = false
+    var hasValueReturn = false
+    /// Slots written from more than one place — branch merge points
+    /// (`&&`/`||`/`?:` arms filling a shared temporary).
+    var mergeSlotExprs: Set<KIRExprID> = []
+    var lambdaParamSymbols: Set<SymbolID> = []
+    var lambdaParamByCalleeName: [InternedString: SymbolID] = [:]
+    /// `InlineErasedLambdaABI.usesErasedLambdaABI` for this body:
+    /// an imported-library function taking function-typed parameters.
+    var usesErasedLambdaABI = false
+    /// Label IDs in body order (duplicates included) so each call site can
+    /// allocate scratch replacements in the original order without rescanning.
+    var bodyLabelIDs: [Int32] = []
+
+    init(function: KIRFunction, sema: SemaModule?) {
+        var storageSymbols: [KIRExprID: SymbolID] = [:]
+        for instruction in function.body {
+            guard case let .constValue(expr, .symbolRef(symbol)) = instruction else { continue }
+            storageSymbols[expr] = symbol
+        }
+        var rebound: Set<SymbolID> = []
+        var mergeWriteCounts: [KIRExprID: Int] = [:]
+        for instruction in function.body {
+            // Tailrec rebind detection: writes to parameter-bound storage,
+            // where the binding `constValue` itself is not a write.
+            let reboundWritten: [KIRExprID]
+            switch instruction {
+            case let .copy(_, to):
+                reboundWritten = [to]
+            case let .constValue(result, value):
+                if case let .symbolRef(bound) = value, storageSymbols[result] == bound {
+                    reboundWritten = []
+                } else {
+                    reboundWritten = [result]
+                }
+            case let .call(_, _, _, result, _, thrownResult, _, _),
+                 let .virtualCall(_, _, _, _, result, _, thrownResult, _):
+                reboundWritten = [result, thrownResult].compactMap { $0 }
+            case let .beginNonLocalReturnScope(value, _, function):
+                reboundWritten = function != nil ? [value] : []
+            default:
+                reboundWritten = InlineExprAliasing.definedResult(in: instruction).map { [$0] } ?? []
+            }
+            for expr in reboundWritten {
+                if let symbol = storageSymbols[expr] {
+                    rebound.insert(symbol)
+                }
+            }
+
+            // Merge-slot tracking uses the narrower write notion:
+            // the binding `constValue` counts here, while `thrownResult`
+            // and NLR-scope slots do not.
+            let mergeWritten: KIRExprID? = switch instruction {
+            case let .copy(_, to): to
+            case let .call(_, _, _, result, _, _, _, _): result
+            case let .virtualCall(_, _, _, _, result, _, _, _): result
+            case let .binary(_, _, _, result): result
+            case let .unary(_, _, result): result
+            case let .constValue(result, _): result
+            case let .nullAssert(_, result): result
+            case let .loadGlobal(result, _): result
+            default: nil
+            }
+            if let mergeWritten {
+                mergeWriteCounts[mergeWritten, default: 0] += 1
+            }
+
+            switch instruction {
+            case .returnUnit:
+                inlineReturnCount += 1
+            case .returnValue:
+                inlineReturnCount += 1
+                hasValueReturn = true
+            case .returnIfEqual:
+                inlineReturnCount += 1
+                hasReturnIfEqual = true
+            case let .nonLocalReturn(_, target):
+                if target == .function(function.symbol) {
+                    bodyOwnsNonLocalReturn = true
+                }
+            case let .label(id):
+                bodyLabelIDs.append(id)
+            default:
+                break
+            }
+        }
+        reboundParamSymbols = rebound
+        mergeSlotExprs = Set(mergeWriteCounts.filter { $0.value > 1 }.keys)
+
+        guard let sema else { return }
+        for param in function.params {
+            if case .functionType = sema.types.kind(of: param.type) {
+                lambdaParamSymbols.insert(param.symbol)
+                if let symbolInfo = sema.symbols.symbol(param.symbol) {
+                    lambdaParamByCalleeName[symbolInfo.name] = param.symbol
+                }
+            }
+        }
+        // Mirror of `InlineErasedLambdaABI.usesErasedLambdaABI`: the check is
+        // "imported-library function with at least one function-typed
+        // parameter", and `lambdaParamSymbols` is exactly that param set.
+        usesErasedLambdaABI = !lambdaParamSymbols.isEmpty
+            && sema.symbols.symbol(function.symbol)?.flags.contains(.importedLibrary) == true
     }
 }

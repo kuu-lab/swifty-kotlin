@@ -65,57 +65,69 @@ open class BaseScope: Scope {
     }
 
     open func lookup(_ name: InternedString) -> [SymbolID] {
-        let local = candidates(for: name)
-        if !local.isEmpty {
-            return local
+        symbols.attribution?.increment(.scopeLookupVisits)
+        return withAttributionTiming(.scopeLookup, attribution: symbols.attribution) {
+            let local = candidates(for: name)
+            if !local.isEmpty {
+                return local
+            }
+            return parent?.lookup(name) ?? []
         }
-        return parent?.lookup(name) ?? []
     }
 
     open func lookup(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
-        let local = candidates(for: name).filter(predicate)
-        if !local.isEmpty {
-            return local
+        symbols.attribution?.increment(.scopeLookupVisits)
+        return withAttributionTiming(.scopeLookup, attribution: symbols.attribution) {
+            let local = candidates(for: name).filter(predicate)
+            if !local.isEmpty {
+                return local
+            }
+            return parent?.lookup(name, matching: predicate) ?? []
         }
-        return parent?.lookup(name, matching: predicate) ?? []
     }
 
     open func lookupMergingChain(_ name: InternedString) -> [SymbolID] {
-        var result: [SymbolID] = []
-        var seen: Set<SymbolID> = []
-        var current: Scope? = self
-        while let scope = current as? BaseScope {
-            for sym in scope.candidates(for: name) where seen.insert(sym).inserted {
-                result.append(sym)
+        symbols.attribution?.increment(.scopeLookupVisits)
+        return withAttributionTiming(.scopeLookup, attribution: symbols.attribution) {
+            var result: [SymbolID] = []
+            var seen: Set<SymbolID> = []
+            var current: Scope? = self
+            while let scope = current as? BaseScope {
+                for sym in scope.candidates(for: name) where seen.insert(sym).inserted {
+                    result.append(sym)
+                }
+                current = scope.parent
             }
-            current = scope.parent
+            return result
         }
-        return result
     }
 
     open func lookupClassifier(_ name: InternedString, matching predicate: (SymbolID) -> Bool) -> [SymbolID] {
-        var current: BaseScope? = self
-        var reachedFileScope = false
-        var fileLevelMatches: [SymbolID] = []
-        while let scope = current {
-            let matches = scope.candidates(for: name).filter(predicate)
-            if !reachedFileScope && !(scope is FileScope) {
-                if !matches.isEmpty {
-                    return matches
-                }
-            } else {
-                reachedFileScope = true
-                if scope is ExplicitImportScope {
+        symbols.attribution?.increment(.scopeLookupVisits)
+        return withAttributionTiming(.scopeLookup, attribution: symbols.attribution) {
+            var current: BaseScope? = self
+            var reachedFileScope = false
+            var fileLevelMatches: [SymbolID] = []
+            while let scope = current {
+                let matches = scope.candidates(for: name).filter(predicate)
+                if !reachedFileScope && !(scope is FileScope) {
                     if !matches.isEmpty {
                         return matches
                     }
-                } else if fileLevelMatches.isEmpty {
-                    fileLevelMatches = matches
+                } else {
+                    reachedFileScope = true
+                    if scope is ExplicitImportScope {
+                        if !matches.isEmpty {
+                            return matches
+                        }
+                    } else if fileLevelMatches.isEmpty {
+                        fileLevelMatches = matches
+                    }
                 }
+                current = scope.parent as? BaseScope
             }
-            current = scope.parent as? BaseScope
+            return fileLevelMatches
         }
-        return fileLevelMatches
     }
 
     /// Include shadowed outer parameters: they remain rigid in nested bodies.
@@ -196,16 +208,19 @@ final class PackageMembersScope: BaseScope {
     }
 
     override func deferredCandidates(for name: InternedString) -> [SymbolID] {
-        var result: [SymbolID] = []
-        var seen: Set<SymbolID> = []
-        for source in memberSources {
-            for symbol in symbols.lookupAll(fqName: source.path + [name])
-            where symbols.symbol(symbol)?.kind != .package
-                && source.include(symbol) && seen.insert(symbol).inserted {
-                result.append(symbol)
+        symbols.attribution?.increment(.packageScopeQueries)
+        return withAttributionTiming(.deferredScopeCandidates, attribution: symbols.attribution) {
+            var result: [SymbolID] = []
+            var seen: Set<SymbolID> = []
+            for source in memberSources {
+                for symbol in symbols.lookupAll(fqName: source.path + [name])
+                where symbols.symbol(symbol)?.kind != .package
+                    && source.include(symbol) && seen.insert(symbol).inserted {
+                    result.append(symbol)
+                }
             }
+            return result
         }
-        return result
     }
 }
 /// The scope holding a file's single-type and alias imports. Kotlin ranks
@@ -245,37 +260,44 @@ final class ClassMemberScope: BaseScope {
     /// superclass in the chain. Interfaces therefore end the walk instead of
     /// being expanded (KUU-3637, KUU-3636).
     override func deferredCandidates(for name: InternedString) -> [SymbolID] {
-        var result: [SymbolID] = []
-        var seen: Set<SymbolID> = [ownerSymbol]
-        var queue = [ownerSymbol]
-        var index = 0
-        while index < queue.count {
-            let current = queue[index]
-            index += 1
-            for child in memberLookupSymbols.children(of: current) {
-                guard let info = memberLookupSymbols.symbol(child), info.name == name else { continue }
-                // Private members are not inherited: a `private` nested
-                // classifier declared on a supertype is not a member of this
-                // scope and must not shadow an accessible same-named
-                // declaration from an outer lexical scope (KUU-3798). The
-                // owner's own private members remain visible.
-                guard current == ownerSymbol || info.visibility != .private else { continue }
-                switch info.kind {
-                case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-                    if !result.contains(child) {
-                        result.append(child)
+        memberLookupSymbols.attribution?.increment(.memberScopeQueries)
+        return withAttributionTiming(.deferredScopeCandidates, attribution: memberLookupSymbols.attribution) {
+            var result: [SymbolID] = []
+            var seen: Set<SymbolID> = [ownerSymbol]
+            var queue = [ownerSymbol]
+            var index = 0
+            while index < queue.count {
+                let current = queue[index]
+                index += 1
+                let children = memberLookupSymbols.children(of: current)
+                memberLookupSymbols.attribution?.increment(
+                    .memberScopeChildrenScanned, by: children.count
+                )
+                for child in children {
+                    guard let info = memberLookupSymbols.symbol(child), info.name == name else { continue }
+                    // Private members are not inherited: a `private` nested
+                    // classifier declared on a supertype is not a member of this
+                    // scope and must not shadow an accessible same-named
+                    // declaration from an outer lexical scope (KUU-3798). The
+                    // owner's own private members remain visible.
+                    guard current == ownerSymbol || info.visibility != .private else { continue }
+                    switch info.kind {
+                    case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+                        if !result.contains(child) {
+                            result.append(child)
+                        }
+                    default:
+                        break
                     }
-                default:
-                    break
+                }
+                for superSymbol in memberLookupSymbols.directSupertypes(for: current)
+                    where seen.insert(superSymbol).inserted {
+                    guard memberLookupSymbols.symbol(superSymbol)?.kind == .class else { continue }
+                    queue.append(superSymbol)
                 }
             }
-            for superSymbol in memberLookupSymbols.directSupertypes(for: current)
-                where seen.insert(superSymbol).inserted {
-                guard memberLookupSymbols.symbol(superSymbol)?.kind == .class else { continue }
-                queue.append(superSymbol)
-            }
+            return result
         }
-        return result
     }
 }
 
