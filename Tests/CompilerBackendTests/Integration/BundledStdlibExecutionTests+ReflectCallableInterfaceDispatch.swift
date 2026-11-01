@@ -185,6 +185,52 @@ extension BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "0:x:0\n1:y:0\n0:a:0\n1:b:0\n0\n1\n",
+
+    /// KUU-4068: `KType` extends `KAnnotatedElement`, but the bundled KType
+    /// declaration omitted the supertype so `t.annotations` failed sema
+    /// (KSWIFTK-SEMA-0024). With resolution restored, runtime KType boxes
+    /// still have no `KAnnotatedElement` itable entry, so the read probes
+    /// `__kk_ktype_is_runtime` and answers an empty list, while source-backed
+    /// KType implementations keep their own `annotations` through interface
+    /// dispatch.
+    @Test
+    func testKTypeAnnotationsMixRuntimeBoxesAndUserImplementations() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlin.reflect.KAnnotatedElement
+            import kotlin.reflect.KClassifier
+            import kotlin.reflect.KType
+            import kotlin.reflect.KTypeProjection
+            import kotlin.reflect.typeOf
+
+            class UserType(
+                override val classifier: KClassifier?,
+                override val isMarkedNullable: Boolean
+            ) : KType {
+                override val arguments: List<KTypeProjection> get() = emptyList()
+                override val annotations: List<Annotation>
+                    get() = listOf(object : Annotation {}, object : Annotation {})
+            }
+
+            fun f(x: Int) = Unit
+
+            fun describe(element: KAnnotatedElement): Int = element.annotations.size
+
+            fun main() {
+                val t = ::f.parameters.first().type
+                println(t.annotations.size)
+                println(typeOf<Int>().annotations.size)
+                println(typeOf<List<String>>().annotations.size)
+                println(::f.returnType.annotations.size)
+                val u: KType = UserType(null, false)
+                println(u.annotations.size)
+                val tn: KType? = ::f.parameters.first().type
+                println(tn?.annotations?.size)
+                println(describe(t))
+                println(describe(u))
+            }
+            """,
+            expectedOutput: "0\n0\n0\n0\n2\n0\n0\n2\n",
             allowDefaultStdlibLibrary: false
         )
     }
