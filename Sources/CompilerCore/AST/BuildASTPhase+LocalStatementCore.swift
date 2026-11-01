@@ -709,11 +709,15 @@ extension BuildASTPhase {
                 elseExpr: nil,
                 range: range
             ))
-            return context.astArena.appendExpr(.blockExpr(
+            let block = context.astArena.appendExpr(.blockExpr(
                 statements: [receiverDecl, conditionalAssignment],
                 trailingExpr: nil,
                 range: range
             ))
+            // Like the call-result desugar below, the block is a compound
+            // assignment statement — never the value of a lambda/block body.
+            context.astArena.markCallResultCompoundAssignmentBlock(block)
+            return block
         }
 
         /// Preserve the call-result receiver without introducing writable storage:
