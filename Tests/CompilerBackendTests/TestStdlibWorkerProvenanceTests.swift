@@ -40,6 +40,19 @@ struct TestStdlibWorkerProvenanceTests {
     }
 
     @Test
+    func linuxExecutableMappingsStripKernelColumnPadding() {
+        let maps = """
+        55d0c0a00000-55d0c0b00000 r-xp 00001000 08:01 1234                       /home/runner/KSwiftKPackageTests.xctest
+        7f0000000000-7f0000001000 r-xp 00000000 08:01 5678                       /usr/lib/lib with spaces.so
+        7ffd00000000-7ffd00002000 r-xp 00000000 00:00 0                          [vdso]
+        """
+        #expect(TestStdlibCompilerIdentity.linuxExecutableMappings(maps) == [
+            "/home/runner/KSwiftKPackageTests.xctest",
+            "/usr/lib/lib with spaces.so",
+        ])
+    }
+
+    @Test
     func acceptsOnlyTheAttestedImageWorkerAndCompilerContext() throws {
         let fm = FileManager.default
         let root = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent(".build")
