@@ -33,6 +33,16 @@ public abstract class CoroutineDispatcher :
     public open override fun dispatch(context: CoroutineContext, block: Runnable) {
         __dispatcherDefaultExecute(block)
     }
+
+    /**
+     * Upstream `public open fun isDispatchNeeded` (KUU-3910): whether resuming a
+     * coroutine suspended in [context] must go through [dispatch]. The runtime
+     * answers `false` for `Dispatchers.Unconfined` and for immediate-capable
+     * dispatchers already executing on their queue (upstream `Main.immediate`
+     * on the main thread); every other dispatcher defaults to `true`.
+     */
+    public open fun isDispatchNeeded(context: CoroutineContext): Boolean =
+        __dispatcherIsDispatchNeeded(this)
 }
 
 // KUU-2687: dispatcher views resolve in the runtime — the returned handle is a
@@ -45,6 +55,9 @@ internal external fun __dispatcherLimitedParallelism(
 
 @KsSymbolName("__kk_dispatcher_is_unconfined")
 internal external fun __dispatcherIsUnconfined(dispatcher: CoroutineDispatcher): Boolean
+
+@KsSymbolName("__kk_dispatcher_is_dispatch_needed")
+internal external fun __dispatcherIsDispatchNeeded(dispatcher: CoroutineDispatcher): Boolean
 
 public fun CoroutineDispatcher.limitedParallelism(
     parallelism: Int, name: String? = null

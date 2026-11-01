@@ -677,11 +677,41 @@ extension NativeEmitter.FunctionEmissionContext {
 
         switch dispatch {
         case let .vtable(slot):
-            lookupFunction = declareExternalFunction(named: "kk_vtable_lookup", argumentCount: 2, appendThrownChannel: false)
-            lookupArgs = [
-                lookupReceiver,
-                bindings.constInt(int64Type, value: UInt64(slot)) ?? bindings.constInt(int64Type, value: 0)!,
-            ]
+            // Native dispatcher objects (tags and RuntimeDispatcher handles)
+            // have no Kotlin vtable, so a virtual
+            // `CoroutineDispatcher.isDispatchNeeded` call would trap in
+            // kk_vtable_lookup. The guarded lookup routes those receivers to
+            // the source default — which asks the runtime dispatcher — while
+            // Kotlin-defined dispatchers keep their vtable-resolved override
+            // (KUU-3910).
+            if let effectiveSymbol,
+               let symbols,
+               let member = symbols.symbol(effectiveSymbol),
+               interner.resolve(member.name) == "isDispatchNeeded",
+               let owner = symbols.parentSymbol(for: effectiveSymbol),
+               symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlinx", "coroutines", "CoroutineDispatcher"],
+               !member.flags.contains(.abstractType),
+               symbols.isSourceBackedSymbol(effectiveSymbol),
+               let defaultPointer = bindings.buildPtrToInt(
+                   builder, value: calleeFunction.value, type: int64Type,
+                   name: "dispatcher_needed_default_\(instructionIndex)"
+               )
+            {
+                lookupFunction = declareExternalFunction(
+                    named: "kk_vtable_lookup_or_default", argumentCount: 3, appendThrownChannel: false
+                )
+                lookupArgs = [
+                    lookupReceiver,
+                    bindings.constInt(int64Type, value: UInt64(slot)) ?? bindings.constInt(int64Type, value: 0)!,
+                    defaultPointer,
+                ]
+            } else {
+                lookupFunction = declareExternalFunction(named: "kk_vtable_lookup", argumentCount: 2, appendThrownChannel: false)
+                lookupArgs = [
+                    lookupReceiver,
+                    bindings.constInt(int64Type, value: UInt64(slot)) ?? bindings.constInt(int64Type, value: 0)!,
+                ]
+            }
         case let .itable(interfaceSlot, methodSlot):
             lookupFunction = declareExternalFunction(named: "kk_itable_lookup", argumentCount: 3, appendThrownChannel: false)
             lookupArgs = [

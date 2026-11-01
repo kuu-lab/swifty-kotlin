@@ -1982,6 +1982,32 @@ public func kk_dispatcher_is_unconfined(_ dispatcher: Int) -> Int {
     (runtimeDispatcherIfSupported(dispatcher)?.isUnconfined ?? false) ? 1 : 0
 }
 
+/// KUU-3910: backing for `CoroutineDispatcher.isDispatchNeeded` — upstream
+/// returns false for `Dispatchers.Unconfined` and for immediate-capable
+/// dispatchers already executing on their queue (`Main.immediate` on the main
+/// thread). An unresolved handle is a source-defined dispatcher object, whose
+/// upstream default is `true`.
+@_cdecl("__kk_dispatcher_is_dispatch_needed")
+public func kk_dispatcher_is_dispatch_needed(_ dispatcher: Int) -> Int {
+    guard let resolved = runtimeDispatcherIfSupported(dispatcher) else { return 1 }
+    if resolved.isUnconfined { return 0 }
+    if resolved.supportsImmediateDispatch, resolved.isCurrent { return 0 }
+    return 1
+}
+
+/// KUU-3910: guarded `kk_vtable_lookup` used for `CoroutineDispatcher`
+/// member calls that may reach a native dispatcher object. Tags and
+/// `RuntimeDispatcher` handles have no Kotlin vtable, so they resolve the
+/// compiler-supplied source default (which asks the runtime dispatcher);
+/// Kotlin-defined dispatchers keep their vtable entry so overrides still win.
+@_cdecl("kk_vtable_lookup_or_default")
+public func kk_vtable_lookup_or_default(_ receiver: Int, _ slot: Int, _ defaultMethod: Int) -> Int {
+    if runtimeDispatcherIfSupported(receiver) != nil {
+        return defaultMethod
+    }
+    return kk_vtable_lookup(receiver, slot)
+}
+
 /// A simple heap-allocated, `@unchecked Sendable` box used to pass an integer
 /// result from a `DispatchQueue.async` closure back to the waiting thread in
 /// the non-coroutine (semaphore) fallback path of `kk_with_context`.
