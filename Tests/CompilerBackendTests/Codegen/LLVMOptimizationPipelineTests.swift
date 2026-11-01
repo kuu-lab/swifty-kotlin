@@ -19,17 +19,34 @@ struct LLVMOptimizationPipelineTests {
         """
         let unoptimized = try compileIR(source, level: .O0)
         let optimized = try compileIR(source, level: level)
-        let hasUnoptimizedStackSlots = unoptimized.contains("alloca ")
-        let hasOptimizedStackSlots = optimized.contains("alloca ")
+        let hasUnoptimizedStackSlots = functionBody("answer", in: unoptimized).contains { $0.contains("alloca ") }
+        // The per-frame stack-overflow guard's marker slot (KUU-1384, #7897)
+        // escapes via ptrtoint by design, so it can never be promoted. Other
+        // functions in the module (bundled stdlib) keep escaping GC root slots.
+        let remainingStackSlots = functionBody("answer", in: optimized).filter { line in
+            line.contains("alloca ") && !line.contains("%soe_marker")
+        }
+        let hasOptimizedStackSlots = !remainingStackSlots.isEmpty
         #expect(hasUnoptimizedStackSlots, "The probe must exercise stack-slot promotion.")
-        #expect(!hasOptimizedStackSlots, "The new pass manager must eliminate temporary stack slots.")
+        #expect(!hasOptimizedStackSlots, "The new pass manager must eliminate temporary stack slots: \(remainingStackSlots)")
         // ABI lowering may retain an unbox call at the return boundary. LLVM
         // must still fold the arithmetic feeding that boundary to 42.
+        // The guard's throw edge merges the return into a phi.
         let foldsArithmetic = optimized.contains("ret i64 42")
             || optimized.contains("@kk_unbox_int(i64 42)")
+            || optimized.contains("phi i64 [ 42,")
         #expect(foldsArithmetic)
         let hasDataLayout = optimized.contains("target datalayout =")
         #expect(hasDataLayout)
+    }
+
+    private func functionBody(_ name: String, in ir: String) -> [Substring] {
+        let lines = ir.split(separator: "\n")
+        guard let start = lines.firstIndex(where: { $0.hasPrefix("define ") && $0.contains(name) }) else {
+            return []
+        }
+        let end = lines[start...].firstIndex { $0 == "}" } ?? lines.endIndex
+        return Array(lines[start ..< end])
     }
 
     @Test

@@ -58,22 +58,24 @@ struct CodegenBackendExperimentalTimeEdgeCasesTests {
             val negativeMark = source.markNow()
             println((negativeMark - mark4).inWholeNanoseconds)
 
-            // Both finite-boundary overflow directions must throw
+            // Both finite-boundary overflow directions must throw. Durations
+            // beyond +/-(2^62 - 1) ns are stored as millis since #7604, so stay
+            // within the exact nanosecond range and overflow on the third step.
             val positiveOverflow = TestTimeSource()
-            positiveOverflow += (Long.MAX_VALUE - 1L).nanoseconds
-            positiveOverflow += 1.nanoseconds
+            positiveOverflow += 4611686018427387903L.nanoseconds
+            positiveOverflow += 4611686018427387903L.nanoseconds
             try {
-                positiveOverflow += 1.nanoseconds
+                positiveOverflow += 4611686018427387903L.nanoseconds
                 println("missing-positive-overflow")
             } catch (e: IllegalStateException) {
                 println("positive-overflow")
             }
 
             val negativeOverflow = TestTimeSource()
-            negativeOverflow += (-9223372036854775807L).nanoseconds
-            negativeOverflow += (-1L).nanoseconds
+            negativeOverflow += (-4611686018427387903L).nanoseconds
+            negativeOverflow += (-4611686018427387903L).nanoseconds
             try {
-                negativeOverflow += (-1L).nanoseconds
+                negativeOverflow += (-4611686018427387903L).nanoseconds
                 println("missing-negative-overflow")
             } catch (e: IllegalStateException) {
                 println("negative-overflow")
