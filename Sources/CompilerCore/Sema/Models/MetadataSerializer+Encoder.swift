@@ -60,6 +60,25 @@ package final class MetadataEncoder {
                    symbols.actualSymbol(for: symbol.id) != nil {
                     return false
                 }
+                // KUU-4127: Bootstrap-registered stdlib stubs are re-registered
+                // by every source-injection compilation or restored from the
+                // stdlib artifact's own records, so they must never leak into
+                // user-library metadata. Inline dependency collection walks
+                // their type parameters transitively and lists them in
+                // `requiredNonPublicSymbols`; those stubs carry neither a
+                // declSite nor a sourceFileID, so the bundled-source exclusion
+                // below cannot catch them. Stdlib artifacts still export them
+                // via `includePrecomputedStdlibSynthesis`, and nominal/typeAlias
+                // shells stay exportable when synthetic nominal anchors are
+                // requested.
+                if !includePrecomputedStdlibSynthesis,
+                   !runtimeReflectionOnly,
+                   symbol.flags.contains(.precomputedStdlibSynthetic),
+                   !(includeSyntheticNominalAnchors
+                       && (Self.nominalKinds.contains(symbol.kind) || symbol.kind == .typeAlias))
+                {
+                    return false
+                }
                 let includeNonPublicSymbol = includeNonPublic || requiredNonPublicSymbols.contains(symbol.id)
                 if !includeNonPublicSymbol && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
