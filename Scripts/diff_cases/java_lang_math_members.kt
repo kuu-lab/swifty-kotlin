@@ -5,7 +5,8 @@ fun main() {
     println(Math.max(1, 2) == 2 && Math.min(1L, 2L) == 1L)
     println(Math.max(1.0f, 2.0f) == 2.0f && Math.min(1.0, 2.0) == 1.0)
     println(Math.sqrt(4.0) == 2.0 && Math.pow(2.0, 3.0) == 8.0)
-    println(Math.sin(0.0) == 0.0 && Math.cbrt(27.0) == 3.0)
+    // glibc cbrt(27.0) is 1 ulp above 3.0 while the JVM's is exact.
+    println(Math.sin(0.0) == 0.0 && Math.abs(Math.cbrt(27.0) - 3.0) < 1e-12)
     println(Math.round(2.5f) == 3 && Math.round(2.5) == 3L)
     println(Math.rint(2.5) == 2.0 && Math.rint(-2.5) == -2.0)
     println(Math.getExponent(1.0) == 0 && Math.getExponent(0.0f) == -127)
