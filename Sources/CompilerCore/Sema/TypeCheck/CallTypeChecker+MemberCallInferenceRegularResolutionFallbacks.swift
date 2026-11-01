@@ -221,6 +221,55 @@ extension CallTypeChecker {
                    isClassNameReceiver: isClassNameReceiver, locals: &locals
                ) { return propertyType }
             if resolved.diagnostic != nil {
+                // When flow typing proves the receiver is `Nothing?` (e.g.
+                // `x = null` inside a `?.`-call lambda), kotlinc reports
+                // UNSAFE_CALL whenever the same call would resolve against
+                // `Nothing`'s non-null counterpart. `Nothing` is a subtype of
+                // every declared receiver, so surviving candidates only fail
+                // because of the nullability — re-resolve them against the
+                // stripped receiver and remap the diagnostic to SEMA-0026
+                // (KUU-3957). Plain `T?` receivers are excluded on purpose:
+                // their failure can encode a rejected smart cast (captured or
+                // unstable writes), which KSwiftK reports as SEMA-0002 or
+                // SEMA-0022 instead of kotlinc's SMARTCAST_IMPOSSIBLE — that
+                // diagnostic choice must not be hijacked here.
+                let nullableReceiverProbeResolves: Bool = {
+                    guard diagnostic.code == "KSWIFTK-SEMA-0002",
+                          !safeCall,
+                          lookupReceiverType == sema.types.nullableNothingType
+                    else {
+                        return false
+                    }
+                    let probeArgs = zip(args, preparedArgs.argTypes).map { argument, type in
+                        let literal = integerArgumentValues(argument.expr, ctx: ctx)
+                        return CallArg.source(
+                            argument, type: type, callRange: range, ast: ctx.ast,
+                            signedIntegerLiteral: literal.signed,
+                            unsignedIntegerLiteral: literal.unsigned
+                        )
+                    }
+                    let probe = ctx.resolver.resolveCall(
+                        candidates: candidates,
+                        call: CallExpr(
+                            range: range,
+                            calleeName: calleeName,
+                            args: probeArgs,
+                            explicitTypeArgs: explicitTypeArgs,
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                        ),
+                        expectedType: nil,
+                        implicitReceiverType: sema.types.makeNonNullable(effectiveReceiverType),
+                        ctx: ctx.sema
+                    )
+                    if probe.chosenCallee != nil {
+                        return true
+                    }
+                    // A `Nothing` call-site receiver is a subtype of every
+                    // declared receiver, so all surviving candidates become
+                    // viable at once and resolution reports ambiguity — the
+                    // receiver's nullability is still what blocked the call.
+                    return probe.diagnostic?.code == "KSWIFTK-SEMA-0003"
+                }()
                 if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                     candidates: candidates,
                     receiverType: lookupReceiverType,
@@ -230,6 +279,12 @@ extension CallTypeChecker {
                     interner: interner
                 ) {
                     ctx.sema.diagnostics.emit(projectionDiagnostic)
+                } else if nullableReceiverProbeResolves {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
                 } else {
                     ctx.sema.diagnostics.emit(diagnostic)
                 }
