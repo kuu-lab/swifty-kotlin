@@ -92,6 +92,12 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let rendered = runtimeJobHandleDebugString(value) {
         return rendered
     }
+    // KUU-3947: accessor-backed callable-reference wrappers (KProperty /
+    // KFunction) carry a compiler-emitted description — render it like
+    // `runtimeElementToString` does instead of `<object 0x…>`.
+    if let description = runtimeFunctionDescription(value) {
+        return description
+    }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: raw))
     }

@@ -94,21 +94,29 @@ struct DataFlowState: Equatable {
         for symbol in locals.invalidatedVariableFacts {
             state.variables[symbol]?.valueFacts = DataFlowValueFacts()
         }
+        // Assignments update local bindings. Do not revive a stale fact from
+        // an enclosing branch when splitting flow again after such a write.
+        // Immutable locals diverge the same way: a `flowState` snapshot taken
+        // at a branch entry does not see narrowings applied inside the branch
+        // (smart casts, `require`/`check`-style contracts), so a single-type
+        // entry disagreeing with the local's current type is stale either way
+        // and must not overwrite the local when the split result is applied
+        // back (KUU-3928). Run before the facts merge so still-valid
+        // `variableFacts` are re-attached to a fresh entry instead of being
+        // dropped with the stale one.
+        for local in locals.values {
+            if let variable = state.variables[local.symbol],
+               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
+            {
+                state.variables.removeValue(forKey: local.symbol)
+            }
+        }
         for (symbol, facts) in locals.variableFacts {
             var variable = state.variables[symbol] ?? VariableFlowState(
                 possibleTypes: [], nullability: .nonNull, isStable: true
             )
             variable.valueFacts = variable.valueFacts.combining(facts)
             state.variables[symbol] = variable
-        }
-        // Assignments update local bindings. Do not revive a stale fact from
-        // an enclosing branch when splitting flow again after such a write.
-        for local in locals.values where local.isMutable {
-            if let variable = state.variables[local.symbol],
-               variable.possibleTypes.count == 1, !variable.possibleTypes.contains(local.type)
-            {
-                state.variables.removeValue(forKey: local.symbol)
-            }
         }
         return state
     }
@@ -166,6 +174,13 @@ final class DataFlowAnalyzer {
         guard let conditionExpr = ast.arena.expr(conditionID) else {
             return ConditionBranch(trueState: base, falseState: base)
         }
+        // `x!!` proves `x` non-null on every path where it is evaluated, so
+        // unconditionally-evaluated asserts narrow both outcome states. This
+        // is what publishes an `x!!` nested inside an `&&`/`||` operand into
+        // the branch bodies (KUU-3943).
+        let base = evaluatedNullAssertState(
+            conditionID, base: base, locals: locals, ast: ast, sema: sema, interner: interner
+        )
         switch conditionExpr {
         case .call, .memberCall:
             return ConditionBranch(
@@ -196,6 +211,101 @@ final class DataFlowAnalyzer {
             return branch
         default:
             return ConditionBranch(trueState: base, falseState: base)
+        }
+    }
+
+    /// Narrows every stable `x!!` operand that this condition evaluates
+    /// unconditionally. A `!!` that completes proves its operand non-null on
+    /// both the true and the false outcome path, so both branch states derive
+    /// from the returned state (KUU-3943).
+    private func evaluatedNullAssertState(
+        _ conditionID: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        var state = base
+        forEachUnconditionallyEvaluatedNullAssertOperand(in: conditionID, ast: ast) { operandID in
+            state = narrowNonNull(
+                operandID, base: state, locals: locals,
+                ast: ast, sema: sema, interner: interner
+            )
+        }
+        return state
+    }
+
+    /// Visits the operands of `!!` operators that are guaranteed to evaluate
+    /// whenever `id` itself evaluates. Short-circuit right-hand sides (`&&`,
+    /// `||`), the `?:` fallback, safe-call arguments, and nested branch bodies
+    /// stay conditional — `branchOnBinary` re-enters `branchOnCondition` for
+    /// the `&&`/`||` operands under the state where that side actually runs,
+    /// so they must not be widened into the unconditional set here.
+    private func forEachUnconditionallyEvaluatedNullAssertOperand(
+        in id: ExprID,
+        ast: ASTModule,
+        visit: (ExprID) -> Void
+    ) {
+        guard let expr = ast.arena.expr(id) else { return }
+        switch expr {
+        case let .nullAssert(operand, _):
+            visit(operand)
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: operand, ast: ast, visit: visit)
+        case let .memberCall(receiver, _, _, args, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+            for arg in args {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: arg.expr, ast: ast, visit: visit)
+            }
+        case let .safeMemberCall(receiver, _, _, _, _):
+            // `a?.f(x!!)` evaluates `x!!` only when `a` is non-null.
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+        case let .call(callee, _, args, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: callee, ast: ast, visit: visit)
+            for arg in args {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: arg.expr, ast: ast, visit: visit)
+            }
+        case let .indexedAccess(receiver, indices, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+            for index in indices {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: index, ast: ast, visit: visit)
+            }
+        case let .binary(op, lhsID, rhsID, _):
+            switch op {
+            case .logicalAnd, .logicalOr:
+                break
+            case .elvis:
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: lhsID, ast: ast, visit: visit)
+            default:
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: lhsID, ast: ast, visit: visit)
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: rhsID, ast: ast, visit: visit)
+            }
+        case let .unaryExpr(_, operand, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: operand, ast: ast, visit: visit)
+        case let .isCheck(operand, _, _, _), let .asCast(operand, _, _, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: operand, ast: ast, visit: visit)
+        case let .inExpr(lhsID, rhsID, _), let .notInExpr(lhsID, rhsID, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: lhsID, ast: ast, visit: visit)
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: rhsID, ast: ast, visit: visit)
+        case let .stringTemplate(parts, _):
+            for part in parts {
+                if case let .expression(partID) = part {
+                    forEachUnconditionallyEvaluatedNullAssertOperand(in: partID, ast: ast, visit: visit)
+                }
+            }
+        case let .whenExpr(subject, _, _, _):
+            if let subject {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: subject, ast: ast, visit: visit)
+            }
+        case let .ifExpr(nestedCondition, _, _, _):
+            forEachUnconditionallyEvaluatedNullAssertOperand(in: nestedCondition, ast: ast, visit: visit)
+        case let .callableRef(receiver, _, _):
+            // A bound callable reference evaluates its receiver.
+            if let receiver {
+                forEachUnconditionallyEvaluatedNullAssertOperand(in: receiver, ast: ast, visit: visit)
+            }
+        default:
+            break
         }
     }
 

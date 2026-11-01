@@ -43,9 +43,12 @@ func collectInheritedAbstractMembers(
     while !queue.isEmpty {
         let current = queue.removeFirst()
         guard visited.insert(current).inserted else { continue }
-        guard let currentSym = symbols.symbol(current) else { continue }
+        guard symbols.symbol(current) != nil else { continue }
 
-        let children = symbols.children(ofFQName: currentSym.fqName)
+        // `declaredChildren(of:)` is owner-exact: a same-fqName shadowed
+        // nominal (a source declaration over an imported library type) does
+        // not leak its member table into `current`'s requirements (KUU-3911).
+        let children = symbols.declaredChildren(of: current)
         for childID in children {
             guard let childSym = symbols.symbol(childID) else { continue }
             guard childSym.kind == .function || childSym.kind == .property else { continue }
@@ -148,7 +151,7 @@ private func delegatedProvidedMembers(
         var visitedOwners: Set<SymbolID> = []
         while let ownerInterface = ownerQueue.popLast() {
             guard visitedOwners.insert(ownerInterface).inserted,
-                  let ownerSym = symbols.symbol(ownerInterface)
+                  symbols.symbol(ownerInterface) != nil
             else { continue }
             for supertype in symbols.directSupertypes(for: ownerInterface)
             where symbols.symbol(supertype)?.kind == .interface {
@@ -185,9 +188,9 @@ private func delegatedProvidedMembers(
                 )
             }
 
-            for memberID in symbols.children(ofFQName: ownerSym.fqName) {
+            for memberID in symbols.declaredChildren(of: ownerInterface) {
                 guard let member = symbols.symbol(memberID),
-                      symbols.parentSymbol(for: memberID) == ownerInterface,
+                      symbols.parentSymbolIfKnown(for: memberID) == ownerInterface,
                       !member.flags.contains(.extensionMemberAlias)
                 else { continue }
                 let isMemberExtension = symbols.memberExtensionOwnerSymbol(for: memberID) != nil

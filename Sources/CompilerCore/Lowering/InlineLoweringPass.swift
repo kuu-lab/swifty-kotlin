@@ -76,6 +76,11 @@ struct InlinePendingCall {
 final class InlineLoweringPass: LoweringPass {
     var lambdaCaptureArgsByExpr: [KIRExprID: [KIRExprID]] = [:]
     var nonLocalReturnTargets: Set<KIRReturnTarget> = []
+    /// Runtime entry points that invoke a function value (`kk_function_invoke*`
+    /// / `kk_suspend_function_invoke*`), interned once per run so call-site
+    /// checks skip the per-call string resolve + 12-element array scan.
+    var functionInvokeCallees: Set<InternedString> = []
+    let stats = InlinePerfStats()
 
     static let name = "InlineLowering"
     static let requiredStage: KIRStage = .propertyLowered
@@ -106,12 +111,22 @@ final class InlineLoweringPass: LoweringPass {
             }
         })
         let unitType = ctx.sema?.types.unitType
+        functionInvokeCallees = Set([
+            "kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2",
+            "kk_function_invoke_3", "kk_function_invoke_4",
+            "kk_suspend_function_invoke", "kk_suspend_function_invoke_0",
+            "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3",
+            "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
+            "kk_suspend_function_invoke_6",
+        ].map { ctx.interner.intern($0) })
+        _ = stats.takeSplit()
         let index = InlineExpansionIndex(
             module: module,
             importedInlineFunctions: ctx.sema?.importedInlineFunctions ?? ImportedInlineFunctionStore(),
             reifiedEnumValuesCallee: ctx.interner.intern("$reifiedEnumValues")
         )
         index.retainRecursiveAutoInlineBodies(module: module, sema: ctx.sema)
+        stats.indexNanos += stats.takeSplit()
 
         // An inline body — or a lambda body that gets spliced into its caller —
         // can itself call a bodyless function. The snapshots predate any
@@ -124,6 +139,7 @@ final class InlineLoweringPass: LoweringPass {
             ctx: ctx,
             unitType: unitType
         )
+        stats.nestedBodylessNanos += stats.takeSplit()
 
         let inlineFunctionsByName = index.inlineFunctionsByName
 
@@ -137,11 +153,14 @@ final class InlineLoweringPass: LoweringPass {
                 unitType: unitType
             )
         }
+        stats.transformNanos += stats.takeSplit()
         // Calls to bodyless callees must never reach codegen: their bodies
         // are not emitted, so an unexpanded call dangles at link time.
         // Diagnose the residue deterministically instead of letting it
         // surface as a missing symbol in the linker.
         diagnoseMandatoryInlineResidue(module: module, index: index, ctx: ctx)
+        stats.residueNanos += stats.takeSplit()
+        stats.printIfEnabled()
         module.recordLowering(Self.name)
     }
 
@@ -156,6 +175,8 @@ final class InlineLoweringPass: LoweringPass {
         unitType: TypeID?,
         pending: [Int: InlinePendingCall],
         budget: InlineExpansionBudget) -> (body: [KIRInstruction], locations: [SourceRange?], didExpand: Bool, pending: [Int: InlinePendingCall]) {
+        stats.expandRounds += 1
+        stats.expandRoundInstructions += callerBody.count
         // Every label this round introduces into the caller comes from here,
         // starting above the labels the caller body already uses.
         var labels = InlineLabelAllocator(callerBody: callerBody)
@@ -173,6 +194,10 @@ final class InlineLoweringPass: LoweringPass {
         var aliases: [KIRExprID: KIRExprID] = [:]
         var didExpand = false
         var nextPending: [Int: InlinePendingCall] = [:]
+        // One O(body) scan answers every lambda-resolution and
+        // defined-expression query below for the whole round (KUU-3777).
+        let callerBodyIndex = InlineCallerBodyIndex(body: callerBody, stats: stats)
+        var emittedDefinedExprs = InlineDefinedExprIndex(stats: stats)
 
         for (instructionIndex, originalInstruction) in callerBody.enumerated() {
             let outputStart = loweredBody.instructions.count
@@ -224,14 +249,14 @@ final class InlineLoweringPass: LoweringPass {
             budget.ancestry = ancestry
 
             let resolvedArguments = arguments.map { InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }
-            retryInvoke = ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3", "kk_function_invoke_4", "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3", "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5", "kk_suspend_function_invoke_6"].contains(ctx.interner.resolve(callee))
+            retryInvoke = functionInvokeCallees.contains(callee)
             if retryInvoke,
                let callableExpr = resolvedArguments.first,
                let lambdaFunction = resolveLambdaFunction(
                    argExpr: callableExpr,
                    arena: module.arena,
                    allFunctionsBySymbol: index.allFunctionsBySymbol,
-                   callerBody: callerBody,
+                   callerBodyIndex: callerBodyIndex,
                    ctx: ctx
                )
             {
@@ -306,7 +331,7 @@ final class InlineLoweringPass: LoweringPass {
                         // slot no emitted instruction defines. Read it only
                         // when a definition actually survives in the body.
                         if let lambdaReturn = lambdaExpansion.returnedExpr.map({ InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }),
-                           exprIsDefined(lambdaReturn, in: loweredBody.instructions)
+                           emittedDefinedExprs.contains(lambdaReturn, in: loweredBody.instructions)
                         {
                             let finalExpr = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                 returnedExpr: lambdaReturn,
@@ -364,7 +389,10 @@ final class InlineLoweringPass: LoweringPass {
             // boxed representation chosen there; this expansion cannot
             // re-specialize them. Box primitive arguments that flow into an
             // erased parameter so the splice honours that representation.
-            let usesErasedABI = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
+            // Body-derived facts are shared across every site of this callee
+            // instead of being rescanned per expansion (KUU-3777).
+            let calleeFacts = index.facts(for: inlineTarget, sema: ctx.sema)
+            let usesErasedABI = calleeFacts.usesErasedLambdaABI
             guard !usesErasedABI || budget.permitsAdditional(
                 arguments.count, outputCount: loweredBody.instructions.count, arena: module.arena
             ) else {
@@ -386,7 +414,8 @@ final class InlineLoweringPass: LoweringPass {
                 allFunctionsBySymbol: index.allFunctionsBySymbol,
                 module: module,
                 ctx: ctx,
-                callerBody: callerBody,
+                callerBodyIndex: callerBodyIndex,
+                calleeFacts: calleeFacts,
                 labels: &labels,
                 expansionBudget: budget,
                 externalLoopAliases: pendingCall?.externalLoopAliases ?? []
@@ -539,7 +568,7 @@ final class InlineLoweringPass: LoweringPass {
                 // definition — the dead-code filter above drops its writers.
                 // Fall back to unit instead of reading an undefined slot.
                 if let returnedExpr = expansion.returnedExpr.map({ InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }),
-                   exprIsDefined(returnedExpr, in: loweredBody.instructions)
+                   emittedDefinedExprs.contains(returnedExpr, in: loweredBody.instructions)
                 {
                     let finalExpr = InlineErasedLambdaABI.unboxErasedInlineResultIfNeeded(
                         returnedExpr: returnedExpr,
@@ -578,30 +607,5 @@ final class InlineLoweringPass: LoweringPass {
             return (callerBody, callerLocations, false, [:])
         }
         return (loweredBody.instructions, loweredBody.instructionLocations, didExpand, nextPending)
-    }
-
-    /// Whether any instruction in `instructions` defines `expr` — including
-    /// `copy` destinations and `thrownResult` slots, matching the register-def
-    /// notion used by `KIRVerifier`'s undefined-read check.
-    func exprIsDefined(_ expr: KIRExprID, in instructions: [KIRInstruction]) -> Bool {
-        instructions.contains { instruction in
-            switch instruction {
-            case let .constValue(result, _):
-                result == expr
-            case let .binary(_, _, _, result), let .unary(_, _, result),
-                 let .nullAssert(_, result), let .loadGlobal(result, _):
-                result == expr
-            case let .call(_, _, _, result, _, thrownResult, _, _):
-                result == expr || thrownResult == expr
-            case let .virtualCall(_, _, _, _, result, _, thrownResult, _):
-                result == expr || thrownResult == expr
-            case let .copy(_, to):
-                to == expr
-            case let .beginNonLocalReturnScope(value, _, function):
-                function != nil && value == expr
-            default:
-                false
-            }
-        }
     }
 }

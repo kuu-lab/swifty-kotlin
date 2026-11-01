@@ -147,6 +147,21 @@ extension CallTypeChecker {
                     return true
                 }
             }
+            // Kotlin's unsigned arithmetic members (plus/minus/times/div/rem)
+            // only take unsigned operands — e.g. UInt.plus(UByte/UShort/UInt/
+            // ULong). Signed, floating-point, or nullable operands have no
+            // overload, so such calls must fall through to normal resolution
+            // instead of being bound here (KUU-3936). A non-null Nothing
+            // argument (`u.plus(TODO())`) still typechecks, matching kotlinc.
+            let unsignedOperandResultType = { (operand: TypeID) -> TypeID? in
+                if isUnsignedInteger(operand) {
+                    receiverForCheck == ulongType || operand == ulongType ? ulongType : uintType
+                } else if case .nothing(.nonNull) = sema.types.kind(of: operand) {
+                    receiverForCheck == ulongType ? ulongType : uintType
+                } else {
+                    nil
+                }
+            }
             let arithmeticOp: BinaryOp? = switch interner.resolve(calleeName) {
             case "plus": .add
             case "minus": .subtract
@@ -180,17 +195,18 @@ extension CallTypeChecker {
                     ).isEmpty ? sema.types.stringType : nil
                 } else if rejectsArithmeticOperand(rawRhsType) {
                     nil
+                } else if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rawRhsType) {
+                    // Signed/floating receivers have no unsigned-operand
+                    // overload either (`x.plus(1u)` fails in kotlinc).
+                    nil
                 } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rawRhsType == floatType {
                     floatType
                 } else if receiverForCheck == longType || rawRhsType == longType {
                     longType
-                } else if receiverForCheck == ulongType || rawRhsType == ulongType {
-                    ulongType
-                } else if receiverForCheck == uintType || rawRhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rawRhsType) {
-                    // UByte/UShort arithmetic promotes to UInt in Kotlin stdlib
-                    uintType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
                     && (rawRhsType == intType || rawRhsType == byteType || rawRhsType == shortType)
                 {
@@ -213,16 +229,16 @@ extension CallTypeChecker {
                     charType
                 } else if rejectsArithmeticOperand(rawRhsType) {
                     nil
+                } else if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rawRhsType) {
+                    nil
                 } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rawRhsType == floatType {
                     floatType
                 } else if receiverForCheck == longType || rawRhsType == longType {
                     longType
-                } else if receiverForCheck == ulongType || rawRhsType == ulongType {
-                    ulongType
-                } else if receiverForCheck == uintType || rawRhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rawRhsType) {
-                    uintType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType)
                     && (rawRhsType == intType || rawRhsType == byteType || rawRhsType == shortType) {
                     intType
@@ -238,16 +254,16 @@ extension CallTypeChecker {
                 // times/div/rem: small unsigned types promote to UInt (Kotlin stdlib)
                 let resultType: TypeID? = if rejectsArithmeticOperand(rawRhsType) {
                     nil
+                } else if isUnsignedInteger(receiverForCheck) {
+                    unsignedOperandResultType(rawRhsType)
+                } else if isUnsignedInteger(rawRhsType) {
+                    nil
                 } else if receiverForCheck == doubleType || rawRhsType == doubleType {
                     doubleType
                 } else if receiverForCheck == floatType || rawRhsType == floatType {
                     floatType
                 } else if receiverForCheck == longType || rawRhsType == longType {
                     longType
-                } else if receiverForCheck == ulongType || rawRhsType == ulongType {
-                    ulongType
-                } else if receiverForCheck == uintType || rawRhsType == uintType || isSmallUnsigned(receiverForCheck) || isSmallUnsigned(rawRhsType) {
-                    uintType
                 } else if (receiverForCheck == intType || receiverForCheck == byteType || receiverForCheck == shortType),
                     rawRhsType == intType || rawRhsType == byteType || rawRhsType == shortType
                 {

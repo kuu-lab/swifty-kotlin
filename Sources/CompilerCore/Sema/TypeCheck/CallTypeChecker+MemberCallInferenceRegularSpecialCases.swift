@@ -72,7 +72,7 @@ extension CallTypeChecker {
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
-           let propResult = isSuperCall
+           let boundPropResult = isSuperCall
                ? driver.helpers.lookupMemberProperty(
                    named: calleeName,
                    // Property reads are resolved from the receiver's static type.
@@ -83,6 +83,23 @@ extension CallTypeChecker {
                )
                : memberProperty
         {
+            // An expression-bodied function inferred ahead of source order
+            // can still see a member property's header `Any?` placeholder
+            // through an explicit receiver (`this.data`). Resolve it on
+            // demand like the implicit-receiver path does (KUU-3944).
+            var propResult = boundPropResult
+            if driver.pendingPropertyTypes.contains(propResult.symbol) {
+                driver.resolveInferredPropertyType(for: propResult.symbol)
+                if !driver.pendingPropertyTypes.contains(propResult.symbol),
+                   let refreshed = driver.helpers.lookupMemberProperty(
+                       named: calleeName,
+                       receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
+                       sema: sema
+                   )
+                {
+                    propResult = refreshed
+                }
+            }
             if let propSymbol = sema.symbols.symbol(propResult.symbol),
                !ctx.visibilityChecker.isAccessible(
                    propSymbol,

@@ -742,4 +742,48 @@ struct RuntimeKClassCastAndMembersTests {
             #expect(thrown != 0)
         }
     }
+
+    // KUU-3947: builtin memberProperties / memberFunctions handles carry the
+    // JVM-style `val|fun kotlin.Owner.name(P): kotlin.T` description so the
+    // println path never renders `<object 0x…>`.
+    @Test func builtinMemberHandlesPrintQualifiedSignatures() throws {
+        let stringClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+        let stringProperties = try runtimeListElements(from: __kk_kclass_member_properties(stringClass))
+        #expect(stringProperties.map(runtimeRenderAnyForPrint) == [
+            "val kotlin.String.length: kotlin.Int",
+        ])
+        let stringFunctions = try runtimeListElements(from: __kk_kclass_member_functions(stringClass))
+        #expect(stringFunctions.map(runtimeRenderAnyForPrint) == [
+            "fun kotlin.String.get(kotlin.Int): kotlin.Char",
+            "fun kotlin.String.toString(): kotlin.String",
+            "fun kotlin.String.compareTo(kotlin.String): kotlin.Int",
+            "fun kotlin.String.equals(kotlin.Any?): kotlin.Boolean",
+            "fun kotlin.String.hashCode(): kotlin.Int",
+            "fun kotlin.String.plus(kotlin.Any?): kotlin.String",
+            "fun kotlin.String.subSequence(kotlin.Int, kotlin.Int): kotlin.CharSequence",
+        ])
+
+        let uintClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.uintBase), 0)
+        let uintProperties = try runtimeListElements(from: __kk_kclass_member_properties(uintClass))
+        #expect(uintProperties.map(runtimeRenderAnyForPrint) == [
+            "val kotlin.UInt.data: kotlin.Int",
+        ])
+
+        let intArrayToken = Int(
+            RuntimeTypeTokenEncoding.nominalBase
+                | (runtimeStableNominalTypeID(fqName: "kotlin.IntArray") << RuntimeTypeTokenEncoding.payloadShift)
+        )
+        let intArrayClass = __kk_kclass_create(intArrayToken, 0)
+        let intArrayProperties = try runtimeListElements(from: __kk_kclass_member_properties(intArrayClass))
+        #expect(intArrayProperties.map(runtimeRenderAnyForPrint) == [
+            "val kotlin.IntArray.size: kotlin.Int",
+        ])
+
+        let intClass = __kk_kclass_create(Int(RuntimeTypeTokenEncoding.intBase), 0)
+        let intFunctions = try runtimeListElements(from: __kk_kclass_member_functions(intClass))
+        let renderedIntFunctions = intFunctions.map(runtimeRenderAnyForPrint)
+        #expect(renderedIntFunctions.contains("fun kotlin.Int.plus(kotlin.Int): kotlin.Int"))
+        #expect(renderedIntFunctions.contains("fun kotlin.Int.equals(kotlin.Any?): kotlin.Boolean"))
+        #expect(renderedIntFunctions.allSatisfy { !$0.hasPrefix("<object") })
+    }
 }
