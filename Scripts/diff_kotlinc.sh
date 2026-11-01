@@ -894,10 +894,10 @@ while IFS= read -r test_case; do
   # Non-native backend lanes only need toolchains for marked cases; the wasm
   # lane prebuilds nothing (bundled stdlib compiles inline per case), while
   # the jvm lane needs its shared stdlib jar.
+  if backend_lane_skips_case "$test_case"; then
+    continue
+  fi
   if [[ "$DIFF_BACKEND" != "native" ]]; then
-    if backend_lane_skips_case "$test_case"; then
-      continue
-    fi
     REFERENCE_CASES_REQUIRED=1
     [[ "$DIFF_BACKEND" == "jvm" ]] && JVM_STDLIB_REQUIRED=1
     break

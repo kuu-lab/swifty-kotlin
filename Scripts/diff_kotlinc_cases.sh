@@ -187,13 +187,28 @@ case_supports_backend() {
   grep -Eq "^[[:space:]]*//[[:space:]]*DIFF_${backend^^}\b" "$kt_file"
 }
 
+# `// DIFF_SKIP_NATIVE: <reason>` keeps a backend-lane case (e.g. a
+# `// DIFF_JVM` fixture for JVM-only reflection surface) out of the native
+# lane, where its kotlinc reference is unreachable by design. Unlike
+# `// SKIP-DIFF` it leaves the other lanes running the case. Named single
+# files are skipped too, since a native run can never pass;
+# --force-run-skipped still runs them.
+case_skips_native_lane() {
+  local kt_file="$1"
+  [[ "$FORCE_RUN_SKIPPED" -eq 1 ]] && return 1
+  grep -Eq '^[[:space:]]*//[[:space:]]*DIFF_SKIP_NATIVE\b' "$kt_file"
+}
+
 # In a non-native backend lane, directory sweeps only run marked cases;
 # an explicitly named single file always runs so one-off backend checks do
 # not need a directive edit. Candidate-only variants stay native-only: they
 # run through run_candidate_only.sh's own native pipeline.
 backend_lane_skips_case() {
   local kt_file="$1"
-  [[ "$DIFF_BACKEND" == "native" ]] && return 1
+  if [[ "$DIFF_BACKEND" == "native" ]]; then
+    case_skips_native_lane "$kt_file"
+    return
+  fi
   if is_candidate_only_from_source_case "$kt_file" \
     || is_pr_candidate_only_case "$kt_file" \
     || is_candidate_only_case "$kt_file" \

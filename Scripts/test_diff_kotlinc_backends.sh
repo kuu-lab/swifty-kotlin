@@ -171,6 +171,29 @@ grep -qF "Backend: native" "$OUTPUT_LOG" || fail "native run should report Backe
 grep -qF "Summary: total=3 failed=0 passed=3 skipped=0" "$OUTPUT_LOG" || fail "native sweep should run all 3 cases"
 grep -qF -- "--stdlib-library" "$KSWIFTC_LOG" || fail "native candidate compile should use --stdlib-library"
 
+# --- DIFF_SKIP_NATIVE keeps a JVM-lane case out of the native lane only ---
+NATIVE_SKIP_CASES_DIR="$TEMP_DIR/native_skip_cases"
+mkdir -p "$NATIVE_SKIP_CASES_DIR"
+cp "$CASES_DIR/unmarked.kt" "$NATIVE_SKIP_CASES_DIR/unmarked.kt"
+cat >"$NATIVE_SKIP_CASES_DIR/jvm_lane_only.kt" <<'KOTLIN'
+// DIFF_JVM
+// DIFF_SKIP_NATIVE: needs JVM-only stdlib surface
+fun main() { println("case-ok") }
+KOTLIN
+run_diff env DIFF_STDLIB_LIBRARY="$TEMP_DIR/native_stdlib" bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel "$NATIVE_SKIP_CASES_DIR" \
+  || fail "native sweep with a DIFF_SKIP_NATIVE case should pass"
+grep -qF "SKIP $NATIVE_SKIP_CASES_DIR/jvm_lane_only.kt (DIFF_BACKEND=native)" "$OUTPUT_LOG" || fail "DIFF_SKIP_NATIVE case should SKIP in native lane"
+grep -qF "Summary: total=1 failed=0 passed=1 skipped=1" "$OUTPUT_LOG" || fail "native sweep should run 1 case, skip the DIFF_SKIP_NATIVE one"
+run_diff env DIFF_STDLIB_LIBRARY="$TEMP_DIR/native_stdlib" bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel "$NATIVE_SKIP_CASES_DIR/jvm_lane_only.kt" \
+  || fail "single DIFF_SKIP_NATIVE file should report a skip, not fail"
+grep -qF "Summary: total=0 failed=0 passed=0 skipped=1" "$OUTPUT_LOG" || fail "single DIFF_SKIP_NATIVE file should be skipped in native lane"
+run_diff env DIFF_STDLIB_LIBRARY="$TEMP_DIR/native_stdlib" bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel --force-run-skipped "$NATIVE_SKIP_CASES_DIR/jvm_lane_only.kt" \
+  || fail "--force-run-skipped should run a DIFF_SKIP_NATIVE file natively"
+grep -qF "Summary: total=1 failed=0 passed=1 skipped=0" "$OUTPUT_LOG" || fail "--force-run-skipped should override DIFF_SKIP_NATIVE"
+run_diff env DIFF_BACKEND=jvm bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel "$NATIVE_SKIP_CASES_DIR" \
+  || fail "jvm sweep with a DIFF_SKIP_NATIVE case should pass"
+grep -qF "PASS $NATIVE_SKIP_CASES_DIR/jvm_lane_only.kt" "$OUTPUT_LOG" || fail "DIFF_SKIP_NATIVE case should still PASS in jvm lane"
+
 # --- jvm lane runs only marked cases through jar pipeline ---
 : >"$KOTLINC_LOG"; : >"$KSWIFTC_LOG"; : >"$STUB_LOG"
 run_diff env DIFF_BACKEND=jvm bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel "$CASES_DIR" \

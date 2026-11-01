@@ -1,4 +1,9 @@
 // DIFF_JVM
+// DIFF_SKIP_NATIVE: JVM-lane fixture for the bundled JVM reflection surface
+// (#12015). `kotlin.reflect.full.IllegalPropertyDelegateAccessException` only
+// exists in Stdlib/jvm, and native `getDelegate()` deliberately answers the
+// delegate without JVM accessibility checks (KUU-3694), so the
+// `private-delegate=` line cannot match kotlinc on native.
 import kotlin.reflect.KMutableProperty0
 import kotlin.reflect.KMutableProperty
 import kotlin.reflect.KProperty
