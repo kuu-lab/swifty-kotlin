@@ -70,7 +70,6 @@ extension DataFlowSemaPhase {
             guard case let .propertyDecl(property) = decl else { return nil }
             return property
         }, by: \.range)
-
         for expectSym in expects {
             // Optional expectation applies to the annotation class and its members.
             var expectationOwner: SymbolID? = expectSym.id
@@ -121,8 +120,7 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     sourceDeclarations: sourceDeclarations,
-                    allowDeferredInferredActualTypes: true
-                )
+                    allowDeferredInferredActualTypes: true                )
             }
 
             let rendered = expectSym.fqName
@@ -193,6 +191,81 @@ extension DataFlowSemaPhase {
                 types: types
             )
         }
+    }
+
+    func validateInferredExpectActualPropertyTypes(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        let inferredPropertySymbols = propertySymbols(ast: ast, symbols: symbols) { $0.type == nil }
+        guard !inferredPropertySymbols.isEmpty else { return }
+
+        for expect in symbols.allSymbols() where expect.flags.contains(.expectDeclaration)
+            && (expect.kind == .property || expect.kind == .field)
+        {
+            guard let actualID = symbols.actualSymbol(for: expect.id),
+                  inferredPropertySymbols.contains(actualID),
+                  let actual = symbols.symbol(actualID),
+                  let expectType = symbols.propertyType(for: expect.id),
+                  let actualType = symbols.propertyType(for: actualID),
+                  expectType != types.errorType,
+                  actualType != types.errorType
+            else {
+                continue
+            }
+
+            let typeParamMapping = makeOwnerTypeParameterMapping(
+                expect: expect,
+                actual: actual,
+                symbols: symbols,
+                types: types
+            )
+            guard expect.flags.contains(.mutable) == actual.flags.contains(.mutable),
+                  expectActualOptionalTypeMatch(
+                      symbols.extensionPropertyReceiverType(for: expect.id),
+                      symbols.extensionPropertyReceiverType(for: actual.id),
+                      typeParamMapping: typeParamMapping,
+                      symbols: symbols,
+                      types: types
+                  ),
+                  !expectActualTypesMatch(
+                      expectType,
+                      actualType,
+                      typeParamMapping: typeParamMapping,
+                      symbols: symbols,
+                      types: types
+                  )
+            else {
+                continue
+            }
+
+            let rendered = expect.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            diagnostics.error(
+                "KSWIFTK-MPP-UNRESOLVED",
+                "Missing matching 'actual' declaration for expect symbol '\(rendered)'. The inferred actual property type is incompatible.",
+                range: expect.declSite
+            )
+        }
+    }
+
+    private func propertySymbols(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        where predicate: (PropertyDecl) -> Bool
+    ) -> Set<SymbolID> {
+        Set(ast.arena.declarations().compactMap { declaration in
+            guard case let .propertyDecl(property) = declaration,
+                  predicate(property)
+            else {
+                return nil
+            }
+            return symbols.symbols(atDeclSite: property.range).first {
+                symbols.symbol($0)?.kind == .property
+            }
+        })
     }
 
     private func inheritAbstractActualMemberFlags(
@@ -381,6 +454,7 @@ extension DataFlowSemaPhase {
     private func areExpectActualCompatible(
         expect: SemanticSymbol,
         actual: SemanticSymbol,
+        allowInferredActualPropertyType: Bool = false,
         symbols: SymbolTable,
         types: TypeSystem,
         sourceDeclarations: ExpectActualSourceDeclarations = ExpectActualSourceDeclarations(),
@@ -493,10 +567,9 @@ extension DataFlowSemaPhase {
             return allowDeferredInferredActualTypes
                 && isDeferredInferredActualPropertyType(
                     actual,
-                    propertiesByRange: sourceDeclarations.propertiesByRange,
-                    symbols: symbols,
+                    propertiesByRange: sourceDeclarations.propertiesByRange,                    symbols: symbols,
                     types: types
-                )
+                ))
 
         case .class, .interface, .object, .enumClass, .annotationClass:
             let expectTPs = types.nominalTypeParameterSymbols(for: expect.id)

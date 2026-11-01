@@ -986,6 +986,79 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3921: expected declarations stay bodyless when paired with actual
+    /// members, and the actual open property remains overridable by subclasses.
+    @Test func testExpectMembersPairedWithActualImplementations() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect class E {
+                companion object {
+                    val ZERO: E
+                    internal val MIN: E
+                }
+            }
+            expect class ConstructorOwner(x: Int) {
+                constructor()
+            }
+            expect open class TimeZone {
+                val id: Int
+            }
+            """,
+            """
+            package sample.kmp
+            actual class E {
+                actual companion object {
+                    actual val ZERO = E()
+                    internal actual val MIN = E()
+                }
+            }
+            actual class ConstructorOwner actual constructor(x: Int) {
+                actual constructor() : this(0) {}
+            }
+            actual open class TimeZone {
+                actual open val id: Int = 0
+            }
+            class ChildTimeZone : TimeZone() {
+                override val id: Int = 1
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expect members must remain declaration-only while actual members provide implementations: \(errors)"
+        )
+    }
+
+    @Test func testInferredActualPropertyTypeMustMatchExpect() throws {
+        let ctx = makeContextFromSources([
+            """
+            package sample.kmp
+            expect class E {
+                companion object { val ZERO: E }
+            }
+            """,
+            """
+            package sample.kmp
+            actual class E {
+                actual companion object { actual val ZERO = 0 }
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let unresolved = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-MPP-UNRESOLVED"
+        }
+        #expect(
+            unresolved.count == 1,
+            "An inferred actual property type must be checked against its expect declaration: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     /// KUU-3774: the expect exemption propagates through nested nominal
     /// members — a class/object nested inside an `expect class` declares
     /// signatures only.

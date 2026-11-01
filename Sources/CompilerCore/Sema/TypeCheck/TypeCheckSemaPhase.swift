@@ -481,6 +481,13 @@ private final class TypeCheckWork: @unchecked Sendable {
 
     func run() throws {
         try driver.typeCheckModule(fileScopes: fileScopes, files: files, frontendJobs: frontendJobs)
+        DataFlowSemaPhase().validateInferredExpectActualPropertyTypes(
+            ast: driver.ast,
+            symbols: driver.sema.symbols,
+            types: driver.sema.types,
+            diagnostics: driver.diagnostics,
+            interner: driver.interner
+        )
         ValPropertyInitializationChecker(
             ast: driver.ast, sema: driver.sema, interner: driver.interner,
             sourceManager: driver.sourceManager
