@@ -131,13 +131,6 @@ extension CallTypeChecker {
                     sema.diagnostics.emit(diagnostic)
                 }
             }
-            if let propSymbol = sema.symbols.symbol(propResult.symbol),
-               !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
-            {
-                driver.helpers.emitVisibilityError(for: propSymbol, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
-
             // Kotlin requires `?.`/`!!` to call a nullable function value,
             // so a `f: ((Int) -> Int)?` property must not take this arm — a
             // null function object would reach kk_function_invoke (KUU-644).
@@ -146,8 +139,33 @@ extension CallTypeChecker {
             } else {
                 false
             }
+            let callableType = inferFunctionTypeOrError(from: propResult.type, sema: sema)
+            let invokeName = interner.intern("invoke")
+            // The invoke-operator fallback only runs where the direct
+            // callable-value arm cannot — a non-function type, or a nullable
+            // function value that must go through `invoke` resolution.
+            let invokeCandidates: [SymbolID] = callableType == nil || isNullableFunctionValue
+                ? nominalCallablePropertyInvokeCandidates(
+                    propResult.type, request: request, argTypes: argTypes, locals: invocationLocals
+                )
+                : []
+            // A property joins `receiver.name(args)` resolution only when its
+            // type can actually be invoked — a function type or a type with an
+            // `invoke` operator. kotlinc reports `a.f()` on a private
+            // `val f: Int` as "cannot be invoked", not as a private-access
+            // error, and resolves `x.next()` to a same-named member function
+            // when `next` is a private non-callable property — so an
+            // uninvocable member must not shadow the real member-call
+            // diagnostic here (KUU-4062).
+            if callableType != nil || !invokeCandidates.isEmpty,
+               let propSymbol = sema.symbols.symbol(propResult.symbol),
+               !ctx.visibilityChecker.isAccessible(propSymbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+            {
+                driver.helpers.emitVisibilityError(for: propSymbol, name: calleeStr, range: range, diagnostics: ctx.sema.diagnostics)
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             if !isNullableFunctionValue,
-               let callableType = inferFunctionTypeOrError(from: propResult.type, sema: sema) {
+               let callableType {
                 if let callableResult = inferCallableValueInvocation(
                     id,
                     calleeType: callableType,
@@ -167,11 +185,6 @@ extension CallTypeChecker {
                 }
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
             }
-
-            let invokeName = interner.intern("invoke")
-            let invokeCandidates = nominalCallablePropertyInvokeCandidates(
-                propResult.type, request: request, argTypes: argTypes, locals: invocationLocals
-            )
 
             if !invokeCandidates.isEmpty {
                 let prepared = prepareCallArguments(
@@ -1929,10 +1942,47 @@ extension CallTypeChecker {
         } else {
             [memberLookupType]
         }
+        // `x.f()` can only target a callable member — a private function, or
+        // a private property whose type is invocable (function type or an
+        // accessible `invoke` operator). kotlinc reports `a.f()` on a private
+        // `val f: Int` as "cannot be invoked", not as a private-access error,
+        // so a non-callable property must not produce the visibility
+        // diagnostic in call position (KUU-4062). Property reads — which
+        // reach this probe when the private member was filtered out of
+        // qualified lookup — keep reporting any same-named private member
+        // (KUU-3762).
+        let isExplicitCallShape = ast.arena.isExplicitCall(id) || !args.isEmpty
         if let privateMember = driver.helpers.inaccessiblePrivateQualifiedMember(
             named: calleeName,
             probeReceiverTypes: privateMemberProbeTypes,
-            ctx: ctx
+            ctx: ctx,
+            matching: { member in
+                // Reads and private functions stay reportable as before; only
+                // a property/field in explicit-call position additionally
+                // needs an invocable type to count as the call target.
+                guard isExplicitCallShape,
+                      member.kind == .property || member.kind == .field
+                else {
+                    return true
+                }
+                guard let ownerSymbol = sema.symbols.parentSymbol(for: member.id),
+                      let declaredType = sema.symbols.propertyType(for: member.id)
+                else {
+                    return false
+                }
+                let memberType = driver.helpers.resolveMemberPropertyType(
+                    declaredType,
+                    receiverType: memberLookupType,
+                    ownerSymbol: ownerSymbol,
+                    sema: sema
+                )
+                if self.inferFunctionTypeOrError(from: memberType, sema: sema) != nil {
+                    return true
+                }
+                return !self.nominalCallablePropertyInvokeCandidates(
+                    memberType, request: request, argTypes: argTypes, locals: locals
+                ).isEmpty
+            }
         ) {
             driver.helpers.emitVisibilityError(
                 for: privateMember,

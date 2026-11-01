@@ -1022,7 +1022,8 @@ extension TypeCheckHelpers {
     func privateMemberSymbolInHierarchy(
         named calleeName: InternedString,
         receiverType: TypeID,
-        sema: SemaModule
+        sema: SemaModule,
+        matching predicate: (SemanticSymbol) -> Bool = { _ in true }
     ) -> SemanticSymbol? {
         var ownerQueue = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
         var visited: Set<SymbolID> = []
@@ -1038,7 +1039,8 @@ extension TypeCheckHelpers {
                 guard let member = sema.symbols.symbol(candidate),
                       sema.symbols.parentSymbol(for: candidate) == owner,
                       member.visibility == .private,
-                      member.kind == .function || member.kind == .property || member.kind == .field
+                      member.kind == .function || member.kind == .property || member.kind == .field,
+                      predicate(member)
                 else {
                     continue
                 }
@@ -1132,13 +1134,15 @@ extension TypeCheckHelpers {
     func inaccessiblePrivateQualifiedMember(
         named calleeName: InternedString,
         probeReceiverTypes: [TypeID],
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        matching predicate: (SemanticSymbol) -> Bool = { _ in true }
     ) -> SemanticSymbol? {
         for probeType in probeReceiverTypes {
             guard let member = privateMemberSymbolInHierarchy(
                 named: calleeName,
                 receiverType: probeType,
-                sema: ctx.sema
+                sema: ctx.sema,
+                matching: predicate
             ), !ctx.visibilityChecker.isAccessible(
                 member,
                 fromFile: ctx.currentFileID,

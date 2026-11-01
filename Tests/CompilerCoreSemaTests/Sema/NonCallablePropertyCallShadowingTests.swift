@@ -113,5 +113,36 @@ struct NonCallablePropertyCallShadowingTests {
         let call = try #require(calls.first)
         #expect(sema.bindings.callBinding(for: call)?.chosenCallee != function)
     }
+
+    /// KUU-4062: `x.f()` can only target a callable member, so a `private`
+    /// non-callable property is not a candidate — the call reports the
+    /// unresolved-member diagnostic like kotlinc's "cannot be invoked",
+    /// not a private-access error. The same gate applies to a private
+    /// property inherited from a supertype.
+    @Test(arguments: [
+        "class A { private val f: Int = 1 }\nfun test(a: A) { a.f() }",
+        "open class B { private val f: Int = 1 }\nclass D : B()\nfun test(d: D) { d.f() }",
+    ])
+    func privateNonCallableMemberPropertyDoesNotReportPrivateAccessOnCall(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.code)
+        #expect(codes.contains("KSWIFTK-SEMA-0024"), "\(ctx.diagnostics.diagnostics)")
+        #expect(!codes.contains("KSWIFTK-SEMA-0040"), "\(ctx.diagnostics.diagnostics)")
+    }
+
+    /// The gate keeps reporting a genuinely callable `private` property:
+    /// a function-typed member (plain or nullable) is a call candidate, so
+    /// `x.f()` still reports the private-access error (KUU-4062).
+    @Test(arguments: [
+        "class A { private val f: () -> Int = { 1 } }\nfun test(a: A) { a.f() }",
+        "class A { private val f: (() -> Int)? = null }\nfun test(a: A) { a.f() }",
+    ])
+    func privateCallableMemberPropertyStillReportsPrivateAccessOnCall(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let codes = ctx.diagnostics.diagnostics.filter { $0.severity == .error }.map(\.code)
+        #expect(codes.contains("KSWIFTK-SEMA-0040"), "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

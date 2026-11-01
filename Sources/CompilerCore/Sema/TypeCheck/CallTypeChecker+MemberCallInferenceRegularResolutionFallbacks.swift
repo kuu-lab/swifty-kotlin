@@ -228,15 +228,19 @@ extension CallTypeChecker {
                 // every declared receiver, so surviving candidates only fail
                 // because of the nullability — re-resolve them against the
                 // stripped receiver and remap the diagnostic to SEMA-0026
-                // (KUU-3957). Plain `T?` receivers are excluded on purpose:
-                // their failure can encode a rejected smart cast (captured or
-                // unstable writes), which KSwiftK reports as SEMA-0002 or
-                // SEMA-0022 instead of kotlinc's SMARTCAST_IMPOSSIBLE — that
-                // diagnostic choice must not be hijacked here.
+                // (KUU-3957). Plain `T?` receivers encode a rejected smart
+                // cast (captured or unstable writes), which KSwiftK reports
+                // as SEMA-0002 or SEMA-0022 instead of kotlinc's
+                // SMARTCAST_IMPOSSIBLE — a generic receiver otherwise leaks
+                // the solver's TYPE-0001 constraint failure where a
+                // non-generic receiver reports "no viable overload"
+                // (KUU-4062).
                 let nullableReceiverProbeResolves: Bool = {
-                    guard diagnostic.code == "KSWIFTK-SEMA-0002",
-                          !safeCall,
-                          lookupReceiverType == sema.types.nullableNothingType
+                    let receiverIsNullableNothing = lookupReceiverType == sema.types.nullableNothingType
+                    guard !safeCall,
+                          (diagnostic.code == "KSWIFTK-SEMA-0002" && receiverIsNullableNothing)
+                              || (diagnostic.code == "KSWIFTK-TYPE-0001"
+                                  && sema.types.nullability(of: lookupReceiverType) == .nullable)
                     else {
                         return false
                     }
@@ -280,11 +284,19 @@ extension CallTypeChecker {
                 ) {
                     ctx.sema.diagnostics.emit(projectionDiagnostic)
                 } else if nullableReceiverProbeResolves {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0026",
-                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                        range: range
-                    )
+                    if lookupReceiverType == sema.types.nullableNothingType {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                    } else {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0002",
+                            "No viable overload found for call.",
+                            range: range
+                        )
+                    }
                 } else {
                     ctx.sema.diagnostics.emit(diagnostic)
                 }
