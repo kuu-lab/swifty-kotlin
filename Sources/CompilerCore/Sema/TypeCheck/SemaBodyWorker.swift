@@ -11,6 +11,10 @@ final class SemaBodyWorker: @unchecked Sendable {
         let interner = parent.interner.makeSemaWorkerInterner()
         let types = parent.sema.types.makeSemaWorkerTypes()
         let symbols = parent.sema.symbols.makeSemaWorkerSymbols()
+        // Body workers share the parent's type-check attribution collector so
+        // parallel scope/resolve/constraint hot paths stay counted (KUU-3779).
+        types.attribution = parent.sema.types.attribution
+        symbols.attribution = parent.sema.symbols.attribution
         types.symbolTable = symbols
         let sema = SemaModule(
             symbols: symbols, types: types,

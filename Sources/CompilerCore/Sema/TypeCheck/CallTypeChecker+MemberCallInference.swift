@@ -12,6 +12,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         safeCall: Bool
     ) -> TypeID {
+        ctx.sema.types.attribution?.increment(.callSites)
         let request = MemberCallInferenceRequest(
             id: id,
             receiverID: receiverID,

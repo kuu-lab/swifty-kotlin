@@ -1047,6 +1047,49 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3930: the okio shape — mutable (`var`) and annotated (`@JvmField`)
+    /// members of a nested class inside an `expect class` need no
+    /// initializer either, at any nesting depth.
+    @Test func testNestedClassVarMembersInsideExpectClassNeedNoInitializer() throws {
+        try withTemporaryFile(
+            contents: """
+            interface Closeable { fun close() }
+            class Segment
+            expect class Buffer {
+                internal var head: Segment?
+                var size: Long
+                    internal set
+
+                class UnsafeCursor constructor() : Closeable {
+                    @JvmField var buffer: Buffer?
+                    @JvmField var readWrite: Boolean
+                    internal var segment: Segment?
+                    @JvmField var offset: Long
+                    val data: ByteArray?
+                    fun next(): Int
+                    override fun close()
+
+                    class Deeper { val x: Int }
+                }
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0424" },
+                "Nested-class members inside an expect class are contracts too: \(errors)"
+            )
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     /// KUU-3774: `actual` members are real implementations — the expect
     /// exemption must not leak into the actual side of the pair.
     @Test func testActualCompanionPropertyStillRequiresInitializer() throws {

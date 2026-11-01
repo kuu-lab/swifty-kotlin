@@ -611,6 +611,17 @@ extension DeclTypeChecker {
             return types.stringType
         case let .nameRef(name, _):
             return safePrecheckNameReference(name, in: ctx, locals: locals)
+        case let .thisRef(label, _):
+            // `this` names the innermost implicit receiver; `this@Label`
+            // names an outer one. Both feed explicit member reads such as
+            // `this.makeInt()` in a property initializer.
+            let thisType: TypeID? = if let label {
+                ctx.resolveQualifiedThis(label: label)
+            } else {
+                ctx.implicitReceiverType
+            }
+            guard let thisType else { return nil }
+            return isSafePrecheckValueType(thisType, in: ctx) ? thisType : nil
         case let .unaryExpr(op, operand, _):
             guard let operandType = safePrecheckExpressionType(operand, in: ctx, locals: locals) else {
                 return nil
@@ -821,6 +832,25 @@ extension DeclTypeChecker {
             guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else {
                 return nil
             }
+            // A member on an implicit receiver shadows lexical functions, but
+            // this branch only weighs receiver-less candidates. Leave such
+            // calls to the normal resolver instead of picking a top-level
+            // overload the member would hide.
+            for receiver in ctx.implicitReceiverMemberLookupEntries() {
+                let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
+                if !driver.helpers.collectMemberFunctionCandidates(
+                    named: name,
+                    receiverType: receiverType,
+                    sema: ctx.sema,
+                    interner: ctx.interner
+                ).isEmpty || driver.helpers.lookupMemberProperty(
+                    named: name,
+                    receiverType: receiver.type,
+                    sema: ctx.sema
+                ) != nil {
+                    return nil
+                }
+            }
             var argumentTypes: [TypeID] = []
             argumentTypes.reserveCapacity(args.count)
             for argument in args {
@@ -832,9 +862,11 @@ extension DeclTypeChecker {
                 argumentTypes.append(argumentType)
             }
             let candidates = namedCandidates.filter { candidate in
-                guard let symbol = ctx.sema.symbols.symbol(candidate),
+                guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
-                      let signature = ctx.sema.symbols.functionSignature(for: candidate)
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      !ctx.isExpectDeclarationSupersededByActual(candidate),
+                      !ctx.isImportedCallableShadowedBySource(candidate)
                 else {
                     return false
                 }
@@ -847,10 +879,142 @@ extension DeclTypeChecker {
                 in: ctx
             )
         }
-        let candidates = namedCandidates.filter { candidate in
-            guard let symbol = ctx.sema.symbols.symbol(candidate),
+
+        // An unqualified call inside a class or object can resolve to a
+        // member function on an implicit receiver (`val x = makeInt()`).
+        // Member signatures store their dispatch receiver in
+        // `signature.receiverType`, so the lexical filter below rejects them
+        // even though the enclosing receiver satisfies the call. Walk the
+        // receiver tower like `safePrecheckNameReference` does: the nearest
+        // receiver exposing an applicable member wins over lexical
+        // candidates, matching the normal call resolver's ordering.
+        for receiver in ctx.implicitReceiverMemberLookupEntries() {
+            let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
+            let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                named: name,
+                receiverType: receiverType,
+                sema: ctx.sema,
+                interner: ctx.interner
+            ).filter { candidate in
+                // Member extensions still need a separate extension receiver
+                // the unqualified call cannot supply.
+                guard ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate)
+                else {
+                    return false
+                }
+                return signature.contextReceiverTypes.isEmpty
+                    && canBeCalledWithoutArguments(signature)
+            }
+            // An inapplicable member does not stop resolution: the call
+            // continues to outer receivers and the lexical scope.
+            if !memberCandidates.isEmpty {
+                return safePrecheckCallResultType(
+                    memberCandidates,
+                    receiverType: receiverType,
+                    in: ctx
+                )
+            }
+            // A member property named `name` still binds the callee at this
+            // receiver: `name()` can only resolve through `invoke` on the
+            // property's type — or not at all. Either way the member shadows
+            // outer scopes, so the search stops rather than falling through
+            // to a same-named top-level function.
+            if let property = driver.helpers.lookupMemberProperty(
+                named: name,
+                receiverType: receiver.type,
+                sema: ctx.sema
+            ) {
+                let calleeType = safePrecheckFlowType(
+                    for: property.symbol,
+                    fallback: property.type,
+                    in: ctx
+                )
+                return safePrecheckInvokeCall(on: calleeType, in: ctx)
+            }
+        }
+
+        // The receiver tower covered the implicit-receiver member scopes,
+        // but `scope.lookup` still stops at the innermost level binding
+        // `name` — including member tiers the tower cannot see, such as the
+        // companion-object scope. Walk the chain so those members get their
+        // turn: a level binding `name` only to member functions yields them
+        // as implicit-dispatch candidates; when none apply, the call
+        // continues to the next level instead of being shadowed by an
+        // inapplicable member. Any other binding kind (a same-named
+        // property or classifier) keeps its normal shadowing.
+        var scopeLevel = ctx.scope as? BaseScope
+        var scopeCandidates: [SymbolID] = []
+        while let level = scopeLevel {
+            let bound = level.candidates(for: name)
+            if bound.isEmpty {
+                scopeLevel = level.parent as? BaseScope
+                continue
+            }
+            var memberFunctions: [SymbolID] = []
+            var bindsOtherDeclaration = false
+            for candidate in bound {
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      signature.receiverType != nil
+                else {
+                    bindsOtherDeclaration = true
+                    break
+                }
+                memberFunctions.append(candidate)
+            }
+            if bindsOtherDeclaration {
+                scopeCandidates = bound
+                break
+            }
+            let applicableMembers = memberFunctions.filter { candidate in
+                guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      signature.contextReceiverTypes.isEmpty,
+                      canBeCalledWithoutArguments(signature),
+                      let declaredReceiver = signature.receiverType,
+                      case let .classType(declaredClass) = ctx.sema.types.kind(
+                          of: ctx.sema.types.makeNonNullable(declaredReceiver)
+                      )
+                else {
+                    return false
+                }
+                // A receiver-typed function at a lexical tier is callable
+                // only when an implicit receiver supplies its dispatch
+                // receiver — the enclosing nominal or one of its companion
+                // objects. This keeps a same-named extension on an unrelated
+                // type (e.g. `fun String.f()` at package scope) from being
+                // treated as applicable here.
+                return ctx.implicitReceiverMemberLookupEntries().contains { entry in
+                    guard case let .classType(receiverClass) = ctx.sema.types.kind(
+                        of: ctx.sema.types.makeNonNullable(entry.type)
+                    ) else {
+                        return false
+                    }
+                    return ctx.sema.types.isNominalSubtypeSymbol(
+                        receiverClass.classSymbol, of: declaredClass.classSymbol
+                    ) || ctx.sema.symbols.companionObjectSymbol(
+                        for: receiverClass.classSymbol
+                    ) == declaredClass.classSymbol
+                }
+            }
+            if !applicableMembers.isEmpty {
+                let dispatchReceiver = applicableMembers.first
+                    .flatMap { ctx.sema.symbols.functionSignature(for: $0)?.receiverType }
+                return safePrecheckCallResultType(
+                    applicableMembers,
+                    receiverType: dispatchReceiver,
+                    in: ctx
+                )
+            }
+            scopeLevel = level.parent as? BaseScope
+        }
+        let candidates = scopeCandidates.filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
-                  let signature = ctx.sema.symbols.functionSignature(for: candidate)
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                  !ctx.isExpectDeclarationSupersededByActual(candidate),
+                  !ctx.isImportedCallableShadowedBySource(candidate)
             else {
                 return false
             }
@@ -858,7 +1022,85 @@ extension DeclTypeChecker {
                 && signature.contextReceiverTypes.isEmpty
                 && canBeCalledWithoutArguments(signature)
         }
-        return safePrecheckCallResultType(candidates, in: ctx)
+        if !candidates.isEmpty {
+            return safePrecheckCallResultType(candidates, in: ctx)
+        }
+        // The tier that stopped the walk bound `name` only to non-function
+        // declarations. A property or object there can still answer `name()`
+        // through `invoke`; a binding that cannot produce one shadows the
+        // outer scopes all the same, so the first bound value ends the search.
+        for candidate in scopeCandidates {
+            guard let symbol = ctx.cachedSymbol(candidate) else { continue }
+            let calleeType: TypeID?
+            switch symbol.kind {
+            case .property, .field:
+                if let declared = ctx.sema.symbols.propertyType(for: candidate) {
+                    calleeType = safePrecheckFlowType(
+                        for: candidate,
+                        fallback: declared,
+                        in: ctx
+                    )
+                } else {
+                    calleeType = nil
+                }
+            case .object:
+                calleeType = ctx.sema.types.make(.classType(ClassType(
+                    classSymbol: candidate, args: [], nullability: .nonNull
+                )))
+            default:
+                calleeType = nil
+            }
+            if let calleeType {
+                return safePrecheckInvokeCall(on: calleeType, in: ctx)
+            }
+        }
+        return nil
+    }
+
+    /// `callee()` on a property or object resolves through `invoke` on its
+    /// type. Function-typed callees answer with their declared return type —
+    /// their `invoke` has no nominal member to collect — while nominal
+    /// callees resolve `invoke` like any other zero-argument member call.
+    private func safePrecheckInvokeCall(
+        on calleeType: TypeID,
+        in ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let receiverType = ctx.sema.types.makeNonNullable(calleeType)
+        // Only a non-nullable callee can be invoked without `?.`.
+        guard receiverType == calleeType else { return nil }
+        if case let .functionType(functionType) = ctx.sema.types.kind(of: receiverType) {
+            guard !functionType.isSuspend,
+                  functionType.receiver == nil,
+                  functionType.contextReceivers.isEmpty,
+                  functionType.params.isEmpty,
+                  isSafePrecheckValueType(functionType.returnType, in: ctx)
+            else {
+                return nil
+            }
+            return functionType.returnType
+        }
+        let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: ctx.interner.intern("invoke"),
+            receiverType: receiverType,
+            sema: ctx.sema,
+            interner: ctx.interner
+        ).filter { candidate in
+            // A member or top-level `invoke` extension still needs the
+            // extension receiver the unqualified call cannot supply.
+            guard ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                  let signature = ctx.sema.symbols.functionSignature(for: candidate)
+            else {
+                return false
+            }
+            return signature.contextReceiverTypes.isEmpty
+                && canBeCalledWithoutArguments(signature)
+        }
+        guard !invokeCandidates.isEmpty else { return nil }
+        return safePrecheckCallResultType(
+            invokeCandidates,
+            receiverType: receiverType,
+            in: ctx
+        )
     }
 
     private func safePrecheckArrayOfCall(

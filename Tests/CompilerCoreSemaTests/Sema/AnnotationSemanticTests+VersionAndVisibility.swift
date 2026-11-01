@@ -407,7 +407,7 @@ extension AnnotationSemanticTests {
                     @SubclassOptInRequired(ExperimentalBase::class)
                     open class Base
 
-                    @OptIn(ExperimentalBase::class)
+                    @SubclassOptInRequired(ExperimentalBase::class)
                     open class Middle : Base()
 
                     class Child : Middle()
@@ -471,6 +471,52 @@ extension AnnotationSemanticTests {
 
                     @ExperimentalStdlibApi
                     fun experimentalApi(): String = "ff"
+
+            """,
+
+            // testSubclassOptInRequiredDoesNotPropagateThroughConsentedSupertype
+            """
+            package sample42
+                    @RequiresOptIn
+                    annotation class ExperimentalBase
+
+                    @SubclassOptInRequired(ExperimentalBase::class)
+                    open class Base
+
+                    @OptIn(ExperimentalBase::class)
+                    open class Middle : Base()
+
+                    class Child : Middle()
+
+            """,
+
+            // testSubclassOptInRequiredOnSubclassConsentsToItsOwnSupertypes
+            """
+            package sample43
+                    @RequiresOptIn
+                    annotation class ExperimentalBase
+
+                    @SubclassOptInRequired(ExperimentalBase::class)
+                    open class Base
+
+                    @SubclassOptInRequired(ExperimentalBase::class)
+                    class Child : Base()
+
+            """,
+
+            // testSubclassOptInRequiredOnEnclosingClassConsentsToNestedSubclass
+            """
+            package sample44
+                    @RequiresOptIn
+                    annotation class ExperimentalBase
+
+                    @SubclassOptInRequired(ExperimentalBase::class)
+                    open class Base
+
+                    @SubclassOptInRequired(ExperimentalBase::class)
+                    open class Outer : Base() {
+                        class Inner : Base()
+                    }
 
             """
         ]
@@ -928,6 +974,33 @@ extension AnnotationSemanticTests {
                 let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
 
                 #expect(diagnostics.isEmpty, "Expected OPT_IN_USAGE suppression alias to suppress opt-in diagnostics, got: \(sampleDiags)")
+            }
+            // testSubclassOptInRequiredDoesNotPropagateThroughConsentedSupertype
+            do {
+                let samplePath = paths[42]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-SUBCLASS-OPT-IN" }
+
+                #expect(diagnostics.isEmpty, "Expected an '@OptIn'-consenting supertype to consume the requirement instead of propagating it, got: \(sampleDiags)")
+            }
+            // testSubclassOptInRequiredOnSubclassConsentsToItsOwnSupertypes
+            do {
+                let samplePath = paths[43]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-SUBCLASS-OPT-IN" }
+
+                #expect(diagnostics.isEmpty, "Expected '@SubclassOptInRequired' on the subclass to consent to its supertypes, got: \(sampleDiags)")
+            }
+            // testSubclassOptInRequiredOnEnclosingClassConsentsToNestedSubclass
+            do {
+                let samplePath = paths[44]
+                let sampleDiags = diagnosticsForPath(samplePath, in: ctx)
+
+                let diagnostics = sampleDiags.filter { $0.code == "KSWIFTK-SEMA-SUBCLASS-OPT-IN" }
+
+                #expect(diagnostics.isEmpty, "Expected enclosing '@SubclassOptInRequired' to consent to the nested subclass, got: \(sampleDiags)")
             }
 
         }

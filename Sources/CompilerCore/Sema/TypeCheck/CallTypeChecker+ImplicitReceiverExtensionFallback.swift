@@ -24,12 +24,13 @@ extension CallTypeChecker {
         // Same-package properties do not occupy the callable namespace, so
         // they must not hide default-imported functions in call syntax.
         let samePackage = ctx.currentASTFile?.packageFQName
-        // Top-level properties whose type has no function shape cannot be
-        // invoked, so they never occupy the callable namespace.
-        func isNonCallableTopLevelProperty(_ candidate: SymbolID) -> Bool {
+        // A property whose type has no function shape cannot be invoked, so
+        // it never occupies the callable namespace — at any tier. A
+        // non-callable member `val` must not hide a same-named outer-tier
+        // function in call syntax either (KUU-3913). An imported property
+        // likewise yields to default-imported functions (KUU-2731).
+        func isNonCallableProperty(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate), symbol.kind == .property,
-                  ctx.sema.symbols.parentSymbol(for: candidate)
-                  .map({ ctx.sema.symbols.symbol($0)?.kind == .package }) ?? true,
                   let type = ctx.sema.symbols.propertyType(for: candidate)
             else { return false }
             if case .functionType = ctx.sema.types.kind(of: ctx.sema.types.makeNonNullable(type)) {
@@ -40,34 +41,19 @@ extension CallTypeChecker {
                 named: ctx.interner.intern("invoke"), receiverType: type, sema: ctx.sema, interner: ctx.interner
             ).isEmpty
         }
-        func scopeLookup(excludingAllProperties: Bool) -> [SymbolID] {
-            ctx.scope.lookup(name, matching: { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      !ctx.isExpectDeclarationSupersededByActual(candidate),
-                      !ctx.isImportedCallableShadowedBySource(candidate)
-                else { return false }
-                if symbol.kind == .property {
-                    if excludingAllProperties { return !isNonCallableTopLevelProperty(candidate) }
-                    if let samePackage, Array(symbol.fqName.dropLast()) == samePackage {
-                        return false
-                    }
+        let callableCandidates = ctx.scope.lookup(name, matching: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  !ctx.isExpectDeclarationSupersededByActual(candidate),
+                  !ctx.isImportedCallableShadowedBySource(candidate)
+            else { return false }
+            if symbol.kind == .property {
+                if isNonCallableProperty(candidate) { return false }
+                if let samePackage, Array(symbol.fqName.dropLast()) == samePackage {
+                    return false
                 }
-                return true
-            })
-        }
-        var callableCandidates = scopeLookup(excludingAllProperties: false)
-        // A star-imported property from another package must not hide an
-        // outer-tier function (e.g. default-imported `emptyMap()`) in call
-        // syntax. Keep the property when no function exists farther out, so
-        // function-typed property invocation still resolves.
-        if !callableCandidates.isEmpty,
-           callableCandidates.allSatisfy({ isNonCallableTopLevelProperty($0) })
-        {
-            let functionsOnly = scopeLookup(excludingAllProperties: true)
-            if !functionsOnly.isEmpty {
-                callableCandidates = functionsOnly
             }
-        }
+            return true
+        })
         let candidates = scopeCallCandidatesWithExplicitImportOverloads(
             named: name,
             candidates: callableCandidates,
@@ -184,6 +170,53 @@ extension CallTypeChecker {
         return true
     }
 
+    /// Whether the declared receiver of `candidate` can be supplied by an
+    /// implicit receiver tower entry of type `entryType`. Mirrors the
+    /// matching rule used to pick `callImplicitReceiverType`: member
+    /// extensions match through the member-extension predicate, every other
+    /// receiver-bearing callable through the synthetic-fallback one.
+    func callCandidateDeclaredReceiver(
+        _ candidate: SymbolID,
+        matchesTowerEntryType entryType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let declaredReceiver = ctx.sema.symbols.functionSignature(for: candidate)?.receiverType
+        else { return false }
+        if ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil {
+            return implicitMemberExtensionReceiverMatches(
+                entryType, declared: declaredReceiver, sema: ctx.sema
+            )
+        }
+        return extensionSyntheticFallbackReceiverMatches(
+            callSiteReceiver: entryType,
+            declaredReceiver: declaredReceiver,
+            sema: ctx.sema
+        )
+    }
+
+    /// A scope-visible callable is DSL-blocked when every implicit receiver
+    /// tower entry able to supply its declared receiver is hidden by a nearer
+    /// receiver carrying the same DslMarker annotation. Package-scope
+    /// extensions have no class owner for
+    /// `TypeInferenceContext.isCandidateBlockedByDslMarker` to test, so this
+    /// receiver-tower check must apply on top of it.
+    func isCallCandidateBlockedByDslHiddenReceivers(
+        _ candidate: SymbolID,
+        hiddenReceiverTypes: Set<TypeID>,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard !hiddenReceiverTypes.isEmpty,
+              ctx.sema.symbols.functionSignature(for: candidate)?.receiverType != nil
+        else { return false }
+        var sawMatchingEntry = false
+        for entry in ctx.implicitReceiverMemberLookupEntries()
+        where callCandidateDeclaredReceiver(candidate, matchesTowerEntryType: entry.type, ctx: ctx) {
+            guard hiddenReceiverTypes.contains(entry.type) else { return false }
+            sawMatchingEntry = true
+        }
+        return sawMatchingEntry
+    }
+
     /// Package extensions are not members of their receiver class, so the member
     /// recovery path cannot find them when a receiver lambda shadows `this`.
     func resolveOuterImplicitReceiverExtensionCall(
@@ -198,12 +231,11 @@ extension CallTypeChecker {
     ) -> (resolved: ResolvedCall, receiverSymbol: SymbolID)? {
         let extensions = candidates.filter { isScopeExtensionCandidate($0, ctx: ctx) }
         guard !extensions.isEmpty else { return nil }
-        var nearerDslMarkers = Set<String>()
+        let dslHiddenReceiverTypes = ctx.dslHiddenImplicitReceiverTypes()
         for receiver in ctx.implicitReceiverMemberLookupEntries() {
-            let markers = ctx.collectDslMarkerAnnotations(for: receiver.type)
-            let isDslHidden = !nearerDslMarkers.isDisjoint(with: markers)
-            nearerDslMarkers.formUnion(markers)
-            guard let symbol = receiver.symbol, !isDslHidden else { continue }
+            guard let symbol = receiver.symbol,
+                  !dslHiddenReceiverTypes.contains(receiver.type)
+            else { continue }
             let resolved = resolveCallRespectingLambdaReturnType(
                 candidates: extensions,
                 args: args,

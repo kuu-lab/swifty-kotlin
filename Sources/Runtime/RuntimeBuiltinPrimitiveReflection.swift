@@ -600,6 +600,14 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
         let flags = index == 2 ? 4 : 0
         let raw = __kk_kfunction_create(nameRaw, arity, returnRaw, flags, 0, 0)
         _ = kk_callable_ref_tag_kfunction(raw, nameRaw, returnRaw, arity, flags)
+        // KUU-3947: `fun kotlin.Int.equals(kotlin.Any?): kotlin.Boolean` —
+        // pin the JVM-style signature so the handle does not render
+        // `<object 0x…>`.
+        __kk_function_set_description(
+            raw,
+            runtimeMakeStringRaw("fun \(receiverName).\(functionName)(\(index == 2 ? "kotlin.Any?" : "")): \(resultName)"),
+            0
+        )
         let receiver = __kk_kparameter_create_typed(
             0, runtimeNullSentinelInt, runtimeMakeStringRaw(receiverName), 0, 0, Int(token), raw
         )
@@ -636,6 +644,12 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
                 let resultRaw = runtimeMakeStringRaw("kotlin.\(resultName)")
                 let raw = __kk_kfunction_create(nameRaw, 2, resultRaw, 4, 0, 0)
                 _ = kk_callable_ref_tag_kfunction(raw, nameRaw, resultRaw, 2, 4)
+                // KUU-3947: `fun kotlin.Int.plus(kotlin.Byte): kotlin.Int`.
+                __kk_function_set_description(
+                    raw,
+                    runtimeMakeStringRaw("fun \(receiverName).\(functionName)(kotlin.\(operandName)): kotlin.\(resultName)"),
+                    0
+                )
                 let receiver = __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw(receiverName), 0, 0, Int(token), raw)
                 runtimeKParameterBox(from: receiver)?.reflectedTypeRaw = type(receiverName, token)
                 let operandTypeName = "kotlin.\(operandName)"
@@ -656,6 +670,12 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
             let resultRaw = runtimeMakeStringRaw(resultName)
             let raw = __kk_kfunction_create(nameRaw, operand == nil ? 1 : 2, resultRaw, flags, 0, 0)
             _ = kk_callable_ref_tag_kfunction(raw, nameRaw, resultRaw, operand == nil ? 1 : 2, flags)
+            // KUU-3947: `fun kotlin.Int.inc(): kotlin.Int`.
+            __kk_function_set_description(
+                raw,
+                runtimeMakeStringRaw("fun \(receiverName).\(functionName)(\(operand.map { $0.type } ?? "")): \(resultName)"),
+                0
+            )
             let receiver = __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw(receiverName), 0, 0, Int(token), raw)
             runtimeKParameterBox(from: receiver)?.reflectedTypeRaw = type(receiverName, token)
             var parameters = [receiver]
@@ -710,6 +730,12 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
         let resultRaw = runtimeMakeStringRaw(resultName)
         let raw = __kk_kfunction_create(functionNameRaw, operand == nil ? 1 : 2, resultRaw, flags, 0, 0)
         _ = kk_callable_ref_tag_kfunction(raw, functionNameRaw, resultRaw, operand == nil ? 1 : 2, flags)
+        // KUU-3947: `fun kotlin.Double.div(kotlin.Float): kotlin.Double`.
+        __kk_function_set_description(
+            raw,
+            runtimeMakeStringRaw("fun \(receiverName).\(functionName)(\(operand.map { $0.type } ?? "")): \(resultName)"),
+            0
+        )
         let receiver = __kk_kparameter_create_typed(0, runtimeNullSentinelInt, runtimeMakeStringRaw(receiverName), 0, 0, Int(token), raw)
         runtimeKParameterBox(from: receiver)?.reflectedTypeRaw = type(receiverName, token)
         var parameters = [receiver]
@@ -849,6 +875,13 @@ func ensureBuiltinPrimitiveMembers(_ kclassRaw: Int) {
             nameRaw, dataTypeRaw, runtimeMakeStringRaw("kotlin.\(name).data"), 0, 1, 0
         )
         _ = kk_callable_ref_tag_kproperty(property, nameRaw, dataTypeRaw, 1)
+        // KUU-3947: JVM memberProperties renders
+        // `val kotlin.UInt.data: kotlin.Int` — pin the same text.
+        __kk_function_set_description(
+            property,
+            runtimeMakeStringRaw("val kotlin.\(name).data: \(dataTypeName)"),
+            0
+        )
         _ = kk_object_register_itable_iface(property, Int(kProperty1RuntimeTypeID), 1)
         _ = kk_object_register_itable_method(property, 1, 0, unsafeBitCast(builtinUnsignedDataGet, to: Int.self))
         _ = kk_object_register_itable_method(property, 1, 1, unsafeBitCast(builtinUIntDataDelegate, to: Int.self))

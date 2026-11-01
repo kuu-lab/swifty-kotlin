@@ -431,7 +431,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 continue
             }
             // The sorted sibling list is computed once per enum, not per entry.
-            let siblings = sema.symbols.children(ofFQName: parentFQ)
+            let siblings = sema.symbols.declaredChildren(of: parentSymbol)
                 .filter { id in
                     guard let s = sema.symbols.symbol(id) else { return false }
                     return s.kind == .field

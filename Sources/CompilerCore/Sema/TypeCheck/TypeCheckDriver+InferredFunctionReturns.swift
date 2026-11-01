@@ -49,11 +49,16 @@ extension TypeCheckDriver {
             if let companionObject = classDecl.companionObject {
                 nestedObjects.append(companionObject)
             }
-            let (_, classContext, _) = declChecker.makeClassTypeCheckContext(
+            let (_, classContext, primaryConstructorLocals) = declChecker.makeClassTypeCheckContext(
                 classDecl: classDecl,
                 symbol: symbol,
                 nestedObjects: nestedObjects,
                 ctx: context
+            )
+            registerInferredMemberProperties(
+                classDecl.memberProperties,
+                context: classContext,
+                initialLocals: primaryConstructorLocals
             )
             for memberFunction in classDecl.memberFunctions {
                 registerInferredReturnFunctions(in: memberFunction, context: classContext, visited: &visited)
@@ -77,6 +82,11 @@ extension TypeCheckDriver {
                 symbol: symbol,
                 ctx: context
             )
+            registerInferredMemberProperties(
+                interfaceDecl.memberProperties,
+                context: interfaceContext,
+                initialLocals: [:]
+            )
             for memberFunction in interfaceDecl.memberFunctions {
                 registerInferredReturnFunctions(in: memberFunction, context: interfaceContext, visited: &visited)
             }
@@ -95,6 +105,11 @@ extension TypeCheckDriver {
                 symbol: symbol,
                 ctx: context
             )
+            registerInferredMemberProperties(
+                objectDecl.memberProperties,
+                context: objectContext,
+                initialLocals: [:]
+            )
             for memberFunction in objectDecl.memberFunctions {
                 registerInferredReturnFunctions(in: memberFunction, context: objectContext, visited: &visited)
             }
@@ -108,6 +123,40 @@ extension TypeCheckDriver {
 
         case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
             break
+        }
+    }
+
+    /// Member properties with inferred types can be resolved on demand while
+    /// an expression-bodied function is inferred ahead of source order — the
+    /// same contract `typeCheckModule` gives top-level properties, but with
+    /// the member's class/object context (and primary-constructor locals so
+    /// initializers may read constructor parameters). Only plain initializer
+    /// properties register: a getter, setter, or delegate body keeps the
+    /// source-order pass so a speculative check against placeholder types
+    /// cannot skip the authoritative accessor-body diagnostics.
+    private func registerInferredMemberProperties(
+        _ declIDs: [DeclID],
+        context: TypeInferenceContext,
+        initialLocals: LocalBindings
+    ) {
+        for declarationID in declIDs {
+            guard case let .propertyDecl(property)? = ast.arena.decl(declarationID),
+                  property.type == nil,
+                  property.receiverType == nil,
+                  property.explicitBackingField == nil,
+                  property.getter == nil,
+                  property.setter == nil || property.setter?.body == .unit,
+                  property.delegateExpression == nil,
+                  property.contextReceivers.isEmpty,
+                  property.initializer != nil,
+                  let symbol = sema.bindings.declSymbols[declarationID]
+            else { continue }
+            inferredPropertyDeclarations[symbol] = (
+                declarationID,
+                property,
+                context.with(currentDeclSymbol: symbol),
+                initialLocals
+            )
         }
     }
 

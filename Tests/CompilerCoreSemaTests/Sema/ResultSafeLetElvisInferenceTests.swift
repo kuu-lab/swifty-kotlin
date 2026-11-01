@@ -65,5 +65,68 @@ struct ResultSafeLetElvisInferenceTests {
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: memberCompanionDiagnostics)
         }
     }
+
+    @Test
+    func testDirectArgumentResultFailureUsesParameterTypeVariable() throws {
+        // `Result.failure`'s type parameter appears only in its return type,
+        // so a direct argument needs the outer parameter's `Result<T>`
+        // propagated as its expected type. A class type parameter
+        // (`Gun<TSubject>`) is rigid in the caller and binds the nested call's
+        // `T` — this is ktor-utils' `SuspendFunctionGun.resumeRootWith`
+        // (KUU-3916). A callee *function* type parameter the expected type
+        // cannot pin stays underdetermined, matching kotlinc (KUU-3908).
+        let sources = [
+            """
+            package resultClassTypeParam
+            class Gun<TSubject> {
+                fun resumeRootWith(result: Result<TSubject>) {}
+                fun test(exception: Throwable) {
+                    resumeRootWith(Result.failure(exception))
+                }
+            }
+            """,
+            """
+            package resultConcreteParam
+            fun takesResultInt(r: Result<Int>) {}
+            fun g(e: Throwable) {
+                takesResultInt(Result.failure(e))
+            }
+            """,
+            """
+            package resultNamedArgument
+            class Gun<TSubject> {
+                fun resumeRootWith(tag: Int, result: Result<TSubject>) {}
+                fun test(exception: Throwable) {
+                    resumeRootWith(tag = 0, result = Result.failure(exception))
+                }
+            }
+            """,
+            """
+            package resultReturnPinned
+            fun <T> takesResult(r: Result<T>): T = r.getOrThrow()
+            fun <T> f(e: Throwable): T = takesResult(Result.failure(e))
+            """,
+            """
+            package resultUnderdetermined
+            fun <T> takesResult(r: Result<T>) {}
+            fun <T> f(e: Throwable) {
+                takesResult(Result.failure(e))
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths.prefix(4) {
+                let diagnostics = diagnosticsForPath(path, in: ctx)
+                assertNoDiagnostic("KSWIFTK-SEMA-INFER", in: diagnostics)
+                assertNoDiagnostic("KSWIFTK-TYPE-0001", in: diagnostics)
+            }
+            assertHasDiagnostic(
+                "KSWIFTK-SEMA-INFER",
+                in: diagnosticsForPath(paths[4], in: ctx)
+            )
+        }
+    }
 }
 #endif
