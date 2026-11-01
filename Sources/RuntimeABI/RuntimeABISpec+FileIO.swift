@@ -59,6 +59,11 @@ public extension RuntimeABISpec {
         abi.th("__kk_output_stream_buffered", "streamRaw"),
         abi.th("__kk_reader_copyTo", "readerRaw writerRaw bufferSizeRaw outThrown"),
         abi.th("__kk_reader_copyTo_default", "readerRaw writerRaw outThrown"),
+        // `java.io.Reader.read(CharArray, Int, Int)` — the class's virtual
+        // char-source contract (KUU-4031); reader boxes install it as vtable
+        // slot `readerReadChars`, Kotlin subclasses land their override in
+        // the same slot.
+        abi.th("__kk_reader_read_range", "readerRaw bufferRaw offsetRaw lengthRaw outThrown"),
         abi.th("__kk_output_stream_buffered_sized", "streamRaw bufferSize"),
         abi.th("__kk_io_stream_to_string", "stream outThrown"),
         abi.th("__kk_sequence_input_stream_available_throwing", "stream outThrown"),

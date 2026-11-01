@@ -6,9 +6,25 @@ protocol RuntimeReaderInputStream: AnyObject {
     func close()
 }
 
-final class RuntimeBufferedReaderBox {
+/// Char-level pull source behind the `java.io` reader bridges.
+/// `RuntimeBufferedReaderBox` covers file/stream-backed readers; a Kotlin
+/// `java.io.Reader` subclass object (StringReader, user subclasses) reaches
+/// the runtime through `RuntimeKotlinReaderCharSource` — both feed a
+/// `BufferedReader` upstream or `Reader.readText`/`copyTo` (KUU-4031).
+protocol RuntimeReaderCharSource: AnyObject {
+    /// Next character or -1 at EOF / after close. Stream-backed boxes report
+    /// a decoded Unicode scalar value; Kotlin-reader sources report a UTF-16
+    /// code unit (matching a Kotlin Char / `Reader.read()`).
+    func read() -> Int
+    func readLine() -> String?
+    func readText() -> String
+    func ready() -> Bool
+    func close()
+}
+
+final class RuntimeBufferedReaderBox: RuntimeReaderCharSource, RuntimeChildReferenceProviding {
     private var inputStream: (any RuntimeReaderInputStream)?
-    private var upstreamReader: RuntimeBufferedReaderBox?
+    private var upstreamReader: (any RuntimeReaderCharSource)?
     private var fileHandle: FileHandle?
     private var pendingData: Data
     /// Offset (from `pendingData.startIndex`) of the first unconsumed byte.
@@ -58,11 +74,20 @@ final class RuntimeBufferedReaderBox {
         self.reachedEOF = false
     }
 
-    /// Reader handles already provide buffering. Keep a distinct close state
-    /// while forwarding reads and closing the wrapped reader transitively.
-    convenience init(reader: RuntimeBufferedReaderBox) {
+    /// Reader sources already provide their own buffering. Keep a distinct
+    /// close state while forwarding reads and closing the wrapped source
+    /// transitively — box sources for `BufferedReader(BufferedReader)` /
+    /// `InputStreamReader`, `RuntimeKotlinReaderCharSource` for Kotlin
+    /// `java.io.Reader` objects (KUU-4031).
+    convenience init(reader: any RuntimeReaderCharSource) {
         self.init(data: Data())
         self.upstreamReader = reader
+    }
+
+    var childRefs: [Int] {
+        var refs = (inputStream as? RuntimeChildReferenceProviding)?.childRefs ?? []
+        refs.append(contentsOf: (upstreamReader as? RuntimeChildReferenceProviding)?.childRefs ?? [])
+        return refs
     }
 
     func readLine() -> String? {
@@ -724,5 +749,164 @@ final class RuntimeBufferedWriterBox: RuntimeJavaWriter {
         if let stream { try stream.write(buffer) }
         else { try fileHandle?.write(contentsOf: buffer) }
         buffer.removeAll(keepingCapacity: true)
+    }
+}
+
+/// `RuntimeReaderCharSource` over a Kotlin-source `java.io.Reader` subclass
+/// object (StringReader, user-defined subclasses — KUU-4031).
+///
+/// `java.io.Reader` declares `read(CharArray, Int, Int)` as its sole virtual
+/// member, so every subclass override lands in vtable slot
+/// `RuntimeIoStreamVTableSlot.readerReadChars`; `close()` resolves through
+/// the registered Closeable itable entry. Both are invoked with the Kotlin
+/// object's own handle plus the hidden thrown channel, exactly like a
+/// source-level virtual call. Reads are buffered in UTF-16 code units so
+/// `read()` reports Kotlin Char units and lone surrogates survive as the
+/// internal surrogate-marker encoding.
+final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChildReferenceProviding {
+    /// Raw handle of the Kotlin `java.io.Reader` object — reported as a
+    /// child reference so the object outlives this source.
+    let readerRaw: Int
+    private var pendingUnits: [UInt16] = []
+    private var readOffset = 0
+    private var reachedEOF = false
+    private var closed = false
+    /// One-code-unit lookahead for readLine()'s CRLF handling.
+    private var pushbackUnit: UInt16?
+    /// First Kotlin throwable captured from a read/close callback. Throwing
+    /// bridges (`Reader.copyTo`) surface it; lenient bridges treat it as
+    /// EOF, matching the box's own error handling.
+    private(set) var thrown: Int = 0
+
+    init(readerRaw: Int) {
+        self.readerRaw = readerRaw
+    }
+
+    var childRefs: [Int] { [readerRaw] }
+
+    private var pendingByteCount: Int {
+        pendingUnits.count - readOffset
+    }
+
+    func read() -> Int {
+        if let unit = pushbackUnit {
+            pushbackUnit = nil
+            return Int(unit)
+        }
+        if pendingByteCount == 0 {
+            refill()
+        }
+        guard pendingByteCount > 0 else { return -1 }
+        defer { readOffset += 1 }
+        return Int(pendingUnits[readOffset])
+    }
+
+    func ready() -> Bool {
+        guard !closed, thrown == 0 else { return false }
+        if pushbackUnit != nil || pendingByteCount > 0 { return true }
+        refill()
+        return pendingByteCount > 0
+    }
+
+    /// Does NOT close the reader, matching Kotlin's `Reader.readText()`
+    /// contract. Partially buffered text still drains on a mid-read throw.
+    func readText() -> String {
+        var units: [UInt16] = []
+        if let unit = pushbackUnit {
+            pushbackUnit = nil
+            units.append(unit)
+        }
+        while true {
+            if pendingByteCount == 0 {
+                refill()
+            }
+            guard pendingByteCount > 0 else { break }
+            units.append(contentsOf: pendingUnits[readOffset...])
+            readOffset = pendingUnits.count
+        }
+        return runtimeKotlinStringFromUTF16CodeUnits(units)
+    }
+
+    /// Line reader over UTF-16 units. `\n`, `\r` and `\r\n` terminate; a
+    /// trailing non-empty fragment is returned as the last line, mirroring
+    /// `BufferedReader.readLine()` and `RuntimeBufferedReaderBox.readLine()`.
+    func readLine() -> String? {
+        guard !closed else { return nil }
+        var units: [UInt16] = []
+        while true {
+            let next = read()
+            if next < 0 {
+                guard !units.isEmpty else { return nil }
+                break
+            }
+            let unit = UInt16(truncatingIfNeeded: next)
+            if unit == 0x0A { break }
+            if unit == 0x0D {
+                let following = read()
+                if following >= 0, UInt16(truncatingIfNeeded: following) != 0x0A {
+                    pushbackUnit = UInt16(truncatingIfNeeded: following)
+                }
+                break
+            }
+            units.append(unit)
+        }
+        return runtimeKotlinStringFromUTF16CodeUnits(units)
+    }
+
+    /// Dispatches the Kotlin object's `close()` through its registered
+    /// Closeable itable entry — `Reader.close()` is the interface's sole
+    /// method, so slot 0 on every compatible interface nominal.
+    func close() {
+        guard !closed else { return }
+        closed = true
+        pendingUnits = []
+        readOffset = 0
+        pushbackUnit = nil
+        for fqName in ["kotlin.io.Closeable", "java.io.Closeable",
+                       "kotlin.AutoCloseable", "java.lang.AutoCloseable"] {
+            let entry = kk_itable_lookup_dynamic(readerRaw, Int(runtimeStableNominalTypeID(fqName: fqName)), 0)
+            guard entry != 0, let fnPtr = UnsafeRawPointer(bitPattern: entry) else { continue }
+            let closeEntry = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var failure = 0
+            _ = closeEntry(readerRaw, &failure)
+            if failure != 0, thrown == 0 { thrown = failure }
+            return
+        }
+    }
+
+    /// Refills `pendingUnits` from the Kotlin object's vtable
+    /// `read(CharArray, Int, Int)` entry. A missing entry, a non-positive
+    /// count or a thrown Kotlin exception all settle as EOF (the throwable
+    /// is kept in `thrown` for bridges that can surface it).
+    private func refill() {
+        guard pendingByteCount == 0, !reachedEOF, !closed, thrown == 0 else { return }
+        let buffer = RuntimeArrayBox(length: 4096)
+        let bufferRaw = registerRuntimeObject(buffer)
+        runtimeRegisterArrayType(
+            rawValue: bufferRaw,
+            typeID: runtimeStableNominalTypeID(fqName: "kotlin.CharArray")
+        )
+        let entry = kk_vtable_lookup(readerRaw, RuntimeIoStreamVTableSlot.readerReadChars)
+        guard let fnPtr = UnsafeRawPointer(bitPattern: entry) else {
+            reachedEOF = true
+            return
+        }
+        let readRange = unsafeBitCast(
+            fnPtr,
+            to: (@convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var failure = 0
+        let count = readRange(readerRaw, bufferRaw, 0, buffer.count, &failure)
+        if failure != 0 {
+            thrown = failure
+            reachedEOF = true
+            return
+        }
+        if count <= 0 {
+            reachedEOF = true
+            return
+        }
+        pendingUnits = buffer.elements.prefix(count).map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
+        readOffset = 0
     }
 }
