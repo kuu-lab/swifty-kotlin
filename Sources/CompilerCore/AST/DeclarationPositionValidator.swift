@@ -993,6 +993,21 @@ struct DeclarationPositionValidator {
             }
         }
 
+        // kotlinc prohibits `by`-delegation on interfaces outright: each
+        // delegated supertype entry reports at its type portion (`I` in
+        // `I by d`). An `expect` interface still collects the SEMA-0460
+        // delegation error on the same specifier, like kotlinc.
+        for entry in decl.superTypeEntries where entry.delegateExpression != nil {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0461",
+                "delegation cannot be used in interfaces.",
+                range: entry.range ?? decl.range
+            )
+        }
+        if isExpectContext(modifiers, site: site) {
+            emitExpectDelegationDiagnostics(decl.superTypeEntries, fallbackRange: decl.range)
+        }
+
         let memberSite = NominalSite(
             kind: .interface,
             isLocal: site == .function,

@@ -1304,6 +1304,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "implementation by delegation in 'expect' classes is prohibited."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0461",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "delegation cannot be used in interfaces."
+        ),
     ]
 
 
