@@ -5,16 +5,17 @@ import Testing
 
 @Suite
 struct LambdaLowererDirectCoverageTests {
-    @Test(arguments: [0, 1, 2, 6], [false, true])
-    func nonCapturingLambdaRegistersArityWithoutChangingCallableABI(
+    // Arity stays within the kk_function_create_N family (receiver included).
+    @Test(arguments: [0, 1, 2, 5], [false, true])
+    func nonCapturingLambdaIsMaterializedIntoFunctionValueBox(
         parameterCount: Int, hasReceiver: Bool
     ) throws {
         let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let body = appendTypedExpr(.intLiteral(42, range), type: fixture.types.intType, fixture: fixture)
         let functionType = fixture.types.make(.functionType(FunctionType(
-            receiver: hasReceiver ? fixture.types.intType : nil,
-            params: Array(repeating: fixture.types.intType, count: parameterCount),
+            receiver: hasReceiver ? fixture.types.anyType : nil,
+            params: Array(repeating: fixture.types.anyType, count: parameterCount),
             returnType: fixture.types.intType
         )))
         let lambda = appendTypedExpr(
@@ -28,14 +29,13 @@ struct LambdaLowererDirectCoverageTests {
             interner: fixture.interner, propertyConstantInitializers: [:],
             instructions: &instructions
         )
-        let tag = try #require(kirCalls(to: .functionTagArity, in: instructions, interner: fixture.interner).first)
-        let arguments = tag.arguments
-        #expect(arguments.first == callable)
-        #expect(fixture.kirArena.expr(arguments[1]) == .intLiteral(Int64(parameterCount + (hasReceiver ? 1 : 0))))
-        #expect(tag.result == nil)
-        #expect(!tag.canThrow)
-        #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.captureArguments.isEmpty == true)
-        #expect(kirFunctionCreationCalls(in: instructions, interner: fixture.interner).isEmpty)
+        // Since #12358 every function-typed non-capturing lambda escapes as its
+        // function-value box, so later erased storage keeps the same object.
+        let creations = kirFunctionCreationCalls(in: instructions, interner: fixture.interner)
+        #expect(creations.count == 1, "\(instructions)")
+        #expect(creations.first?.result == callable)
+        #expect(fixture.driver.ctx.callableValueInfo(for: callable)?.isFunctionValueBox == true)
+        #expect(kirCalls(to: .functionTagArity, in: instructions, interner: fixture.interner).isEmpty)
     }
 
     @Test
@@ -113,6 +113,11 @@ struct LambdaLowererDirectCoverageTests {
                 parameterTypes: [functionType], returnType: fixture.types.intType,
                 valueParameterAllowsNonLocalReturn: importedParameterAllowsNonLocalReturn.map { [$0] } ?? []
             ), for: importedInline)
+            if importedParameterAllowsNonLocalReturn == true {
+                // #11003/#11142 keep the raw callable only when the imported
+                // inline callee has a body available for cross-module expansion.
+                fixture.sema.importedInlineFunctions.markPendingBody(for: importedInline)
+            }
             var arguments = [callable]
             let instructionCount = instructions.count
             fixture.driver.callLowerer.materializeSourceBackedFunctionValueArguments(
@@ -458,13 +463,14 @@ struct LambdaLowererDirectCoverageTests {
                 sema: fixture.sema
             ))
         )
+        // #10599: a value parameter with no bound local value is not capturable.
         #expect(
-            fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
+            !(fixture.driver.lambdaLowerer.canCaptureSymbolForLambda(
                 parameterSymbol,
                 lambdaExprID: lambdaExprID,
                 lambdaParamCount: 0,
                 sema: fixture.sema
-            )
+            ))
         )
 
         var emit = KIRLoweringEmitContext()
@@ -494,13 +500,30 @@ struct LambdaLowererDirectCoverageTests {
         )
         #expect(receiverCaptured == receiverExpr)
 
-        _ = fixture.driver.lambdaLowerer.captureValueExpr(
+        let unboundParameter = fixture.driver.lambdaLowerer.captureValueExpr(
             for: parameterSymbol,
             sema: fixture.sema,
             arena: fixture.kirArena,
             interner: fixture.interner,
             emit: &emit
         )
+        #expect(unboundParameter == nil)
+        #expect(emit.instructions.isEmpty)
+
+        // A captured mutable local still emits its capture-cell initialization.
+        let mutableSymbol = defineSemanticSymbol(
+            in: fixture, kind: .local, fqName: ["pkg", "mutableLocal"], flags: [.mutable]
+        )
+        let mutableExpr = fixture.kirArena.appendExpr(.temporary(2), type: fixture.types.anyType)
+        fixture.driver.ctx.localValuesBySymbol[mutableSymbol] = mutableExpr
+        let mutableCaptured = fixture.driver.lambdaLowerer.captureValueExpr(
+            for: mutableSymbol,
+            sema: fixture.sema,
+            arena: fixture.kirArena,
+            interner: fixture.interner,
+            emit: &emit
+        )
+        #expect(mutableCaptured != nil)
         #expect(!emit.instructions.isEmpty)
 
         let nonCapturable = fixture.driver.lambdaLowerer.captureValueExpr(
