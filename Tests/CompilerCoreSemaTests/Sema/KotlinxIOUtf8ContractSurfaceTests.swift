@@ -244,6 +244,35 @@ struct KotlinxIOUtf8ContractSurfaceTests {
         }
     }
 
+    /// KUU-4112: upstream okio exposes `String.utf8Size` as a public API, so the
+    /// bundled kotlinx.io declaration must resolve from user code instead of
+    /// failing with SEMA-0044. Upstream kotlinx-io keeps the function internal,
+    /// so this is an intentional okio-parity divergence pinned for both the
+    /// bundled-source and .kklib-library surfaces.
+    @Test(arguments: [false, true])
+    func utf8SizeIsPublicForUserCalls(library: Bool) throws {
+        let ctx = try check("""
+        import kotlinx.io.*
+        fun measure(): Long {
+            val whole: Long = "abc".utf8Size()
+            val slice: Long = "abcdef".utf8Size(beginIndex = 1, endIndex = 4)
+            val positional: Long = "abcdef".utf8Size(1, 4)
+            return whole + slice + positional
+        }
+        """, library: library, expectsErrors: false)
+        let sema = try #require(ctx.sema)
+        let ids = sema.symbols.lookupAll(fqName: ["kotlinx", "io", "utf8Size"].map(ctx.interner.intern))
+            .filter { id in
+                guard let symbol = sema.symbols.symbol(id) else { return false }
+                return symbol.kind == .function && symbol.visibility == .public &&
+                    sema.symbols.functionSignature(for: id)?.receiverType != nil
+            }
+        try #require(ids.count == 1)
+        let signature = try #require(sema.symbols.functionSignature(for: ids[0]))
+        try #require(signature.valueParameterHasDefaultValues == [true, true])
+        try #require(signature.returnType == sema.types.longType)
+    }
+
     @Test(arguments: [false, true], ["source.readUtf8()", "sink.writeUtf8(\"A\")",
         "buffer.commonReadUtf8CodePoint()", "buffer.commonWriteUtf8CodePoint(65)"])
     func privateCodecsAndOkioHomonymsDoNotLeakThroughWildcard(library: Bool, forbiddenCall: String) throws {
