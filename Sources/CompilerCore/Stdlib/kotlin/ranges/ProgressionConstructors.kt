@@ -46,13 +46,7 @@ internal external fun __intProgressionStep(range: IntProgression, step: Int): In
 internal external fun __intRangeStep(range: IntRange, step: Int): IntProgression
 
 @KsSymbolName("__kk_op_step")
-internal external fun __longProgressionStep(range: LongProgression, step: Int): LongProgression
-
-@KsSymbolName("__kk_op_step")
 internal external fun __longProgressionStep(range: LongProgression, step: Long): LongProgression
-
-@KsSymbolName("__kk_op_step")
-internal external fun __longRangeStep(range: LongRange, step: Int): LongProgression
 
 @KsSymbolName("__kk_op_step")
 internal external fun __longRangeStep(range: LongRange, step: Long): LongProgression
@@ -189,32 +183,22 @@ public operator infix fun ULong.rangeUntil(to: ULong): ULongRange = __ulongRange
 public operator infix fun ULong.downTo(to: ULong): ULongProgression = ULongProgression.fromClosedRange(this, to, -1)
 
 public operator infix fun IntProgression.step(step: Int): IntProgression = __intProgressionStep(this, step)
-public operator infix fun LongProgression.step(step: Int): LongProgression = __longProgressionStep(this, step)
 public operator infix fun LongProgression.step(step: Long): LongProgression = __longProgressionStep(this, step)
 public operator infix fun CharProgression.step(step: Int): CharProgression = __charProgressionStep(this, step)
 public operator infix fun UIntProgression.step(step: Int): UIntProgression {
     require(step > 0) { "Step must be positive, was: $step." }
     return UIntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
-public operator infix fun ULongProgression.step(step: Int): ULongProgression {
-    require(step > 0) { "Step must be positive, was: $step." }
-    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
-}
 public operator infix fun ULongProgression.step(step: Long): ULongProgression {
     require(step > 0L) { "Step must be positive, was: $step." }
     return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun IntRange.step(step: Int): IntProgression = __intRangeStep(this, step)
-public operator infix fun LongRange.step(step: Int): LongProgression = __longRangeStep(this, step)
 public operator infix fun LongRange.step(step: Long): LongProgression = __longRangeStep(this, step)
 public operator infix fun CharRange.step(step: Int): CharProgression = __charRangeStep(this, step)
 public operator infix fun UIntRange.step(step: Int): UIntProgression {
     require(step > 0) { "Step must be positive, was: $step." }
     return UIntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
-}
-public operator infix fun ULongRange.step(step: Int): ULongProgression {
-    require(step > 0) { "Step must be positive, was: $step." }
-    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun ULongRange.step(step: Long): ULongProgression {
     require(step > 0L) { "Step must be positive, was: $step." }
