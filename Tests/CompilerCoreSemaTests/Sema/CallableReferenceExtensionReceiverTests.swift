@@ -765,5 +765,35 @@ struct CallableReferenceExtensionReceiverTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Bare `::double` to a top-level function must keep working, got: \(errors)")
     }
+
+    @Test func testTypeParameterReceiverExtensionHonorsUpperBoundForReference() throws {
+        // `Foo` cannot bind `R : CharSequence`, so only `Foo.zap` is a
+        // candidate; since #11436 a second candidate made this ambiguous.
+        let ctx = makeContextFromSource("""
+        class Foo
+        fun Foo.zap(x: Int) = 1
+        fun <R : CharSequence> R.zap(x: Int?) = 2
+        val f = Foo::zap
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "`Foo::zap` must resolve to the Foo extension, got: \(errors)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let reference = try #require(firstExprID(in: ast) { _, expr in
+            if case let .callableRef(_, member, _) = expr {
+                return ctx.interner.resolve(member) == "zap"
+            }
+            return false
+        })
+        let target = try #require(sema.bindings.identifierSymbol(for: reference))
+        let receiver = try #require(sema.symbols.functionSignature(for: target)?.receiverType)
+        guard case let .classType(receiverType) = sema.types.kind(of: receiver) else {
+            Issue.record("Expected `Foo::zap` to choose the `Foo` receiver extension.")
+            return
+        }
+        #expect(sema.symbols.symbol(receiverType.classSymbol)?.fqName == [ctx.interner.intern("Foo")])
+    }
 }
 #endif
