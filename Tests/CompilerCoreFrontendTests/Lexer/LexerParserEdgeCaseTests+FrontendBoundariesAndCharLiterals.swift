@@ -96,7 +96,7 @@ extension LexerParserEdgeCaseTests {
     @Test
     func testExpressionBodyParsesReturnIfTryWithoutTypeDiagnostics() throws {
         let source = """
-        fun demo(flag: Boolean): Int = if (flag) return 1 else try 2 catch (e: Throwable) 3
+        fun demo(flag: Boolean): Int = if (flag) return 1 else try { 2 } catch (e: Throwable) { 3 }
         """
 
         try withTemporaryFile(contents: source) { path in
@@ -380,7 +380,10 @@ extension LexerParserEdgeCaseTests {
             try runSema(ctx)
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
             #expect(errors.count == expressions.count, "Expected each invalid Char operation to be rejected: \(errors)")
-            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" })
+            // An operator on a nullable receiver is UNSAFE_OPERATOR_CALL (#10898).
+            let nullableReceiverCount = expressions.filter { $0.hasPrefix("nc ") }.count
+            #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0026" }.count == nullableReceiverCount, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0002" || $0.code == "KSWIFTK-SEMA-0026" }, "\(errors)")
         }
     }
 

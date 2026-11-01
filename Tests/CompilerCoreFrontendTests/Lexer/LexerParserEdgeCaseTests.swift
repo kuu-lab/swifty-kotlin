@@ -349,7 +349,9 @@ struct LexerParserEdgeCaseTests {
         #expect(kinds.contains(.typeArgs))
         #expect(kinds.contains(.enumEntry))
 
-        assertHasDiagnostic("KSWIFTK-PARSE-0002", in: parsed.diagnostics.diagnostics)
+        // `fun ()` starts an anonymous function, so it no longer ends the
+        // unterminated `broken(` group (#11651); the group itself is reported.
+        assertHasDiagnostic("KSWIFTK-PARSE-0004", in: parsed.diagnostics.diagnostics)
 
         let parserForTypeArgs = KotlinParser(tokens: parsed.tokens, interner: parsed.interner, diagnostics: DiagnosticEngine())
         #expect(!parserForTypeArgs.canStartTypeArgumentsInternal(hasAnchorToken: false))
