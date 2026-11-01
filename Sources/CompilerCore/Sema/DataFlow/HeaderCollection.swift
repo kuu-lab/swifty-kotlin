@@ -437,6 +437,12 @@ extension DataFlowSemaPhase {
             let typeParamSymbol: SymbolID
             if reusesShellTypeParameters {
                 typeParamSymbol = existingTypeParamSymbols[index]
+                // KUU-4127: adopted shell parameters keep `declSite == nil`,
+                // so give them the declaring file's identity. Metadata export
+                // then filters them with the owning bundled decl instead of
+                // leaking e.g. `kotlin.Array.T` into user-library records via
+                // `requiredNonPublicSymbols`.
+                symbols.setSourceFileID(declSite.start.file, for: typeParamSymbol)
                 if typeParam.isReified {
                     symbols.insertFlags(.reifiedTypeParameter, for: typeParamSymbol)
                 }

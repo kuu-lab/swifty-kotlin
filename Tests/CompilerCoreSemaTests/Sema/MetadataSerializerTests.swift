@@ -82,6 +82,80 @@ struct MetadataSerializerTests {
         #expect(stdlibRecords.first { $0.fqName == "kotlin.properties.Lazy" }?.declaredVtableSize == 1)
     }
 
+    /// KUU-4127: bootstrap type-parameter stubs carry no `.synthetic` flag,
+    /// no declSite, and no sourceFileID, so inline dependency collection could
+    /// rescue them through `requiredNonPublicSymbols` straight into user
+    /// metadata. They must stay stdlib-artifact-only; a shell param adopted by
+    /// a bundled source decl is filtered by its stamped sourceFileID instead.
+    /// The owner models `kotlin.Array` after a bundled decl claimed the shell:
+    /// `.synthetic` is removed on adoption and only the bundled fileID remains.
+    @Test
+    func precomputedStdlibSyntheticTypeParametersStayOutOfUserMetadata() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let bundledFileID = FileID(rawValue: 7)
+        let ownerName = interner.intern("Array")
+        let owner = symbols.define(
+            kind: .class,
+            name: ownerName,
+            fqName: [interner.intern("kotlin"), ownerName],
+            declSite: nil,
+            visibility: .public,
+            flags: []
+        )
+        symbols.setSourceFileID(bundledFileID, for: owner)
+        let paramName = interner.intern("T")
+        let stubParam = symbols.define(
+            kind: .typeParameter,
+            name: paramName,
+            fqName: [interner.intern("kotlin"), ownerName, paramName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.precomputedStdlibSynthetic]
+        )
+        let adoptedParam = symbols.define(
+            kind: .typeParameter,
+            name: interner.intern("T2"),
+            fqName: [interner.intern("kotlin"), ownerName, interner.intern("T2")],
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        symbols.setSourceFileID(bundledFileID, for: adoptedParam)
+        symbols.setParentSymbol(owner, for: stubParam)
+        symbols.setParentSymbol(owner, for: adoptedParam)
+        types.setNominalTypeParameterSymbols([stubParam], for: owner)
+
+        let encoder = MetadataEncoder()
+        let consumerRecords = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Consumer",
+            interner: interner,
+            functionLinkNames: [:],
+            requiredNonPublicSymbols: [stubParam, adoptedParam],
+            includeSynthetic: false,
+            excludeSourceFileIDs: [bundledFileID.rawValue]
+        )
+        #expect(!consumerRecords.contains { $0.fqName == "kotlin.Array.T" })
+        #expect(!consumerRecords.contains { $0.fqName == "kotlin.Array.T2" })
+
+        let stdlibRecords = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "KSwiftKStdlib",
+            interner: interner,
+            functionLinkNames: [:],
+            includeNonPublic: true,
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: true,
+            includePrecomputedStdlibSynthesis: true
+        )
+        #expect(stdlibRecords.contains { $0.fqName == "kotlin.Array.T" })
+        #expect(stdlibRecords.contains { $0.fqName == "kotlin.Array.T2" })
+    }
+
     @Test(arguments: [
         (Visibility.private, Set<String>()),
         (.internal, Set<String>()),
