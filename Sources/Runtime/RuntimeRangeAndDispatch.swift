@@ -1032,6 +1032,29 @@ func runtimeRangeErasedElement(_ value: Int, kind: RuntimeRangeKind) -> Int {
     }
 }
 
+/// Materializes a range/progression handle into the same element list its
+/// `toList()` produces (see `runtimeRangeElementList`): raw scalars for
+/// Int/UInt kinds, erased boxes for the Char/Long/ULong kinds. Shared by the
+/// iterable/sequence source extractors so generic `Iterable<T>` bridges
+/// (`zipWithNext`, `zip`, `flatMap` sub-iterables, ...) accept range receivers
+/// — a `RuntimeRangeBox` is a valid `Iterable` even though it is neither a
+/// collection box nor a `RuntimeObjectBox` with an Iterable itable.
+func runtimeRangeIterableElements(_ range: RuntimeRangeBox) -> [Int] {
+    var elements: [Int] = []
+    if range.kind.usesUnsignedValues {
+        _ = runtimeUnsignedRangeTraverse(range) { current, _ in
+            elements.append(runtimeRangeErasedElement(Int(bitPattern: current), kind: range.kind))
+            return true
+        }
+    } else {
+        _ = runtimeSignedRangeTraverse(range) { current, _ in
+            elements.append(runtimeRangeErasedElement(current, kind: range.kind))
+            return true
+        }
+    }
+    return elements
+}
+
 @_cdecl("kk_iterator_next")
 public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
     outThrown?.pointee = 0
