@@ -130,5 +130,50 @@ public class IntStream private constructor(private val values: Sequence<Int>) {
             val range = startInclusive..endInclusive
             return IntStream(streamSequence { range.iterator() })
         }
+
+        public fun iterate(seed: Int, next: IntUnaryOperator): IntStream =
+            IntStream(streamSequence {
+                object : Iterator<Int> {
+                    var current = seed
+
+                    override fun hasNext(): Boolean = true
+
+                    override fun next(): Int {
+                        val value = current
+                        current = next.applyAsInt(value)
+                        return value
+                    }
+                }
+            })
+
+        public fun iterate(seed: Int, hasNext: IntPredicate, next: IntUnaryOperator): IntStream =
+            IntStream(streamSequence {
+                object : Iterator<Int> {
+                    var current = seed
+                    var first = true
+                    var advanced = false
+                    var valid = false
+
+                    private fun advance() {
+                        if (advanced) return
+                        if (first) first = false
+                        else current = next.applyAsInt(current)
+                        valid = hasNext.test(current)
+                        advanced = true
+                    }
+
+                    override fun hasNext(): Boolean {
+                        advance()
+                        return valid
+                    }
+
+                    override fun next(): Int {
+                        advance()
+                        if (!valid) throw NoSuchElementException()
+                        advanced = false
+                        return current
+                    }
+                }
+            })
     }
 }

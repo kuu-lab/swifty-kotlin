@@ -7,6 +7,7 @@ import java.util.function.Predicate
 import java.util.function.ToDoubleFunction
 import java.util.function.ToIntFunction
 import java.util.function.ToLongFunction
+import java.util.function.UnaryOperator
 
 public class Stream<T> private constructor(private val values: Sequence<T>) {
     private var consumed: Boolean = false
@@ -68,7 +69,7 @@ public class Stream<T> private constructor(private val values: Sequence<T>) {
 
     public fun toList(): List<T> = consume().toMutableList()
 
-    public fun <A, R> collect(collector: Collector<T, A, R>): R = collector.collect(consume().toList())
+    public fun <A, R> collect(collector: Collector<in T, A, R>): R = collector.collect(consume().toList())
 
     public fun collect(collector: ListCollector): List<T> = consume().toMutableList()
 
@@ -92,6 +93,51 @@ public class Stream<T> private constructor(private val values: Sequence<T>) {
             Stream(streamSequence { values.iterator() })
 
         public fun <T> empty(): Stream<T> = Stream(streamSequence { emptyList<T>().iterator() })
+
+        public fun <T> iterate(seed: T, next: UnaryOperator<T>): Stream<T> =
+            Stream(streamSequence {
+                object : Iterator<T> {
+                    var current = seed
+
+                    override fun hasNext(): Boolean = true
+
+                    override fun next(): T {
+                        val value = current
+                        current = next.apply(value)
+                        return value
+                    }
+                }
+            })
+
+        public fun <T> iterate(seed: T, hasNext: Predicate<in T>, next: UnaryOperator<T>): Stream<T> =
+            Stream(streamSequence {
+                object : Iterator<T> {
+                    var current = seed
+                    var first = true
+                    var advanced = false
+                    var valid = false
+
+                    private fun advance() {
+                        if (advanced) return
+                        if (first) first = false
+                        else current = next.apply(current)
+                        valid = hasNext.test(current)
+                        advanced = true
+                    }
+
+                    override fun hasNext(): Boolean {
+                        advance()
+                        return valid
+                    }
+
+                    override fun next(): T {
+                        advance()
+                        if (!valid) throw NoSuchElementException()
+                        advanced = false
+                        return current
+                    }
+                }
+            })
 
         internal fun <T> fromIterable(values: Iterable<T>): Stream<T> =
             Stream(streamSequence { values.iterator() })
