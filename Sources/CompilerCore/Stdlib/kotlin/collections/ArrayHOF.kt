@@ -1,6 +1,6 @@
 package kotlin.collections
 
-public fun <T, R> Array<T>.map(transform: (T) -> R): List<R> {
+public inline fun <T, R> Array<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     val sz = this.size

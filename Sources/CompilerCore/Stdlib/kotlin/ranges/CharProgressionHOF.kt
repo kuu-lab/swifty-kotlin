@@ -39,7 +39,7 @@ public fun CharProgression.forEach(action: (Char) -> Unit) {
     for (element in this) { action(element) }
 }
 
-public fun <R> CharProgression.map(transform: (Char) -> R): List<R> {
+public inline fun <R> CharProgression.map(transform: (Char) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result

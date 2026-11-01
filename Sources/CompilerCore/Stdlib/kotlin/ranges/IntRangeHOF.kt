@@ -12,7 +12,7 @@ public fun IntRange.forEach(action: (Int) -> Unit) {
     for (element in this) { action(element) }
 }
 
-public fun <R> IntRange.map(transform: (Int) -> R): List<R> {
+public inline fun <R> IntRange.map(transform: (Int) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result

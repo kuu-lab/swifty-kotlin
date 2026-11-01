@@ -471,11 +471,18 @@ extension CallTypeChecker {
     }
 
     private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "map" {
+            return argCount == 1
+        }
         guard argCount == 0 else { return false }
         return memberName == "first"
             || memberName == "firstOrNull"
             || memberName == "last"
             || memberName == "lastOrNull"
+    }
+
+    private func isCharRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        memberName == "map" && argCount == 1
     }
 
     private func isUnsignedProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
@@ -508,7 +515,7 @@ extension CallTypeChecker {
     }
 
     private func isLongRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        (memberName == "contains" || memberName == "forEach") && argCount == 1
+        (memberName == "contains" || memberName == "forEach" || memberName == "map") && argCount == 1
     }
 
     private func isLongRangeCrossTypeContains(
@@ -754,6 +761,8 @@ extension CallTypeChecker {
                 && isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .charProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .charRange
+                && isCharRangeSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .longRange

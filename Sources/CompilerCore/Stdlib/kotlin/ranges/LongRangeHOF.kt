@@ -26,7 +26,7 @@ public inline fun LongRange.forEach(action: (Long) -> Unit) {
     for (element in this) { action(element) }
 }
 
-public fun <R> LongRange.map(transform: (Long) -> R): List<R> {
+public inline fun <R> LongRange.map(transform: (Long) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result

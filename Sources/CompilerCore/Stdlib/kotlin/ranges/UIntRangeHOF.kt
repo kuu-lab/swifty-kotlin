@@ -165,7 +165,7 @@ public fun UIntRange.windowed(size: Int, step: Int = 1, partialWindows: Boolean 
     return result
 }
 
-public fun <R> UIntRange.map(transform: (UInt) -> R): List<R> {
+public inline fun <R> UIntRange.map(transform: (UInt) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result
