@@ -935,6 +935,79 @@ struct ConstantCollector {
         return .stringLiteral(text)
     }
 
+    /// Resolves an AST reference to its `const val` constant for compile-time
+    /// literal folding. Deliberately narrower than
+    /// `propertyConstantInitializers`: Kotlin's constant-expression rules
+    /// admit `const val` reads only — a plain `val` holding a literal is NOT
+    /// a compile-time constant on the JVM (`"x" + s` for `val s = "ab"`
+    /// concatenates at runtime and does not intern). Shared by the KIR
+    /// lowering (`resolvedConstant`) and the JVM backend's constant concat
+    /// fold (KUU-3983).
+    static func compileTimeConstantRef(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> KIRExprKind? {
+        if let constant = sema.bindings.constExprValue(for: exprID) {
+            // `constExprValue` also covers `.constValue`-flagged synthetic
+            // enum entries, whose bound value is the ordinal `.intLiteral`.
+            // Their `===` identity is the enum object and a concatenation
+            // must stringify the entry — never fold the ordinal.
+            let symbol: SymbolID? = switch ast.arena.expr(exprID) {
+            case .nameRef?:
+                sema.bindings.identifierSymbols[exprID]
+            case .memberCall?:
+                sema.bindings.callBindings[exprID]?.chosenCallee
+            default:
+                nil
+            }
+            if let symbol, isEnumEntry(symbol, sema: sema) {
+                return nil
+            }
+            return constant
+        }
+        // Member-access const reads (`O.OC`) never reach `constExprValue`;
+        // resolve them the same way tryLowerObjectMemberPropertyRead does,
+        // restricted to `.constValue` symbols so a plain `val` can never fold.
+        // An unqualified member `const val` read inside its owner (e.g. `a`
+        // in `object A { const val a = "$"; val s = "1234$a" }`) reaches here
+        // as a `.nameRef` — it is likewise a compile-time constant on the JVM
+        // even though Sema does not bind `constExprValue` for it (KUU-3180).
+        if case .nameRef? = ast.arena.expr(exprID),
+           let refSymbol = sema.bindings.identifierSymbol(for: exprID),
+           let symbol = sema.symbols.accessorOwnerProperty(for: refSymbol) ?? refSymbol as SymbolID?,
+           let info = sema.symbols.symbol(symbol),
+           info.flags.contains(.constValue),
+           !isEnumEntry(symbol, sema: sema)
+        {
+            return sema.symbols.constValueExprKind(for: symbol)
+        }
+        guard case .memberCall(let receiver, _, _, let args, _)? = ast.arena.expr(exprID),
+              args.isEmpty,
+              let chosen = sema.bindings.callBindings[exprID]?.chosenCallee
+                  ?? sema.bindings.identifierSymbol(for: exprID),
+              sema.symbols.symbol(chosen)?.flags.contains(.constValue) == true,
+              !isEnumEntry(chosen, sema: sema)
+        else {
+            return nil
+        }
+        // Mirrors tryFoldConstMemberProperty: a nullable receiver goes
+        // through the safe-call path, never the constant.
+        if let receiverType = sema.bindings.exprTypes[receiver],
+           receiverType != sema.types.makeNonNullable(receiverType)
+        {
+            return nil
+        }
+        return sema.symbols.constValueExprKind(for: chosen)
+    }
+
+    private static func isEnumEntry(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        guard let entry = sema.symbols.symbol(symbol) else {
+            return false
+        }
+        return sema.symbols.enumOwnerSymbol(for: entry) != nil
+    }
+
     /// Kotlin/JVM text of a compile-time constant operand inside a String `+`
     /// concatenation. Kotlin folds a `+` whose result is String only when
     /// every operand is a compile-time constant — literals, constant
@@ -965,8 +1038,13 @@ struct ConstantCollector {
             // A numeric `+` that literalConstantExpr could not fold (e.g.
             // `1u + 2u`) has no call binding either; it is arithmetic, not
             // concat, and must not be rendered as "12".
+            // kotlinc folds only a String-receiver `+`: `'a' + "bc"` resolves
+            // to `Char.plus(String)`, a real call, and `=== "abc"` is false
+            // (KUU-3983) — so the unbound lenient-concat path is restricted
+            // to a text lhs here.
             guard sema.bindings.exprType(for: exprID) == sema.types.stringType,
                   Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+                  Self.isTextConstantOperandType(lhs, sema: sema),
                   let lhsText = constantStringConcatOperandText(lhs, ast: ast, sema: sema, interner: interner),
                   let rhsText = constantStringConcatOperandText(rhs, ast: ast, sema: sema, interner: interner)
             else {
@@ -976,6 +1054,7 @@ struct ConstantCollector {
         case let .memberCall(receiver, callee, _, args, _)?:
             guard interner.resolve(callee) == "plus", args.count == 1,
                   Self.isBuiltinStringPlusCallee(exprID, sema: sema, interner: interner),
+                  Self.isTextConstantOperandType(receiver, sema: sema),
                   let receiverText = constantStringConcatOperandText(receiver, ast: ast, sema: sema, interner: interner),
                   let argumentText = constantStringConcatOperandText(args[0].expr, ast: ast, sema: sema, interner: interner)
             else {
@@ -1024,6 +1103,14 @@ struct ConstantCollector {
         let plusName = interner.intern("plus")
         return symbol.fqName == [kotlinName, interner.intern("String"), plusName]
             || symbol.fqName == [kotlinName, interner.intern("text"), plusName]
+    }
+
+    /// Whether an operand of a String `+` concatenation sits in the String
+    /// receiver position kotlinc requires for constant folding: its bound
+    /// type is `String` (nullable receivers on `kotlin.text.plus` count).
+    static func isTextConstantOperandType(_ exprID: ExprID, sema: SemaModule) -> Bool {
+        guard let type = sema.bindings.exprType(for: exprID) else { return false }
+        return sema.types.makeNonNullable(type) == sema.types.stringType
     }
 
     static func isBuiltinStringIndentTrimCall(

@@ -946,7 +946,7 @@ extension CallLowerer {
         }
         var collector = driver.constantCollector
         collector.resolvedConstant = { constantExpr in
-            self.compileTimeConstantRef(constantExpr, ast: ast, sema: sema)
+            ConstantCollector.compileTimeConstantRef(constantExpr, ast: ast, sema: sema)
         }
         collector.canFoldMemberCall = { candidate in
             ConstantCollector.isBuiltinStringIndentTrimCall(

@@ -20,7 +20,7 @@ extension ExprLowerer {
         // the runtime `__kk_string_concat_flat` path below (KUU-3180).
         var collector = driver.constantCollector
         collector.resolvedConstant = { constExprID in
-            self.driver.callLowerer.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
+            ConstantCollector.compileTimeConstantRef(constExprID, ast: ast, sema: sema)
         }
         if let foldedText = collector.constantStringConcatOperandText(
             exprID, ast: ast, sema: sema, interner: interner
