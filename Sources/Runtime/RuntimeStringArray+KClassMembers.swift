@@ -164,15 +164,124 @@ public func __kk_kclass_register_member(_ kclassRaw: Int, _ memberRaw: Int) -> I
     return 0
 }
 
+/// KUU-4029: interned KClass handles for `kclassRaw`'s transitive supertypes,
+/// nearest first — a BFS over `state.typeParents`, the same stable-nominal-
+/// type-ID graph `kk_op_is` walks (`kk_type_register_super`/`_iface` edges are
+/// emitted at class-literal evaluation and construction sites).
+///
+/// `kotlin.Any` is the only ancestor whose KClass encodes the dedicated
+/// `anyBase` token rather than a nominal token — the synthetic `kotlin.Any`
+/// symbol is a disguised builtin (`encodeBuiltinDisguisedNominal`) — so its
+/// builtin toString/hashCode/equals handles live under that handle.
+private func runtimeInheritedKClassRaws(for kclassRaw: Int) -> [Int] {
+    guard let box = runtimeKClassBox(from: kclassRaw) else { return [] }
+    let token = Int64(truncatingIfNeeded: box.typeToken)
+    let base = token & RuntimeTypeTokenEncoding.baseMask
+    let selfNominalID: Int64
+    if base == RuntimeTypeTokenEncoding.nominalBase {
+        selfNominalID = (token >> RuntimeTypeTokenEncoding.payloadShift)
+            & RuntimeTypeTokenEncoding.payloadMask
+    } else if let primitiveID = runtimePrimitiveNominalTypeID(forTypeTokenBase: base) {
+        selfNominalID = primitiveID
+    } else {
+        return []
+    }
+    guard selfNominalID != 0 else { return [] }
+
+    var ancestorIDs: [Int64] = []
+    var visited: Set<Int64> = [selfNominalID]
+    var queue: [Int64] = [selfNominalID]
+    var index = 0
+    runtimeStorage.withMetadataLock { state in
+        while index < queue.count {
+            let current = queue[index]
+            index += 1
+            guard let parents = state.typeParents[current] else { continue }
+            // `typeParents` is a Set — sort for a deterministic merge order.
+            for parent in parents.sorted() where visited.insert(parent).inserted {
+                queue.append(parent)
+                ancestorIDs.append(parent)
+            }
+        }
+    }
+    guard !ancestorIDs.isEmpty else { return [] }
+
+    let anyNominalID = runtimeStableNominalTypeID(fqName: "kotlin.Any")
+    return ancestorIDs.map { typeID in
+        if typeID == anyNominalID {
+            return __kk_kclass_create(Int(RuntimeTypeTokenEncoding.anyBase), 0)
+        }
+        let ancestorToken = (typeID & RuntimeTypeTokenEncoding.payloadMask)
+            << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+        return __kk_kclass_create(Int(truncatingIfNeeded: ancestorToken), 0)
+    }
+}
+
+private enum RuntimeMemberKindSelection {
+    case all, functionsOnly, propertiesOnly
+}
+
+/// KUU-4029: `member*` accessors merge inherited members — the class's own
+/// registered members first, then each ancestor's in BFS order. An override
+/// shadows the inherited signature: functions dedupe on name + value-
+/// parameter count, properties on name. Handles record no parameter types,
+/// so same-name/same-arity overloads across a hierarchy collapse (JVM keeps
+/// both); within a class every registered member emits.
+///
+/// `fnPtr == 0` marks builtin handles whose `arity` counts the dispatch
+/// receiver (String/primitive/array members); class-registered handles carry
+/// a symbol `fnPtr` and count only value parameters.
+private func runtimeKClassCollectedMembers(
+    _ kclassRaw: Int,
+    selection: RuntimeMemberKindSelection,
+    includeInherited: Bool
+) -> [Int] {
+    var classRaws = [kclassRaw]
+    if includeInherited {
+        classRaws += runtimeInheritedKClassRaws(for: kclassRaw)
+    }
+    var elements: [Int] = []
+    var shadowedSignatures: Set<String> = []
+    for classRaw in classRaws {
+        ensureBuiltinStringMembers(classRaw)
+        ensureBuiltinPrimitiveMembers(classRaw)
+        ensureBuiltinArrayMembers(classRaw)
+        var emittedKeys: [String] = []
+        for member in runtimeKMemberRegistry.members(for: classRaw) {
+            let key: String
+            if let function = resolveRuntimeHandle(member, as: RuntimeKFunctionBox.self) {
+                guard selection != .propertiesOnly else { continue }
+                let name = runtimeStringFromRaw(function.nameRaw) ?? ""
+                let arity = function.fnPtr == 0 ? max(0, function.arity - 1) : function.arity
+                key = "f:\(name):\(arity)"
+            } else if let stub = resolveRuntimeHandle(member, as: RuntimeKPropertyStub.self) {
+                guard selection != .functionsOnly else { continue }
+                let name = runtimeStringFromRaw(stub.name) ?? ""
+                key = "p:\(name)"
+            } else {
+                continue
+            }
+            if !shadowedSignatures.contains(key) {
+                elements.append(member)
+            }
+            emittedKeys.append(key)
+        }
+        shadowedSignatures.formUnion(emittedKeys)
+    }
+    return elements
+}
+
 @_cdecl("__kk_kclass_members")
 public func __kk_kclass_members(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    ensureBuiltinStringMembers(kclassRaw)
-    ensureBuiltinPrimitiveMembers(kclassRaw)
-    ensureBuiltinArrayMembers(kclassRaw)
-    return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.members(for: kclassRaw)))
+    return registerRuntimeObject(RuntimeListBox(
+        elements: runtimeKClassCollectedMembers(
+            kclassRaw, selection: .all, includeInherited: true
+        )
+    ))
 }
 
 /// Only constructors registered through `__kk_kconstructor_create` are returned.
@@ -265,9 +374,18 @@ public func __kk_kclass_properties(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.properties(for: kclassRaw)))
 }
 
+/// JVM `memberProperties` includes inherited properties — unlike
+/// `declaredMemberProperties`/`properties`, which stay self-only.
 @_cdecl("__kk_kclass_member_properties")
 public func __kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
-    __kk_kclass_properties(kclassRaw)
+    guard runtimeKClassBox(from: kclassRaw) != nil else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeListBox(
+        elements: runtimeKClassCollectedMembers(
+            kclassRaw, selection: .propertiesOnly, includeInherited: true
+        )
+    ))
 }
 
 @_cdecl("__kk_kclass_declared_member_properties")
@@ -287,9 +405,18 @@ public func __kk_kclass_functions(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeKMemberRegistry.functions(for: kclassRaw)))
 }
 
+/// JVM `memberFunctions` includes inherited functions — unlike
+/// `declaredMemberFunctions`/`functions`, which stay self-only.
 @_cdecl("__kk_kclass_member_functions")
 public func __kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
-    __kk_kclass_functions(kclassRaw)
+    guard runtimeKClassBox(from: kclassRaw) != nil else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeListBox(
+        elements: runtimeKClassCollectedMembers(
+            kclassRaw, selection: .functionsOnly, includeInherited: true
+        )
+    ))
 }
 
 @_cdecl("__kk_kclass_declared_member_functions")
