@@ -16,6 +16,14 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         isJVMTarget: Bool
     ) {
+        // kotlinc exempts @LowPriorityInOverloadResolution declarations from
+        // the redeclaration check: overload resolution already orders them
+        // below the regular-priority one, so the pair is not ambiguous.
+        func isLowPriority(_ id: SymbolID) -> Bool {
+            symbols.annotations(for: id).contains {
+                $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+            }
+        }
         func isUserSource(_ id: SymbolID) -> Bool {
             // Constructors carry no source file ID of their own; use their owner's.
             guard let fileID = symbols.sourceFileID(for: id)
@@ -25,7 +33,7 @@ extension DataFlowSemaPhase {
         }
         let constructors = symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).compactMap { id -> FunctionSignature? in
             guard let symbol = symbols.symbol(id), symbol.kind == .constructor,
-                  !symbol.flags.contains(.synthetic), isUserSource(id),
+                  !symbol.flags.contains(.synthetic), isUserSource(id), !isLowPriority(id),
                   let signature = symbols.functionSignature(for: id)
             else { return nil }
             // A constructor's receiver is the class it constructs; a
@@ -62,7 +70,7 @@ extension DataFlowSemaPhase {
             guard let symbol = symbols.symbol(id), symbol.kind == .function,
                   !symbol.flags.contains(.synthetic),
                   !symbol.flags.contains(.expectDeclaration), !symbol.flags.contains(.actualDeclaration),
-                  symbols.parentSymbol(for: id) == nil, isUserSource(id),
+                  symbols.parentSymbol(for: id) == nil, isUserSource(id), !isLowPriority(id),
                   let signature = symbols.functionSignature(for: id),
                   signature.receiverType == nil,
                   signature.contextReceiverTypes.isEmpty,
