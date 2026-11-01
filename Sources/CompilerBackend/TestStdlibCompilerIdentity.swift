@@ -200,7 +200,9 @@ public enum TestStdlibCompilerIdentity {
             guard fields.count == 6 else {
                 return .failure(.llvmIdentityUnavailable("anonymous executable mapping: \(line.prefix(100))"))
             }
-            let path = String(fields[5])
+            // The kernel pads the inode column, and `maxSplits` keeps that padding on
+            // the final field. Only leading blanks are dropped: a path may contain spaces.
+            let path = String(fields[5].drop(while: { $0 == " " || $0 == "\t" }))
             if path == "[vdso]" || path == "[vsyscall]" { continue }
             guard path.hasPrefix("/") else {
                 return .failure(.llvmIdentityUnavailable("non-file executable mapping: \(path)"))
