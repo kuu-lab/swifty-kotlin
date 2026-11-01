@@ -148,6 +148,13 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let recvType = signature.receiverType
                 else { return false }
+                // Importless recovery must not surface declarations the use
+                // site cannot legally call: an inaccessible bundled internal
+                // member can only produce a guaranteed INVISIBLE_MEMBER
+                // diagnostic, so it is never a real candidate (KUU-4103).
+                guard ctx.visibilityChecker.isAccessible(
+                    symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+                ) else { return false }
                 guard isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
                     return false
                 }
