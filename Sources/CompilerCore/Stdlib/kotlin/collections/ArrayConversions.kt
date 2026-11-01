@@ -1033,3 +1033,22 @@ public fun ULongArray.reverse() {
 }
 
 public fun ULongArray.reversed(): List<ULong> = this.toList().reversed()
+
+// `toMap` mirrors the Iterable/Sequence/Map overloads from kotlin-stdlib
+// Maps.kt; vararg parameters arrive at the call site as `Array<out Pair<...>>`.
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (pair in this) result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
+public fun <K, V, M : MutableMap<in K, in V>> Array<out Pair<K, V>>.toMap(destination: M): M {
+    // The bundled MutableMap stub exposes invariant operator parameters; the
+    // official contravariant API permits every K/V write to this destination.
+    val typedDestination = destination as MutableMap<K, V>
+    for (pair in this) typedDestination[pair.first] = pair.second
+    return destination
+}
