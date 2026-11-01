@@ -1,0 +1,56 @@
+interface MyInterface
+interface SubInterface : MyInterface
+open class Base
+class Impl : Base(), MyInterface
+class ImplIface : MyInterface
+enum class Color { RED }
+
+fun main() {
+    val k = String::class.java
+    println(k.superclass?.name)
+    println(k.isArray)
+    println(k.isEnum)
+    println(k.isPrimitive)
+    println(Int::class.java.isPrimitive)
+    println(Int::class.java.superclass?.name)
+    println(Int::class.java.interfaces.size)
+    println(Int::class.javaObjectType.superclass?.name)
+    println(Int::class.javaPrimitiveType?.isPrimitive)
+    println(IntArray::class.java.componentType?.name)
+    println(IntArray::class.java.isArray)
+    println(IntArray::class.java.superclass?.name)
+    println(IntArray::class.java.interfaces.map { it.name })
+    println(Array<String>::class.java.isArray)
+    println(Array<String>::class.java.superclass?.name)
+    println(Array<String>::class.java.interfaces.size)
+    println(Runnable::class.java.superclass?.name)
+    println(Runnable::class.java.interfaces.size)
+    println(MyInterface::class.java.superclass?.name)
+    println(SubInterface::class.java.interfaces.map { it.name })
+    println(Impl::class.java.superclass?.name)
+    println(Impl::class.java.interfaces.map { it.name })
+    println(ImplIface::class.java.superclass?.name)
+    println(Any::class.java.superclass?.name)
+    println(Color::class.java.isEnum)
+    println(Color::class.java.superclass?.name)
+    println(k.getSuperclass()?.name)
+    println(IntArray::class.java.getComponentType()?.name)
+    println(Impl::class.java.getInterfaces().map { it.name })
+    println(Unit::class.java.superclass?.name)
+    println(BooleanArray::class.java.componentType?.name)
+    println(arrayOf("x").javaClass.isArray)
+    println(arrayOf("x").javaClass.componentType?.name)
+    println(arrayOf("x").javaClass.superclass?.name)
+    println(arrayOf("x").javaClass.interfaces.map { it.name })
+    println(intArrayOf(1).javaClass.componentType?.name)
+    println(intArrayOf(1).javaClass.interfaces.size)
+    println(Exception::class.java.superclass?.name)
+    println(IllegalStateException::class.java.superclass?.name)
+    println(Comparable::class.java.superclass?.name)
+    println(List::class.java.superclass?.name)
+    println(UInt::class.java.isPrimitive)
+    println(UInt::class.java.superclass?.name)
+    println(Nothing::class.java.isPrimitive)
+    println(Nothing::class.java.superclass?.name)
+    println(Void::class.javaPrimitiveType?.isPrimitive)
+}
