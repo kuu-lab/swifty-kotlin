@@ -305,7 +305,9 @@ extension NativeEmitter.FunctionEmissionContext {
             argumentCount: 1,
             appendThrownChannel: false
         )
-        let liveness = computeFunctionLivenessAnalysis()
+        let liveness = withSubPhaseTiming("gcRootLiveness", timer: emitter.phaseTimer, accumulating: true) {
+            computeFunctionLivenessAnalysis()
+        }
         livenessAnalysis = liveness
 
         for (instructionIndex, instruction) in function.body.enumerated() {
@@ -538,6 +540,30 @@ extension NativeEmitter.FunctionEmissionContext {
                     continue
                 }
                 let operandValue = resolveValue(operand)
+                // A `.nullAssert` materialized after OperatorLoweringPass (an
+                // imported inline body, e.g. `implicitNotNull`) reaches codegen
+                // unlowered. On an operand whose non-null unboxed representation
+                // cannot encode a null value — a raw primitive slot, or the
+                // flat payload of an unboxed value class — the sentinel bit
+                // pattern is a legitimate value (`Long.MIN_VALUE`/`-0.0`, or
+                // `V(null)`), never a null reference, so the probe would throw
+                // on valid values; store the operand verbatim like the lowering
+                // passes do (KUU-3899).
+                let operandProbeCannotBeNull = if let operandType = module.arena.exprType(operand),
+                                                  let typeSystem
+                {
+                    nullAssertProbeCannotBeNull(
+                        typeSystem.kind(of: operandType),
+                        types: typeSystem,
+                        symbols: symbols
+                    )
+                } else {
+                    false
+                }
+                if operandProbeCannotBeNull {
+                    storeResult(result, operandValue)
+                    continue
+                }
                 if let notNullFunc = declareExternalFunction(
                     named: "kk_op_notnull",
                     argumentCount: 1,

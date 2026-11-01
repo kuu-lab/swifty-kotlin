@@ -1,6 +1,20 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker.MemberCallCollectionFlowContext {
+    /// A nested factory/constructor destination whose own arguments could not
+    /// fix one of its callee type parameters (`ArrayList(capacity)`, where no
+    /// parameter mentions `E`) collapsed that parameter to its default `Any`
+    /// bound on the standalone pass. kotlinc keeps such a variable inside the
+    /// enclosing `C : MutableCollection<in T>` constraint instead, so the
+    /// destination must be re-inferred under the bound the same way a
+    /// `Nothing`-typed factory is (KUU-3917). Destinations whose arguments
+    /// already fixed every type parameter — `mutableListOf(x)`, where `T`
+    /// got a real lower bound — keep their first-pass type.
+    func nestedDestinationCallLeavesTypeParametersUnfixed(_ expr: ExprID) -> Bool {
+        checker.partiallyInferredNestedCallType(expr, ctx: ctx)
+            .map { !$0.unboundTypeVarBySymbol.isEmpty } ?? false
+    }
+
     func inferDestinationCollectionHOFSpecial(locals: inout LocalBindings) -> TypeID? {
         if CallTypeChecker.destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
             // A destination factory such as `mutableListOf()` has no
@@ -115,10 +129,20 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             // destination once the lambda's result type is known — the same
             // participation the nested call's type variable gets in
             // kotlinc's outer constraint set.
+            //
+            // The same deferral applies when the nested call's own arguments
+            // left a type parameter unfixed and it collapsed to `Any` by
+            // default: `ArrayList(capacity)` has no argument mentioning E, so
+            // the standalone pass fixes E := Any. kotlinc instead keeps E in
+            // the enclosing `C : MutableCollection<in T>` constraint, where
+            // `MutableList<E> <: MutableCollection<in T>` contributes the
+            // lower bound `T <: E` and E fixes to the element type — yielding
+            // `ArrayList<T>`, not `ArrayList<Any>` (KUU-3917).
             let destinationNeedsDeferredInference = isInferableNestedCallExpr(args[0].expr, ast: ast)
                 && (typeContainsNothingType(destinationElementType, sema: sema)
                     || typeContainsNothingType(destinationMapKeyType, sema: sema)
-                    || typeContainsNothingType(destinationMapValueType, sema: sema))
+                    || typeContainsNothingType(destinationMapValueType, sema: sema)
+                    || nestedDestinationCallLeavesTypeParametersUnfixed(args[0].expr))
             let lambdaExpectedType: TypeID = switch calleeStr {
             case "filterTo", "filterNotTo":
                 sema.types.make(.functionType(FunctionType(
@@ -265,7 +289,19 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.types.anyType
             }
             let effectiveLambdaExpectedType: TypeID
+            // Only the transforms that derive the destination bound from the
+            // lambda's *result* type need the unconstrained expectation
+            // below. The filter family always expects `Boolean` and reuses
+            // the receiver's element type for the bound — loosening the
+            // predicate to `Any?` boxes its Boolean result, and the inlined
+            // bundled `if (predicate(element))` then compares a non-null
+            // boxed pointer against `false`, appending every element
+            // (KUU-3917).
+            let lambdaReturnFeedsDestinationBound = ![
+                "filterTo", "filterNotTo", "filterIndexedTo",
+            ].contains(calleeStr)
             if destinationNeedsDeferredInference,
+               lambdaReturnFeedsDestinationBound,
                case let .functionType(lambdaFunctionType) = sema.types.kind(of: lambdaExpectedType)
             {
                 effectiveLambdaExpectedType = sema.types.make(.functionType(FunctionType(
@@ -354,12 +390,39 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         nil
                     }
                 }
-                let reinferExpectedType = reinferBoundType.flatMap { boundType in
-                    concreteNestedCallExpectedType(
+                let reinferExpectedType: TypeID? = reinferBoundType.flatMap { boundType in
+                    // kotlinc keeps the destination call's free type parameter
+                    // inside the enclosing constraint set: the `in` bound only
+                    // gives the element a *lower* bound (`T <: E`), while an
+                    // expected `Collection<X>`/`MutableCollection<X>` gives it
+                    // an upper bound. Prefer the bound-shaped
+                    // re-parameterization — the smallest solution, e.g.
+                    // `ArrayList<T>` for `ArrayList(capacity)` — and fall back
+                    // to the expected-shaped one only when the bound-shaped
+                    // type cannot satisfy the call's expected type (an
+                    // expected `MutableCollection<Any>` demands `ArrayList<Any>`,
+                    // which still satisfies `MutableCollection<in T>`).
+                    let boundSteered = concreteNestedCallExpectedType(
                         originalArgumentType: nonNullableDestinationType,
                         boundType: boundType,
                         sema: sema
                     )
+                    if let boundSteered,
+                       expectedType == nil || sema.types.isSubtype(boundSteered, expectedType!)
+                    {
+                        return boundSteered
+                    }
+                    if let expectedType,
+                       let expectedSteered = concreteNestedCallExpectedType(
+                           originalArgumentType: nonNullableDestinationType,
+                           boundType: expectedType,
+                           sema: sema
+                       ),
+                       sema.types.isSubtype(expectedSteered, boundType)
+                    {
+                        return expectedSteered
+                    }
+                    return boundSteered
                 }
                 if let reinferExpectedType {
                     let reinferDiagnosticsCheckpoint = ctx.sema.diagnostics.checkpoint()

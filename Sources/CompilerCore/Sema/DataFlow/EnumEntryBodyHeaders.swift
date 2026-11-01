@@ -188,9 +188,9 @@ extension DataFlowSemaPhase {
         var visitedSupertypes: Set<SymbolID> = []
         while let supertype = pendingSupertypes.popLast() {
             guard visitedSupertypes.insert(supertype).inserted else { continue }
-            if let supertypeInfo = symbols.symbol(supertype) {
+            if symbols.symbol(supertype) != nil {
                 let supertypeArgs = symbols.supertypeTypeArgs(for: ownerSymbol, supertype: supertype)
-                for candidate in symbols.children(ofFQName: supertypeInfo.fqName) {
+                for candidate in symbols.declaredChildren(of: supertype) {
                     guard let candidateInfo = symbols.symbol(candidate),
                           candidateInfo.kind == .function,
                           let candidateSignature = symbols.functionSignature(for: candidate)

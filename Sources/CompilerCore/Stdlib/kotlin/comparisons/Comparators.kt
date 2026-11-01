@@ -161,10 +161,7 @@ public fun <T> Comparator<in T>.nullsLast(): Comparator<T?> {
 
 public fun <T> Comparator<T>.reversed(): Comparator<T> {
     val self = this
-    return Comparator { a, b ->
-        val r = self.compare(a, b)
-        if (r == 0) 0 else -r
-    }
+    return Comparator { a, b -> self.compare(b, a) }
 }
 
 public fun <T> Comparator<T>.thenBy(selector: (T) -> Comparable<*>?): Comparator<T> {

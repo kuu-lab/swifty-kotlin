@@ -336,6 +336,17 @@ extension LambdaLowerer {
         {
             referenced.append(symbol)
         }
+        // Same contract as `contextParameterReceiverSymbols` above, but for
+        // `f()` invokes on `context(A, B) () -> T` values: each implicit
+        // context slot is bound to a receiver-tower symbol that may live in
+        // an outer lambda. Without forwarding it, middle lambdas drop the
+        // capture and the invoke reaches codegen without the value
+        // (KUU-3897).
+        for receiverSymbol in sema.bindings.callableValueCalls[exprID]?.contextReceiverSymbols.compactMap({ $0 }) ?? []
+            where seen.insert(receiverSymbol).inserted
+        {
+            referenced.append(receiverSymbol)
+        }
         guard let expr = ast.arena.expr(exprID) else {
             return
         }

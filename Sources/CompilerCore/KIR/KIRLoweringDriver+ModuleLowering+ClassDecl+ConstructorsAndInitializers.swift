@@ -1548,6 +1548,32 @@ extension KIRLoweringDriver {
                     result: fnRegisterResult,
                     canThrow: false
                 ))
+                // KUU-3947: `KClass.members`/`memberFunctions` handles are
+                // bare RuntimeKFunctionBox objects — pin the same
+                // `fun pkg.Owner.name(P): R` text callable references get so
+                // they do not render `<object 0x…>`.
+                let memberFunctionType = sema.types.make(.functionType(FunctionType(
+                    contextReceivers: signature.contextReceiverTypes,
+                    receiver: signature.receiverType,
+                    params: signature.parameterTypes,
+                    returnType: signature.returnType,
+                    isSuspend: signature.isSuspend
+                )))
+                lambdaLowerer.emitFunctionDescription(
+                    value: kfunctionResult,
+                    description: lambdaLowerer.functionReferenceDescription(
+                        name: fnNameInterned,
+                        type: memberFunctionType,
+                        targetSymbol: childID,
+                        sema: sema,
+                        interner: interner
+                    ),
+                    identity: false,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &body.instructions
+                )
                 // KUU-3806: record the same equality identity a `C::foo`
                 // unbound callable reference carries, so a handle from
                 // `C::class.functions`/`members` compares equal to it. The
@@ -1604,6 +1630,28 @@ extension KIRLoweringDriver {
                     result: propRegisterResult,
                     canThrow: false
                 ))
+                // KUU-3947: the memberProperties handle is a bare
+                // RuntimeKPropertyStub — pin the JVM-style
+                // `val pkg.Owner.name: kotlin.T` text so it renders like a
+                // real KProperty rather than an unqualified stub signature.
+                if let propTypeID = sema.symbols.propertyType(for: childID) {
+                    lambdaLowerer.emitFunctionDescription(
+                        value: kpropResult,
+                        description: lambdaLowerer.propertyReferenceDescription(
+                            memberName: propNameInterned,
+                            propertySymbol: childID,
+                            isMutable: childSym.flags.contains(.mutable),
+                            returnType: propTypeID,
+                            sema: sema,
+                            interner: interner
+                        ),
+                        identity: false,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body.instructions
+                    )
+                }
                 // KUU-3806: a `C::bar` unbound property reference keys its
                 // equality identity on the property's getter accessor symbol.
                 // Register the same target on the `C::class.memberProperties`

@@ -430,9 +430,16 @@ extension CallLowerer {
                )
             {
                 let contextArguments = callableValueCallBinding.contextArgumentCount == 0
-                    ? functionType.contextReceivers.compactMap {
+                    ? functionType.contextReceivers.enumerated().compactMap { index, contextType in
                         contextArgumentValue(
-                            matching: $0, callExprID: exprID, sema: sema, arena: arena
+                            matching: contextType,
+                            callExprID: exprID,
+                            preferredReceiverSymbol: callableValueCallBinding.contextReceiverSymbols
+                                .indices.contains(index)
+                                ? callableValueCallBinding.contextReceiverSymbols[index]
+                                : nil,
+                            sema: sema,
+                            arena: arena
                         )
                     }
                     : []
@@ -478,9 +485,16 @@ extension CallLowerer {
                                                        of: sema.types.makeNonNullable(callableValueCallBinding.functionType)
                                                    )
             {
-                functionType.contextReceivers.compactMap {
+                functionType.contextReceivers.enumerated().compactMap { index, contextType in
                     contextArgumentValue(
-                        matching: $0, callExprID: exprID, sema: sema, arena: arena
+                        matching: contextType,
+                        callExprID: exprID,
+                        preferredReceiverSymbol: callableValueCallBinding.contextReceiverSymbols
+                            .indices.contains(index)
+                            ? callableValueCallBinding.contextReceiverSymbols[index]
+                            : nil,
+                        sema: sema,
+                        arena: arena
                     )
                 }
             } else {
@@ -887,6 +901,34 @@ extension CallLowerer {
                     sema: sema,
                     interner: interner
                 )
+            }
+            // KUU-3892: an unqualified `f()` inside an enum member body is
+            // `this.f()` on the raw ordinal receiver. The resolved callee is
+            // the *shared base* (e.g. an interface default `Fun.f`), and the
+            // virtual-dispatch lookup below cannot see enum-typed receivers
+            // (`resolveItableDispatchKind` only maps `.class`/`.interface`
+            // receiver kinds), so without this rewrite the call bound straight
+            // to `Fun.f` and silently skipped an enum entry's own override.
+            // Route it through the enum's `$enumEntryDispatch$` ordinal helper
+            // exactly like the qualified `E.X.f()` form does.
+            if let implicitReceiver,
+               tryEmitEnumEntryDispatchCall(
+                   hasOmittedDefaultArguments: callNormalized.hasOmittedDefaultArguments,
+                   isSuperCall: false,
+                   chosenCallee: chosen,
+                   receiver: MemberCallReceiver(
+                       expr: exprID,
+                       loweredID: implicitReceiver,
+                       typeOverride: arena.exprType(implicitReceiver)
+                   ),
+                   result: result,
+                   sema: sema,
+                   interner: interner,
+                   arguments: finalArgIDs,
+                   instructions: &instructions
+               )
+            {
+                return result
             }
             // An unqualified `compute()` inside a member body is `this.compute()`
             // and must dispatch through the receiver's vtable/itable exactly like

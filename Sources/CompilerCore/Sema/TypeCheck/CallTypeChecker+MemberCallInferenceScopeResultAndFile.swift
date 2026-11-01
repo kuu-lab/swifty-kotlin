@@ -83,6 +83,24 @@ extension CallTypeChecker {
                         return bodyType
                     }()
                     let finalType = safeCall ? sema.types.makeNullable(refinedReturnType) : refinedReturnType
+                    // KUU-3915: bind the stdlib `use` overload this call
+                    // resolves to. Lowering still expands `.use {}` as an
+                    // intrinsic try/finally scope and never consults the
+                    // binding, but post-validation needs the chosen (inline)
+                    // callee to treat the block as an inline-parameter
+                    // lambda — suspend calls and non-local returns inside
+                    // `use {}` keep the caller's context.
+                    if let useSymbol = resolveUseScopeCallee(
+                        receiverType: nonNullReceiverType,
+                        sema: sema,
+                        interner: interner
+                    ) {
+                        sema.bindings.bindCall(id, binding: CallBinding(
+                            chosenCallee: useSymbol,
+                            substitutedTypeArguments: [nonNullReceiverType, returnType],
+                            parameterMapping: [0: 0]
+                        ))
+                    }
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
                     // markCollectionHOFLambdaExpr is required here to force the lambda through
                     // the capturing-lambda lowering path (needsClosureParam=true), which ensures

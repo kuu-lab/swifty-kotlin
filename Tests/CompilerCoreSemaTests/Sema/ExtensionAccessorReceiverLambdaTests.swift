@@ -27,6 +27,31 @@ struct ExtensionAccessorReceiverLambdaTests {
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
+    // KUU-3914: an unqualified sibling extension property inside a
+    // receiver-typed lambda binds to the enclosing extension receiver —
+    // previously this was reported as KSWIFTK-SEMA-0022 unresolved reference
+    // because extension-property lookup only considered the innermost
+    // receiver-tower entry.
+    @Test func siblingExtensionPropertyResolvesInsideReceiverLambda() throws {
+        let ctx = makeContext("""
+        class B(val host: String)
+        class StringBuilder { fun append(value: String) {} }
+        fun buildString(block: StringBuilder.() -> Unit): String {
+            StringBuilder().block()
+            return ""
+        }
+        val B.sibling: String get() = host
+        val B.authority: String get() = buildString { append(sibling) }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let sibling = try #require(sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("sibling")
+        ]).first(where: { sema.symbols.symbol($0)?.kind == .property }))
+        #expect(sema.bindings.identifierSymbols.values.contains(sibling))
+    }
+
     @Test func innerReceiverMemberKeepsPrecedence() throws {
         let ctx = makeContext("""
         class B(val host: String)

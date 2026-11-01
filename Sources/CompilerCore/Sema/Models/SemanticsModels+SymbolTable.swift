@@ -387,6 +387,11 @@ public final class SymbolTable {
     /// A plain NSLock would self-deadlock on that path.
     private let lock = NSRecursiveLock()
 
+    /// KUU-3779: hot-path collector live only while `TypeCheckSemaPhase`'s
+    /// `type-check` sub-phase runs under `time-phases`; nil otherwise, so
+    /// instrumentation reduces to an optional load.
+    var attribution: TypeCheckAttribution?
+
     /// Copy-on-write snapshot at the module barrier. Lazy loader callbacks
     /// capture module-owned types/inline stores and cannot cross this boundary.
     func makeSemaWorkerSymbols() -> SymbolTable {
@@ -601,6 +606,7 @@ public final class SymbolTable {
         guard !indexedLibraryProviders.isEmpty, !fqName.isEmpty,
               fqNameDrainInProgress.insert(fqName).inserted
         else { return }
+        attribution?.increment(.indexDrainCalls)
         defer { fqNameDrainInProgress.remove(fqName) }
         for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
             provider.drainEntries(fqName: fqName)
@@ -638,6 +644,7 @@ public final class SymbolTable {
         guard !indexedLibraryProviders.isEmpty,
               childrenDrainInProgress.insert(parentFQName).inserted
         else { return }
+        attribution?.increment(.indexDrainCalls)
         defer { childrenDrainInProgress.remove(parentFQName) }
         var claimedPrefixes: Set<[InternedString]> = []
         for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
@@ -657,6 +664,7 @@ public final class SymbolTable {
         guard !indexedLibraryProviders.isEmpty,
               shortNameDrainInProgress.insert(shortName).inserted
         else { return }
+        attribution?.increment(.indexDrainCalls)
         defer { shortNameDrainInProgress.remove(shortName) }
         for provider in indexedLibraryProviders where provider.importOrder <= importDrainEpoch {
             provider.drainEntries(shortName: shortName)
@@ -965,6 +973,7 @@ public final class SymbolTable {
     }
 
     public func lookupAll(fqName: [InternedString]) -> [SymbolID] {
+        attribution?.increment(.symbolTableLookups)
         lock.lock()
         defer { lock.unlock() }
         drainIndexedEntries(fqName: fqName)
@@ -972,6 +981,7 @@ public final class SymbolTable {
     }
 
     public func lookupByShortName(_ name: InternedString) -> [SymbolID] {
+        attribution?.increment(.symbolTableLookups)
         lock.lock()
         defer { lock.unlock() }
         drainIndexedEntries(shortName: name)
@@ -1666,6 +1676,27 @@ public final class SymbolTable {
             drainIndexedChildren(parentFQName: parentInfo.fqName)
         }
         return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
+    }
+
+    /// Returns members *declared* directly on this exact nominal, in
+    /// declaration order. This is `children(of:)` minus top-level extension
+    /// members that were reparented onto the receiver nominal for member-call
+    /// lookup (KSP-INF-011): such an extension keeps its declaring-package
+    /// fqName, so a declared member is exactly a child whose fqName is
+    /// `parent.fqName + [name]`. Unlike `children(ofFQName:)`, members that
+    /// belong to a different nominal sharing this fqName (a source
+    /// declaration shadowing an imported library type) are not merged in
+    /// (KUU-3911).
+    public func declaredChildren(of parent: SymbolID) -> [SymbolID] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let parentInfo = symbol(parent) else { return [] }
+        drainIndexedChildren(parentFQName: parentInfo.fqName)
+        return (childrenByParent[parent] ?? [])
+            .filter {
+                symbolsStorage[Int($0.rawValue)].fqName.dropLast().elementsEqual(parentInfo.fqName)
+            }
+            .sorted { $0.rawValue < $1.rawValue }
     }
 
     public func parentSymbol(for child: SymbolID) -> SymbolID? {

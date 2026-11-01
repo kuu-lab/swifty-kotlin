@@ -186,21 +186,16 @@ public fun String.single(): Char {
 
 public inline fun String.single(predicate: (Char) -> Boolean): Char {
     var matchIndex = -1
-    var hasMultipleMatches = false
     var i = 0
     val sz = length
     while (i < sz) {
         if (predicate(this[i])) {
             if (matchIndex >= 0) {
-                hasMultipleMatches = true
-            } else {
-                matchIndex = i
+                throw IllegalArgumentException("Char sequence contains more than one matching element.")
             }
+            matchIndex = i
         }
         i += 1
-    }
-    if (hasMultipleMatches) {
-        throw IllegalArgumentException("Char sequence contains more than one matching element.")
     }
     if (matchIndex >= 0) return this[matchIndex]
     throw NoSuchElementException("Char sequence contains no character matching the predicate.")
@@ -212,20 +207,16 @@ public fun String.singleOrNull(): Char? {
 
 public inline fun String.singleOrNull(predicate: (Char) -> Boolean): Char? {
     var matchIndex = -1
-    var hasMultipleMatches = false
     var i = 0
     val sz = length
     while (i < sz) {
         if (predicate(this[i])) {
-            if (matchIndex >= 0) {
-                hasMultipleMatches = true
-            } else {
-                matchIndex = i
-            }
+            if (matchIndex >= 0) return null
+            matchIndex = i
         }
         i += 1
     }
-    if (!hasMultipleMatches && matchIndex >= 0) return this[matchIndex]
+    if (matchIndex >= 0) return this[matchIndex]
     return null
 }
 

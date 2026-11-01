@@ -508,6 +508,47 @@ func valueClassUnboxSourceIsBoxed(_ kind: TypeKind) -> Bool {
     }
 }
 
+/// True when a `.nullAssert`/`!!` operand's static type is non-null AND its
+/// runtime slot cannot encode a null value at all — a raw non-null
+/// primitive, or the flat payload of a value class kept unboxed.
+/// `kk_op_notnull` probes the slot for the null-sentinel bit pattern, but
+/// for these operands that pattern is always a legitimate value —
+/// `Long.MIN_VALUE`, `ULong`'s `2^63`, `-0.0`, or `V(null)` for a nullable
+/// underlying type — never a null reference, so the probe can only fire
+/// spuriously and lowering must skip it (KUU-3899). Reference-typed,
+/// nullable, platform, and erased slots keep the probe: there the sentinel
+/// still means a genuine null (or an illegible platform value, which JVM's
+/// `Intrinsics.checkNotNull` reports the same way).
+public func nullAssertProbeCannotBeNull(
+    _ kind: TypeKind?,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> Bool {
+    switch kind {
+    case .primitive(_, .nonNull):
+        return true
+    default:
+        return isNonNullUnboxedValueClassOperand(kind, types: types, symbols: symbols)
+    }
+}
+
+/// True when `kind` is a non-null value class whose slot carries the flat
+/// (unboxed) payload representation. Value classes implementing an interface
+/// stay boxed — a real object handle that never is the sentinel — and keep
+/// the raw probe.
+func isNonNullUnboxedValueClassOperand(
+    _ kind: TypeKind?,
+    types: TypeSystem,
+    symbols: SymbolTable?
+) -> Bool {
+    guard case let .classType(classType) = kind,
+          classType.nullability == .nonNull,
+          let symbols,
+          symbols.symbol(classType.classSymbol)?.flags.contains(.valueType) == true
+    else { return false }
+    return symbols.effectiveValueClassUnderlyingType(for: classType.classSymbol) != nil
+}
+
 /// Emits `kk_value_class_box(value, classID) -> result` — wraps a
 /// nullable-underlying value class's raw payload in its nominal
 /// `RuntimeObjectBox` so `V?`/`Any`/interface slots observe wrapper nullness

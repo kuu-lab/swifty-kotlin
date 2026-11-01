@@ -53,14 +53,19 @@ final class ValPropertyInitializationChecker {
     private let ast: ASTModule
     private let sema: SemaModule
     private let sourceManager: SourceManager?
+    private let interner: StringInterner
     private let declarationValidator: DeclarationPositionValidator
     private var checkingConstructorBody = false
+    private var checkingDelegationArguments = false
     private var owner: SymbolID?
     private var fields: Set<SymbolID> = []
+    private var backedFields: Set<SymbolID> = []
     private var customSetterFields: Set<SymbolID> = []
     private var immutableFields: Set<SymbolID> = []
     private var reportedMissing: Set<SymbolID> = []
     private var reportedWrites: Set<ExprID> = []
+    private var reportedReads: Set<ExprID> = []
+    private var reportedDelegationAccess: Set<ExprID> = []
     private var inlineLambdaBodyDepth = 0
     private var deferredLambdaBodyDepth = 0
 
@@ -68,6 +73,7 @@ final class ValPropertyInitializationChecker {
         self.ast = ast
         self.sema = sema
         self.sourceManager = sourceManager
+        self.interner = interner
         declarationValidator = DeclarationPositionValidator(astArena: ast.arena, interner: interner, diagnostics: nil)
     }
 
@@ -86,6 +92,7 @@ final class ValPropertyInitializationChecker {
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: decl.secondaryConstructors,
                            parameters: decl.primaryConstructorParams,
+                           superConstructorArgs: decl.superTypeEntries.flatMap(\.constructorArgs),
                            hasPrimaryConstructor: decl.hasPrimaryConstructorSyntax || decl.secondaryConstructors.isEmpty,
                            checksDefiniteInitialization: !isExpectDeclaration && !decl.modifiers.contains(.annotationClass))
                 if sema.symbols.symbol(symbol)?.kind == .enumClass,
@@ -112,6 +119,7 @@ final class ValPropertyInitializationChecker {
             case let .objectDecl(decl):
                 checkOwner(symbol, properties: decl.memberProperties, blocks: decl.initBlocks,
                            order: decl.classBodyInitOrder, constructors: [],
+                           superConstructorArgs: decl.superTypeConstructorArgs,
                            checksDefiniteInitialization: !isExpectDeclaration)
             default:
                 break
@@ -122,6 +130,7 @@ final class ValPropertyInitializationChecker {
     private func checkOwner(
         _ symbol: SymbolID, properties: [DeclID], blocks: [FunctionBody],
         order: [ClassBodyInitMember], constructors: [ConstructorDecl], parameters: [ValueParamDecl] = [],
+        superConstructorArgs: [CallArgument] = [],
         hasPrimaryConstructor: Bool = true, checksDefiniteInitialization: Bool = true
     ) {
         owner = symbol
@@ -144,6 +153,21 @@ final class ValPropertyInitializationChecker {
         } else {
             isBundledStdlibOwner = false
         }
+        // Fields whose read actually dereferences backing storage. Only those
+        // are subject to kotlinc's "variable must be initialized" read check;
+        // computed accessors, `lateinit`, `const`, `expect`, `abstract`, and
+        // extension properties are plain calls or exempt by design. The
+        // bundled stdlib is exempt like the missing-initializer check above.
+        backedFields = isBundledStdlibOwner ? [] : Set(properties.compactMap { id -> SymbolID? in
+            guard case let .propertyDecl(property) = ast.arena.decl(id),
+                  let field = sema.bindings.declSymbol(for: id),
+                  !property.modifiers.contains(.abstract), !property.modifiers.contains(.lateinit),
+                  !property.modifiers.contains(.expect), !property.modifiers.contains(.const),
+                  property.receiverType == nil,
+                  !isFieldless(property, symbol: field)
+            else { return nil }
+            return field
+        })
         let hasPropertyInitializationExpression = !isBundledStdlibOwner && properties.contains { id in
             guard case let .propertyDecl(property) = ast.arena.decl(id) else { return false }
             return property.initializer != nil
@@ -165,6 +189,13 @@ final class ValPropertyInitializationChecker {
                 return field
             }) : []
         let declaredFields = Set(properties.compactMap { sema.bindings.declSymbol(for: $0) })
+        // Supertype-constructor arguments in the class header or an `object`
+        // declaration evaluate before the instance exists — `this` and its
+        // members are unavailable there (kotlinc: "cannot access '<this>'").
+        // The bundled stdlib is exempt like the other field checks above.
+        if !isBundledStdlibOwner {
+            checkDelegationArguments(superConstructorArgs)
+        }
         // Primary constructor property parameters have already been initialized.
         let parameterNames = Set(parameters.filter(\.isProperty).map(\.name))
         let parameterFields = fields.filter { field in
@@ -232,11 +263,31 @@ final class ValPropertyInitializationChecker {
             reportMissing(required, in: initial)
         }
         for ctor in constructors {
+            // Delegation-call arguments evaluate before the delegated
+            // constructor runs — and before the instance exists — so reading
+            // a member of the class being constructed is invalid regardless
+            // of initialization order.
+            if !isBundledStdlibOwner {
+                checkDelegationArguments(ctor.delegationCall?.args ?? [])
+            }
             if let symbol = constructorSymbol(ctor) {
                 let flow = summary(symbol)
                 if hasNormalInitializationPath { reportMissing(required, in: flow) }
             }
         }
+    }
+
+    /// Walks constructor-delegation arguments (`: this(...)`, `: super(...)`,
+    /// and supertype-constructor arguments) with `checkingDelegationArguments`
+    /// set so member reads/writes report "cannot access '<this>'" instead of
+    /// the initialization-order diagnostic. The scratch flow starts empty:
+    /// even an already-initialized member is unreachable without `this`.
+    private func checkDelegationArguments(_ args: [CallArgument]) {
+        guard !args.isEmpty else { return }
+        checkingDelegationArguments = true
+        var scratch = Flow()
+        for arg in args { walk(arg.expr, flow: &scratch) }
+        checkingDelegationArguments = false
     }
 
     private func isFieldless(_ property: PropertyDecl, symbol: SymbolID) -> Bool {
@@ -274,21 +325,54 @@ final class ValPropertyInitializationChecker {
         }
     }
 
-    private func write(_ id: ExprID, receiver: ExprID?, flow: inout Flow, permitsInitialization: Bool) {
-        guard let field = sema.bindings.identifierSymbol(for: id), fields.contains(field),
-              let initialized = flow.paths[.normal] else { return }
-        let ownReceiver: Bool
-        if let receiver {
-            if case .thisRef = ast.arena.expr(receiver),
-               let type = sema.bindings.exprType(for: receiver),
-               case let .classType(classType) = sema.types.kind(of: type) {
-                ownReceiver = classType.classSymbol == owner
-            } else {
-                ownReceiver = false
-            }
-        } else {
-            ownReceiver = true
+    /// Whether `receiver` denotes the instance being initialized: an implicit
+    /// access (nil) or `this` whose type is the checked owner.
+    private func isOwnReceiver(_ receiver: ExprID?) -> Bool {
+        guard let receiver else { return true }
+        if case .thisRef = ast.arena.expr(receiver),
+           let type = sema.bindings.exprType(for: receiver),
+           case let .classType(classType) = sema.types.kind(of: type)
+        {
+            return classType.classSymbol == owner
         }
+        return false
+    }
+
+    /// kotlinc's "cannot access '<this>' before the instance has been
+    /// initialized": constructor-delegation arguments and supertype-constructor
+    /// arguments evaluate before the instance exists, so any access to a
+    /// member of the class being constructed is invalid regardless of
+    /// initialization order. Deferred lambdas and local functions are exempt —
+    /// they run after construction — while inline lambda bodies still execute
+    /// during argument evaluation (`permitsInitialization` stays true there).
+    private func checkPreInstanceAccess(_ id: ExprID, receiver: ExprID?, memberName: InternedString?, permitsInitialization: Bool) {
+        guard permitsInitialization, deferredLambdaBodyDepth == 0 else { return }
+        let field = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap { name in
+            fields.first { sema.symbols.symbol($0)?.name == name }
+        }
+        guard let field,
+              fields.contains(field),
+              isOwnReceiver(receiver),
+              reportedDelegationAccess.insert(id).inserted
+        else { return }
+        sema.diagnostics.error(
+            "KSWIFTK-SEMA-0058",
+            "cannot access '<this>' before the instance has been initialized.",
+            range: ast.arena.exprRange(id)
+        )
+    }
+
+    private func write(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: inout Flow, permitsInitialization: Bool) {
+        if checkingDelegationArguments {
+            checkPreInstanceAccess(id, receiver: receiver, memberName: memberName,
+                                   permitsInitialization: permitsInitialization)
+            return
+        }
+        guard let field = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap({ name in
+            fields.first { sema.symbols.symbol($0)?.name == name }
+        }), fields.contains(field),
+              let initialized = flow.paths[.normal] else { return }
+        let ownReceiver = isOwnReceiver(receiver)
         let range = ast.arena.exprRange(id)
         let beforeDeclaration = !checkingConstructorBody && (sema.symbols.symbol(field)?.declSite.map { declaration in
             range.map { $0.start.file == declaration.start.file && $0.start.offset < declaration.start.offset } ?? false
@@ -305,6 +389,44 @@ final class ValPropertyInitializationChecker {
             // Calling a custom setter does not initialize the backing field.
             if !customSetterFields.contains(field) { flow.paths[.normal]?.definite.insert(field) }
         }
+    }
+
+    /// kotlinc's "variable 'x' must be initialized": reading a backed member
+    /// property of the instance being initialized before the field is
+    /// definitely initialized reports an error instead of silently observing
+    /// a zeroed or null backing field at runtime. Reads inside lambdas and
+    /// local functions are deferred past initialization, so only direct
+    /// initializer code (`permitsInitialization` and outside any lambda) is
+    /// checked. Bound callable references (`this::y`) do not read the field.
+    private func read(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: Flow, permitsInitialization: Bool) {
+        if checkingDelegationArguments {
+            checkPreInstanceAccess(id, receiver: receiver, memberName: memberName,
+                                   permitsInitialization: permitsInitialization)
+            return
+        }
+        guard permitsInitialization,
+              deferredLambdaBodyDepth == 0,
+              inlineLambdaBodyDepth == 0,
+              let initialized = flow.paths[.normal]
+        else { return }
+        // Property reads normally carry an identifier binding to the property
+        // symbol. Qualified invokes like `this.picked()` bind nothing on the
+        // memberCall itself, so fall back to a member-name lookup in that case.
+        let field: SymbolID? = sema.bindings.identifierSymbol(for: id) ?? memberName.flatMap { name in
+            backedFields.first { sema.symbols.symbol($0)?.name == name }
+        }
+        guard let field,
+              backedFields.contains(field),
+              !initialized.definite.contains(field)
+        else { return }
+        let ownReceiver = isOwnReceiver(receiver)
+        guard ownReceiver, reportedReads.insert(id).inserted else { return }
+        let name = sema.symbols.symbol(field).map { interner.resolve($0.name) } ?? ""
+        sema.diagnostics.error(
+            "KSWIFTK-SEMA-0031",
+            "Variable '\(name)' must be initialized before use.",
+            range: ast.arena.exprRange(id)
+        )
     }
 
     private func walk(_ id: ExprID, flow: inout Flow, permitsInitialization: Bool = true) {
@@ -409,11 +531,16 @@ final class ValPropertyInitializationChecker {
             if op == .logicalAnd || op == .logicalOr || op == .elvis {
                 if let entry = flow.paths[.normal] { flow.merge(branch(rhs, from: entry)) }
             } else { visit(rhs) }
-        case let .call(callee, _, args, _), let .memberCall(callee, _, _, args, _):
+        case let .call(callee, _, args, _):
             visit(callee)
             visitArguments(args, callExprID: id, flow: &flow, permitsInitialization: permitsInitialization)
-        case let .safeMemberCall(receiver, _, _, args, _):
+        case let .memberCall(receiver, callee, _, args, _):
             visit(receiver)
+            read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
+            visitArguments(args, callExprID: id, flow: &flow, permitsInitialization: permitsInitialization)
+        case let .safeMemberCall(receiver, callee, _, args, _):
+            visit(receiver)
+            read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
             var called = flow
             visitArguments(args, callExprID: id, flow: &called, permitsInitialization: permitsInitialization)
             flow.merge(called)
@@ -432,16 +559,27 @@ final class ValPropertyInitializationChecker {
             visit(receiver); for index in indices { visit(index) }
         case let .indexedAssign(receiver, indices, value, _), let .indexedCompoundAssign(_, receiver, indices, value, _):
             visit(receiver); for index in indices { visit(index) }; visit(value)
-        case let .compoundAssign(_, _, value, _): visit(value)
-        case let .memberCompoundAssign(_, receiver, _, value, _): visit(receiver); visit(value)
+        case let .compoundAssign(_, name, value, _):
+            visit(value)
+            // A compound assignment both reads the field and writes it back,
+            // which also counts as initialization for definite-init purposes.
+            read(id, receiver: nil, memberName: name, flow: flow, permitsInitialization: permitsInitialization)
+            write(id, receiver: nil, memberName: name, flow: &flow, permitsInitialization: permitsInitialization)
+        case let .memberCompoundAssign(_, receiver, callee, value, _):
+            visit(receiver)
+            visit(value)
+            read(id, receiver: receiver, memberName: callee, flow: flow, permitsInitialization: permitsInitialization)
+            write(id, receiver: receiver, memberName: callee, flow: &flow, permitsInitialization: permitsInitialization)
         case let .unaryExpr(_, operand, _), let .isCheck(operand, _, _, _),
              let .asCast(operand, _, _, _), let .nullAssert(operand, _): visit(operand)
         case let .inExpr(lhs, rhs, _), let .notInExpr(lhs, rhs, _): visit(lhs); visit(rhs)
         case let .callableRef(receiver, _, _): if let receiver { visit(receiver) }
         case let .stringTemplate(parts, _):
             for part in parts { if case let .expression(child) = part { visit(child) } }
+        case .nameRef:
+            read(id, receiver: nil, flow: flow, permitsInitialization: permitsInitialization)
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
-             .charLiteral, .nullLiteral, .boolLiteral, .stringLiteral, .nameRef, .superRef, .thisRef,
+             .charLiteral, .nullLiteral, .boolLiteral, .stringLiteral, .superRef, .thisRef,
              .objectLiteral, .localNominalDecl:
             break
         }

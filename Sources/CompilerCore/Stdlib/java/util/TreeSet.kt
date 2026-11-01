@@ -15,8 +15,6 @@ import kotlin.internal.KsSymbolName
 // The `init` block additionally attaches a sorted backing `RuntimeSetBox` to
 // source-allocated instances (including user subclasses) so `MutableSet`
 // member calls operate on real storage — the LinkedHashSet.kt precedent.
-// The comparator does not survive that path for subclasses; see
-// docs/stdlib-pipeline.md.
 
 @KsSymbolName("__kk_tree_set_init")
 private external fun <E> __kkTreeSetInit(set: TreeSet<E>, comparator: Comparator<in E>?)
@@ -45,7 +43,7 @@ public open class TreeSet<E> : NavigableSet<E> {
     }
 
     public constructor(comparator: Comparator<in E>?) {
-        __kkTreeSetInit(this, null)
+        __kkTreeSetInit(this, comparator)
     }
 
     public constructor(elements: Collection<E>) : this() { addAll(elements) }

@@ -12,6 +12,7 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID],
         safeCall: Bool
     ) -> TypeID {
+        ctx.sema.types.attribution?.increment(.callSites)
         let request = MemberCallInferenceRequest(
             id: id,
             receiverID: receiverID,
@@ -94,7 +95,7 @@ extension CallTypeChecker {
         // lambda). The narrowing is scoped to the arguments: the receiver may
         // still be null afterwards, so the narrowed local must be restored.
         if safeCall {
-            let baseState = ctx.flowState.includingMembers(from: locals, types: ctx.sema.types)
+            let baseState = ctx.flowState.includingMembers(from: locals)
             let narrowedState = ctx.dataFlow.narrowNonNull(
                 receiverID,
                 base: baseState,

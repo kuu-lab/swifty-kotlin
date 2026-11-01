@@ -24,7 +24,7 @@ public open class TreeMap<K, V> : NavigableMap<K, V> {
     }
 
     public constructor(comparator: Comparator<in K>?) {
-        __kkTreeMapInit(this, null)
+        __kkTreeMapInit(this, comparator)
     }
 
     public constructor(original: Map<out K, V>) : this() { putAll(original) }

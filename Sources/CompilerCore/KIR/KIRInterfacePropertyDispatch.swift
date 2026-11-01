@@ -119,7 +119,7 @@ func kirInterfacePropertyGetterSlots(
     let isClosedFloatingPointRange = interfaceInfo.fqName == [
         interner.intern("kotlin"), interner.intern("ranges"), interner.intern("ClosedFloatingPointRange"),
     ]
-    var properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
+    var properties = sema.symbols.declaredChildren(of: interfaceInfo.id)
         .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             guard property.visibility != .private else { return nil }

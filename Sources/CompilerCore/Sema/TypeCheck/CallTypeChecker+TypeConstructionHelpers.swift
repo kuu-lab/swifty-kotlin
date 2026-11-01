@@ -442,8 +442,7 @@ extension CallTypeChecker {
         if !implications.isEmpty {
             if implications.contains(where: { $0.returnCondition == .normally }) {
                 let state = ctx.dataFlow.applyContractImplications(
-                    id, result: .normally,
-                    base: ctx.flowState.includingMembers(from: locals, types: sema.types),
+                    id, result: .normally, base: ctx.flowState.includingMembers(from: locals),
                     locals: locals,
                     ast: ctx.ast, sema: sema, interner: ctx.interner, scope: ctx.scope
                 )
@@ -486,7 +485,7 @@ extension CallTypeChecker {
         if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
             let branch = ctx.dataFlow.branchOnCondition(
                 conditionExpr,
-                base: ctx.flowState.includingMembers(from: locals, types: sema.types),
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,
@@ -497,7 +496,7 @@ extension CallTypeChecker {
         } else {
             narrowedState = ctx.dataFlow.narrowNonNull(
                 conditionExpr,
-                base: ctx.flowState.includingMembers(from: locals, types: sema.types),
+                base: ctx.flowState.includingMembers(from: locals),
                 locals: locals,
                 ast: ctx.ast,
                 sema: sema,

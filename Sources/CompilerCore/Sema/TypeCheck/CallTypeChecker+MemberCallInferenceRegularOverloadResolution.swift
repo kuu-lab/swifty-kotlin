@@ -267,7 +267,7 @@ extension CallTypeChecker {
         let hasNonNullFlowFact = if let reference = ctx.dataFlow.resolveStableReference(
             request.receiverID, locals: locals, ast: ast, sema: sema, interner: interner
         ), reference.isStable,
-           let flow = ctx.flowState.includingMembers(from: locals, types: sema.types)[reference.symbol]
+           let flow = ctx.flowState.includingMembers(from: locals)[reference.symbol]
         {
             flow.isStable && flow.nullability == .nonNull
         } else {
@@ -334,6 +334,7 @@ extension CallTypeChecker {
             locals: locals,
             preInferredArgumentTypes: cachedNonLambdaArgTypes,
             withContextExpectedLambdaType: nil,
+            receiverType: effectiveReceiverType,
             expectedTypeOverrides: &argumentExpectedTypeOverrides,
             lambdaContextOverrides: &lambdaContextOverrides
         )
@@ -498,6 +499,7 @@ extension CallTypeChecker {
             }
             if !extensionCandidates.isEmpty {
                 var extensionExpectedTypeOverrides = directArgumentExpectedTypeOverrides
+                var extensionExpectedTypeHintIndices: Set<Int> = []
                 prepareUnambiguousNestedCallExpectedTypes(
                     args: args,
                     callRange: range,
@@ -505,7 +507,10 @@ extension CallTypeChecker {
                     preInferredArgumentTypes: cachedNonLambdaArgTypes,
                     ctx: ctx,
                     locals: locals,
-                    expectedTypeOverrides: &extensionExpectedTypeOverrides
+                    receiverType: receiverForExtensionLookup,
+                    expectedType: expectedType,
+                    expectedTypeOverrides: &extensionExpectedTypeOverrides,
+                    expectedTypeHintIndices: &extensionExpectedTypeHintIndices
                 )
                 let extensionArgs = prepareCallArguments(
                     args: args,
@@ -513,6 +518,7 @@ extension CallTypeChecker {
                     candidates: extensionCandidates,
                     preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                     expectedTypeOverrides: extensionExpectedTypeOverrides,
+                    expectedTypeHintIndices: extensionExpectedTypeHintIndices,
                     contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
                         ? sema.types.unitType : expectedType,
                     explicitTypeArgs: explicitTypeArgs,

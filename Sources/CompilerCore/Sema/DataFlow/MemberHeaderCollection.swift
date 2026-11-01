@@ -364,22 +364,19 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            // The native implementations stay E?, while Java callers see E!.
-            // Restrict the compatibility contract to these compiler-owned APIs;
-            // user Kotlin declarations in java.util retain normal nullable rules.
-            let javaUtilFQName = ownerFQName.map(interner.resolve)
-            let javaPlatformNullReturningMember =
-                (javaUtilFQName == ["java", "util", "LinkedList"] && funDecl.name == interner.intern("peekLast")) ||
-                (javaUtilFQName == ["java", "util", "PriorityQueue"] && funDecl.name == interner.intern("poll"))
+            // The native implementations stay `T?`, while Java callers see the
+            // unannotated `T!` from the JVM signature. Restricted to the
+            // compiler-owned APIs tabled in JavaPlatformNullReturningSignatures;
+            // user Kotlin declarations under java.* retain normal nullable rules.
             let callableReturnType: TypeID
-            if sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true,
-               javaPlatformNullReturningMember,
-               params.paramTypes.isEmpty,
-               case let .typeParam(element) = types.kind(of: returnType),
-               element.nullability == .nullable,
-               classTypeParameterSymbols.contains(element.symbol)
-            {
-                callableReturnType = types.withNullability(.platformType, for: returnType)
+            if sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true {
+                callableReturnType = javaPlatformNullReturnType(
+                    returnType,
+                    ownerFQName: ownerFQName.map(interner.resolve),
+                    memberName: interner.resolve(funDecl.name),
+                    classTypeParameterSymbols: classTypeParameterSymbols,
+                    types: types
+                )
             } else {
                 callableReturnType = returnType
             }

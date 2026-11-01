@@ -69,6 +69,13 @@ enum GoldenHarnessAPIError: Error, CustomStringConvertible {
 
 public enum GoldenHarness {
     private static let subprocessTimeout: TimeInterval = 30
+    /// `stdlib-profile=source` cases compile the whole bundled stdlib inside
+    /// the worker (~75 s of CPU on current sources), so the flat per-case
+    /// budget is unrealistically small for them — under parallel test load a
+    /// batch holding one routinely overran and surfaced as `Golden worker
+    /// timed out` (KUU-3956). Charge each case by the profile its spec pins
+    /// instead of spreading one budget evenly over the batch.
+    private static let sourceProfileSubprocessTimeout: TimeInterval = subprocessTimeout * 16
     private static let terminationGracePeriodSeconds: TimeInterval = 1.0
     private static let sigkillGracePeriodSeconds: TimeInterval = 1.0
     private static let processPollIntervalSeconds: TimeInterval = 0.05
@@ -138,6 +145,17 @@ public enum GoldenHarness {
         caseFile(sourcePath: sourcePath).spec?.stdlibProfile
     }
 
+    /// Wall-clock budget one case contributes to its batch's subprocess
+    /// timeout (see `sourceProfileSubprocessTimeout`).
+    private static func perCaseSubprocessTimeout(forSourcePath sourcePath: String) -> TimeInterval {
+        switch resolvedStdlibProfile(forSourcePath: sourcePath) {
+        case .source:
+            sourceProfileSubprocessTimeout
+        case .artifact, .noStdlib, nil:
+            subprocessTimeout
+        }
+    }
+
     /// A spec that fails to parse, or that carries `target=` outside the Sema
     /// suite, must fail the case rather than silently degrade to legacy
     /// output — that is exactly how a broken spec would otherwise mask the
@@ -203,7 +221,7 @@ public enum GoldenHarness {
 
         let stdoutData = try runWorker(
             arguments: ["--batch", suiteName] + sourcePaths,
-            timeout: subprocessTimeout * TimeInterval(sourcePaths.count),
+            timeout: sourcePaths.reduce(0) { $0 + perCaseSubprocessTimeout(forSourcePath: $1) },
             stdlibLibraryPath: stdlibLibraryPath
         )
         let results: [GoldenHarnessBatchResult]

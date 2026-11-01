@@ -54,8 +54,8 @@ extension DataFlowSemaPhase {
         enumType: TypeID,
         symbols: SymbolTable
     ) {
-        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        let children = symbols.children(ofFQName: enumInfo.fqName)
+        guard symbols.symbol(enumSymbol) != nil else { return }
+        let children = symbols.declaredChildren(of: enumSymbol)
         for child in children {
             guard let childSym = symbols.symbol(child),
                   childSym.kind == .field

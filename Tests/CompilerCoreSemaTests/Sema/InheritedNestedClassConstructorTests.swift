@@ -430,5 +430,71 @@ struct InheritedNestedClassConstructorTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    // KUU-3927: same rule, non-generic shape — the ticket's minimal repro.
+    // A `private` nested class inside an interface calls its own
+    // zero-argument constructor and names itself in a type position; both
+    // must resolve to the class itself / the enclosing declaration, not the
+    // supertype's private same-named nested classifier.
+    @Test(arguments: [false, true])
+    func privateSupertypeNestedClassifierDoesNotShadowNonGenericSelfClassifier(library: Bool) throws {
+        let source = """
+        abstract class Base {
+            private class Sub
+        }
+
+        interface I {
+            fun f(): I = Sub()
+            private class Sub : Base(), I {
+                fun g(): I = Sub()
+                fun h(): Sub = Sub()
+            }
+        }
+        """
+        let ctx = try context(source, library: library)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    // KUU-3927: the upstream trigger — kotlinx.collections.immutable's
+    // `ImmutableList.SubList` (ImmutableList.kt:54). A private nested class
+    // inside an interface extends the bundled `AbstractList`, which has its
+    // own `private class SubList`, and overrides the real `List.subList`
+    // while calling its own constructor. `SubList` must resolve to the
+    // class itself in both source-injected and artifact stdlib modes.
+    @Test(arguments: [false, true])
+    func privateNestedClassifierOverridingStdlibSubListCallsOwnConstructor(useLibrary: Bool) throws {
+        if useLibrary { TestStdlibCache.shared.prepare() }
+        let source = """
+        interface ImmutableList<out E> : List<E> {
+            override fun subList(fromIndex: Int, toIndex: Int): ImmutableList<E> =
+                SubList(this, fromIndex, toIndex)
+
+            private class SubList<E>(
+                private val source: ImmutableList<E>,
+                private val fromIndex: Int,
+                private val toIndex: Int
+            ) : ImmutableList<E>, AbstractList<E>() {
+                private var _size: Int = toIndex - fromIndex
+
+                override fun get(index: Int): E {
+                    if (index < 0 || index >= _size) throw IndexOutOfBoundsException("index")
+                    return source[fromIndex + index]
+                }
+
+                override val size: Int get() = _size
+
+                override fun subList(fromIndex: Int, toIndex: Int): ImmutableList<E> =
+                    SubList(source, this.fromIndex + fromIndex, this.fromIndex + toIndex)
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let libraryPath = useLibrary ? CompilerOptions.defaultStdlibLibraryPath : nil
+            let ctx = makeCompilationContext(inputs: [path], stdlibLibraryPath: libraryPath)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif

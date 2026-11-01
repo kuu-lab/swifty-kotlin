@@ -17,7 +17,10 @@ extension CallTypeChecker {
         preInferredArgumentTypes: [Int: TypeID] = [:],
         ctx: TypeInferenceContext,
         locals: LocalBindings,
-        expectedTypeOverrides: inout [Int: TypeID]
+        receiverType: TypeID? = nil,
+        expectedType: TypeID? = nil,
+        expectedTypeOverrides: inout [Int: TypeID],
+        expectedTypeHintIndices: inout Set<Int>
     ) {
         // A generic call's other arguments can determine the input side of a
         // nested generic SAM constructor before its lambda body is checked.
@@ -91,32 +94,94 @@ extension CallTypeChecker {
 
         // Argument labels and arity can leave a single contextual candidate
         // even before the nested call's result type is known.
-        let mappedCandidates = candidates.compactMap { candidate -> (FunctionSignature, [Int: Int])? in
+        let mappedCandidates = candidates.compactMap { candidate -> (SymbolID, FunctionSignature, [Int: Int])? in
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
             else { return nil }
-            return (signature, mapping)
+            return (candidate, signature, mapping)
         }
         guard !mappedCandidates.isEmpty else { return }
         for index in args.indices {
             guard isInferableNestedCallExpr(args[index].expr, ast: ctx.ast) else { continue }
-            let contextualTypes = mappedCandidates.compactMap { signature, parameterMapping -> TypeID? in
+            var sawCandidateTypeVariable = false
+            let contextualTypes = mappedCandidates.compactMap { candidate, signature, parameterMapping -> TypeID? in
                 guard let parameterIndex = parameterMapping[index],
                       parameterIndex < signature.parameterTypes.count,
-                      let parameterType = contextualCallArgumentType(
+                      let declaredParameterType = contextualCallArgumentType(
                           args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
                       )
                 else {
                     return nil
                 }
-                let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-                guard !ctx.resolver.containsTypeVariable(
-                    parameterType,
-                    typeVarBySymbol: typeVarBySymbol,
-                    typeSystem: ctx.sema.types
+                // A class type parameter in the parameter type (e.g.
+                // `Result<T>` on `Continuation<in T>.resumeWith`) is resolved by
+                // the call-site receiver's type arguments before it can serve
+                // as an expected type. A `Gun<Int>` receiver yields the
+                // concrete `Result<Int>`; a `Gun<TSubject>` receiver keeps the
+                // rigid `Result<TSubject>`, which still binds a nested call's
+                // return-only type variable such as `Result.failure`'s `T`.
+                let parameterType = applyReceiverClassTypeArgs(
+                    to: declaredParameterType,
+                    signature: signature,
+                    candidate: candidate,
+                    receiverType: receiverType,
+                    sema: ctx.sema
                 )
-                else {
-                    return nil
+                let allTypeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                let functionTypeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(
+                    Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+                )
+                if ctx.resolver.containsTypeVariable(
+                    parameterType,
+                    typeVarBySymbol: functionTypeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                ) {
+                    // A residual *function* type parameter is the callee's own
+                    // uninferred variable: handed to the nested call plainly it
+                    // could only self-bind the outer variable. When the callee's
+                    // return type mentions it and the call itself has a usable
+                    // expected type, that expected type pins the variable
+                    // through the return type — `f<T>(e): T = takesResult(
+                    // Result.failure(e))` — so the parameter type is still
+                    // valid contextual evidence, offered as a retryable hint.
+                    // Otherwise keep dropping it (kotlinc reports such calls as
+                    // underdetermined too).
+                    let unreturnedFunctionTypeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(
+                        signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount).filter { symbol in
+                            guard let variable = functionTypeVarBySymbol[symbol] else { return false }
+                            return !ctx.resolver.containsTypeVariable(
+                                signature.returnType,
+                                typeVarBySymbol: [symbol: variable],
+                                typeSystem: ctx.sema.types
+                            )
+                        }
+                    )
+                    guard ctx.allowsLiftedCallExpectedTypeHints,
+                          let expectedType,
+                          expectedType != ctx.sema.types.unitType,
+                          expectedType != ctx.sema.types.errorType,
+                          !ctx.resolver.containsTypeVariable(
+                              parameterType,
+                              typeVarBySymbol: unreturnedFunctionTypeVarBySymbol,
+                              typeSystem: ctx.sema.types
+                          )
+                    else {
+                        return nil
+                    }
+                    sawCandidateTypeVariable = true
+                    return parameterType
+                }
+                // A residual *class* type parameter is rigid in the caller's
+                // context and binds a nested call's return-only variable such
+                // as `Result.failure`'s `T`; a contextual pass can still fail
+                // where inference without the expected type succeeds, so it is
+                // offered only as a retryable hint below.
+                if ctx.resolver.containsTypeVariable(
+                    parameterType,
+                    typeVarBySymbol: allTypeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                ) {
+                    sawCandidateTypeVariable = true
                 }
                 return parameterType
             }
@@ -173,6 +238,9 @@ extension CallTypeChecker {
             {
                 continue
             }
+            if sawCandidateTypeVariable {
+                guard ctx.allowsLiftedCallExpectedTypeHints else { continue }
+            }
             if let existing = expectedTypeOverrides[index], existing != parameterType {
                 continue
             }
@@ -181,6 +249,9 @@ extension CallTypeChecker {
             expectedTypeOverrides[index] = functionValueSamArgumentExpectedType(
                 args[index].expr, parameterType: parameterType, ctx: ctx
             )
+            if sawCandidateTypeVariable {
+                expectedTypeHintIndices.insert(index)
+            }
         }
     }
 
@@ -196,6 +267,7 @@ extension CallTypeChecker {
         locals: LocalBindings,
         preInferredArgumentTypes: [Int: TypeID] = [:],
         withContextExpectedLambdaType: TypeID?,
+        receiverType: TypeID? = nil,
         expectedTypeOverrides: inout [Int: TypeID],
         lambdaContextOverrides: inout [Int: TypeInferenceContext]
     ) -> Set<Int> {
@@ -703,7 +775,10 @@ extension CallTypeChecker {
             preInferredArgumentTypes: preInferredArgumentTypes,
             ctx: ctx,
             locals: locals,
-            expectedTypeOverrides: &expectedTypeOverrides
+            receiverType: receiverType,
+            expectedType: expectedType,
+            expectedTypeOverrides: &expectedTypeOverrides,
+            expectedTypeHintIndices: &expectedTypeHintIndices
         )
         if let launcherIndex = coroutineLauncherLambdaArgIndex,
            let coroutineLauncherExpectedLambdaType

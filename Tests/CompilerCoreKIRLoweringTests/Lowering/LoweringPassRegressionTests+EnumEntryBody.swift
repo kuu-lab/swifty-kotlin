@@ -155,6 +155,56 @@ extension LoweringPassRegressionTests {
         }
     }
 
+    /// KUU-3892: an interface default `fun` invoked unqualified on `this`
+    /// inside an enum member body must route through the enum's
+    /// `$enumEntryDispatch$` ordinal helper — like the qualified `E.X.f()`
+    /// form — instead of binding straight to the interface's default
+    /// implementation and ignoring the entry's own override.
+    @Test
+    func testImplicitThisInterfaceCallInsideEnumMemberUsesOrdinalDispatch() throws {
+        let source = """
+        interface Fun { fun f(): String = "F" }
+        enum class E : Fun {
+            X { override fun f() = "XF" },
+            Y;
+            fun test() = f()
+        }
+        fun main() {
+            println(E.X.test())
+            println(E.Y.test())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "EnumImplicitThisInterfaceDispatch",
+                emit: .kirDump
+            )
+            try runToLowering(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "implicit-this interface call in enum member should lower: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+
+            let module = try #require(ctx.kir)
+            let testBody = try findKIRFunctionBody(named: "test", in: module, interner: ctx.interner)
+            let testCallees = extractCallees(from: testBody, interner: ctx.interner)
+            #expect(
+                testCallees.contains { $0.hasPrefix("$enumEntryDispatch$") },
+                "unqualified f() must call the $enumEntryDispatch$ helper, got \(testCallees)"
+            )
+            // The call must not bind straight to the interface default `Fun.f`.
+            #expect(testBody.allSatisfy { instruction in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      symbol != nil
+                else {
+                    return true
+                }
+                return ctx.interner.resolve(callee) != "f"
+            })
+        }
+    }
+
     @Test
     func testInnerClassInEnumEntryBodyResolvesAndLowers() throws {
         let source = """

@@ -322,6 +322,25 @@ extension LambdaLowerer {
             interner: interner,
             instructions: &instructions
         )
+        // KUU-3947: pin the JVM-style `val pkg.Owner.name: kotlin.T` text on
+        // the wrapper object — its itable has no toString, so println would
+        // otherwise fall through to `<object 0x…>`.
+        emitFunctionDescription(
+            value: taggedValue,
+            description: propertyReferenceDescription(
+                memberName: memberName,
+                propertySymbol: accessor.propertySymbol,
+                isMutable: sema.symbols.symbol(accessor.propertySymbol)?.flags.contains(.mutable) == true,
+                returnType: reflectedPropertyType,
+                sema: sema,
+                interner: interner
+            ),
+            identity: false,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         driver.ctx.registerCallableValue(
             taggedValue,
             symbol: getterMethodSymbol,
@@ -1896,6 +1915,25 @@ extension LambdaLowerer {
             callableExpr: taggedValue,
             targetSymbol: getterSymbol,
             captures: [],
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        // KUU-3947: pin the JVM-style `val pkg.Owner.name: kotlin.T` text on
+        // the wrapper so `property` printed inside getValue/setValue/
+        // provideDelegate does not render `<object 0x…>`.
+        emitFunctionDescription(
+            value: taggedValue,
+            description: propertyReferenceDescription(
+                memberName: propertyName,
+                propertySymbol: propertySymbol,
+                isMutable: isMutable,
+                returnType: propertyType,
+                sema: sema,
+                interner: interner
+            ),
+            identity: false,
             sema: sema,
             arena: arena,
             interner: interner,

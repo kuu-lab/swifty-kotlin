@@ -68,8 +68,8 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
     subscript(position: Index) -> KIRInstruction {
         get { instructions[position] }
         set {
-            let removedMaxLabelID = KIRLabelRelocation.labelIDs(of: instructions[position]).max()
-            let insertedMaxLabelID = KIRLabelRelocation.labelIDs(of: newValue).max()
+            let removedMaxLabelID = KIRLabelRelocation.maxLabelID(of: instructions[position])
+            let insertedMaxLabelID = KIRLabelRelocation.maxLabelID(of: newValue)
             instructions[position] = newValue
             noteReplacedLabels(removedMax: removedMaxLabelID, insertedMax: insertedMaxLabelID)
         }
@@ -94,6 +94,31 @@ struct KIRLoweringEmitContext: RandomAccessCollection, MutableCollection, RangeR
             instructionLocations.removeLast(instructionLocations.count - instructions.count)
         }
         noteReplacedLabels(removedMax: removedMaxLabelID, insertedMax: insertedMaxLabelID)
+    }
+
+    /// Shadows the `RangeReplaceableCollection` default (which would route a
+    /// single-element append through `replaceSubrange`, allocating two
+    /// throwaway arrays and rescanning label IDs per element). Emit-heavy
+    /// lowering passes append millions of instructions (KUU-3777), so this
+    /// path updates the same bookkeeping with zero extra allocations.
+    mutating func append(_ newElement: KIRInstruction) {
+        let insertedMaxLabelID = KIRLabelRelocation.maxLabelID(of: newElement)
+        instructions.append(newElement)
+        if instructionLocations.count >= instructions.count {
+            // Mirror `replaceSubrange`'s normalization for an out-of-sync
+            // locations buffer: insert at the new index, then truncate.
+            instructionLocations[instructions.count - 1] = currentSourceRange
+            instructionLocations.removeLast(instructionLocations.count - instructions.count)
+        } else {
+            instructionLocations.append(
+                contentsOf: repeatElement(
+                    nil,
+                    count: instructions.count - 1 - instructionLocations.count
+                )
+            )
+            instructionLocations.append(currentSourceRange)
+        }
+        noteReplacedLabels(removedMax: nil, insertedMax: insertedMaxLabelID)
     }
 
     /// The full buffer is rescanned only when the edit removed the
