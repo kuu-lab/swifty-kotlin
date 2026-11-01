@@ -471,6 +471,28 @@ extension DeclTypeChecker {
             return type != ctx.sema.types.nullableNothingType
         }
 
+        // A non-extension `val x get() = ...` derives its type from the getter
+        // body — the same inference the declaration pass performs in source
+        // order. When that body is safe to precheck, let the property publish
+        // its type before earlier declarations observe the placeholder
+        // (KUU-3912).
+        if let getter = property.getter {
+            guard property.receiverType == nil,
+                  !property.isVar,
+                  property.initializer == nil,
+                  property.delegateExpression == nil,
+                  property.contextReceivers.isEmpty,
+                  property.typeParams.isEmpty,
+                  property.setter == nil,
+                  getter.returnType == nil,
+                  case let .expr(bodyExpr, _) = getter.body,
+                  let type = safePrecheckExpressionType(bodyExpr, in: ctx, locals: initialLocals)
+            else {
+                return false
+            }
+            return type != ctx.sema.types.nullableNothingType
+        }
+
         // A visibility-only setter such as `internal set` has no body and does
         // not change the initializer's inferred property type.
         guard property.getter == nil,
@@ -714,14 +736,69 @@ extension DeclTypeChecker {
                     classSymbol: symbol.id, args: [], nullability: .nonNull
                 )))
             }
+            // Argument values can also pin a generic class's parameters when
+            // every applicable constructor binds the same class type
+            // arguments — `Pair("k", 1)` is `Pair<String, Int>` regardless of
+            // which `Pair` ctor overload resolution would pick. Constructors
+            // whose parameters mention a nested or unbound type parameter, or
+            // that disagree on the result, stay on the normal pass (KUU-3912).
+            let typeParameters = ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id)
+            let initName = ctx.interner.intern("<init>")
+            let constructorSymbols = ctx.sema.symbols.lookupAll(fqName: symbol.fqName + [initName])
+            if typeArgs.isEmpty {
+                var argumentTypes: [TypeID] = []
+                argumentTypes.reserveCapacity(args.count)
+                for argument in args {
+                    guard argument.label == nil, !argument.isSpread,
+                          let argumentType = safePrecheckExpressionType(
+                              argument.expr, in: ctx, locals: locals
+                          )
+                    else {
+                        return nil
+                    }
+                    argumentTypes.append(argumentType)
+                }
+                var resolvedClassArgs: [TypeArg]? = nil
+                var sawApplicableConstructor = false
+                for ctor in constructorSymbols {
+                    guard let signature = ctx.sema.symbols.functionSignature(for: ctor),
+                          let bindings = precheckArgumentFitsSignature(
+                              signature,
+                              candidate: ctor,
+                              argumentTypes: argumentTypes,
+                              receiverType: nil,
+                              bindableTypeParameters: Set(signature.typeParameterSymbols),
+                              in: ctx
+                          )
+                    else {
+                        continue
+                    }
+                    sawApplicableConstructor = true
+                    var ctorArgs: [TypeArg] = []
+                    var allBound = true
+                    for typeParameter in typeParameters {
+                        guard let bound = bindings.bindings[typeParameter] else {
+                            allBound = false
+                            break
+                        }
+                        ctorArgs.append(.invariant(bound))
+                    }
+                    guard allBound else { return nil }
+                    if let resolvedClassArgs, resolvedClassArgs != ctorArgs {
+                        return nil
+                    }
+                    resolvedClassArgs = ctorArgs
+                }
+                guard sawApplicableConstructor, let resolvedClassArgs else { return nil }
+                return ctx.sema.types.make(.classType(ClassType(
+                    classSymbol: symbol.id, args: resolvedClassArgs, nullability: .nonNull
+                )))
+            }
             // An explicit argument list pins a generic class's parameters, so
             // a companion singleton such as `Node<Nothing, Nothing>(0)` is as
             // safe to infer early as a non-generic constructor call. Default
             // parameters may still read placeholder types; require every
             // constructor to declare all of its parameters.
-            let typeParameters = ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id)
-            let initName = ctx.interner.intern("<init>")
-            let constructorSymbols = ctx.sema.symbols.lookupAll(fqName: symbol.fqName + [initName])
             guard typeArgs.count == typeParameters.count, !typeArgs.isEmpty,
                   !constructorSymbols.isEmpty,
                   constructorSymbols.allSatisfy({ ctor in
@@ -745,7 +822,63 @@ extension DeclTypeChecker {
                 classSymbol: symbol.id, args: resolvedArgs, nullability: .nonNull
             )))
         }
-        guard args.isEmpty, typeArgs.isEmpty else { return nil }
+        guard typeArgs.isEmpty else { return nil }
+        // Calls with positional arguments — `listOf("")`, `makeToken(seed)` —
+        // are stable when every argument has a safe type and the surviving
+        // overloads agree on a concrete return type. Bare type parameters in
+        // the parameter list bind to the least upper bound of the arguments,
+        // which keeps single-parameter factories resolvable (KUU-3912).
+        if !args.isEmpty {
+            guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else {
+                return nil
+            }
+            // A member on an implicit receiver shadows lexical functions, but
+            // this branch only weighs receiver-less candidates. Leave such
+            // calls to the normal resolver instead of picking a top-level
+            // overload the member would hide.
+            for receiver in ctx.implicitReceiverMemberLookupEntries() {
+                let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
+                if !driver.helpers.collectMemberFunctionCandidates(
+                    named: name,
+                    receiverType: receiverType,
+                    sema: ctx.sema,
+                    interner: ctx.interner
+                ).isEmpty || driver.helpers.lookupMemberProperty(
+                    named: name,
+                    receiverType: receiver.type,
+                    sema: ctx.sema
+                ) != nil {
+                    return nil
+                }
+            }
+            var argumentTypes: [TypeID] = []
+            argumentTypes.reserveCapacity(args.count)
+            for argument in args {
+                guard let argumentType = safePrecheckExpressionType(
+                    argument.expr, in: ctx, locals: locals
+                ) else {
+                    return nil
+                }
+                argumentTypes.append(argumentType)
+            }
+            let candidates = namedCandidates.filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                      !ctx.isExpectDeclarationSupersededByActual(candidate),
+                      !ctx.isImportedCallableShadowedBySource(candidate)
+                else {
+                    return false
+                }
+                return signature.receiverType == nil
+                    && signature.contextReceiverTypes.isEmpty
+            }
+            return safePrecheckCallResultType(
+                candidates,
+                argumentTypes: argumentTypes,
+                in: ctx
+            )
+        }
 
         // An unqualified call inside a class or object can resolve to a
         // member function on an implicit receiver (`val x = makeInt()`).
@@ -1014,12 +1147,11 @@ extension DeclTypeChecker {
     ) -> TypeID? {
         guard case let .memberCall(receiver, name, typeArgs, args, _)? = ctx.ast.arena.expr(exprID),
               typeArgs.isEmpty,
-              args.isEmpty,
               let receiverType = safePrecheckExpressionType(receiver, in: ctx, locals: locals)
         else {
             return nil
         }
-        if !ctx.ast.arena.isExplicitCall(exprID) {
+        if args.isEmpty, !ctx.ast.arena.isExplicitCall(exprID) {
             guard let property = driver.helpers.lookupMemberProperty(
                 named: name,
                 receiverType: receiverType,
@@ -1031,31 +1163,65 @@ extension DeclTypeChecker {
             return property.type
         }
 
+        // Calls with arguments — `x.f(y)`, infix `x or y` — are also stable
+        // when every positional argument has a safe type and the surviving
+        // candidates agree on a concrete return type. Labeled arguments can
+        // reorder parameters and spreads carry whole arrays, so they stay on
+        // the normal pass (KUU-3912).
+        var argumentTypes: [TypeID]? = nil
+        if !args.isEmpty {
+            guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else {
+                return nil
+            }
+            var collected: [TypeID] = []
+            collected.reserveCapacity(args.count)
+            for argument in args {
+                guard let argumentType = safePrecheckExpressionType(
+                    argument.expr, in: ctx, locals: locals
+                ) else {
+                    return nil
+                }
+                collected.append(argumentType)
+            }
+            argumentTypes = collected
+        }
+
         let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
+        // Kotlin requires the `infix` modifier for `a op b` calls, so an
+        // infix-shaped call only admits candidates carrying the flag.
+        let requiresInfix = ctx.ast.arena.isInfixCall(exprID)
+        func isAdmissibleCandidate(_ candidate: SymbolID) -> Bool {
+            !requiresInfix
+                || (ctx.sema.symbols.symbol(candidate)?.flags.contains(.infixFunction) ?? false)
+        }
         var candidates = driver.helpers.collectMemberFunctionCandidates(
             named: name,
             receiverType: nonNullReceiverType,
             sema: ctx.sema,
             interner: ctx.interner
-        )
+        ).filter(isAdmissibleCandidate)
         candidates.append(contentsOf: safePrecheckExtensionCandidates(
             named: name,
             receiverType: nonNullReceiverType,
+            argumentTypes: argumentTypes,
             in: ctx
-        ))
+        ).filter(isAdmissibleCandidate))
         // Bundled source extensions are not always present in the lexical
         // scope (the regular member-call resolver also falls back to the
         // symbol table by short name for these declarations).
         candidates.append(contentsOf: ctx.sema.symbols.lookupByShortName(name).filter { candidate in
-            isSafePrecheckExtensionCandidate(
-                candidate,
-                receiverType: nonNullReceiverType,
-                in: ctx
-            )
+            isAdmissibleCandidate(candidate)
+                && isSafePrecheckExtensionCandidate(
+                    candidate,
+                    receiverType: nonNullReceiverType,
+                    argumentTypes: argumentTypes,
+                    in: ctx
+                )
         })
         return safePrecheckCallResultType(
             Array(Set(candidates)),
             receiverType: nonNullReceiverType,
+            argumentTypes: argumentTypes,
             in: ctx
         )
     }
@@ -1148,16 +1314,23 @@ extension DeclTypeChecker {
     private func safePrecheckExtensionCandidates(
         named name: InternedString,
         receiverType: TypeID,
+        argumentTypes: [TypeID]? = nil,
         in ctx: TypeInferenceContext
     ) -> [SymbolID] {
         ctx.cachedScopeLookup(name).filter { candidate in
-            isSafePrecheckExtensionCandidate(candidate, receiverType: receiverType, in: ctx)
+            isSafePrecheckExtensionCandidate(
+                candidate,
+                receiverType: receiverType,
+                argumentTypes: argumentTypes,
+                in: ctx
+            )
         }
     }
 
     private func isSafePrecheckExtensionCandidate(
         _ candidate: SymbolID,
         receiverType: TypeID,
+        argumentTypes: [TypeID]? = nil,
         in ctx: TypeInferenceContext
     ) -> Bool {
         guard let symbol = ctx.sema.symbols.symbol(candidate),
@@ -1181,12 +1354,24 @@ extension DeclTypeChecker {
         {
             return false
         }
-        return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+        guard driver.callChecker.extensionSyntheticFallbackReceiverMatches(
             callSiteReceiver: receiverType,
             declaredReceiver: declaredReceiver,
             sema: ctx.sema
         ) && signature.contextReceiverTypes.isEmpty
-            && canBeCalledWithoutArguments(signature)
+        else {
+            return false
+        }
+        if let argumentTypes {
+            return precheckArgumentFitsSignature(
+                signature,
+                candidate: candidate,
+                argumentTypes: argumentTypes,
+                receiverType: receiverType,
+                in: ctx
+            ) != nil
+        }
+        return canBeCalledWithoutArguments(signature)
     }
 
     private func safePrecheckFlowType(
@@ -1215,37 +1400,212 @@ extension DeclTypeChecker {
     private func safePrecheckCallResultType(
         _ candidates: [SymbolID],
         receiverType: TypeID? = nil,
+        argumentTypes: [TypeID]? = nil,
         in ctx: TypeInferenceContext
     ) -> TypeID? {
         var resultType: TypeID?
         for candidate in Set(candidates) {
-            guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
-                  hasExplicitReturnTypeIfSourceDefined(candidate, in: ctx),
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
+                return nil
+            }
+            var boundArguments = PrecheckArgumentBindings(
+                bindings: [:], substitution: [:], typeVarBySymbol: [:]
+            )
+            if let argumentTypes {
+                // Overload resolution discards candidates that cannot accept
+                // the arguments, so inapplicable ones do not veto the result.
+                guard let accepted = precheckArgumentFitsSignature(
+                    signature,
+                    candidate: candidate,
+                    argumentTypes: argumentTypes,
+                    receiverType: receiverType,
+                    in: ctx
+                ) else {
+                    continue
+                }
+                boundArguments = accepted
+            } else {
+                guard canBeCalledWithoutArguments(signature) else {
+                    return nil
+                }
+            }
+            guard hasExplicitReturnTypeIfSourceDefined(candidate, in: ctx),
                   !signature.isSuspend,
                   signature.contextReceiverTypes.isEmpty,
-                  canBeCalledWithoutArguments(signature),
-                  signature.returnType != ctx.sema.types.nullableAnyType,
-                  !returnTypeDependsOnFunctionTypeParameters(signature, in: ctx)
+                  signature.returnType != ctx.sema.types.nullableAnyType
             else {
                 return nil
             }
-            let candidateReturnType = specializedPrecheckMemberReturnType(
+            var candidateReturnType = specializedPrecheckMemberReturnType(
                 signature.returnType,
                 candidate: candidate,
                 receiverType: receiverType,
                 in: ctx
             )
+            if argumentTypes != nil {
+                candidateReturnType = ctx.sema.types.substituteTypeParameters(
+                    in: candidateReturnType,
+                    substitution: boundArguments.substitution,
+                    typeVarBySymbol: boundArguments.typeVarBySymbol
+                )
+                // A surviving function type parameter means the arguments could
+                // not pin the result (e.g. `listOf()`): stay conservative.
+                let functionTypeParameters = Set(
+                    signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+                )
+                guard !typeUsesAnyParameter(
+                    in: candidateReturnType,
+                    symbols: functionTypeParameters,
+                    types: ctx.sema.types
+                ) else {
+                    return nil
+                }
+            } else {
+                guard !returnTypeDependsOnFunctionTypeParameters(signature, in: ctx) else {
+                    return nil
+                }
+            }
             guard isSafePrecheckValueType(candidateReturnType, in: ctx) else {
                 return nil
             }
             if let resultType, resultType != candidateReturnType {
                 // Without resolving an overload, only accept a result type that
-                // is the same for every zero-argument candidate.
+                // is the same for every applicable candidate.
                 return nil
             }
             resultType = candidateReturnType
         }
         return resultType
+    }
+
+    /// Substitution bindings collected while checking that positional
+    /// arguments fit a candidate signature. `bindings` keeps the resolved
+    /// type per type-parameter symbol so class-level parameters can become
+    /// constructor type arguments; `substitution`/`typeVarBySymbol` drive
+    /// `substituteTypeParameters` on the result type.
+    private struct PrecheckArgumentBindings {
+        var bindings: [SymbolID: TypeID]
+        var substitution: [TypeVarID: TypeID]
+        var typeVarBySymbol: [SymbolID: TypeVarID]
+    }
+
+    /// Positional argument fitting for a candidate call: arity must satisfy
+    /// the parameter list (a defaulted or vararg tail may absorb the
+    /// difference), each concrete parameter type must accept its argument as a
+    /// subtype, and a bare function type parameter accumulates a
+    /// least-upper-bound binding so factories like `listOf(x)` can pin `T`.
+    /// Anything unverifiable — nested type parameters in a parameter or an
+    /// upper bound — returns nil and keeps the expression on the normal pass
+    /// (KUU-3912).
+    private func precheckArgumentFitsSignature(
+        _ signature: FunctionSignature,
+        candidate: SymbolID,
+        argumentTypes: [TypeID],
+        receiverType: TypeID?,
+        bindableTypeParameters: Set<SymbolID>? = nil,
+        in ctx: TypeInferenceContext
+    ) -> PrecheckArgumentBindings? {
+        let types = ctx.sema.types
+        let parameterCount = signature.parameterTypes.count
+        func isVararg(_ index: Int) -> Bool {
+            index < signature.valueParameterIsVararg.count
+                && signature.valueParameterIsVararg[index]
+        }
+        if argumentTypes.count < parameterCount {
+            for index in argumentTypes.count..<parameterCount {
+                let defaulted = index < signature.valueParameterHasDefaultValues.count
+                    && signature.valueParameterHasDefaultValues[index]
+                guard defaulted || isVararg(index) else { return nil }
+            }
+        } else if argumentTypes.count > parameterCount {
+            guard parameterCount > 0, isVararg(parameterCount - 1) else { return nil }
+        }
+
+        let typeParameterSet = bindableTypeParameters ?? Set(
+            signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+        )
+        let typeVarBySymbol = types.makeTypeVarBySymbol(Array(typeParameterSet))
+        var bindings: [SymbolID: TypeID] = [:]
+        var substitution: [TypeVarID: TypeID] = [:]
+
+        for (index, argumentType) in argumentTypes.enumerated() {
+            let parameterIndex = index < parameterCount ? index : parameterCount - 1
+            guard parameterIndex >= 0 else { return nil }
+            let parameterType = specializedPrecheckMemberReturnType(
+                signature.parameterTypes[parameterIndex],
+                candidate: candidate,
+                receiverType: receiverType,
+                in: ctx
+            )
+            if case let .typeParam(typeParam) = types.kind(of: types.makeNonNullable(parameterType)),
+               typeParameterSet.contains(typeParam.symbol)
+            {
+                guard precheckArgumentRespectsTypeParameterBounds(
+                    argumentType,
+                    typeParameterSymbol: typeParam.symbol,
+                    candidate: candidate,
+                    receiverType: receiverType,
+                    boundTypeParameters: typeParameterSet,
+                    in: ctx
+                ) else {
+                    return nil
+                }
+                let boundType = bindings[typeParam.symbol].map {
+                    types.lub([$0, argumentType])
+                } ?? argumentType
+                bindings[typeParam.symbol] = boundType
+                if let typeVar = typeVarBySymbol[typeParam.symbol] {
+                    substitution[typeVar] = boundType
+                }
+                continue
+            }
+            if typeUsesAnyParameter(
+                in: parameterType,
+                symbols: typeParameterSet,
+                types: types
+            ) {
+                // `Pair<K, V>`-style parameters need real constraint solving.
+                return nil
+            }
+            guard types.isSubtype(argumentType, parameterType) else {
+                return nil
+            }
+        }
+        return PrecheckArgumentBindings(
+            bindings: bindings,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+    }
+
+    /// A bare `T` parameter may only bind an argument inside `T`'s declared
+    /// upper bounds. Bounds still mentioning another function type parameter
+    /// cannot be checked here, so they reject the binding conservatively.
+    private func precheckArgumentRespectsTypeParameterBounds(
+        _ argumentType: TypeID,
+        typeParameterSymbol: SymbolID,
+        candidate: SymbolID,
+        receiverType: TypeID?,
+        boundTypeParameters: Set<SymbolID>,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        for bound in ctx.sema.symbols.typeParameterUpperBounds(for: typeParameterSymbol) {
+            let resolvedBound = specializedPrecheckMemberReturnType(
+                bound,
+                candidate: candidate,
+                receiverType: receiverType,
+                in: ctx
+            )
+            if typeUsesAnyParameter(
+                in: resolvedBound,
+                symbols: boundTypeParameters,
+                types: ctx.sema.types
+            ) || !ctx.sema.types.isSubtype(argumentType, resolvedBound)
+            {
+                return false
+            }
+        }
+        return true
     }
 
     /// A member signature's return type is stored in terms of the declaring
