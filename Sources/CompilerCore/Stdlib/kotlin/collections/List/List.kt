@@ -35,7 +35,7 @@ public interface List<out E> : Collection<E> {
 
     public override fun iterator(): Iterator<E>
 
-    @KsSymbolName("kk_list_iterator")
+    @KsSymbolName("__kk_list_listIterator")
     public fun listIterator(): ListIterator<E>
 
     @KsSymbolName("kk_list_iterator_at")

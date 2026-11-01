@@ -78,9 +78,24 @@ private func runtimeBuiltinTokenSimpleName(_ base: Int64) -> String? {
 }
 
 private func runtimeKClassQualifiedName(_ name: String) -> String {
-    // This Kotlin platform classifier is a JVM typealias. Keep the Kotlin
-    // type identity in metadata, but expose the JVM reflection name.
-    name == "kotlin.RuntimeException" ? "java.lang.RuntimeException" : name
+    // These Kotlin platform classifiers are JVM typealiases. Keep the Kotlin
+    // type identity in metadata, but expose the JVM reflection names.
+    switch name {
+    case "kotlin.RuntimeException":
+        "java.lang.RuntimeException"
+    case "kotlin.collections.ArrayList":
+        "java.util.ArrayList"
+    case "kotlin.collections.HashMap":
+        "java.util.HashMap"
+    case "kotlin.collections.LinkedHashMap":
+        "java.util.LinkedHashMap"
+    case "kotlin.collections.HashSet":
+        "java.util.HashSet"
+    case "kotlin.collections.LinkedHashSet":
+        "java.util.LinkedHashSet"
+    default:
+        name
+    }
 }
 
 /// For nominal (user-defined) types registered metadata takes precedence over
@@ -200,6 +215,26 @@ public func __kk_kclass_of(_ value: Int, _ fallbackToken: Int, _ nameHint: Int) 
         return __kk_kclass_create(arrayClass.typeToken, arrayClass.nameHint)
     }
     if let typeID = runtimeObjectTypeID(rawValue: value) {
+        // KUU-3963: runtime collection boxes reflect their JVM implementation
+        // class (java.util.Collections.SingletonList, LinkedHashSet, anonymous
+        // iterators, ...) instead of the erased interface tag.
+        if let identity = runtimeReflectedCollectionClass(rawValue: value, typeID: typeID) {
+            runtimeEnsureReflectedClassMetadata(identity)
+            let implTypeID: Int64
+            let implNameRaw: Int
+            switch identity {
+            case .named(let id, let qualifiedName):
+                implTypeID = id
+                implNameRaw = runtimeMakeStringRaw(qualifiedName)
+            case .anonymous(let id):
+                implTypeID = id
+                implNameRaw = 0
+            }
+            let token = (implTypeID & RuntimeTypeTokenEncoding.payloadMask)
+                << RuntimeTypeTokenEncoding.payloadShift
+                | RuntimeTypeTokenEncoding.nominalBase
+            return __kk_kclass_create(Int(truncatingIfNeeded: token), implNameRaw)
+        }
         let token = (typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift
             | RuntimeTypeTokenEncoding.nominalBase
         return __kk_kclass_create(Int(truncatingIfNeeded: token), 0)

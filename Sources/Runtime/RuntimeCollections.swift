@@ -521,6 +521,26 @@ public func kk_list_is_empty(_ listRaw: Int) -> Int {
     return kk_box_bool(1)
 }
 
+/// `kk_list_iterator` is shared by `iterator()` and the zero-argument
+/// `listIterator()` bridges; JVM `ListItr`-family names only apply to the
+/// latter, so listIterator bridges re-resolve the reflected identity.
+@inline(__always)
+private func runtimeRelabelListIteratorClass(raw: Int, listRaw: Int) {
+    guard let iterator = runtimeListIteratorBox(from: raw),
+          iterator.reflectedClassID != 0,
+          let list = runtimeListBox(from: listRaw)
+    else { return }
+    (iterator.reflectedClassID, iterator.reflectedClassName) =
+        runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: true)
+}
+
+@_cdecl("__kk_list_listIterator")
+public func kk_list_listIterator(_ listRaw: Int) -> Int {
+    let raw = kk_list_iterator(listRaw)
+    runtimeRelabelListIteratorClass(raw: raw, listRaw: listRaw)
+    return raw
+}
+
 @_cdecl("__kk_mutable_list_listIterator")
 public func kk_mutable_list_listIterator(_ listRaw: Int) -> Int {
     if runtimeListBox(from: listRaw) == nil,
@@ -533,36 +553,41 @@ public func kk_mutable_list_listIterator(_ listRaw: Int) -> Int {
     {
         return result
     }
-    return kk_list_iterator(listRaw)
+    let raw = kk_list_iterator(listRaw)
+    runtimeRelabelListIteratorClass(raw: raw, listRaw: listRaw)
+    return raw
 }
 
 @_cdecl("kk_list_iterator")
 public func kk_list_iterator(_ listRaw: Int) -> Int {
     if let list = runtimeListBox(from: listRaw) {
-        let raw = registerRuntimeObject(
-            RuntimeListIteratorBox(
-                values: list.values,
-                removeAction: { index in
-                    guard list.indices.contains(index) else { return }
-                    if list.isMapValuesView {
-                        _ = list.removeMapBackedValue(at: index)
-                        return
-                    }
-                    list.withMutableValues { $0.remove(at: index) }
-                },
-                setAction: { index, value in
-                    guard list.indices.contains(index) else { return }
-                    list.setValue(value, at: index)
-                },
-                addAction: { index, value in
-                    guard (0...list.count).contains(index) else { return }
-                    list.withMutableValues { $0.insert(value, at: index) }
-                },
-                isBackingReadOnly: { list.isEffectivelyReadOnly },
-                currentModCount: { list.modCount },
-                currentValue: { list.value(at: $0) }
-            )
+        let iterator = RuntimeListIteratorBox(
+            values: list.values,
+            removeAction: { index in
+                guard list.indices.contains(index) else { return }
+                if list.isMapValuesView {
+                    _ = list.removeMapBackedValue(at: index)
+                    return
+                }
+                list.withMutableValues { $0.remove(at: index) }
+            },
+            setAction: { index, value in
+                guard list.indices.contains(index) else { return }
+                list.setValue(value, at: index)
+            },
+            addAction: { index, value in
+                guard (0...list.count).contains(index) else { return }
+                list.withMutableValues { $0.insert(value, at: index) }
+            },
+            isBackingReadOnly: { list.isEffectivelyReadOnly },
+            currentModCount: { list.modCount },
+            currentValue: { list.value(at: $0) }
         )
+        // KUU-3963: `iter::class` reflects the JVM iterator implementation
+        // (`java.util.Arrays.ArrayItr`, `java.util.ArrayList.Itr`, ...).
+        (iterator.reflectedClassID, iterator.reflectedClassName) =
+            runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: false)
+        let raw = registerRuntimeObject(iterator)
         registerListIteratorItable(raw: raw)
         registerMutableListIteratorItable(raw: raw)
         return raw
@@ -571,22 +596,27 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         // `Set`/`MutableSet` have no `listIterator()`, so this box is only ever
         // exposed through `Iterator`/`MutableIterator` — no `setAction`/`addAction`
         // needed here, unlike the `list` branch above.
-        let raw = registerRuntimeObject(
-            RuntimeListIteratorBox(
-                values: set.values,
-                removeAction: { index in
-                    guard set.indices.contains(index) else { return }
-                    _ = set.remove(rawValue: set[index])
-                },
-                isBackingReadOnly: { set.isEffectivelyReadOnly },
-                currentModCount: { set.modCount }
-            )
+        let iterator = RuntimeListIteratorBox(
+            values: set.values,
+            removeAction: { index in
+                guard set.indices.contains(index) else { return }
+                _ = set.remove(rawValue: set[index])
+            },
+            isBackingReadOnly: { set.isEffectivelyReadOnly },
+            currentModCount: { set.modCount }
         )
+        (iterator.reflectedClassID, iterator.reflectedClassName) =
+            runtimeReflectedSetIteratorClass(setRaw: listRaw, set: set)
+        let raw = registerRuntimeObject(iterator)
         registerListIteratorItable(raw: raw)
         return raw
     }
     if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
-        let raw = registerRuntimeObject(RuntimeListIteratorBox(values: array.values))
+        let iterator = RuntimeListIteratorBox(values: array.values)
+        let name = "kotlin.jvm.internal.ArrayIterator"
+        iterator.reflectedClassID = runtimeStableNominalTypeID(fqName: name)
+        iterator.reflectedClassName = name
+        let raw = registerRuntimeObject(iterator)
         registerListIteratorItable(raw: raw)
         return raw
     }
@@ -646,6 +676,8 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         currentValue: { list.value(at: $0) }
     )
     iter.index = index
+    (iter.reflectedClassID, iter.reflectedClassName) =
+        runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: true)
     let raw = registerRuntimeObject(iter)
     registerListIteratorItable(raw: raw)
     registerMutableListIteratorItable(raw: raw)

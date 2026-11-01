@@ -40,6 +40,13 @@ final class RuntimeSetBox {
         return directModCount
     }
 
+    /// Backing map and view kind of a `MutableMap.keys` / `.entries` view
+    /// (KUU-3963): reflection names the view after the map's implementation
+    /// (`java.util.LinkedHashMap$LinkedKeySet`, `java.util.HashMap$EntrySet`).
+    var mapViewBacking: (mapRaw: Int, kind: MapViewKind)? {
+        backingMapRaw.map { ($0, backingMapViewKind) }
+    }
+
     func enableSorted(comparatorRaw: Int, invertCompare: Bool = false) {
         sorted = true
         self.comparatorRaw = comparatorRaw == runtimeNullSentinelInt ? 0 : comparatorRaw

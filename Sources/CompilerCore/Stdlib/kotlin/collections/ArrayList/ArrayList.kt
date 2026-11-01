@@ -116,7 +116,7 @@ public open class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableLi
     @KsSymbolName("kk_list_iterator")
     override external fun iterator(): MutableIterator<E>
 
-    @KsSymbolName("kk_list_iterator")
+    @KsSymbolName("__kk_mutable_list_listIterator")
     override external fun listIterator(): MutableListIterator<E>
 
     @KsSymbolName("kk_list_iterator_at")

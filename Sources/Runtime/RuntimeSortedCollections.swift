@@ -407,6 +407,9 @@ public func kk_sorted_set_descending_iterator(_ setRaw: Int) -> Int {
               let set = runtimeSetBox(from: setRaw) else { return }
         _ = set.remove(rawValue: descending[index])
     }
+    let reflectedName = "java.util.TreeMap.NavigableSubMap.DescendingSubMapKeyIterator"
+    iteratorBox.reflectedClassID = runtimeStableNominalTypeID(fqName: reflectedName)
+    iteratorBox.reflectedClassName = reflectedName
     let raw = registerRuntimeObject(iteratorBox)
     registerListIteratorItable(raw: raw)
     return raw
