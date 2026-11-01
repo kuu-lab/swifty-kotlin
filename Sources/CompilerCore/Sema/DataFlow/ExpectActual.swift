@@ -1,6 +1,17 @@
 import Foundation
 
+/// Source declarations keyed by their symbol's decl-site range, used to tell
+/// whether an actual member still carries a header placeholder type because
+/// its real type will only be inferred during body analysis.
+struct ExpectActualSourceDeclarations {
+    var functionsByRange: [SourceRange: [FunDecl]] = [:]
+    var propertiesByRange: [SourceRange: [PropertyDecl]] = [:]
+}
+
 extension DataFlowSemaPhase {
+    /// Convenience entry point for unit tests that exercise matching without a
+    /// following type-check pass; provisionally-linked pairs are dropped
+    /// instead of re-verified.
     func validateExpectActualMatching(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -8,6 +19,27 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         commonModuleMode: Bool
+    ) {
+        var deferred: [(expect: SymbolID, actual: SymbolID)] = []
+        validateExpectActualMatching(
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            diagnostics: diagnostics,
+            interner: interner,
+            commonModuleMode: commonModuleMode,
+            deferredInferredTypePairs: &deferred
+        )
+    }
+
+    func validateExpectActualMatching(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        commonModuleMode: Bool,
+        deferredInferredTypePairs: inout [(expect: SymbolID, actual: SymbolID)]
     ) {
         // Common libraries preserve expect markers so a platform compilation can
         // pair them with local actual declarations. Other imported declarations
@@ -30,6 +62,13 @@ extension DataFlowSemaPhase {
         let functionDeclarationsByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> FunDecl? in
             guard case let .funDecl(function) = decl else { return nil }
             return function
+        }, by: \.range)
+        var sourceDeclarations = ExpectActualSourceDeclarations(
+            functionsByRange: functionDeclarationsByRange
+        )
+        sourceDeclarations.propertiesByRange = Dictionary(grouping: ast.arena.declarations().compactMap { decl -> PropertyDecl? in
+            guard case let .propertyDecl(property) = decl else { return nil }
+            return property
         }, by: \.range)
 
         for expectSym in expects {
@@ -76,7 +115,14 @@ extension DataFlowSemaPhase {
                 .sorted(by: { $0.id.rawValue < $1.id.rawValue })
 
             let compatibleCandidates = candidates.filter { actual in
-                areExpectActualCompatible(expect: expectSym, actual: actual, symbols: symbols, types: types)
+                areExpectActualCompatible(
+                    expect: expectSym,
+                    actual: actual,
+                    symbols: symbols,
+                    types: types,
+                    sourceDeclarations: sourceDeclarations,
+                    allowDeferredInferredActualTypes: true
+                )
             }
 
             let rendered = expectSym.fqName
@@ -127,6 +173,18 @@ extension DataFlowSemaPhase {
             }
 
             symbols.setExpectActualLink(expect: expectSym.id, actual: actualSym.id)
+            if isDeferredInferredTypePair(
+                expect: expectSym,
+                actual: actualSym,
+                sourceDeclarations: sourceDeclarations,
+                symbols: symbols,
+                types: types
+            ) {
+                // The link was made while the actual's type was still a header
+                // placeholder; body analysis publishes the inferred type, after
+                // which verifyDeferredExpectActualTypes re-checks it for real.
+                deferredInferredTypePairs.append((expect: expectSym.id, actual: actualSym.id))
+            }
             inheritAbstractActualMemberFlags(
                 expectOwner: expectSym,
                 actualOwner: actualSym,
@@ -285,11 +343,48 @@ extension DataFlowSemaPhase {
         return nil
     }
 
+    /// Re-checks pairs whose link relied on a deferred inferred actual type.
+    /// Runs after body analysis has published the real inferred types; any
+    /// residual placeholder no longer gets the benefit of the doubt.
+    func verifyDeferredExpectActualTypes(
+        _ pairs: [(expect: SymbolID, actual: SymbolID)],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner
+    ) {
+        for pair in pairs {
+            guard let expectSym = symbols.symbol(pair.expect),
+                  let actualSym = symbols.symbol(pair.actual)
+            else {
+                continue
+            }
+            guard areExpectActualCompatible(
+                expect: expectSym,
+                actual: actualSym,
+                symbols: symbols,
+                types: types
+            ) else {
+                let rendered = expectSym.fqName
+                    .map { interner.resolve($0) }
+                    .joined(separator: ".")
+                diagnostics.error(
+                    "KSWIFTK-MPP-UNRESOLVED",
+                    "Missing matching 'actual' declaration for expect symbol '\(rendered)'. The actual declaration's inferred type is not compatible with the expect declaration.",
+                    range: expectSym.declSite
+                )
+                continue
+            }
+        }
+    }
+
     private func areExpectActualCompatible(
         expect: SemanticSymbol,
         actual: SemanticSymbol,
         symbols: SymbolTable,
-        types: TypeSystem
+        types: TypeSystem,
+        sourceDeclarations: ExpectActualSourceDeclarations = ExpectActualSourceDeclarations(),
+        allowDeferredInferredActualTypes: Bool = false
     ) -> Bool {
         if expect.kind == .annotationClass, actual.kind == .typeAlias {
             guard let resolvedType = symbols.typeAliasUnderlyingType(for: actual.id) else {
@@ -350,7 +445,15 @@ extension DataFlowSemaPhase {
                 actualSig: actualSig,
                 actualSymbol: actual,
                 symbols: symbols,
-                types: types
+                types: types,
+                deferActualReturnType: allowDeferredInferredActualTypes
+                    && isDeferredInferredActualReturnType(
+                        actual,
+                        actualSig: actualSig,
+                        functionsByRange: sourceDeclarations.functionsByRange,
+                        symbols: symbols,
+                        types: types
+                    )
             )
 
         case .property, .field:
@@ -365,7 +468,7 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types
             )
-            return expect.flags.contains(.mutable) == actual.flags.contains(.mutable)
+            guard expect.flags.contains(.mutable) == actual.flags.contains(.mutable)
                 && expectActualOptionalTypeMatch(
                     symbols.extensionPropertyReceiverType(for: expect.id),
                     symbols.extensionPropertyReceiverType(for: actual.id),
@@ -373,10 +476,24 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types
                 )
-                && expectActualTypesMatch(
-                    expectType,
-                    actualType,
-                    typeParamMapping: typeParamMapping,
+            else {
+                return false
+            }
+            if expectActualTypesMatch(
+                expectType,
+                actualType,
+                typeParamMapping: typeParamMapping,
+                symbols: symbols,
+                types: types
+            ) {
+                return true
+            }
+            // An actual property without a type annotation stores the header's
+            // Any? placeholder until body analysis publishes the inferred type.
+            return allowDeferredInferredActualTypes
+                && isDeferredInferredActualPropertyType(
+                    actual,
+                    propertiesByRange: sourceDeclarations.propertiesByRange,
                     symbols: symbols,
                     types: types
                 )
@@ -485,7 +602,8 @@ extension DataFlowSemaPhase {
         actualSig: FunctionSignature,
         actualSymbol: SemanticSymbol,
         symbols: SymbolTable,
-        types: TypeSystem
+        types: TypeSystem,
+        deferActualReturnType: Bool = false
     ) -> Bool {
         guard expectSig.parameterTypes.count == actualSig.parameterTypes.count,
               expectSig.isSuspend == actualSig.isSuspend,
@@ -542,13 +660,92 @@ extension DataFlowSemaPhase {
             return false
         }
 
-        return expectActualTypesMatch(
+        return deferActualReturnType || expectActualTypesMatch(
             expectSig.returnType,
             actualSig.returnType,
             typeParamMapping: typeParamMapping,
             symbols: symbols,
             types: types
         )
+    }
+
+    /// True when the matched pair still has a deferred type component — the
+    /// actual declaration omitted its type/return-type annotation, so only the
+    /// header placeholder was available at match time. The provisional link is
+    /// re-verified once body analysis publishes the inferred type.
+    private func isDeferredInferredTypePair(
+        expect: SemanticSymbol,
+        actual: SemanticSymbol,
+        sourceDeclarations: ExpectActualSourceDeclarations,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Bool {
+        switch expect.kind {
+        case .property, .field:
+            return isDeferredInferredActualPropertyType(
+                actual,
+                propertiesByRange: sourceDeclarations.propertiesByRange,
+                symbols: symbols,
+                types: types
+            )
+        case .function, .constructor:
+            guard let actualSig = symbols.functionSignature(for: actual.id) else {
+                return false
+            }
+            return isDeferredInferredActualReturnType(
+                actual,
+                actualSig: actualSig,
+                functionsByRange: sourceDeclarations.functionsByRange,
+                symbols: symbols,
+                types: types
+            )
+        default:
+            return false
+        }
+    }
+
+    /// An actual property declared without a type annotation is assigned the
+    /// `Any?` placeholder during header collection; the real type arrives only
+    /// when its initializer or getter is type-checked in body analysis.
+    private func isDeferredInferredActualPropertyType(
+        _ actual: SemanticSymbol,
+        propertiesByRange: [SourceRange: [PropertyDecl]],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Bool {
+        guard symbols.propertyType(for: actual.id) == types.nullableAnyType,
+              let declSite = actual.declSite,
+              let declaration = propertiesByRange[declSite]?.first(where: {
+                  $0.name == actual.name
+              }),
+              declaration.type == nil
+        else {
+            return false
+        }
+        return true
+    }
+
+    /// An expression-bodied actual function without a return-type annotation
+    /// stores `Any` in its header signature until `inferFunctionReturnTypes`
+    /// publishes the inferred return type during body analysis.
+    private func isDeferredInferredActualReturnType(
+        _ actual: SemanticSymbol,
+        actualSig: FunctionSignature,
+        functionsByRange: [SourceRange: [FunDecl]],
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> Bool {
+        guard actualSig.returnType == types.anyType,
+              let declaration = functionDeclaration(
+                  for: actual,
+                  in: functionsByRange
+              ),
+              declaration.returnType == nil,
+              case .expr = declaration.body
+        else {
+            return false
+        }
+        return true
     }
 
     private func makeOwnerTypeParameterMapping(

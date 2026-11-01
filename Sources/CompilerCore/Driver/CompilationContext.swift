@@ -42,6 +42,12 @@ public final class CompilationContext: @unchecked Sendable {
     /// sub-phase while `time-phases` is active; printed after the phase summary.
     var typeCheckAttribution: TypeCheckAttribution?
 
+    /// Expect/actual pairs linked while the actual member still carried a
+    /// header placeholder type (`Any`/`Any?` because its annotation was omitted
+    /// and the real type is inferred). `TypeCheckSemaPhase` re-verifies them
+    /// once body type checking has published the inferred types (KUU-3921).
+    var deferredExpectActualTypePairs: [(expect: SymbolID, actual: SymbolID)] = []
+
     public init(
         options: CompilerOptions,
         sourceManager: SourceManager,

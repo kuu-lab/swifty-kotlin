@@ -738,7 +738,8 @@ final class DataFlowSemaPhase: CompilerPhase {
                 types: types,
                 diagnostics: ctx.diagnostics,
                 interner: ctx.interner,
-                commonModuleMode: ctx.options.isCommonModule
+                commonModuleMode: ctx.options.isCommonModule,
+                deferredInferredTypePairs: &ctx.deferredExpectActualTypePairs
             )
         }
         withSubPhaseTiming("validateAnnotationTargets", timer: ctx.phaseTimer) {
