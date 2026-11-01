@@ -11,19 +11,24 @@ extension BuildKIRRegressionTests {
     /// The empty-vararg path used to hand the callee a bare `kk_array_new(0)`
     /// while a non-empty call passed `__kk_array_toList(...)`, so a vararg
     /// parameter was an Array or a List depending on the caller's arguments.
+    /// Since #7800/#8313 user varargs keep array storage for both shapes.
     @Test
-    func emptyVarargArgumentIsListifiedLikeNonEmptyPacking() throws {
+    func emptyVarargArgumentPacksLikeNonEmptyPacking() throws {
         let source = """
         fun count(vararg xs: Int) = xs.size
         fun probe(): Int = count()
+        fun probeNonEmpty(): Int = count(1, 2)
         """
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
         let module = try #require(ctx.kir)
 
-        let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
-        let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains(runtimeCallee(.arrayToList)), "Expected the empty vararg to be listified, got: \(callees)")
+        for name in ["probe", "probeNonEmpty"] {
+            let body = try findKIRFunctionBody(named: name, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains(runtimeCallee(.arrayNew)), "Expected \(name) to pack its vararg into an array, got: \(callees)")
+            #expect(!callees.contains(runtimeCallee(.arrayToList)), "Expected \(name) not to listify its vararg, got: \(callees)")
+        }
     }
 
     /// A function-typed parameter's default lambda must be wrapped into a
