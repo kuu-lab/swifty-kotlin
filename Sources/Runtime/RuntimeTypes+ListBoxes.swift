@@ -73,11 +73,20 @@ final class RuntimeListBox {
         let raw = value.legacyRawValue
         switch kind {
         case .boolean: return RuntimeValue(raw: kk_box_bool(raw))
+        case .byte: return RuntimeValue(raw: kk_box_byte(raw))
         case .char: return RuntimeValue(raw: kk_box_char(raw))
-        case .float: return RuntimeValue(raw: kk_box_float(raw))
         case .double: return RuntimeValue(raw: kk_box_double_nonnull(raw))
+        case .float: return RuntimeValue(raw: kk_box_float(raw))
+        case .int: return RuntimeValue(raw: kk_box_int(raw))
         case .long: return RuntimeValue(raw: kk_box_long_nonnull(raw))
-        default: return value
+        case .short: return RuntimeValue(raw: kk_box_short(raw))
+        // The unsigned value classes are stored sign-extended inside their
+        // signed backing arrays; the boxed element carries the zero-extended
+        // payload so generic toString/hashCode/`is` see the logical value.
+        case .uByte: return RuntimeValue(raw: kk_box_ubyte(Int(UInt8(truncatingIfNeeded: raw))))
+        case .uShort: return RuntimeValue(raw: kk_box_ushort(Int(UInt16(truncatingIfNeeded: raw))))
+        case .uInt: return RuntimeValue(raw: kk_box_uint(Int(UInt32(truncatingIfNeeded: raw))))
+        case .uLong: return RuntimeValue(raw: kk_box_ulong_nonnull(raw))
         }
     }
 
@@ -86,11 +95,20 @@ final class RuntimeListBox {
         let raw = runtimeCollectionABIValue(value)
         switch kind {
         case .boolean: return RuntimeValue(raw: kk_unbox_bool_static(raw))
+        case .byte: return RuntimeValue(raw: Int(Int8(truncatingIfNeeded: kk_unbox_int(raw))))
         case .char: return RuntimeValue(raw: kk_unbox_char_static(raw))
-        case .float: return RuntimeValue(raw: kk_unbox_float_static(raw))
         case .double: return RuntimeValue(raw: kk_unbox_double_nonnull_static(raw))
+        case .float: return RuntimeValue(raw: kk_unbox_float_static(raw))
+        case .int: return RuntimeValue(raw: kk_unbox_int(raw))
         case .long: return RuntimeValue(raw: kk_unbox_long(raw))
-        default: return value
+        case .short: return RuntimeValue(raw: Int(Int16(truncatingIfNeeded: kk_unbox_int(raw))))
+        // Writes normalize to the sign-extended storage of the signed
+        // backing array each unsigned value class wraps (UByteArray sits on
+        // ByteArray, UShortArray on ShortArray, UIntArray on IntArray).
+        case .uByte: return RuntimeValue(raw: Int(Int8(truncatingIfNeeded: kk_unbox_int(raw))))
+        case .uShort: return RuntimeValue(raw: Int(Int16(truncatingIfNeeded: kk_unbox_int(raw))))
+        case .uInt: return RuntimeValue(raw: Int(Int32(truncatingIfNeeded: kk_unbox_int(raw))))
+        case .uLong: return RuntimeValue(raw: kk_unbox_ulong(raw))
         }
     }
 
