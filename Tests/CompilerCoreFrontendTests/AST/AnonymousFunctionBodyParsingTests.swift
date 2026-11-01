@@ -16,6 +16,34 @@ struct AnonymousFunctionBodyParsingTests {
         #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
     }
 
+    @Test func expressionBodyInsideArrayLambdaIsPreserved() throws {
+        let (ast, context) = try buildASTModule(from: """
+        fun main() {
+            val funcs = Array(3) { fun(): Int = it * it }
+        }
+        """, includeStdlib: false)
+
+        #expect(!context.diagnostics.diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0426"
+        }, "\(context.diagnostics.diagnostics)")
+
+        let snapshot = ast.arena.snapshot()
+        let anonymousFunctionBodies = snapshot.expressions.enumerated().compactMap { entry -> FunctionBody? in
+            let (index, expression) = entry
+            let expressionID = ExprID(rawValue: Int32(index))
+            guard snapshot.anonymousFunctionExpressions.contains(expressionID),
+                  case let .localFunDecl(_, _, _, _, body, _, _, _, _) = expression
+            else {
+                return nil
+            }
+            return body
+        }
+        #expect(anonymousFunctionBodies.contains { body in
+            if case .expr = body { return true }
+            return false
+        })
+    }
+
     @Test(arguments: [
         "@file:OptIn(kotlin.ExperimentalContextParameters::class)\nval y = context(p: String) fun() = p",
         "val y = fun String.(): String = this",
@@ -52,6 +80,7 @@ struct AnonymousFunctionBodyParsingTests {
         "class C { fun m() { val h = fun(): Int } }",
         "fun main() { val f = fun(): List<Int> }",
         "fun main() { val f = fun(): Int; f() }",
+        "fun foo(block: () -> () -> Int) {}\nfun main() { foo { fun(): Int } }",
     ])
     func bodilessAnonymousFunctionReportsMustHaveBody(_ source: String) throws {
         let (_, context) = try buildASTModule(from: source, includeStdlib: false)
