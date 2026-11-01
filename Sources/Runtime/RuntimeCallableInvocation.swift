@@ -21,7 +21,9 @@ public func __kk_kcallable_register(
 ) -> Int {
     let boundArguments = callableArguments(environment) ?? []
     for parameter in (callableArguments(parameters) ?? []) + (callableArguments(setterParameters) ?? []) {
-        runtimeReflectionObject(from: parameter, as: RuntimeKParameterBox.self)?.boundArguments = boundArguments
+        let parameterBox = runtimeReflectionObject(from: parameter, as: RuntimeKParameterBox.self)
+        parameterBox?.boundArguments = boundArguments
+        parameterBox?.callableRaw = raw
     }
     runtimeStorage.withDelegateLock { state in
         guard var metadata = state.callableRefMetadataByValue[raw] else { return }
@@ -83,6 +85,13 @@ public func __kk_kcallable_get_metadata(_ raw: Int, _ member: Int) -> Int {
     }
 }
 
+/// `flags` bit 6 marking a member property reference (declared in a
+/// class-like owner) in `RuntimeCallableRefMetadata.flags`. On the JVM a
+/// member property's `getter`/`setter` is a descriptor-backed KCallable
+/// whose parameter boxes are accessor-owned, while top-level and extension
+/// property accessors share the property's own parameter boxes (KUU-4091).
+private let runtimeMemberPropertyReflectionFlag = 1 << 6
+
 private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
     if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self),
        stub.isLocalDelegated
@@ -91,6 +100,12 @@ private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
     }
     guard var metadata = callableMetadata(raw), metadata.kind == .property,
           !isSetter || metadata.setterInvoker != 0 else { return runtimeNullSentinelInt }
+    // The JVM caches each accessor on its KProperty instance: repeated
+    // `ref.getter`/`ref.setter` evaluations on the same reference return the
+    // same accessor object, and with it the same parameter boxes.
+    if isSetter ? metadata.setterAccessor != 0 : metadata.getterAccessor != 0 {
+        return isSetter ? metadata.setterAccessor : metadata.getterAccessor
+    }
     let arity = metadata.arity + (isSetter ? 1 : 0)
     let functionPointer: Int
     switch arity {
@@ -113,22 +128,163 @@ private func runtimePropertyAccessor(_ raw: Int, isSetter: Bool) -> Int {
     let accessor = registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
     runtimeRegisterKCallableItableIfNeeded(rawValue: accessor, typeID: kFunctionRuntimeTypeID)
     metadata.property = raw
+    metadata.parameters = runtimePropertyAccessorParameters(
+        metadata: metadata, isSetter: isSetter, accessorRaw: accessor
+    )
     if isSetter {
         metadata.invoker = metadata.setterInvoker
-        metadata.parameters = metadata.setterParameters
     }
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: metadata.nameRaw)) ?? ""
     metadata = RuntimeCallableRefMetadata(
         nameRaw: runtimeMakeStringRaw(isSetter ? "<set-\(name)>" : "<get-\(name)>"),
-        returnTypeRaw: isSetter ? runtimeMakeStringRaw("Unit") : metadata.returnTypeRaw,
+        returnTypeRaw: isSetter ? runtimeMakeStringRaw("kotlin.Unit") : metadata.returnTypeRaw,
         arity: metadata.arity + (isSetter ? 1 : 0), kind: .function, isSuspend: false,
         invoker: metadata.invoker, environment: metadata.environment, parameters: metadata.parameters,
         typeParameters: metadata.typeParameters, flags: metadata.flags & 7, visibility: metadata.visibility,
-        property: raw, returnTypeKTypeRaw: metadata.returnTypeKTypeRaw
+        property: raw,
+        // The setter is a `set(T) -> Unit` callable on the JVM, not a
+        // `() -> T` one — its reflected return type is always kotlin.Unit.
+        returnTypeKTypeRaw: isSetter
+            ? kk_typeof(
+                Int(RuntimeTypeTokenEncoding.unitBase),
+                runtimeMakeStringRaw("kotlin.Unit"),
+                registerRuntimeObject(RuntimeListBox(elements: [])),
+                0
+            )
+            : metadata.returnTypeKTypeRaw
     )
+    // `C::v.getter == C::v.getter` across separate `C::v` evaluations: the
+    // accessor is its own KCallable (kind .function and an arity one step
+    // apart keep it distinct from the property and the sibling accessor)
+    // but shares the property's callable target and bound captures, matching
+    // the JVM where accessor equality follows the underlying descriptor.
+    metadata.identityTargetRaw = callableMetadata(raw)?.identityTargetRaw ?? 0
+    metadata.identityCaptures = callableMetadata(raw)?.identityCaptures ?? []
+    metadata.modifierFlags = callableMetadata(raw)?.modifierFlags ?? 0
     context.metadata = metadata
-    runtimeStorage.withDelegateLock { $0.callableRefMetadataByValue[accessor] = metadata }
+    // kotlin-reflect renders accessor parameters "of fun Owner.`<get|set-x>`":
+    // pin the accessor's callable description, derived from the property's
+    // own "val|var owner.name: type" description, so parameter boxes that
+    // point their `callableRaw` at this accessor render correctly.
+    if let description = runtimePropertyAccessorFunctionDescription(
+        propertyRaw: raw, name: name, isSetter: isSetter
+    ) {
+        __kk_function_set_description(accessor, runtimeMakeStringRaw(description), 0)
+    }
+    runtimeStorage.withDelegateLock { state in
+        state.callableRefMetadataByValue[accessor] = metadata
+        if var ownerMetadata = state.callableRefMetadataByValue[raw] {
+            if isSetter {
+                ownerMetadata.setterAccessor = accessor
+            } else {
+                ownerMetadata.getterAccessor = accessor
+            }
+            state.callableRefMetadataByValue[raw] = ownerMetadata
+        }
+    }
     return accessor
+}
+
+/// Parameter list served by `KProperty.getter`/`KMutableProperty.setter`
+/// (KUU-4091). On the JVM each accessor is its own KCallable; member
+/// (descriptor-backed) property accessors own every parameter box, while
+/// top-level/extension accessors share the property's receiver parameters
+/// and only the setter's value parameter is accessor-owned.
+private func runtimePropertyAccessorParameters(
+    metadata: RuntimeCallableRefMetadata,
+    isSetter: Bool,
+    accessorRaw: Int
+) -> Int {
+    let isMemberProperty = metadata.flags & runtimeMemberPropertyReflectionFlag != 0
+    if isSetter {
+        guard let setterElements = callableArguments(metadata.setterParameters) else {
+            return metadata.setterParameters
+        }
+        if isMemberProperty {
+            // The compiler already tagged these boxes with the setter's own
+            // owner token (`targetSymbol * 2 + 2`); re-point their callable
+            // handle at the accessor so `of <callable>` renders it.
+            for element in setterElements {
+                runtimeKParameterBox(from: element)?.callableRaw = accessorRaw
+            }
+            return metadata.setterParameters
+        }
+        // Top-level/extension setter: `property.parameters` plus the
+        // setter's own value parameter — the receiver boxes stay shared.
+        if let valueElement = setterElements.last {
+            runtimeKParameterBox(from: valueElement)?.callableRaw = accessorRaw
+        }
+        let elements = (callableArguments(metadata.parameters) ?? []) + setterElements.suffix(1)
+        return registerRuntimeObject(RuntimeListBox(elements: elements))
+    }
+    guard isMemberProperty else {
+        // `KotlinKProperty.Getter.parameters` is literally `property.parameters`.
+        return metadata.parameters
+    }
+    guard let elements = callableArguments(metadata.parameters) else {
+        return metadata.parameters
+    }
+    let clones = elements.map { element in
+        runtimeAccessorParameterClone(of: element, accessorRaw: accessorRaw)
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: clones))
+}
+
+/// Clones a `RuntimeKParameterBox` for a member-property accessor. The
+/// clone's `callableOwner` re-encodes the property's owner token into the
+/// negative range (`~x == -x - 1`), which no compiler-emitted owner
+/// (`symbol * 2 + k`) or runtime object handle reaches, so the clone never
+/// equals the property's or the sibling accessor's parameter while repeated
+/// `ref.getter` evaluations still derive the same token and compare equal.
+private func runtimeAccessorParameterClone(of element: Int, accessorRaw: Int) -> Int {
+    guard let box = runtimeKParameterBox(from: element) else { return element }
+    let flags = (box.isOptional ? RuntimeKParameterFlags.isOptional : 0)
+        | (box.isVararg ? RuntimeKParameterFlags.isVararg : 0)
+    let cloneRaw = __kk_kparameter_create(box.index, box.nameRaw, box.typeRaw, flags, box.kind)
+    guard let clone = runtimeKParameterBox(from: cloneRaw) else { return element }
+    clone.typeToken = box.typeToken
+    clone.reflectedTypeRaw = box.reflectedTypeRaw
+    clone.arrayComponentType = box.arrayComponentType
+    clone.callableOwner = box.callableOwner == 0 ? 0 : ~box.callableOwner
+    clone.callableRaw = accessorRaw
+    clone.boundArguments = box.boundArguments
+    return cloneRaw
+}
+
+/// Builds the accessor's JVM-shaped callable description
+/// (`fun Owner.`<get-x>`(): T` / `fun Owner.`<set-x>`(T): kotlin.Unit`) from
+/// the property's own `val|var owner.name: T` description pinned at
+/// reference creation. Bound references carry the same text, so the owner
+/// prefix survives even though bound parameters are stripped. Returns nil
+/// when the property carries no description — the accessor then keeps the
+/// generic `kotlin.FunctionN` rendering.
+private func runtimePropertyAccessorFunctionDescription(
+    propertyRaw: Int,
+    name: String,
+    isSetter: Bool
+) -> String? {
+    guard let description = runtimeFunctionDescription(propertyRaw) else { return nil }
+    var text = Substring(description)
+    if text.hasPrefix("val ") || text.hasPrefix("var ") {
+        text = text.dropFirst(4)
+    } else {
+        return nil
+    }
+    guard let separator = text.range(of: ": ", options: .backwards) else { return nil }
+    let ownerAndName = text[..<separator.lowerBound]
+    let typeName = text[separator.upperBound...]
+    let ownerPrefix: String
+    if ownerAndName == Substring(name) {
+        ownerPrefix = ""
+    } else if ownerAndName.hasSuffix(".\(name)") {
+        ownerPrefix = String(ownerAndName.dropLast(name.count + 1)) + "."
+    } else {
+        ownerPrefix = ""
+    }
+    let accessorName = isSetter ? "`<set-\(name)>`" : "`<get-\(name)>`"
+    return isSetter
+        ? "fun \(ownerPrefix)\(accessorName)(\(typeName)): kotlin.Unit"
+        : "fun \(ownerPrefix)\(accessorName)(): \(typeName)"
 }
 
 private func runtimePropertyAccessorInvoke0(_ raw: Int, _ thrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -528,10 +684,9 @@ private func runtimeKParameterInternalKind(_ raw: Int) -> Int {
 
 private func callableParameterMatches(_ lhs: Int, _ rhs: Int) -> Bool {
     guard let lhs = runtimeReflectionObject(from: lhs, as: RuntimeKParameterBox.self),
-          let rhs = runtimeReflectionObject(from: rhs, as: RuntimeKParameterBox.self),
-          lhs.callableOwner != 0, lhs.callableOwner == rhs.callableOwner, lhs.index == rhs.index,
-          lhs.boundArguments.count == rhs.boundArguments.count else { return false }
-    return zip(lhs.boundArguments, rhs.boundArguments).allSatisfy { runtimeValuesEqual(RuntimeValue(raw: $0), RuntimeValue(raw: $1)) }
+          let rhs = runtimeReflectionObject(from: rhs, as: RuntimeKParameterBox.self)
+    else { return false }
+    return runtimeKParameterBoxesEqual(lhs, rhs)
 }
 
 private func invokeCallable(_ metadata: RuntimeCallableRefMetadata, values: [Int], mask: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {

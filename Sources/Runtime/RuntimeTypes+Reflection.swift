@@ -523,7 +523,17 @@ final class RuntimeKParameterBox {
     var typeToken: Int?
     var reflectedTypeRaw: Int = 0
     var arrayComponentType: Int?
+    /// Owning-callable identity token: compiler-emitted parameter lists carry
+    /// an encoded SymbolID, runtime-created reflection members pass the owning
+    /// callable's raw handle. Compared by `runtimeKParameterBoxesEqual` the
+    /// way the JVM's `ReflectKParameter.equals` compares `callable`.
     var callableOwner = 0
+    /// Raw handle of the owning callable value (`::f` reference, KFunction /
+    /// KProperty box), filled by `__kk_kcallable_register` when the parameter
+    /// list is linked to its callable. Only used to render `of <callable>`
+    /// in toString; equality deliberately uses `callableOwner` because two
+    /// evaluations of `::f` produce distinct handles for the same callable.
+    var callableRaw = 0
     var boundArguments: [Int] = []
     /// Annotation records for this parameter. No registration entry point
     /// emits them yet, so `KParameter.annotations` reads as an empty list.

@@ -159,6 +159,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     {
         return name
     }
+    // kotlin.reflect's KParameter.toString() renders "<kind> of <callable>"
+    // (e.g. "parameter #0 x of fun f(kotlin.Int): kotlin.Unit").
+    if let parameterBox = tryCast(ptr, to: RuntimeKParameterBox.self) {
+        return runtimeKParameterToString(parameterBox)
+    }
     if let rendered = runtimeRenderIndexedValueObject(elem, render: runtimeElementToString) {
         return rendered
     }

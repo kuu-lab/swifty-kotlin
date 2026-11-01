@@ -53,6 +53,20 @@ extension LambdaLowerer {
             ) != nil
         }()
         func parameters(_ types: [TypeID], reflectedTypes: [TypeID]? = nil, isSetter: Bool = false) -> KIRExprID {
+            // KUU-4091 — the setter's value parameter keeps its declared name
+            // on the JVM (`set(v)` renders "parameter #N v"), while a
+            // synthesized accessor's parameter has no name at all (renders
+            // "parameter #N null"), not the hardcoded "value". Sema marks
+            // every accessor `.synthetic`, so the declared name only exists
+            // on the property's AST accessor node.
+            let setterValueParameterName: String?
+            if isSetter, let targetSymbol, let ast,
+               let property = propertyDecl(for: targetSymbol, ast: ast, sema: sema),
+               let parameterName = property.setter?.parameterName {
+                setterValueParameterName = interner.resolve(parameterName)
+            } else {
+                setterValueParameterName = nil
+            }
             var elements: [KIRExprID] = []
             for (index, type) in types.enumerated() {
                 let contextIndex = index - receiverCount
@@ -64,7 +78,7 @@ extension LambdaLowerer {
                     ? signature?.contextParameterSymbols[contextSymbolIndex]
                     : valueIndex >= 0 && valueIndex < (signature?.valueParameterSymbols.count ?? 0)
                         ? signature?.valueParameterSymbols[valueIndex] : nil
-                let name = isSetter && index == types.count - 1 ? "value"
+                let name = isSetter && index == types.count - 1 ? setterValueParameterName
                     : parameterSymbol.flatMap { sema.symbols.symbol($0) }.map { interner.resolve($0.name) }
                 let optional = valueIndex >= 0 && valueIndex < (signature?.valueParameterHasDefaultValues.count ?? 0)
                     && signature?.valueParameterHasDefaultValues[valueIndex] == true
@@ -198,6 +212,18 @@ extension LambdaLowerer {
         var flags = info?.flags.contains(.abstractType) == true ? 4 : info?.flags.contains(.openType) == true ? 2 : 1
         if info?.flags.contains(.constValue) == true { flags |= 16 }
         if info?.flags.contains(.lateinitProperty) == true { flags |= 32 }
+        // KUU-4091 — bit6 marks member property references: a class-like
+        // owner means the JVM serves descriptor-backed accessors whose
+        // parameter boxes are accessor-owned, while top-level/extension
+        // property accessors share the property's parameter boxes.
+        // `runtimePropertyAccessor` reads this bit.
+        if info?.kind == .property,
+           let targetSymbol,
+           let ownerSymbol = sema.symbols.parentSymbol(for: targetSymbol),
+           let owner = sema.symbols.symbol(ownerSymbol),
+           [.class, .interface, .object, .enumClass, .annotationClass].contains(owner.kind) {
+            flags |= 64
+        }
         let visibility: Int = switch info?.visibility ?? .public {
         case .public: 0
         case .protected: 1

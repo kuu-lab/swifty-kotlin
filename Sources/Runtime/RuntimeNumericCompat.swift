@@ -319,6 +319,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let projection = tryCast(pointer, to: RuntimeKTypeProjectionBox.self) {
         return Int(runtimeKTypeProjectionHashCode(projection))
     }
+    if let parameterBox = tryCast(pointer, to: RuntimeKParameterBox.self) {
+        return runtimeKParameterHashCode(parameterBox)
+    }
     if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
         return runtimeRangeHashCode(range)
     }

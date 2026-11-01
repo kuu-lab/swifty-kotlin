@@ -486,6 +486,13 @@ struct RuntimeCallableRefMetadata {
     /// Canonical callable target and captures used by callable-reference equality.
     var identityTargetRaw: Int = 0
     var identityCaptures: [Int] = []
+    /// Memoized `KProperty.getter`/`KMutableProperty.setter` accessor handles
+    /// (KUU-4091). The JVM caches each accessor on the property-reference
+    /// instance, so repeated `ref.getter`/`ref.setter` evaluations on the same
+    /// reference must return the same accessor object — and with it the same
+    /// parameter boxes.
+    var getterAccessor: Int = 0
+    var setterAccessor: Int = 0
 }
 
 /// Equality identity for a callable-reference adapter. SAM adapters carry a

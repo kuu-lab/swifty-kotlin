@@ -522,7 +522,7 @@ extension LambdaLowerer {
         }?.id
     }
 
-    private func propertyDecl(
+    func propertyDecl(
         for propertySymbol: SymbolID,
         ast: ASTModule,
         sema: SemaModule

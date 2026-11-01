@@ -333,6 +333,15 @@ func runtimeNonNullValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let rhsProjection = tryCast(rhsPtr, to: RuntimeKTypeProjectionBox.self) {
         return runtimeKTypeProjectionEquals(lhsProjection, rhsProjection)
     }
+    // kotlin.reflect KParameter boxes compare by owning callable + index
+    // (ReflectKParameter.equals), not by handle identity; a parameter box
+    // never equals a non-parameter value.
+    if let lhsParameter = tryCast(lhsPtr, to: RuntimeKParameterBox.self) {
+        guard let rhsParameter = tryCast(rhsPtr, to: RuntimeKParameterBox.self) else {
+            return false
+        }
+        return runtimeKParameterBoxesEqual(lhsParameter, rhsParameter)
+    }
     if let lhsString = tryCast(lhsPtr, to: RuntimeStringBox.self),
        let rhsString = tryCast(rhsPtr, to: RuntimeStringBox.self)
     {
