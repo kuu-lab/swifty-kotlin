@@ -58,15 +58,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             diagnostics: diagnostics
         )
-        attachUuidSourceMigrationClassAnnotationIfNeeded(
-            to: symbol,
-            fqName: fqName,
-            sourceFileID: file.fileID,
-            ctx: ctx,
-            symbols: symbols,
-            interner: interner
-        )
-
         switch decl {
         case let .classDecl(classDecl):
             let classTypeParamResult = registerNominalTypeParameters(

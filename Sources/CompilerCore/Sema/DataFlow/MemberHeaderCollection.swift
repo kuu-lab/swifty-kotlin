@@ -442,11 +442,6 @@ extension DataFlowSemaPhase {
                 ),
                 for: memberSymbol
             )
-            attachUuidSourceMigrationBridgeIfNeeded(
-                to: memberSymbol,
-                sourceFileID: sourceFileID,
-                ctx: ctx,
-                symbols: symbols)
             checkAndReportJVMErasedCallableConflict(
                 for: memberSymbol,
                 fqName: memberFQName,

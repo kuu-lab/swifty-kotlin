@@ -54,7 +54,6 @@ public class UUID(
     }
 
     public companion object {
-        @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
         public fun randomUUID(): UUID {
             return kotlin.uuid.Uuid.random().toLongs { most, least -> UUID(most, least) }
         }

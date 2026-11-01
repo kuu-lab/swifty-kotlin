@@ -22,4 +22,6 @@ package kotlin.uuid
     AnnotationTarget.TYPEALIAS,
 )
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.MustBeDocumented
+@kotlin.SinceKotlin("2.0")
 public annotation class ExperimentalUuidApi
