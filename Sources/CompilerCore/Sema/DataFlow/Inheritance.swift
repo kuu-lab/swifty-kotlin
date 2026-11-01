@@ -59,9 +59,12 @@ extension DataFlowSemaPhase {
         // requires the written form without `()` — each secondary constructor
         // delegates via `super(...)` instead (kotlinc rejects `Base()` there
         // with "supertype initialization is impossible without a primary
-        // constructor"). Expect classes defer supertype initialization to
-        // their actual declaration. Objects always have an implicit primary
-        // constructor.
+        // constructor"). Expect declarations defer supertype initialization to
+        // their actual declaration — the symbol flag covers declarations
+        // nested inside an expect declaration, which are implicitly expect
+        // without carrying the modifier. Objects always have an implicit
+        // primary constructor.
+        let isExpectDeclaration = symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
         let requiresClassSupertypeConstructorInvocation: Bool
         switch decl {
         case let .classDecl(classDecl):
@@ -70,7 +73,7 @@ extension DataFlowSemaPhase {
             nestedDecls = classDecl.nestedClasses + classDecl.nestedObjects
                 + classDecl.enumEntries.flatMap(\.nestedClasses)
                 + (classDecl.companionObject.map { [$0] } ?? [])
-            requiresClassSupertypeConstructorInvocation = !classDecl.modifiers.contains(.expect)
+            requiresClassSupertypeConstructorInvocation = !isExpectDeclaration
                 && (classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty)
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
@@ -82,7 +85,7 @@ extension DataFlowSemaPhase {
             superTypeRefs = objectDecl.superTypes
             superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
-            requiresClassSupertypeConstructorInvocation = true
+            requiresClassSupertypeConstructorInvocation = !isExpectDeclaration
         default:
             return
         }
