@@ -7,7 +7,20 @@ extension KotlinParser {
 
         var modifierChildren: [SyntaxChild] = []
         var modifierRange = RangeAccumulator()
-        if case .softKeyword(.context) = stream.peek().kind {
+        var contextClauseConsumed = false
+        // `context(...)` is a declaration prefix that Kotlin accepts on either
+        // side of the annotation/modifier run: `context(x) @OptIn fun f` and
+        // `@OptIn context(x) inline fun f` are the same declaration. Consume it
+        // wherever it appears inside the prefix; previously it was only eaten
+        // as the very first token, so `@OptIn context(x) fun f` degraded into
+        // a statement and silently dropped the annotations (KUU-4094).
+        func consumeContextClauseIfPresent() {
+            guard !contextClauseConsumed,
+                  case .softKeyword(.context) = stream.peek().kind
+            else {
+                return
+            }
+            contextClauseConsumed = true
             _ = consumeToken(into: &modifierChildren, range: &modifierRange)
             if case .symbol(.lParen) = stream.peek().kind {
                 let group = parseBalancedGroup(opening: .lParen, closing: .rParen)
@@ -23,6 +36,9 @@ extension KotlinParser {
                 )
             }
         }
+        consumeContextClauseIfPresent()
+        parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
+        consumeContextClauseIfPresent()
         parseLeadingDeclarationPrefix(into: &modifierChildren, range: &modifierRange)
         companionDispatch: while true {
         let token = stream.peek()
