@@ -46,7 +46,24 @@ extension CallTypeChecker {
            args.count == 1,
            isSyntheticStringLikeType(stringHOFReceiverType, sema: sema)
         {
-            let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            // `CharSequence.toCollection` bounds its destination with
+            // `C : MutableCollection<in Char>` — offer it as the expected
+            // type so a nested `ArrayDeque()`/factory infers Char instead of
+            // failing or collapsing to Nothing (KUU-4100).
+            let destinationExpectedType = mutableCollectionDestinationExpectedType(
+                argumentExpr: args[0].expr,
+                elementType: sema.types.make(.primitive(.char, .nonNull)),
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                ast: ast
+            )
+            let destinationType = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: destinationExpectedType
+            )
             bindSyntheticStringMemberDirectlyIfAvailable(
                 id,
                 calleeName: calleeName,

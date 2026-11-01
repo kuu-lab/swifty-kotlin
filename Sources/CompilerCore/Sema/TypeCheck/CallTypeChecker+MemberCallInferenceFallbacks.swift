@@ -735,6 +735,53 @@ extension CallTypeChecker {
         }
     }
 
+    /// The contextual type a `toCollection`-style destination argument should
+    /// see: `C : MutableCollection<in T>` bounds the destination parameter, so
+    /// a nested generic call (`ArrayDeque()`, `mutableListOf()`, ...) that has
+    /// no argument of its own to fix its type variable must infer it from the
+    /// bound — `MutableCollection<in elementType>` — the same role the
+    /// enclosing `C` constraint plays in kotlinc (KUU-4100). A concrete
+    /// MutableCollection-subtype expected type (e.g. `val d: ArrayDeque<Int>`)
+    /// pins the destination more tightly and wins over the bound.
+    func mutableCollectionDestinationExpectedType(
+        argumentExpr: ExprID,
+        elementType: TypeID,
+        expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner,
+        ast: ASTModule
+    ) -> TypeID? {
+        guard isInferableNestedCallExpr(argumentExpr, ast: ast),
+              let mutableCollection = lookupStdlibSymbol(
+                  "MutableCollection",
+                  symbols: sema.symbols,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+        if let expectedType,
+           expectedType != sema.types.errorType,
+           case let .classType(expectedClassType) = sema.types.kind(
+               of: sema.types.makeNonNullable(expectedType)
+           ),
+           sema.types.isNominalSubtypeSymbol(
+               expectedClassType.classSymbol, of: mutableCollection
+           ),
+           expectedClassType.args.allSatisfy({ argument in
+               if case .star = argument { return false }
+               return true
+           })
+        {
+            return sema.types.makeNonNullable(expectedType)
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: mutableCollection,
+            args: [.in(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
     func makeSyntheticPairType(
         symbols: SymbolTable,
         types: TypeSystem,

@@ -30,6 +30,34 @@ struct ArrayDequeCollectionConformanceTests {
         }
     }
 
+    /// KUU-4100: `toCollection`'s destination parameter is bounded by
+    /// `C : MutableCollection<in T>`. An argument-less `ArrayDeque()` has no
+    /// own argument to fix `E`, so the collection-flow special must hand the
+    /// nested call the `MutableCollection<in E>` bound as its expected type —
+    /// otherwise inference fails outright or silently collapses the element
+    /// to `Nothing`/`Any` the way `mutableListOf()`/`ArrayList()` did.
+    @Test
+    func toCollectionDestinationInfersElementTypeFromReceiver() throws {
+        let source = """
+        fun destinations() {
+            val deque: ArrayDeque<Int> = listOf(1, 2).toCollection(ArrayDeque())
+            val capacity: ArrayDeque<Int> = listOf(1, 2).toCollection(ArrayDeque(4))
+            val list: MutableList<Int> = listOf(1, 2).toCollection(mutableListOf())
+            val arrayList: MutableList<Int> = listOf(1, 2).toCollection(ArrayList())
+            val set: MutableSet<Int> = listOf(1, 2).toCollection(mutableSetOf())
+            val chars: ArrayDeque<Char> = "ab".toCollection(ArrayDeque())
+            val fromSequence = sequenceOf(1, 2).toCollection(ArrayDeque())
+            fromSequence.add(3)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected toCollection destinations to infer cleanly, got: \(errors)")
+        }
+    }
+
     @Test
     func hierarchyAndCollectionExtensionsPreserveElementTypes() throws {
         let source = """

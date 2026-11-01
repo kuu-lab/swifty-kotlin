@@ -202,6 +202,24 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             ctx: ctx)
     }
 
+    func mutableCollectionDestinationExpectedType(
+        argumentExpr: ExprID,
+        elementType: TypeID,
+        expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner,
+        ast: ASTModule
+    ) -> TypeID? {
+        checker.mutableCollectionDestinationExpectedType(
+            argumentExpr: argumentExpr,
+            elementType: elementType,
+            expectedType: expectedType,
+            sema: sema,
+            interner: interner,
+            ast: ast
+        )
+    }
+
     func typeContainsNothingType(_ type: TypeID, sema: SemaModule, depth: Int = 0) -> Bool {
         checker.typeContainsNothingType(type, sema: sema, depth: depth)
     }

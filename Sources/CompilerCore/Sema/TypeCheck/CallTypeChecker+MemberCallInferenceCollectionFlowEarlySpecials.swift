@@ -459,7 +459,34 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isSequenceReceiver
         {
-            let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            // The destination parameter `C : MutableCollection<in T>` is the
+            // nested call's inference context: an argument-less destination
+            // constructor such as `ArrayDeque()` has no argument of its own
+            // to fix `E`, so it must see the bound as its expected type —
+            // `MutableCollection<in E>` lifted from the receiver element —
+            // the same role the enclosing `C` constraint plays in kotlinc
+            // (KUU-4100). A concrete MutableCollection-subtype expected type
+            // (e.g. `val d: ArrayDeque<Int>`) pins the destination directly.
+            let destinationExpectedType = mutableCollectionDestinationExpectedType(
+                argumentExpr: args[0].expr,
+                elementType: resolvedCollectionElementType(
+                    receiverID: receiverID,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner,
+                    ctx: ctx
+                ),
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                ast: ast
+            )
+            let destinationType = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: destinationExpectedType
+            )
             sema.bindings.markCollectionExpr(id)
             let finalType = safeCall ? sema.types.makeNullable(destinationType) : destinationType
             sema.bindings.bindExprType(id, type: finalType)
