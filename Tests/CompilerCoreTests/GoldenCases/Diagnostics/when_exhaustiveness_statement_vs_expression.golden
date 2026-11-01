@@ -12,7 +12,7 @@
       "code": "KSWIFTK-SEMA-0004",
       "source": "kswiftk",
       "message": "Non-exhaustive when expression.",
-      "codeActions": [{ "title": "Change return type annotation to match expression", "kind": "quickfix" }]
+      "codeActions": []
     }
   ]
 }
