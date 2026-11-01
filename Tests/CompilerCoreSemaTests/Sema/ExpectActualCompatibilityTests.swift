@@ -1090,6 +1090,98 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3921: an `actual` member may omit its type annotation when the
+    /// initializer pins the type — the kotlinx-datetime
+    /// `LocalDate.Companion.MIN/MAX` shape. The header placeholder must not
+    /// fail matching, and the provisional link is re-verified once body
+    /// analysis publishes the inferred type.
+    @Test func testActualCompanionPropertiesWithInferredTypesMatchExpect() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            expect class LocalDate {
+                companion object {
+                    internal val MIN: LocalDate
+                    internal val MAX: LocalDate
+                }
+            }
+            """,
+            """
+            actual class LocalDate {
+                actual companion object {
+                    internal actual val MIN = LocalDate()
+                    internal actual val MAX = LocalDate()
+                }
+            }
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Inferred-type actual members must satisfy their expect contracts: \(errors)"
+            )
+
+            let sema = try #require(ctx.sema)
+            let fqName = ["LocalDate", "Companion", "MIN"].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(symbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+        }
+    }
+
+    /// KUU-3921: the same placeholder problem hits top-level/member
+    /// properties and expression-bodied functions whose actual side leaves
+    /// the type or return type to inference.
+    @Test func testInferredActualMembersMatchExpectDeclarations() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            expect val topX: Int
+            expect class Foo {
+                val memberX: Int
+            }
+            expect fun topF(): Int
+            """,
+            """
+            actual val topX = 1
+            actual class Foo {
+                actual val memberX = 1
+            }
+            actual fun topF() = 1
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Inferred actual types must not trip expect/actual matching: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3921: the deferral is provisional — a genuinely mismatched
+    /// inferred actual type is still rejected once body analysis publishes
+    /// the real type.
+    @Test func testInferredActualTypeMismatchIsStillDiagnosed() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            expect val topX: Int
+            expect fun topF(): Int
+            """,
+            """
+            actual val topX = "str"
+            actual fun topF() = 1.5
+            """,
+        ]) { ctx in
+            let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
+                guard diagnostic.severity == .error else { return nil }
+                return diagnostic.code
+            }
+            #expect(
+                errorCodes.filter { $0 == "KSWIFTK-MPP-UNRESOLVED" }.count == 2,
+                "Expected an unresolved diagnostic per mismatched inferred actual: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
     /// KUU-3774: `actual` members are real implementations — the expect
     /// exemption must not leak into the actual side of the pair.
     @Test func testActualCompanionPropertyStillRequiresInitializer() throws {

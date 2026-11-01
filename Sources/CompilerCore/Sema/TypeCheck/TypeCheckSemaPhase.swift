@@ -118,6 +118,19 @@ final class TypeCheckSemaPhase: CompilerPhase {
         }
 
         withSemaSubPhaseTiming("post-validation", ctx: ctx) {
+            // KUU-3921: expect/actual pairs linked while the actual member's
+            // inferred type was still a header placeholder are re-checked now
+            // that body type checking has published the real types.
+            if !ctx.deferredExpectActualTypePairs.isEmpty {
+                DataFlowSemaPhase().verifyDeferredExpectActualTypes(
+                    ctx.deferredExpectActualTypePairs,
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    diagnostics: ctx.diagnostics,
+                    interner: ctx.interner
+                )
+                ctx.deferredExpectActualTypePairs = []
+            }
             let (inlineLambdaArguments, inlineAnonymousFunctionArguments, suspendLambdaArguments) =
                 collectInlineLambdaArguments(ast: ast, sema: sema)
             validateTailrecFunctions(
