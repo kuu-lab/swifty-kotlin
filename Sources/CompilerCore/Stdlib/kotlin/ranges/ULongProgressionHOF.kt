@@ -41,7 +41,7 @@ public fun ULongProgression.forEach(action: (ULong) -> Unit) {
     for (element in this) { action(element) }
 }
 
-public fun <R> ULongProgression.map(transform: (ULong) -> R): List<R> {
+public inline fun <R> ULongProgression.map(transform: (ULong) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result

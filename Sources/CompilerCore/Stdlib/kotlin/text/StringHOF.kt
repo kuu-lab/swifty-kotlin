@@ -234,7 +234,7 @@ public inline fun <C : Appendable> CharSequence.filterTo(
     return destination
 }
 
-public fun <R> CharSequence.map(transform: (Char) -> R): List<R> {
+public inline fun <R> CharSequence.map(transform: (Char) -> R): List<R> {
     val result = mutableListOf<R>()
     var i = 0
     val sz = this.length

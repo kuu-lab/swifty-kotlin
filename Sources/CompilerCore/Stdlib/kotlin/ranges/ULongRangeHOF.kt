@@ -153,7 +153,7 @@ public fun ULongRange.windowed(size: Int, step: Int = 1, partialWindows: Boolean
     return result
 }
 
-public fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
+public inline fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result

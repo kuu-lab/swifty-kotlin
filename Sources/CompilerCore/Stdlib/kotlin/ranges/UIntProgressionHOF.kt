@@ -41,7 +41,7 @@ public fun UIntProgression.forEach(action: (UInt) -> Unit) {
     for (element in this) { action(element) }
 }
 
-public fun <R> UIntProgression.map(transform: (UInt) -> R): List<R> {
+public inline fun <R> UIntProgression.map(transform: (UInt) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
     return result

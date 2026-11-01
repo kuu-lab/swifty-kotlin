@@ -121,6 +121,42 @@ struct InlineParameterUsageValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0450", in: ctx)
     }
 
+    /// KUU-4111: bundled stdlib `map` overloads on ranges, collection indices
+    /// and primitive arrays are `inline` like upstream Kotlin, so invoking an
+    /// `inline` parameter inside their lambda argument stays in the caller's
+    /// inlinable context and must not require `crossinline`.
+    @Test
+    func inlineParameterInvokedInsideInlinedStdlibMapLambdaIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        inline fun <T, R> List<T>.zipWithNextCircular(transform: (a: T, b: T) -> R): List<R> =
+            indices.map { i -> transform(get(i), get((i + 1) % size)) }
+        fun main() { listOf(1, 2, 3).zipWithNextCircular { a, b -> a + b } }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func inlineParameterInvokedInsideInlinedRangeAndPrimitiveArrayMapLambdaIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        inline fun <R> onRange(transform: (Int) -> R): List<R> =
+            (0..2).map { transform(it) }
+        inline fun <R> onProgression(transform: (Int) -> R): List<R> =
+            (0..4 step 2).map { transform(it) }
+        inline fun <R> onIntArray(transform: (Int) -> R, a: IntArray): List<R> =
+            a.map { transform(it) }
+        fun main() {
+            onRange { it }
+            onProgression { it }
+            onIntArray({ it }, intArrayOf(1))
+        }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func directInvocationIsAccepted() throws {
         let ctx = makeContextFromSource("""

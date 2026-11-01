@@ -15,7 +15,7 @@ fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-fun <T, R> Set<T>.map(transform: (T) -> R): List<R> {
+inline fun <T, R> Set<T>.map(transform: (T) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) {
         result.add(transform(element))
