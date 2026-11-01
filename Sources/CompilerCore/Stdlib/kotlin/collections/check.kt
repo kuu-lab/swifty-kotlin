@@ -5,7 +5,7 @@ package kotlin.collections
 @IgnorableReturnValue
 internal inline fun checkIndexOverflow(index: Int): Int {
     if (index < 0) {
-        throw ArithmeticException("Index overflow has happened.")
+        throwIndexOverflow()
     }
     return index
 }
@@ -15,8 +15,20 @@ internal inline fun checkIndexOverflow(index: Int): Int {
 @IgnorableReturnValue
 internal inline fun checkCountOverflow(count: Int): Int {
     if (count < 0) {
-        throw ArithmeticException("Count overflow has happened.")
+        throwCountOverflow()
     }
     return count
+}
+
+@PublishedApi
+@SinceKotlin("1.3")
+internal fun throwIndexOverflow() {
+    throw ArithmeticException("Index overflow has happened.")
+}
+
+@PublishedApi
+@SinceKotlin("1.3")
+internal fun throwCountOverflow() {
+    throw ArithmeticException("Count overflow has happened.")
 }
 
