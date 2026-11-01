@@ -9,8 +9,12 @@ package kotlinx.io
 import kotlinx.io.internal.*
 import kotlinx.io.unsafe.UnsafeBufferOperations
 
-internal fun String.utf8Size(startIndex: Int = 0, endIndex: Int = this.length): Long =
-    this.commonUtf8Size(startIndex, endIndex)
+// Upstream parity: okio exposes `String.utf8Size` as a public API
+// (`fun String.utf8Size(beginIndex: Int = 0, endIndex: Int = length): Long`),
+// so the bundled declaration is public with okio's parameter names even though
+// the kotlinx-io 0.9.1 source it derives from keeps the function internal.
+public fun String.utf8Size(beginIndex: Int = 0, endIndex: Int = this.length): Long =
+    this.commonUtf8Size(beginIndex, endIndex)
 
 @OptIn(DelicateIoApi::class)
 public fun Sink.writeString(string: String, startIndex: Int = 0, endIndex: Int = string.length) {
