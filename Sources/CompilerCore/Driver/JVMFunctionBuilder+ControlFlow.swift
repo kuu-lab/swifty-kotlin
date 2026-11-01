@@ -170,9 +170,31 @@ extension JVMFunctionBuilder {
             instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
         }
         if op == .identityEqual || op == .notIdentityEqual {
-            guard left.type.referenceName != nil, right.type.referenceName != nil else { throw fail("JVM identity comparison requires reference operands.", id) }
-            let result = try value(.boolean)
-            instructions.append(.referenceCompare(op == .identityEqual ? .equal : .notEqual, left, right, result)); return result
+            var operands = [left, right]
+            switch operands.filter({ $0.type.referenceName == nil }).count {
+            case 1:
+                // A non-null primitive operand facing a reference peer boxes
+                // through its `valueOf` factory, matching kotlinc's `if_acmp`
+                // on the boxed value. Cached wrappers (Integer, Boolean,
+                // Byte, Short, Character) converge on the shared box while
+                // Double, Float, and unsigned kinds always box fresh.
+                for index in operands.indices where operands[index].type.referenceName == nil {
+                    guard let boxName = operands[index].type.boxName else { throw fail("JVM identity comparison requires reference operands.", id) }
+                    operands[index] = try convert(operands[index], to: .reference(boxName, nullable: false))
+                }
+                let result = try value(.boolean)
+                instructions.append(.referenceCompare(op == .identityEqual ? .equal : .notEqual, operands[0], operands[1], result)); return result
+            case 2:
+                // Two non-null primitives are value equality — Sema rejects
+                // mixed primitive types, and Float/Double keep the IEEE
+                // compare path (`dcmpg`/`fcmpg` + `ifeq`).
+                guard left.type == right.type, left.type.isNumeric || left.type == .boolean else { throw fail("JVM identity comparison requires reference operands.", id) }
+                let result = try value(.boolean)
+                instructions.append(.binary(op == .identityEqual ? .equal : .notEqual, left, right, result)); return result
+            default:
+                let result = try value(.boolean)
+                instructions.append(.referenceCompare(op == .identityEqual ? .equal : .notEqual, left, right, result)); return result
+            }
         }
         if [.equal, .notEqual].contains(op), let result = try nullableFloatingEquality(op, left, right) { return result }
         let comparison = [BinaryOp.equal, .notEqual, .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op)
