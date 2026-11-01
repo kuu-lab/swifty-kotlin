@@ -6,6 +6,14 @@ protocol RuntimeReaderInputStream: AnyObject {
     func close()
 }
 
+/// Optional capability for streams whose `read(byte[], off, len)` must perform
+/// a single underlying read call rather than looping byte-wise (e.g. sockets,
+/// where a second blocking `recv` would hang waiting for data that never
+/// arrives). Returns the chunk read, or an empty array at end-of-stream.
+protocol RuntimeChunkedInputStream: RuntimeReaderInputStream {
+    func readChunk(_ maxCount: Int) -> [Int]
+}
+
 /// Char-level pull source behind the `java.io` reader bridges.
 /// `RuntimeBufferedReaderBox` covers file/stream-backed readers; a Kotlin
 /// `java.io.Reader` subclass object (StringReader, user subclasses) reaches
