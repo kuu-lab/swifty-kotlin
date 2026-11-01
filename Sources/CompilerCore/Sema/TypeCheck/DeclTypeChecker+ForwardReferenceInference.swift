@@ -124,6 +124,46 @@ extension DeclTypeChecker {
         )
     }
 
+    /// Interfaces carry the same inferred member-property placeholders as
+    /// classes — `val isZero get() = signum == 0` on an interface is read by
+    /// earlier declarations long before the interface's own source-order pass
+    /// runs. Precheck them under the interface receiver so the concrete type
+    /// is published ahead of those reads (KUU-4101).
+    func precheckIndependentInterfaceMemberProperties(
+        _ interfaceDecl: InterfaceDecl,
+        symbol: SymbolID,
+        ctx: TypeInferenceContext,
+        solver: ConstraintSolver,
+        diagnostics: DiagnosticEngine
+    ) {
+        var nestedObjects = interfaceDecl.nestedObjects
+        if let companionObject = interfaceDecl.companionObject {
+            nestedObjects.append(companionObject)
+        }
+        let interfaceContext = makeInterfaceTypeCheckContext(
+            interfaceDecl: interfaceDecl,
+            symbol: symbol,
+            ctx: ctx
+        )
+        for declID in nestedObjects {
+            guard case let .objectDecl(objectDecl)? = ctx.ast.arena.decl(declID),
+                  let objectSymbol = ctx.sema.bindings.declSymbols[declID]
+            else { continue }
+            precheckIndependentObjectMemberProperties(
+                objectDecl, symbol: objectSymbol, ctx: interfaceContext,
+                solver: solver, diagnostics: diagnostics
+            )
+        }
+        precheckIndependentNestedClassProperties(
+            interfaceDecl.nestedClasses, ctx: interfaceContext,
+            solver: solver, diagnostics: diagnostics
+        )
+        precheckIndependentMemberProperties(
+            interfaceDecl.memberProperties, ctx: interfaceContext,
+            solver: solver, diagnostics: diagnostics
+        )
+    }
+
     func makeObjectTypeCheckContext(
         objectDecl: ObjectDecl,
         symbol: SymbolID,
@@ -1152,15 +1192,24 @@ extension DeclTypeChecker {
             return nil
         }
         if args.isEmpty, !ctx.ast.arena.isExplicitCall(exprID) {
-            guard let property = driver.helpers.lookupMemberProperty(
+            if let property = driver.helpers.lookupMemberProperty(
                 named: name,
                 receiverType: receiverType,
                 sema: ctx.sema
-            ), isSafePrecheckValueType(property.type, in: ctx)
-            else {
-                return nil
+            ), isSafePrecheckValueType(property.type, in: ctx) {
+                return property.type
             }
-            return property.type
+            // The bundled kotlin.<Name>Array classes declare no `size`
+            // member — the runtime answers it through the intrinsic array
+            // member fallback — so member lookup cannot see it here. Mirror
+            // the fallback's statically known result type so an inferred
+            // member property such as `val size get() = data.size` still
+            // publishes its type ahead of earlier declarations (KUU-4101).
+            return intrinsicArrayMemberPrecheckType(
+                named: name,
+                receiverType: receiverType,
+                in: ctx
+            )
         }
 
         // Calls with arguments — `x.f(y)`, infix `x or y` — are also stable
@@ -1224,6 +1273,31 @@ extension DeclTypeChecker {
             argumentTypes: argumentTypes,
             in: ctx
         )
+    }
+
+    /// Statically known result types of the intrinsic array-member fallback
+    /// (`tryArrayMemberFallback`/`arrayMemberResultType`) for zero-argument
+    /// reads whose type does not depend on the element type — currently just
+    /// `size`. Returns nil for non-array receivers and members the fallback
+    /// does not answer unconditionally (e.g. `contains` is hidden on
+    /// FloatArray/DoubleArray, and `toList`/`get` need the element type).
+    private func intrinsicArrayMemberPrecheckType(
+        named name: InternedString,
+        receiverType: TypeID,
+        in ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard ReceiverClassifier(sema: sema, interner: ctx.interner)
+            .isArrayLikeType(sema.types.makeNonNullable(receiverType))
+        else {
+            return nil
+        }
+        switch ctx.interner.resolve(name) {
+        case "size":
+            return sema.types.intType
+        default:
+            return nil
+        }
     }
 
     /// Enum-entry initializers can appear as a classifier-qualified chain
