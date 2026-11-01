@@ -94,9 +94,26 @@ final class TypeCheckSemaPhase: CompilerPhase {
         // recursion headroom is independent of the calling thread, matching
         // `BuildKIRPhase`'s handling of the same class of issue in lowering.
         let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files, frontendJobs: ctx.options.frontendFlags.contains("sema-parallel") ? ctx.frontendJobs : 1)
-        try withSemaSubPhaseTiming("type-check", ctx: ctx) {
-            try LargeStackExecutor.run {
-                try work.run()
+        // KUU-3779: while `type-check` runs, the scope-chain, overload
+        // resolver, constraint solver and type system record hot-path
+        // counters/timers into this collector. It is installed only when
+        // `time-phases` produced a PhaseTimer; the driver prints it after the
+        // phase summary. The window ends with the sub-phase so later pipeline
+        // stages (post-validation, lowering) do not pollute the numbers.
+        do {
+            if let attribution = ctx.phaseTimer.map({ _ in TypeCheckAttribution() }) {
+                sema.types.attribution = attribution
+                sema.symbols.attribution = attribution
+                ctx.typeCheckAttribution = attribution
+            }
+            defer {
+                sema.types.attribution = nil
+                sema.symbols.attribution = nil
+            }
+            try withSemaSubPhaseTiming("type-check", ctx: ctx) {
+                try LargeStackExecutor.run {
+                    try work.run()
+                }
             }
         }
 

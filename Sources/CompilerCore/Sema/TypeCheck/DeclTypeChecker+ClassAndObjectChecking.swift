@@ -837,8 +837,8 @@ extension DeclTypeChecker {
                 functionsOnly: Bool
             ) {
                 for owner in owners {
-                    guard let ownerInfo = sema.symbols.symbol(owner) else { continue }
-                    for memberSymbol in sema.symbols.children(ofFQName: ownerInfo.fqName) {
+                    guard sema.symbols.symbol(owner) != nil else { continue }
+                    for memberSymbol in sema.symbols.declaredChildren(of: owner) {
                         guard let member = sema.symbols.symbol(memberSymbol),
                               member.kind == .function
                                 || !functionsOnly && (member.kind == .property || member.kind == .field),
@@ -937,11 +937,11 @@ extension DeclTypeChecker {
         while !superQueue.isEmpty {
             let superSymbol = superQueue.removeFirst()
             guard visitedSupers.insert(superSymbol).inserted,
-                  let superInfo = sema.symbols.symbol(superSymbol)
+                  sema.symbols.symbol(superSymbol) != nil
             else {
                 continue
             }
-            for childSymbol in sema.symbols.children(ofFQName: superInfo.fqName) {
+            for childSymbol in sema.symbols.declaredChildren(of: superSymbol) {
                 if let child = sema.symbols.symbol(childSymbol),
                    child.kind == .class,
                    child.flags.contains(.innerClass),
@@ -975,7 +975,7 @@ extension DeclTypeChecker {
                 classScope.insert(valuesSymbol)
             }
 
-            for childSymbol in sema.symbols.children(ofFQName: owner.fqName) {
+            for childSymbol in sema.symbols.declaredChildren(of: ownerSymbol) {
                 if let child = sema.symbols.symbol(childSymbol),
                    child.kind == .field
                 {

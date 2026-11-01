@@ -99,6 +99,29 @@ extension KIRLoweringDriver {
         body.append(
             .call(callee: interner.intern(stubCalleeName), arguments: stubArguments, result: kPropertyExprID, canThrow: false)
         )
+        // KUU-3947: pin the JVM-style `val pkg.Owner.name: kotlin.T` text on
+        // the cached stub fallback so `property` printed inside getValue/
+        // setValue/provideDelegate shows the declaring owner like the JVM.
+        // (The accessor-backed wrapper path above pins its own description;
+        // local delegated stubs stay on the RuntimeKPropertyStub rendering.)
+        if !isLocal {
+            lambdaLowerer.emitFunctionDescription(
+                value: kPropertyExprID,
+                description: lambdaLowerer.propertyReferenceDescription(
+                    memberName: propertyName,
+                    propertySymbol: propertySymbol,
+                    isMutable: isMutable,
+                    returnType: propertyType,
+                    sema: sema,
+                    interner: interner
+                ),
+                identity: false,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+        }
         // The stub object is cached per property identity while member
         // delegates differ per instance, so the delegate handle is pointed at
         // it right before each call rather than baked into creation.

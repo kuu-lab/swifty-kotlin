@@ -22,12 +22,12 @@ expr e@18:5 localDecl r mutable=0 type=_ init=e@18:13 type=Unit ref=__local_0.r[
 expr e@19:12 name(r) type=golden.sema.MyAutoResource ref=__local_0.r[kind=local;type=golden.sema.MyAutoResource;origin=fixture]
 expr e@19:20 string(used) type=String
 expr e@19:18 lambda params=[] body=e@19:20 label=use type=(golden.sema.MyAutoResource) -> String
-expr e@19:12#1 memberCall recv=e@19:12 callee=use args=[_:e@19:18] type=String
+expr e@19:12#1 memberCall recv=e@19:12 callee=use args=[_:e@19:18] type=String call=kotlin.use[kind=fun;recv=T0;params=fn{p=T0;ret=T1};ret=T1;gen=2;bounds=[kotlin.AutoCloseable?,_];names=[block]] targs=[golden.sema.MyAutoResource,String]
 expr e@19:5 return value=e@19:12#1 type=Nothing
 expr e@23:13 call callee=e@23:13#1 args=[] type=kotlin.AutoCloseable call=golden.sema.autoCloseableFactory[kind=fun;params=;ret=kotlin.AutoCloseable;origin=fixture]
 expr e@23:5 localDecl r mutable=0 type=_ init=e@23:13 type=Unit ref=__local_1.r[kind=local;type=kotlin.AutoCloseable;origin=fixture]
 expr e@24:12 name(r) type=kotlin.AutoCloseable ref=__local_1.r[kind=local;type=kotlin.AutoCloseable;origin=fixture]
 expr e@24:20 string(factory-used) type=String
 expr e@24:18 lambda params=[] body=e@24:20 label=use type=(kotlin.AutoCloseable) -> String
-expr e@24:12#1 memberCall recv=e@24:12 callee=use args=[_:e@24:18] type=String
+expr e@24:12#1 memberCall recv=e@24:12 callee=use args=[_:e@24:18] type=String call=kotlin.use[kind=fun;recv=T0;params=fn{p=T0;ret=T1};ret=T1;gen=2;bounds=[kotlin.AutoCloseable?,_];names=[block]] targs=[kotlin.AutoCloseable,String]
 expr e@24:5 return value=e@24:12#1 type=Nothing

@@ -3,7 +3,7 @@ import Testing
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeSignedArrayAsListTests {
-    @Test(arguments: ["Boolean", "Char", "Float", "Double", "Long"])
+    @Test(arguments: ["Boolean", "Char", "Float", "Double", "Long", "Int", "Byte", "Short"])
     func typedLiveViewPreservesPrimitiveValues(kind: String) throws {
         let words: [Int]
         let expected: String
@@ -17,6 +17,19 @@ struct RuntimeSignedArrayAsListTests {
             reversedExpected = "[false, true]"
             second = "false"
             makeView = kk_booleanArray_asList
+        case "Int", "Byte", "Short":
+            // KUU-4016: the integer views must box their elements the same way
+            // the floating/boolean/char views already did; a raw word leaks
+            // into Comparable/`is`/toString generic consumers otherwise.
+            words = [3, 1]
+            expected = "[3, 1]"
+            reversedExpected = "[1, 3]"
+            second = "1"
+            switch kind {
+            case "Int": makeView = kk_intArray_asList
+            case "Byte": makeView = kk_byteArray_asList
+            default: makeView = kk_shortArray_asList
+            }
         case "Char":
             words = [99, 97]
             expected = "[c, a]"
