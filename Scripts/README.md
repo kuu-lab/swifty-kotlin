@@ -524,6 +524,11 @@ Directory sweeps are opt-in per case: only files carrying `// DIFF_JVM`
 fails instead of reporting a vacuous pass. Naming a single `.kt` file runs
 it without a marker. Candidate-only case kinds (`DIFF_CANDIDATE_ONLY*`,
 `CANDIDATE-ONLY`, `DIFF_CANDIDATE_ONLY_FROM_SOURCE`) stay native-only.
+The native lane runs every case unless it carries
+`// DIFF_SKIP_NATIVE: <reason>`, for backend-lane fixtures whose kotlinc
+reference native cannot match by design (e.g. JVM-only reflection classes).
+Unlike `// SKIP-DIFF`, the other lanes still run it; `--force-run-skipped`
+runs it natively.
 
 - `jvm` compiles each case with `--emit jar --classpath <jvm stdlib jar>` and
   runs `java -Xverify:all -cp case.jar:stdlib.jar <Main-Class>` (the class is
