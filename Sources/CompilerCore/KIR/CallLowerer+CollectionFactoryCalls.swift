@@ -13,6 +13,32 @@ extension CallLowerer {
             return nil
         }
 
+        // KUU-4037: `listOf<T>`/`setOf<T>` declare the stored element type in
+        // the call's bound result type (`List<T>`). When `T` is itself a
+        // function type, its signature is exactly what an element is read
+        // back and invoked as — an already-boxed function value with a
+        // matching invocation ABI can then keep its own object instead of
+        // being re-wrapped (which would mint a new handle and break === /
+        // contains / indexOf / remove).
+        let elementFunctionType = boundType.flatMap { typeID -> FunctionType? in
+            guard case let .classType(collectionClass) = sema.types.kind(
+                of: sema.types.makeNonNullable(typeID)
+            ), let firstArgument = collectionClass.args.first else {
+                return nil
+            }
+            let elementType: TypeID
+            switch firstArgument {
+            case let .invariant(type), let .in(type), let .out(type):
+                elementType = type
+            case .star:
+                return nil
+            }
+            guard case let .functionType(functionType) = sema.types.kind(
+                of: sema.types.makeNonNullable(elementType)
+            ) else { return nil }
+            return functionType
+        }
+
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         switch factory {
         case .emptyList, .listOf:
@@ -39,7 +65,8 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                instructions: &instructions
+                instructions: &instructions,
+                elementFunctionType: elementFunctionType
             )
             emitRuntimeCollectionFactory(
                 "__kk_list_of",
@@ -75,7 +102,8 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                instructions: &instructions
+                instructions: &instructions,
+                elementFunctionType: elementFunctionType
             )
             emitRuntimeCollectionFactory(
                 "__kk_array_list_of",
@@ -98,7 +126,8 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                instructions: &instructions
+                instructions: &instructions,
+                elementFunctionType: elementFunctionType
             )
             emitRuntimeCollectionFactory(
                 factory == .setOfNotNull ? "__kk_set_of_not_null" : "__kk_set_of",
@@ -135,7 +164,8 @@ extension CallLowerer {
                 sema: sema,
                 arena: arena,
                 interner: interner,
-                instructions: &instructions
+                instructions: &instructions,
+                elementFunctionType: elementFunctionType
             )
             emitRuntimeCollectionFactory(
                 runtimeCallee,
@@ -207,7 +237,8 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        elementFunctionType: FunctionType? = nil
     ) -> (array: KIRExprID, count: KIRExprID) {
         let intType = sema.types.intType
         let boxedArgs = loweredArgIDs.enumerated().map { index, argID in
@@ -221,7 +252,8 @@ extension CallLowerer {
                    sema: sema,
                    arena: arena,
                    interner: interner,
-                   instructions: &instructions
+                   instructions: &instructions,
+                   identityCheckFunctionType: elementFunctionType
                )
             {
                 return materialized
@@ -335,7 +367,8 @@ extension CallLowerer {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        instructions: inout [KIRInstruction]
+        instructions: inout [KIRInstruction],
+        identityCheckFunctionType: FunctionType? = nil
     ) -> KIRExprID? {
         // Prefer the Sema-recorded type of the original source argument over
         // the lowered KIR expr's arena type -- see the identical comment in
@@ -369,7 +402,8 @@ extension CallLowerer {
             sema: sema,
             arena: arena,
             interner: interner,
-            instructions: &instructions
+            instructions: &instructions,
+            identityCheckFunctionType: identityCheckFunctionType
         )
     }
 

@@ -857,7 +857,8 @@ extension CallLowerer {
             instructions: &instructions,
             arguments: &finalArguments,
             valueArgOffsetOverride: memberExtensionDispatchReceiver != nil ? 2 : nil,
-            callDispatchesVirtually: callDispatchesVirtually
+            callDispatchesVirtually: callDispatchesVirtually,
+            callBinding: callBinding
         )
         if normalized.hasOmittedDefaultArguments,
            let chosenCallee,

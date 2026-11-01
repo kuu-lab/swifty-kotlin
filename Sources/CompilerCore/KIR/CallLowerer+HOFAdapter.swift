@@ -399,13 +399,13 @@ extension CallLowerer {
         )
     }
 
-    private func isErasedRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
+    func isErasedRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .typeParam = sema.types.kind(of: type) { return true }
         let nonNull = sema.types.makeNonNullable(type)
         return nonNull == sema.types.anyType
     }
 
-    private func isNonNullValueRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
+    func isNonNullValueRepresentationType(_ type: TypeID, sema: SemaModule) -> Bool {
         let kind = resolveValueClassKind(
             sema.types.kind(of: type),
             types: sema.types,
