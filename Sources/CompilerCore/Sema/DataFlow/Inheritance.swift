@@ -2205,7 +2205,7 @@ extension DataFlowSemaPhase {
         // Every inherited abstract member this class still owes an
         // implementation for. CLASS-008: members from an interface satisfied
         // through `by` delegation are excluded.
-        let overriddenNames = collectOverriddenMemberNames(
+        let overriddenMembers = collectOverriddenMemberNames(
             for: symbol,
             decl: decl,
             ast: ast,
@@ -2213,8 +2213,7 @@ extension DataFlowSemaPhase {
         )
         let missingMembers = unimplementedAbstractMembers(
             for: symbol,
-            overriddenNames: overriddenNames.regular,
-            overriddenMemberExtensionNames: overriddenNames.memberExtensions,
+            overriddenMembers: overriddenMembers,
             delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols,
             types: types,
@@ -2270,14 +2269,17 @@ extension DataFlowSemaPhase {
     /// `override fun Any?.toString()` (member extension) satisfies abstract
     /// member extensions, while `override fun toString()` satisfies regular
     /// abstract members — neither satisfies the other (KUU-3656).
+    /// The member requirements this declaration's `override` members satisfy,
+    /// keyed by override family: a `fun` override can only cover a function
+    /// requirement and a `val`/`var` override only a property one — same-named
+    /// members of the other kind live in a separate namespace (KUU-4106).
     func collectOverriddenMemberNames(
         for _: SymbolID,
         decl: Decl,
         ast: ASTModule,
         symbols _: SymbolTable
-    ) -> (regular: Set<InternedString>, memberExtensions: Set<InternedString>) {
-        var regular: Set<InternedString> = []
-        var memberExtensions: Set<InternedString> = []
+    ) -> Set<MemberRequirementKey> {
+        var overriddenMembers: Set<MemberRequirementKey> = []
 
         let memberFunctions: [DeclID]
         let memberProperties: [DeclID]
@@ -2289,18 +2291,18 @@ extension DataFlowSemaPhase {
             memberFunctions = objectDecl.memberFunctions
             memberProperties = objectDecl.memberProperties
         default:
-            return (regular, memberExtensions)
+            return overriddenMembers
         }
 
         for memberDeclID in memberFunctions {
             guard let memberDecl = ast.arena.decl(memberDeclID),
                   case let .funDecl(funDecl) = memberDecl else { continue }
             if funDecl.modifiers.contains(.override) {
-                if funDecl.receiverType != nil {
-                    memberExtensions.insert(funDecl.name)
-                } else {
-                    regular.insert(funDecl.name)
-                }
+                overriddenMembers.insert(MemberRequirementKey(
+                    name: funDecl.name,
+                    isMemberExtension: funDecl.receiverType != nil,
+                    kind: .function
+                ))
             }
         }
 
@@ -2308,15 +2310,15 @@ extension DataFlowSemaPhase {
             guard let memberDecl = ast.arena.decl(memberDeclID),
                   case let .propertyDecl(propertyDecl) = memberDecl else { continue }
             if propertyDecl.modifiers.contains(.override) {
-                if propertyDecl.receiverType != nil {
-                    memberExtensions.insert(propertyDecl.name)
-                } else {
-                    regular.insert(propertyDecl.name)
-                }
+                overriddenMembers.insert(MemberRequirementKey(
+                    name: propertyDecl.name,
+                    isMemberExtension: propertyDecl.receiverType != nil,
+                    kind: .property
+                ))
             }
         }
 
-        return (regular, memberExtensions)
+        return overriddenMembers
     }
 
     // P5-78: Validate the package and module boundary of sealed hierarchies.

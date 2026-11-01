@@ -383,5 +383,183 @@ import Testing
         #expect(!ctx.diagnostics.hasError)
     }
 
+    // MARK: - Property/function override namespaces (KUU-4106)
+
+    // kotlinc keeps `val p` and `fun p()` in separate override namespaces.
+    // A same-named final function must not make an abstract property look
+    // final, and a same-named open function must not make a final property
+    // look overridable.
+
+    @Test func testAbstractPropertyOverridableDespiteSameNamedFunction() throws {
+        // sqldelight `Transacter.Transaction` shape: a `protected abstract val`
+        // next to an internal same-named helper function.
+        let source = """
+        interface Transacter {
+            abstract class Transaction {
+                private val ownerThreadId = 0
+                protected abstract val enclosingTransaction: Transaction?
+                internal fun enclosingTransaction() = enclosingTransaction
+            }
+        }
+        class Driver : Transacter {
+            private inner class Transaction(
+                override val enclosingTransaction: Transacter.Transaction?,
+            ) : Transacter.Transaction()
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testAbstractValAndVarOverridableDespiteSameNamedFunctions() throws {
+        let source = """
+        abstract class Base {
+            protected abstract val p: Base?
+            internal fun p() = p
+            protected abstract var q: Base?
+            internal fun q() = q
+        }
+        class Derived : Base() {
+            override val p: Base? = null
+            override var q: Base? = null
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testOpenPropertyOverridableDespiteSameNamedFunction() throws {
+        let source = """
+        abstract class Base {
+            protected open val u: Base? = null
+            internal fun u() = u
+        }
+        class Derived : Base() {
+            override val u: Base? = null
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testEnumEntryOverridesAbstractPropertyDespiteSameNamedFunction() throws {
+        let source = """
+        enum class G {
+            A { override val p: Int = 1 };
+            abstract val p: Int
+            fun p(): Int = 0
+        }
+        fun main() { println(G.A.p) }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+        #expect(!ctx.diagnostics.hasError)
+    }
+
+    @Test func testPropertyOverrideNothingWhenOnlyFunctionExists() throws {
+        // kotlinc: 'p' overrides nothing (a val cannot override fun p()).
+        let source = """
+        abstract class Base {
+            fun p(): Int = 0
+        }
+        class Derived : Base() {
+            override val p: Int = 0
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-NOTHING", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testFinalPropertyStillRejectsOverrideDespiteSameNamedOpenFunction() throws {
+        // The open function must not mask the final property: kotlinc reports
+        // 'r' in 'Base' is final and cannot be overridden.
+        let source = """
+        abstract class Base {
+            val r: Int = 0
+            open fun r(): Int = 0
+        }
+        class Derived : Base() {
+            override val r: Int = 1
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testFinalFunctionStillRejectsOverrideDespiteSameNamedAbstractProperty() throws {
+        let source = """
+        abstract class Base {
+            abstract val s: Int
+            fun s(): Int = s
+        }
+        class Derived : Base() {
+            override val s: Int = 0
+            override fun s(): Int = 1
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
+    }
+
+    @Test func testFunctionOverrideDoesNotImplementAbstractProperty() throws {
+        // kotlinc: class 'Derived' is not abstract and does not implement
+        // abstract base class member 'val p: Int'.
+        let source = """
+        abstract class Base {
+            abstract val p: Int
+            open fun p(): Int = 0
+        }
+        class Derived : Base() {
+            override fun p(): Int = 1
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+    }
+
+    @Test func testPropertyOverrideDoesNotImplementAbstractFunction() throws {
+        let source = """
+        abstract class Base {
+            abstract fun p(): Int
+            open val p: Int = 0
+        }
+        class Derived : Base() {
+            override val p: Int = 1
+        }
+        fun main() {}
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+    }
+
 }
 #endif

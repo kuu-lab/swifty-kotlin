@@ -15,10 +15,13 @@
 /// implemented by `fun toString()` (KUU-3656). Grouping both under one name
 /// bucket let `Any.toString()` "cover" an interface's abstract
 /// `Any?.toString()`, so a class that never implemented the member extension
-/// was wrongly accepted.
-private struct MemberRequirementKey: Hashable {
+/// was wrongly accepted. Properties and functions are likewise separate
+/// override namespaces — `override fun p()` cannot implement `abstract val p`
+/// (KUU-4106).
+struct MemberRequirementKey: Hashable {
     let name: InternedString
     let isMemberExtension: Bool
+    let kind: SymbolKind
 }
 
 /// Collects all abstract member symbol IDs from the entire supertype chain of a
@@ -54,7 +57,8 @@ func collectInheritedAbstractMembers(
             guard childSym.kind == .function || childSym.kind == .property else { continue }
             let requirementKey = MemberRequirementKey(
                 name: childSym.name,
-                isMemberExtension: childSym.flags.contains(.memberExtension)
+                isMemberExtension: childSym.flags.contains(.memberExtension),
+                kind: childSym.kind
             )
             if childSym.flags.contains(.abstractType) {
                 abstractMembersByKey[requirementKey, default: []].append(childID)
@@ -334,18 +338,19 @@ private func delegationProvides(
 }
 
 /// The inherited abstract members `classSymbol` still owes an implementation
-/// for: everything `collectInheritedAbstractMembers` finds, minus the names
-/// this type provides an `override` for (member-extension overrides satisfy
-/// member-extension requirements only — same override-family split as
-/// `MemberRequirementKey`, KUU-3656), minus anything owned by an interface
-/// satisfied through `by` delegation (CLASS-008), including delegates declared
-/// by class ancestors. A `by` delegation also supplies concrete
-/// implementations for its interface's members, so a matching abstract member
-/// declared on a sibling supertype is satisfied too (KUU-3248).
+/// for: everything `collectInheritedAbstractMembers` finds, minus the member
+/// keys this type provides an `override` for (an override only satisfies a
+/// requirement of the same kind and override family — `override fun p()`
+/// covers `abstract fun p()`, never `abstract val p`, and member extensions
+/// stay split from regular members, KUU-3656/KUU-4106), minus anything owned
+/// by an interface satisfied through `by` delegation (CLASS-008), including
+/// delegates declared by class ancestors. A `by` delegation also supplies
+/// concrete implementations for its interface's members, so a matching
+/// abstract member declared on a sibling supertype is satisfied too
+/// (KUU-3248).
 func unimplementedAbstractMembers(
     for classSymbol: SymbolID,
-    overriddenNames: Set<InternedString>,
-    overriddenMemberExtensionNames: Set<InternedString>,
+    overriddenMembers: Set<MemberRequirementKey>,
     delegatedInterfaces: [SymbolID],
     symbols: SymbolTable,
     types: TypeSystem,
@@ -397,10 +402,11 @@ func unimplementedAbstractMembers(
         {
             return false
         }
-        let isMemberExtension = abstractSym.flags.contains(.memberExtension)
-        if (isMemberExtension ? overriddenMemberExtensionNames : overriddenNames)
-            .contains(abstractSym.name)
-        {
+        if overriddenMembers.contains(MemberRequirementKey(
+            name: abstractSym.name,
+            isMemberExtension: abstractSym.flags.contains(.memberExtension),
+            kind: abstractSym.kind
+        )) {
             return false
         }
         guard !providedMembers.isEmpty,

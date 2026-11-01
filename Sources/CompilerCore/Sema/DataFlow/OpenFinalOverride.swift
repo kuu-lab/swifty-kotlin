@@ -232,6 +232,7 @@ extension DataFlowSemaPhase {
                 named: function.name,
                 for: ownerSymbol,
                 symbols: ctx.symbols,
+                kind: .function,
                 parameterTypes: signature.parameterTypes
             )
         }
@@ -605,8 +606,7 @@ extension DataFlowSemaPhase {
 
         let inheritedRequirements = unimplementedAbstractMembers(
             for: ownerSymbol,
-            overriddenNames: [],
-            overriddenMemberExtensionNames: [],
+            overriddenMembers: [],
             delegatedInterfaces: ctx.symbols.delegatedInterfaces(forClass: ownerSymbol),
             symbols: ctx.symbols,
             types: ctx.types,
@@ -749,10 +749,14 @@ extension DataFlowSemaPhase {
         let memberIsExtension = memberSym?.flags.contains(.memberExtension) == true
 
         // A same-named overload with a different signature is a separate
-        // member, not an override target.
+        // member, not an override target. Properties and functions are
+        // separate override namespaces (KUU-4106): a property override can
+        // never target a same-named function and vice versa.
         func signatureMatches(_ candidateID: SymbolID) -> Bool {
-            guard memberIsFunction, let parameterTypes else { return true }
-            return ctx.symbols.symbol(candidateID)?.kind == .function
+            let candidateKind = ctx.symbols.symbol(candidateID)?.kind
+            guard memberIsFunction else { return candidateKind == .property }
+            guard let parameterTypes else { return candidateKind == .function }
+            return candidateKind == .function
                 && ctx.symbols.functionSignature(for: candidateID)?.parameterTypes == parameterTypes
         }
         func flagsMatch(_ candidate: SemanticSymbol) -> Bool {
@@ -1237,6 +1241,7 @@ extension DataFlowSemaPhase {
             named: memberMeta.name,
             for: ownerSymbol,
             symbols: ctx.symbols,
+            kind: memberMeta.isFunction ? .function : .property,
             parameterTypes: memberMeta.parameterTypes
         )
         guard let parent else { return }
@@ -1454,6 +1459,7 @@ extension DataFlowSemaPhase {
                 named: memberName,
                 for: ownerSymbol,
                 symbols: ctx.symbols,
+                kind: isFunction ? .function : .property,
                 parameterTypes: parameterTypes
             )
         }
@@ -1908,11 +1914,14 @@ extension DataFlowSemaPhase {
         let parentReturnType = parentSignature.returnType
 
         if !parentSymbol.flags.contains(.memberExtension) {
+            // Only same-kind members make the override target ambiguous: a
+            // same-named property lives in the other override namespace and
+            // must not suppress the covariance check (KUU-4106).
             let allParentMembers = findAllInheritedMembers(
                 named: memberName,
                 for: ownerSymbol,
                 symbols: ctx.symbols
-            )
+            ).filter { ctx.symbols.symbol($0.memberID)?.kind == .function }
             guard allParentMembers.count == 1 else { return }
         }
 
@@ -1979,11 +1988,13 @@ extension DataFlowSemaPhase {
         }
 
         if !parentSymbol.flags.contains(.memberExtension) {
+            // Same-named properties live in a separate override namespace
+            // and do not make the function target ambiguous (KUU-4106).
             let allParentMembers = findAllInheritedMembers(
                 named: memberName,
                 for: ownerSymbol,
                 symbols: ctx.symbols
-            )
+            ).filter { ctx.symbols.symbol($0.memberID)?.kind == .function }
             guard allParentMembers.count == 1 else { return }
         }
 
@@ -2821,10 +2832,16 @@ extension DataFlowSemaPhase {
         owner.kind != .interface || member.visibility != .private
     }
 
+    /// Finds the inherited member `memberName` overrides. Kotlin keeps
+    /// properties and functions in separate override namespaces even when
+    /// they share a name — `override val p` targets `val p`, never `fun p()`
+    /// (KUU-4106). Matching only `kind` prevents a same-named final member
+    /// of the other kind from masking the real override target.
     private func findInheritedMember(
         named memberName: InternedString,
         for classSymbol: SymbolID,
         symbols: SymbolTable,
+        kind: SymbolKind,
         parameterTypes: [TypeID]? = nil
     ) -> OFOInheritedMember? {
         var visited: Set<SymbolID> = [classSymbol]
@@ -2842,7 +2859,7 @@ extension DataFlowSemaPhase {
                 guard child.fqName == sym.fqName + [child.name] else { continue }
                 guard !child.flags.contains(.extensionMemberAlias) else { continue }
                 guard isInheritedMember(child, from: sym) else { continue }
-                guard child.kind == .function || child.kind == .property, child.name == memberName else {
+                guard child.kind == kind, child.name == memberName else {
                     continue
                 }
                 // An expect-declared member only mirrors the name: judge the
@@ -2852,8 +2869,7 @@ extension DataFlowSemaPhase {
                 // name-only lookup can select a synthetic range overload before
                 // the real member being overridden.
                 if let parameterTypes {
-                    guard child.kind == .function,
-                          symbols.functionSignature(for: resolvedChildID)?.parameterTypes == parameterTypes
+                    guard symbols.functionSignature(for: resolvedChildID)?.parameterTypes == parameterTypes
                     else {
                         continue
                     }
