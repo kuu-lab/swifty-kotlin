@@ -191,6 +191,34 @@ private func runtimeFunctionTypeMatches(
     return targetArity == loweredFunctionArity
 }
 
+/// Whether a nominal type (a user class, an interface, or a SAM adapter's
+/// interface) satisfies a function-type check through its supertypes. A
+/// `suspend (P1..PN) -> R` supertype lowers to `FunctionN+1` on the JVM, so
+/// `SuspendFunction{N-1}` also satisfies a non-suspend `FunctionN` check.
+/// Both the SAM-identity path and the plain object path need this: a suspend
+/// fun interface built from a callable reference is re-wrapped around a
+/// suspend function value, and that outer wrapper carries no SAM identity.
+private func runtimeNominalTypeImplementsFunction(
+    _ sourceTypeID: Int64,
+    arity: Int,
+    isSuspend: Bool
+) -> Bool {
+    let targetFQName = isSuspend
+        ? "kotlin.coroutines.SuspendFunction\(arity)"
+        : "kotlin.Function.Function\(arity)"
+    if runtimeIsAssignable(
+        sourceTypeID: sourceTypeID,
+        targetTypeID: runtimeStableNominalTypeID(fqName: targetFQName)
+    ) {
+        return true
+    }
+    guard !isSuspend, arity > 0 else { return false }
+    return runtimeIsAssignable(
+        sourceTypeID: sourceTypeID,
+        targetTypeID: runtimeStableNominalTypeID(fqName: "kotlin.coroutines.SuspendFunction\(arity - 1)")
+    )
+}
+
 @_cdecl("kk_op_is")
 public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -276,26 +304,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         if let samInterfaceTypeID {
             // A SAM adapter is a function only when its interface inherits a
             // function type, not merely because its delegate has that arity.
-            let targetFQName = isSuspend
-                ? "kotlin.coroutines.SuspendFunction\(arity)"
-                : "kotlin.Function.Function\(arity)"
-            if runtimeIsAssignable(
-                sourceTypeID: samInterfaceTypeID,
-                targetTypeID: runtimeStableNominalTypeID(fqName: targetFQName)
-            ) {
-                return 1
-            }
-            // A suspend function supertype also implements FunctionN+1 on JVM.
-            if !isSuspend, arity > 0 {
-                let suspendFQName = "kotlin.coroutines.SuspendFunction\(arity - 1)"
-                if runtimeIsAssignable(
-                    sourceTypeID: samInterfaceTypeID,
-                    targetTypeID: runtimeStableNominalTypeID(fqName: suspendFQName)
-                ) {
-                    return 1
-                }
-            }
-            return 0
+            return runtimeNominalTypeImplementsFunction(
+                samInterfaceTypeID, arity: arity, isSuspend: isSuspend
+            ) ? 1 : 0
         }
         if let (actualArity, actualIsSuspend) = taggedFunctionType {
             return runtimeFunctionTypeMatches(
@@ -334,12 +345,8 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // nominal metadata carries the arity-specific FunctionN edge, while
         // runtime-created closure boxes use the arity metadata above.
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
-            let targetFQName = isSuspend
-                ? "kotlin.coroutines.SuspendFunction\(arity)"
-                : "kotlin.Function.Function\(arity)"
-            return runtimeIsAssignable(
-                sourceTypeID: sourceTypeID,
-                targetTypeID: runtimeStableNominalTypeID(fqName: targetFQName)
+            return runtimeNominalTypeImplementsFunction(
+                sourceTypeID, arity: arity, isSuspend: isSuspend
             ) ? 1 : 0
         }
         return 0
