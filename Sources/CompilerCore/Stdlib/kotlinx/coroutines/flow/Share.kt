@@ -15,7 +15,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.launch
@@ -129,23 +128,41 @@ internal class SnapshotSharingController(
     private val subscriptions = MutableStateFlow(0)
     private val lock = SynchronizedObject()
     private var upstreamJob: Job? = null
+    // Upstream launches delayed strategies UNDISPATCHED, so a collector that
+    // subscribes and unsubscribes before the sharing coroutine's first turn is
+    // still observed. This controller coroutine is scheduled instead, so a
+    // completed transient subscription is replayed through `sawSubscriber`.
+    private var sawSubscriber = false
 
     suspend fun collectCommands() {
-        started.command(subscriptions).distinctUntilChanged().collect { command ->
-            when (command) {
-                SharingCommand.START -> startUpstream()
-                SharingCommand.STOP -> stopUpstream()
-                SharingCommand.STOP_AND_RESET_REPLAY_CACHE -> {
-                    stopUpstream()
-                    reset()
+        when {
+            // Built-in strategies collect upstream directly inside the sharing
+            // coroutine, matching upstream's launchSharing: a finite upstream
+            // then lets the coroutine complete, so an enclosing runBlocking or
+            // coroutineScope can return. Parking it here instead would keep the
+            // scope child alive forever and deadlock the owner.
+            started.isEagerly() -> collectUpstream()
+            started.isLazily() -> {
+                subscriptions.first { count -> count > 0 || sawAnySubscriber() }
+                collectUpstream()
+            }
+            else -> started.command(subscriptions).distinctUntilChanged().collect { command ->
+                when (command) {
+                    SharingCommand.START -> startUpstream()
+                    SharingCommand.STOP -> stopUpstream()
+                    SharingCommand.STOP_AND_RESET_REPLAY_CACHE -> {
+                        stopUpstream()
+                        reset()
+                    }
                 }
             }
         }
-        // Eagerly emits one command; keep its scope-owned sharing controller alive afterward.
-        if (started.isEagerly()) awaitCancellation()
     }
 
+    private fun sawAnySubscriber(): Boolean = synchronized(lock) { sawSubscriber }
+
     fun subscribe() {
+        synchronized(lock) { sawSubscriber = true }
         subscriptions.update { it + 1 }
     }
 

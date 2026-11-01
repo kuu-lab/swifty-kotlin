@@ -40,6 +40,8 @@ private class StartedEagerly : SharingStarted {
 
 internal fun SharingStarted.isEagerly(): Boolean = this is StartedEagerly
 
+internal fun SharingStarted.isLazily(): Boolean = this is StartedLazily
+
 private class StartedLazily : SharingStarted {
     override fun command(subscriptionCount: StateFlow<Int>): Flow<SharingCommand> = flow {
         var started = false
