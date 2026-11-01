@@ -298,6 +298,107 @@ extension DataFlowAnalyzerTests {
         #expect(analyzer.missingSealedBranches(subjectType: fType, branches: missingY, sema: sema) == [yName])
     }
 
+    // KUU-4024: a positive `is` check covering the whole subject domain
+    // makes `when` exhaustive — `is T` covers every non-null value of
+    // `T?`, so `is T` + `null` exhausts a nullable subject, and a
+    // covering check alone suffices on a non-null subject.
+    @Test func testIsCheckCoveringSubjectDomainExhaustsWhen() {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, _, types, _) = makeSemaModule()
+
+        let intType = types.make(.primitive(.int, .nonNull))
+        let nullableInt = types.make(.primitive(.int, .nullable))
+        let stringType = types.stringType
+
+        let isIntOnly = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, coveredTypeCheckTypes: [intType]
+        )
+        let isIntPlusNull = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, hasNullCase: true,
+            coveredTypeCheckTypes: [intType]
+        )
+        // `is Int` + `null` exhausts `Int?`; `is Int` alone leaves null
+        // uncovered; a covering check alone exhausts non-null `Int`.
+        #expect(analyzer.isWhenExhaustive(subjectType: nullableInt, branches: isIntPlusNull, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: nullableInt, branches: isIntOnly, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: intType, branches: isIntOnly, sema: sema))
+
+        // `is Int?` covers the null part too, so it exhausts `Int?` alone.
+        let isNullableInt = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, coveredTypeCheckTypes: [nullableInt]
+        )
+        #expect(analyzer.isWhenExhaustive(subjectType: nullableInt, branches: isNullableInt, sema: sema))
+
+        // `is String` + `null` does not cover the non-null `Int` domain.
+        let isStringPlusNull = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, hasNullCase: true,
+            coveredTypeCheckTypes: [stringType]
+        )
+        #expect(!analyzer.isWhenExhaustive(subjectType: nullableInt, branches: isStringPlusNull, sema: sema))
+    }
+
+    // KUU-4024: for a type-parameter subject the covered domain is the
+    // parameter's bound, not its nullability marker — `is Any` alone does
+    // not exhaust `when (x: T)` (implicit `Any?` bound keeps null
+    // reachable) but does exhaust `T : Any`; `is Any` + `null` covers
+    // both `T` and `T?` subjects.
+    @Test func testTypeParameterSubjectCoverageFollowsBoundNullability() {
+        let analyzer = DataFlowAnalyzer()
+        let (sema, symbols, types, interner) = makeSemaModule()
+        types.symbolTable = symbols
+
+        func defineParam(_ name: String, bounds: [TypeID] = []) -> SymbolID {
+            let symbol = symbols.define(
+                kind: .typeParameter, name: interner.intern(name),
+                fqName: [interner.intern(name)], declSite: nil,
+                visibility: .private
+            )
+            if !bounds.isEmpty {
+                symbols.setTypeParameterUpperBounds(bounds, for: symbol)
+            }
+            return symbol
+        }
+
+        let anyType = types.anyType
+        let isAnyOnly = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, coveredTypeCheckTypes: [anyType]
+        )
+        let isAnyPlusNull = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, hasNullCase: true,
+            coveredTypeCheckTypes: [anyType]
+        )
+
+        // Unbounded `T` keeps the implicit `Any?` bound, so `is Any` alone
+        // leaves `null` uncovered on both `T` and `T?` subjects.
+        let t = defineParam("T")
+        let tType = types.make(.typeParam(TypeParamType(symbol: t)))
+        let nullableTType = types.make(.typeParam(TypeParamType(symbol: t, nullability: .nullable)))
+        #expect(!analyzer.isWhenExhaustive(subjectType: tType, branches: isAnyOnly, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: tType, branches: isAnyPlusNull, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: nullableTType, branches: isAnyOnly, sema: sema))
+        #expect(analyzer.isWhenExhaustive(subjectType: nullableTType, branches: isAnyPlusNull, sema: sema))
+
+        // `T : Any` cannot hold null, so `is Any` alone is exhaustive.
+        let tAny = defineParam("TAny", bounds: [anyType])
+        let tAnyType = types.make(.typeParam(TypeParamType(symbol: tAny)))
+        #expect(analyzer.isWhenExhaustive(subjectType: tAnyType, branches: isAnyOnly, sema: sema))
+
+        // `T : Int?` holds `Int` or `null`: `is Int` + `null` covers it.
+        let intType = types.make(.primitive(.int, .nonNull))
+        let nullableInt = types.make(.primitive(.int, .nullable))
+        let tInt = defineParam("TInt", bounds: [nullableInt])
+        let tIntType = types.make(.typeParam(TypeParamType(symbol: tInt)))
+        let isIntPlusNull = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, hasNullCase: true,
+            coveredTypeCheckTypes: [intType]
+        )
+        let isIntOnly = WhenBranchSummary(
+            coveredSymbols: [], hasElse: false, coveredTypeCheckTypes: [intType]
+        )
+        #expect(analyzer.isWhenExhaustive(subjectType: tIntType, branches: isIntPlusNull, sema: sema))
+        #expect(!analyzer.isWhenExhaustive(subjectType: tIntType, branches: isIntOnly, sema: sema))
+    }
+
     // MARK: - resolvedTypeFromFlowState
 
     @Test func testResolvedTypeFromFlowStateReturnsSingleType() {

@@ -176,5 +176,59 @@ struct WhenDataFlowExhaustivenessTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    // KUU-4024: `is T` + `null` covers the whole `T?` domain, so a `when`
+    // over a nullable subject is exhaustive without `else`; a covering
+    // check alone suffices on a non-null subject, and `is T?` covers
+    // `T?` (null included) by itself — matching kotlinc.
+    @Test func testNullableSubjectExhaustedByIsCheckAndNullBranch() throws {
+        let source = """
+        enum class E { A, B }
+        sealed class S { object O1 : S(); object O2 : S() }
+        fun takesInt(x: Int) = x
+        fun test(n: Int?, s: String?, e: E?, b: Boolean?, ss: S?, a: Any?) {
+            val r1 = when (n) { is Int -> 1; null -> 0 }
+            val r2 = when (s) { is String -> 1; null -> 0 }
+            val r3 = when (e) { is E -> 1; null -> 0 }
+            val r4 = when (b) { is Boolean -> 1; null -> 0 }
+            val r5 = when (ss) { is S -> 1; null -> 0 }
+            val r6 = when (a) { is Any -> 1; null -> 0 }
+            val r7 = when (n) { is Number -> 1; null -> 0 }
+            val r8 = when (n) { is Int? -> 1 }
+            val r9 = when (n) { null -> 0; is Int -> takesInt(n) }
+        }
+        fun <T> generic(x: T?) = when (x) { is Any -> 1; null -> 0 }
+        fun <T : Any> nonNullBound(x: T) = when (x) { is Any -> 1 }
+        fun <T : Int?> intBound(x: T) = when (x) { is Int -> 1; null -> 0 }
+        fun testNonNull(i: Int, anyV: Any) {
+            val r1 = when (i) { is Int -> 1 }
+            val r2 = when (anyV) { is Any -> 1 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    // KUU-4024: the same coverage must not over-accept — `is T` without a
+    // `null` branch leaves `T?`'s null uncovered, `is X` for a disjoint X
+    // covers nothing, and a guarded `is` branch cannot be counted.
+    @Test func testNullableSubjectStillRejectsIncompleteIsCoverage() throws {
+        let source = """
+        enum class E { A, B }
+        fun test(n: Int?, a: Any?, e: E?, c: Boolean) {
+            val r1 = when (n) { is Int -> 1 }
+            val r2 = when (a) { is Int -> 1; null -> 0 }
+            val r3 = when (n) { is String? -> 1 }
+            val r4 = when (n) { is Int if c -> 1; null -> 0 }
+            val r5 = when (e) { E.A -> 1; null -> 0 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0004"
+        }.count == 5, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
