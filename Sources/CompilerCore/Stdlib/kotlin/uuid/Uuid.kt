@@ -7,8 +7,6 @@
  */
 package kotlin.uuid
 
-@file:OptIn(ExperimentalUuidApi::class)
-
 import java.nio.ByteBuffer
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -20,7 +18,8 @@ import kotlin.time.toEpochMilliseconds
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 
-@ExperimentalUuidApi
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
 public class Uuid private constructor(
     msb: Long,
     lsb: Long,
@@ -37,6 +36,7 @@ public class Uuid private constructor(
         // api-version 2.4 via @DeprecatedSinceKotlin; this compiler pins
         // api-version 2.2, so the level is pinned explicitly instead of being
         // reached through the version gate.
+        @ExperimentalUuidApi
         @Deprecated(
             "Use naturalOrder<Uuid>() instead",
             ReplaceWith("naturalOrder<Uuid>()", imports = ["kotlin.comparisons.naturalOrder"]),
@@ -122,6 +122,8 @@ public class Uuid private constructor(
             return Uuid(msb, lsb)
         }
 
+        @SinceKotlin("2.3")
+        @ExperimentalUuidApi
         public fun generateV4(): Uuid = random()
 
         // Ported from kotlin-stdlib's UuidV7Generator (see file header for
@@ -135,6 +137,8 @@ public class Uuid private constructor(
         // (__kk_uuid_random) rather than a new bridge; only the fixed
         // version/variant bit positions of that v4 source are avoided when
         // slicing bits out, so the reused entropy stays uniformly random.
+        @SinceKotlin("2.3")
+        @ExperimentalUuidApi
         public fun generateV7(): Uuid = generateV7(Clock.System)
 
         // Clock-injectable entry point matching upstream's
@@ -147,6 +151,8 @@ public class Uuid private constructor(
         // Unlike generateV7(), this is a pure function of [timestamp] with no
         // shared state, so repeated calls with the same timestamp are not
         // guaranteed to sort in call order (hence "NonMonotonic").
+        @SinceKotlin("2.3")
+        @ExperimentalUuidApi
         public fun generateV7NonMonotonicAt(timestamp: Instant): Uuid {
             val entropy = random()
             val randA = (entropy.mostSignificantBits ushr 52).toInt() and 0xFFF
@@ -387,8 +393,16 @@ private external fun __kk_uuid_lexicalOrder(): Comparator<Uuid>
 @KsSymbolName("__kk_uuid_toKotlinUuid")
 private external fun __kk_uuid_toKotlinUuid(receiver: java.util.UUID): Uuid
 
-@kotlin.uuid.ExperimentalUuidApi
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
 public fun java.util.UUID.toKotlinUuid(): Uuid = __kk_uuid_toKotlinUuid(this)
+
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
+@Suppress("NOTHING_TO_INLINE")
+public inline fun Uuid.toJavaUuid(): java.util.UUID = toLongs { mostSignificantBits, leastSignificantBits ->
+    java.util.UUID(mostSignificantBits, leastSignificantBits)
+}
 
 private fun readUuidFromByteBuffer(buffer: ByteBuffer, offset: Int): Uuid {
     if (offset < 0 || offset + 15 >= buffer.limit()) {
@@ -426,7 +440,8 @@ private fun writeUuidToByteBuffer(buffer: ByteBuffer, offset: Int, uuid: Uuid) {
     }
 }
 
-@kotlin.uuid.ExperimentalUuidApi
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
 public fun ByteBuffer.getUuid(): Uuid {
     val p = position()
     if (p + 15 >= limit()) {
@@ -439,10 +454,13 @@ public fun ByteBuffer.getUuid(): Uuid {
     return uuid
 }
 
-@kotlin.uuid.ExperimentalUuidApi
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
 public fun ByteBuffer.getUuid(index: Int): Uuid = readUuidFromByteBuffer(this, index)
 
-@kotlin.uuid.ExperimentalUuidApi
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
+@IgnorableReturnValue
 public fun ByteBuffer.putUuid(uuid: Uuid): ByteBuffer {
     val p = position()
     if (p + 15 >= limit()) {
@@ -455,7 +473,9 @@ public fun ByteBuffer.putUuid(uuid: Uuid): ByteBuffer {
     return this
 }
 
-@kotlin.uuid.ExperimentalUuidApi
+@SinceKotlin("2.4")
+@WasExperimental(ExperimentalUuidApi::class)
+@IgnorableReturnValue
 public fun ByteBuffer.putUuid(index: Int, uuid: Uuid): ByteBuffer {
     writeUuidToByteBuffer(this, index, uuid)
     return this
