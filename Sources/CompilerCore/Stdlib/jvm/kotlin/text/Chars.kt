@@ -26,6 +26,14 @@ public fun Char.isWhitespace(): Boolean = __jvmWhitespace(this) || __jvmSpaceCha
 
 public fun Char.toFloat(): Float = this.code.toFloat()
 
+public fun Char.equals(other: Char, ignoreCase: Boolean = false): Boolean {
+    if (this == other) return true
+    if (!ignoreCase) return false
+    val thisUpper = this.uppercaseChar()
+    val otherUpper = other.uppercaseChar()
+    return thisUpper == otherUpper || thisUpper.lowercaseChar() == otherUpper.lowercaseChar()
+}
+
 public fun checkRadix(radix: Int): Int {
     if (radix < 2 || radix > 36) throw IllegalArgumentException("radix $radix was not in valid range 2..36")
     return radix
