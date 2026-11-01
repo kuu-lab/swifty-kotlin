@@ -312,6 +312,101 @@ struct BaseGenericConstructorExpectedTypeTests {
         #expect(errors.isEmpty, "\(errors)")
     }
 
+    /// KUU-3937: inside a member function the expected type references the
+    /// class's own type parameter, which is also the constructor's inference
+    /// variable symbol. Decomposing `POS<E'> <: PS<E>` must still pin E' := E.
+    @Test(arguments: [false, true])
+    func memberFunctionExpectedSupertypePinsOwnClassTypeParameter(fromSource: Bool) throws {
+        let ctx = try makeTestContext("""
+        interface PS<E>
+        class POS<E>(val a: Any?, val b: Any?) : PS<E> {
+            fun add(element: E): PS<E> = POS(element, element)
+        }
+        """, fromSource: fromSource)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let call = try #require(nameRefCallExprID(named: "POS", in: ast, interner: ctx.interner))
+        let type = try #require(sema.bindings.exprType(for: call))
+        guard case let .classType(classType) = sema.types.kind(of: type) else {
+            Issue.record("Expected a POS class type")
+            return
+        }
+        let pos = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("POS")]))
+        let parameter = try #require(sema.types.allTypeParameterSymbols(for: pos).first)
+        let lexicalParameter = sema.types.make(.typeParam(TypeParamType(
+            symbol: parameter, nullability: .nonNull
+        )))
+        #expect(classType.args == [.invariant(lexicalParameter)])
+    }
+
+    /// Same collision through a constructor parameter that itself mentions the
+    /// class type parameter, matching kotlinx.collections.immutable
+    /// `PersistentOrderedSet.add`.
+    @Test func memberFunctionExpectedSupertypePinsParameterUsedInOtherParameter() throws {
+        let ctx = try makeTestContext("""
+        interface PMap<K, V>
+        interface PS<E>
+        class Links
+        class POS<E>(val first: Any?, val second: Any?, val map: PMap<E, Links>) : PS<E> {
+            fun add(element: E, map: PMap<E, Links>): PS<E> = POS(element, element, map)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
+    /// A lexical parameter nested inside the expected type argument is real
+    /// evidence too, not a self-collision: `POS<E'> <: PS<Wrap<E>>` must bind
+    /// `E' = Wrap<E>`, which the same-symbol pin must not override.
+    @Test func memberFunctionExpectedSupertypeKeepsNestedParameterInference() throws {
+        let ctx = try makeTestContext("""
+        interface PS<E>
+        class Wrap<T>(val v: T)
+        class POS<E>(val a: Any?) : PS<E> {
+            fun nested(element: E): PS<Wrap<E>> = POS(element)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let call = try #require(nameRefCallExprID(named: "POS", in: ast, interner: ctx.interner))
+        let type = try #require(sema.bindings.exprType(for: call))
+        guard case let .classType(classType) = sema.types.kind(of: type) else {
+            Issue.record("Expected a POS class type")
+            return
+        }
+        let pos = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("POS")]))
+        let wrap = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("Wrap")]))
+        let parameter = try #require(sema.types.allTypeParameterSymbols(for: pos).first)
+        let lexicalParameter = sema.types.make(.typeParam(TypeParamType(
+            symbol: parameter, nullability: .nonNull
+        )))
+        let wrappedParameter = sema.types.make(.classType(ClassType(
+            classSymbol: wrap, args: [.invariant(lexicalParameter)], nullability: .nonNull
+        )))
+        #expect(classType.args == [.invariant(wrappedParameter)])
+    }
+
+    /// A different expected type argument is still a real constraint: the
+    /// inferred constructor argument must satisfy it.
+    @Test func memberFunctionExpectedSupertypeStillRejectsIncompatibleArgument() throws {
+        let ctx = try makeTestContext("""
+        interface PS<E>
+        class POS<E>(val a: E) : PS<E> {
+            fun add(element: String): PS<E> = POS(element)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(!errors.isEmpty, "Expected POS<String> to be rejected for PS<E>")
+    }
+
     /// Keep focused inference tests cheap; end-to-end diff cases own source
     /// injection as well, and the exact nested repro also runs both modes here.
     private func makeTestContext(_ source: String, fromSource: Bool = false) throws -> CompilationContext {
