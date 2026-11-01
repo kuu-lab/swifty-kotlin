@@ -5,7 +5,7 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         interner: StringInterner
     ) -> InternedString {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, interner: interner)
         var sawValOrVar = false
         for token in tokens {
             switch token.kind {
@@ -43,7 +43,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena, includingTrailingLambdaTokens: true)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, interner: interner, includingTrailingLambdaTokens: true)
         guard !tokens.isEmpty else {
             return nil
         }
@@ -139,6 +139,7 @@ extension BuildASTPhase {
         // (`field = expr` or `field: Type = expr`) — those are handled by
         // `declarationExplicitBackingField`.
         var hasAccessorNode = false
+        var pendingAccessorPrefixTokens: [Token]?
         for child in arena.children(of: nodeID) {
             if case let .node(childID) = child,
                arena.node(childID).kind == .propertyAccessor
@@ -148,6 +149,22 @@ extension BuildASTPhase {
                     continue
                 }
                 hasAccessorNode = true
+                // Accessor modifiers written at the end of the head line
+                // (`val x: Int @Anno\n get()`) stay direct tokens of the
+                // property node; forward them to the first wrapped accessor
+                // so annotations and visibility attach where they were written.
+                if pendingAccessorPrefixTokens == nil {
+                    pendingAccessorPrefixTokens = headTrailingAccessorModifierTokens(
+                        from: nodeID, in: arena, interner: interner
+                    )
+                }
+                var prefixTokens = pendingAccessorPrefixTokens ?? []
+                pendingAccessorPrefixTokens = []
+                if let last = prefixTokens.last,
+                   last.range.end.offset > arena.node(childID).range.start.offset
+                {
+                    prefixTokens = []
+                }
                 let hasBlock = arena.children(of: childID).contains { child in
                     if case let .node(grandchildID) = child {
                         return arena.node(grandchildID).kind == .block
@@ -160,12 +177,13 @@ extension BuildASTPhase {
                         in: arena,
                         interner: interner,
                         astArena: astArena,
+                        leadingPrefixTokens: prefixTokens,
                         getter: &getter,
                         setter: &setter
                     )
                 } else {
                     let result = parseInlineAccessors(
-                        from: collectTokens(from: childID, in: arena),
+                        from: prefixTokens + collectTokens(from: childID, in: arena),
                         nodeRange: arena.node(childID).range,
                         interner: interner, astArena: astArena,
                         isAccessorNode: true
@@ -381,19 +399,29 @@ extension BuildASTPhase {
     }
 
     /// Earlier property annotations and annotations inside an initializer are
-    /// not accessor annotations.
+    /// not accessor annotations. Modifier keywords may sit between annotations
+    /// and the accessor keyword (`@Anno private get`), so the trailing run
+    /// accepts both.
     private func accessorAnnotations(from tokens: [Token], interner: StringInterner) -> [AnnotationNode] {
         for start in tokens.indices where tokens[start].kind == .symbol(.at) {
             var index = start
             var annotations: [AnnotationNode] = []
-            while index < tokens.count, tokens[index].kind == .symbol(.at),
-                  let parsed = AnnotationParsingSupport.parseAnnotation(
-                      from: tokens, start: index, interner: interner, allowUseSiteTarget: true
-                  ) {
-                annotations.append(parsed.annotation)
-                index = parsed.nextIndex
+            var reachesEnd = true
+            while index < tokens.count {
+                if tokens[index].kind == .symbol(.at),
+                   let parsed = AnnotationParsingSupport.parseAnnotation(
+                       from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+                   ) {
+                    annotations.append(parsed.annotation)
+                    index = parsed.nextIndex
+                } else if isAccessorModifierKeyword(tokens[index].kind) {
+                    index += 1
+                } else {
+                    reachesEnd = false
+                    break
+                }
             }
-            if index == tokens.count { return annotations }
+            if reachesEnd, index == tokens.count, !annotations.isEmpty { return annotations }
         }
         return []
     }
@@ -749,15 +777,30 @@ extension BuildASTPhase {
         return nil
     }
 
+    /// Accessor modifiers sitting at the end of the property head tokens —
+    /// `@Anno` or `private` before a wrapped `get`/`set` accessor node.
+    private func headTrailingAccessorModifierTokens(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner
+    ) -> [Token] {
+        let directTokens = collectDirectTokens(from: nodeID, in: arena)
+        guard let start = trailingAccessorModifierStart(in: directTokens, interner: interner) else {
+            return []
+        }
+        return Array(directTokens[start...])
+    }
+
     private func processPropertyAccessorWithBlock(
         _ accessorNodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena,
+        leadingPrefixTokens: [Token] = [],
         getter: inout PropertyAccessorDecl?,
         setter: inout PropertyAccessorDecl?
     ) {
-        let rawHeaderTokens = collectDirectTokens(from: accessorNodeID, in: arena).filter { token in
+        let rawHeaderTokens = leadingPrefixTokens + collectDirectTokens(from: accessorNodeID, in: arena).filter { token in
             token.kind != .symbol(.semicolon)
         }
         guard let accessorStart = inlineAccessorStartIndex(in: rawHeaderTokens, bodyIsSiblingBlock: true) else { return }

@@ -332,7 +332,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> TypeRefID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, interner: interner)
 
         guard let valVarIndex = tokens.firstIndex(where: {
             $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
@@ -365,7 +365,7 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         interner: StringInterner
     ) -> InternedString {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, interner: interner)
 
         guard let valVarIndex = tokens.firstIndex(where: {
             $0.kind == .keyword(.val) || $0.kind == .keyword(.var)
@@ -418,7 +418,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> TypeRefID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena, interner: interner)
         // A use-site annotation before the declaration can contain a colon
         // (`@get:JvmSynthetic`). It must not become the property's type separator.
         guard let declarationIndex = tokens.firstIndex(where: {
@@ -507,6 +507,7 @@ extension BuildASTPhase {
     func propertyHeadTokens(
         from nodeID: NodeID,
         in arena: SyntaxArena,
+        interner: StringInterner,
         includingTrailingLambdaTokens: Bool = false
     ) -> [Token] {
         var tokens: [Token] = []
@@ -523,7 +524,7 @@ extension BuildASTPhase {
                         switch token.kind {
                         case .softKeyword(.get), .softKeyword(.set):
                             if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
-                                return Array(tokens.prefix(idx))
+                                return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
                             }
                             // `var p: Int get() { ... }` keeps the getter's
                             // block as a sibling node, so the direct tokens
@@ -532,7 +533,7 @@ extension BuildASTPhase {
                             if isSiblingBlockAccessorHeader(
                                 at: childIndex, in: children, arena: arena, previous: tokens.last
                             ) {
-                                return tokens
+                                return droppingTrailingAccessorModifiers(tokens, interner: interner)
                             }
                         default:
                             break
@@ -550,9 +551,9 @@ extension BuildASTPhase {
                     // getter. Its '=' belongs to the getter, not an initializer.
                     let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
                     if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
-                        return Array(tokens.prefix(idx))
+                        return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
                     }
-                    return tokens
+                    return droppingTrailingAccessorModifiers(tokens, interner: interner)
                 }
                 if childKind == .block {
                     // An expression getter may end in a lambda sibling block.
@@ -560,7 +561,7 @@ extension BuildASTPhase {
                     // property head, just as for a propertyAccessor child.
                     let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
                     if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
-                        return Array(tokens.prefix(idx))
+                        return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
                     }
                     // Do not scan tokens from a trailing lambda for inline
                     // accessors: a call such as `map.get(key)` uses the same
@@ -593,9 +594,124 @@ extension BuildASTPhase {
         // `set`, which are not property accessors.
         let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
         if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
-            return Array(tokens.prefix(idx))
+            return droppingTrailingAccessorModifiers(Array(tokens.prefix(idx)), interner: interner)
         }
         return tokens
+    }
+
+    /// `get`/`set` accessors accept their own modifiers between the property
+    /// signature and the accessor keyword — `val x: Int @Anno get()` or
+    /// `val x: Int private get()`. Those tokens are not part of the type
+    /// reference or initializer, so drop the trailing accessor-modifier run
+    /// from head tokens that end at an accessor boundary.
+    private func droppingTrailingAccessorModifiers(_ tokens: [Token], interner: StringInterner) -> [Token] {
+        guard let start = trailingAccessorModifierStart(in: tokens, interner: interner) else {
+            return tokens
+        }
+        return Array(tokens[..<start])
+    }
+
+    /// Start index of a trailing run made solely of annotations and accessor
+    /// modifier keywords (`public`/`private`/`internal`/`protected`/`inline`).
+    /// Only meaningful where an accessor is known to follow the token list.
+    /// A candidate preceded by `.`/`?.`/`->` is a type-name continuation
+    /// (`p.inline`, `() -> inline`), and the run may never absorb the whole
+    /// type or initializer — a class literally named `inline` remains a type
+    /// (`val x: inline get()`), matching kotlinc's resolution.
+    func trailingAccessorModifierStart(in tokens: [Token], interner: StringInterner) -> Int? {
+        var candidates: [Int] = []
+        var boundaryIndex = -1
+        var depth = BracketDepth()
+        var index = 0
+        while index < tokens.count {
+            let token = tokens[index]
+            // Skip whole annotations (including use-site `:` and `=` inside
+            // their argument lists) so they cannot look like separators.
+            if token.kind == .symbol(.at),
+               let parsed = AnnotationParsingSupport.parseAnnotation(
+                   from: tokens, start: index, interner: interner, allowUseSiteTarget: true
+               )
+            {
+                if depth.isAtTopLevel {
+                    candidates.append(index)
+                }
+                index = parsed.nextIndex
+                continue
+            }
+            if depth.isAtTopLevel {
+                switch token.kind {
+                case .symbol(.colon), .symbol(.assign), .softKeyword(.by):
+                    boundaryIndex = index
+                default:
+                    break
+                }
+                if isAccessorModifierKeyword(token.kind) {
+                    candidates.append(index)
+                }
+            }
+            depth.track(token.kind)
+            index += 1
+        }
+        for start in candidates {
+            if start > 0 {
+                switch tokens[start - 1].kind {
+                case .symbol(.dot), .symbol(.questionDot), .symbol(.arrow):
+                    continue
+                default:
+                    break
+                }
+            }
+            var cursor = start
+            var valid = true
+            while cursor < tokens.count {
+                let kind = tokens[cursor].kind
+                if kind == .symbol(.at),
+                   let parsed = AnnotationParsingSupport.parseAnnotation(
+                       from: tokens, start: cursor, interner: interner,
+                       allowUseSiteTarget: true
+                   )
+                {
+                    cursor = parsed.nextIndex
+                } else if isAccessorModifierKeyword(kind) {
+                    cursor += 1
+                } else {
+                    valid = false
+                    break
+                }
+            }
+            guard valid else { continue }
+            // The head must keep a real type/initializer token after the last
+            // top-level `:`/`=`/`by` separator.
+            var segmentHasRealToken = false
+            var segmentIndex = boundaryIndex + 1
+            while segmentIndex < start {
+                if tokens[segmentIndex].kind == .symbol(.at),
+                   let parsed = AnnotationParsingSupport.parseAnnotation(
+                       from: tokens, start: segmentIndex, interner: interner,
+                       allowUseSiteTarget: true
+                   )
+                {
+                    segmentIndex = parsed.nextIndex
+                    continue
+                }
+                segmentHasRealToken = true
+                break
+            }
+            if segmentHasRealToken {
+                return start
+            }
+        }
+        return nil
+    }
+
+    func isAccessorModifierKeyword(_ kind: TokenKind) -> Bool {
+        switch kind {
+        case .keyword(.public), .keyword(.private), .keyword(.internal),
+             .keyword(.protected), .keyword(.inline):
+            true
+        default:
+            false
+        }
     }
 
     private func collectPropertyTypeTokens(afterColonIndex colonIndex: Int, tokens: [Token]) -> [Token] {

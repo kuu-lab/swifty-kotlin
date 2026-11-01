@@ -176,7 +176,7 @@ extension BuildASTPhase {
         range: SourceRange?
     ) {
         let tokens = arena.node(nodeID).kind == .propertyDecl
-            ? propertyHeadTokens(from: nodeID, in: arena)
+            ? propertyHeadTokens(from: nodeID, in: arena, interner: interner)
             : collectTokens(from: nodeID, in: arena)
         let startIndex: Int?
         if arena.node(nodeID).kind == .funDecl {
