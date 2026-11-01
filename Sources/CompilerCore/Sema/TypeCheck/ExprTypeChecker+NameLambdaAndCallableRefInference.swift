@@ -507,8 +507,22 @@ extension ExprTypeChecker {
                 : sema.types.make(.primitive(.boolean, .nonNull))
         }
         if implicitMemberType == nil,
-           let result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema)
+           var result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema)
         {
+            // An expression-bodied function inferred ahead of source order
+            // can still see a member property's header `Any?` placeholder.
+            // Resolve it on demand like lexical-scope property reads do in
+            // `resolveTypeForCandidate` (KUU-3944).
+            if driver.pendingPropertyTypes.contains(result.symbol) {
+                driver.resolveInferredPropertyType(for: result.symbol)
+                if !driver.pendingPropertyTypes.contains(result.symbol),
+                   let refreshed = driver.helpers.lookupMemberProperty(
+                       named: name, receiverType: nonNullReceiver, sema: sema
+                   )
+                {
+                    result = refreshed
+                }
+            }
             sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindIdentifier(id, symbol: result.symbol)
             driver.helpers.checkDeprecation(
