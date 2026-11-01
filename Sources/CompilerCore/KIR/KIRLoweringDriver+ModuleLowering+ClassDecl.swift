@@ -155,8 +155,7 @@ extension KIRLoweringDriver {
                 declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
                     ownerSymbol: nestedSymbol,
                     ownerName: nestedObject.name,
-                    ownerRange: nestedObject.range,
-                    shared: shared
+                    ownerRange: nestedObject.range,                    shared: shared
                 ))
                 lowerNestedClassConstructors(
                     nestedDecls: nestedObject.nestedClasses + nestedObject.nestedObjects,
@@ -168,8 +167,7 @@ extension KIRLoweringDriver {
                 declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
                     ownerSymbol: nestedSymbol,
                     ownerName: nestedInterface.name,
-                    ownerRange: nestedInterface.range,
-                    shared: shared
+                    ownerRange: nestedInterface.range,                    shared: shared
                 ))
                 var deeper = nestedInterface.nestedClasses + nestedInterface.nestedObjects
                 if let companionDeclID = nestedInterface.companionObject {
