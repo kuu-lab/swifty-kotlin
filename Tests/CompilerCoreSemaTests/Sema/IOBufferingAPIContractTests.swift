@@ -111,6 +111,59 @@ struct IOBufferingAPIContractTests {
         }
     }
 
+    /// KUU-3911: a source declaration inside the compiled module shadows an
+    /// imported declaration with the same fqName at every member-semantics
+    /// position — supertype binding, inherited-member collection, abstract
+    /// completeness and override checks must see only the source nominal's
+    /// own members, never the bundled `kotlinx.io` contract surface. (Source
+    /// mode is a different scenario: both declarations are then genuine
+    /// same-package duplicates and SEMA-0001 correctly rejects them.)
+    @Test
+    func sameFqNameSourceDeclarationsShadowBundledMembers() throws {
+        let ctx = try context("""
+        package kotlinx.io
+
+        public interface Source {
+            public val buffer: Buffer
+        }
+        public interface Sink {
+            public val buffer: Buffer
+        }
+        public class Buffer : Source, Sink {
+            override val buffer: Buffer get() = this
+        }
+        """, library: true)
+        try runSema(ctx)
+        try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let symbols = sema.symbols
+        let fqName: (String) -> [InternedString] = { name in
+            name.split(separator: ".").map { ctx.interner.intern(String($0)) }
+        }
+        // `kotlinx.io.Buffer` resolves to two classifiers here (the user class
+        // and the bundled/imported one); the supertype must anchor on the
+        // source-declared `Source`/`Sink`, so the only abstract member the
+        // class owes is the `buffer` property it overrides.
+        let bufferClass = try #require(
+            symbols.lookupAll(fqName: fqName("kotlinx.io.Buffer"))
+                .first { id in
+                    symbols.symbol(id)?.kind == .class
+                        && symbols.symbol(id)?.flags.contains(.importedLibrary) == false
+                }
+        )
+        let supertypes = symbols.directSupertypes(for: bufferClass)
+        let namedSupertypes = supertypes.filter { supertype in
+            guard let superSym = symbols.symbol(supertype) else { return false }
+            return superSym.fqName == fqName("kotlinx.io.Source") || superSym.fqName == fqName("kotlinx.io.Sink")
+        }
+        try #require(namedSupertypes.count == 2)
+        for supertype in namedSupertypes {
+            let superSym = try #require(symbols.symbol(supertype))
+            #expect(superSym.kind == .interface)
+            #expect(superSym.flags.contains(.importedLibrary) == false)
+        }
+    }
+
     @Test
     func fullyQualifiedBufferAndImportedStringExtensionsResolveFromBundledSources() throws {
         let ctx = try context("""

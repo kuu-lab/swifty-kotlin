@@ -1668,6 +1668,27 @@ public final class SymbolTable {
         return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
     }
 
+    /// Returns members *declared* directly on this exact nominal, in
+    /// declaration order. This is `children(of:)` minus top-level extension
+    /// members that were reparented onto the receiver nominal for member-call
+    /// lookup (KSP-INF-011): such an extension keeps its declaring-package
+    /// fqName, so a declared member is exactly a child whose fqName is
+    /// `parent.fqName + [name]`. Unlike `children(ofFQName:)`, members that
+    /// belong to a different nominal sharing this fqName (a source
+    /// declaration shadowing an imported library type) are not merged in
+    /// (KUU-3911).
+    public func declaredChildren(of parent: SymbolID) -> [SymbolID] {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let parentInfo = symbol(parent) else { return [] }
+        drainIndexedChildren(parentFQName: parentInfo.fqName)
+        return (childrenByParent[parent] ?? [])
+            .filter {
+                symbolsStorage[Int($0.rawValue)].fqName.dropLast().elementsEqual(parentInfo.fqName)
+            }
+            .sorted { $0.rawValue < $1.rawValue }
+    }
+
     public func parentSymbol(for child: SymbolID) -> SymbolID? {
         ensureLazyImportedMetadataLoaded(for: child)
         return parentSymbols[child]

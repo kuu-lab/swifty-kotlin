@@ -9,8 +9,7 @@ extension JVMProgramBuilder {
         }
     }
     func prepareDataMembers(_ plan: JVMClassPlan) throws {
-        let owner = sema.symbols.symbol(plan.symbol)!
-        for symbol in sema.symbols.children(ofFQName: owner.fqName) {
+        for symbol in sema.symbols.declaredChildren(of: plan.symbol) {
             guard let member = sema.symbols.symbol(symbol), member.kind == .function, member.flags.contains(.synthetic),
                   let signature = sema.symbols.functionSignature(for: symbol) else { continue }
             let name = context.interner.resolve(member.name)

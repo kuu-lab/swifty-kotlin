@@ -1037,7 +1037,7 @@ final class ObjectLiteralLowerer {
         let memberCountExpr = arena.appendExpr(.intLiteral(memberCount), type: intType)
         instructions.append(.constValue(result: memberCountExpr, value: .intLiteral(memberCount)))
 
-        let constructorCount = Int64(sema.symbols.children(ofFQName: symbol.fqName).filter { child in
+        let constructorCount = Int64(sema.symbols.declaredChildren(of: objectSymbol).filter { child in
             sema.symbols.symbol(child)?.kind == .constructor
         }.count)
         let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)

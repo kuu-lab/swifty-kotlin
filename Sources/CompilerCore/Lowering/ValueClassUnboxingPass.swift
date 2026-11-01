@@ -40,7 +40,7 @@ final class ValueClassUnboxingPass: LoweringPass {
 
             valueClassSymbols.insert(nominal.symbol)
 
-            let children = symbols.children(ofFQName: sym.fqName)
+            let children = symbols.declaredChildren(of: nominal.symbol)
             for childID in children {
                 guard let child = symbols.symbol(childID) else { continue }
                 if child.kind == .constructor {
