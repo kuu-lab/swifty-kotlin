@@ -117,6 +117,11 @@ struct DataFlowState: Equatable {
 struct WhenBranchSummary {
     let coveredSymbols: Set<InternedString>
     let coveredTypeSymbols: Set<SymbolID>
+    /// Full target types of positive `is` conditions on the subject,
+    /// preserving nullability and arguments (e.g. `is T` vs `is T?`).
+    /// Used to decide whether the checks cover the whole subject domain
+    /// (`is T` + `null` exhausts `T?`) independent of nominal symbols.
+    let coveredTypeCheckTypes: Set<TypeID>
     let negatedTypeCheckTypes: Set<TypeID>
     let hasElse: Bool
     let hasNullCase: Bool
@@ -130,10 +135,12 @@ struct WhenBranchSummary {
         hasTrueCase: Bool? = nil,
         hasFalseCase: Bool? = nil,
         coveredTypeSymbols: Set<SymbolID> = [],
+        coveredTypeCheckTypes: Set<TypeID> = [],
         negatedTypeCheckTypes: Set<TypeID> = []
     ) {
         self.coveredSymbols = coveredSymbols
         self.coveredTypeSymbols = coveredTypeSymbols
+        self.coveredTypeCheckTypes = coveredTypeCheckTypes
         self.negatedTypeCheckTypes = negatedTypeCheckTypes
         self.hasElse = hasElse
         self.hasNullCase = hasNullCase
@@ -1184,6 +1191,18 @@ final class DataFlowAnalyzer {
         if branches.hasElse {
             return true
         }
+        // Positive `is` conditions that cover the whole subject domain make
+        // the `when` exhaustive regardless of the subject's nominal kind:
+        // `is T` covers every non-null value of `T?`, so `is T` + `null`
+        // exhausts a nullable subject, and a covering check alone (`S <: X`,
+        // e.g. `is Any` over `Any`) suffices on a subject that cannot be
+        // null. kotlinc applies the same rule (KUU-4024).
+        if isSubjectFullyCoveredByTypeChecks(
+            subjectType: subjectType, branches: branches, sema: sema,
+            valueFacts: valueFacts
+        ) {
+            return true
+        }
         // A finite reachable-value set is exhaustive on its own when every
         // value the subject can still take is covered, whatever its static
         // type is — a local narrowed to a singleton type (e.g. `s = S.O`
@@ -1369,6 +1388,93 @@ final class DataFlowAnalyzer {
         }
 
         return classTypes(in: capture.upper)
+    }
+
+    /// Whether the positive `is` conditions on the subject cover every value
+    /// of `subjectType`: some checked type must be a supertype of the
+    /// subject's non-null domain, and — when the subject can still hold
+    /// `null` — the null part must be covered by a `null` branch or a
+    /// nullable checked type (`null is T?` is true for any `T`) (KUU-4024).
+    private func isSubjectFullyCoveredByTypeChecks(
+        subjectType: TypeID,
+        branches: WhenBranchSummary,
+        sema: SemaModule,
+        valueFacts: DataFlowValueFacts? = nil
+    ) -> Bool {
+        guard subjectType != sema.types.errorType else {
+            return false
+        }
+        let checkedTypes = branches.coveredTypeCheckTypes.filter {
+            $0 != sema.types.errorType
+        }
+        guard !checkedTypes.isEmpty else {
+            return false
+        }
+        // `is X` where X is the subject type itself covers the whole
+        // domain — including `is T` over `x: T` and `is T?` over `x: T?`
+        // (the null part is covered because `null is T?` holds).
+        if checkedTypes.contains(subjectType) {
+            return true
+        }
+        // Null reachability is decided by the bound domain: a bare `T` still
+        // holds null through its implicit `Any?` upper bound, while `T : Any`
+        // cannot. For a non-parameter subject this is the subject type itself.
+        let domain = whenSubjectCoverageDomain(of: subjectType, sema: sema)
+        // The non-null domain is proven covered from either side: the
+        // subject's own definitely-non-null form (`T & Any` for a type
+        // parameter — every non-null `T?` value is a `T`, so `is T` covers it
+        // even though `T`'s bound may be `Any?`), or the bound's non-null
+        // part (`is Int` covers `x: T` bounded by `T : Int?`). The two forms
+        // coincide for non-parameter subjects.
+        let nonNullDomains = [
+            sema.types.definitelyNonNullForm(of: subjectType),
+            sema.types.definitelyNonNullForm(of: domain),
+        ]
+        guard checkedTypes.contains(where: { checkedType in
+            nonNullDomains.contains { sema.types.isSubtype($0, checkedType) }
+        }) else {
+            return false
+        }
+        if sema.types.nullability(of: domain) == .nonNull
+            || !valueMayReach(.null, facts: valueFacts)
+        {
+            return true
+        }
+        return branches.hasNullCase
+            || checkedTypes.contains {
+                sema.types.nullability(of: $0) == .nullable
+            }
+    }
+
+    /// Whether `null` is still a possible value of the `when` subject. For a
+    /// type parameter this looks at the bound rather than the bare `T`: `T`'s
+    /// nullability marker cannot express that an `Any?` or `Int?`-bounded
+    /// parameter still holds `null`, so `is Any` alone does not exhaust
+    /// `when (x: T)` while it does exhaust `x: T?` together with a `null`
+    /// branch.
+    private func whenSubjectCoverageDomain(
+        of subjectType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        guard case let .typeParam(parameter) = sema.types.kind(of: subjectType) else {
+            return subjectType
+        }
+        let boundDomain: TypeID
+        if let capture = parameter.capture {
+            boundDomain = capture.upper
+        } else {
+            let bounds = sema.types.declaredUpperBounds(for: parameter.symbol)
+            if bounds.isEmpty {
+                boundDomain = sema.types.nullableAnyType
+            } else {
+                boundDomain = bounds.count == 1
+                    ? bounds[0]
+                    : sema.types.make(.intersection(bounds))
+            }
+        }
+        return parameter.nullability == .nullable
+            ? sema.types.makeNullable(boundDomain)
+            : boundDomain
     }
 
     private func isClassWhenExhaustive(

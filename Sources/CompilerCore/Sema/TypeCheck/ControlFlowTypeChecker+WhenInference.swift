@@ -190,6 +190,7 @@ extension ControlFlowTypeChecker {
             var pendingBranchRetries: [(body: ExprID, ctx: TypeInferenceContext, locals: LocalBindings, index: Int)] = []
             var covered: Set<InternedString> = []
             var coveredTypeSymbols: Set<SymbolID> = []
+            var coveredTypeCheckTypes: Set<TypeID> = []
             var negatedTypeCheckTypes: Set<TypeID> = []
             var hasNullCase = false
             var hasTrueCase = false
@@ -305,8 +306,11 @@ extension ControlFlowTypeChecker {
                     }
                     if negated {
                         negatedTypeCheckTypes.insert(targetType)
-                    } else if let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types) {
-                        coveredTypeSymbols.insert(targetNominal)
+                    } else {
+                        coveredTypeCheckTypes.insert(targetType)
+                        if let targetNominal = driver.helpers.nominalSymbol(of: targetType, types: sema.types) {
+                            coveredTypeSymbols.insert(targetNominal)
+                        }
                     }
 
                 default:
@@ -553,6 +557,7 @@ extension ControlFlowTypeChecker {
                 coveredSymbols: covered, hasElse: elseExpr != nil,
                 hasNullCase: hasNullCase, hasTrueCase: hasTrueCase,
                 hasFalseCase: hasFalseCase, coveredTypeSymbols: coveredTypeSymbols,
+                coveredTypeCheckTypes: coveredTypeCheckTypes,
                 negatedTypeCheckTypes: negatedTypeCheckTypes
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(
