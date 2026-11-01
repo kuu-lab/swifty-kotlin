@@ -2,10 +2,16 @@ MP: val Named.value: kotlin.Int
 MP: var Named.mutable: kotlin.String
 MP: val Named.list: kotlin.collections.List<kotlin.Int>
 MF: fun Named.method(kotlin.Int): kotlin.Int
+MF: fun kotlin.Any.toString(): kotlin.String
+MF: fun kotlin.Any.hashCode(): kotlin.Int
+MF: fun kotlin.Any.equals(kotlin.Any?): kotlin.Boolean
 M: fun Named.method(kotlin.Int): kotlin.Int
 M: val Named.value: kotlin.Int
 M: var Named.mutable: kotlin.String
 M: val Named.list: kotlin.collections.List<kotlin.Int>
+M: fun kotlin.Any.toString(): kotlin.String
+M: fun kotlin.Any.hashCode(): kotlin.Int
+M: fun kotlin.Any.equals(kotlin.Any?): kotlin.Boolean
 SMP: val kotlin.String.length: kotlin.Int
 SMF: fun kotlin.String.get(kotlin.Int): kotlin.Char
 SMF: fun kotlin.String.toString(): kotlin.String

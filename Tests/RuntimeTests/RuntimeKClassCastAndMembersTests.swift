@@ -488,6 +488,84 @@ struct RuntimeKClassCastAndMembersTests {
         #expect(list.elements.isEmpty)
     }
 
+    // KUU-4029: `member*`/`members` merge members registered on ancestors
+    // reached through `kk_type_register_super` edges; `declaredMember*` stays
+    // self-only.
+    @Test func memberAccessorsIncludeInheritedMembers() throws {
+        let parentID = runtimeStableNominalTypeID(fqName: "pkg.Parent")
+        let childID = runtimeStableNominalTypeID(fqName: "pkg.Child")
+        let parentToken = Int(
+            (parentID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let childToken = Int(
+            (childID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let parent = registerKClass(typeToken: parentToken, qualifiedName: "pkg.Parent", simpleName: "Parent")
+        let child = registerKClass(typeToken: childToken, qualifiedName: "pkg.Child", simpleName: "Child")
+        _ = kk_type_register_super(Int(childID), Int(parentID))
+
+        let inheritedProp = kk_kproperty_stub_create(makeRuntimeString("baseProp"), makeRuntimeString("kotlin.Int"))
+        let inheritedFn = __kk_kfunction_create(makeRuntimeString("baseFn"), 0, 0, 0, 1, 0)
+        _ = __kk_kclass_register_member(parent, inheritedProp)
+        _ = __kk_kclass_register_member(parent, inheritedFn)
+        let ownProp = kk_kproperty_stub_create(makeRuntimeString("ownProp"), makeRuntimeString("kotlin.String"))
+        let ownFn = __kk_kfunction_create(makeRuntimeString("ownFn"), 0, 0, 0, 1, 0)
+        _ = __kk_kclass_register_member(child, ownProp)
+        _ = __kk_kclass_register_member(child, ownFn)
+
+        #expect(try runtimeListElements(from: __kk_kclass_member_properties(child)) == [ownProp, inheritedProp])
+        #expect(try runtimeListElements(from: __kk_kclass_member_functions(child)) == [ownFn, inheritedFn])
+        #expect(try runtimeListElements(from: __kk_kclass_members(child)) == [ownProp, ownFn, inheritedProp, inheritedFn])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_properties(child)) == [ownProp])
+        #expect(try runtimeListElements(from: __kk_kclass_declared_member_functions(child)) == [ownFn])
+    }
+
+    /// A child-class override shadows the inherited signature — the JVM
+    /// surfaces only the most-derived member.
+    @Test func memberFunctionsShadowInheritedOverrides() throws {
+        let parentID = runtimeStableNominalTypeID(fqName: "pkg.ShadowParent")
+        let childID = runtimeStableNominalTypeID(fqName: "pkg.ShadowChild")
+        let parentToken = Int(
+            (parentID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let childToken = Int(
+            (childID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let parent = registerKClass(typeToken: parentToken, qualifiedName: "pkg.ShadowParent", simpleName: "ShadowParent")
+        let child = registerKClass(typeToken: childToken, qualifiedName: "pkg.ShadowChild", simpleName: "ShadowChild")
+        _ = kk_type_register_super(Int(childID), Int(parentID))
+
+        let parentFn = __kk_kfunction_create(makeRuntimeString("dup"), 1, 0, 0, 1, 0)
+        let childFn = __kk_kfunction_create(makeRuntimeString("dup"), 1, 0, 0, 2, 0)
+        let parentProp = kk_kproperty_stub_create(makeRuntimeString("prop"), makeRuntimeString("kotlin.Int"))
+        let childProp = kk_kproperty_stub_create(makeRuntimeString("prop"), makeRuntimeString("kotlin.String"))
+        _ = __kk_kclass_register_member(parent, parentFn)
+        _ = __kk_kclass_register_member(parent, parentProp)
+        _ = __kk_kclass_register_member(child, childFn)
+        _ = __kk_kclass_register_member(child, childProp)
+
+        #expect(try runtimeListElements(from: __kk_kclass_member_functions(child)) == [childFn])
+        #expect(try runtimeListElements(from: __kk_kclass_member_properties(child)) == [childProp])
+    }
+
+    /// The `kotlin.Any` supertype edge resolves to the dedicated `anyBase`
+    /// KClass handle, so Any's builtin `equals`/`hashCode`/`toString` surface
+    /// on user classes like the JVM.
+    @Test func memberFunctionsIncludeAnyMembersThroughSuperEdge() throws {
+        let childID = runtimeStableNominalTypeID(fqName: "pkg.AnyChild")
+        let childToken = Int(
+            (childID << RuntimeTypeTokenEncoding.payloadShift) | RuntimeTypeTokenEncoding.nominalBase
+        )
+        let child = registerKClass(typeToken: childToken, qualifiedName: "pkg.AnyChild", simpleName: "AnyChild")
+        _ = kk_type_register_super(Int(childID), Int(runtimeStableNominalTypeID(fqName: "kotlin.Any")))
+
+        let names = try runtimeListElements(from: __kk_kclass_member_functions(child))
+            .compactMap { runtimeStringFromRaw(__kk_kcallable_get_name($0)) }
+        #expect(names.contains("equals"))
+        #expect(names.contains("hashCode"))
+        #expect(names.contains("toString"))
+    }
+
     @Test func membersIsolatedPerClass() throws {
         let classA = registerKClass(typeToken: 1006, qualifiedName: "pkg.F", simpleName: "F")
         let classB = registerKClass(typeToken: 1007, qualifiedName: "pkg.G", simpleName: "G")
