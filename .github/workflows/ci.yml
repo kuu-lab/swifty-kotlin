@@ -45,6 +45,10 @@ jobs:
           python3 Scripts/js_annotations/test_summarize_evidence.py
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
       - name: Check mutation fuzzer keyword set matches lexer
