@@ -169,9 +169,7 @@ private func runtimeStaticUnbox<T: AnyObject>(
     // prior verification, so it must confirm registry membership itself
     // before treating `pointer` as a live object — otherwise a collision
     // reinterprets unrelated bits as an `Unmanaged<AnyObject>` and crashes.
-    let isRegisteredHandle = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: value))
-    }
+    let isRegisteredHandle = runtimeIsRegisteredObjectPointer(UInt(bitPattern: value))
     guard isRegisteredHandle else {
         return fallback()
     }
@@ -182,6 +180,17 @@ private func runtimeStaticUnbox<T: AnyObject>(
         return fallback()
     }
     return extract(box)
+}
+
+/// Unbox entry points receive raw payloads far more often than boxes (every
+/// non-null `Int` operand is unboxed defensively at ABI boundaries), so
+/// rule out values outside the registry's address range before locking.
+@inline(__always)
+func runtimeIsRegisteredObjectPointer(_ key: UInt) -> Bool {
+    guard runtimePointerSetMayContain(key) else { return false }
+    return runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(key)
+    }
 }
 
 @_cdecl("kk_box_int")
@@ -273,9 +282,7 @@ public func kk_unbox_int(_ obj: Int) -> Int {
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else {
         return obj
     }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else {
         return obj
     }
@@ -293,9 +300,7 @@ public func kk_unbox_bool(_ obj: Int) -> Int {
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else {
         return obj != 0 ? 1 : 0
     }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else {
         return obj != 0 ? 1 : 0
     }
@@ -350,9 +355,7 @@ public func kk_unbox_long(_ obj: Int) -> Int {
     // to produce 0 instead of Long.MIN_VALUE (__kk_double_roundToLong returns Int.min
     // raw, which the KIR passes through kk_unbox_long).
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return 0 }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else { return obj }
     if let longBox = tryCast(objPointer, to: RuntimeLongBox.self) {
         return longBox.value
@@ -392,9 +395,7 @@ public func kk_box_ulong_nonnull(_ value: Int) -> Int {
 public func kk_unbox_ulong(_ obj: Int) -> Int {
     // NOTE: no early-return for runtimeNullSentinelInt — see kk_unbox_long.
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return 0 }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else { return obj }
     if let ulongBox = tryCast(objPointer, to: RuntimeULongBox.self) {
         return ulongBox.value
@@ -424,9 +425,7 @@ public func kk_unbox_float(_ obj: Int) -> Int {
     // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else { return obj }
     if let floatBox = tryCast(objPointer, to: RuntimeFloatBox.self) {
         return Int(floatBox.value.bitPattern)
@@ -472,9 +471,7 @@ public func kk_unbox_double(_ obj: Int) -> Int {
     // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else { return obj }
     if let doubleBox = tryCast(objPointer, to: RuntimeDoubleBox.self) {
         return Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern))
@@ -509,9 +506,7 @@ public func kk_unbox_char(_ obj: Int) -> Int {
     // NOTE: keep the null sentinel — see kk_unbox_int.
     if obj == runtimeNullSentinelInt { return obj }
     guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: objPointer))
-    }
+    let isObjectPointer = runtimeIsRegisteredObjectPointer(UInt(bitPattern: objPointer))
     guard isObjectPointer else { return obj }
     if let charBox = tryCast(objPointer, to: RuntimeCharBox.self) {
         return charBox.value

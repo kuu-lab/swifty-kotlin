@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeCAtomics
 
 /// Coordinates threads that have explicitly entered the managed mutator
 /// protocol. A mutator must publish its roots before polling and must not
@@ -19,6 +20,17 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     private var pendingResetWork = 0
     private var resetOwner: ObjectIdentifier?
     private var resetDepth = 0
+    /// Mirrors `collector != nil` for the lock-free `poll()` fast path; only
+    /// written under `condition`.
+    private let collectionPending: UnsafeMutablePointer<Int32> = {
+        let cell = UnsafeMutablePointer<Int32>.allocate(capacity: 1)
+        cell.initialize(to: 0)
+        return cell
+    }()
+
+    deinit {
+        collectionPending.deallocate()
+    }
 
     func enter() {
         let id = runtimeGCCurrentThreadID()
@@ -64,6 +76,11 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     }
 
     func poll() {
+        // Generated code polls on every loop iteration. Without a pending
+        // collection the locked path below would only re-assert that this
+        // mutator is unparked; a collector that starts right after this read
+        // waits for the next poll, as it would for one taken a moment earlier.
+        guard kkrt_atomic_i32_load(collectionPending) != 0 else { return }
         let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
@@ -139,6 +156,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
             mutators[id]?.parked = true
         }
         collector = id
+        kkrt_atomic_i32_store(collectionPending, 1)
         collectionDepth = 1
         condition.broadcast()
         while mutators.contains(where: { $0.key != id && !$0.value.parked }) {
@@ -156,6 +174,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         collectionDepth -= 1
         if collectionDepth == 0 {
             collector = nil
+            kkrt_atomic_i32_store(collectionPending, 0)
             collectingThreads -= 1
             condition.broadcast()
         }

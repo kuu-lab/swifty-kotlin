@@ -120,6 +120,31 @@ final class RuntimeGCResetWorkLease: @unchecked Sendable {
     deinit { finish() }
 }
 
+/// Bumped (under the GC lock) whenever any thread adds transient state that
+/// `clearTransientReturnHandoffsLocked` retires: a frame's `-1`/`-2` return
+/// slots, `handoffs`, `pendingReturnHandoffs`, or a thread pending root.
+/// Generated code reaches a safepoint on every loop iteration, so the
+/// safepoint skips the GC lock while the counter still equals the value this
+/// thread last cleared at — no thread can have added anything to clear since.
+nonisolated(unsafe) private let runtimeGCTransientEpoch: UnsafeMutablePointer<Int> = {
+    let cell = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+    cell.initialize(to: 0)
+    return cell
+}()
+
+/// Per-thread epoch of the last `runtimeClearTransientReturnHandoffs`, stored
+/// directly as the TLS word so the check allocates nothing.
+private let runtimeGCTransientClearedEpochKey: pthread_key_t = {
+    var key = pthread_key_t()
+    pthread_key_create(&key, nil)
+    return key
+}()
+
+@inline(__always)
+func runtimeNoteTransientGCStateLocked() {
+    _ = kkrt_atomic_word_fetch_add(runtimeGCTransientEpoch, 1)
+}
+
 @discardableResult
 func runtimeRecordShadowHandoffLocked(
     _ value: Int, threadID: ObjectIdentifier, state: inout GCState
@@ -127,6 +152,7 @@ func runtimeRecordShadowHandoffLocked(
     guard value != 0, value != runtimeNullSentinelInt,
           let topFrame = state.shadowFrames[threadID]?.frames.last else { return false }
     topFrame.handoffs.insert(value)
+    runtimeNoteTransientGCStateLocked()
     return true
 }
 
@@ -381,6 +407,7 @@ struct GCState {
 func runtimeAddPendingGCRootLocked(_ key: UInt, threadID: ObjectIdentifier, state: inout GCState) {
     state.pendingGCRoots.insert(key)
     state.pendingGCRootCountsByThread[threadID, default: [:]][key, default: 0] += 1
+    runtimeNoteTransientGCStateLocked()
 }
 
 func runtimeConsumePendingGCRootLocked(_ key: UInt, threadID: ObjectIdentifier, state: inout GCState) {
@@ -1362,10 +1389,17 @@ public func kk_gc_shadow_set(_ slot: Int, _ value: Int) -> Int {
 }
 
 func runtimeClearTransientReturnHandoffs() {
+    // Read before locking: an add racing with this clear either lands before
+    // it (and is cleared) or bumps the epoch past `epoch` (and is cleared at
+    // the next safepoint).
+    let epoch = kkrt_atomic_word_load(runtimeGCTransientEpoch)
+    let cleared = Int(bitPattern: pthread_getspecific(runtimeGCTransientClearedEpochKey))
+    guard epoch != cleared else { return }
     let threadID = runtimeGCCurrentThreadID()
     runtimeStorage.withGCLock { state in
         clearTransientReturnHandoffsLocked(threadID: threadID, state: &state)
     }
+    pthread_setspecific(runtimeGCTransientClearedEpochKey, UnsafeRawPointer(bitPattern: epoch))
 }
 
 @_cdecl("kk_gc_shadow_pop")
@@ -1400,6 +1434,7 @@ private func runtimePopGCShadowFrame(
                 let key = UInt(bitPattern: previous)
                 if state.heapObjects[key] != nil || state.objectPointers.contains(key) {
                     parent.pendingReturnHandoffs.insert(previous)
+                    runtimeNoteTransientGCStateLocked()
                 }
             }
         }
@@ -1412,6 +1447,7 @@ private func runtimePopGCShadowFrame(
             let parent = stack.frames[count - 2]
             parent.slots[-1] = result
             parent.slots[-2] = thrown
+            runtimeNoteTransientGCStateLocked()
         }
     }
     runtimeGCSafepoints.leaveFrame()

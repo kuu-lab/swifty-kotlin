@@ -1,3 +1,29 @@
+import RuntimeCAtomics
+
+/// Lowest and highest key ever inserted into any `RuntimePointerSet`, kept in
+/// atomic words so `runtimeIsRegisteredObjectPointer` can reject the raw
+/// payloads that statically-typed unbox calls mostly see (`kk_unbox_int` on a
+/// loop counter) without taking the GC lock. The bounds only ever widen —
+/// removal and runtime resets leave them — so a stale read can only send a
+/// value down the locked membership check, never skip a registered handle.
+nonisolated(unsafe) private let runtimePointerSetLowerBound: UnsafeMutablePointer<Int> = {
+    let cell = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+    cell.initialize(to: Int(bitPattern: UInt.max))
+    return cell
+}()
+
+nonisolated(unsafe) private let runtimePointerSetUpperBound: UnsafeMutablePointer<Int> = {
+    let cell = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+    cell.initialize(to: 0)
+    return cell
+}()
+
+@inline(__always)
+func runtimePointerSetMayContain(_ key: UInt) -> Bool {
+    key >= UInt(bitPattern: kkrt_atomic_word_load(runtimePointerSetLowerBound))
+        && key <= UInt(bitPattern: kkrt_atomic_word_load(runtimePointerSetUpperBound))
+}
+
 /// Membership set for runtime object handles, used for `GCState.objectPointers`.
 ///
 /// Every box/unbox, string extraction and collection access consults the
@@ -84,6 +110,14 @@ struct RuntimePointerSet {
         }
         slots[index] = key
         liveCount += 1
+        // Inserts are serialized by the GC lock, so load-then-store cannot
+        // lose a concurrent widening.
+        if key < UInt(bitPattern: kkrt_atomic_word_load(runtimePointerSetLowerBound)) {
+            kkrt_atomic_word_store(runtimePointerSetLowerBound, Int(bitPattern: key))
+        }
+        if key > UInt(bitPattern: kkrt_atomic_word_load(runtimePointerSetUpperBound)) {
+            kkrt_atomic_word_store(runtimePointerSetUpperBound, Int(bitPattern: key))
+        }
         return true
     }
 

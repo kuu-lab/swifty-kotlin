@@ -65,8 +65,15 @@ extension NativeEmitter.FunctionEmissionContext {
         _ = bindings.buildCall(builder, functionType: callee.type, callee: callee.value, arguments: [index, value], name: "gc_root_set")
     }
 
-    func emitGCShadowRetireReturnHandoff(value: LLVMCAPIBindings.LLVMValueRef?) {
+    // Retiring only shortens a handoff's lifetime, so skipping it for a
+    // non-null primitive result is conservative: the word stays rooted until
+    // the next safepoint or frame pop. Retiring it would instead cost a
+    // GC-locked runtime call per arithmetic step in hot loops.
+    func emitGCShadowRetireReturnHandoff(_ result: KIRExprID?, value: LLVMCAPIBindings.LLVMValueRef?) {
         guard let value, !bindings.isAggregateStructValue(value) else { return }
+        if let result, result.rawValue >= 0, !isPotentialGCReference(module.arena.exprType(result)) {
+            return
+        }
         emitGCShadowSet(slot: -1, value: value)
     }
 
