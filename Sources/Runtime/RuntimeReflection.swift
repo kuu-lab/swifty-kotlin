@@ -482,15 +482,17 @@ func runtimeKParameterCallableRaw(_ box: RuntimeKParameterBox) -> Int {
 /// `ReflectKParameter.equals` (`callable == other.callable && index ==
 /// other.index`). `callableOwner` is the callable's value identity — an
 /// encoded SymbolID for compiler-emitted parameter lists, the owning
-/// callable's handle for runtime-created reflection members — so two
-/// `::f.parameters[i]` handles produced by separate evaluations of `::f`
-/// compare equal. Bound callable references additionally compare their
-/// captured arguments, the same components `runtimeCallableReferenceValuesEqual`
-/// checks on the callable itself; `callBy`'s key-matching fallback
+/// callable's handle for runtime-created reflection members — while the
+/// discriminator separates a property from its accessors. Repeated
+/// evaluations of the same callable/accessor therefore compare equal. Bound
+/// callable references additionally compare their captured arguments, the
+/// same components `runtimeCallableReferenceValuesEqual` checks on the
+/// callable itself; `callBy`'s key-matching fallback
 /// (`callableParameterMatches`) delegates here so both paths agree.
 func runtimeKParameterBoxesEqual(_ lhs: RuntimeKParameterBox, _ rhs: RuntimeKParameterBox) -> Bool {
     guard lhs.callableOwner != 0,
           lhs.callableOwner == rhs.callableOwner,
+          lhs.callableOwnerDiscriminator == rhs.callableOwnerDiscriminator,
           lhs.index == rhs.index,
           lhs.boundArguments.count == rhs.boundArguments.count
     else {
@@ -501,10 +503,13 @@ func runtimeKParameterBoxesEqual(_ lhs: RuntimeKParameterBox, _ rhs: RuntimeKPar
 }
 
 /// `ReflectKParameter.hashCode` = `callable.hashCode() * 31 + index`. The
-/// callable side hashes the same identity token equality compares, so equal
-/// parameters hash identically.
+/// callable side hashes the same owner/discriminator identity equality
+/// compares, so equal parameters hash identically.
 func runtimeKParameterHashCode(_ box: RuntimeKParameterBox) -> Int {
     var hash = Int32(truncatingIfNeeded: box.callableOwner ^ (box.callableOwner >> 32))
+    if box.callableOwnerDiscriminator != RuntimeKParameterCallableOwnerDiscriminator.property {
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: box.callableOwnerDiscriminator)
+    }
     for argument in box.boundArguments {
         hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(argument))
     }
