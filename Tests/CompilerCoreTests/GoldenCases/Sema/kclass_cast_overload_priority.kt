@@ -1,6 +1,7 @@
 // KUU-4046: kotlin.reflect cast/safeCast/createInstance carry
-// @LowPriorityInOverloadResolution so the kotlin.reflect.full overloads win
-// when both bundled packages surface the same KClass extension unqualified.
+// @LowPriorityInOverloadResolution. KUU-4070 then gated kotlin.reflect.full
+// behind explicit imports, so unqualified member calls like these bind the
+// kotlin.reflect shims unambiguously (full.* is not surfaced at all).
 package golden.sema
 
 import kotlin.reflect.KClass
