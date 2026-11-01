@@ -1,13 +1,22 @@
 import Foundation
+import RuntimeCAtomics
 
 /// Coordinates threads that have explicitly entered the managed mutator
 /// protocol. A mutator must publish its roots before polling and must not
 /// access managed memory while parked. Unregistered threads are not stopped.
 final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
-    private struct Mutator {
+    // Class storage: every generated call enters and leaves, and mutating a
+    // struct value through `mutators[id]?.field` goes through the
+    // dictionary's modify coroutine, which heap-allocates its frame.
+    private final class Mutator {
         var depth: Int
         var parked: Bool
         var suspendedAt: [Int] = []
+
+        init(depth: Int, parked: Bool) {
+            self.depth = depth
+            self.parked = parked
+        }
     }
 
     private let condition = NSCondition()
@@ -15,27 +24,45 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
     private var collector: ObjectIdentifier?
     private var collectionDepth = 0
     private var collectingThreads = 0
-    private var frameCounts: [ObjectIdentifier: Int] = [:]
+    private final class FrameCount {
+        var value = 1
+    }
+
+    // Boxed for the same modify-coroutine reason as `Mutator`: every shadow
+    // frame push and pop lands here.
+    private var frameCounts: [ObjectIdentifier: FrameCount] = [:]
     private var pendingResetWork = 0
     private var resetOwner: ObjectIdentifier?
     private var resetDepth = 0
+    /// Mirrors `collector != nil` for the lock-free `poll()` fast path; only
+    /// written under `condition`.
+    private let collectionPending: UnsafeMutablePointer<Int32> = {
+        let cell = UnsafeMutablePointer<Int32>.allocate(capacity: 1)
+        cell.initialize(to: 0)
+        return cell
+    }()
+
+    deinit {
+        collectionPending.deallocate()
+    }
 
     func enter() {
         let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
-        waitForResetIfInactive(id)
-        let wasRegistered = mutators[id] != nil
-        if !wasRegistered {
-            mutators[id] = Mutator(depth: 1, parked: true)
+        let existing = mutators[id]
+        if existing == nil {
+            waitForResetIfInactive(id)
         }
-        waitForOtherCollector(id)
-        if wasRegistered {
-            mutators[id]?.depth += 1
-            mutators[id]?.parked = false
-        } else {
-            mutators[id]?.parked = false
+        let mutator = existing ?? Mutator(depth: 1, parked: true)
+        if existing == nil {
+            mutators[id] = mutator
         }
+        waitForOtherCollector(id, mutator: mutator)
+        if existing != nil {
+            mutator.depth += 1
+        }
+        mutator.parked = false
     }
 
     func leave() {
@@ -52,18 +79,23 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
             mutators.removeValue(forKey: id)
             condition.broadcast()
         } else {
-            mutators[id]?.depth -= 1
-            if mutators[id]?.suspendedAt.last == mutators[id]?.depth {
+            mutator.depth -= 1
+            if mutator.suspendedAt.last == mutator.depth {
                 // Return from a managed callback into an outer blocking call.
-                mutators[id]?.parked = true
+                mutator.parked = true
                 condition.broadcast()
             } else {
-                waitForOtherCollector(id)
+                waitForOtherCollector(id, mutator: mutator)
             }
         }
     }
 
     func poll() {
+        // Generated code polls on every loop iteration. Without a pending
+        // collection the locked path below would only re-assert that this
+        // mutator is unparked; a collector that starts right after this read
+        // waits for the next poll, as it would for one taken a moment earlier.
+        guard kkrt_atomic_i32_load(collectionPending) != 0 else { return }
         let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
@@ -98,8 +130,8 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         guard !mutator.parked else {
             preconditionFailure("GC blocking region requires an active mutator")
         }
-        mutators[id]?.suspendedAt.append(mutator.depth)
-        mutators[id]?.parked = true
+        mutator.suspendedAt.append(mutator.depth)
+        mutator.parked = true
         condition.broadcast()
         return true
     }
@@ -112,7 +144,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
             preconditionFailure("GC blocking region end requires a matching begin")
         }
         waitForOtherCollector(id)
-        mutators[id]?.suspendedAt.removeLast()
+        mutator.suspendedAt.removeLast()
     }
 
     var collectionRequested: Bool {
@@ -139,6 +171,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
             mutators[id]?.parked = true
         }
         collector = id
+        kkrt_atomic_i32_store(collectionPending, 1)
         collectionDepth = 1
         condition.broadcast()
         while mutators.contains(where: { $0.key != id && !$0.value.parked }) {
@@ -156,6 +189,7 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         collectionDepth -= 1
         if collectionDepth == 0 {
             collector = nil
+            kkrt_atomic_i32_store(collectionPending, 0)
             collectingThreads -= 1
             condition.broadcast()
         }
@@ -165,20 +199,24 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
         let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
+        if let count = frameCounts[id] {
+            count.value += 1
+            return
+        }
         waitForResetIfInactive(id)
-        frameCounts[id, default: 0] += 1
+        frameCounts[id] = FrameCount()
     }
 
     func leaveFrame() {
         let id = runtimeGCCurrentThreadID()
         condition.lock()
         defer { condition.unlock() }
-        guard let count = frameCounts[id], count > 0 else { return }
-        if count == 1 {
+        guard let count = frameCounts[id] else { return }
+        if count.value == 1 {
             frameCounts.removeValue(forKey: id)
             condition.broadcast()
         } else {
-            frameCounts[id] = count - 1
+            count.value -= 1
         }
     }
 
@@ -245,16 +283,20 @@ final class RuntimeGCSafepointCoordinator: @unchecked Sendable {
 
     // The condition lock is held by every caller of this method.
     private func waitForOtherCollector(_ id: ObjectIdentifier) {
+        waitForOtherCollector(id, mutator: mutators[id])
+    }
+
+    // `mutator` must be `mutators[id]`; callers that already hold it skip
+    // the repeated lookup on the per-call enter/leave path.
+    private func waitForOtherCollector(_ id: ObjectIdentifier, mutator: Mutator?) {
         while let owner = collector, owner != id {
-            if mutators[id] != nil {
-                mutators[id]?.parked = true
+            if let mutator {
+                mutator.parked = true
                 condition.broadcast()
             }
             condition.wait()
         }
-        if mutators[id] != nil {
-            mutators[id]?.parked = false
-        }
+        mutator?.parked = false
     }
 }
 

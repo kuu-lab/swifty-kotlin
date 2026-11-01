@@ -30,11 +30,34 @@ struct ActiveFrameRecord {
 /// in place.
 final class GCShadowFrame {
     var slots: [Int: Int] = [:]
+    /// The ABI's reserved slots `-1` (returned value) and `-2` (thrown
+    /// exception), held until the caller records them in its own slots.
+    /// Fields rather than `slots` keys: every slot write checks both, and
+    /// each dictionary probe costs a SipHash.
+    var returnHandoff: Int?
+    var thrownHandoff: Int?
     /// Values returned by native operations remain rooted until this frame returns.
     var handoffs: Set<Int> = []
     /// Values preserved across an inner native helper frame until the caller's
     /// slot write or next safepoint retires them.
     var pendingReturnHandoffs: Set<Int> = []
+
+    func clearReturnHandoffs(matching value: Int) {
+        if returnHandoff == value {
+            returnHandoff = nil
+        }
+        if thrownHandoff == value {
+            thrownHandoff = nil
+        }
+    }
+
+    func resetForReuse() {
+        slots.removeAll(keepingCapacity: true)
+        returnHandoff = nil
+        thrownHandoff = nil
+        handoffs.removeAll(keepingCapacity: true)
+        pendingReturnHandoffs.removeAll(keepingCapacity: true)
+    }
 }
 
 /// Per-thread shadow frame stack. Class storage keeps push/pop and nested
@@ -42,6 +65,10 @@ final class GCShadowFrame {
 /// into `shadowFrames` on every call.
 final class GCShadowFrameStack {
     var frames: [GCShadowFrame] = []
+    /// Popped frames kept for the next push: a fresh frame per generated call
+    /// would allocate and regrow its slot table every time. Frames are only
+    /// referenced inside GC-locked sections, so none outlives its pop.
+    var spareFrames: [GCShadowFrame] = []
 }
 
 /// Per-thread active (native/root) frame stack — same class rationale as
@@ -120,6 +147,31 @@ final class RuntimeGCResetWorkLease: @unchecked Sendable {
     deinit { finish() }
 }
 
+/// Bumped (under the GC lock) whenever any thread adds transient state that
+/// `clearTransientReturnHandoffsLocked` retires: a frame's `-1`/`-2` return
+/// slots, `handoffs`, `pendingReturnHandoffs`, or a thread pending root.
+/// Generated code reaches a safepoint on every loop iteration, so the
+/// safepoint skips the GC lock while the counter still equals the value this
+/// thread last cleared at — no thread can have added anything to clear since.
+nonisolated(unsafe) private let runtimeGCTransientEpoch: UnsafeMutablePointer<Int> = {
+    let cell = UnsafeMutablePointer<Int>.allocate(capacity: 1)
+    cell.initialize(to: 0)
+    return cell
+}()
+
+/// Per-thread epoch of the last `runtimeClearTransientReturnHandoffs`, stored
+/// directly as the TLS word so the check allocates nothing.
+private let runtimeGCTransientClearedEpochKey: pthread_key_t = {
+    var key = pthread_key_t()
+    pthread_key_create(&key, nil)
+    return key
+}()
+
+@inline(__always)
+func runtimeNoteTransientGCStateLocked() {
+    _ = kkrt_atomic_word_fetch_add(runtimeGCTransientEpoch, 1)
+}
+
 @discardableResult
 func runtimeRecordShadowHandoffLocked(
     _ value: Int, threadID: ObjectIdentifier, state: inout GCState
@@ -127,6 +179,7 @@ func runtimeRecordShadowHandoffLocked(
     guard value != 0, value != runtimeNullSentinelInt,
           let topFrame = state.shadowFrames[threadID]?.frames.last else { return false }
     topFrame.handoffs.insert(value)
+    runtimeNoteTransientGCStateLocked()
     return true
 }
 
@@ -381,18 +434,21 @@ struct GCState {
 func runtimeAddPendingGCRootLocked(_ key: UInt, threadID: ObjectIdentifier, state: inout GCState) {
     state.pendingGCRoots.insert(key)
     state.pendingGCRootCountsByThread[threadID, default: [:]][key, default: 0] += 1
+    runtimeNoteTransientGCStateLocked()
 }
 
 func runtimeConsumePendingGCRootLocked(_ key: UInt, threadID: ObjectIdentifier, state: inout GCState) {
-    if let current = state.pendingGCRootCountsByThread[threadID]?[key] {
-        if current <= 1 {
-            state.pendingGCRootCountsByThread[threadID]?.removeValue(forKey: key)
-            if state.pendingGCRootCountsByThread[threadID]?.isEmpty == true {
-                state.pendingGCRootCountsByThread.removeValue(forKey: threadID)
-            }
-        } else {
-            state.pendingGCRootCountsByThread[threadID]?[key] = current - 1
+    // `pendingGCRoots` only gains a key together with a per-thread count, so
+    // when this thread holds none the scan below cannot change anything —
+    // and every root-slot store lands here, mostly with unrelated values.
+    guard let current = state.pendingGCRootCountsByThread[threadID]?[key] else { return }
+    if current <= 1 {
+        state.pendingGCRootCountsByThread[threadID]?.removeValue(forKey: key)
+        if state.pendingGCRootCountsByThread[threadID]?.isEmpty == true {
+            state.pendingGCRootCountsByThread.removeValue(forKey: threadID)
         }
+    } else {
+        state.pendingGCRootCountsByThread[threadID]?[key] = current - 1
     }
     let hasRemainingOwner = state.pendingGCRootCountsByThread.values.contains { ($0[key] ?? 0) > 0 }
     if !hasRemainingOwner {
@@ -1261,7 +1317,7 @@ public func kk_gc_push_root_frame(_ rootSlots: UnsafeMutableRawPointer?, _ rootC
 @_cdecl("kk_gc_root_store")
 public func kk_gc_root_store(_ slot: UnsafeMutablePointer<Int>?, _ value: Int) -> Int {
     guard let slot else { return 0 }
-    let threadID = ObjectIdentifier(Thread.current)
+    let threadID = runtimeGCCurrentThreadID()
     runtimeStorage.withGCLock { state in
         slot.pointee = value
         runtimeConsumePendingGCRootLocked(UInt(bitPattern: value), threadID: threadID, state: &state)
@@ -1310,15 +1366,15 @@ public func kk_gc_shadow_push() -> Int {
             stack = GCShadowFrameStack()
             state.shadowFrames[threadID] = stack
         }
-        stack.frames.append(GCShadowFrame())
+        stack.frames.append(stack.spareFrames.popLast() ?? GCShadowFrame())
     }
     return 0
 }
 
 func clearTransientReturnHandoffsLocked(threadID: ObjectIdentifier, state: inout GCState) {
     if let frame = state.shadowFrames[threadID]?.frames.last {
-        frame.slots.removeValue(forKey: -1)
-        frame.slots.removeValue(forKey: -2)
+        frame.returnHandoff = nil
+        frame.thrownHandoff = nil
         frame.handoffs.removeAll()
         frame.pendingReturnHandoffs.removeAll()
     }
@@ -1337,35 +1393,38 @@ public func kk_gc_shadow_set(_ slot: Int, _ value: Int) -> Int {
             if value == 0 {
                 clearTransientReturnHandoffsLocked(threadID: threadID, state: &state)
             } else {
-                if frame.slots[-1] == value {
-                    frame.slots.removeValue(forKey: -1)
+                frame.clearReturnHandoffs(matching: value)
+                if !frame.handoffs.isEmpty {
+                    frame.handoffs.remove(value)
                 }
-                if frame.slots[-2] == value {
-                    frame.slots.removeValue(forKey: -2)
+                if !frame.pendingReturnHandoffs.isEmpty {
+                    frame.pendingReturnHandoffs.remove(value)
                 }
-                frame.handoffs.remove(value)
-                frame.pendingReturnHandoffs.remove(value)
                 runtimeConsumePendingGCRootLocked(UInt(bitPattern: value), threadID: threadID, state: &state)
             }
             return
         }
         frame.slots[slot] = value
-        if frame.slots[-1] == value {
-            frame.slots.removeValue(forKey: -1)
+        frame.clearReturnHandoffs(matching: value)
+        if !frame.pendingReturnHandoffs.isEmpty {
+            frame.pendingReturnHandoffs.remove(value)
         }
-        if frame.slots[-2] == value {
-            frame.slots.removeValue(forKey: -2)
-        }
-        frame.pendingReturnHandoffs.remove(value)
     }
     return 0
 }
 
 func runtimeClearTransientReturnHandoffs() {
+    // Read before locking: an add racing with this clear either lands before
+    // it (and is cleared) or bumps the epoch past `epoch` (and is cleared at
+    // the next safepoint).
+    let epoch = kkrt_atomic_word_load(runtimeGCTransientEpoch)
+    let cleared = Int(bitPattern: pthread_getspecific(runtimeGCTransientClearedEpochKey))
+    guard epoch != cleared else { return }
     let threadID = runtimeGCCurrentThreadID()
     runtimeStorage.withGCLock { state in
         clearTransientReturnHandoffsLocked(threadID: threadID, state: &state)
     }
+    pthread_setspecific(runtimeGCTransientClearedEpochKey, UnsafeRawPointer(bitPattern: epoch))
 }
 
 @_cdecl("kk_gc_shadow_pop")
@@ -1393,25 +1452,31 @@ private func runtimePopGCShadowFrame(
         let count = stack.frames.count
         if preservingParentHandoffs, count > 1 {
             let parent = stack.frames[count - 2]
-            for slot in [-1, -2] {
-                guard let previous = parent.slots[slot],
+            for handoff in [parent.returnHandoff, parent.thrownHandoff] {
+                guard let previous = handoff,
                       previous != 0, previous != runtimeNullSentinelInt
                 else { continue }
                 let key = UInt(bitPattern: previous)
                 if state.heapObjects[key] != nil || state.objectPointers.contains(key) {
                     parent.pendingReturnHandoffs.insert(previous)
+                    runtimeNoteTransientGCStateLocked()
                 }
             }
         }
-        stack.frames.removeLast()
+        let popped = stack.frames.removeLast()
+        if stack.spareFrames.count < 64 {
+            popped.resetForReuse()
+            stack.spareFrames.append(popped)
+        }
         if count == 1 {
             state.shadowFrames.removeValue(forKey: threadID)
         } else {
             // Negative slots are reserved for handoff until the caller records
             // the returned value and exception in its own frame.
             let parent = stack.frames[count - 2]
-            parent.slots[-1] = result
-            parent.slots[-2] = thrown
+            parent.returnHandoff = result
+            parent.thrownHandoff = thrown
+            runtimeNoteTransientGCStateLocked()
         }
     }
     runtimeGCSafepoints.leaveFrame()
@@ -2056,7 +2121,8 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
 
     for stack in state.shadowFrames.values {
         for frame in stack.frames {
-            for raw in frame.slots.values {
+            let handoffSlots = [frame.returnHandoff, frame.thrownHandoff].compactMap { $0 }
+            for raw in frame.slots.values + handoffSlots {
                 guard raw != runtimeNullSentinelInt,
                       (state.heapObjects[UInt(bitPattern: raw)] != nil || state.objectPointers.contains(UInt(bitPattern: raw))),
                       let value = UnsafeMutableRawPointer(bitPattern: raw)

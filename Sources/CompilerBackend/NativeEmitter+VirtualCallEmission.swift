@@ -995,7 +995,7 @@ extension NativeEmitter.FunctionEmissionContext {
         }
         storeResult(result, mergedValue)
         if !hasGCRootSlot(for: result) {
-            emitGCShadowRetireReturnHandoff(value: vCallValue)
+            emitGCShadowRetireReturnHandoff(result, value: vCallValue)
         }
         _ = bindings.buildBr(builder, destination: mergeBlock)
 
