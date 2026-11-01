@@ -1,7 +1,51 @@
 package java.util
 
+import java.io.File
+import java.io.InputStream
+import java.nio.charset.Charset
+import java.nio.file.Path
+
 /** Scanner over a string input. Delimiters are Kotlin regular expressions. */
 public class Scanner(private val source: String) : AutoCloseable {
+    /**
+     * Scanner over the file's contents (JVM `Scanner(File)`). The native
+     * default charset is UTF-8 (docs/stdlib-pipeline.md), so the no-charset
+     * overloads decode with `Charsets.UTF_8`.
+     */
+    public constructor(file: File) : this(scannerReadFile(file, null))
+
+    public constructor(file: File, charsetName: String) : this(
+        scannerReadFile(file, Charset.forName(charsetName))
+    )
+
+    public constructor(file: File, charset: Charset) : this(scannerReadFile(file, charset))
+
+    /**
+     * Scanner over the stream's remaining bytes (JVM `Scanner(InputStream)`).
+     * The bundled runtime drains the stream eagerly at construction; JVM's
+     * lazy pull produces the same token sequence for batch/piped input.
+     */
+    public constructor(input: InputStream) : this(scannerReadStream(input, null))
+
+    public constructor(input: InputStream, charsetName: String) : this(
+        scannerReadStream(input, Charset.forName(charsetName))
+    )
+
+    public constructor(input: InputStream, charset: Charset) : this(
+        scannerReadStream(input, charset)
+    )
+
+    /** Scanner over the file at `path` (JVM `Scanner(Path)`). */
+    public constructor(path: Path) : this(scannerReadFile(path.toFile(), null))
+
+    public constructor(path: Path, charsetName: String) : this(
+        scannerReadFile(path.toFile(), Charset.forName(charsetName))
+    )
+
+    public constructor(path: Path, charset: Charset) : this(
+        scannerReadFile(path.toFile(), charset)
+    )
+
     private var delimiter: Regex = Regex("\\s+")
     private var position = 0
     private var radix = 10
@@ -109,4 +153,19 @@ public class Scanner(private val source: String) : AutoCloseable {
     private fun ensureOpen() {
         if (closed) throw IllegalStateException("Scanner is closed")
     }
+}
+
+// KUU-4007: JVM `Scanner(File)` / `Scanner(Path)` throw FileNotFoundException
+// when the target is missing, while `File.readText()` reports the same
+// condition as kotlin.io.FileSystemException. Surface the JVM spelling here,
+// matching the bundled convention that open failures map to
+// FileNotFoundException (see `__kk_io_fs_open_read`).
+private fun scannerReadFile(file: File, charset: Charset?): String {
+    if (!file.exists()) throw java.io.FileNotFoundException(file.path)
+    return if (charset == null) file.readText() else file.readText(charset)
+}
+
+private fun scannerReadStream(input: InputStream, charset: Charset?): String {
+    val bytes = input.readBytes()
+    return if (charset == null) bytes.decodeToString() else bytes.decodeToString(charset)
 }
