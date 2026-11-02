@@ -29,21 +29,17 @@ internal external fun kk_max_double(a: Double, b: Double): Double
 public val CharSequence.indices: IntRange
     get() = 0..length - 1
 
-private class CharSequenceCharIterator(
-    private val source: CharSequence
-) : CharIterator() {
+public operator fun CharSequence.iterator(): CharIterator = object : CharIterator() {
     private var index = 0
 
-    override fun hasNext(): Boolean = index < source.length
+    override fun hasNext(): Boolean = index < length
 
     override fun nextChar(): Char {
-        val result = source[index]
+        val result = get(index)
         index++
         return result
     }
 }
-
-public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
 
 // KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
 // CharSequence values through indexed UTF-16 units so custom implementations do

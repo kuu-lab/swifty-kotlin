@@ -263,7 +263,7 @@ public class ArrayDeque<E> : AbstractMutableList<E> {
     @KsSymbolName("kk_list_iterator")
     public override external fun iterator(): MutableIterator<E>
 
-    @KsSymbolName("kk_list_iterator")
+    @KsSymbolName("__kk_mutable_list_listIterator")
     public override external fun listIterator(): MutableListIterator<E>
 
     @KsSymbolName("kk_list_iterator_at")
