@@ -9,7 +9,7 @@ package kotlin.reflect
 
 // KSP-1332: Runtime-created KType boxes provide the abstract properties
 // through their native interface itable.
-public interface KType {
+public interface KType : KAnnotatedElement {
     public val classifier: KClassifier?
 
     public val arguments: List<KTypeProjection>

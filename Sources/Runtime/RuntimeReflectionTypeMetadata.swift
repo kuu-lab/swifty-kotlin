@@ -170,10 +170,11 @@ func runtimeRegisterKCallableItableIfNeeded(rawValue: Int, typeID: Int64) {
 
 private let reflectionRuntimeTypeMetadataEdges: [(Int64, Int64)] = {
     var edges: [(Int64, Int64)] = [
-        // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable and KClass
-        // extend KAnnotatedElement, KClass extends KDeclarationContainer, and
+        // Source-declared supertypes (Stdlib/kotlin/reflect): KCallable, KClass,
+        // and KType extend KAnnotatedElement; KClass extends KDeclarationContainer;
         // KFunction extends kotlin.Function.
         (kCallableRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
+        (kTypeRuntimeTypeID, kAnnotatedElementRuntimeTypeID),
         (kFunctionRuntimeTypeID, kCallableRuntimeTypeID),
         (kFunctionRuntimeTypeID, kotlinFunctionRuntimeTypeID),
         (kConstructorRuntimeTypeID, kFunctionRuntimeTypeID),
