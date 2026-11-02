@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "safe_call_receiver_narrow_scope.kt",
+      "range": {
+        "start": { "line": 9, "character": 11 },
+        "end": { "line": 9, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0026",
+      "source": "kswiftk",
+      "message": "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+      "codeActions": []
+    },
+    {
+      "file": "safe_call_receiver_narrow_scope.kt",
+      "range": {
+        "start": { "line": 17, "character": 11 },
+        "end": { "line": 17, "character": 14 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0026",
+      "source": "kswiftk",
+      "message": "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+      "codeActions": []
+    }
+  ]
+}

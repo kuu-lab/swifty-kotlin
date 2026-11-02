@@ -10,7 +10,8 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?,
         explicitTypeArgs: [TypeID],
-        safeCall: Bool
+        safeCall: Bool,
+        receiverIsConditionallyEvaluated: Bool?
     ) -> TypeID {
         ctx.sema.types.attribution?.increment(.callSites)
         let request = MemberCallInferenceRequest(
