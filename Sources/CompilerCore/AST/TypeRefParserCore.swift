@@ -472,6 +472,34 @@ enum TypeRefParserCore {
             }
         }
 
+        // `suspend` is one of Kotlin's type modifiers, so annotations may
+        // still follow it (`suspend @Composable () -> Unit`). Re-enter the
+        // single-type parse so its annotation loop applies the modifier
+        // ordering — including the argument-list vs parameter-list
+        // disambiguation — then fold `suspend` (and any context receivers)
+        // into the parsed type. Re-dispatch only when the result is a
+        // function type so `suspend @A Int` stays an error, as in kotlinc.
+        if isSuspend, next < tokens.count, tokens[next].kind == .symbol(.at) {
+            guard let parsed = parseSingleTypeRefPrefix(
+                tokens,
+                from: next,
+                interner: interner,
+                astArena: astArena,
+                options: options,
+                diagnostics: diagnostics,
+                recursionDepth: recursionDepth + 1
+            ), let wrapped = wrapTypeRefInGroup(
+                parsed.ref,
+                astArena: astArena,
+                contextReceivers: contextReceivers,
+                isSuspend: true,
+                nullable: false
+            ), unwrapsToFunctionType(wrapped, astArena: astArena) else {
+                return nil
+            }
+            return (wrapped, parsed.next)
+        }
+
         if (isSuspend || !contextReceivers.isEmpty),
            next < tokens.count,
            tokens[next].kind != .symbol(.lParen)
@@ -639,6 +667,24 @@ enum TypeRefParserCore {
         case .intersection:
             return nullable ? nil : refID
         }
+    }
+
+    /// `suspend` may only modify a function type. `.annotated` wrappers are
+    /// transparent here so `suspend @A () -> R` qualifies while
+    /// `suspend @A Int` does not.
+    private static func unwrapsToFunctionType(_ refID: TypeRefID, astArena: ASTArena) -> Bool {
+        var current = refID
+        while let ref = astArena.typeRef(current) {
+            switch ref {
+            case .functionType:
+                return true
+            case let .annotated(base, _):
+                current = base
+            case .named, .intersection:
+                return false
+            }
+        }
+        return false
     }
 
     private static func parseContextFunctionTypeParams(
