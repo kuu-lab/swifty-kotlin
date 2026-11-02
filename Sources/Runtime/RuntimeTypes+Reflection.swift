@@ -465,6 +465,9 @@ final class RuntimeKTypeBox {
     let isMarkedNullable: Bool
     /// Optional compact type descriptor used by callable reflection metadata.
     let typeNameRaw: Int
+    /// Use-site annotation records for this type. No registration entry
+    /// point emits them yet, so `KType.annotations` reads as an empty list.
+    var annotations: [RuntimeAnnotationRecord] = []
 
     init(
         classifierRaw: Int,

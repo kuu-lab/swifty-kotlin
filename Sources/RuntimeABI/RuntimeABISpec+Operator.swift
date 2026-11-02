@@ -124,6 +124,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_ktype_classifier", "ktypeRaw"),
         abi.nt("__kk_ktype_arguments", "ktypeRaw"),
         abi.nt("__kk_ktype_isMarkedNullable", "ktypeRaw"),
+        abi.nt("__kk_ktype_is_runtime", "raw"),
+        abi.th("__kk_ktype_get_annotations_typed", "raw outThrown"),
         abi.nt("__kk_ktype_create", "classifierRaw argsRaw isNullable"),
         abi.nt("__kk_ktype_with_nullability", "ktypeRaw isNullable"),
         abi.nt("__kk_ktype_component_descriptor", "ktypeRaw"),

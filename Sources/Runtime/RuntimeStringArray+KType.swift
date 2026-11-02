@@ -318,6 +318,25 @@ public func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     return box.isMarkedNullable ? 1 : 0
 }
 
+/// Distinguishes native KType boxes from source implementations of
+/// KType so `KAnnotatedElement.annotations` reads can bypass the
+/// interface getter (KUU-4068).
+@_cdecl("__kk_ktype_is_runtime")
+public func __kk_ktype_is_runtime(_ raw: Int) -> Int {
+    runtimeKTypeBox(from: raw) == nil ? 0 : 1
+}
+
+/// Returns the annotations list for a KType as a RuntimeListBox.
+/// Use-site type-annotation metadata is not yet emitted for runtime
+/// KType boxes, so this returns an empty list; source-backed KType
+/// implementations keep their own `annotations` through interface
+/// dispatch.
+@_cdecl("__kk_ktype_get_annotations_typed")
+public func __kk_ktype_get_annotations_typed(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let records = runtimeKTypeBox(from: raw)?.annotations ?? []
+    return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
+}
+
 /// variance: 0=IN, 1=OUT, 2=INVARIANT, -1=STAR (type is ignored for STAR)
 @_cdecl("__kk_ktypeprojection_create")
 public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) -> Int {
