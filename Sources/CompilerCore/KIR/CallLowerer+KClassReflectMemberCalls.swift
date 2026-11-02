@@ -83,16 +83,24 @@ extension CallLowerer {
             )
         }
         if case let .typeParam(typeParam) = sema.types.kind(of: classRefTargetType) {
-            let componentSymbol = SyntheticSymbolScheme.reifiedArrayComponentTokenSymbol(
+            let ktypeSymbol = SyntheticSymbolScheme.reifiedKTypeSymbol(
                 for: typeParam.symbol
             )
-            guard let capturedComponent = driver.ctx.localValue(for: componentSymbol) else {
+            guard let capturedKType = driver.ctx.localValue(for: ktypeSymbol) else {
                 return nil
             }
+            // Captured reified slots are KType boxes (KUU-4022). Derive the
+            // allocation descriptor, then the Array element identity so
+            // `T::class` and `Array<E>::class` intern to the same box.
+            let component = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                callee: interner.intern("__kk_ktype_component_descriptor"),
+                arguments: [capturedKType], result: component, canThrow: false
+            ))
             let element = arena.appendTemporary(type: sema.types.intType)
             instructions.append(.call(
                 callee: interner.intern("__kk_array_component_element"),
-                arguments: [capturedComponent], result: element, canThrow: false
+                arguments: [component], result: element, canThrow: false
             ))
             return element
         }
