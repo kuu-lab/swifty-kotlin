@@ -23,7 +23,14 @@ extension TypeSystemTests {
         let failureType = types.make(.classType(ClassType(classSymbol: failure, args: [])))
         let expected = types.make(.classType(ClassType(classSymbol: result, args: [.invariant(returnArgument)])))
         #expect(types.isSubtype(failureType, expected) == (variance == .out))
-        let joined = variance == .out ? expected : types.anyType
+        // An invariant position joins the differing lifted arguments
+        // covariantly: `Result<R>` ∪ `Result<Nothing>` is `Result<out R>`,
+        // matching kotlinc's projection of the common supertype.
+        let joined = if variance == .out {
+            expected
+        } else {
+            types.make(.classType(ClassType(classSymbol: result, args: [.out(returnArgument)])))
+        }
         #expect(types.lub([failureType, successType]) == joined)
         #expect(types.lub([successType, failureType]) == joined)
         #expect(types.lub([types.makeNullable(failureType), successType]) == types.makeNullable(joined))

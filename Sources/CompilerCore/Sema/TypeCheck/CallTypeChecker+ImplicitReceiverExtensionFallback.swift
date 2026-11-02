@@ -153,7 +153,7 @@ extension CallTypeChecker {
         return result
     }
 
-    private func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {
+    func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {
         guard let symbol = ctx.sema.symbols.symbol(candidate),
               symbol.kind == .function,
               ctx.sema.symbols.functionSignature(for: candidate)?.receiverType != nil,

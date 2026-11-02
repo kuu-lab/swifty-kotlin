@@ -195,22 +195,25 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
 |---|---|---|---|---|
 | kotlinx_io | 0 | 30 | 0 | 0 |
 | ktor_io | 0 | 45 | 0 | 1 |
-| ktor_utils | 1 | 55 | 21 | 8 |
+| ktor_utils | 1 | 55 | 2 | 8 |
 | ktor_http | 1 | 62 | 341 | 0 |
 
 - kotlinx_io は上流ソースが完全クリーンにコンパイルできる（旧5件のドリフトは解消）
 - ktor_io は引き続き 0 errors。consumer ハーネスも O0/O2 とも PASS
-- ktor_utils の残りは、未リンクの上流依存（`kotlinx.serialization` の `KSerializer` /
-  `Serializable`）が大半で、実ギャップは SEMA-INFER / TYPE-0001 / SEMA-0308 / SEMA-0104 など数件。
-  coroutines 内部 API の `recoverStackTrace` / `isDispatchNeeded`（`CoroutineDispatcher` の
-  open member および `kotlinx.coroutines.internal` のトップレベル関数）は KUU-3910 で
-  bundled coroutines に追加済み
-- ktor_http の 341 は `io.ktor.util.*` 未解決のカスケードが主因（ktor_utils.kklib が
+- ktor_utils は **2 errors**（KUU-3919）。bundled stdlib が `kotlinx.serialization` の
+  API 面（`Serializable`/`KSerializer`/`descriptors`/`encoding`/`modules`/`serializer()`）を
+  提供し、`reflect/Type.kt`（`serializer(it)`・`?:` 型合成）と `util/date/Date.kt` は
+  エラー 0 で通る。残る 2 件は coroutines 内部 API（`recoverStackTrace` / `isDispatchNeeded`）のみ- ktor_http の 341 は `io.ktor.util.*` 未解決のカスケードが主因（ktor_utils.kklib が
   未生成のため全 import が落ちる）。ktor_utils が通るまで実数はマスクされる
+- serialization 系の解消には stdlib API 追加に加えて 2 つの Sema 修正が必要だった:
+  implicit receiver の拡張が実引数に不適格なとき外側 tier（トップレベル関数）へ
+  継続するフォールスルー、および invariant 型引数を持つ LUB の `out` 投影結合
+  （`KSerializer<Any?>` ∪ `KSerializer<out Any>` → `KSerializer<out Any?>`）
 
 ## まとめ
 
 pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
-0 errors を維持している。一方で ktor_utils / ktor_http の standalone コンパイルは
-依然失敗し、Ktor 全体をビルド可能にするにはさらに大きな作業（kotlinx.serialization /
-atomicfu / kotlinx.coroutines のAPI実装、ktor_utils の残存ギャップなど）が必要になる。
+0 errors を維持している。ktor_utils は kotlinx.serialization API 面の追加で coroutines 内部 API
+依存の 2 errors まで減少したが、ktor_http の standalone コンパイルは依然失敗し、Ktor 全体を
+ビルド可能にするにはさらに大きな作業（atomicfu / kotlinx.coroutines のAPI実装、
+ktor_utils の残存ギャップなど）が必要になる。

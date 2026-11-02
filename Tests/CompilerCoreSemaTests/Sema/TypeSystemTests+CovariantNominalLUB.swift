@@ -25,14 +25,17 @@ private struct NominalLUBFixture {
 }
 
 extension TypeSystemTests {
+    // Invariant and `out`-declared positions both join to a covariant
+    // argument (`lub(Box<A>, Box<B>) == Box<out Module>` in kotlinc); only
+    // an `in`-declared position still approximates to `Any`.
     @Test(arguments: [TypeVariance.out, .invariant, .in])
-    func nominalLUBCombinesOnlyCovariantPositions(variance: TypeVariance) {
+    func nominalLUBCombinesOutBoundablePositions(variance: TypeVariance) {
         let fixture = NominalLUBFixture(variance: variance)
         let types = fixture.types
         let left = fixture.applied(.invariant(fixture.nominal(fixture.a)))
         let right = fixture.applied(.invariant(fixture.nominal(fixture.b)))
-        let expected = variance == .out
-            ? fixture.applied(.out(fixture.nominal(fixture.module))) : types.anyType
+        let expected = variance == .in
+            ? types.anyType : fixture.applied(.out(fixture.nominal(fixture.module)))
         #expect(types.lub([left, right]) == expected)
         #expect(types.lub([right, left]) == expected)
         #expect(types.isSubtype(left, expected))
@@ -40,6 +43,24 @@ extension TypeSystemTests {
         if variance != .out {
             #expect(!types.isSubtype(left, fixture.applied(.invariant(fixture.nominal(fixture.module)))))
         }
+    }
+
+    /// KUU-3919: `KSerializer<Any?>` joined with `KSerializer<out Any>` on
+    /// the invariant `KSerializer<T>` must produce `KSerializer<out Any?>`
+    /// (Ktor `TypeInfo.serializer()`'s `?:` branch). Previously the
+    /// invariant composed projection bailed out and the join fell back to
+    /// `Any`, failing the `KSerializer<out Any?>` return-type check.
+    @Test
+    func nominalLUBJoinsInvariantAndUseSiteOutArgument() {
+        let fixture = NominalLUBFixture(variance: .invariant)
+        let types = fixture.types
+        let left = fixture.applied(.invariant(types.nullableAnyType))
+        let right = fixture.applied(.out(types.anyType))
+        let expected = fixture.applied(.out(types.nullableAnyType))
+        #expect(types.lub([left, right]) == expected)
+        #expect(types.lub([right, left]) == expected)
+        #expect(types.isSubtype(left, expected))
+        #expect(types.isSubtype(right, expected))
     }
 
     @Test
@@ -173,8 +194,17 @@ extension TypeSystemTests {
         #expect(types.lub([left, right]) == expected)
         #expect(types.lub([right, left]) == expected)
         let incompatible = applied(fixture.nominal(fixture.b), first: types.intType)
-        #expect(types.lub([left, incompatible]) == types.anyType)
-        #expect(types.lub([incompatible, left]) == types.anyType)
+        // Differing arguments on an invariant position join covariantly
+        // (`Box<out Any>` for `Box<String>` vs `Box<Int>`), matching
+        // kotlinc; the identical `in` and differing `out` positions are
+        // unchanged.
+        let incompatibleExpected = types.make(.classType(ClassType(classSymbol: fixture.box, args: [
+            .out(types.anyType), .invariant(types.intType), .out(fixture.nominal(fixture.module)),
+        ])))
+        #expect(types.lub([left, incompatible]) == incompatibleExpected)
+        #expect(types.lub([incompatible, left]) == incompatibleExpected)
+        #expect(types.isSubtype(left, incompatibleExpected))
+        #expect(types.isSubtype(incompatible, incompatibleExpected))
     }
 
     @Test
