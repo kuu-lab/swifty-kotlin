@@ -366,8 +366,7 @@ final class ValPropertyInitializationChecker {
         guard let callee = sema.bindings.callBinding(for: id)?.chosenCallee,
               let name = sema.symbols.symbol(callee).map({ interner.resolve($0.name) })
         else { return false }
-        return ["plusAssign", "minusAssign", "timesAssign", "divAssign", "remAssign", "modAssign"].contains(name)
-    }
+        return ["plusAssign", "minusAssign", "timesAssign", "divAssign", "remAssign", "modAssign"].contains(name)    }
 
     private func write(_ id: ExprID, receiver: ExprID?, memberName: InternedString? = nil, flow: inout Flow, permitsInitialization: Bool) {
         if checkingDelegationArguments {
@@ -570,8 +569,7 @@ final class ValPropertyInitializationChecker {
             visit(value)
             // A compound assignment both reads the field and writes it back,
             // which also counts as initialization for definite-init purposes.
-            // `val list += x` resolved to `plusAssign` only reads the field.
-            read(id, receiver: nil, memberName: name, flow: flow, permitsInitialization: permitsInitialization)
+            // `val list += x` resolved to `plusAssign` only reads the field.            read(id, receiver: nil, memberName: name, flow: flow, permitsInitialization: permitsInitialization)
             if !resolvesToAssignOperator(id) {
                 write(id, receiver: nil, memberName: name, flow: &flow, permitsInitialization: permitsInitialization)
             }

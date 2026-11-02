@@ -67,6 +67,9 @@ struct MemberPropertyReadBeforeInitializationTests {
         // Write-then-read inside the same init block.
         "class Box { var value: Int; init { TARGET = 1; val z = TARGET } }",
         "class Box { var value = 1; init { TARGET += 1 } }",
+        // `plusAssign` mutates an initialized `val` in place; it is no reassignment.
+        "class Acc { operator fun plusAssign(x: Int) {} }; class Box { val value = Acc(); init { TARGET += 1 } }",
+        "class Acc { operator fun plusAssign(x: Int) {} }; class Box { val value = Acc(); init { this.TARGET += 1 } }",
         // Companion members belong to a different receiver.
         "class Box { val x = TARGET; companion object { val value = 1 } }",
         // `+=` on an initialized `val` resolved to `plusAssign` mutates the
