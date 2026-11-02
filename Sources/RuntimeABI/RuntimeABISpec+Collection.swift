@@ -25,6 +25,10 @@ public extension RuntimeABISpec {
         abi.nt("kk_list_iterator", "listRaw"),
         abi.nt("kk_list_iterator_hasNext", "iterRaw"),
         abi.nt("__kk_mutable_list_listIterator", "listRaw"),
+        // KUU-3963: same erased shape as `kk_list_iterator`; the read-only
+        // zero-arg `listIterator()` bridge re-resolves the reflected JVM
+        // class (`ListItr` family) on the iterator it returns.
+        abi.nt("__kk_list_listIterator", "listRaw"),
         listIteratorNextSpec,
         // IndexingIterable is the iterator bridge retained by List.withIndex().
         abi.nt("kk_indexing_iterable_iterator", "iterableRaw"),

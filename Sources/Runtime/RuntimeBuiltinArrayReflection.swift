@@ -99,7 +99,14 @@ private func invokeArrayMember(_ environment: Int, _ arguments: Int, _: Int, _ t
         case 2: return kk_box_int(kk_any_member_hashCode(receiver))
         case 3:
             let iteratorName = descriptor.name == "Array" || descriptor.storage != nil ? "kotlin.collections.Iterator" : "kotlin.collections.\(descriptor.element)Iterator"
-            let iterator = registerRuntimeObject(RuntimeListIteratorBox(values: array.values, currentValue: { array.value(at: $0) }), typeID: runtimeStableNominalTypeID(fqName: iteratorName))
+            let iteratorBox = RuntimeListIteratorBox(values: array.values, currentValue: { array.value(at: $0) })
+            // KUU-3963: JVM array iterators are `kotlin.jvm.internal.Array*Iterator`.
+            let reflectedName = descriptor.name == "Array"
+                ? "kotlin.jvm.internal.ArrayIterator"
+                : "kotlin.jvm.internal.Array\(descriptor.element)Iterator"
+            iteratorBox.reflectedClassID = runtimeStableNominalTypeID(fqName: reflectedName)
+            iteratorBox.reflectedClassName = reflectedName
+            let iterator = registerRuntimeObject(iteratorBox, typeID: runtimeStableNominalTypeID(fqName: iteratorName))
             registerListIteratorItable(raw: iterator)
             return iterator
         case 4: return Int(bitPattern: kk_any_member_to_string(receiver))

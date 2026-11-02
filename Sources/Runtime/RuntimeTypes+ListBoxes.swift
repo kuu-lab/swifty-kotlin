@@ -345,12 +345,40 @@ final class RuntimeListBox {
         return false
     }
 
+    /// Raw handle of the map backing a `.values` view (KUU-3963): reflection
+    /// resolves `java.util.LinkedHashMap$LinkedValues`-style class names
+    /// from the source map's implementation.
+    var mapValuesViewBackingRaw: Int? {
+        guard case .mapValuesViewOf(let mapRaw) = storage else { return nil }
+        return mapRaw
+    }
+
+    var isSubListStorageView: Bool {
+        if case .subList = storage { return true }
+        return false
+    }
+
+    /// Base box of a `subList` view; its runtime tag tells reflection whether
+    /// the view is `java.util.ArrayList$SubList` or an `AbstractList` subview.
+    var subListBaseBox: RuntimeListBox? {
+        guard case .subList(let slice) = storage else { return nil }
+        return slice.base
+    }
+
     /// `Array<T>.asList()` / primitive-array views behave like
     /// `java.util.Arrays$ArrayList` on the JVM: their `get` fails with
     /// `ArrayIndexOutOfBoundsException`, unlike plain `List` implementations.
     var isArrayStorageView: Bool {
         if case .arrayViewOf = storage { return true }
         return false
+    }
+
+    /// Primitive-array `asList` views are anonymous classes on the JVM
+    /// (`intArrayOf(1).asList()::class.simpleName` is null), unlike the named
+    /// `java.util.Arrays$ArrayList` that object arrays produce.
+    var isPrimitiveArrayView: Bool {
+        guard case .arrayViewOf(_, let elementKind) = storage else { return false }
+        return elementKind != nil
     }
 
     var isDequeStorageView: Bool {
@@ -595,6 +623,14 @@ final class RuntimeListIteratorBox {
     /// iterator observed it in sync (construction, or its own successful
     /// `remove()`/`add()`, which re-syncs after performing the mutation).
     var expectedModCount: Int
+
+    /// KUU-3963: nominal identity and qualified name of the JVM iterator
+    /// implementation this box reflects through `::class` (e.g.
+    /// `java.util.Arrays.ArrayItr` for a `listOf(e1, e2)` iterator). A
+    /// nonzero `reflectedClassID` with a nil `reflectedClassName` marks a
+    /// JVM-anonymous iterator whose `simpleName`/`qualifiedName` are null.
+    var reflectedClassID: Int64 = 0
+    var reflectedClassName: String? = nil
 
     init(
         elements: [Int],
