@@ -75,7 +75,7 @@ public extension RuntimeABISpec {
         abi.nt("__kk_class_is_primitive", "classRaw"),
         abi.nt("__kk_class_is_enum", "classRaw"),
         abi.nt("__kk_class_component_type", "classRaw"),
-        abi.nt("__kk_java_class_register_declared_method", "typeToken methodNameRaw signatureRaw flags"),
+        abi.nt("__kk_class_is_interface", "classRaw"),        abi.nt("__kk_java_class_register_declared_method", "typeToken methodNameRaw signatureRaw flags"),
         abi.nt("__kk_java_class_register_declared_field", "typeToken fieldNameRaw"),
         RuntimeABIFunctionSpec(
             name: "__kk_java_field_register_single_annotation",

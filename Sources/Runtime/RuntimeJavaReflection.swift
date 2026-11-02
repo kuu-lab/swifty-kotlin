@@ -391,6 +391,19 @@ public func __kk_java_class_get_name(_ classRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeJavaClassName(javaClass))
 }
 
+@_cdecl("__kk_class_is_interface")
+public func __kk_class_is_interface(_ classRaw: Int) -> Int {
+    guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: javaClass.typeToken) {
+        return metadata.isInterface ? 1 : 0
+    }
+    // Class boxes without KClass metadata (e.g. produced by Class.forName)
+    // still carry the "interface " marker in their display text.
+    return javaClass.displayText.hasPrefix("interface ") ? 1 : 0
+}
+
 @_cdecl("__kk_class_simple_name")
 public func __kk_class_simple_name(_ classRaw: Int) -> Int {
     guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
