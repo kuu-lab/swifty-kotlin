@@ -556,11 +556,19 @@ public final class BuildASTPhase: CompilerPhase {
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 
             case .enumEntry:
+                let entryChildKinds = cst.children(of: nodeID).compactMap { child -> SyntaxKind? in
+                    guard case let .node(childID) = child else {
+                        return nil
+                    }
+                    return cst.node(childID).kind
+                }
                 let decl = Decl.enumEntryDecl(EnumEntryDecl(
                     range: node.range,
                     name: declarationName(from: nodeID, in: cst, interner: interner),
                     annotations: declarationAnnotations(from: nodeID, in: cst, interner: interner),
-                    constructorArgs: []
+                    constructorArgs: [],
+                    hasConstructorCallSyntax: entryChildKinds.contains(.statement),
+                    hasBody: entryChildKinds.contains(.block)
                 ))
                 appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
 

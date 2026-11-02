@@ -369,7 +369,9 @@ struct ExpectActualCompatibilityTests {
             interface IP { val cap: Int }
             expect class F1 { val p: Int }
             expect class F2 : IP { override val cap: Int }
-            expect class F3(override val cap: Int) : IP
+            // kotlinc forbids property parameters on expect constructors — the
+            // actual supplies the `val`, so the expect side takes a plain param.
+            expect class F3(cap: Int) : IP
             expect abstract class F4 { abstract val p: Int }
             """,
             """
@@ -386,7 +388,9 @@ struct ExpectActualCompatibilityTests {
         #expect(errors.isEmpty, "Expected expect/actual member properties to pair, got: \(errors)")
 
         let sema = try #require(ctx.sema)
-        for (className, propertyName) in [("F1", "p"), ("F2", "cap"), ("F3", "cap"), ("F4", "p")] {
+        // F3 pairs its constructor by plain parameter — the `cap` property only
+        // exists on the actual declaration, so there is no expect member to link.
+        for (className, propertyName) in [("F1", "p"), ("F2", "cap"), ("F4", "p")] {
             let fqName = [ctx.interner.intern("x"), ctx.interner.intern(className), ctx.interner.intern(propertyName)]
             let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
             let expectProperty = try #require(symbols.first { $0.kind == .property && $0.flags.contains(.expectDeclaration) })
@@ -405,7 +409,8 @@ struct ExpectActualCompatibilityTests {
             """
             package x
             interface Pool<T> { fun borrow(): T }
-            expect abstract class DP<T : Any>(val capacity: Int) : Pool<T> {
+            // Plain ctor param — kotlinc forbids `val`/`var` on expect ctors.
+            expect abstract class DP<T : Any>(capacity: Int) : Pool<T> {
                 protected fun produce(): T
             }
             """,
@@ -1205,6 +1210,222 @@ struct ExpectActualCompatibilityTests {
             #expect(
                 errors.contains { $0.code == "KSWIFTK-SEMA-0424" },
                 "Actual companion properties still need an initializer: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: kotlinc rejects `val`/`var` parameters in `expect` class
+    /// constructors — the actual declaration supplies the properties.
+    @Test func testExpectClassConstructorPropertyParameterIsRejected() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class E(val x: Int, var y: Int)
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            // The diagnostic engine dedupes identical diagnostics, so multiple
+            // property params collapse to a single constructor-level error.
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-SEMA-0456" },
+                "Property parameters on an expect class constructor are diagnosed: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: a plain (non-property) constructor parameter stays legal —
+    /// only `val`/`var` parameters are prohibited.
+    @Test func testExpectClassConstructorPlainParameterIsAccepted() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class E(x: Int)
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0456" },
+                "Non-property expect constructor parameters are legal: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: `expect` classes — including `expect object` declarations —
+    /// cannot initialize supertypes; the actual supplies the `super(...)` call.
+    @Test func testExpectDeclarationSupertypeInitializationIsRejected() throws {
+        try withTemporaryFile(
+            contents: """
+            interface I
+            expect class H : I()
+            expect object O : I()
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.filter { $0.code == "KSWIFTK-SEMA-0457" }.count == 2,
+                "Expect class and object supertype calls are diagnosed: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: an `expect enum class` cannot declare a constructor — its
+    /// `val` parameters and the entries' `(...)` arguments are diagnosed too.
+    @Test func testExpectEnumClassConstructorIsRejected() throws {
+        try withTemporaryFile(
+            contents: """
+            expect enum class En(val v: Int) { A(1), B }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-SEMA-0458" },
+                "Expect enum class with a constructor is diagnosed: \(errors)"
+            )
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-SEMA-0456" },
+                "The enum constructor's property parameter is diagnosed: \(errors)"
+            )
+            #expect(
+                errors.filter { $0.code == "KSWIFTK-SEMA-0457" }.count == 1,
+                "Only the entry writing `(...)` is a supertype initialization site: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: any enum-entry body — including an empty `{}` — is prohibited
+    /// inside an expect enum, while a bare entry stays legal.
+    @Test func testExpectEnumEntryBodyIsRejected() throws {
+        try withTemporaryFile(
+            contents: """
+            expect enum class E {
+                A { val x: Int },
+                B { },
+                C
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.filter { $0.code == "KSWIFTK-SEMA-0459" }.count == 2,
+                "Both `A { ... }` and `B {}` are diagnosed but not `C`: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: members of an `expect` owner are implicitly expect — nested
+    /// enum/class declarations obey the same shape rules.
+    @Test func testExpectShapeRulesPropagateToImplicitExpectMembers() throws {
+        try withTemporaryFile(
+            contents: """
+            expect class O {
+                enum class En { A { } }
+                class N(val x: Int)
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-SEMA-0459" },
+                "Entry bodies inside an implicitly-expect enum are diagnosed: \(errors)"
+            )
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-SEMA-0456" },
+                "Property parameters inside an implicitly-expect class are diagnosed: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: annotation classes must declare `val` parameters and value
+    /// classes require one, so kotlinc exempts them from the
+    /// property-parameter rule.
+    @Test func testExpectAnnotationAndValueClassKeepPropertyParameters() throws {
+        try withTemporaryFile(
+            contents: """
+            expect annotation class A(val x: Int)
+            expect value class V(val x: Int)
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains { $0.code == "KSWIFTK-SEMA-0456" },
+                "Annotation and value expect classes keep their `val` parameters: \(errors)"
+            )
+        }
+    }
+
+    /// KUU-3898: non-expect enums keep their entry bodies and constructor
+    /// calls — the shape rules only apply in expect context.
+    @Test func testNonExpectEnumEntryBodiesStayLegal() throws {
+        try withTemporaryFile(
+            contents: """
+            enum class E(val v: Int) {
+                A(1) { val x: Int = 1 },
+                B(2)
+            }
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                frontendFlags: ["common-module"],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                !errors.contains {
+                    $0.code == "KSWIFTK-SEMA-0457"
+                        || $0.code == "KSWIFTK-SEMA-0458"
+                        || $0.code == "KSWIFTK-SEMA-0459"
+                },
+                "Non-expect enum entries keep bodies and constructor calls: \(errors)"
             )
         }
     }
