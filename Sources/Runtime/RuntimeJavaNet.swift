@@ -12,6 +12,19 @@ import Glibc
 import CoreGraphics
 #endif
 
+#if os(Linux)
+private func javaNetStreamSockType() -> Int32 { Int32(SOCK_STREAM.rawValue) }
+#else
+private func javaNetStreamSockType() -> Int32 { SOCK_STREAM }
+#endif
+
+private func javaNetTimeval(timeoutMillis: Int) -> timeval {
+    timeval(
+        tv_sec: timeoutMillis / 1000,
+        tv_usec: .init((timeoutMillis % 1000) * 1000)
+    )
+}
+
 // MARK: - Throwable boxes for java.net / java.awt exceptions
 
 private final class RuntimeJavaNetExceptionBox: RuntimeThrowableBox {
@@ -129,7 +142,7 @@ private func javaNetNumericHost(_ text: String) -> String {
 private func javaNetResolveAll(_ host: String) -> [String] {
     var hints = addrinfo()
     hints.ai_family = AF_UNSPEC
-    hints.ai_socktype = SOCK_STREAM
+    hints.ai_socktype = javaNetStreamSockType()
     var result: UnsafeMutablePointer<addrinfo>?
     guard getaddrinfo(host, nil, &hints, &result) == 0, let list = result else {
         return []
@@ -175,7 +188,9 @@ public func __kk_net_reverse_lookup(_ addressRaw: Int) -> Int {
         var sa = sockaddr_in6()
         if inet_pton(AF_INET6, address, &sa.sin6_addr) == 1 {
             sa.sin6_family = sa_family_t(AF_INET6)
+            #if canImport(Darwin)
             sa.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            #endif
             length = socklen_t(MemoryLayout<sockaddr_in6>.size)
             memcpy(&storage, &sa, Int(length))
         }
@@ -238,7 +253,7 @@ final class RuntimeJavaNetSocketBox {
 
     func ensureSocket(family: Int32) -> Bool {
         if fd >= 0 { return true }
-        let created = socket(family, SOCK_STREAM, 0)
+        let created = socket(family, javaNetStreamSockType(), 0)
         guard created >= 0 else { return false }
         fd = created
         #if canImport(Darwin)
@@ -383,7 +398,7 @@ private final class RuntimeSocketInputStreamBox: RuntimeInputStreamBox, RuntimeI
         if streamClosed { return }
         streamClosed = true
         if socket.alive && !socket.inputShutdown {
-            shutdown(socket.fd, SHUT_RD)
+            shutdown(socket.fd, Int32(SHUT_RD))
             socket.inputShutdown = true
         }
     }
@@ -407,7 +422,7 @@ private final class RuntimeSocketOutputSink: RuntimeOutputStreamSink {
                 #if canImport(Darwin)
                 let n = send(socket.fd, buffer.baseAddress!.advanced(by: sent), data.count - sent, 0)
                 #else
-                let n = send(socket.fd, buffer.baseAddress!.advanced(by: sent), data.count - sent, MSG_NOSIGNAL)
+                let n = send(socket.fd, buffer.baseAddress!.advanced(by: sent), data.count - sent, Int32(MSG_NOSIGNAL))
                 #endif
                 if n > 0 {
                     sent += n
@@ -434,7 +449,7 @@ private final class RuntimeSocketOutputSink: RuntimeOutputStreamSink {
         if streamClosed { return }
         streamClosed = true
         if socket.alive && !socket.outputShutdown {
-            shutdown(socket.fd, SHUT_WR)
+            shutdown(socket.fd, Int32(SHUT_WR))
             socket.outputShutdown = true
         }
     }
@@ -443,7 +458,7 @@ private final class RuntimeSocketOutputSink: RuntimeOutputStreamSink {
 private func javaNetResolveSockaddr(_ host: String, port: Int) -> [(addr: sockaddr_storage, len: socklen_t)] {
     var hints = addrinfo()
     hints.ai_family = AF_UNSPEC
-    hints.ai_socktype = SOCK_STREAM
+    hints.ai_socktype = javaNetStreamSockType()
     hints.ai_flags = AI_NUMERICHOST
     var result: UnsafeMutablePointer<addrinfo>?
     guard getaddrinfo(host, "\(port)", &hints, &result) == 0, let list = result else {
@@ -696,7 +711,7 @@ public func __kk_net_socket_get_option(_ boxRaw: Int, _ option: Int) -> Int {
     case JavaNetSocketOption.tcpNoDelay:
         var value: Int32 = 0
         var len = socklen_t(MemoryLayout<Int32>.size)
-        _ = getsockopt(box.fd, IPPROTO_TCP, TCP_NODELAY, &value, &len)
+        _ = getsockopt(box.fd, Int32(IPPROTO_TCP), Int32(TCP_NODELAY), &value, &len)
         return Int(value)
     case JavaNetSocketOption.soSndBuf:
         var value: Int32 = 0
@@ -722,14 +737,14 @@ public func __kk_net_socket_set_option(_ boxRaw: Int, _ option: Int, _ value: In
     switch option {
     case JavaNetSocketOption.soTimeout:
         box.soTimeoutMillis = value
-        var tv = timeval(tv_sec: value / 1000, tv_usec: __darwin_suseconds_t((value % 1000) * 1000))
+        var tv = javaNetTimeval(timeoutMillis: value)
         _ = setsockopt(box.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
     case JavaNetSocketOption.soReuseAddr:
         _ = setsockopt(box.fd, SOL_SOCKET, SO_REUSEADDR, &intValue, socklen_t(MemoryLayout<Int32>.size))
     case JavaNetSocketOption.soKeepAlive:
         _ = setsockopt(box.fd, SOL_SOCKET, SO_KEEPALIVE, &intValue, socklen_t(MemoryLayout<Int32>.size))
     case JavaNetSocketOption.tcpNoDelay:
-        _ = setsockopt(box.fd, IPPROTO_TCP, TCP_NODELAY, &intValue, socklen_t(MemoryLayout<Int32>.size))
+        _ = setsockopt(box.fd, Int32(IPPROTO_TCP), Int32(TCP_NODELAY), &intValue, socklen_t(MemoryLayout<Int32>.size))
     case JavaNetSocketOption.soSndBuf:
         _ = setsockopt(box.fd, SOL_SOCKET, SO_SNDBUF, &intValue, socklen_t(MemoryLayout<Int32>.size))
     case JavaNetSocketOption.soRcvBuf:
@@ -743,10 +758,10 @@ public func __kk_net_socket_set_option(_ boxRaw: Int, _ option: Int, _ value: In
 public func __kk_net_socket_shutdown(_ boxRaw: Int, _ how: Int) {
     guard let box = javaNetSocket(boxRaw), box.fd >= 0 else { return }
     if how == 0 {
-        shutdown(box.fd, SHUT_RD)
+        shutdown(box.fd, Int32(SHUT_RD))
         box.inputShutdown = true
     } else {
-        shutdown(box.fd, SHUT_WR)
+        shutdown(box.fd, Int32(SHUT_WR))
         box.outputShutdown = true
     }
 }
@@ -801,7 +816,7 @@ public func __kk_net_server_socket_bind(
     }
     var storage = first.addr
     if box.fd < 0 {
-        box.fd = socket(Int32(storage.ss_family), SOCK_STREAM, 0)
+        box.fd = socket(Int32(storage.ss_family), javaNetStreamSockType(), 0)
     }
     guard box.fd >= 0 else {
         outThrown?.pointee = runtimeAllocateSocketException(javaNetErrorMessage(errno))
