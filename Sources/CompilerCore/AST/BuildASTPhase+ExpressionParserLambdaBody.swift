@@ -109,23 +109,39 @@ extension BuildASTPhase.ExpressionParser {
 
     private func parseLambdaBodyStatement(from group: ArraySlice<Token>) -> ExprID? {
         let phase = BuildASTPhase(diagnostics: diagnostics)
+        // Every probe is speculative, matching parseStatementGroup and
+        // parseBlockExpression: a failing attempt can emit diagnostics for a
+        // parse the group is then reparsed without — e.g. the assignment
+        // probe splits `fun(): Int = it * it` at `=` and parses the LHS as a
+        // bodiless anonymous function, leaking 'must have a body'. Roll those
+        // back; only the winning parse keeps its diagnostics.
+        let speculationCheckpoint = diagnostics?.checkpoint()
+        func undoFailedSpeculation() {
+            if let speculationCheckpoint {
+                diagnostics?.rollback(to: speculationCheckpoint)
+            }
+        }
         if let localFun = phase.parseLocalFunDeclExpr(
             from: Array(group),
             interner: interner, astArena: astArena
         ) {
             return localFun
         }
+        undoFailedSpeculation()
         if let localDecl = parseLocalDeclFromSlice(group) {
             return localDecl
         }
+        undoFailedSpeculation()
         if let localAssign = parseLocalAssignFromSlice(group) {
             return localAssign
         }
+        undoFailedSpeculation()
         if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
             from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
         ) {
             return nominalDecl
         }
+        undoFailedSpeculation()
         return BuildASTPhase.ExpressionParser(
             tokens: group,
             interner: interner,
