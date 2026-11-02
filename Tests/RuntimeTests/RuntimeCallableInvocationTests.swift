@@ -240,6 +240,7 @@ struct RuntimeCallableInvocationTests {
         // The shared receiver keeps pointing at the property.
         #expect(runtimeKParameterBox(from: parameters[0])?.callableRaw == prop)
         #expect(runtimeFunctionDescription(setter) == "fun kotlin.String.`<set-mext>`(kotlin.Int): kotlin.Unit")
+    }
 
     /// KUU-4069 — kotlin-reflect's `KParameter` has value semantics on the JVM
     /// (`ReflectKParameter.equals` compares owning callable + index), so two
@@ -279,5 +280,6 @@ struct RuntimeCallableInvocationTests {
         #expect(runtimeElementToString(parameters[1]) == "extension receiver parameter of fun sum(kotlin.Int, kotlin.Int): kotlin.Int")
         #expect(runtimeElementToString(parameters[2]) == "parameter #2 a of fun sum(kotlin.Int, kotlin.Int): kotlin.Int")
         let anonymous = __kk_kparameter_create(1, runtimeNullSentinelInt, runtimeMakeStringRaw("kotlin.Int"), 0, 2)
-        #expect(runtimeElementToString(anonymous) == "parameter #1 null")    }
+        #expect(runtimeElementToString(anonymous) == "parameter #1 null")
+    }
 }
