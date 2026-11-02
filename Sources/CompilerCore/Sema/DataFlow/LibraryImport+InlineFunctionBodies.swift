@@ -402,6 +402,7 @@ extension DataFlowSemaPhase {
             "__kk_library_top_level_init_", "__kk_synthetic_companion_init_",
             "__klib_object_init_", "__klib_object_lazy_init_",
             "__object_lazy_init_", "__companion_lazy_init_", "__ctor_reflect_init_",
+            "__member_reflect_init_",
         ]
         let store = state.importedInlineFunctions
         var initSymbols: Set<SymbolID> = []
