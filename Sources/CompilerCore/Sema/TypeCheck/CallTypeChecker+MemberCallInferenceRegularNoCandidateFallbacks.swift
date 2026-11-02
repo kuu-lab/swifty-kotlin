@@ -59,6 +59,21 @@ extension CallTypeChecker {
                 return nil
             }
             if let memberProperty {
+                // After a same-named function candidate fails, only a
+                // callable property may participate in the invocation
+                // fallback. Check this before visibility so a private value
+                // property cannot replace the function's real diagnostic.
+                if maximumPropertyPriority == nil,
+                   inferFunctionTypeOrError(from: memberProperty.type, sema: sema) == nil,
+                   nominalCallablePropertyInvokeCandidates(
+                       memberProperty.type,
+                       request: request,
+                       argTypes: argTypes,
+                       locals: invocationLocals
+                   ).isEmpty
+                {
+                    return nil
+                }
                 if !explicitTypeArgs.isEmpty,
                    inferFunctionTypeOrError(from: memberProperty.type, sema: sema) != nil { return nil }
                 if let maximumPropertyPriority,
