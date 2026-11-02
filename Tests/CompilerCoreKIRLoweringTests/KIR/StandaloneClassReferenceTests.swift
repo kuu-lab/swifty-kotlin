@@ -294,6 +294,7 @@ struct StandaloneClassReferenceTests {
     ) throws {
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
 
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
