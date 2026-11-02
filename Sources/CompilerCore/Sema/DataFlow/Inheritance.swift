@@ -132,6 +132,38 @@ extension DataFlowSemaPhase {
         let isBundledStdlibDecl = declFileID
             .flatMap { sourceManager?.origin(of: $0)?.isBundledStdlib } == true
         for (index, superTypeRef) in superTypeRefs.enumerated() {
+            // Expect declarations cannot invoke supertype constructors:
+            // initialization belongs to the matching actual declaration
+            // (kotlinc: "'expect' classes cannot initialize supertypes").
+            // An expect object — like an expect class without `()` — has no
+            // primary constructor at all, so kotlinc additionally reports
+            // the invocation as impossible without one. The check is purely
+            // syntactic, so it also applies when the supertype fails to
+            // resolve (KUU-4122).
+            if index < superTypeEntries.count,
+               isExpectDeclaration,
+               !isBundledStdlibDecl,
+               superTypeEntries[index].hasConstructorCallSyntax
+            {
+                let hasPrimaryConstructor: Bool
+                if case let .classDecl(classDecl) = decl {
+                    hasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax
+                } else {
+                    hasPrimaryConstructor = false
+                }
+                if !hasPrimaryConstructor {
+                    diagnostics.error(
+                        "KSWIFTK-SEMA-0474",
+                        "supertype initialization is impossible without a primary constructor.",
+                        range: superTypeEntries[index].range ?? symbols.symbol(symbol)?.declSite
+                    )
+                }
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0475",
+                    "'expect' classes cannot initialize supertypes.",
+                    range: superTypeEntries[index].range ?? symbols.symbol(symbol)?.declSite
+                )
+            }
             if let resolved = resolveNominalSymbolAndTypeArgs(
                 superTypeRef,
                 currentPackage: currentPackage,
