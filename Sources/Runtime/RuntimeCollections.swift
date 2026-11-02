@@ -884,7 +884,17 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
 
 @inline(__always)
 func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
-    runtimeListBox(from: destRaw) != nil || runtimeSetBox(from: destRaw) != nil
+    if runtimeListBox(from: destRaw) != nil || runtimeSetBox(from: destRaw) != nil {
+        return true
+    }
+    // KUU-4130: a source-defined (user-defined) MutableCollection is an
+    // ordinary heap object; it accepts `add` (slot 0) through the
+    // MutableCollection itable registered at construction.
+    return kk_itable_lookup_dynamic(
+        destRaw,
+        Int(runtimeMutableCollectionInterfaceTypeID),
+        0
+    ) != 0
 }
 
 @inline(__always)
@@ -900,6 +910,11 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
     }
     if let set = runtimeSetBox(from: destRaw) {
         _ = set.insert(value: element)
+        return
+    }
+    // KUU-4130: JVM semantics call `destination.add(e)` on any MutableCollection;
+    // fall back to the itable dispatch for source-defined implementations.
+    if runtimeSourceMutableCollectionAdd(destRaw, element.legacyRawValue) != nil {
         return
     }
     invalidContainerPanic(#function, "mutable collection")

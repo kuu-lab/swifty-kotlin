@@ -57,6 +57,18 @@ private func requireSequenceThrownBox(_ raw: Int) throws -> RuntimeThrowableBox 
     )
 }
 
+/// KUU-4130: `add` thunk for a fabricated source-defined MutableCollection
+/// destination; delegates to the backing collection stored in field 0.
+private let sourceMutableCollectionAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, element, outThrown in
+    outThrown?.pointee = 0
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+          let box = tryCast(pointer, to: RuntimeObjectBox.self)
+    else {
+        return kk_box_bool(0)
+    }
+    return kk_mutable_collection_add(box.elements[0], element)
+}
+
 private let lazyYieldAllInnerThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
     _lazyTestYieldCounter += 1
     _ = __kk_sequence_builder_yield(builderRaw, 10)
@@ -1438,6 +1450,43 @@ struct RuntimeSequenceTests {
 
         #expect(result == destination)
         #expect(setElements(destination) == [10, 2, 1, 3])
+    }
+
+    // MARK: - toCollection into a source-defined MutableCollection (KUU-4130)
+
+    /// Fabricates a source-defined MutableCollection destination: an ordinary
+    /// heap object with a MutableCollection itable whose `add` (slot 0)
+    /// delegates to backing storage, mirroring a compiled `override fun add`.
+    private func makeSourceMutableCollectionDestination(backing: Int) -> Int {
+        let raw = kk_object_new(1, 0)
+        let pointer = UnsafeMutableRawPointer(bitPattern: raw)!
+        tryCast(pointer, to: RuntimeObjectBox.self)!.elements[0] = backing
+        let typeID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableCollection")
+        _ = kk_object_register_itable_iface(raw, Int(typeID), 0)
+        _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(sourceMutableCollectionAddThunk, to: Int.self))
+        return raw
+    }
+
+    @Test func toCollectionAppendsIntoSourceDefinedMutableCollection() {
+        let seq = makeSequence([1, 2, 3])
+        let backing = runtimeTestMakeList([0])
+        let destination = makeSourceMutableCollectionDestination(backing: backing)
+
+        let result = kk_sequence_toCollection(seq, destination)
+
+        #expect(result == destination)
+        #expect(runtimeTestListElements(backing) == [0, 1, 2, 3])
+    }
+
+    @Test func iterableToCollectionAppendsIntoSourceDefinedMutableCollection() {
+        let source = runtimeTestMakeList([4, 5])
+        let backing = runtimeTestMakeList([0])
+        let destination = makeSourceMutableCollectionDestination(backing: backing)
+
+        let result = kk_collection_toCollection(source, destination)
+
+        #expect(result == destination)
+        #expect(runtimeTestListElements(backing) == [0, 4, 5])
     }
 
     @Test func toHashSetDeduplicatesPreservingOrder() {
