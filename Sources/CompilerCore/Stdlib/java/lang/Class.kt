@@ -33,6 +33,9 @@ private external fun __classIsAssignableFrom(type: Class<*>, other: Class<*>): B
 @KsSymbolName("__kk_class_canonical_name")
 private external fun <T> __classCanonicalName(type: Class<T>): String?
 
+@KsSymbolName("__kk_class_is_interface")
+private external fun __classIsInterface(type: Class<*>): kotlin.Boolean
+
 @KsSymbolName("__kk_java_class_get_declared_method")
 private external fun __classGetDeclaredMethod(
     type: Class<*>,
@@ -104,7 +107,13 @@ public class Class<T> {
     public fun getMethods(): Array<Method> = __classGetMethods(this)
 
     /**
-     * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
+     * Kotlin view of `getMethods()`: all public methods of this class including
+     * inherited ones.
+     */
+    public val methods: Array<Method>
+        get() = __classGetMethods(this)
+
+    * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
      * this class, or directly extended by this interface. Empty for classes
      * with no direct interfaces, for primitives, and for `java.lang.Object`;
      * array classes report `Cloneable` and `Serializable` like the JVM.
@@ -123,7 +132,6 @@ public class Class<T> {
         get() = __classSuperclass(this)
 
     public fun getSuperclass(): Class<*>? = __classSuperclass(this)
-
     public fun isAssignableFrom(other: Class<*>): Boolean = __classIsAssignableFrom(this, other)
 
     /** Kotlin view of `isArray()`: true when this Class models an array type. */
@@ -172,6 +180,12 @@ public class Class<T> {
     private external fun __isInstance(value: Any?): kotlin.Boolean
 
     public fun isInstance(value: Any?): kotlin.Boolean = __isInstance(value)
+
+    /**
+     * Kotlin view of `isInterface()`: true when this Class models an interface.
+     */
+    public val isInterface: kotlin.Boolean
+        get() = __classIsInterface(this)
 
     @KsSymbolName("__kk_class_get_enclosing_class")
     private external fun __classGetEnclosingClass(): Class<*>?
