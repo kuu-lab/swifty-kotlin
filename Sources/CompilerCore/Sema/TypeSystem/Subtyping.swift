@@ -1377,10 +1377,17 @@ extension TypeSystem {
                         return nil
                     }
                 } else {
-                    guard case let .out(bound) = composedProjection(
+                    // Invariant and `out` arguments both contribute their
+                    // bound to the covariant join: `KS<Any?>` joined with
+                    // `KS<out Any>` on an invariant `KS<T>` is `KS<out Any?>`.
+                    switch composedProjection(
                         declarationVariance: variances[index], useSite: argument
-                    ) else { return nil }
-                    upperBounds.append(bound)
+                    ) {
+                    case let .out(bound), let .invariant(bound):
+                        upperBounds.append(bound)
+                    case .in, .star, .invalid:
+                        return nil
+                    }
                 }
             }
             combined.append(.out(lub(upperBounds)))
