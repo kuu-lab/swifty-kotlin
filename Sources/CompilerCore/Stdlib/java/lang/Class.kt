@@ -113,7 +113,7 @@ public class Class<T> {
     public val methods: Array<Method>
         get() = __classGetMethods(this)
 
-    * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
+     * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
      * this class, or directly extended by this interface. Empty for classes
      * with no direct interfaces, for primitives, and for `java.lang.Object`;
      * array classes report `Cloneable` and `Serializable` like the JVM.

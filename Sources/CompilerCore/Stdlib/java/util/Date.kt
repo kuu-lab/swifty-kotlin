@@ -7,7 +7,8 @@ import kotlin.system.System
  */
 public class Date(
     internal var epochMilliseconds: Long,
-) : Comparable<Date> {    public constructor() : this(System.currentTimeMillis())
+) : Comparable<Date> {
+    public constructor() : this(System.currentTimeMillis())
 
     public fun getTime(): Long = epochMilliseconds
 
@@ -18,12 +19,6 @@ public class Date(
     public var time: Long
         get() = getTime()
         set(value) = setTime(value)
-
-/**
-     * Kotlin view of `getTime()`: the epoch milliseconds of this instant.
-     */
-    public val time: Long
-        get() = epochMilliseconds
 
     /** Tests if this date is strictly after [other]. */
     public fun after(other: Date): Boolean = epochMilliseconds > other.epochMilliseconds
@@ -38,4 +33,5 @@ public class Date(
         other is Date && epochMilliseconds == other.epochMilliseconds
 
     public override fun hashCode(): Int =
-        (epochMilliseconds xor (epochMilliseconds ushr 32)).toInt()}
+        (epochMilliseconds xor (epochMilliseconds ushr 32)).toInt()
+}
