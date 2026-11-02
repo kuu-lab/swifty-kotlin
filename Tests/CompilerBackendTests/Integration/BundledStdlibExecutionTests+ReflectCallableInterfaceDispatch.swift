@@ -185,6 +185,9 @@ extension BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "0:x:0\n1:y:0\n0:a:0\n1:b:0\n0\n1\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
 
     /// KUU-4068: `KType` extends `KAnnotatedElement`, but the bundled KType
     /// declaration omitted the supertype so `t.annotations` failed sema
