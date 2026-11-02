@@ -119,6 +119,7 @@ struct GenericGetterNullableTraversalTests {
         try? runSema(ctx)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.contains { $0.code == expected || $0.message.contains(expected) }, "\(errors)")
+        #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-0040" }, "\(errors)")
     }
 
     @Test

@@ -274,6 +274,37 @@ extension CallTypeChecker {
                     // receiver's nullability is still what blocked the call.
                     return probe.diagnostic?.code == "KSWIFTK-SEMA-0003"
                 }()
+                let nullableReceiverConstraintFailure: Bool = {
+                    guard diagnostic.code == "KSWIFTK-TYPE-0001",
+                          !safeCall,
+                          sema.types.nullability(of: lookupReceiverType) == .nullable,
+                          lookupReceiverType != sema.types.nullableNothingType
+                    else {
+                        return false
+                    }
+                    let probeArgs = zip(args, preparedArgs.argTypes).map { argument, type in
+                        let literal = integerArgumentValues(argument.expr, ctx: ctx)
+                        return CallArg.source(
+                            argument, type: type, callRange: range, ast: ctx.ast,
+                            signedIntegerLiteral: literal.signed,
+                            unsignedIntegerLiteral: literal.unsigned
+                        )
+                    }
+                    let probe = ctx.resolver.resolveCall(
+                        candidates: candidates,
+                        call: CallExpr(
+                            range: range,
+                            calleeName: calleeName,
+                            args: probeArgs,
+                            explicitTypeArgs: explicitTypeArgs,
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                        ),
+                        expectedType: expectedType,
+                        implicitReceiverType: sema.types.makeNonNullable(effectiveReceiverType),
+                        ctx: ctx.sema
+                    )
+                    return probe.chosenCallee != nil
+                }()
                 if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                     candidates: candidates,
                     receiverType: lookupReceiverType,
@@ -297,7 +328,12 @@ extension CallTypeChecker {
                             range: range
                         )
                     }
-                } else {
+                } else if nullableReceiverConstraintFailure {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0002",
+                        "No viable overload found for call.",
+                        range: range
+                    )                } else {
                     ctx.sema.diagnostics.emit(diagnostic)
                 }
                 return driver.helpers.bindAndReturnErrorType(id, sema: sema)
