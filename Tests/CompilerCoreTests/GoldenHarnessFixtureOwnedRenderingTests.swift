@@ -165,7 +165,13 @@ struct GoldenHarnessFixtureOwnedRenderingTests {
         // inside external references.
         #expect(dump.contains("targs=[sample.Marker]"))
         #expect(dump.contains("targs=[Int]"))
-        #expect(dump.contains("type=kotlin.collections.List<out sample.Marker>"))
+        // `listOf(Marker(7))` infers `List<Marker>` — the public Kotlin
+        // spelling carries no `out` (declaration-site variance is implicit).
+        // Bare listOf results render the same way in the committed corpus
+        // (e.g. `List<Int>` in stdlib_kotlin_collections_Iterable_flatten);
+        // `List<out …>` only appears for real projections such as star
+        // expansion or a covariant-coercion context.
+        #expect(dump.contains("type=kotlin.collections.List<sample.Marker>"))
         // The fixture enum object appearing as a type argument of a library
         // callee keeps its own `symbol` row.
         #expect(dump.contains("call=kotlin.Enum.equals["))
