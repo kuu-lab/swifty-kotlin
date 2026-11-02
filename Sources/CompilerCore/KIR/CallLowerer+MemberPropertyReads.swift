@@ -1352,6 +1352,9 @@ extension CallLowerer {
         instructions.append(.jump(endLabel))
         instructions.append(.label(parameterLabel))
         instructions.append(.call(callee: interner.intern("__kk_kparameter_get_annotations_typed"),
+                                  arguments: [loweredReceiverID], result: result,
+                                  canThrow: true))
+        instructions.append(.jump(endLabel))
         instructions.append(.label(typeLabel))
         instructions.append(.call(callee: interner.intern("__kk_ktype_get_annotations_typed"),
                                   arguments: [loweredReceiverID], result: result,
