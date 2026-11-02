@@ -62,16 +62,23 @@ struct ReifiedKClassCaptureTests {
         try runToKIR(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let module = try #require(ctx.kir)
+        // KUU-4018: reified `T::class` lowers to `__kk_kclass_create_array` —
+        // the captured component descriptor feeds
+        // `__kk_array_component_element`, which yields 0 for non-array T and
+        // the element descriptor when T resolves to `Array<E>`.
         let lambda = try #require(findAllKIRFunctions(in: module).first { function in
             let calls = kirCalls(in: function.body)
             return calls.contains { ctx.interner.resolve($0.callee) == "__kk_pair_first" }
-                && calls.contains { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) }
+                && calls.contains { $0.callee == KIRRuntimeFunction.kClassCreateArray.name(in: ctx.interner) }
         })
         let calls = kirCalls(in: lambda.body)
         let restore = try #require(calls.first { ctx.interner.resolve($0.callee) == "__kk_pair_first" })
-        let create = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) })
+        let create = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassCreateArray.name(in: ctx.interner) })
         let capturedToken = try #require(restore.result)
         #expect(create.arguments.first == capturedToken)
+        #expect(calls.contains {
+            $0.callee == KIRRuntimeFunction.arrayComponentElement.name(in: ctx.interner)
+        })
     }
 }
 #endif

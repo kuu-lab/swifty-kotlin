@@ -17,6 +17,7 @@ public extension RuntimeABISpec {
         abi.th("__kk_type_token_simple_name", "typeToken nameHint"),
         abi.th("__kk_type_token_qualified_name", "typeToken nameHint"),
         abi.nt("__kk_kclass_create", "typeToken nameHint"),
+        abi.nt("__kk_kclass_create_array", "typeToken nameHint component"),
         abi.nt("__kk_kclass_of", "value fallbackToken nameHint"),
         abi.th("__kk_kclass_simple_name", "kclassRaw"),
         abi.th("__kk_kclass_qualified_name", "kclassRaw"),

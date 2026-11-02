@@ -568,6 +568,7 @@ enum WasmRuntimeHelpers {
         "$__kk_wasm_token_record",
         "$__kk_wasm_reglist_add",
         "__kk_kclass_create",
+        "__kk_kclass_create_array",
         "kk_typeof",
         "__kk_ktype_create",
         "__kk_ktypeprojection_create",
@@ -673,6 +674,7 @@ enum WasmRuntimeHelpers {
         // Array component-tag intrinsics: component identity is a pass-through
         // on wasm until reflection needs the installed tag.
         "__kk_array_component_type",
+        "__kk_array_component_element",
         "__kk_array_tag_component",
         // Function-value ABI: create/invoke plus the unbox accessors and
         // arity/description metadata calls the lambda lowering emits.
@@ -1344,6 +1346,10 @@ enum WasmRuntimeHelpers {
         case "__kk_kclass_create":
             extraLocals = 2
             emitKClassCreateBody(&code, ctx: ctx)
+        case "__kk_kclass_create_array":
+            // Three value params; scratch locals start at index 3.
+            extraLocals = 2
+            emitKClassCreateBody(&code, ctx: ctx, recordLocal: 3, kclassLocal: 4)
         case "kk_typeof":
             extraLocals = 2
             emitKTypeOfBody(&code, ctx: ctx)
@@ -1898,6 +1904,12 @@ enum WasmRuntimeHelpers {
             // by wasm iteration and arrays carry no installable tag slot yet.
             extraLocals = 0
             code.localGet(0)
+        case "__kk_array_component_element":
+            // Component descriptors are pass-throughs on wasm (see
+            // __kk_array_component_type), so there is no element slot to
+            // recover — 0 falls back to the erased classifier box.
+            extraLocals = 0
+            code.i64Const(0)
         case let name where name.hasPrefix("kk_function_create_"):
             guard let arity = Int(name.dropFirst("kk_function_create_".count)),
                   (0...6).contains(arity)
@@ -8584,13 +8596,18 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
     }
 
-    /// `__kk_kclass_create(token, name) -> kclass`: cached per-token in
-    /// `record.s0`; creates `{token@16, name@24, regHead@80}` on a miss.
+    /// `__kk_kclass_create(token, name) -> kclass` and
+    /// `__kk_kclass_create_array(token, name, component) -> kclass`: cached
+    /// per-token in `record.s0`; creates `{token@16, name@24, regHead@80}` on
+    /// a miss. The array-component argument is unused — wasm component
+    /// descriptors are pass-through stubs, so array class literals keep the
+    /// erased `kotlin.Array` identity here.
     private static func emitKClassCreateBody(
         _ code: inout WasmCode,
-        ctx: WasmModuleContext
+        ctx: WasmModuleContext,
+        recordLocal recL: Int = 2,
+        kclassLocal kL: Int = 3
     ) {
-        let recL = 2, kL = 3
         code.localGet(0)
         code.call(ctx.emittedHelperIndex(for: "$__kk_wasm_token_record", argumentCount: 1))
         code.localSet(recL)

@@ -108,6 +108,27 @@ public func __kk_array_component_type(_ classifier: Int, _ element: Int) -> Int 
     runtimeArrayComponentTypes.intern(classifier: classifier, element: element)
 }
 
+/// Whether `id` names a live interned component descriptor.
+func runtimeArrayComponentDescriptorIsValid(_ id: Int) -> Bool {
+    runtimeArrayComponentTypes.descriptor(id) != nil
+}
+
+/// `T::class` on a reified type parameter is passed the component descriptor
+/// of T itself. When T resolves to `Array<E>` the KClass identity is E's
+/// descriptor — the descriptor's element slot — so `T::class` and
+/// `Array<E>::class` intern to the same box. A non-array T carries no element
+/// identity: return 0 so the caller falls back to the erased classifier box.
+@_cdecl("__kk_array_component_element")
+public func __kk_array_component_element(_ component: Int) -> Int {
+    guard let descriptor = runtimeArrayComponentTypes.descriptor(component) else { return 0 }
+    let token = Int64(truncatingIfNeeded: descriptor.classifier)
+    guard token & RuntimeTypeTokenEncoding.baseMask == RuntimeTypeTokenEncoding.nominalBase,
+          (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
+            == runtimeStableNominalTypeID(fqName: "kotlin.Array")
+    else { return 0 }
+    return descriptor.element
+}
+
 /// Set at allocation, never widened by casts or a less precise return type.
 /// Untagged runtime arrays cannot acquire a component by reflection invocation.
 @_cdecl("__kk_array_tag_component")

@@ -26,7 +26,11 @@ struct StandaloneClassReferenceTests {
         })
     }
 
-    @Test func testStandaloneReifiedClassRefEmitsKClassCreate() throws {
+    /// KUU-4018: `T::class` inside a reified function lowers to
+    /// `__kk_kclass_create_array` — the captured component descriptor flows
+    /// through `__kk_array_component_element`, yielding the erased box for
+    /// non-array T and the `Array<E>` box when T is an array type.
+    @Test func testStandaloneReifiedClassRefEmitsKClassCreateArray() throws {
         let source = """
         inline fun <reified T> classOf(): Any = T::class
         fun main() {
@@ -41,8 +45,8 @@ struct StandaloneClassReferenceTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let calls = kirCalls(in: body)
         #expect(
-            calls.contains { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) },
-            "Expected __kk_kclass_create for standalone T::class after inline expansion, got: \(calls)"
+            calls.contains { $0.callee == KIRRuntimeFunction.kClassCreateArray.name(in: ctx.interner) },
+            "Expected __kk_kclass_create_array for standalone T::class after inline expansion, got: \(calls)"
         )
     }
 
@@ -69,11 +73,85 @@ struct StandaloneClassReferenceTests {
 
     /// `T::class.simpleName` (chained) after inline expansion.
     ///
+    /// KUU-4018: a reference-array class literal carries its element
+    /// descriptor into `__kk_kclass_create_array` so `Array<Int>::class`
+    /// and `Array<String>::class` intern to different boxes while keeping
+    /// the `kotlin.Array` nominal token.
+    @Test func testReferenceArrayClassRefEmitsKClassCreateArray() throws {
+        let source = """
+        fun main() {
+            val kc = Array<Int>::class
+            println(kc)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let create = try #require(
+            kirCalls(to: .kClassCreateArray, in: body, interner: ctx.interner).first,
+            "Expected __kk_kclass_create_array for Array<Int>::class"
+        )
+        #expect(create.arguments.count == 3)
+        let componentCalls = kirCalls(to: .arrayComponentType, in: body, interner: ctx.interner)
+        #expect(
+            componentCalls.contains { $0.result == create.arguments.last },
+            "The third argument should be the element descriptor built by __kk_array_component_type, got: \(componentCalls)"
+        )
+    }
+
+    /// KUU-4018: primitive arrays stay nominal — `IntArray::class` has no
+    /// element identity, so it keeps the plain `__kk_kclass_create` path.
+    @Test func testPrimitiveArrayClassRefStillEmitsKClassCreate() throws {
+        for typeName in ["IntArray", "LongArray", "BooleanArray", "DoubleArray"] {
+            let source = """
+            fun main() {
+                val kc = \(typeName)::class
+                println(kc)
+            }
+            """
+            let ctx = makeContextFromSource(source)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            #expect(
+                kirCalls(in: body).contains { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) },
+                Comment(rawValue: "Expected __kk_kclass_create for standalone \(typeName)::class")
+            )
+            #expect(
+                kirCalls(to: .kClassCreateArray, in: body, interner: ctx.interner).isEmpty,
+                Comment(rawValue: "\(typeName)::class must not carry a component descriptor")
+            )
+        }
+    }
+
+    /// KUU-4018: `Array<E>::class.simpleName` goes through the reflect-member
+    /// lowering, which must also emit `__kk_kclass_create_array` so the box
+    /// keeps its element identity.
+    @Test func testArrayClassRefMemberCallEmitsKClassCreateArray() throws {
+        let source = """
+        fun main() = println(Array<Int>::class.simpleName)
+        """
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        #expect(
+            !kirCalls(to: .kClassCreateArray, in: body, interner: ctx.interner).isEmpty,
+            "Expected __kk_kclass_create_array for Array<Int>::class.simpleName, got: \(kirCalls(in: body))"
+        )
+    }
+
     /// KSP-496 moved `simpleName` to an ordinary Kotlin extension property
     /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so
-    /// `T::class` now always creates the KClass box (`__kk_kclass_create`)
-    /// before dispatching to the `simpleName` getter — there is no longer a
-    /// "direct path" that skips box creation for this member.
+    /// `T::class` now always creates the KClass box before dispatching to the
+    /// `simpleName` getter — there is no longer a "direct path" that skips
+    /// box creation for this member. KUU-4018 routes reified `T::class`
+    /// through `__kk_kclass_create_array` (the element descriptor is 0 for
+    /// non-array T, so `classOf<Int>` still interns the `Int` box).
     @Test func testChainedClassRefSimpleNameUsesDirectPath() throws {
         let source = """
         inline fun <reified T> typeNameOf(): String = T::class.simpleName ?: "unknown"
@@ -91,8 +169,8 @@ struct StandaloneClassReferenceTests {
             "Chained T::class.simpleName should resolve to the Kotlin simpleName getter, got: \(calls)"
         )
         #expect(
-            calls.contains { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) },
-            "Chained T::class.simpleName should emit __kk_kclass_create (box creation, then dispatch to the simpleName getter), got: \(calls)"
+            calls.contains { $0.callee == KIRRuntimeFunction.kClassCreateArray.name(in: ctx.interner) },
+            "Chained T::class.simpleName should emit __kk_kclass_create_array (box creation, then dispatch to the simpleName getter), got: \(calls)"
         )
     }
 

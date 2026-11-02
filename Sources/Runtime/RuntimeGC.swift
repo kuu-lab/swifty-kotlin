@@ -240,6 +240,12 @@ struct FrameMapDescriptorC {
 struct KClassCacheKey: Hashable {
     let typeToken: Int
     let ambiguousNameHint: String?
+    /// KUU-4018: JVM array Class objects are reified per component type
+    /// (`Integer[].class != String[].class`). `Array<E>::class` keys on the
+    /// interned `RuntimeArrayComponentType` descriptor id of E here; 0 for
+    /// every non-array classifier and for erased/unknown element identity,
+    /// which keeps the plain `__kk_kclass_create` interning behaviour.
+    let arrayComponent: Int
 }
 
 /// A Java Class handle is canonical per Kotlin classifier, except for runtime
