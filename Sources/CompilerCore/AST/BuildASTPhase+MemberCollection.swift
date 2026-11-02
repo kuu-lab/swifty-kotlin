@@ -56,6 +56,11 @@ extension BuildASTPhase {
                 }
 
                 var constructorArgs: [CallArgument] = []
+                // The parser stores the `(...)` argument list as a `.statement`
+                // child and the anonymous class body as a `.block` child of the
+                // enum-entry node; their presence marks the written syntax even
+                // when they produce no arguments or members.
+                var hasConstructorCallSyntax = false
                 if let argsNodeID = arena.children(of: entryNodeID).compactMap({ child -> NodeID? in
                     guard case let .node(childID) = child,
                           arena.node(childID).kind == .statement
@@ -64,6 +69,7 @@ extension BuildASTPhase {
                     }
                     return childID
                 }).first {
+                    hasConstructorCallSyntax = true
                     let argsTokens = collectTokens(from: argsNodeID, in: arena)
                     let afterParen = skipBalancedBracket(
                         in: argsTokens, from: 0, open: .symbol(.lParen), close: .symbol(.rParen)
@@ -76,6 +82,12 @@ extension BuildASTPhase {
                         diagnostics: diagnostics
                     )
                     constructorArgs = parser.parseCallArguments()
+                }
+                let hasBody = arena.children(of: entryNodeID).contains { child in
+                    guard case let .node(childID) = child else {
+                        return false
+                    }
+                    return arena.node(childID).kind == .block
                 }
 
                 let members = declarationMemberDecls(
@@ -112,6 +124,8 @@ extension BuildASTPhase {
                     name: name,
                     annotations: annotations,
                     constructorArgs: constructorArgs,
+                    hasConstructorCallSyntax: hasConstructorCallSyntax,
+                    hasBody: hasBody,
                     initBlocks: declarationInitBlocks(
                         from: entryNodeID, in: arena, interner: interner, astArena: astArena
                     ),
@@ -221,7 +235,10 @@ extension BuildASTPhase {
             }
             let nameToken = segment[nameIndex]
             var constructorArgs: [CallArgument] = []
+            var hasConstructorCallSyntax = false
+            var bodySearchIndex = nameIndex
             if let parenIndex = segment[nameIndex...].dropFirst().firstIndex(where: { $0.kind == .symbol(.lParen) }) {
+                hasConstructorCallSyntax = true
                 let afterParen = skipBalancedBracket(in: segment, from: parenIndex, open: .symbol(.lParen), close: .symbol(.rParen))
                 let argTokens = Array(segment[(parenIndex + 1)..<afterParen])
                 let parser = ExpressionParser(
@@ -231,13 +248,20 @@ extension BuildASTPhase {
                     diagnostics: diagnostics
                 )
                 constructorArgs = parser.parseCallArguments()
+                bodySearchIndex = afterParen
             }
+            // A top-level `{` after the name (or its argument list) is the
+            // entry's anonymous class body — `A {}` counts even though it
+            // declares no members.
+            let hasBody = segment[bodySearchIndex...].contains { $0.kind == .symbol(.lBrace) }
             let end = segment.last?.range.end ?? nameToken.range.end
             entries.append(EnumEntryDecl(
                 range: SourceRange(start: nameToken.range.start, end: end),
                 name: name,
                 annotations: annotations,
-                constructorArgs: constructorArgs
+                constructorArgs: constructorArgs,
+                hasConstructorCallSyntax: hasConstructorCallSyntax,
+                hasBody: hasBody
             ))
         }
         return entries

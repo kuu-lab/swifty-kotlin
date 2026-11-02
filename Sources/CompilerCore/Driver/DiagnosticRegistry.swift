@@ -1323,6 +1323,28 @@ enum DiagnosticRegistry {
             summary: "delegation cannot be used in interfaces."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0456",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' class constructor cannot have a property parameter."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0457",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' classes cannot initialize supertypes."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0458",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' enum class cannot have a constructor."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0459",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' enum entry cannot have a body."
             code: "KSWIFTK-SEMA-0466",
             pass: "SEMA",
             defaultSeverity: .error,
@@ -1368,8 +1390,7 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-SEMA-0473",
             pass: "SEMA",
             defaultSeverity: .error,
-            summary: "Argument type mismatch."
-        ),
+            summary: "Argument type mismatch."        ),
     ]
 
 

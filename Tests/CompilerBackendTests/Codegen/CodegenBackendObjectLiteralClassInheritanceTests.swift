@@ -99,7 +99,8 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
         let expectSource = """
         package x
         interface Pool<T> { fun borrow(): T }
-        expect abstract class DP<T : Any>(val capacity: Int) : Pool<T> {
+        // Plain ctor param — kotlinc forbids `val`/`var` on expect ctors.
+        expect abstract class DP<T : Any>(capacity: Int) : Pool<T> {
             protected fun produce(): T
         }
         """
