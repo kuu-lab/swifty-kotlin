@@ -2,6 +2,27 @@
 
 // swiftlint:disable type_body_length
 extension CallTypeChecker {
+    /// A bare type parameter that is not lexically in scope is an enclosing
+    /// call's inference variable handed down as contextual evidence — for
+    /// example the vararg element `T` the inner call sees in
+    /// `arrayOf(arrayOf(1))`. Decomposition maps it through the callee's own
+    /// symbol table, where a same-named variable collapses into a vacuous
+    /// self-constraint and the KUU-3937 pin then binds it to the *symbol*,
+    /// leaking `typeParam` into the substitution (`Array<T>` degrading to
+    /// `Array<Any>`). A foreign variable carries no usable bound here, so the
+    /// call is checked without an expected type instead. Lexical parameters
+    /// (e.g. a recursive call's own `T`, or a class parameter like
+    /// `POS(element, element)` inside `class POS<E>`) keep their pin.
+    func dropForeignTypeParamExpectedType(_ expectedType: TypeID, ctx: TypeInferenceContext) -> TypeID? {
+        guard case let .typeParam(parameter) = ctx.sema.types.kind(of: expectedType),
+              parameter.capture == nil,
+              !driver.helpers.lexicalTypeParameterSymbols(in: ctx).contains(parameter.symbol)
+        else {
+            return expectedType
+        }
+        return nil
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func inferCallExpr(
         _ id: ExprID,
@@ -17,6 +38,11 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+
+        var expectedType = expectedType
+        if let expected = expectedType {
+            expectedType = dropForeignTypeParamExpectedType(expected, ctx: ctx)
+        }
 
         defer { recordFlowBuilderEmitAll(id, args: args, ctx: ctx) }
 

@@ -929,4 +929,100 @@ struct RuntimeKClassCastAndMembersTests {
         #expect(renderedIntFunctions.contains("fun kotlin.Int.equals(kotlin.Any?): kotlin.Boolean"))
         #expect(renderedIntFunctions.allSatisfy { !$0.hasPrefix("<object") })
     }
+
+    // MARK: - KUU-4018: array KClass component identity
+
+    /// The encoded nominal token of `kotlin.Array`, matching what
+    /// `Array<E>::class` passes to `__kk_kclass_create_array`.
+    private func kotlinArrayTypeToken() -> Int {
+        Int(
+            RuntimeTypeTokenEncoding.nominalBase
+                | (runtimeStableNominalTypeID(fqName: "kotlin.Array") << RuntimeTypeTokenEncoding.payloadShift)
+        )
+    }
+
+    /// A `kotlin.Array`-tagged runtime array carrying `component` as its
+    /// element descriptor (what `__kk_array_tag_component` installs at
+    /// allocation).
+    private func componentTaggedArray(component: Int) -> Int {
+        let array = kk_array_new(0)
+        runtimeRegisterArrayType(
+            rawValue: array, typeID: runtimeStableNominalTypeID(fqName: "kotlin.Array")
+        )
+        _ = __kk_array_tag_component(array, component)
+        return array
+    }
+
+    @Test func arrayKClassIdentityKeysOnComponentDescriptor() throws {
+        let arrayToken = kotlinArrayTypeToken()
+        let nameHint = runtimeMakeStringRaw("kotlin.Array")
+        let intComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.intBase), 0)
+        let stringComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+
+        let arrayOfInt = __kk_kclass_create_array(arrayToken, nameHint, intComponent)
+        #expect(__kk_kclass_create_array(arrayToken, nameHint, intComponent) == arrayOfInt)
+        #expect(__kk_kclass_create_array(arrayToken, nameHint, stringComponent) != arrayOfInt)
+        // An unknown/zero component degrades to the erased kotlin.Array box.
+        #expect(__kk_kclass_create_array(arrayToken, nameHint, 0) == __kk_kclass_create(arrayToken, nameHint))
+        #expect(__kk_kclass_create_array(arrayToken, nameHint, 0x7FFF_FFFE) == __kk_kclass_create(arrayToken, nameHint))
+        // Names stay nominal regardless of the element identity.
+        #expect(runtimeStringFromRaw(__kk_kclass_simple_name(arrayOfInt)) == "Array")
+        #expect(runtimeStringFromRaw(__kk_kclass_qualified_name(arrayOfInt)) == "kotlin.Array")
+    }
+
+    @Test func arrayKClassIsInstanceChecksComponentDescriptor() throws {
+        let arrayToken = kotlinArrayTypeToken()
+        let intComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.intBase), 0)
+        let anyComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.anyBase), 0)
+        let arrayOfInt = __kk_kclass_create_array(arrayToken, 0, intComponent)
+        let arrayOfAny = __kk_kclass_create_array(arrayToken, 0, anyComponent)
+
+        let ints = componentTaggedArray(component: intComponent)
+        let strings = componentTaggedArray(
+            component: __kk_array_component_type(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+        )
+
+        #expect(__kk_kclass_isInstance(arrayOfInt, ints) == 1)
+        #expect(__kk_kclass_isInstance(arrayOfInt, strings) == 0)
+        // JVM covariance: Integer[] is an Object[].
+        #expect(__kk_kclass_isInstance(arrayOfAny, ints) == 1)
+        var thrown = 0
+        #expect(__kk_kclass_cast(arrayOfInt, ints, &thrown) == ints)
+        #expect(__kk_kclass_safeCast(arrayOfInt, strings) == runtimeNullSentinelInt)
+        #expect(__kk_kclass_safeCast(arrayOfInt, ints) == ints)
+        // x::class on a tagged array interns to the component-keyed box.
+        #expect(__kk_kclass_of(ints, 0, 0) == arrayOfInt)
+
+        // Primitive arrays keep nominal identity and never satisfy a
+        // reference-array component check.
+        let intArrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.IntArray")
+        let intArray = kk_array_new(1)
+        runtimeRegisterArrayType(rawValue: intArray, typeID: intArrayTypeID)
+        let intArrayToken = Int(
+            RuntimeTypeTokenEncoding.nominalBase
+                | (intArrayTypeID << RuntimeTypeTokenEncoding.payloadShift)
+        )
+        #expect(__kk_kclass_of(intArray, 0, 0) == __kk_kclass_create(intArrayToken, 0))
+        #expect(__kk_kclass_isInstance(arrayOfInt, intArray) == 0)
+    }
+
+    /// `T::class` on a reified T is passed T's own component descriptor; when
+    /// T resolves to `Array<E>` the box must key on E's descriptor — the
+    /// descriptor's element slot — so `T::class` and `Array<E>::class` intern
+    /// to the same box.
+    @Test func arrayComponentElementUnwrapsArrayDescriptors() {
+        let intComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.intBase), 0)
+        let arrayOfIntDescriptor = __kk_array_component_type(kotlinArrayTypeToken(), intComponent)
+        #expect(__kk_array_component_element(arrayOfIntDescriptor) == intComponent)
+        // A non-array descriptor has no element identity to recover.
+        #expect(__kk_array_component_element(intComponent) == 0)
+        #expect(__kk_array_component_element(0) == 0)
+        let arrayToken = kotlinArrayTypeToken()
+        let arrayOfInt = __kk_kclass_create_array(arrayToken, 0, intComponent)
+        #expect(
+            __kk_kclass_create_array(
+                arrayToken, 0, __kk_array_component_element(arrayOfIntDescriptor)
+            ) == arrayOfInt
+        )
+    }
 }

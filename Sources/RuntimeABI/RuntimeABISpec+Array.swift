@@ -4,6 +4,7 @@ public extension RuntimeABISpec {
     static let arrayFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("__kk_array_new_same_component", "sourceRaw size"),
         abi.nt("__kk_array_component_type", "classifier element"),
+        abi.nt("__kk_array_component_element", "component"),
         abi.nt("__kk_array_tag_component", "arrayRaw component"),
         abi.nt("kk_array_new", "length"),
         abi.th("kk_array_new_checked", "length outThrown"),

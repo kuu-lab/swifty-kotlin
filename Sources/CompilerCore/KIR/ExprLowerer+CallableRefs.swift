@@ -71,9 +71,27 @@ extension ExprLowerer {
             let kClassFallback = sema.types.makeKClassType(argument: classRefTargetType)
             let result = arena.appendTemporary(type: boundType ?? kClassFallback
             )
+            // KUU-4018: `Array<E>::class` keys its KClass box on E's component
+            // descriptor (JVM per-component array Class identity). Bound
+            // `x::class` instead discovers the element from the value's
+            // tagged component inside `__kk_kclass_of`.
+            let arrayComponentExpr: KIRExprID?
+            if boundReceiver == nil {
+                arrayComponentExpr = driver.callLowerer.emitArrayKClassComponentExpr(
+                    classRefTargetType: classRefTargetType,
+                    sema: sema, arena: arena, interner: interner,
+                    instructions: &instructions
+                )
+            } else {
+                arrayComponentExpr = nil
+            }
+            let callee = boundReceiver == nil
+                ? (arrayComponentExpr == nil ? "__kk_kclass_create" : "__kk_kclass_create_array")
+                : "__kk_kclass_of"
             instructions.append(.call(
-                callee: interner.intern(boundReceiver == nil ? "__kk_kclass_create" : "__kk_kclass_of"),
-                arguments: (boundReceiver.map { [$0] } ?? []) + [tokenExpr, nameHintExpr],
+                callee: interner.intern(callee),
+                arguments: (boundReceiver.map { [$0] } ?? []) + [tokenExpr, nameHintExpr]
+                    + (arrayComponentExpr.map { [$0] } ?? []),
                 result: result,
                 canThrow: false
             ))

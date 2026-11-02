@@ -144,12 +144,22 @@ private func ensureBuiltinStringConstructor(_ kclassRaw: Int) {
 }
 
 
+/// `Array<E>` class literals carry an element descriptor (`box.arrayComponent`):
+/// `Integer[].class.isInstance(String[])` is false on the JVM even though both
+/// operands are `Array`, while covariance still accepts `Integer[]` for
+/// `Number[].class` — the same check `kk_array_op_cast` applies.
+private func runtimeKClassBoxedIsInstance(_ box: RuntimeKClassBox, _ valueRaw: Int) -> Bool {
+    guard kk_op_is(valueRaw, box.typeToken) != 0 else { return false }
+    guard box.arrayComponent != 0 else { return true }
+    return runtimeArrayHasAssignableComponent(rawValue: valueRaw, targetComponent: box.arrayComponent)
+}
+
 @_cdecl("__kk_kclass_isInstance")
 public func __kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return 0
     }
-    return kk_op_is(valueRaw, box.typeToken)
+    return runtimeKClassBoxedIsInstance(box, valueRaw) ? 1 : 0
 }
 
 /// Called during module initialization to attach compile-time member data.
@@ -560,8 +570,8 @@ public func __kk_kclass_cast(
         )
         return runtimeNullSentinelInt
     }
-    let isInstance = kk_op_is(valueRaw, box.typeToken)
-    if isInstance != 0 {
+    let isInstance = runtimeKClassBoxedIsInstance(box, valueRaw)
+    if isInstance {
         return valueRaw
     }
     let typeName: String
@@ -582,6 +592,6 @@ public func __kk_kclass_safeCast(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
     guard let box = runtimeKClassBox(from: kclassRaw) else {
         return runtimeNullSentinelInt
     }
-    let isInstance = kk_op_is(valueRaw, box.typeToken)
-    return isInstance != 0 ? valueRaw : runtimeNullSentinelInt
+    let isInstance = runtimeKClassBoxedIsInstance(box, valueRaw)
+    return isInstance ? valueRaw : runtimeNullSentinelInt
 }
