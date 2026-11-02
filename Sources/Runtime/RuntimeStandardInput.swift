@@ -89,6 +89,15 @@ func runtimePropagateInputStreamError(
     _ stream: RuntimeInputStreamBox,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) {
+    // Streams carrying a fully-typed throwable (e.g. SocketTimeoutException
+    // from socket reads) report it verbatim instead of a plain IOException.
+    if let carrier = stream as? RuntimeInputStreamThrowableCarrier {
+        let pending = carrier.pendingReadThrowable
+        if pending != 0 {
+            outThrown?.pointee = pending
+            return
+        }
+    }
     if let message = stream.readError {
         outThrown?.pointee = runtimeAllocateIOException(message: message)
     }
