@@ -183,8 +183,7 @@ extension CallTypeChecker {
                 // must not surface them unqualified — this package check
                 // subsumes the earlier findAnnotation-only special case.
                 let reflectFullPackage = knownNames.kotlinReflectFullPackage
-                if Array(symbol.fqName.dropLast()) == reflectFullPackage,
-                   !scopedCandidates.contains(candidate) {
+                if Array(symbol.fqName.dropLast()) == reflectFullPackage,                   !scopedCandidates.contains(candidate) {
                     guard let file = ctx.currentASTFile,
                           file.packageFQName == reflectFullPackage || file.imports.contains(where: { importDecl in
                               if importDecl.isWildcard { return importDecl.path == reflectFullPackage }
