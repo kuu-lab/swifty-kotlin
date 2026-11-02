@@ -567,9 +567,10 @@ extension DataFlowSemaPhase {
             return allowDeferredInferredActualTypes
                 && isDeferredInferredActualPropertyType(
                     actual,
-                    propertiesByRange: sourceDeclarations.propertiesByRange,                    symbols: symbols,
+                    propertiesByRange: sourceDeclarations.propertiesByRange,
+                    symbols: symbols,
                     types: types
-                ))
+                )
 
         case .class, .interface, .object, .enumClass, .annotationClass:
             let expectTPs = types.nominalTypeParameterSymbols(for: expect.id)
