@@ -433,8 +433,7 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
             ownerName: interfaceDecl.name,
-            ownerRange: interfaceDecl.range,
-            shared: shared
+            ownerRange: interfaceDecl.range,            shared: shared
         ))
         lowerNestedClassConstructors(
             nestedDecls: interfaceDecl.nestedClasses + ifaceNestedObjects,
@@ -498,6 +497,11 @@ extension KIRLoweringDriver {
         let globalID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: objectType)))
         declIDs.append(globalID)
 
+        declIDs.append(contentsOf: synthesizeMemberReflectionInitializer(
+            ownerSymbol: symbol,
+            sourceRange: objectDecl.range,
+            shared: shared
+        ))
         declIDs.append(contentsOf: synthesizeObjectInitializer(
             objectDecl,
             objectSymbol: symbol,

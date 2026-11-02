@@ -1506,8 +1506,7 @@ extension KIRLoweringDriver {
 
 
     /// Called from `synthesizeNominalReflectionInitializer` so that
-    /// `KClass.members` returns real handles rather than count-sized placeholders.
-    func emitMemberReflectionRegistration(
+    /// `KClass.members` returns real handles rather than count-sized placeholders.    func emitMemberReflectionRegistration(
         ownerSymbol: SymbolID,
         kclassExpr: KIRExprID,
         ast: ASTModule,
