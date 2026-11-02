@@ -1345,6 +1345,8 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "'expect' enum entry cannot have a body."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0466",
             pass: "SEMA",
             defaultSeverity: .error,
