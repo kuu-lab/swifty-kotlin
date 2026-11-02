@@ -25,7 +25,7 @@ public extension RuntimeABISpec {
         // an in-block resume on the continuation state so the suspend call
         // reports suspended instead of returning the delivered result.
         abi.th("kk_suspend_coroutine_orreturn", "blockRaw continuation outThrown"),
-        abi.nt("kk_coroutine_child_share_interception", "childContinuation callerContinuationRaw"),
+        abi.nt("kk_coroutine_child_share_interception", "childContinuation callerContinuationRaw", ret: .void),
         abi.th("kk_coroutine_call_suspend_wrapper", "entryPointRaw continuation outThrown"),
         abi.nt("kk_coroutine_continuation_factory", "contextRaw resumeWithRaw"),
         createCoroutineUninterceptedSpec,

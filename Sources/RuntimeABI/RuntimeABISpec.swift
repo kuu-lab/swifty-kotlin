@@ -124,6 +124,7 @@ public enum RuntimeABISpec {
         ioFileSystemFunctions,
         ioFunctions,
         jdbcFunctions,
+        javaNetFunctions,
         kFunctionFunctions,
         kParameterFunctions,
         kPropertyStubFunctions,

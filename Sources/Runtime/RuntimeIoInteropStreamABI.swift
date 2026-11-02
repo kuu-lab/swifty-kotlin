@@ -37,6 +37,18 @@ public func __kk_input_stream_read_range(
         return -1
     }
     if count == 0 { return 0 }
+    if let chunked = input as? RuntimeChunkedInputStream {
+        // A single underlying read: the caller receives whatever the stream
+        // currently yields, matching `InputStream.read(byte[])` semantics.
+        let chunk = chunked.readChunk(count)
+        for (index, value) in chunk.enumerated() {
+            let byte = Int(Int8(truncatingIfNeeded: value))
+            if let array { array[offset + index] = byte }
+            else { list?[offset + index] = byte }
+        }
+        runtimePropagateInputStreamError(input, outThrown)
+        return chunk.isEmpty ? -1 : chunk.count
+    }
     var copied = 0
     while copied < count {
         let value = input.readByte()
