@@ -69,13 +69,16 @@ bash Scripts/ktor_build.sh --module ktor_io  # 1モジュールだけ
   分岐（`Nothing` 型）を「初期化されなかった」として扱っていた。そうした分岐は正常終了しないので、
   初期化要件を空虚に満たすべき（`definite_assignment_terminating_branches.kt`）。
 
-## 既知のギャップ（このPRでは対応していない）
+## 既知のギャップ（計測時点で残っていた項目）
 
 advisor のレビューに基づき、範囲を絞るために意図的に見送った項目。それぞれ再現ケースで確認済み。
 
-1. **kotlinx.io / kotlinx.serialization / atomicfu の API 面** — `Buffer`/`Source`/`Sink`、
-   `atomic()`、`@Serializable` はバンドル stdlib に実装がなく、Ktor/kotlinx-io の大半のファイルが
-   これで止まる。バンドル stdlib への追加が必要で、単独の大きめの PR が必要。
+1. **kotlinx.io / atomicfu の API 面** — `Buffer`/`Source`/`Sink` と `atomic()` はバンドル stdlib に
+   実装がなく、Ktor/kotlinx-io の大半のファイルがこれで止まる。バンドル stdlib への追加が必要。
+   `kotlinx.serialization` は KUU-3919 で `@Serializable`、`KSerializer`、primitive encoding、
+   reflection `serializer()` のコンパイル面を追加する。serialization compiler plugin による
+   serializer 生成と runtime serializer lookup は引き続き未実装であり、この変更だけでは
+   serialization の実行をサポートしない。
 2. **kotlinx.coroutines の API 面** — `Job`/`Deferred`/`launch`/`Dispatchers` 等、フルの coroutines
    API はまだ synthetic レジストリの一部のみ。Ktor の非同期コードの大半がこれに依存する。
 3. **関数型を拡張レシーバに取る呼び出し規約** — `fun (() -> R).name()` はパースできるようになったが、
@@ -204,13 +207,13 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
   `Serializable`）が大半で、実ギャップは SEMA-INFER / TYPE-0001 / SEMA-0308 / SEMA-0104 など数件。
   coroutines 内部 API の `recoverStackTrace` / `isDispatchNeeded`（`CoroutineDispatcher` の
   open member および `kotlinx.coroutines.internal` のトップレベル関数）は KUU-3910 で
-  bundled coroutines に追加済み
-- ktor_http の 341 は `io.ktor.util.*` 未解決のカスケードが主因（ktor_utils.kklib が
+  bundled coroutines に追加済み- ktor_http の 341 は `io.ktor.util.*` 未解決のカスケードが主因（ktor_utils.kklib が
   未生成のため全 import が落ちる）。ktor_utils が通るまで実数はマスクされる
 
 ## まとめ
 
 pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
 0 errors を維持している。一方で ktor_utils / ktor_http の standalone コンパイルは
-依然失敗し、Ktor 全体をビルド可能にするにはさらに大きな作業（kotlinx.serialization /
-atomicfu / kotlinx.coroutines のAPI実装、ktor_utils の残存ギャップなど）が必要になる。
+依然失敗していた。上記の error 数は KUU-3919 の API 追加前の計測であり、再計測はまだ行っていない。
+Ktor 全体をビルド可能にするには atomicfu / kotlinx.coroutines の API 実装、serialization plugin と
+runtime lookup、ktor_utils の残存ギャップなどが引き続き必要になる。

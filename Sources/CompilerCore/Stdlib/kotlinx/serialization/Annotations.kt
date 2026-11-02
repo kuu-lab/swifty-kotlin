@@ -4,6 +4,15 @@
 
 package kotlinx.serialization
 
+import kotlin.reflect.KClass
+
+/** Marks a declaration for serialization metadata and optional custom serializer selection. */
+@MustBeDocumented
+@Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY, AnnotationTarget.TYPE)
+public annotation class Serializable(
+    val with: KClass<out KSerializer<*>> = KSerializer::class
+)
+
 @MustBeDocumented
 @Target(AnnotationTarget.PROPERTY, AnnotationTarget.CLASS)
 public annotation class SerialName(val value: String)
