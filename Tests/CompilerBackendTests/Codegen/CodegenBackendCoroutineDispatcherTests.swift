@@ -3,6 +3,56 @@ import Testing
 
 @Suite
 struct CodegenBackendCoroutineDispatcherTests {
+    @Test(arguments: [false, true])
+    func dispatcherNeedAndStackTraceRecoveryUseNativeSemantics(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try assertKotlinOutput("""
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.internal.isDispatchNeeded
+        import kotlinx.coroutines.internal.recoverStackTrace
+
+        private fun recover(exception: Throwable, continuation: Continuation<*>): Throwable =
+            recoverStackTrace(exception, continuation)
+
+        private fun dispatchNeeded(context: CoroutineContext): Boolean = isDispatchNeeded(context)
+
+        private class InlineDispatcher : CoroutineDispatcher() {
+            override fun isDispatchNeeded(context: CoroutineContext): Boolean = false
+        }
+
+        fun main() {
+            println(dispatchNeeded(EmptyCoroutineContext))
+            println(dispatchNeeded(Dispatchers.Default))
+            println(dispatchNeeded(Dispatchers.Unconfined))
+            println(dispatchNeeded(InlineDispatcher()))
+            println(Dispatchers.Default.isDispatchNeeded(EmptyCoroutineContext))
+            println(Dispatchers.Unconfined.isDispatchNeeded(EmptyCoroutineContext))
+            println(InlineDispatcher().isDispatchNeeded(EmptyCoroutineContext))
+            println(Dispatchers.Main.isDispatchNeeded(EmptyCoroutineContext))
+            println(Dispatchers.Main.immediate.isDispatchNeeded(EmptyCoroutineContext))
+            val exception = IllegalStateException("failure")
+            val continuation = Continuation<Unit>(EmptyCoroutineContext) {}
+            println(recover(exception, continuation) === exception)
+        }
+        """, moduleName: "CoroutineDispatcherNeedAndStackTraceRecovery",
+        expected: """
+        false
+        true
+        false
+        false
+        true
+        false
+        false
+        true
+        false
+        true
+
+        """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
+    }
+
     @Test(arguments: [(false, false), (false, true), (true, true)])
     func nestedWithContextPreservesCapturedResults(
         optimized: Bool,

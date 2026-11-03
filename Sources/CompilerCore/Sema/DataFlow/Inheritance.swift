@@ -218,10 +218,16 @@ extension DataFlowSemaPhase {
                     } == true
                     let checker = VisibilityChecker(
                         symbols: symbols,
+                        diagnostics: diagnostics,
                         interner: interner,
                         invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
                     )
-                    if !checker.isAccessible(imported, fromFile: fileID, enclosingClass: nil) {
+                    let usageRange = index < superTypeEntries.count
+                        ? superTypeEntries[index].range
+                        : symbols.symbol(symbol)?.declSite
+                    if !checker.isAccessible(
+                        imported, fromFile: fileID, enclosingClass: nil, usageRange: usageRange
+                    ) {
                         let name = imported.fqName.map { interner.resolve($0) }.joined(separator: ".")
                         diagnostics.error(
                             imported.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",

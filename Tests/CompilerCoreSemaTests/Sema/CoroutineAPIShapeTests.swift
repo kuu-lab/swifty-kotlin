@@ -6,6 +6,74 @@ import TestStdlibCache
 @Suite
 struct CoroutineAPIShapeTests {
     @Test
+    func internalCoroutineDispatchAndStackTraceHelpersResolve() throws {
+        let ctx = makeContextFromSource("""
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.*
+        import kotlinx.coroutines.internal.isDispatchNeeded
+        import kotlinx.coroutines.internal.recoverStackTrace
+
+        fun recover(exception: Throwable, continuation: Continuation<*>): Throwable =
+            recoverStackTrace(exception, continuation)
+
+        fun dispatchNeeded(context: CoroutineContext): Boolean = isDispatchNeeded(context)
+        fun dispatcherMethod(dispatcher: CoroutineDispatcher, context: CoroutineContext): Boolean =
+            dispatcher.isDispatchNeeded(context)
+        """, allowDefaultStdlibLibrary: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func localInvisibleSuppressionAllowsWildcardInternalCoroutineImport() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.internal.*
+
+        fun recover(exception: Throwable, continuation: Continuation<*>): Throwable = try {
+            @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+            recoverStackTrace(exception, continuation)
+        } catch (_: Throwable) {
+            exception
+        }
+        """, allowDefaultStdlibLibrary: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func localInvisibleSuppressionAllowsExplicitInternalCoroutineImport() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.internal.recoverStackTrace
+
+        fun recover(exception: Throwable, continuation: Continuation<*>): Throwable = try {
+            @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+            recoverStackTrace(exception, continuation)
+        } catch (_: Throwable) {
+            exception
+        }
+        """, allowDefaultStdlibLibrary: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func wildcardInternalCoroutineImportStillChecksUnsuppressedUse() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.internal.*
+
+        fun recover(exception: Throwable, continuation: Continuation<*>): Throwable =
+            recoverStackTrace(exception, continuation)
+        """, allowDefaultStdlibLibrary: false)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0044" },
+                "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func explicitJobImportResolvesFactoryAlongsideInterface() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.coroutines.Job
