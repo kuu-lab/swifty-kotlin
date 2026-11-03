@@ -24,8 +24,7 @@ struct NominalCallablePropertyTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let input = directory.appendingPathComponent("consumer.kt").path
         let output = directory.appendingPathComponent("consumer").path
-        try (diffCase("kt24209.kt") + "\nfun main() { print(box()) }\n")
-            .write(toFile: input, atomically: true, encoding: .utf8)
+        try diffCase("kt24209.kt").write(toFile: input, atomically: true, encoding: .utf8)
         try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
             moduleName: "Kt24209", inputs: [input], outputPath: output, emit: .executable,
             target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
@@ -33,7 +32,7 @@ struct NominalCallablePropertyTests {
         )))
         let execution = try CommandRunner.run(executable: output, arguments: [])
         #expect(execution.exitCode == 0, "\(execution.stderr)")
-        #expect(execution.stdout == "OK")
+        #expect(execution.stdout == "OK\n")
     }
 
     @Test(arguments: [false, true], [0, 2])
