@@ -46,22 +46,22 @@ Scripts/diff_cases/prepared_statement_complete.kt:57:5: error KSWIFTK-SEMA-0024:
 Scripts/diff_cases/prepared_statement_complete.kt:64:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.
     select.setBoolean(2, true)
     ^
-Scripts/diff_cases/prepared_statement_complete.kt:68:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:68:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(resultSet.getInt("id") == 1)
             ^
-Scripts/diff_cases/prepared_statement_complete.kt:69:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:69:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(resultSet.getString("name") == "Alice")
             ^
-Scripts/diff_cases/prepared_statement_complete.kt:70:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:70:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(resultSet.getInt("age") == 25)
             ^
-Scripts/diff_cases/prepared_statement_complete.kt:71:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:71:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(resultSet.getDouble("score") == 95.5)
             ^
 Scripts/diff_cases/prepared_statement_complete.kt:72:13: error KSWIFTK-SEMA-0024: Unresolved member function 'getBoolean'.
     println(resultSet.getBoolean("active"))
             ^
-Scripts/diff_cases/prepared_statement_complete.kt:73:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:73:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(resultSet.getString("created_at") == "2023-01-01")
             ^
 Scripts/diff_cases/prepared_statement_complete.kt:81:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setString'.
@@ -112,7 +112,7 @@ Scripts/diff_cases/prepared_statement_complete.kt:105:24: error KSWIFTK-SEMA-002
 Scripts/diff_cases/prepared_statement_complete.kt:106:13: error KSWIFTK-SEMA-0309: function invocation 'size()' expected.
     println(batchResults.size == 3)
             ^
-Scripts/diff_cases/prepared_statement_complete.kt:107:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:107:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(batchResults.all { it == 1 }) // All should return 1 (1 row affected)
             ^
 Scripts/diff_cases/prepared_statement_complete.kt:107:32: error KSWIFTK-SEMA-0022: Unresolved reference 'it'.
@@ -136,13 +136,13 @@ Scripts/diff_cases/prepared_statement_complete.kt:116:13: error KSWIFTK-SEMA-030
 Scripts/diff_cases/prepared_statement_complete.kt:119:22: error KSWIFTK-SEMA-0024: Unresolved member function 'getParameterCount'.
     val paramCount = batchInsert.getParameterCount()
                      ^
-Scripts/diff_cases/prepared_statement_complete.kt:145:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:145:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
     println(countResult.getInt("total") >= 8) // Should have at least 8 rows
             ^
-Scripts/diff_cases/prepared_statement_complete.kt:158:19: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:158:19: error KSWIFTK-SEMA-0473: Argument type mismatch.
         val age = typeResult.getInt("age")
                   ^
-Scripts/diff_cases/prepared_statement_complete.kt:159:21: error KSWIFTK-SEMA-0002: No viable overload found for call.
+Scripts/diff_cases/prepared_statement_complete.kt:159:21: error KSWIFTK-SEMA-0473: Argument type mismatch.
         val score = typeResult.getDouble("score")
                     ^
 Scripts/diff_cases/prepared_statement_complete.kt:169:5: error KSWIFTK-SEMA-0024: Unresolved member function 'setBoolean'.

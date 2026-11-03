@@ -618,7 +618,7 @@ struct ArrayOfTypeSafetyTests {
 
             do {
 
-                assertHasDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
 
             }
 
