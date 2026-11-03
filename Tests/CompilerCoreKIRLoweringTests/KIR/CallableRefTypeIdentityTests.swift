@@ -189,8 +189,8 @@ struct CallableRefTypeIdentityTests {
         #expect(!kirCalls(to: .callableName, in: body, interner: ctx.interner).isEmpty)
         let boxedValues = Set(kirFunctionCreationCalls(in: body, interner: ctx.interner).compactMap(\.result))
         #expect(!boxedValues.isEmpty)
-        #expect(kirCalls(to: .functionCopyDescription, in: body, interner: ctx.interner).contains {
-            $0.arguments.count == 2 && boxedValues.contains($0.arguments[1])
+        #expect(kirCalls(to: .functionSetDescription, in: body, interner: ctx.interner).contains {
+            $0.arguments.count == 3 && boxedValues.contains($0.arguments[0])
         })
     }
 
