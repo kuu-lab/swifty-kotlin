@@ -185,7 +185,9 @@ def main():
         for name,target,suite,limit,expected_methods in stages:
             terminal['current_stage']=name
             (output/'terminal.json').write_text(json.dumps(terminal,indent=2)+'\n')
-            pattern=f'^{re.escape(target)}\\.{re.escape(suite)}/'
+            methods_pattern='|'.join(re.escape(method) for method in expected_methods)
+            pattern=(f'^{re.escape(target)}\\.{re.escape(suite)}/'
+                     f'(?:{methods_pattern})(?:\\(|$)')
             execute(['bash','Scripts/swift_test.sh','--no-parallel','-j','4','--filter',pattern],limit,output/name,root)
             log=(output/(name+'.stdout')).read_text(errors='replace')+(output/(name+'.stderr')).read_text(errors='replace')
             if suite not in log:raise RuntimeError(f'{name}: selected suite missing')
