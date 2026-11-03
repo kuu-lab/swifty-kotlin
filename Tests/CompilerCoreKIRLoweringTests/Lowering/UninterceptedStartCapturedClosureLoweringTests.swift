@@ -73,10 +73,12 @@ struct UninterceptedStartCapturedClosureLoweringTests {
     }
 
     @Test
-    func testNonCapturingLambdaKeepsBareEntryPoint() throws {
+    func testNonCapturingSuspendFunctionValueThreadsClosureEnvironment() throws {
         let callees = try mainCallees(for: program(capturing: false, call: "startCoroutineUninterceptedOrReturn"))
         #expect(callees.contains(LoweringTestRuntime.name("start_coroutine_unintercepted_or_return")))
-        #expect(!callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
+        // Suspend function values use an adapter whose first launcher slot is
+        // the closure object, even when the lambda has no user captures.
+        #expect(callees.contains(LoweringTestRuntime.name("coroutine_launcher_arg_set")))
     }
 }
 #endif
