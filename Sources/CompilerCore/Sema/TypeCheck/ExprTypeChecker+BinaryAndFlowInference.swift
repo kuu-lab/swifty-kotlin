@@ -1532,6 +1532,12 @@ extension ExprTypeChecker {
         guard isPrimitiveOperand(lhs) || isPrimitiveOperand(rhs) else { return false }
         let nonNullLhs = sema.types.makeNonNullable(lhs)
         let nonNullRhs = sema.types.makeNonNullable(rhs)
+        if case .typeParam = sema.types.kind(of: nonNullLhs) {
+            return false
+        }
+        if case .typeParam = sema.types.kind(of: nonNullRhs) {
+            return false
+        }
         return !sema.types.isSubtype(nonNullLhs, nonNullRhs)
             && !sema.types.isSubtype(nonNullRhs, nonNullLhs)
     }
