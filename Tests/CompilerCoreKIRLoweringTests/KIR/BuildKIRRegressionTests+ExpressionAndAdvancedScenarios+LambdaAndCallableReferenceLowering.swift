@@ -33,8 +33,23 @@ extension BuildKIRRegressionTests {
             else { return nil }
             return arguments.first
         }
+        var copySources: [KIRExprID: KIRExprID] = [:]
+        for instruction in body {
+            if case let .copy(from, to) = instruction {
+                copySources[to] = from
+            }
+        }
+        func resolvesToBoxedValue(_ expression: KIRExprID) -> Bool {
+            var current = expression
+            var visited: Set<KIRExprID> = []
+            while visited.insert(current).inserted, let source = copySources[current] {
+                current = source
+            }
+            return boxedValues.contains(current)
+        }
         #expect(widenArguments.count == 2)
-        #expect(widenArguments.allSatisfy(boxedValues.contains))
+        // A local function value can pass through a KIR copy after its box is created.
+        #expect(widenArguments.allSatisfy(resolvesToBoxedValue))
     }
 
     @Test func testBuildKIRInfersGenericNominalFunctionArguments() throws {
