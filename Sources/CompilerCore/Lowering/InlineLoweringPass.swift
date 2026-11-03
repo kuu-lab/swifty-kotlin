@@ -111,14 +111,6 @@ final class InlineLoweringPass: LoweringPass {
             }
         })
         let unitType = ctx.sema?.types.unitType
-        functionInvokeCallees = Set([
-            "kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2",
-            "kk_function_invoke_3", "kk_function_invoke_4",
-            "kk_suspend_function_invoke", "kk_suspend_function_invoke_0",
-            "kk_suspend_function_invoke_2", "kk_suspend_function_invoke_3",
-            "kk_suspend_function_invoke_4", "kk_suspend_function_invoke_5",
-            "kk_suspend_function_invoke_6",
-        ].map { ctx.interner.intern($0) })
         _ = stats.takeSplit()
         let index = InlineExpansionIndex(
             module: module,
