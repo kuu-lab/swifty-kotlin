@@ -189,8 +189,8 @@ struct CallableRefTypeIdentityTests {
         #expect(!kirCalls(to: .callableName, in: body, interner: ctx.interner).isEmpty)
         let boxedValues = Set(kirFunctionCreationCalls(in: body, interner: ctx.interner).compactMap(\.result))
         #expect(!boxedValues.isEmpty)
-        #expect(kirCalls(to: .functionCopyDescription, in: body, interner: ctx.interner).contains {
-            $0.arguments.count == 2 && boxedValues.contains($0.arguments[1])
+        #expect(kirCalls(to: .functionSetDescription, in: body, interner: ctx.interner).contains {
+            $0.arguments.count == 3 && boxedValues.contains($0.arguments[0])
         })
     }
 
@@ -614,13 +614,13 @@ struct CallableRefTypeIdentityTests {
             },
             "Generic ::id should register KCallable metadata on the tagged value. Callees: \(callees)"
         )
-        // The stored copy must source its description+metadata from the
-        // tagged value, not from the untagged adapter function value.
+        // The function description must be set on the tagged value, not on
+        // the untagged adapter function value.
         #expect(
-            kirCalls(to: .functionCopyDescription, in: mainBody, interner: ctx.interner).contains {
+            kirCalls(to: .functionSetDescription, in: mainBody, interner: ctx.interner).contains {
                 $0.arguments.first == tagged
             },
-            "Generic ::id should copy description+metadata from the tagged value. Callees: \(callees)"
+            "Generic ::id should set its description on the tagged value. Callees: \(callees)"
         )
         #expect(
             kirCalls(to: .callableAdapterSetIdentity, in: mainBody, interner: ctx.interner).isEmpty,
