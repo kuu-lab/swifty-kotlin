@@ -367,7 +367,7 @@ struct TypeCheckScopeBuilder {
             }
         }
         let visibility = VisibilityChecker(
-            symbols: sema.symbols, sourceManager: sourceManager, interner: interner,
+            symbols: sema.symbols, sourceManager: sourceManager, diagnostics: diagnostics, interner: interner,
             invisibleAccessFiles: suppressesInvisibleAccess ? [file.fileID.rawValue] : []
         )
         // Bundled stdlib source contains platform-specific imports (for
@@ -376,6 +376,12 @@ struct TypeCheckScopeBuilder {
         let validatesImports = sourceManager?.origin(of: file.fileID)?.isBundledStdlib != true
         func isAccessibleWildcardSymbol(_ id: SymbolID) -> Bool {
             guard let symbol = sema.symbols.symbol(id) else { return false }
+            // Internal library declarations can be imported through a
+            // wildcard; visibility is checked at the use site so local
+            // @Suppress annotations can enable individual references.
+            if symbol.visibility == .internal {
+                return true
+            }
             return visibility.isAccessible(symbol, fromFile: file.fileID, enclosingClass: nil)
         }
         func validateExplicitImport(_ resolved: [SymbolID], range: SourceRange?) -> Bool {
@@ -405,6 +411,11 @@ struct TypeCheckScopeBuilder {
                let parent = sema.symbols.parentSymbol(for: inaccessible.id),
                let owner = sema.symbols.symbol(parent),
                owner.kind != .package {
+                return true
+            }
+            // Kotlin permits importing internal declarations; visibility is
+            // reported at each reference so local @Suppress annotations work.
+            if inaccessible.visibility == .internal {
                 return true
             }
             let code: String = switch inaccessible.visibility {

@@ -2,15 +2,23 @@
 struct VisibilityChecker {
     let symbols: SymbolTable
     let sourceManager: SourceManager?
+    let diagnostics: DiagnosticEngine?
     let interner: StringInterner
-    /// Files that opted into calling otherwise-invisible declarations via
-    /// `@file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")`, the same
-    /// escape hatch kotlin-stdlib uses to reach `@PublishedApi internal` API.
+    /// Files that opted into otherwise-invisible references through a file
+    /// annotation. Expression and declaration suppressions are checked against
+    /// `diagnostics` when the use site has a source range.
     let invisibleAccessFiles: Set<Int32>
 
-    init(symbols: SymbolTable, sourceManager: SourceManager? = nil, interner: StringInterner, invisibleAccessFiles: Set<Int32> = []) {
+    init(
+        symbols: SymbolTable,
+        sourceManager: SourceManager? = nil,
+        diagnostics: DiagnosticEngine? = nil,
+        interner: StringInterner,
+        invisibleAccessFiles: Set<Int32> = []
+    ) {
         self.symbols = symbols
         self.sourceManager = sourceManager
+        self.diagnostics = diagnostics
         self.interner = interner
         self.invisibleAccessFiles = invisibleAccessFiles
     }
@@ -18,7 +26,8 @@ struct VisibilityChecker {
     func isAccessible(
         _ symbol: SemanticSymbol,
         fromFile accessFileID: FileID,
-        enclosingClass: SymbolID?
+        enclosingClass: SymbolID?,
+        usageRange: SourceRange? = nil
     ) -> Bool {
         // Anonymous object types are local to their declaring file. Their
         // synthetic private owner chain must not make their public members
@@ -51,8 +60,12 @@ struct VisibilityChecker {
         case .public:
             return true
         case .internal:
+            let hasUsageSuppression = usageRange.map {
+                diagnostics?.isSuppressed(code: "KSWIFTK-SEMA-0044", range: $0) == true
+            } == true
             if symbol.flags.contains(.importedLibrary) {
                 return invisibleAccessFiles.contains(accessFileID.rawValue)
+                    || hasUsageSuppression
             }
             guard let sourceManager,
                   let declarationFileID = symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file,
@@ -62,6 +75,7 @@ struct VisibilityChecker {
             }
             return sourceManager.origin(of: accessFileID)?.isBundledStdlib == true
                 || invisibleAccessFiles.contains(accessFileID.rawValue)
+                || hasUsageSuppression
         case .private:
             if isLocalOrParameter(symbol.kind) {
                 return true

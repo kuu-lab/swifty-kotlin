@@ -630,6 +630,7 @@ extension StdlibArtifactRegressionTests {
     func testCoroutineInternalApisAndIsDispatchNeeded() throws {
         let artifactPath = try Self.buildStdlibArtifact()
         let source = """
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
         import kotlinx.coroutines.internal.recoverStackTrace
         import kotlinx.coroutines.internal.isDispatchNeeded
         import kotlinx.coroutines.Dispatchers

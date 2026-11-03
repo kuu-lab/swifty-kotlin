@@ -5,11 +5,9 @@ import kotlin.coroutines.ContinuationInterceptor
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 
-// KUU-3910: upstream kotlinx-coroutines declares these as `internal` in
-// `kotlinx.coroutines.internal`; bundled coroutines exposes them publicly
-// (like ScopeCoroutine in this package) because library sources such as
-// ktor-utils `StackTraceRecover.kt` import them with
-// `@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")`.
+// KUU-3910: preserve the upstream internal visibility. The compiler honors
+// `@Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")` at library use sites
+// such as ktor-utils `StackTraceRecover.kt`.
 
 /**
  * Upstream recovers a coroutine stack trace on JVM in debug mode and returns a
@@ -17,22 +15,23 @@ import kotlinx.coroutines.CoroutineDispatcher
  * throwable is returned unchanged — the same result upstream produces on
  * non-JVM targets and on a JVM without the debug agent.
  */
-public fun <E : Throwable> recoverStackTrace(exception: E, continuation: Continuation<*>): E = exception
+internal fun <E : Throwable> recoverStackTrace(exception: E, continuation: Continuation<*>): E = exception
 
 /** Single-argument upstream overload used at non-suspending await points. */
-public fun <E : Throwable> recoverStackTrace(exception: E): E = exception
+internal fun <E : Throwable> recoverStackTrace(exception: E): E = exception
 
 /** Upstream rethrows [exception] after stack recovery; identity + rethrow here. */
-public suspend inline fun recoverAndThrow(exception: Throwable): Nothing {
+internal suspend inline fun recoverAndThrow(exception: Throwable): Nothing {
     throw exception
 }
 
 /**
  * The opposite of [recoverStackTrace]. Upstream guarantees
  * `unwrap(recoverStackTrace(e)) === e`; with recovery being a no-op, unwrap is
- * the identity as well.
+ * the identity as well. It is published for inlined internal callers.
  */
-public fun <E : Throwable> unwrap(exception: E): E = exception
+@PublishedApi
+internal fun <E : Throwable> unwrap(exception: E): E = exception
 
 /**
  * Whether resuming a coroutine suspended in [context] must go through a
@@ -43,7 +42,7 @@ public fun <E : Throwable> unwrap(exception: E): E = exception
  * itself, and any other interceptor is treated conservatively as needing
  * interception.
  */
-public fun isDispatchNeeded(context: CoroutineContext): Boolean =
+internal fun isDispatchNeeded(context: CoroutineContext): Boolean =
     when (val interceptor = context[ContinuationInterceptor]) {
         null -> false
         is CoroutineDispatcher -> interceptor.isDispatchNeeded(context)

@@ -232,10 +232,13 @@ extension DataFlowSemaPhase {
                     let checker = VisibilityChecker(
                         symbols: symbols,
                         sourceManager: sourceManager,
+                        diagnostics: diagnostics,
                         interner: interner,
                         invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
                     )
-                    if !checker.isAccessible(resolved, fromFile: fileID, enclosingClass: nil) {
+                    if !checker.isAccessible(
+                        resolved, fromFile: fileID, enclosingClass: nil, usageRange: usageRange
+                    ) {
                         let label = resolved.visibility == .internal ? "internal" : "private"
                         diagnostics?.error(
                             resolved.visibility == .internal ? "KSWIFTK-SEMA-0044" : "KSWIFTK-SEMA-0040",

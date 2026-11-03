@@ -707,7 +707,8 @@ struct TypeInferenceContext: CustomStringConvertible {
 
     func filterByVisibility(
         _ candidates: [SymbolID],
-        protectedAccessReceiverType: TypeID? = nil
+        protectedAccessReceiverType: TypeID? = nil,
+        usageRange: SourceRange? = nil
     ) -> (visible: [SymbolID], invisible: [SemanticSymbol]) {
         var visible: [SymbolID] = []
         var invisible: [SemanticSymbol] = []
@@ -724,7 +725,7 @@ struct TypeInferenceContext: CustomStringConvertible {
                     || !hasNonHiddenCandidate
             else { continue }
             let accessibleInEnclosingClass = visibilityChecker.isAccessible(
-                symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol
+                symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol, usageRange: usageRange
             )
             let accessibleThroughEnclosingCompanion: Bool = {
                 guard !accessibleInEnclosingClass,
@@ -739,7 +740,7 @@ struct TypeInferenceContext: CustomStringConvertible {
                     return false
                 }
                 return visibilityChecker.isAccessible(
-                    symbol, fromFile: currentFileID, enclosingClass: companion
+                    symbol, fromFile: currentFileID, enclosingClass: companion, usageRange: usageRange
                 )
             }()
             if accessibleInEnclosingClass || accessibleThroughEnclosingCompanion {

@@ -401,6 +401,7 @@ final class TypeCheckDriver {
         let checker = VisibilityChecker(
             symbols: sema.symbols,
             sourceManager: sourceManager,
+            diagnostics: diagnostics,
             interner: interner,
             invisibleAccessFiles: invisibleAccessFiles
         )

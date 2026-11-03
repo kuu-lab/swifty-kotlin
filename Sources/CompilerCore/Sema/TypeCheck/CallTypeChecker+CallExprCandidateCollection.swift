@@ -87,7 +87,8 @@ extension CallTypeChecker {
             let dslFiltered = allCallCandidates.filter { !isScopeCandidateDslBlocked($0) }
             let (vis, invis) = ctx.filterByVisibility(
                 dslFiltered,
-                protectedAccessReceiverType: callImplicitReceiverType
+                protectedAccessReceiverType: callImplicitReceiverType,
+                usageRange: range
             )
             candidates = vis
             implicitReceiverScopeCandidates = vis
