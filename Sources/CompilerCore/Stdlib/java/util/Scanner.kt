@@ -38,6 +38,13 @@ public class Scanner : AutoCloseable {
         this.charset = java.nio.charset.Charset.forName(charsetName)
     }
 
+    /** Scanner reading text from `source` decoded with the supplied charset. */
+    public constructor(source: java.io.InputStream, charset: Charset) {
+        this.source = ""
+        this.stream = source
+        this.charset = charset
+    }
+
     /** Scanner reading all remaining text from `source`. */
     public constructor(source: java.io.Reader) {
         this.source = source.readText()
