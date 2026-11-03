@@ -137,6 +137,31 @@ extension BuildASTPhase.ExpressionParser {
         if let localDecl = parseLocalDeclFromSlice(group) {
             return localDecl
         }
+        if let first = group.first,
+           first.kind == .keyword(.val) || first.kind == .keyword(.var),
+           diagnostics?.checkpoint() != speculationCheckpoint
+        {
+            // Keep diagnostics from a malformed initializer in a declaration
+            // inside a lambda body. A declaration-shaped placeholder prevents
+            // the enclosing lambda probe from rolling the diagnostic back.
+            guard let nameToken = group.dropFirst().first(where: {
+                TypeRefParserCore.isDeclarationNameToken($0.kind)
+            }),
+               let name = tokenText(nameToken)
+            else {
+                undoFailedSpeculation()
+                return nil
+            }
+            return astArena.appendExpr(.localDecl(
+                name: name,
+                isMutable: first.kind == .keyword(.var),
+                typeAnnotation: nil,
+                initializer: nil,
+                isDelegated: false,
+                isLateinit: false,
+                range: SourceRange(start: first.range.start, end: group.last?.range.end ?? first.range.end)
+            ))
+        }
         undoFailedSpeculation()
         if let localAssign = parseLocalAssignFromSlice(group) {
             return localAssign
