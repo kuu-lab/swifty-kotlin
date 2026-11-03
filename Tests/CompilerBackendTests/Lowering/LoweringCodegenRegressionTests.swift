@@ -18,7 +18,7 @@ struct LoweringCodegenRegressionTests {
             return 42
         }
         fun main() {
-            println(runBlocking(delayedValue))
+            println(runBlocking { delayedValue() })
         }
         """
 
