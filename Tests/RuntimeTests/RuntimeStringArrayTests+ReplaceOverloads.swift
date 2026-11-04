@@ -1017,6 +1017,49 @@ extension RuntimeStringArrayTests {
         #expect(formatted == "42 2a")
     }
 
+    /// KUU-3985: JVM Formatter masks %x/%o to the boxed type's own width
+    /// (Byte -> 8 bits, Short -> 16 bits, Int -> 32 bits, Long -> 64 bits).
+    /// Byte/Short share RuntimeIntBox, so the mask must come from
+    /// `primitiveTypeBase`, not a flat 32-bit truncation.
+    @Test
+    func testStringFormatMasksHexAndOctalToBoxedIntegerWidth() {
+        let args = makeRuntimeArray([
+            kk_box_byte(-29),        // 1
+            kk_box_byte(-1),         // 2
+            kk_box_byte(Int(Int8.min)), // 3
+            kk_box_byte(0x7f),       // 4
+            kk_box_short(-1),        // 5
+            kk_box_short(-30000),    // 6
+            kk_box_short(Int(Int16.min)), // 7
+            kk_box_short(0x7fff),    // 8
+            kk_box_int(-29),         // 9
+            kk_box_long(-29),        // 10
+            kk_box_long(-1),         // 11
+        ])
+        let formatted = flatStringReturnValue(
+            "%1$x|%1$02x|%2$04x|%2$X|%2$08x|%2$#x|%2$o|%2$#o|%2$5x|%2$-8x!|%3$x|%3$o|%4$x|"
+                + "%5$x|%6$02x|%7$x|%5$04x|%5$08x|%5$o|%8$X|"
+                + "%9$x|%9$o|%10$x|%10$o|%11$016x",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "e3|e3|00ff|FF|000000ff|0xff|377|0377|   ff|ff      !|80|200|7f|"
+            + "ffff|8ad0|8000|ffff|0000ffff|177777|7FFF|"
+            + "ffffffe3|37777777743|ffffffffffffffe3|1777777777777777777743|ffffffffffffffff")
+    }
+
+    /// KUU-3985: %d keeps the sign-extended decimal value for Byte/Short.
+    @Test
+    func testStringFormatDecimalKeepsSignedByteShortValues() {
+        let args = makeRuntimeArray([
+            kk_box_byte(-29),
+            kk_box_byte(-56),
+            kk_box_short(-1),
+        ])
+        let formatted = flatStringReturnValue("%d|%05d|%d", intArg: args, using: __kk_string_format_flat)
+        #expect(formatted == "-29|-0056|-1")
+    }
+
     private func doubleFromRuntimeBits(_ raw: Int) -> Double {
         Double(bitPattern: UInt64(bitPattern: Int64(raw)))
     }
