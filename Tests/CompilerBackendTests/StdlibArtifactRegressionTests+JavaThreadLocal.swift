@@ -54,7 +54,7 @@ extension StdlibArtifactRegressionTests {
             for (source, code) in [
                 ("fun probe(local: ThreadLocal<String>) { local.initialValue() }", "KSWIFTK-SEMA-0041"),
                 ("class Local : ThreadLocal<String>() { override fun initialValue(): Int = 1 }", "KSWIFTK-SEMA-OVERRIDE-RETURN"),
-                ("class Local : ThreadLocal<String>() { private override fun initialValue(): String = null!! }", "KSWIFTK-SEMA-VISIBILITY"),
+                ("class Local : ThreadLocal<String>() { private override fun initialValue(): String = null!! }", "KSWIFTK-SEMA-0478"),
             ] {
                 try withTemporaryFile(contents: source) { path in
                     let ctx = makeCompilationContext(

@@ -1146,6 +1146,7 @@ extension DataFlowSemaPhase {
                 )
                 validateOverrideAccessorVisibility(
                     memberDecl: memberDecl,
+                    memberSymbol: memberSymbol,
                     ownerSymbol: symbol,
                     ctx: ctx
                 )
@@ -1305,6 +1306,7 @@ extension DataFlowSemaPhase {
     /// declarations (which likewise say `for 'accessor'`).
     private func validateOverrideAccessorVisibility(
         memberDecl: Decl,
+        memberSymbol: SymbolID,
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
@@ -1321,6 +1323,25 @@ extension DataFlowSemaPhase {
         ), let parentSym = ctx.symbols.symbol(parent.memberID) else {
             return
         }
+
+        // KUU-4152: a `var` with no setter modifier inherits its effective
+        // setter visibility — the property's own modifier when spelled,
+        // otherwise the overridden setter's. Persist it on the member symbol
+        // so use-site accessibility checks (and serialized metadata) see the
+        // visibility the declaration-side rule resolves, instead of the
+        // default-public accessor descriptor header collection produced.
+        if prop.isVar, prop.setter?.visibility == nil,
+           let effectiveSetterVisibility = implicitOverrideSetterVisibility(
+               propertyDecl: prop,
+               ownerSymbol: ownerSymbol,
+               declBySymbol: ctx.declBySymbol,
+               ast: ctx.ast,
+               symbols: ctx.symbols
+           )
+        {
+            ctx.symbols.setPropertySetterVisibility(effectiveSetterVisibility, for: memberSymbol)
+        }
+
         let baseOwnerName = ctx.interner.resolve(parent.ownerName)
         let baseIsMutable: Bool
         if let baseDeclID = ctx.declBySymbol[parent.memberID],
@@ -1345,7 +1366,9 @@ extension DataFlowSemaPhase {
                 of: parent.memberID,
                 isSetter: isSetter,
                 visited: [],
-                ctx: ctx
+                declBySymbol: ctx.declBySymbol,
+                ast: ctx.ast,
+                symbols: ctx.symbols
             ) else {
                 return
             }
@@ -1388,26 +1411,68 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KUU-4152: the visibility an `override` property's implicit setter
+    /// effectively carries — the property's own explicit modifier when
+    /// spelled, otherwise the visibility the overridden setter accessor
+    /// carries up the override chain. Returns nil when no overridden member
+    /// resolves, leaving the descriptor's default visibility in place.
+    /// Shared by the declaration-side check and by local/anonymous member
+    /// header collection, whose symbols are created before the deferred
+    /// body-nested override validation runs.
+    func implicitOverrideSetterVisibility(
+        propertyDecl prop: PropertyDecl,
+        ownerSymbol: SymbolID,
+        declBySymbol: [SymbolID: DeclID],
+        ast: ASTModule,
+        symbols: SymbolTable
+    ) -> Visibility? {
+        if let explicit = explicitVisibility(prop.modifiers) {
+            return explicit
+        }
+        guard let parent = findInheritedMember(
+            named: prop.name,
+            for: ownerSymbol,
+            symbols: symbols,
+            kind: .property
+        ) else {
+            return nil
+        }
+        return effectiveBaseAccessorVisibility(
+            of: parent.memberID,
+            isSetter: true,
+            visited: [],
+            declBySymbol: declBySymbol,
+            ast: ast,
+            symbols: symbols
+        )
+    }
+
     /// The visibility an accessor of `symbolID`'s property effectively
     /// carries: its own modifier when spelled, else the property's explicit
     /// modifier, else — for an `override` that repeats neither — the
     /// visibility inherited from the next base accessor up the override
-    /// chain. Imported or synthetic members have no source decl, so their
-    /// accessor shares the member's visibility.
+    /// chain. Members with no source decl (imported, synthetic) read the
+    /// accessor visibility their descriptor stored, defaulting to the
+    /// member's own visibility.
     private func effectiveBaseAccessorVisibility(
         of symbolID: SymbolID,
         isSetter: Bool,
         visited: Set<SymbolID>,
-        ctx: OpenFinalOverrideContext
+        declBySymbol: [SymbolID: DeclID],
+        ast: ASTModule,
+        symbols: SymbolTable
     ) -> Visibility? {
         guard !visited.contains(symbolID),
-              let symbol = ctx.symbols.symbol(symbolID)
+              let symbol = symbols.symbol(symbolID)
         else {
             return nil
         }
-        guard let declID = ctx.declBySymbol[symbolID],
-              case let .propertyDecl(prop) = ctx.ast.arena.decl(declID)
+        guard let declID = declBySymbol[symbolID],
+              case let .propertyDecl(prop) = ast.arena.decl(declID)
         else {
+            if isSetter {
+                return symbols.propertySetterVisibility(for: symbolID) ?? symbol.visibility
+            }
             return symbol.visibility
         }
         let accessor = isSetter ? prop.setter : prop.getter
@@ -1420,11 +1485,11 @@ extension DataFlowSemaPhase {
         guard prop.modifiers.contains(.override) else {
             return .public
         }
-        guard let ownerID = ctx.symbols.parentSymbol(for: symbolID),
+        guard let ownerID = symbols.parentSymbol(for: symbolID),
               let next = findInheritedMember(
                   named: prop.name,
                   for: ownerID,
-                  symbols: ctx.symbols,
+                  symbols: symbols,
                   kind: .property
               )
         else {
@@ -1434,7 +1499,9 @@ extension DataFlowSemaPhase {
             of: next.memberID,
             isSetter: isSetter,
             visited: visited.union([symbolID]),
-            ctx: ctx
+            declBySymbol: declBySymbol,
+            ast: ast,
+            symbols: symbols
         )
     }
 
@@ -2623,63 +2690,39 @@ extension DataFlowSemaPhase {
     ) {
         let parentVisibility = parentSymbol.visibility
 
-        // Enhanced visibility validation with Kotlin-specific rules
-
-        // Rule 1: Basic visibility hierarchy check
-        if !isVisibilityExpansionAllowed(child: childVisibility, parent: parentVisibility) {
-            // Kotlin permits narrowing to `internal` within the same module.
-            let sameModule = areSymbolsInSameModule(
-                childOwnerSymbol,
-                parentSymbol.id,
-                ctx: ctx
+        // KUU-4153: kotlinc's `Visibilities.compare` is a partial order —
+        // `private` is narrower than every visibility and `public` wider
+        // than every visibility, while `protected` and `internal` are
+        // unordered relative to each other. There is no exemption for
+        // `internal` narrowing inside the same module: a strictly narrower
+        // override reports `cannot weaken access privilege`
+        // (CANNOT_WEAKEN_ACCESS_PRIVILEGE) and an unordered pairing reports
+        // `cannot change access privilege` (CANNOT_CHANGE_ACCESS_PRIVILEGE),
+        // the same factories the accessor-level check emits, only naming
+        // the member itself rather than 'accessor'.
+        let violation: (code: String, verb: String)?
+        switch compareOverrideVisibilities(childVisibility, parentVisibility) {
+        case let order? where order < 0:
+            violation = (code: "KSWIFTK-SEMA-0478", verb: "weaken")
+        case nil:
+            violation = (code: "KSWIFTK-SEMA-0479", verb: "change")
+        default:
+            violation = nil
+        }
+        if let violation {
+            let name = ctx.interner.resolve(memberName)
+            let ownerName = resolveOwnerName(of: parentSymbol, ctx: ctx)
+            ctx.diagnostics.error(
+                violation.code,
+                "cannot \(violation.verb) access privilege \(visibilityToString(childVisibility)) for '\(name)' in '\(ownerName)'.",
+                range: memberRange
             )
-            let isSameModuleInternalNarrowing = sameModule
-                && childVisibility == .internal
-                && (parentVisibility == .public || parentVisibility == .protected)
-
-            if !isSameModuleInternalNarrowing {
-                let name = ctx.interner.resolve(memberName)
-                let ownerName = resolveOwnerName(of: parentSymbol, ctx: ctx)
-
-                if !sameModule,
-                   childVisibility == .internal,
-                   parentVisibility == .public || parentVisibility == .protected {
-                    ctx.diagnostics.error(
-                        "KSWIFTK-SEMA-VISIBILITY-MODULE",
-                        "'\(name)' cannot override '\(ownerName).\(name)' with internal visibility because the overridden member is declared in another module.",
-                        range: memberRange
-                    )
-                    return
-                }
-
-                let childVisStr = visibilityToString(childVisibility)
-                let parentVisStr = visibilityToString(parentVisibility)
-
-                ctx.diagnostics.error(
-                    "KSWIFTK-SEMA-VISIBILITY",
-                    "'\(name)' cannot override '\(ownerName).\(name)' because it has \(childVisStr) visibility, which is more restrictive than the \(parentVisStr) visibility of the overridden member.",
-                    range: memberRange
-                )
-                return
-            }
+            return
         }
 
-        // Rule 2: Special handling for interface members
-        if let ownerSym = ctx.symbols.symbol(ctx.symbols.parentSymbol(for: parentSymbol.id) ?? parentSymbol.id),
-           ownerSym.kind == .interface {
-            // Interface members are implicitly public, but can be implemented with broader visibility
-            if childVisibility == .private {
-                let name = ctx.interner.resolve(memberName)
-                let ownerName = ctx.interner.resolve(parentSymbol.name)
-                ctx.diagnostics.error(
-                    "KSWIFTK-SEMA-VISIBILITY",
-                    "'\(name)' cannot implement interface member '\(ownerName).\(name)' with private visibility. Interface implementations must be at least internal.",
-                    range: memberRange
-                )
-            }
-        }
-
-        // Rule 3: Module boundary visibility rules
+        // An `internal` member is not visible outside its module, so an
+        // override of a member declared `internal` elsewhere stays rejected
+        // regardless of the visibility the child spells.
         validateModuleBoundaryCompatibility(
             childVisibility: childVisibility,
             childOwnerSymbol: childOwnerSymbol,
@@ -2719,16 +2762,6 @@ extension DataFlowSemaPhase {
             )
             return
         }
-
-        if childVisibility == .internal,
-           parentVisibility == .public || parentVisibility == .protected {
-            let ownerName = resolveOwnerName(of: parentSymbol, ctx: ctx)
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-VISIBILITY-MODULE",
-                "'\(name)' cannot override '\(ownerName).\(name)' with internal visibility because the overridden member is declared in another module.",
-                range: memberRange
-            )
-        }
     }
 
     private func resolveOwnerName(of member: SemanticSymbol, ctx: OpenFinalOverrideContext) -> String {
@@ -2756,32 +2789,6 @@ extension DataFlowSemaPhase {
             current = ctx.symbols.parentSymbol(for: id)
         }
         return nil
-    }
-
-    private func areSymbolsInSameModule(
-        _ lhs: SymbolID,
-        _ rhs: SymbolID,
-        ctx: OpenFinalOverrideContext
-    ) -> Bool {
-        guard let lhsModule = resolveModuleFQN(for: lhs, ctx: ctx),
-              let rhsModule = resolveModuleFQN(for: rhs, ctx: ctx)
-        else {
-            return false
-        }
-        return lhsModule == rhsModule
-    }
-
-    private func isVisibilityExpansionAllowed(child: Visibility, parent: Visibility) -> Bool {
-        // Visibility hierarchy: private < protected < internal < public
-        // Child visibility must be >= parent visibility
-        let visibilityOrder: [Visibility] = [.private, .protected, .internal, .public]
-
-        guard let childIndex = visibilityOrder.firstIndex(of: child),
-              let parentIndex = visibilityOrder.firstIndex(of: parent) else {
-            return false
-        }
-
-        return childIndex >= parentIndex
     }
 
     private func validateMissingOverride(

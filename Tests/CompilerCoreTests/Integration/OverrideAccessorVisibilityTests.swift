@@ -287,5 +287,108 @@ import Testing
         #expect(!diagnostics.contains { $0.severity == .error },
                 "expected no errors in \(diagnostics)")
     }
+
+    /// KUU-4152: the implicit setter of an `override var` inherits the
+    /// overridden setter's visibility at *use sites* too, not just in the
+    /// declaration-side check. kotlinc reports `cannot access 'w': it is
+    /// protected in 'C'` for a write through the derived type.
+    @Test(arguments: [
+        // The ticket's minimal reproducer.
+        """
+        open class B { open var w: Int = 0
+            protected set }
+        class C : B() { override var w: Int = 1 }
+        fun write(c: C) { c.w = 5 }
+        """,
+        // The inherited visibility propagates down longer override chains.
+        """
+        open class A { open var w: Int = 0
+            protected set }
+        open class B : A() { override var w: Int = 1 }
+        class C : B() { override var w: Int = 2 }
+        fun write(c: C) { c.w = 5 }
+        """,
+        // A `private set` base propagates its own visibility.
+        """
+        open class B { open var w: Int = 0
+            private set }
+        open class M : B() { override var w: Int = 1 }
+        class C : M() { override var w: Int = 2 }
+        fun write(c: C) { c.w = 5 }
+        """,
+    ])
+    func testImplicitOverrideSetterInheritsBaseVisibilityAtUseSite(source: String) throws {
+        let diagnostics = try diagnose(source)
+        // 0041 is `protected`/`internal`; a `private` setter reports 0040.
+        #expect(diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0041" || $0.code == "KSWIFTK-SEMA-0040"
+        }, "expected a use-site access diagnostic in \(diagnostics)")
+    }
+
+    /// The same propagation must hold for body-nested declarations, whose
+    /// member symbols are bound during body inference — before the deferred
+    /// override validation could store the inherited visibility.
+    @Test(arguments: [
+        // Local class: the write is checked inside the same body.
+        """
+        open class B { open var w: Int = 0
+            protected set }
+        fun outer() {
+            class C : B() { override var w: Int = 1 }
+            val c = C()
+            c.w = 5
+        }
+        """,
+        // Anonymous object: the write happens through the object's member.
+        """
+        open class B { open var w: Int = 0
+            protected set }
+        val o = object : B() { override var w: Int = 1 }
+        fun write() { o.w = 5 }
+        """,
+    ])
+    func testBodyNestedImplicitOverrideSetterInheritsBaseVisibility(source: String) throws {
+        let diagnostics = try diagnose(source)
+        #expect(diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0041" || $0.code == "KSWIFTK-SEMA-0040"
+        }, "expected a use-site access diagnostic in \(diagnostics)")
+    }
+
+    /// Companion accept cases: reading stays public, a `protected` setter
+    /// remains writable inside a subclass, and an explicit `public` property
+    /// modifier widens the implicit setter so external writes stay legal —
+    /// all matching kotlinc.
+    @Test(arguments: [
+        // Reading uses the member visibility, which stays public.
+        """
+        open class B { open var w: Int = 0
+            protected set }
+        class C : B() { override var w: Int = 1 }
+        fun read(c: C): Int = c.w
+        """,
+        // `protected` is still accessible inside a subclass.
+        """
+        open class B { open var w: Int = 0
+            protected set }
+        open class C : B() { override var w: Int = 1 }
+        class D : C() { fun use() { w = 5 } }
+        """,
+        // An explicit property modifier overrides the inherited accessor
+        // visibility; widening `protected set` to `public` is legal.
+        """
+        open class B { open var w: Int = 0
+            protected set }
+        class C : B() { public override var w: Int = 1 }
+        fun write(c: C) { c.w = 5 }
+        """,
+    ])
+    func testImplicitOverrideSetterUseSiteAcceptCases(source: String) throws {
+        let diagnostics = try diagnose(source)
+        #expect(!diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0041"
+        }, "unexpected use-site access diagnostic in \(diagnostics)")
+        #expect(!diagnostics.contains { $0.severity == .error },
+                "expected no errors in \(diagnostics)")
+    }
 }
 #endif

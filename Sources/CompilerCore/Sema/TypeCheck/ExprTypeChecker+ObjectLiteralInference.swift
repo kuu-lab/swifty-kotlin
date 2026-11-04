@@ -649,6 +649,12 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var propertySymbolsByDecl: [DeclID: SymbolID] = [:]
+        // KUU-4152: body-nested writes to an `override` property's implicit
+        // setter are type-checked before the deferred override validation
+        // can publish the inherited setter visibility, so the effective
+        // visibility must be resolved as the member symbol is registered.
+        // The reverse map is only built when such a property exists.
+        var declBySymbolCache: [SymbolID: DeclID]?
         for propertyDeclID in memberProperties {
             guard let decl = ast.arena.decl(propertyDeclID),
                   case let .propertyDecl(propertyDecl) = decl
@@ -739,6 +745,23 @@ extension ExprTypeChecker {
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
             if let setterVisibility = propertyDecl.setter?.visibility {
                 sema.symbols.setPropertySetterVisibility(setterVisibility, for: propertySymbol)
+            } else if propertyDecl.isVar, propertyDecl.modifiers.contains(.override) {
+                // KUU-4152: the implicit setter's effective visibility is the
+                // property's own modifier, otherwise the overridden setter's.
+                if declBySymbolCache == nil {
+                    declBySymbolCache = Dictionary(
+                        uniqueKeysWithValues: sema.bindings.declSymbols.map { ($0.value, $0.key) }
+                    )
+                }
+                if let effective = DataFlowSemaPhase().implicitOverrideSetterVisibility(
+                    propertyDecl: propertyDecl,
+                    ownerSymbol: ownerSymbol,
+                    declBySymbol: declBySymbolCache ?? [:],
+                    ast: ast,
+                    symbols: sema.symbols
+                ) {
+                    sema.symbols.setPropertySetterVisibility(effective, for: propertySymbol)
+                }
             }
             if let receiver = propertyDecl.receiverType.map(resolvePropertyType) {
                 sema.symbols.insertFlags(.memberExtension, for: propertySymbol)

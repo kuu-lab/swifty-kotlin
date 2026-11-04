@@ -441,7 +441,7 @@ import TestStdlibCache
                 let sampleDiags = diagnosticsForPath(sample9Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0478", in: sampleDiags)
 
             }
             // testOverrideWithSameVisibility
@@ -451,7 +451,8 @@ import TestStdlibCache
                 let sampleDiags = diagnosticsForPath(sample10Path, in: ctx)
 
 
-                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0478", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0479", in: sampleDiags)
                         #expect(!sampleDiags.hasError)
 
             }
@@ -462,20 +463,21 @@ import TestStdlibCache
                 let sampleDiags = diagnosticsForPath(sample11Path, in: ctx)
 
 
-                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0478", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0479", in: sampleDiags)
                         #expect(!sampleDiags.hasError)
 
             }
             // testInternalOverrideOfPublicInSameModule
+            // KUU-4153: kotlinc rejects narrowing to `internal` even within
+            // the same module (CANNOT_WEAKEN_ACCESS_PRIVILEGE).
 
             do {
                 let sample12Path = paths[12]
                 let sampleDiags = diagnosticsForPath(sample12Path, in: ctx)
 
 
-                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
-                        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: sampleDiags)
-                        #expect(!sampleDiags.hasError)
+                        assertHasDiagnostic("KSWIFTK-SEMA-0478", in: sampleDiags)
 
             }
             // testOverrideWithCovariantReturnType
@@ -899,7 +901,10 @@ import TestStdlibCache
             compilationModuleName: ctx.options.moduleName
         )
 
-        assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
+        // KUU-4153: the partial-order check reports `internal` narrowing of a
+        // `public` member first — the same CANNOT_WEAKEN_ACCESS_PRIVILEGE
+        // factory kotlinc emits — before the module-boundary rule is reached.
+        assertHasDiagnostic("KSWIFTK-SEMA-0478", in: ctx)
     }
 
 
