@@ -57,9 +57,9 @@ struct EnumLubRangeCompanionTypingTests {
     }
 
     @Test
-    func lubDoesNotPickGenericSupertypeWhenTypeArgumentsDisagree() throws {
-        // Box<Int> and Box<String> share only `Any`; choosing `Box<Int>` for both would be unsound,
-        // so `get()` must not resolve on the element type.
+    func lubPicksCovariantProjectionWhenTypeArgumentsDisagree() throws {
+        // kotlinc joins `Box<Int>` and `Box<String>` as the covariant
+        // `Box<out Any>` (KUU-1997), so `get()` resolves on the element type.
         let errors = try semaErrors("""
         interface Box<T> { fun get(): T }
         class IntBox : Box<Int> { override fun get() = 1 }
@@ -67,6 +67,23 @@ struct EnumLubRangeCompanionTypingTests {
         fun probe() {
             val xs = listOf(IntBox(), StrBox())
             println(xs[0].get())
+        }
+        """)
+        #expect(errors.isEmpty, "\(errors)")
+    }
+
+    @Test
+    func lubCovariantProjectionDoesNotLeakInvariantTypeArgument() throws {
+        // Picking `Box<Int>` for the whole list would make `get()` return
+        // `Int`, which is unsound; the covariant join exposes only `Any`.
+        let errors = try semaErrors("""
+        interface Box<T> { fun get(): T }
+        class IntBox : Box<Int> { override fun get() = 1 }
+        class StrBox : Box<String> { override fun get() = "s" }
+        fun probe() {
+            val xs = listOf(IntBox(), StrBox())
+            val i: Int = xs[0].get()
+            println(i)
         }
         """)
         #expect(!errors.isEmpty)
