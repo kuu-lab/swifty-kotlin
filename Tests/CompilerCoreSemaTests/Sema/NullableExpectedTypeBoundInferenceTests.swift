@@ -96,6 +96,65 @@ struct NullableExpectedTypeBoundInferenceTests {
         }, "\(ctx.diagnostics.diagnostics)")
     }
 
+    /// KUU-3976: a `C<T?>` extension receiver against `C<X?>` leaves `T`
+    /// determined only up to `{X, X?}`. A `T : Any` bound makes `X` the unique
+    /// solution, so the lambda's expected `() -> T` must become `() -> X`
+    /// rather than `() -> X?`; `T : Any?` keeps the whole `X?` argument.
+    @Test
+    func nullableReceiverArgumentOwnsItsNullableMarker() throws {
+        let source = """
+        class Box<T>(var v: T)
+        class Holder(val x: Int)
+
+        fun <T : Any> Box<T?>.initAndGet(init: () -> T): T = init()
+        fun <T : Any?> Box<T?>.initAndGetNullable(init: () -> T): T = init()
+        fun <T : Any> Box<T?>.each(block: (T) -> Unit): T? = v
+
+        fun useNonNull(): Int = Box<Holder?>(null).initAndGet { Holder(1) }.x
+        fun useNullable(): Holder? = Box<Holder?>(null).initAndGetNullable { null }
+        fun useInput(): Int? = Box<Int?>(2).each { val copy: Int = it }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let holderSymbol = try #require(ctx.sema?.symbols.lookup(fqName: [ctx.interner.intern("Holder")]))
+            let holderType = sema.types.make(.classType(ClassType(
+                classSymbol: holderSymbol, nullability: .nonNull
+            )))
+            let nullableHolderType = sema.types.make(.classType(ClassType(
+                classSymbol: holderSymbol, nullability: .nullable
+            )))
+            #expect(try memberCallTypeArguments(named: "initAndGet", path: path, in: ctx) == [
+                [holderType],
+            ])
+            #expect(try memberCallTypeArguments(named: "initAndGetNullable", path: path, in: ctx) == [
+                [nullableHolderType],
+            ])
+            #expect(try memberCallTypeArguments(named: "each", path: path, in: ctx) == [
+                [sema.types.intType],
+            ])
+        }
+    }
+
+    private func memberCallTypeArguments(
+        named name: String,
+        path: String,
+        in ctx: CompilationContext
+    ) throws -> [[TypeID]] {
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let calls = memberCallExprIDs(
+            named: name, in: ast, path: path, ctx: ctx, interner: ctx.interner
+        )
+        return try calls.map { call in
+            try #require(sema.bindings.callBinding(for: call)).substitutedTypeArguments
+        }
+    }
+
     private func callTypeArguments(
         named name: String,
         path: String,
