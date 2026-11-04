@@ -302,6 +302,15 @@ extension JVMClasspathIndex {
                 constructor(msg: String?): super(msg)
             }
             """, 0x0001, "java/lang/IllegalArgumentException", [method("java/security/InvalidParameterException", "<init>", [], .reference("java/security/InvalidParameterException", nullable: false)), method("java/security/InvalidParameterException", "<init>", [.reference("java/lang/String", nullable: true)], .reference("java/security/InvalidParameterException", nullable: false))]),
+            ("java/nio/charset/Charset", """
+            package java.nio.charset
+            abstract class Charset {
+                fun name(): String = null!!
+                companion object {
+                    external fun forName(charsetName: String): Charset
+                }
+            }
+            """, 0x0401, "java/lang/Object", [method("java/nio/charset/Charset", "name", [], .string), method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true)]),
         ]
         for (name, source, flags, superclass, methods) in declarations {
             let info = JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: [], methods: methods)

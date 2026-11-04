@@ -139,6 +139,16 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/StringConstructors.kt",
+      "virtualPath": "<kswiftk-jvm>/string-constructors.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Charsets.kt",
+      "virtualPath": "<kswiftk-jvm>/charsets.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/TextRuntimeFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
       "excludeFromStdlibBuild": true
