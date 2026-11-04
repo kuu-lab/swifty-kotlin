@@ -1524,15 +1524,15 @@ extension CallTypeChecker {
         // callable-value invocation directly. `callableTarget` stays nil
         // so KIR lowering uses the lowered receiver expression itself as
         // the function object.
-        // A non-safe `x.invoke` on a nullable function value is rejected
-        // like `x(args)` — `x?.invoke` unwraps the receiver first, so the
-        // check only excludes the unsafe form (KUU-644).
+        // A non-safe `x.invoke` on a nullable function value is rejected by
+        // the callable-value arm like `x(args)` — `x?.invoke` unwraps the
+        // receiver first, so only the unsafe form is rejected (KUU-644,
+        // KUU-4138).
         // A smart-cast intersection (`f as KFunction<*>`) resolves `invoke`
         // through its unique structural function conjunct as well (KUU-3652).
         if !isClassNameReceiver,
            calleeStr == "invoke",
-           let invokeFunctionType = sema.types.uniqueStructuralFunctionType(for: memberLookupType),
-           invokeFunctionType.nullability != .nullable
+           let invokeFunctionType = sema.types.uniqueStructuralFunctionType(for: memberLookupType)
         {
             var invokeCalleeType = memberLookupType
             if let receiver = invokeFunctionType.receiver,
@@ -1560,7 +1560,9 @@ extension CallTypeChecker {
                 range: range,
                 ctx: ctx,
                 locals: &locals,
-                expectedType: expectedType
+                expectedType: expectedType,
+                safeCall: safeCall,
+                calleeValueExpr: request.receiverID
             ) {
                 let finalType = safeCall ? sema.types.makeNullable(callableResult) : callableResult
                 sema.bindings.bindExprType(id, type: finalType)

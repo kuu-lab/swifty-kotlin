@@ -335,7 +335,9 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         expectedType: TypeID?,
         arityPolicy: CallableValueArityPolicy = .receiverNeverExplicit,
-        extensionCallableExpr: ExprID? = nil
+        extensionCallableExpr: ExprID? = nil,
+        safeCall: Bool = false,
+        calleeValueExpr: ExprID? = nil
     ) -> TypeID? {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -390,6 +392,39 @@ extension CallTypeChecker {
             )
         default:
             return nil
+        }
+        // Kotlin requires `?.invoke`/`!!` to invoke a possibly-null function
+        // value — `f()` on `f: (() -> Unit)?`, or `c(t)`/`c.invoke(t)` on
+        // `c: F` where `F : ((T) -> R)?`, is an unsafe call even though the
+        // structural function type resolves through the bound (KUU-4138).
+        // Safe-call callers pass `safeCall`, `!!` presents the callee
+        // non-null, and a stable `!= null` narrowing leaves a non-null flow
+        // fact on the callee's reference; everything else reaching this
+        // point with a null-capable callee is the unsafe form kotlinc
+        // rejects.
+        if !safeCall,
+           sema.types.canHoldNull(calleeType),
+           !hasNonNullCalleeFlowFact(
+               calleeValueExpr: calleeValueExpr,
+               callableTarget: callableTarget,
+               locals: locals,
+               ctx: ctx
+           )
+        {
+            let explicitInvoke = if case let .memberCall(_, memberName, _, _, _) = ast.arena.expr(id) {
+                memberName == ctx.interner.intern("invoke")
+            } else {
+                false
+            }
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                explicitInvoke
+                    ? "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver."
+                    : "Reference has a nullable type '\(calleeTypeDisplayName(calleeType, ctx: ctx))'. Use explicit '?.invoke' to make a function-like call instead.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         let contextTypes = functionType.contextReceivers
         let availableContextTypes = ctx.contextReceiverTypes
@@ -645,6 +680,50 @@ extension CallTypeChecker {
         }
         sema.bindings.bindExprType(id, type: functionType.returnType)
         return functionType.returnType
+    }
+
+    /// Whether a stable `x != null`/`x!!` narrowing proves the invoked callee
+    /// value non-null at this call site (KUU-4138). Looks up the callee
+    /// expression's stable flow reference — locals via `f`, stable member
+    /// properties via `h.f` — and falls back to the resolved callable
+    /// target's symbol when the expression is not a flow-tracked reference.
+    private func hasNonNullCalleeFlowFact(
+        calleeValueExpr: ExprID?,
+        callableTarget: CallableTarget?,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let state = ctx.flowState.includingMembers(from: locals)
+        if let calleeValueExpr,
+           let reference = ctx.dataFlow.resolveStableReference(
+               calleeValueExpr, locals: locals, ast: ctx.ast, sema: sema, interner: ctx.interner
+           ), reference.isStable,
+           let flow = state[reference.symbol]
+        {
+            return flow.isStable && flow.nullability == .nonNull
+        }
+        let targetSymbol: SymbolID? = switch callableTarget {
+        case let .localValue(symbol), let .symbol(symbol): symbol
+        case nil: nil
+        }
+        guard let targetSymbol,
+              let flow = state[DataFlowReference(root: targetSymbol)]
+        else {
+            return false
+        }
+        return flow.isStable && flow.nullability == .nonNull
+    }
+
+    /// User-facing callee type name for the nullable-invocation diagnostic
+    /// (KUU-4138): function types need `renderType`'s parentheses to keep
+    /// `(() -> Unit)?` distinct from `() -> Unit?`, while other kinds want
+    /// `displayName`'s resolved symbols (`F`, not `T#42`).
+    private func calleeTypeDisplayName(_ type: TypeID, ctx: TypeInferenceContext) -> String {
+        if case .functionType = ctx.sema.types.kind(of: type) {
+            return ctx.sema.types.renderType(type)
+        }
+        return ctx.sema.types.displayName(of: type, symbols: ctx.sema.symbols, interner: ctx.interner)
     }
 
     private func emitCallableValueArgumentConstraint(

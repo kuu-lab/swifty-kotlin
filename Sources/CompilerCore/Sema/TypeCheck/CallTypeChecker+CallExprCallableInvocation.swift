@@ -234,7 +234,8 @@ extension CallTypeChecker {
                id, calleeType: callableCalleeType, callableTarget: callableTarget,
                args: args, argTypes: argTypes, range: range, ctx: ctx, locals: &locals, expectedType: expectedType,
                arityPolicy: ast.arena.isReceiverExpressionArgsCall(id)
-                   ? .receiverMustBePresent : .receiverOptionallyExplicit
+                   ? .receiverMustBePresent : .receiverOptionallyExplicit,
+               calleeValueExpr: calleeID
            )
         {
             return result

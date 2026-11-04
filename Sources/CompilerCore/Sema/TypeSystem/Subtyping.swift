@@ -956,6 +956,19 @@ extension TypeSystem {
         }
     }
 
+    /// Whether a value of `type` may hold `null` for unsafe-invocation
+    /// checks: a nullable marker outright, or a type parameter whose bounds
+    /// leave it nullable-capable — `c: F` where `F : ((T) -> R)?` cannot be
+    /// invoked as `c(t)`/`c.invoke(t)` without `?.`/`!!` (KUU-4138). `!!`,
+    /// safe calls, and smart casts present the callee already stripped or
+    /// proven through flow facts, so this only sees the declared shape.
+    func canHoldNull(_ type: TypeID) -> Bool {
+        if case .typeParam = kind(of: type) {
+            return isNullableCapableTypeParameter(type, visitedParameters: [])
+        }
+        return nullability(of: type) == .nullable
+    }
+
     /// The type parameter carried by `type`, looking through the `T & Any`
     /// intersection produced by definitely-non-null narrowing (`?:`,
     /// `x != null`). The parameter's declared bounds still drive the join.
