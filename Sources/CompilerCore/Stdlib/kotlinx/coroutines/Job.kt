@@ -178,13 +178,13 @@ public fun Job.cancelChildren(cause: CancellationException? = null) {
     }
 }
 
-public fun Job.invokeOnCompletion(handler: (cause: Throwable?) -> Unit): DisposableHandle =
+public fun Job.invokeOnCompletion(handler: CompletionHandler): DisposableHandle =
     invokeOnCompletion(false, true, handler)
 
 public fun Job.invokeOnCompletion(
     onCancelling: Boolean,
     invokeImmediately: Boolean = true,
-    handler: (cause: Throwable?) -> Unit
+    handler: CompletionHandler
 ): DisposableHandle {
     val id = __kkJobInvokeOnCompletion(this, onCancelling, invokeImmediately, handler)
     if (id == 0) return NonDisposableHandle

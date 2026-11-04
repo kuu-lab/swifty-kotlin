@@ -767,4 +767,20 @@ extension StdlibArtifactRegressionTests {
             #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "ok\n")
         }
     }
+
+    /// KUU-3973: `kotlinx.coroutines.CompletionHandler` must resolve and run
+    /// through the precompiled stdlib artifact — dropbox/Store 5.0.0 multicast
+    /// Actor.kt imports it and forwards a stored `CompletionHandler?` to
+    /// `Job.invokeOnCompletion(handler = ...)`.
+    @Test(arguments: [0, 2])
+    func testCompletionHandlerTypealiasThroughPrecompiledStdlibArtifact(optimization: Int) throws {
+        TestStdlibCache.shared.prepare()
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3973_completion_handler.kt", file: #filePath),
+            expectedOutput: "stored:ok\nno-handler:1\ninvoked:okok\ncancelled:cancelled\n",
+            moduleName: "KUU3973CompletionHandler",
+            allowDefaultStdlibLibrary: true,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
 }

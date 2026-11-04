@@ -10,7 +10,7 @@ public interface CancellableContinuation<in T> : Continuation<T> {
     public val isCompleted: Boolean
     public val isCancelled: Boolean
     public fun cancel(cause: Throwable? = null): Boolean
-    public fun invokeOnCancellation(handler: (cause: Throwable?) -> Unit)
+    public fun invokeOnCancellation(handler: CompletionHandler)
     public fun resume(value: T, onCancellation: ((cause: Throwable) -> Unit)? = null)
     public fun <R : T> resume(value: R, onCancellation: (cause: Throwable, value: R, context: CoroutineContext) -> Unit)
     @InternalCoroutinesApi
@@ -79,7 +79,7 @@ internal class CancellableContinuationImpl<T>(private val delegate: Continuation
 
     override fun cancel(cause: Throwable?): Boolean = cancellableContinuationCancel(handle, cause)
 
-    override fun invokeOnCancellation(handler: (Throwable?) -> Unit) {
+    override fun invokeOnCancellation(handler: CompletionHandler) {
         cancellableContinuationInvokeOnCancellation(handle, handler)
     }
 
