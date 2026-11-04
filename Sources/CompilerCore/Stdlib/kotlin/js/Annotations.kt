@@ -51,7 +51,36 @@ public annotation class JsFileName(val name: String)
     AnnotationTarget.FILE
 )
 @SinceKotlin("1.3")
-public annotation class JsExport
+public annotation class JsExport {
+    /**
+     * Prevents a member of an exported class from being exported; the
+     * Kotlin/JS backend performs the actual exclusion.
+     */
+    @ExperimentalJsExport
+    @Retention(AnnotationRetention.BINARY)
+    @Target(
+        AnnotationTarget.CLASS,
+        AnnotationTarget.PROPERTY,
+        AnnotationTarget.FUNCTION,
+        AnnotationTarget.CONSTRUCTOR
+    )
+    @SinceKotlin("1.8")
+    public annotation class Ignore
+
+    /**
+     * Marks the exported declaration as the ES `default` export; the
+     * Kotlin/JS backend performs the actual export emission.
+     */
+    @ExperimentalJsExport
+    @Retention(AnnotationRetention.BINARY)
+    @Target(
+        AnnotationTarget.CLASS,
+        AnnotationTarget.PROPERTY,
+        AnnotationTarget.FUNCTION
+    )
+    @SinceKotlin("2.3")
+    public annotation class Default
+}
 
 /**
  * Opting in allows source-compatible use of @JsStatic; the marker alone does
