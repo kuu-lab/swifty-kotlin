@@ -558,6 +558,7 @@ enum WasmRuntimeHelpers {
         "__kk_wasm_map_entry",
         "__kk_map_freeze",
         "__kk_set_freeze",
+        "__kk_builder_set_freeze",
         "__kk_wasm_map_index_of",
         "__kk_mutable_map_putAll",
         // Reflection metadata registry: `__kk_*_register_*` append
@@ -1274,6 +1275,11 @@ enum WasmRuntimeHelpers {
             extraLocals = 0
             emitMapFreezeBody(&code)
         case "__kk_set_freeze":
+            extraLocals = 0
+            code.localGet(0)
+        case "__kk_builder_set_freeze":
+            // Same identity semantics as `__kk_set_freeze` — the wasm set box
+            // has no read-only flag, so freezing is a no-op.
             extraLocals = 0
             code.localGet(0)
         case "__kk_map_size":

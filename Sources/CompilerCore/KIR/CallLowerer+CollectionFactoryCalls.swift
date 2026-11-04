@@ -129,14 +129,37 @@ extension CallLowerer {
                 instructions: &instructions,
                 elementFunctionType: elementFunctionType
             )
+            // KUU-3962: `setOfNotNull(element)` is `setOf(element)` on the JVM —
+            // an unmodifiable `Collections.singleton`. The vararg overload is a
+            // mutable `LinkedHashSet`, so only a single non-spread argument's
+            // result gets frozen (`setOfNotNull(*arr)` keeps `LinkedHashSet`
+            // mutability). `setOf` itself needs no flag here: `__kk_set_of`
+            // freezes by supplied element count, which covers both its
+            // singleton and spread-vararg forms.
+            let freezesSingleton = factory == .setOfNotNull
+                && args.count == 1 && !args[0].isSpread
+                && chosenCallee.flatMap {
+                    sema.symbols.functionSignature(for: $0)
+                }?.valueParameterIsVararg != [true]
+            let factoryResult = freezesSingleton
+                ? arena.appendTemporary(type: boundType ?? sema.types.anyType)
+                : result
             emitRuntimeCollectionFactory(
                 factory == .setOfNotNull ? "__kk_set_of_not_null" : "__kk_set_of",
                 array: packed.array,
                 count: packed.count,
-                result: result,
+                result: factoryResult,
                 interner: interner,
                 instructions: &instructions
             )
+            if freezesSingleton {
+                emitNonThrowingCall(
+                    callee: interner.intern("__kk_builder_set_freeze"),
+                    arg: factoryResult,
+                    result: result,
+                    into: &instructions
+                )
+            }
             return result
 
         case .mutableSetOf, .hashSetOf, .linkedSetOf:

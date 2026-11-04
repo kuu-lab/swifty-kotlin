@@ -479,7 +479,10 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
                 typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptyMap"),
                 qualifiedName: "kotlin.collections.EmptyMap"
             )
-        case 1:
+        case 1 where map.isEffectivelyReadOnly:
+            // KUU-3962: same singleton-vs-LinkedHashMap split as sets — a
+            // one-entry map deduplicated from `mapOf(k to v1, k to v2)` is a
+            // mutable `LinkedHashMap` on the JVM.
             return .named(
                 typeID: runtimeReflectedImplTypeID("java.util.Collections.SingletonMap"),
                 qualifiedName: "java.util.Collections.SingletonMap"
@@ -560,7 +563,10 @@ private func runtimeReflectedSetClass(set: RuntimeSetBox) -> RuntimeReflectedCla
             typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptySet"),
             qualifiedName: "kotlin.collections.EmptySet"
         )
-    case 1:
+    case 1 where set.isEffectivelyReadOnly:
+        // KUU-3962: only the unmodifiable singleton reads as
+        // `Collections$SingletonSet`; a one-element set produced by
+        // `setOf(e1, e1)` dedup is a `LinkedHashSet` like the JVM.
         return .named(
             typeID: runtimeReflectedImplTypeID("java.util.Collections.SingletonSet"),
             qualifiedName: "java.util.Collections.SingletonSet"
@@ -582,13 +588,14 @@ private func runtimeReflectedMapSetViewClass(
     kind: RuntimeSetBox.MapViewKind
 ) -> RuntimeReflectedClassIdentity {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
-    switch runtimeMapBox(from: mapRaw)?.count ?? 0 {
+    let map = runtimeMapBox(from: mapRaw)
+    switch map?.count ?? 0 {
     case 0:
         return .named(
             typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptySet"),
             qualifiedName: "kotlin.collections.EmptySet"
         )
-    case 1 where mapTag == mapRuntimeTypeID:
+    case 1 where mapTag == mapRuntimeTypeID && map?.isEffectivelyReadOnly == true:
         return .named(
             typeID: runtimeReflectedImplTypeID("java.util.Collections.SingletonSet"),
             qualifiedName: "java.util.Collections.SingletonSet"
@@ -619,13 +626,14 @@ private func runtimeReflectedMapSetViewClass(
 /// empty map's is `EmptyList`.
 private func runtimeReflectedMapValuesViewClass(mapRaw: Int) -> RuntimeReflectedClassIdentity {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
-    switch runtimeMapBox(from: mapRaw)?.count ?? 0 {
+    let map = runtimeMapBox(from: mapRaw)
+    switch map?.count ?? 0 {
     case 0:
         return .named(
             typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptyList"),
             qualifiedName: "kotlin.collections.EmptyList"
         )
-    case 1 where mapTag == mapRuntimeTypeID:
+    case 1 where mapTag == mapRuntimeTypeID && map?.isEffectivelyReadOnly == true:
         return .named(
             typeID: runtimeReflectedImplTypeID("java.util.Collections.SingletonSet"),
             qualifiedName: "java.util.Collections.SingletonSet"
@@ -665,9 +673,13 @@ private func runtimeReflectedMapEntryClass(rawValue: Int) -> RuntimeReflectedCla
     case treeMapRuntimeTypeID, sortedMapRuntimeTypeID, navigableMapRuntimeTypeID:
         "java.util.TreeMap.Entry"
     case mapRuntimeTypeID:
-        (runtimeMapBox(from: pair.mutableMapRaw)?.count ?? 0) <= 1
-            ? "java.util.AbstractMap.SimpleImmutableEntry"
-            : "java.util.LinkedHashMap.Entry"
+        if let map = runtimeMapBox(from: pair.mutableMapRaw),
+           map.count <= 1, map.isEffectivelyReadOnly
+        {
+            "java.util.AbstractMap.SimpleImmutableEntry"
+        } else {
+            "java.util.LinkedHashMap.Entry"
+        }
     default:
         "java.util.LinkedHashMap.Entry"
     }
@@ -725,11 +737,12 @@ private func runtimeReflectedMapViewIteratorName(
     kind: RuntimeMapViewKind
 ) -> (typeID: Int64, qualifiedName: String?) {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
-    switch runtimeMapBox(from: mapRaw)?.count ?? 0 {
+    let map = runtimeMapBox(from: mapRaw)
+    switch map?.count ?? 0 {
     case 0:
         let name = "kotlin.collections.EmptyIterator"
         return (runtimeReflectedImplTypeID(name), name)
-    case 1 where mapTag == mapRuntimeTypeID:
+    case 1 where mapTag == mapRuntimeTypeID && map?.isEffectivelyReadOnly == true:
         return (runtimeAnonymousSingletonIteratorClassID, nil)
     default:
         break
@@ -869,7 +882,10 @@ func runtimeReflectedSetIteratorClass(
         case 0:
             let name = "kotlin.collections.EmptyIterator"
             return (runtimeReflectedImplTypeID(name), name)
-        case 1:
+        case 1 where set.isEffectivelyReadOnly:
+            // KUU-3962: the anonymous singleton iterator only applies to the
+            // unmodifiable singleton; dedup-to-one sets keep the
+            // `LinkedHashMap` node iterator.
             return (runtimeAnonymousSingletonIteratorClassID, nil)
         default:
             let name = "java.util.LinkedHashMap.LinkedKeyIterator"
