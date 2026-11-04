@@ -379,7 +379,12 @@ extension RuntimeStringArrayTests {
         }
     }
 
-    private func expectFormatError(_ template: String, _ arguments: [Int], _ kind: String) {
+    private func expectFormatError(
+        _ template: String,
+        _ arguments: [Int],
+        _ kind: String,
+        expectedMessage: String? = nil
+    ) {
         let args = makeRuntimeArray(arguments)
         for localized in [false, true] {
             var thrown = 0
@@ -395,6 +400,9 @@ extension RuntimeStringArrayTests {
             #expect(box?.exceptionFQName == "java.util.\(kind)", "\(template), localized=\(localized)")
             #expect(box?.exceptionHierarchyFQNames.contains("java.util.IllegalFormatException") == true)
             #expect(box?.exceptionHierarchyFQNames.contains("kotlin.IllegalArgumentException") == true)
+            if let expectedMessage {
+                #expect(box?.message == expectedMessage, "\(template), localized=\(localized)")
+            }
         }
     }
 
@@ -435,6 +443,89 @@ extension RuntimeStringArrayTests {
         expectFormatError("%100000sX%s", [string], "MissingFormatArgumentException")
         let null = makeRuntimeArray([runtimeNullSentinelInt])
         #expect(flatStringReturnValue("%.2f", intArg: null, using: __kk_string_format_flat) == "nu")
+    }
+
+    /// KUU-4146: java.util.Formatter only accepts Byte/Short/Integer/Long for
+    /// %d/%o/%x (and Byte/Short/Integer for %c). UByte/UShort/UInt share
+    /// RuntimeIntBox with the signed types and used to slip through as
+    /// "integral"; they must throw IllegalFormatConversionException just like
+    /// ULong (RuntimeULongBox) already did. The JVM message is
+    /// "<conversion> != <argument class name>"; %t* reports the suffix char.
+    @Test
+    func testStringFormatRejectsUnsignedTypesForIntegralConversions() {
+        let ubyte = kk_box_ubyte(255)
+        let ushort = kk_box_ushort(65_535)
+        let uint = kk_box_uint(Int(UInt32.max))
+        let ulong = kk_box_ulong_nonnull(-1)
+        for template in ["%d", "%o", "%x", "%X", "%5d", "%08x", "%#x", "%#o", "%1$d"] {
+            for (arg, name) in [(ubyte, "UByte"), (ushort, "UShort"), (uint, "UInt"), (ulong, "ULong")] {
+                let conversion = template.last == "X" ? "x" : String(template.last!)
+                expectFormatError(template, [arg], "IllegalFormatConversionException",
+                    expectedMessage: "\(conversion) != kotlin.\(name)")
+            }
+        }
+        // %c rejects boxed unsigned types too (JVM: c != kotlin.U*).
+        for (arg, name) in [(ubyte, "UByte"), (ushort, "UShort"), (uint, "UInt"), (ulong, "ULong")] {
+            expectFormatError("%c", [arg], "IllegalFormatConversionException",
+                expectedMessage: "c != kotlin.\(name)")
+        }
+        // %t* reports the date-time suffix, not 't'.
+        expectFormatError("%tQ", [uint], "IllegalFormatConversionException",
+            expectedMessage: "Q != kotlin.UInt")
+        // %s/%b/%h still accept unsigned arguments like the JVM does.
+        let args = makeRuntimeArray([ubyte, ushort, uint, ulong])
+        #expect(flatStringReturnValue("%s %s %s %s", intArg: args, using: __kk_string_format_flat)
+            == "255 65535 4294967295 18446744073709551615")
+        #expect(flatStringReturnValue("%b %h", intArg: makeRuntimeArray([uint, uint]),
+            using: __kk_string_format_flat) == "true ffffffff")
+    }
+
+    /// KUU-4146: IllegalFormatConversionException on JVM reports
+    /// "<conversion> != <Java class name>". Class names come from the boxed
+    /// argument's Kotlin type identity (primitiveTypeBase / enum classID /
+    /// nominal metadata).
+    @Test
+    func testStringFormatConversionExceptionReportsArgumentClassName() {
+        let string = rawFromRuntimeString("s")
+        expectFormatError("%d", [string], "IllegalFormatConversionException",
+            expectedMessage: "d != java.lang.String")
+        expectFormatError("%d", [kk_box_double(Int(bitPattern: UInt(1.0.bitPattern)))],
+            "IllegalFormatConversionException", expectedMessage: "d != java.lang.Double")
+        expectFormatError("%d", [kk_box_bool(1)], "IllegalFormatConversionException",
+            expectedMessage: "d != java.lang.Boolean")
+        expectFormatError("%d", [kk_box_char(122)],
+            "IllegalFormatConversionException", expectedMessage: "d != java.lang.Character")
+        expectFormatError("%c", [kk_box_long_nonnull(5)], "IllegalFormatConversionException",
+            expectedMessage: "c != java.lang.Long")
+        expectFormatError("%f", [kk_box_int(1)], "IllegalFormatConversionException",
+            expectedMessage: "f != java.lang.Integer")
+        expectFormatError("%tQ", [kk_box_int(0)], "IllegalFormatConversionException",
+            expectedMessage: "Q != java.lang.Integer")
+        expectFormatError("%d", [kk_box_unit(0)], "IllegalFormatConversionException",
+            expectedMessage: "d != kotlin.Unit")
+    }
+
+    /// KUU-4146: java.util.IllegalFormatCodePointException reports
+    /// "Code point = 0x" + Integer.toHexString(codePoint) — the 32-bit pattern
+    /// for sign-extended values, not the decimal rendering.
+    @Test
+    func testStringFormatIllegalCodePointMessageUsesHex() {
+        expectFormatError("%c", [-1], "IllegalFormatCodePointException",
+            expectedMessage: "Code point = 0xffffffff")
+        expectFormatError("%c", [0x110000], "IllegalFormatCodePointException",
+            expectedMessage: "Code point = 0x110000")
+        expectFormatError("%c", [kk_box_byte(-29)], "IllegalFormatCodePointException",
+            expectedMessage: "Code point = 0xffffffe3")
+    }
+
+    /// KUU-4147: java.util.Formatter keeps the alternate-form prefix on zero
+    /// ("0x0"/"0X0" for %x/%X, "00" for %o); C's printf drops it.
+    @Test
+    func testStringFormatAlternateFormKeepsPrefixOnZero() {
+        let args = makeRuntimeArray([kk_box_int(0), kk_box_long_nonnull(0)])
+        #expect(flatStringReturnValue("%1$#x|%1$#X|%1$#o|%1$#5x|%1$#05x|%1$#-6x!|%2$#x|%2$#o",
+            intArg: args, using: __kk_string_format_flat)
+            == "0x0|0X0|00|  0x0|0x000|0x0   !|0x0|00")
     }
 
     @Test

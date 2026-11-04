@@ -133,7 +133,18 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
     var dateTime = false
     if value.tag == RuntimeValue.rawTag,
        let pointer = UnsafeMutableRawPointer(bitPattern: value.payload0), runtimeIsObjectPointer(pointer) {
-        integral = tryCast(pointer, to: RuntimeIntBox.self) != nil || tryCast(pointer, to: RuntimeLongBox.self) != nil
+        if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+            // Byte/Short share RuntimeIntBox with Int, and UByte/UShort/UInt
+            // share the same box layout — `primitiveTypeBase` records which
+            // Kotlin type was boxed, while `enumClassID` marks a boxed enum
+            // ordinal. java.util.Formatter only accepts Byte/Short/Integer
+            // for %d/%o/%x/%c, so unsigned kinds and enums are not integral
+            // arguments and throw IllegalFormatConversionException just like
+            // ULong (RuntimeULongBox, which never reaches this branch).
+            integral = intBox.enumClassID == nil && !runtimeFormatIsUnsignedBase(intBox.primitiveTypeBase)
+        } else {
+            integral = tryCast(pointer, to: RuntimeLongBox.self) != nil
+        }
         character = tryCast(pointer, to: RuntimeCharBox.self) != nil
         floating = tryCast(pointer, to: RuntimeFloatBox.self) != nil || tryCast(pointer, to: RuntimeDoubleBox.self) != nil
         dateTime = tryCast(pointer, to: RuntimeLongBox.self) != nil
@@ -154,14 +165,130 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
     default: valid = true
     }
     if !valid {
-        throw RuntimeFormatError(kind: "IllegalFormatConversionException", message: "Invalid argument for \(specifier.conversion)")
+        // java.util.IllegalFormatConversionException's message is
+        // "<conversion> != <argument Java class name>"; for %t*/%T* it uses
+        // the date-time suffix ('Q', 'Y', ...) rather than 't'.
+        let reportedConversion = specifier.dateTimeConversion ?? conversion
+        let message = runtimeFormatArgumentClassName(value).map {
+            "\(reportedConversion) != \($0)"
+        } ?? "Invalid argument for \(specifier.conversion)"
+        throw RuntimeFormatError(kind: "IllegalFormatConversionException", message: message)
     }
     if conversion == "c" {
         let codePoint = runtimeFormatIntegerValue(value)
         if codePoint < 0 || codePoint > 0x10ffff {
-            throw RuntimeFormatError(kind: "IllegalFormatCodePointException", message: String(codePoint))
+            // java.util.IllegalFormatCodePointException reports
+            // "Code point = 0x" + Integer.toHexString(codePoint), i.e. the
+            // raw 32-bit pattern for sign-extended values.
+            let hex = String(UInt32(bitPattern: Int32(truncatingIfNeeded: codePoint)), radix: 16)
+            throw RuntimeFormatError(kind: "IllegalFormatCodePointException", message: "Code point = 0x\(hex)")
         }
     }
+}
+
+/// `primitiveTypeBase` values of the unsigned Kotlin integer kinds that share
+/// `RuntimeIntBox` with the signed integer types (ULong has its own box).
+private func runtimeFormatIsUnsignedBase(_ base: Int64) -> Bool {
+    base == RuntimeTypeTokenEncoding.uintBase
+        || base == RuntimeTypeTokenEncoding.ubyteBase
+        || base == RuntimeTypeTokenEncoding.ushortBase
+}
+
+/// The Java class name that `java.util.Formatter` reports in
+/// `IllegalFormatConversionException` (`argument.getClass().getName()`), or
+/// nil when the argument's runtime representation has no identifiable class —
+/// the caller then keeps the legacy generic message.
+private func runtimeFormatArgumentClassName(_ value: RuntimeValue) -> String? {
+    if value.tag == RuntimeValue.stringTag {
+        return "java.lang.String"
+    }
+    if value.tag == RuntimeValue.charTag {
+        return "java.lang.Character"
+    }
+    guard value.tag == RuntimeValue.rawTag,
+          let pointer = UnsafeMutableRawPointer(bitPattern: value.payload0),
+          runtimeIsObjectPointer(pointer)
+    else {
+        return nil
+    }
+    if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
+        if let enumClassID = intBox.enumClassID {
+            return runtimeFormatNominalClassName(typeID: enumClassID)
+        }
+        switch intBox.primitiveTypeBase {
+        case RuntimeTypeTokenEncoding.byteBase:
+            return "java.lang.Byte"
+        case RuntimeTypeTokenEncoding.shortBase:
+            return "java.lang.Short"
+        case RuntimeTypeTokenEncoding.uintBase:
+            return "kotlin.UInt"
+        case RuntimeTypeTokenEncoding.ubyteBase:
+            return "kotlin.UByte"
+        case RuntimeTypeTokenEncoding.ushortBase:
+            return "kotlin.UShort"
+        default:
+            return "java.lang.Integer"
+        }
+    }
+    if tryCast(pointer, to: RuntimeStringBox.self) != nil {
+        return "java.lang.String"
+    }
+    if tryCast(pointer, to: RuntimeLongBox.self) != nil {
+        return "java.lang.Long"
+    }
+    if tryCast(pointer, to: RuntimeULongBox.self) != nil {
+        return "kotlin.ULong"
+    }
+    if tryCast(pointer, to: RuntimeDoubleBox.self) != nil {
+        return "java.lang.Double"
+    }
+    if tryCast(pointer, to: RuntimeFloatBox.self) != nil {
+        return "java.lang.Float"
+    }
+    if tryCast(pointer, to: RuntimeBoolBox.self) != nil {
+        return "java.lang.Boolean"
+    }
+    if tryCast(pointer, to: RuntimeCharBox.self) != nil {
+        return "java.lang.Character"
+    }
+    if tryCast(pointer, to: RuntimeUnitBox.self) != nil {
+        return "kotlin.Unit"
+    }
+    if tryCast(pointer, to: RuntimeInstantBox.self) != nil {
+        return "kotlin.time.Instant"
+    }
+    if tryCast(pointer, to: RuntimeDurationBox.self) != nil {
+        return "kotlin.time.Duration"
+    }
+    if let range = tryCast(pointer, to: RuntimeRangeBox.self) {
+        return range.kind.qualifiedName
+    }
+    if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
+        return runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
+    }
+    if let typeID = runtimeObjectTypeID(rawValue: value.payload0) {
+        // JVM exposes the implementation class for platform collections
+        // (e.g. `d != java.util.Collections$SingletonList`).
+        if let identity = runtimeReflectedCollectionClass(rawValue: value.payload0, typeID: typeID),
+           case let .named(_, qualifiedName) = identity
+        {
+            return runtimeJavaBinaryName(qualifiedName, metadataDisplayName: nil)
+        }
+        return runtimeFormatNominalClassName(typeID: typeID)
+    }
+    return nil
+}
+
+/// `Class.getName()` for a nominal runtime type ID (boxed enum ordinals and
+/// ordinary objects), reusing the reflection machinery's JVM binary-name
+/// mapping (nested classes render with `$`, kotlin.* maps to java.*).
+private func runtimeFormatNominalClassName(typeID: Int64) -> String {
+    let token = Int(
+        truncatingIfNeeded: (typeID & RuntimeTypeTokenEncoding.payloadMask)
+            << RuntimeTypeTokenEncoding.payloadShift
+            | RuntimeTypeTokenEncoding.nominalBase
+    )
+    return runtimeJavaBinaryNameForTypeToken(token)
 }
 
 private func runtimeFormatString(_ template: String, values arguments: [RuntimeValue], locale: Locale? = nil) throws -> String {
@@ -231,7 +358,12 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
             if let argumentIndex, arguments.indices.contains(argumentIndex) {
                 argument = arguments[argumentIndex]
             } else {
-                throw RuntimeFormatError(kind: "MissingFormatArgumentException", message: String(characters[cursor ..< next]))
+                // java.util.MissingFormatArgumentException reports
+                // "Format specifier '<specifier text>'".
+                throw RuntimeFormatError(
+                    kind: "MissingFormatArgumentException",
+                    message: "Format specifier '\(String(characters[cursor ..< next]))'"
+                )
             }
             try runtimeValidateFormatArgument(argument, specifier: specifier)
             if outputStopped {
@@ -381,6 +513,18 @@ private func runtimeRenderFormattedArgument(
         )
     case "x", "o":
         let value = runtimeFormatIntegerBitPattern(value)
+        if value == 0, specifier.flags.contains("#") {
+            // java.util.Formatter keeps the alternate-form prefix on zero
+            // ("0x0"/"0X0" for %x/%X, "00" for %o); C's printf drops it.
+            // runtimeApplyNumericWidth pads inside the 0x prefix for '0'.
+            let body = switch specifier.normalizedConversion {
+            case "x":
+                specifier.conversion.isUppercase ? "0X0" : "0x0"
+            default:
+                "00"
+            }
+            return runtimeApplyNumericWidth(body, specifier: specifier)
+        }
         return String(format: specifier.cStyleToken, arguments: [value])
     case "f", "e", "g", "a":
         let value = runtimeFormatDoubleValue(value)
