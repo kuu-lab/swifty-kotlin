@@ -11,7 +11,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-0001",
       "source": "kswiftk",
-      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "message": "Conflicting overloads: callable declarations have the same signature in the same package scope.",
       "codeActions": []
     }
   ]

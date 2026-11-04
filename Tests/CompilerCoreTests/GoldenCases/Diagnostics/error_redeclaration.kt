@@ -2,7 +2,7 @@
 
 // ERROR: Duplicate top-level function with same signature
 fun duplicate(): Int = 1
-fun duplicate(): Int = 2  // KSWIFTK-SEMA-0001: duplicate JVM-erased callable declaration in the same package scope
+fun duplicate(): Int = 2  // KSWIFTK-SEMA-0001: conflicting overloads, same signature in the same package scope
 
 // ERROR: Duplicate top-level property
 val duplicateProp = "first"

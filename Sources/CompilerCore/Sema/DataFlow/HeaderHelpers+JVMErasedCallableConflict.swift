@@ -154,7 +154,9 @@ extension DataFlowSemaPhase {
         if hasConflict {
             diagnostics.error(
                 "KSWIFTK-SEMA-0001",
-                "Duplicate JVM-erased callable declaration in the same package scope.",
+                isJVMTarget
+                    ? "Duplicate JVM-erased callable declaration in the same package scope."
+                    : "Conflicting overloads: callable declarations have the same signature in the same package scope.",
                 range: range
             )
         }
@@ -317,42 +319,72 @@ extension DataFlowSemaPhase {
               equivalentTypes(lhs.parameterTypes, rhs.parameterTypes)
         else { return false }
 
-        // A directly used type parameter erases to its first upper bound. Keep
-        // overloads such as <T : CharSequence> f(T) and <T : Number> f(T)
-        // distinct, while retaining conflicts for equal or reordered bounds.
-        func hasDifferentDirectTypeParameterBounds(_ left: TypeID, _ right: TypeID) -> Bool {
-            guard case let .typeParam(leftParameter) = types.kind(of: left),
-                  case let .typeParam(rightParameter) = types.kind(of: right),
-                  let leftIndex = lhsTypeParameterIndices[leftParameter.symbol],
-                  let rightIndex = rhsTypeParameterIndices[rightParameter.symbol],
-                  leftIndex == rightIndex
-            else { return false }
-            let leftBounds = lhs.typeParameterUpperBoundsList.indices.contains(leftIndex)
-                ? lhs.typeParameterUpperBoundsList[leftIndex] : []
-            let rightBounds = rhs.typeParameterUpperBoundsList.indices.contains(rightIndex)
-                ? rhs.typeParameterUpperBoundsList[rightIndex] : []
-            if leftBounds.count == rightBounds.count,
-               leftBounds.allSatisfy({ leftBound in rightBounds.contains { equivalent(leftBound, $0) } }) {
-                return false
-            }
-            let leftFirst = leftBounds.first ?? types.nullableAnyType
-            let rightFirst = rightBounds.first ?? types.nullableAnyType
-            switch (types.kind(of: leftFirst), types.kind(of: rightFirst)) {
-            case let (.classType(leftClass), .classType(rightClass)):
-                return leftClass.classSymbol != rightClass.classSymbol
-            case (.classType, .any), (.any, .classType):
-                return true
+        // Type parameters that occur in the signature carry their upper
+        // bounds: `Assert<T : Iterable<E>>.atLeast` and
+        // `Assert<U : Sequence<E>>.atLeast` are distinct overloads on targets
+        // without JVM erasure, while `<T> f(T)` and `<U : Any?> f(U)` still
+        // conflict because an omitted bound means `Any?`. Bounds of type
+        // parameters that never occur in the signature do not participate —
+        // `<T : CharSequence> f(Int)` and `<U : Number> f(Int)` are a source
+        // level conflict on every target (KUU-3961).
+        func collectOccurringTypeParameterIndices(_ type: TypeID, into indices: inout Set<Int>) {
+            switch types.kind(of: type) {
+            case let .typeParam(typeParam):
+                if let index = lhsTypeParameterIndices[typeParam.symbol] {
+                    indices.insert(index)
+                }
+            case let .classType(classType):
+                for argument in classType.args + classType.enclosingTypeArgs {
+                    switch argument {
+                    case let .invariant(argumentType),
+                         let .out(argumentType),
+                         let .in(argumentType):
+                        collectOccurringTypeParameterIndices(argumentType, into: &indices)
+                    case .star:
+                        break
+                    }
+                }
+            case let .functionType(functionType):
+                for nested in functionType.contextReceivers
+                    + (functionType.receiver.map { [$0] } ?? [])
+                    + functionType.params + [functionType.returnType] + functionType.throws
+                {
+                    collectOccurringTypeParameterIndices(nested, into: &indices)
+                }
+            case let .intersection(parts):
+                for part in parts {
+                    collectOccurringTypeParameterIndices(part, into: &indices)
+                }
+            case let .kClassType(kClassType):
+                collectOccurringTypeParameterIndices(kClassType.argument, into: &indices)
             default:
-                return false
+                break
             }
         }
 
-        let lhsDirectParameters = (lhs.receiverType.map { [$0] } ?? [])
+        var occurringTypeParameterIndices: Set<Int> = []
+        for comparedType in (lhs.receiverType.map { [$0] } ?? [])
             + lhs.contextReceiverTypes + lhs.contextParameterTypes + lhs.parameterTypes
-        let rhsDirectParameters = (rhs.receiverType.map { [$0] } ?? [])
-            + rhs.contextReceiverTypes + rhs.contextParameterTypes + rhs.parameterTypes
-        return !zip(lhsDirectParameters, rhsDirectParameters).contains { pair in
-            hasDifferentDirectTypeParameterBounds(pair.0, pair.1)
+        {
+            collectOccurringTypeParameterIndices(comparedType, into: &occurringTypeParameterIndices)
+        }
+
+        func upperBounds(of signature: FunctionSignature, at index: Int) -> [TypeID] {
+            guard signature.typeParameterUpperBoundsList.indices.contains(index),
+                  !signature.typeParameterUpperBoundsList[index].isEmpty
+            else {
+                return [types.nullableAnyType]
+            }
+            return signature.typeParameterUpperBoundsList[index]
+        }
+
+        return occurringTypeParameterIndices.allSatisfy { index in
+            let leftBounds = upperBounds(of: lhs, at: index)
+            let rightBounds = upperBounds(of: rhs, at: index)
+            return leftBounds.count == rightBounds.count
+                && leftBounds.allSatisfy { leftBound in
+                    rightBounds.contains { equivalent(leftBound, $0) }
+                }
         }
     }
 
