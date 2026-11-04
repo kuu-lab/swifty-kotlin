@@ -6,6 +6,20 @@ import Darwin
 import Glibc
 #endif
 
+/// KUU-4162: `java.lang.System.in` is a runtime-registered
+/// `RuntimeStdioInputStreamBox`, while `kotlin.io.readLine`/`readln`/
+/// `readlnOrNull` are bundled Kotlin source that lower straight to
+/// `__kk_readline_raw`. This flag mirrors the stdin closed state the way
+/// KUU-4156's console-sink flags mirror stdout/stderr — closing `System.in`
+/// makes later `kotlin.io` console reads throw `java.io.IOException` like the
+/// JVM instead of silently returning null.
+private nonisolated(unsafe) var runtimeConsoleStdinClosed = false
+
+@_cdecl("__kk_console_stdin_closed")
+public func __kk_console_stdin_closed() -> Int {
+    runtimeConsoleStdinClosed ? 1 : 0
+}
+
 /// Uses stdio's input buffer, shared with Swift.readLine(), so console and
 /// stream reads advance the same cursor. Construction performs no input reads.
 final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
@@ -22,7 +36,8 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
     override func readByte() -> Int {
         failure = nil
         guard let stream else {
-            failure = "Stream Closed"
+            // JVM `BufferedInputStream.getBufIfOpen` spells it "Stream closed".
+            failure = "Stream closed"
             return -1
         }
         while true {
@@ -72,6 +87,7 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
     override func close() {
         guard let stream else { return }
         self.stream = nil
+        runtimeConsoleStdinClosed = true
         fclose(stream)
     }
 }
