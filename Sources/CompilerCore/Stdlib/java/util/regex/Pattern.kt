@@ -10,6 +10,17 @@ public class Pattern internal constructor(
     private val patternText: String,
     private val matchFlags: Int
 ) {
+    /**
+     * Number of capturing groups this pattern declares, matching the JDK's
+     * `Pattern.capturingGroupCount`. A LITERAL pattern is all quoted text and
+     * captures nothing.
+     */
+    internal val groupCount: Int = if (RegexOption.LITERAL in regex.options) {
+        0
+    } else {
+        countCapturingGroups(patternText, comments = RegexOption.COMMENTS in regex.options)
+    }
+
     public fun matcher(input: CharSequence): Matcher = Matcher(this, input.toString())
 
     public fun pattern(): String = patternText
@@ -50,6 +61,58 @@ public class Pattern internal constructor(
     }
 
     override fun toString(): String = patternText
+
+    /**
+     * Counts capturing groups by scanning the pattern text. `(` opens a
+     * capturing group unless it starts a `(?…` form; among those, only the
+     * named-capture `(?<name>` counts (`(?<=` / `(?<!` are lookbehind).
+     * Escaped spans (`\x`, `\Q…\E`), character classes, and `#` comments in
+     * COMMENTS mode contribute no groups.
+     */
+    private fun countCapturingGroups(pattern: String, comments: Boolean): Int {
+        var count = 0
+        var index = 0
+        var quoted = false
+        while (index < pattern.length) {
+            val char = pattern[index]
+            when {
+                quoted -> {
+                    if (char == '\\' && index + 1 < pattern.length && pattern[index + 1] == 'E') {
+                        quoted = false
+                        index++
+                    }
+                }
+                char == '\\' -> {
+                    if (index + 1 < pattern.length && pattern[index + 1] == 'Q') {
+                        quoted = true
+                    }
+                    index++
+                }
+                comments && char == '#' -> {
+                    while (index < pattern.length && pattern[index] != '\n') index++
+                }
+                char == '[' -> {
+                    index++
+                    if (index < pattern.length && pattern[index] == '^') index++
+                    if (index < pattern.length && pattern[index] == ']') index++
+                    while (index < pattern.length && pattern[index] != ']') {
+                        if (pattern[index] == '\\') index++
+                        index++
+                    }
+                }
+                char == '(' -> {
+                    val isNamedCapture = index + 3 < pattern.length &&
+                        pattern[index + 1] == '?' && pattern[index + 2] == '<' &&
+                        pattern[index + 3] != '=' && pattern[index + 3] != '!'
+                    if (isNamedCapture || index + 1 >= pattern.length || pattern[index + 1] != '?') {
+                        count++
+                    }
+                }
+            }
+            index++
+        }
+        return count
+    }
 
     public companion object {
         public const val UNIX_LINES: Int = 0x01

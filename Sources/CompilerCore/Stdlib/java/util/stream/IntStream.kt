@@ -10,12 +10,27 @@ import java.util.function.IntUnaryOperator
 
 public class IntStream private constructor(private val values: Sequence<Int>) {
     private var consumed: Boolean = false
+    private var parallelMode: Boolean = false
 
     private fun consumeValues(): Sequence<Int> {
         if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
         consumed = true
         return values
     }
+
+    public fun parallel(): IntStream {
+        parallelMode = true
+        return this
+    }
+
+    public fun sequential(): IntStream {
+        parallelMode = false
+        return this
+    }
+
+    public fun isParallel(): Boolean = parallelMode
+
+    public fun unordered(): IntStream = this
 
     public fun filter(predicate: IntPredicate): IntStream =
         IntStream(consumeValues().filter { predicate.test(it) })

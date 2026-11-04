@@ -82,6 +82,9 @@ public class Matcher internal constructor(
 
     public fun end(): Int = regionStart + currentMatch().range.last + 1
 
+    /** Count of capturing groups in the pattern; no match is required. */
+    public fun groupCount(): Int = pattern.groupCount
+
     public fun group(): String = currentMatch().value
 
     public fun group(group: Int): String? = currentMatch().groups[group]?.value
