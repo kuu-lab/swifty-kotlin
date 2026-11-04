@@ -215,6 +215,104 @@
             }, "\(ctx.diagnostics.diagnostics)")
         }
 
+        // Regression for KUU-4085: the bundled kotlin.js.JsExport lacked its
+        // nested Ignore/Default annotations, breaking @JsExport.Ignore and
+        // `import kotlin.js.JsExport.Ignore` (e.g. pbandk commonMain).
+        @Test
+        func nestedIgnoreAndDefaultAnnotationsResolve() throws {
+            let ctx = makeContextFromSource("""
+            package jscontract
+            import kotlin.js.JsExport
+
+            @kotlin.OptIn(kotlin.js.ExperimentalJsExport::class)
+            @JsExport
+            class ExportedBox {
+                @JsExport.Ignore
+                fun hidden(): Int = 0
+
+                fun shown(): Int = 1
+            }
+
+            @JsExport.Ignore
+            class HiddenBox
+
+            @kotlin.OptIn(kotlin.js.ExperimentalJsExport::class)
+            @JsExport.Default
+            fun defaultExported(): Int = 2
+            """)
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let hidden = try #require(sema.symbols.lookup(
+                fqName: ["jscontract", "ExportedBox", "hidden"].map(ctx.interner.intern)
+            ))
+            #expect(sema.symbols.annotations(for: hidden).contains {
+                $0.annotationFQName == "kotlin.js.JsExport.Ignore"
+            })
+            let hiddenBox = try #require(sema.symbols.lookup(
+                fqName: ["jscontract", "HiddenBox"].map(ctx.interner.intern)
+            ))
+            #expect(sema.symbols.annotations(for: hiddenBox).contains {
+                $0.annotationFQName == "kotlin.js.JsExport.Ignore"
+            })
+            let defaultExported = try #require(sema.symbols.lookup(
+                fqName: ["jscontract", "defaultExported"].map(ctx.interner.intern)
+            ))
+            #expect(sema.symbols.annotations(for: defaultExported).contains {
+                $0.annotationFQName == "kotlin.js.JsExport.Default"
+            })
+
+            let ignoreClass = try #require(sema.symbols.lookupAll(
+                fqName: ["kotlin", "js", "JsExport", "Ignore"].map(ctx.interner.intern)
+            ).first {
+                sema.symbols.symbol($0)?.kind == .annotationClass
+            })
+            #expect(sema.symbols.annotations(for: ignoreClass).contains { annotation in
+                annotation.annotationFQName == "kotlin.annotation.Target"
+                    && ["CLASS", "PROPERTY", "FUNCTION", "CONSTRUCTOR"].allSatisfy { target in
+                        annotation.arguments.contains { $0.contains(target) }
+                    }
+            })
+            let defaultClass = try #require(sema.symbols.lookupAll(
+                fqName: ["kotlin", "js", "JsExport", "Default"].map(ctx.interner.intern)
+            ).first {
+                sema.symbols.symbol($0)?.kind == .annotationClass
+            })
+            #expect(sema.symbols.annotations(for: defaultClass).contains { annotation in
+                annotation.annotationFQName == "kotlin.annotation.Target"
+                    && ["CLASS", "PROPERTY", "FUNCTION"].allSatisfy { target in
+                        annotation.arguments.contains { $0.contains(target) }
+                    }
+            })
+        }
+
+        @Test
+        func nestedIgnoreResolvesViaImport() throws {
+            let ctx = makeContextFromSource("""
+            package jscontract
+            import kotlin.js.JsExport.Ignore
+
+            @kotlin.OptIn(kotlin.js.ExperimentalJsExport::class)
+            @kotlin.js.JsExport
+            class ExportedBox {
+                @Ignore
+                fun hidden(): Int = 0
+            }
+            """)
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let hidden = try #require(sema.symbols.lookup(
+                fqName: ["jscontract", "ExportedBox", "hidden"].map(ctx.interner.intern)
+            ))
+            #expect(sema.symbols.annotations(for: hidden).contains {
+                $0.annotationFQName == "kotlin.js.JsExport.Ignore"
+            })
+        }
+
         @Test
         func unsupportedExportDeclarationsAndTypesMatchAuditedSeverity() throws {
             let ctx = makeContextFromSource("""
