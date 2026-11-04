@@ -1922,14 +1922,30 @@ extension LambdaLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let kirOp: KIRBinaryOp
+        // Boolean `and`/`or`/`xor` have no KIRBinaryOp case (the enum only
+        // carries the short-circuit logical operators), so they emit the same
+        // `kk_bitwise_*` runtime intrinsic as their member-call spelling
+        // (`true.and(false)`) instead of a `.binary` instruction.
+        let kirOp: KIRBinaryOp?
+        let intrinsicCallee: InternedString?
         switch op {
         case .add:
             kirOp = .add
+            intrinsicCallee = nil
         case .multiply:
             kirOp = .multiply
+            intrinsicCallee = nil
+        case .bitwiseAnd:
+            kirOp = nil
+            intrinsicCallee = interner.intern("kk_bitwise_and")
+        case .bitwiseOr:
+            kirOp = nil
+            intrinsicCallee = interner.intern("kk_bitwise_or")
+        case .bitwiseXor:
+            kirOp = nil
+            intrinsicCallee = interner.intern("kk_bitwise_xor")
         default:
-            fatalError("Unreachable: Sema only records .add/.multiply primitive-operator refs")
+            fatalError("Unreachable: Sema only records .add/.multiply/.bitwiseAnd/.bitwiseOr/.bitwiseXor primitive-operator refs")
         }
 
         let needsHOFWrapper = sema.bindings.isCollectionHOFLambdaExpr(exprID)
@@ -1963,7 +1979,11 @@ extension LambdaLowerer {
         let rhsExpr = arena.appendExpr(.symbolRef(rhsParam.symbol), type: rhsParam.type)
         body.append(.constValue(result: rhsExpr, value: .symbolRef(rhsParam.symbol)))
         let opResult = arena.appendTemporary(type: returnType)
-        body.append(.binary(op: kirOp, lhs: lhsExpr, rhs: rhsExpr, result: opResult))
+        if let intrinsicCallee {
+            body.append(.call(callee: intrinsicCallee, arguments: [lhsExpr, rhsExpr], result: opResult, canThrow: false))
+        } else if let kirOp {
+            body.append(.binary(op: kirOp, lhs: lhsExpr, rhs: rhsExpr, result: opResult))
+        }
         body.append(.returnValue(opResult))
         body.append(.endBlock)
 

@@ -946,6 +946,147 @@ extension CompilerCoreTests {
         #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0022" })
     }
 
+    /// KUU-4092: `Boolean::and` / `::or` / `::xor` are intrinsic members
+    /// without a backing symbol (upstream: `infix fun` members of
+    /// kotlin.Boolean), so they bind through `primitiveOperatorCallableRef`
+    /// like `Int::plus` does -- except their single
+    /// `(Boolean, Boolean) -> Boolean` signature needs no expected type.
+    @Test func testBooleanBitwiseOperatorReferencesInferFunctionType() throws {
+        let source = """
+        val andRef: (Boolean, Boolean) -> Boolean = Boolean::and
+        val inferredOr = Boolean::or
+        val inferredXor = Boolean::xor
+        fun use(a: Boolean, b: Boolean): Boolean = andRef(a, b)
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 3)
+
+        for (ref, op) in zip(refs, [BinaryOp.bitwiseAnd, .bitwiseOr, .bitwiseXor]) {
+            #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == op)
+            #expect(sema.bindings.callableRefKind(for: ref) == .functionRef)
+            let refType = try #require(sema.bindings.exprTypes[ref])
+            guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+                Issue.record("Boolean::and/or/xor should infer a function type.")
+                continue
+            }
+            #expect(functionType.params == [sema.types.booleanType, sema.types.booleanType])
+            #expect(functionType.returnType == sema.types.booleanType)
+        }
+    }
+
+    /// `Boolean::and` on a non-Boolean member (`Boolean::plus`) and unrelated
+    /// names all stay unresolved: the intrinsic binding only covers the real
+    /// kotlin.Boolean member surface.
+    @Test func testBooleanBitwiseOperatorReferencesDoNotAdmitOtherNamesOrReceivers() throws {
+        let source = """
+        val missing: (Boolean, Boolean) -> Boolean = Boolean::missing
+        val notABooleanMember: (Boolean, Boolean) -> Boolean = Boolean::plus
+        val unaryName: (Boolean) -> Boolean = Boolean::inv
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0022" }.count == 3)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 3)
+        for ref in refs {
+            #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == nil)
+        }
+    }
+
+    /// KUU-4135: `Int::and` / `::or` / `::xor` are backed by real bundled
+    /// `kotlin` package extensions (KUU-4103 added the declarations so
+    /// member-style calls stop falling to package-internal helpers), so the
+    /// class-scoped reference binds the extension symbol directly — it does
+    /// not go through `primitiveOperatorCallableRef`.
+    @Test func testIntBitwiseExtensionReferencesBindBundledExtensionSymbols() throws {
+        let source = """
+        val andRef: (Int, Int) -> Int = Int::and
+        val orRef = Int::or
+        val xorRef = Int::xor
+        fun use(a: Int, b: Int): Int = andRef(a, b)
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 3)
+
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        for (ref, name) in zip(refs, ["and", "or", "xor"]) {
+            #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == nil)
+            guard case let .symbol(target) = sema.bindings.callableTargets[ref],
+                  let signature = sema.symbols.functionSignature(for: target)
+            else {
+                Issue.record("Int::\(name) should bind its bundled extension symbol.")
+                continue
+            }
+            #expect(sema.symbols.symbol(target)?.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern(name)])
+            #expect(signature.receiverType == intType)
+            let refType = try #require(sema.bindings.exprTypes[ref])
+            guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+                Issue.record("Int::\(name) should infer a function type.")
+                continue
+            }
+            #expect(functionType.params == [intType, intType])
+            #expect(functionType.returnType == intType)
+        }
+    }
+
+    /// A mismatched expected signature is a subtype failure, not an
+    /// unresolved-reference diagnostic.
+    @Test func testBooleanBitwiseOperatorReferenceChecksItsExpectedSignature() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        val invalid: (Int, Int) -> Int = Boolean::and
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError)
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0022" })
+    }
+
     /// A bound reference to a method of a generic interface instantiation
     /// (`t::apply` with `t: Transformer<Int, Int>`) substitutes the receiver's
     /// type arguments into the member's signature instead of leaving the
