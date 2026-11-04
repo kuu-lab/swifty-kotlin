@@ -881,7 +881,14 @@ extension CallTypeChecker {
                                     return true
                                 }
                                 return !existingCandidates.contains { existingID in
-                                    sema.symbols.functionSignature(for: existingID)?.parameterTypes == ctorSignature.parameterTypes
+                                    // A @LowPriorityInOverloadResolution
+                                    // function legally shares the signature —
+                                    // it must not suppress the ctor candidate
+                                    // (KUU-3922).
+                                    if isLowPriorityInOverloadResolution(existingID, symbols: sema.symbols) {
+                                        return false
+                                    }
+                                    return sema.symbols.functionSignature(for: existingID)?.parameterTypes == ctorSignature.parameterTypes
                                 }
                             }
                             candidates = existingCandidates + newCtorVis
