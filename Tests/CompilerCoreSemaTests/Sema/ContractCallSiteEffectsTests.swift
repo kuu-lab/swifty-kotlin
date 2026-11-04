@@ -212,6 +212,61 @@ struct ContractCallSiteEffectsTests {
     }
 
     @Test
+    func receiverNonNullImplicationsNarrowOnlyTheMatchingBranch() throws {
+        let declarations = """
+        import kotlin.contracts.*
+        @OptIn(ExperimentalContracts::class)
+        fun CharSequence?.isNullish(): Boolean {
+            contract { returns(false) implies (this@isNullish != null) }
+            return this == null
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun CharSequence?.hasContent(): Boolean {
+            contract { returns(true) implies (this != null) }
+            return this != null && this.length > 0
+        }
+        """
+        let positive = [
+            "if (!s.isNullish()) println(s.length)",
+            "if (s.isNullish()) return; println(s.length)",
+            "if (s.isNullish()) {} else println(s.length)",
+            "if (s.hasContent()) println(s.length)",
+            "if (s.isNullish() == false) println(s.length)",
+            "if (s.isNullish() || s.length > 0) {}",
+            "if (!s.isNullish() && s.length > 0) {}",
+        ]
+        let negative = [
+            "s.isNullish(); println(s.length)",
+            "if (s.isNullish()) println(s.length)",
+            "if (!s.hasContent()) println(s.length)",
+            "if (s.isNullish() && s.length > 0) {}",
+        ]
+        let sources = (positive + negative).enumerated().map { index, body in
+            "package receivercase\(index)\n" + declarations
+                + "\nfun probe(s: CharSequence?) { \(body) }"
+        }
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths.prefix(positive.count) {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "\(path): \(errors)")
+            }
+            for path in paths.dropFirst(positive.count) {
+                assertHasDiagnostic("KSWIFTK-SEMA-0026", in: diagnosticsForPath(path, in: ctx))
+            }
+
+            let sema = try #require(ctx.sema)
+            let function = try #require(sema.symbols.lookup(
+                fqName: ["receivercase0", "isNullish"].map(ctx.interner.intern)
+            ))
+            #expect(sema.symbols.contractImplicationEffects(for: function).contains {
+                $0.target == .extensionReceiver && $0.argumentCondition == .nonNull
+            })
+        }
+    }
+
+    @Test
     func onlyGuaranteedInvocationsInitializeLocals() throws {
         let kinds = ["EXACTLY_ONCE", "AT_LEAST_ONCE", "AT_MOST_ONCE", "UNKNOWN", ""]
         let sources = kinds.enumerated().map { index, kind in

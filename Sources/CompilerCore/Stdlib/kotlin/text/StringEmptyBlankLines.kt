@@ -1,5 +1,8 @@
 package kotlin.text
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
+
 public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
 public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
@@ -25,13 +28,21 @@ public inline fun <C, R> C.ifBlank(defaultValue: () -> R): R where C : CharSeque
     return if (value.isBlank()) defaultValue() else this
 }
 
+@OptIn(ExperimentalContracts::class)
 public fun CharSequence?.isNullOrEmpty(): Boolean {
+    contract {
+        returns(false) implies (this@isNullOrEmpty != null)
+    }
     val value = this
     if (value == null) return true
     return value!!.isEmpty()
 }
 
+@OptIn(ExperimentalContracts::class)
 public fun CharSequence?.isNullOrBlank(): Boolean {
+    contract {
+        returns(false) implies (this@isNullOrBlank != null)
+    }
     val value = this
     if (value == null) return true
     return value!!.isBlank()

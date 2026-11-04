@@ -1636,11 +1636,9 @@ extension DeclTypeChecker {
                let index = function.valueParams.firstIndex(where: { $0.name == name })
             {
                 target = .valueParameter(index)
-            } else if case let .thisRef(label, _) = ast.arena.expr(operand),
-                      label == function.name,
-                      function.receiverType != nil,
-                      signature.receiverType != nil
-            {
+            } else if isExtensionReceiverThisRef(
+                operand, function: function, signature: signature, ast: ast
+            ) {
                 target = .extensionReceiver
             } else {
                 return
@@ -1658,6 +1656,20 @@ extension DeclTypeChecker {
         }
 
         if case let .binary(.notEqual, lhsExprID, rhsExprID, _) = conditionExpr {
+            // `this != null` (or `this@fn != null`) guarantees the extension
+            // receiver is non-null — e.g. `isNullOrEmpty` on `CharSequence?`.
+            if (isExtensionReceiverThisRef(lhsExprID, function: function, signature: signature, ast: ast)
+                && isNullLiteralExpr(rhsExprID, ast: ast))
+                || (isExtensionReceiverThisRef(rhsExprID, function: function, signature: signature, ast: ast)
+                    && isNullLiteralExpr(lhsExprID, ast: ast))
+            {
+                sema.symbols.addContractImplicationEffect(
+                    ContractImplicationEffect(target: .extensionReceiver, returnCondition: returnCondition,
+                                              argumentCondition: .nonNull),
+                    for: symbol
+                )
+                return
+            }
             let parameterName: InternedString? = if let lhsExpr = ast.arena.expr(lhsExprID),
                                                     case let .nameRef(name, _) = lhsExpr,
                                                     isNullLiteralExpr(rhsExprID, ast: ast)
@@ -1781,6 +1793,24 @@ extension DeclTypeChecker {
             return true
         }
         return false
+    }
+
+    /// `this` (or the labeled `this@fn`) inside a contract condition refers to
+    /// the extension receiver when the function declares one.
+    private func isExtensionReceiverThisRef(
+        _ exprID: ExprID,
+        function: FunDecl,
+        signature: FunctionSignature,
+        ast: ASTModule
+    ) -> Bool {
+        guard case let .thisRef(label, _) = ast.arena.expr(exprID),
+              label == nil || label == function.name,
+              function.receiverType != nil,
+              signature.receiverType != nil
+        else {
+            return false
+        }
+        return true
     }
 
     /// A member declared without a body inside an `expect` class/object/interface
