@@ -267,6 +267,66 @@ extension StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-4133: Boolean elements sent through channelFlow/produce must reach
+    /// `toList` with their BoolBox identity — not collapsed to `0`/`1` by
+    /// `runtimeFlowMaybeUnbox` at the channel-receive element boundary.
+    /// Operator arguments (take counts, predicate decisions) still unbox.
+    @Test(arguments: [false, true])
+    func testFlowBoolErasedElements(useArtifact: Bool) throws {
+        let artifactPath = useArtifact ? try Self.buildStdlibArtifact() : nil
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Scripts/diff_cases/flow_bool_erased_elements.kt"
+        ), encoding: .utf8)
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "FlowBoolErasedElements",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: !useArtifact,
+                stdlibLibraryPath: artifactPath,
+                allowDefaultStdlibLibrary: false
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+                [true]
+                [false]
+                [true, false]
+                [true]
+                [true]
+                true
+                [1]
+                [y]
+                [2.5]
+                [true]
+                [true, false]
+                [true]
+                [true]
+                [false]
+                collected:true
+                collected:false
+                false
+                true
+                true
+                false
+                [true]
+                [true, false]
+                true
+
+                """)
+        }
+    }
+
     @Test
     func testFlowCollectSuspendConversionThroughSharedStdlibArtifact() throws {
         let artifactPath = try Self.buildStdlibArtifact()
