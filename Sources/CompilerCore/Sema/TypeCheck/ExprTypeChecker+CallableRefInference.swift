@@ -2355,11 +2355,18 @@ extension ExprTypeChecker {
                     resultType = inferredType
                 } else {
                     // A generic call may infer its input type arguments from a
-                    // callable reference. Preserve the reference's concrete
-                    // function shape, but still bind a scalar-vararg adapter
-                    // so the call resolver can infer from its expanded inputs.
-                    if ctx.isCallableReferenceArgument,
-                       signature.valueParameterIsVararg.contains(true),
+                    // callable reference. A constructor reference first maps
+                    // its class type parameters through the expected function
+                    // type so `create(::Bypass, s)` reports `() -> Bypass<I, S>`
+                    // written in the call's own variables: `Bypass<B.I, B.S>`
+                    // with foreign (unsolvable) parameters would otherwise add
+                    // `B.I <: T <: B.I` bounds that conflict with evidence the
+                    // sibling arguments supply (KUU-3974). For other shapes,
+                    // preserve the reference's concrete function type, but
+                    // still bind a scalar-vararg adapter so the call resolver
+                    // can infer from its expanded inputs.
+                    if isConstructorReference,
+                       !signature.typeParameterSymbols.isEmpty,
                        let specialization = driver.helpers.contextualCallableReferenceBinding(
                            for: signature,
                            targetSymbol: chosen,
@@ -2372,6 +2379,23 @@ extension ExprTypeChecker {
                            availableContextReceiverTypes: availableContextReceiverTypes,
                            sema: sema
                        )
+                    {
+                        inferredType = specialization.functionType
+                        contextualSpecialization = specialization
+                    } else if ctx.isCallableReferenceArgument,
+                              signature.valueParameterIsVararg.contains(true),
+                              let specialization = driver.helpers.contextualCallableReferenceBinding(
+                                  for: signature,
+                                  targetSymbol: chosen,
+                                  bindReceiver: isBoundReceiver,
+                                  boundReceiver: boundReceiverType.map { (chosen, $0) },
+                                  unboundReceiverType: unboundCallableReceiverType,
+                                  expectedFunctionType: expectedFunctionType,
+                                  postponedReturnTypeParameter: postponedReturnParameter,
+                                  interner: interner,
+                                  availableContextReceiverTypes: availableContextReceiverTypes,
+                                  sema: sema
+                              )
                     {
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
