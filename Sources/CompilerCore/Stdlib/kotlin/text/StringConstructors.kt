@@ -22,6 +22,27 @@ public fun String(chars: CharArray): String =
 public fun String(chars: CharArray, offset: Int, length: Int): String =
     StringBuilder().append(chars, offset, length).toString()
 
+/** JVM `String(int[], int, int)`: range checks precede element validation. */
+public fun String(codePoints: IntArray, offset: Int, count: Int): String {
+    if (offset < 0 || count < 0 || offset > codePoints.size - count) {
+        throw java.lang.StringIndexOutOfBoundsException(
+            "Range [$offset, $offset + $count) out of bounds for length ${codePoints.size}"
+        )
+    }
+    val builder = StringBuilder()
+    var index = offset
+    val end = offset + count
+    while (index < end) {
+        val codePoint = codePoints[index]
+        if (codePoint < 0 || codePoint > 0x10FFFF) {
+            throw IllegalArgumentException(codePoint.toString())
+        }
+        builder.appendCodePoint(codePoint)
+        index++
+    }
+    return builder.toString()
+}
+
 @KsSymbolName("__kk_bytearray_decodeToString")
 public external fun String(bytes: ByteArray): String
 
