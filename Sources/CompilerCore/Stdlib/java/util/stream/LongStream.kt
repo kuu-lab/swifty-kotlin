@@ -9,12 +9,27 @@ import java.util.function.LongUnaryOperator
 
 public class LongStream private constructor(private val values: Sequence<Long>) {
     private var consumed: Boolean = false
+    private var parallelMode: Boolean = false
 
     private fun consumeValues(): Sequence<Long> {
         if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
         consumed = true
         return values
     }
+
+    public fun parallel(): LongStream {
+        parallelMode = true
+        return this
+    }
+
+    public fun sequential(): LongStream {
+        parallelMode = false
+        return this
+    }
+
+    public fun isParallel(): Boolean = parallelMode
+
+    public fun unordered(): LongStream = this
 
     public fun filter(predicate: LongPredicate): LongStream =
         LongStream(consumeValues().filter { predicate.test(it) })

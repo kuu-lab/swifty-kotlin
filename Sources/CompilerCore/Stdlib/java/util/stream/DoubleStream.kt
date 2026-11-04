@@ -8,12 +8,27 @@ import java.util.function.DoubleUnaryOperator
 
 public class DoubleStream private constructor(private val values: Sequence<Double>) {
     private var consumed: Boolean = false
+    private var parallelMode: Boolean = false
 
     private fun consumeValues(): Sequence<Double> {
         if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
         consumed = true
         return values
     }
+
+    public fun parallel(): DoubleStream {
+        parallelMode = true
+        return this
+    }
+
+    public fun sequential(): DoubleStream {
+        parallelMode = false
+        return this
+    }
+
+    public fun isParallel(): Boolean = parallelMode
+
+    public fun unordered(): DoubleStream = this
 
     public fun filter(predicate: DoublePredicate): DoubleStream =
         DoubleStream(consumeValues().filter { predicate.test(it) })

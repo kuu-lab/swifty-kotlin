@@ -11,12 +11,29 @@ import java.util.function.UnaryOperator
 
 public class Stream<T> private constructor(private val values: Sequence<T>) {
     private var consumed: Boolean = false
+    private var parallelMode: Boolean = false
 
     private fun consume(): Sequence<T> {
         if (consumed) throw IllegalStateException("stream has already been operated upon or closed")
         consumed = true
         return values
     }
+
+    // Pipelines evaluate sequentially regardless of the requested mode; only
+    // the observable mode flag changes, as on the JDK.
+    public fun parallel(): Stream<T> {
+        parallelMode = true
+        return this
+    }
+
+    public fun sequential(): Stream<T> {
+        parallelMode = false
+        return this
+    }
+
+    public fun isParallel(): Boolean = parallelMode
+
+    public fun unordered(): Stream<T> = this
 
     public fun filter(predicate: Predicate<T>): Stream<T> =
         Stream(consume().filter { predicate.test(it) })
