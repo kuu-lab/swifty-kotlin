@@ -64,7 +64,7 @@ extension CallTypeChecker {
             }.joined(separator: " & ")
             sema.diagnostics.error(
                 "KSWIFTK-SEMA-REIFIED",
-                "Type argument for reified type parameter '\(parameterName)' was inferred to the intersection of [\(renderedParts)].",
+                "Type argument for reified type parameter '\(parameterName)' was inferred to the intersection of [\(renderedParts)]. Reification of an intersection type results in the common supertype being used. This may lead to subtle issues and an explicit type argument is encouraged.",
                 range: range
             )
             hasInvalidArgument = true
