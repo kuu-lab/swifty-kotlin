@@ -480,6 +480,13 @@ extension CallTypeChecker {
                     if case .functionType = sema.types.kind(of: local.type) {
                         return true
                     }
+                    // A type parameter bounded by a function type (`c: F`
+                    // where `F : (T) -> R`) is a callable value through the
+                    // bound, so it shadows same-named functions the same way
+                    // a concrete function-typed local does (KUU-4087).
+                    if sema.types.uniqueStructuralFunctionType(for: local.type) != nil {
+                        return true
+                    }
                     let invokeName = interner.intern("invoke")
                     if driver.helpers.collectMemberFunctionCandidates(
                         named: invokeName,

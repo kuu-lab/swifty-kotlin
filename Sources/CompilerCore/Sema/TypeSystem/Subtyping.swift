@@ -1429,34 +1429,78 @@ extension TypeSystem {
     /// The unique structural function type carried by `type`: the type itself
     /// when it is a function type, or the single `.functionType` conjunct of a
     /// smart-cast intersection such as `(Boolean) -> Any & KFunction<*>`
-    /// (KUU-3652). Nested intersection conjuncts are flattened; a nullable
-    /// conjunct reads as non-null because the intersection itself proves the
-    /// value non-null. Returns nil when no conjunct — or more than one
-    /// distinct conjunct — is a function type.
+    /// (KUU-3652). A type parameter exposes the function types of its upper
+    /// bounds — `c(t)` on `c: F` with `F : (T) -> R` invokes the bound's
+    /// signature, so a single function-typed bound counts as the unique
+    /// conjunct (KUU-4087). Nested intersection conjuncts are flattened; a
+    /// nullable conjunct reads as non-null because the intersection itself
+    /// proves the value non-null. Returns nil when no conjunct — or more than
+    /// one distinct conjunct — is a function type.
     func uniqueStructuralFunctionType(for type: TypeID) -> FunctionType? {
+        var visitedTypeParameters: Set<SymbolID> = []
+        return uniqueStructuralFunctionType(for: type, visitedTypeParameters: &visitedTypeParameters)
+    }
+
+    private func uniqueStructuralFunctionType(
+        for type: TypeID,
+        visitedTypeParameters: inout Set<SymbolID>
+    ) -> FunctionType? {
+        func upperBoundsContributed(by parameter: TypeParamType) -> [TypeID] {
+            guard visitedTypeParameters.insert(parameter.symbol).inserted else {
+                return []
+            }
+            if let capture = parameter.capture {
+                return [capture.upper]
+            }
+            return declaredUpperBounds(for: parameter.symbol)
+        }
         switch kind(of: type) {
         case let .functionType(function):
             return function
+        case let .typeParam(parameter):
+            return uniqueStructuralFunctionType(
+                among: upperBoundsContributed(by: parameter),
+                visitedTypeParameters: &visitedTypeParameters
+            )
         case let .intersection(parts):
-            var found: FunctionType?
-            var pending = Array(parts)
-            while let part = pending.popLast() {
-                switch kind(of: makeNonNullable(part)) {
-                case let .functionType(partFunction):
-                    if let existing = found, existing != partFunction {
-                        return nil
-                    }
-                    found = partFunction
-                case let .intersection(nested):
-                    pending.append(contentsOf: nested)
-                default:
-                    break
-                }
-            }
-            return found
+            return uniqueStructuralFunctionType(
+                among: parts,
+                visitedTypeParameters: &visitedTypeParameters
+            )
         default:
             return nil
         }
+    }
+
+    private func uniqueStructuralFunctionType(
+        among parts: [TypeID],
+        visitedTypeParameters: inout Set<SymbolID>
+    ) -> FunctionType? {
+        var found: FunctionType?
+        var pending = parts
+        while let part = pending.popLast() {
+            switch kind(of: makeNonNullable(part)) {
+            case let .functionType(partFunction):
+                if let existing = found, existing != partFunction {
+                    return nil
+                }
+                found = partFunction
+            case let .intersection(nested):
+                pending.append(contentsOf: nested)
+            case let .typeParam(parameter):
+                guard visitedTypeParameters.insert(parameter.symbol).inserted else {
+                    continue
+                }
+                if let capture = parameter.capture {
+                    pending.append(capture.upper)
+                } else {
+                    pending.append(contentsOf: declaredUpperBounds(for: parameter.symbol))
+                }
+            default:
+                break
+            }
+        }
+        return found
     }
 
     func nominalFunctionType(for type: TypeID) -> FunctionType? {

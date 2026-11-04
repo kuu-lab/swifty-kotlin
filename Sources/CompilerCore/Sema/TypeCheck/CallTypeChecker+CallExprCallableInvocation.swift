@@ -419,7 +419,7 @@ extension CallTypeChecker {
                 continue
             }
             let isFunctionType: Bool = {
-                guard case let .functionType(function) = sema.types.kind(of: property.type) else {
+                guard let function = sema.types.uniqueStructuralFunctionType(for: property.type) else {
                     return false
                 }
                 return function.nullability == .nonNull
@@ -453,6 +453,12 @@ extension CallTypeChecker {
         func isCallableType(_ type: TypeID) -> Bool {
             let nonNull = sema.types.makeNonNullable(type)
             if case .functionType = sema.types.kind(of: nonNull) {
+                return true
+            }
+            // A type parameter bounded by a function type (`c: F` where
+            // `F : (T) -> R`) is invocable through the bound the same way a
+            // smart-cast intersection is (KUU-4087).
+            if sema.types.uniqueStructuralFunctionType(for: nonNull) != nil {
                 return true
             }
             return !implicitInvokeOperatorCandidates(for: nonNull, ctx: ctx).isEmpty
