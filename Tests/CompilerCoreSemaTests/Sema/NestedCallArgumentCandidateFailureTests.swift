@@ -334,6 +334,64 @@ struct NestedCallArgumentCandidateFailureTests {
         }
     }
 
+    @Test
+    func collectionsMaxPropagatesComparatorElementIntoInlineCompareBy() throws {
+        // `Collections.max`/`min` declare `Comparator<in T>`, so the sibling
+        // collection argument pins the inline `compareBy` selector's element
+        // type. Without that expected type the selector's `T` is only used in
+        // input positions and collapses to `Any`, materializing
+        // `Comparator<Any>` — a valid substitution that traps at runtime
+        // (KUU-4048).
+        let context = makeContext("""
+        import java.util.Collections
+        fun main() {
+            println(Collections.max(listOf(1, 2), compareBy { -it }))
+            println(Collections.min(listOf(1, 2), compareBy { -it }))
+        }
+        """)
+
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let comparatorSymbol = try #require(
+            sema.symbols.lookup(fqName: [
+                context.interner.intern("kotlin"),
+                context.interner.intern("Comparator"),
+            ])
+        )
+        var compareByCallIDs: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .call(calleeExprID, _, _, _) = expr,
+                  let calleeExpr = ast.arena.expr(calleeExprID),
+                  case let .nameRef(calleeName, _) = calleeExpr,
+                  context.interner.resolve(calleeName) == "compareBy"
+            else {
+                continue
+            }
+            compareByCallIDs.append(exprID)
+        }
+        #expect(compareByCallIDs.count == 2)
+        for callExprID in compareByCallIDs {
+            let resultType = try #require(sema.bindings.exprType(for: callExprID))
+            guard case let .classType(comparatorType) = sema.types.kind(of: resultType),
+                  comparatorType.classSymbol == comparatorSymbol,
+                  case let .invariant(elementType) = comparatorType.args.first
+            else {
+                Issue.record("Expected compareBy to produce Comparator, got \(sema.types.renderType(resultType))")
+                continue
+            }
+            #expect(
+                elementType == sema.types.intType,
+                "Expected compareBy's element to bind to Int, got \(sema.types.renderType(resultType))"
+            )
+            #expect(sema.bindings.callBinding(for: callExprID)?.substitutedTypeArguments == [sema.types.intType])
+        }
+    }
+
     private func makeContext(_ source: String) -> CompilationContext {
         TestStdlibCache.shared.prepare()
         return makeContextFromSource(source, allowDefaultStdlibLibrary: true)
