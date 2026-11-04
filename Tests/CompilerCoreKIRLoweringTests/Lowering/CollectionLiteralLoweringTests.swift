@@ -904,9 +904,43 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
+        // KUU-4144: a single-argument call resolves to the single-element
+        // overload — `Collections.singleton`/`EmptySet` on the JVM — lowered
+        // to the dedicated singleton callee rather than the vararg one.
+        #expect(
+            callees.contains(try loweringRuntimeABI("set_of_not_null_single").name),
+            "setOfNotNull(e) should be rewritten to __kk_set_of_not_null_single, got: \(callees)"
+        )
+    }
+
+    @Test
+    func testSetOfNotNullVarargRewrittenToKkSetOfNotNull() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let callee = interner.intern("setOfNotNull")
+        // A multi-argument call can only resolve to the vararg overload —
+        // a mutable LinkedHashSet on the JVM even when filtering leaves
+        // one element — so it keeps __kk_set_of_not_null (KUU-4144).
+        let v0 = arena.appendExpr(.temporary(0))
+        let v1 = arena.appendExpr(.temporary(1))
+        let v2 = arena.appendExpr(.temporary(2))
+        let (module, declID) = makeModule(body: [
+            .call(callee: callee, arguments: [v0, v1], result: v2, canThrow: false),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("setOfNotNull"), "setOfNotNull should be rewritten")
         #expect(
             callees.contains(try loweringRuntimeABI("set_of_not_null").name),
-            "setOfNotNull should be rewritten to __kk_set_of_not_null, got: \(callees)"
+            "setOfNotNull(e1, e2) should be rewritten to __kk_set_of_not_null, got: \(callees)"
+        )
+        #expect(
+            !callees.contains(try loweringRuntimeABI("set_of_not_null_single").name),
+            "vararg setOfNotNull must not use the singleton callee, got: \(callees)"
         )
     }
 

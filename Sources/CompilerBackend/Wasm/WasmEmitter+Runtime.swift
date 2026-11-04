@@ -519,6 +519,7 @@ enum WasmRuntimeHelpers {
         // `kk_list_iterator`.
         "__kk_set_of",
         "__kk_set_of_not_null",
+        "__kk_set_of_not_null_single",
         "__kk_hash_set_of",
         "__kk_linked_hash_set_of",
         "__kk_hash_set_new_checked",
@@ -1223,9 +1224,9 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: L.pairMapKeyOffset)
             code.call(ctx.emittedHelperIndex(for: "__kk_map_get", argumentCount: 2))
             code.end()
-        case "__kk_set_of", "__kk_set_of_not_null", "__kk_hash_set_of",
-             "__kk_linked_hash_set_of":
-            extraLocals = 7
+        case "__kk_set_of", "__kk_set_of_not_null", "__kk_set_of_not_null_single",
+             "__kk_hash_set_of", "__kk_linked_hash_set_of":
+            extraLocals = 9
             emitSetOfBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
         case "__kk_hash_set_new_checked":
             // Capacity/loadFactor validation is a native-side concern; the
@@ -1265,11 +1266,11 @@ enum WasmRuntimeHelpers {
             code.i64Const(0)
         case "__kk_map_of", "__kk_hash_map_of", "__kk_linked_hash_map_of",
              "__kk_emptyMap":
-            extraLocals = 3
+            extraLocals = 5
             emitMapOfBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
         case "__kk_map_of_pairs", "__kk_hash_map_of_pairs",
              "__kk_linked_hash_map_of_pairs":
-            extraLocals = 5
+            extraLocals = 7
             emitMapOfPairsBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
         case "__kk_map_freeze":
             extraLocals = 0
@@ -7523,7 +7524,9 @@ enum WasmRuntimeHelpers {
         arrayLocal: Int,
         countLocal: Int?,
         objectLocal: Int,
-        listItables: Bool = true
+        listItables: Bool = true,
+        typeIDLocal: Int? = nil,
+        readOnlyLocal: Int? = nil
     ) {
         // Slots 0/1 are object metadata; slots 2/3/4 hold array, count, flags.
         // `mutableListOf()`/`listOf()` arrive as (0, 0) — substitute a real
@@ -7536,7 +7539,11 @@ enum WasmRuntimeHelpers {
         code.localSet(arrayLocal)
         code.end()
         code.i64Const(5)
-        code.i64Const(typeID)
+        if let typeIDLocal {
+            code.localGet(typeIDLocal)
+        } else {
+            code.i64Const(typeID)
+        }
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(objectLocal)
         emitStoreAt(&code, baseLocal: objectLocal, byteOffset: L.listArrayOffset, valueLocal: arrayLocal)
@@ -7545,10 +7552,14 @@ enum WasmRuntimeHelpers {
         } else {
             emitStoreAtConst(&code, baseLocal: objectLocal, byteOffset: L.listCountOffset, value: 0)
         }
-        emitStoreAtConst(
-            &code, baseLocal: objectLocal, byteOffset: L.listFlagsOffset,
-            value: readOnly ? 1 : 0
-        )
+        if let readOnlyLocal {
+            emitStoreAt(&code, baseLocal: objectLocal, byteOffset: L.listFlagsOffset, valueLocal: readOnlyLocal)
+        } else {
+            emitStoreAtConst(
+                &code, baseLocal: objectLocal, byteOffset: L.listFlagsOffset,
+                value: readOnly ? 1 : 0
+            )
+        }
         // Iterable(0)/Sequence(1)/MutableIterable(2) all iterate through the
         // shared list-layout iterator — mirrors the native
         // `maybeRegisterCollectionIterableItable` table so interface-typed
@@ -10250,6 +10261,7 @@ enum WasmRuntimeHelpers {
         let uniqArr = argumentCount, uniqCount = argumentCount + 1
         let iL = argumentCount + 2, elemL = argumentCount + 3
         let jL = argumentCount + 4, foundL = argumentCount + 5, boxL = argumentCount + 6
+        let tagL = argumentCount + 7, flagsL = argumentCount + 8
         emitCollectionTypeEdges(&code, ctx: ctx, edges: [
             ("kotlin.collections.MutableCollection", "kotlin.collections.Collection"),
             ("kotlin.collections.Collection", "kotlin.collections.Iterable"),
@@ -10348,11 +10360,55 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
+        // KUU-4144: mirror the native tag split — `setOf`/`emptySet` results
+        // of 0 or 1 elements keep the read-only `Set` tag + freeze (shared
+        // `EmptySet`/`Collections$SingletonSet` on the JVM), while 2+
+        // elements and the `setOfNotNull(vararg)` overload produce mutable
+        // `LinkedHashSet` impls. The single-element `setOfNotNull` overload
+        // always freezes, matching its native callee.
+        let setNominalID = stableNominalTypeID("kotlin.collections.Set")
+        let linkedHashSetNominalID = stableNominalTypeID("kotlin.collections.LinkedHashSet")
+        switch name {
+        case "__kk_set_of_not_null":
+            code.i64Const(linkedHashSetNominalID)
+            code.localSet(tagL)
+            code.i64Const(0)
+            code.localSet(flagsL)
+        case "__kk_set_of_not_null_single":
+            code.i64Const(setNominalID)
+            code.localSet(tagL)
+            code.i64Const(1)
+            code.localSet(flagsL)
+        case "__kk_set_of":
+            // `__kk_emptySet` delegates here with count 0. The tag decision
+            // follows the supplied element count (param 1), not the deduped
+            // uniqCount — `setOf(1, 1)` is a `LinkedHashSet` on the JVM.
+            code.localGet(1)
+            code.i64Const(2)
+            code.op(WasmOpcode.i64LtS)
+            code.openIf(result: .i64)
+            code.i64Const(setNominalID)
+            code.elseBranch()
+            code.i64Const(linkedHashSetNominalID)
+            code.end()
+            code.localSet(tagL)
+            code.localGet(1)
+            code.i64Const(2)
+            code.op(WasmOpcode.i64LtS)
+            code.i64ExtendFromComparison()
+            code.localSet(flagsL)
+        default:
+            code.i64Const(setTypeID(for: name))
+            code.localSet(tagL)
+            code.i64Const(0)
+            code.localSet(flagsL)
+        }
         emitListBoxBody(
             &code, ctx: ctx,
             typeID: setTypeID(for: name), readOnly: false,
             arrayLocal: uniqArr, countLocal: uniqCount, objectLocal: boxL,
-            listItables: false
+            listItables: false,
+            typeIDLocal: tagL, readOnlyLocal: flagsL
         )
         emitCollectionItableRegistrations(&code, ctx: ctx, objectLocal: boxL, set: true, entry: false)
         code.localGet(boxL)
@@ -10630,10 +10686,16 @@ enum WasmRuntimeHelpers {
         keysLocal: Int,
         valuesLocal: Int,
         countLocal: Int?,
-        objectLocal: Int
+        objectLocal: Int,
+        typeIDLocal: Int? = nil,
+        readOnlyLocal: Int? = nil
     ) {
         code.i64Const(6)
-        code.i64Const(typeID)
+        if let typeIDLocal {
+            code.localGet(typeIDLocal)
+        } else {
+            code.i64Const(typeID)
+        }
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(objectLocal)
         emitStoreAt(&code, baseLocal: objectLocal, byteOffset: L.mapKeysOffset, valueLocal: keysLocal)
@@ -10643,10 +10705,14 @@ enum WasmRuntimeHelpers {
         } else {
             emitStoreAtConst(&code, baseLocal: objectLocal, byteOffset: L.mapCountOffset, value: 0)
         }
-        emitStoreAtConst(
-            &code, baseLocal: objectLocal, byteOffset: L.mapFlagsOffset,
-            value: readOnly ? 1 : 0
-        )
+        if let readOnlyLocal {
+            emitStoreAt(&code, baseLocal: objectLocal, byteOffset: L.mapFlagsOffset, valueLocal: readOnlyLocal)
+        } else {
+            emitStoreAtConst(
+                &code, baseLocal: objectLocal, byteOffset: L.mapFlagsOffset,
+                value: readOnly ? 1 : 0
+            )
+        }
         emitMapItableRegistrations(&code, ctx: ctx, objectLocal: objectLocal)
     }
 
@@ -10731,7 +10797,29 @@ enum WasmRuntimeHelpers {
             ("kotlin.collections.LinkedHashMap", "kotlin.collections.MutableMap"),
             ("kotlin.collections.MutableMap.MutableEntry", "kotlin.collections.Map.Entry"),
         ])
+        // KUU-4144: `mapOf` mirrors the native split — the 0/1-pair results
+        // keep the read-only `Map` tag + freeze (EmptyMap/SingletonMap on the
+        // JVM) while 2+ is a mutable `LinkedHashMap`. `__kk_emptyMap` has no
+        // count parameter and stays const read-only.
         let readOnly = name == "__kk_map_of" || name == "__kk_emptyMap"
+        let tagL = argumentCount + 3, flagsL = argumentCount + 4
+        let readOnlyMapOf = name == "__kk_map_of" && argumentCount >= 3
+        if readOnlyMapOf {
+            code.localGet(2)
+            code.i64Const(2)
+            code.op(WasmOpcode.i64LtS)
+            code.openIf(result: .i64)
+            code.i64Const(stableNominalTypeID("kotlin.collections.Map"))
+            code.elseBranch()
+            code.i64Const(stableNominalTypeID("kotlin.collections.LinkedHashMap"))
+            code.end()
+            code.localSet(tagL)
+            code.localGet(2)
+            code.i64Const(2)
+            code.op(WasmOpcode.i64LtS)
+            code.i64ExtendFromComparison()
+            code.localSet(flagsL)
+        }
         let arrNew = ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1)
         for (param, target) in [(0, keysL), (1, valuesL)] {
             if argumentCount >= 3 {
@@ -10757,7 +10845,9 @@ enum WasmRuntimeHelpers {
             keysLocal: keysL,
             valuesLocal: valuesL,
             countLocal: argumentCount >= 3 ? 2 : nil,
-            objectLocal: boxL
+            objectLocal: boxL,
+            typeIDLocal: readOnlyMapOf ? tagL : nil,
+            readOnlyLocal: readOnlyMapOf ? flagsL : nil
         )
         code.localGet(boxL)
     }
@@ -10773,6 +10863,7 @@ enum WasmRuntimeHelpers {
     ) {
         let keysL = argumentCount, valuesL = argumentCount + 1
         let iL = argumentCount + 2, pairL = argumentCount + 3, boxL = argumentCount + 4
+        let tagL = argumentCount + 5, flagsL = argumentCount + 6
         let arrNew = ctx.emittedHelperIndex(for: "kk_array_new", argumentCount: 1)
         code.localGet(1)
         code.call(arrNew)
@@ -10834,11 +10925,33 @@ enum WasmRuntimeHelpers {
             ("kotlin.collections.LinkedHashMap", "kotlin.collections.MutableMap"),
             ("kotlin.collections.MutableMap.MutableEntry", "kotlin.collections.Map.Entry"),
         ])
+        // KUU-4144: `mapOf(vararg pairs)` is a mutable `LinkedHashMap` for
+        // every non-empty spread on the JVM — including a single pair —
+        // while a zero-pair spread shares `EmptyMap` semantics.
+        let pairsReadOnly = name == "__kk_map_of_pairs"
+        if pairsReadOnly {
+            code.localGet(1)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf(result: .i64)
+            code.i64Const(stableNominalTypeID("kotlin.collections.Map"))
+            code.elseBranch()
+            code.i64Const(stableNominalTypeID("kotlin.collections.LinkedHashMap"))
+            code.end()
+            code.localSet(tagL)
+            code.localGet(1)
+            code.i64Const(0)
+            code.op(WasmOpcode.i64Eq)
+            code.i64ExtendFromComparison()
+            code.localSet(flagsL)
+        }
         emitMapBoxBody(
             &code, ctx: ctx,
-            typeID: mapTypeID(for: name), readOnly: name == "__kk_map_of_pairs",
+            typeID: mapTypeID(for: name), readOnly: pairsReadOnly,
             keysLocal: keysL, valuesLocal: valuesL,
-            countLocal: 1, objectLocal: boxL
+            countLocal: 1, objectLocal: boxL,
+            typeIDLocal: pairsReadOnly ? tagL : nil,
+            readOnlyLocal: pairsReadOnly ? flagsL : nil
         )
         code.localGet(boxL)
     }
@@ -11072,12 +11185,35 @@ enum WasmRuntimeHelpers {
         code.br(0)
         code.end()
         code.end()
-        code.localGet(dstL)
-        code.localGet(countL)
         switch view {
         case .values:
+            // KUU-4144: JDK `Collections$SingletonMap.values` is a
+            // `Collections$SingletonSet` — a Set impl, not a List — so a
+            // one-entry read-only `Map` box wraps its values snapshot with
+            // `__kk_set_of` (frozen singleton). Every other `*Map$*Values`
+            // is an AbstractCollection: `emptyMap().values` keeps the
+            // `EmptyList`-style list, mutable maps keep the list view.
+            // The `if` arms must re-push the call arguments: operands below
+            // the block's entry height are not consumable inside it.
+            emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+            code.i64Const(stableNominalTypeID("kotlin.collections.Map"))
+            code.op(WasmOpcode.i64Eq)
+            code.localGet(countL)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Eq)
+            code.op(WasmOpcode.i32And)
+            code.openIf(result: .i64)
+            code.localGet(dstL)
+            code.localGet(countL)
+            code.call(ctx.emittedHelperIndex(for: "__kk_set_of", argumentCount: 2))
+            code.elseBranch()
+            code.localGet(dstL)
+            code.localGet(countL)
             code.call(ctx.emittedHelperIndex(for: "__kk_list_of", argumentCount: 2))
+            code.end()
         case .keys, .entries:
+            code.localGet(dstL)
+            code.localGet(countL)
             code.call(ctx.emittedHelperIndex(for: "__kk_set_of", argumentCount: 2))
         }
     }

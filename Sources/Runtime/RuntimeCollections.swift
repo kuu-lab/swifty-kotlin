@@ -412,8 +412,11 @@ public func kk_array_list_is_read_only(_ listRaw: Int) -> Int {
     kk_box_bool(runtimeListBox(from: listRaw)?.isReadOnly == true ? 1 : 0)
 }
 
-// Kotlin exposes emptyList() as a shared immutable instance.
-private let emptyListSingletonRaw: Int = {
+// Kotlin exposes emptyList() as a shared immutable instance. The handle is
+// module-internal (like `emptySetSingletonRaw`/`emptyMapSingletonRaw`) so the
+// erased `is` check and `::class` reflection can gate on canonical identity
+// rather than element count (KUU-4144).
+let emptyListSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
     runtimeListBox(from: raw)?.freeze()
     return raw

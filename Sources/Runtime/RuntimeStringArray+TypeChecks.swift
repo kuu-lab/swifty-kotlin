@@ -468,6 +468,16 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
                     sourceTypeID: sourceTypeID,
                     targetTypeID: payload
                 )
+                || runtimeIsJvmErasedSetAssignable(
+                    rawValue: value,
+                    sourceTypeID: sourceTypeID,
+                    targetTypeID: payload
+                )
+                || runtimeIsJvmErasedMapAssignable(
+                    rawValue: value,
+                    sourceTypeID: sourceTypeID,
+                    targetTypeID: payload
+                )
             {
                 return 1
             }
