@@ -536,4 +536,112 @@ struct RuntimeRegexTests {
         #expect(matchValue(first) == "Kästner")
         #expect(runtimeString(__kk_regex_pattern(wordRaw)) == "(?U)\\w+")
     }
+
+    // MARK: - KUU-4148: JVM default ASCII POSIX classes
+
+    @Test
+    func translateRewritesPosixClassesToAsciiByDefault() {
+        #expect(translateJavaPatternForICU("\\p{Lower}+") == "[a-z]+")
+        #expect(translateJavaPatternForICU("\\p{Upper}+") == "[A-Z]+")
+        #expect(translateJavaPatternForICU("\\p{ASCII}+") == "[\\x00-\\x7F]+")
+        #expect(translateJavaPatternForICU("\\p{Alpha}+") == "[a-zA-Z]+")
+        #expect(translateJavaPatternForICU("\\p{Digit}+") == "[0-9]+")
+        #expect(translateJavaPatternForICU("\\p{Alnum}+") == "[a-zA-Z0-9]+")
+        #expect(translateJavaPatternForICU("\\p{Punct}+")
+            == "[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]+")
+        #expect(translateJavaPatternForICU("\\p{Graph}+") == "[\\x21-\\x7E]+")
+        #expect(translateJavaPatternForICU("\\p{Print}+") == "[\\x20-\\x7E]+")
+        #expect(translateJavaPatternForICU("\\p{Blank}+") == "[ \\t]+")
+        #expect(translateJavaPatternForICU("\\p{Cntrl}+") == "[\\x00-\\x1F\\x7F]+")
+        #expect(translateJavaPatternForICU("\\p{XDigit}+") == "[0-9a-fA-F]+")
+        #expect(translateJavaPatternForICU("\\p{Space}+") == "[ \\t\\n\\x0B\\f\\r]+")
+        // \P{Name} complements the ASCII expansion.
+        #expect(translateJavaPatternForICU("\\P{Lower}+") == "[^a-z]+")
+        #expect(translateJavaPatternForICU("\\P{XDigit}") == "[^0-9a-fA-F]")
+        // Inside classes the expansion is a nested class so it unions safely.
+        #expect(translateJavaPatternForICU("[\\p{Lower}_]") == "[[a-z]_]")
+        #expect(translateJavaPatternForICU("[\\P{Lower}]") == "[[^a-z]]")
+        #expect(translateJavaPatternForICU("[^\\p{Punct}]")
+            == "[^[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]]")
+        // Non-POSIX \p{...} names are Unicode on both sides: verbatim.
+        #expect(translateJavaPatternForICU("\\p{Lu}+") == "\\p{Lu}+")
+        #expect(translateJavaPatternForICU("\\p{InGreek}+") == "\\p{InGreek}+")
+        // Names are case-sensitive like the JVM's (`\p{lower}` is an error
+        // there; it is not rewritten here either).
+        #expect(translateJavaPatternForICU("\\p{lower}+") == "\\p{lower}+")
+        // Unbraced single-letter categories (exactly L M N P S Z C on the
+        // JVM) are wrapped in braces for ICU; other letters stay verbatim.
+        #expect(translateJavaPatternForICU("\\pL+") == "\\p{L}+")
+        #expect(translateJavaPatternForICU("\\pC") == "\\p{C}")
+        #expect(translateJavaPatternForICU("\\PL") == "\\P{L}")
+        #expect(translateJavaPatternForICU("\\pU") == "\\pU")
+        // \Q...\E quoting is untouched.
+        #expect(translateJavaPatternForICU("\\Q\\p{Lower}\\E\\p{Lower}")
+            == "\\Q\\p{Lower}\\E[a-z]")
+    }
+
+    @Test
+    func translateKeepsPosixClassesUnicodeInsideUnicodeFlagScopes() {
+        #expect(translateJavaPatternForICU("(?U)\\p{Lower}+") == "\\p{Lower}+")
+        #expect(translateJavaPatternForICU("(?U:\\p{Lower}+)\\p{Lower}")
+            == "(?:\\p{Lower}+)[a-z]")
+        #expect(translateJavaPatternForICU("(?U)\\p{Lower}(?-U)\\p{Lower}")
+            == "\\p{Lower}[a-z]")
+        #expect(translateJavaPatternForICU("(?U)\\P{Lower}") == "\\P{Lower}")
+        // A bare (?U) applies only until the end of the enclosing group.
+        #expect(translateJavaPatternForICU("(x(?U)\\p{Lower}) \\p{Lower}")
+            == "(x\\p{Lower}) [a-z]")
+    }
+
+    @Test
+    func translateNeutralizesIcuSetOperatorsForJvmLiterals() {
+        // `[:`, `[.`, `[=` are ICU set operators; the JVM reads the inner `[`
+        // as an ordinary nested class of literal members, in both modes.
+        #expect(translateJavaPatternForICU("[[:alpha:]]") == "[[\\:alpha:]]")
+        #expect(translateJavaPatternForICU("[^[:alpha:]0-9]") == "[^[\\:alpha:]0-9]")
+        #expect(translateJavaPatternForICU("[[:^alpha:]]") == "[[\\:^alpha:]]")
+        #expect(translateJavaPatternForICU("(?U)[[:alpha:]]") == "[[\\:alpha:]]")
+        #expect(translateJavaPatternForICU("[[=a=]]") == "[[\\=a=]]")
+        #expect(translateJavaPatternForICU("[[.a.]]") == "[[\\.a.]]")
+        #expect(translateJavaPatternForICU("[x[:digit:]y]") == "[x[\\:digit:]y]")
+        // A plain `[` opens a nested class in both dialects; no escape added.
+        #expect(translateJavaPatternForICU("[a[b]c]") == "[a[b]c]")
+    }
+
+    @Test
+    func asciiPosixClassesMatchJvmDefaults() {
+        let lowerRaw = withFlatString("\\p{Lower}+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let first = regexFind(lowerRaw, input: "AbCäü")
+        #expect(first != runtimeNullSentinelInt)
+        #expect(matchValue(first) == "b")
+
+        let punctRaw = withFlatString("\\P{Punct}+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let punctMatch = regexFind(punctRaw, input: "«»!")
+        #expect(punctMatch != runtimeNullSentinelInt)
+        #expect(matchValue(punctMatch) == "«»")
+    }
+
+    @Test
+    func posixBracketOperatorsMatchJvmLiterals() {
+        // JVM reads [[:alpha:]] as a nested class of the literal characters
+        // `:alpha:` — ':' matches but 'A' and 'ä' do not.
+        let posixRaw = withFlatString("[[:alpha:]]+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let findAllRaw = withFlatString("AbCäü:") { data, length, byteCount, hash in
+            kk_regex_findAll_flat(posixRaw, data, length, byteCount, hash)
+        }
+        #expect(runtimeListElements(findAllRaw).map(matchValue) == [":"])
+
+        let unicodeRaw = withFlatString("(?U)\\p{Lower}+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let unicodeMatch = regexFind(unicodeRaw, input: "AbCäü")
+        #expect(unicodeMatch != runtimeNullSentinelInt)
+        #expect(matchValue(unicodeMatch) == "b")
+    }
 }
