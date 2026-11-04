@@ -13762,8 +13762,8 @@ enum WasmRuntimeHelpers {
         ))
     }
 
-    /// `obj -> i64`: JVM-style identity rendering `TypeName@hexHash` for
-    /// array boxes (mirrors `runtimeArrayIdentityToString`). The type name
+    /// `obj -> i64`: JVM-style identity rendering `Descriptor@hexHash` for
+    /// array boxes (mirrors `runtimeArrayIdentityToString`). The descriptor
     /// resolves from the typeID slot; the hash is the low 32 bits of the
     /// object address. Returns 0 for non-array typeIDs so callers can fall
     /// through to other rendering.
@@ -13775,21 +13775,25 @@ enum WasmRuntimeHelpers {
         // 6 = nibble, 7 = digit
         emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
         code.localSet(1)
+        // KUU-4001: JVM Object.toString() on an array spells the class name
+        // as a descriptor (`[I`, `[Ljava.lang.Object;`). Wasm arrays carry no
+        // component slot, so the generic Array typeID falls back to Object[]
+        // and unsigned arrays spell their signed storage's descriptor.
         let names: [(Int64, String)] = [
-            (L.arrayTypeID, "kotlin.Array"),
-            (stableNominalTypeID("kotlin.Array"), "kotlin.Array"),
-            (stableNominalTypeID("kotlin.IntArray"), "kotlin.IntArray"),
-            (stableNominalTypeID("kotlin.LongArray"), "kotlin.LongArray"),
-            (stableNominalTypeID("kotlin.DoubleArray"), "kotlin.DoubleArray"),
-            (stableNominalTypeID("kotlin.FloatArray"), "kotlin.FloatArray"),
-            (stableNominalTypeID("kotlin.CharArray"), "kotlin.CharArray"),
-            (stableNominalTypeID("kotlin.BooleanArray"), "kotlin.BooleanArray"),
-            (stableNominalTypeID("kotlin.ByteArray"), "kotlin.ByteArray"),
-            (stableNominalTypeID("kotlin.ShortArray"), "kotlin.ShortArray"),
-            (stableNominalTypeID("kotlin.UByteArray"), "kotlin.UByteArray"),
-            (stableNominalTypeID("kotlin.UShortArray"), "kotlin.UShortArray"),
-            (stableNominalTypeID("kotlin.UIntArray"), "kotlin.UIntArray"),
-            (stableNominalTypeID("kotlin.ULongArray"), "kotlin.ULongArray"),
+            (L.arrayTypeID, "[Ljava.lang.Object;"),
+            (stableNominalTypeID("kotlin.Array"), "[Ljava.lang.Object;"),
+            (stableNominalTypeID("kotlin.IntArray"), "[I"),
+            (stableNominalTypeID("kotlin.LongArray"), "[J"),
+            (stableNominalTypeID("kotlin.DoubleArray"), "[D"),
+            (stableNominalTypeID("kotlin.FloatArray"), "[F"),
+            (stableNominalTypeID("kotlin.CharArray"), "[C"),
+            (stableNominalTypeID("kotlin.BooleanArray"), "[Z"),
+            (stableNominalTypeID("kotlin.ByteArray"), "[B"),
+            (stableNominalTypeID("kotlin.ShortArray"), "[S"),
+            (stableNominalTypeID("kotlin.UByteArray"), "[B"),
+            (stableNominalTypeID("kotlin.UShortArray"), "[S"),
+            (stableNominalTypeID("kotlin.UIntArray"), "[I"),
+            (stableNominalTypeID("kotlin.ULongArray"), "[J"),
         ]
         for (tidValue, name) in names {
             code.localGet(1)

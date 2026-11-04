@@ -59,8 +59,14 @@ func runtimeNominalTypeToken(_ typeID: Int64) -> Int {
 }
 
 func runtimeArrayIdentityToString(_ raw: Int) -> String {
-    let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
-    let typeName = runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.name ?? "kotlin.Array"
+    // KUU-4001: JVM Object.toString() on an array spells the class name as a
+    // descriptor (`[Ljava.lang.Integer;`, `[I`, `[[I`), not `kotlin.Array` /
+    // `kotlin.IntArray`. The same component metadata that backs javaClass.name
+    // resolves the element descriptor here.
+    let typeName = runtimeJavaArrayClassName(rawValue: raw) ?? {
+        let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
+        return runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.name ?? "kotlin.Array"
+    }()
     let hash = UInt32(truncatingIfNeeded: kk_any_hashCode(raw, 0))
     return "\(typeName)@\(String(hash, radix: 16))"
 }
