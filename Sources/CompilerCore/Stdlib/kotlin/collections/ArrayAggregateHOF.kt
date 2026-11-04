@@ -116,6 +116,20 @@ public inline fun <T> Array<out T>.sumOf(selector: (T) -> ULong): ULong {
     return sum
 }
 
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
+public inline fun <T> Array<out T>.sumBy(selector: (T) -> Int): Int {
+    var sum = 0
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@Deprecated("Use sumOf instead.", ReplaceWith("sumOf(selector)"))
+public inline fun <T> Array<out T>.sumByDouble(selector: (T) -> Double): Double {
+    var sum = 0.0
+    for (element in this) sum += selector(element)
+    return sum
+}
+
 public fun Array<out Byte>.sum(): Int = asIterable().sum()
 
 public fun Array<out Byte>.average(): Double = asIterable().average()
