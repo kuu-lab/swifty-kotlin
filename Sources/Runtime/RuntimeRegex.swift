@@ -191,19 +191,58 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
 /// every position. `NSRegularExpression` rejects an empty pattern string, so
 /// the equivalent non-capturing empty group `(?:)` is compiled instead.
 private func compileRegexPattern(_ pattern: String, options: NSRegularExpression.Options) throws -> NSRegularExpression {
-    try NSRegularExpression(pattern: pattern.isEmpty ? "(?:)" : stripJavaOnlyInlineFlags(pattern), options: options)
+    // `NSRegularExpression` rejects an empty pattern, and a `(?U)`-only pattern
+    // translates to empty as well, so fall back to the equivalent
+    // non-capturing empty group `(?:)` in both cases.
+    let source = pattern.isEmpty ? "(?:)" : pattern
+    let translated = translateJavaPatternForICU(source)
+    return try NSRegularExpression(pattern: translated.isEmpty ? "(?:)" : translated, options: options)
 }
 
-/// Removes the `java.util.regex` inline flags that ICU does not know about.
+/// `\b` / `\B` spelled out as lookarounds over a word class `W`. ICU's `\b`
+/// consults its own Unicode word tables and its `\B` is not the exact
+/// complement of its `\b`, so an explicit `(?<=[W])/(?=[W])` transition test is
+/// the only way to reproduce the JVM's boundary positions (`\b` matches where
+/// exactly one side is a word character; `\B` everywhere else). Non-capturing
+/// groups keep the user's capture-group numbering intact.
+private let asciiWordBoundaryPattern =
+    "(?:(?<![a-zA-Z0-9_])(?=[a-zA-Z0-9_])|(?<=[a-zA-Z0-9_])(?![a-zA-Z0-9_]))"
+private let asciiNonWordBoundaryPattern =
+    "(?:(?<![a-zA-Z0-9_])(?![a-zA-Z0-9_])|(?<=[a-zA-Z0-9_])(?=[a-zA-Z0-9_]))"
+private let unicodeWordBoundaryPattern =
+    "(?:(?<!\\w)(?=\\w)|(?<=\\w)(?!\\w))"
+private let unicodeNonWordBoundaryPattern =
+    "(?:(?<!\\w)(?!\\w)|(?<=\\w)(?=\\w))"
+
+/// Translates a `java.util.regex` pattern into the ICU dialect used by
+/// `NSRegularExpression`.
 ///
-/// Kotlin/JVM accepts `(?u)` (UNICODE_CASE) and `(?U)` (UNICODE_CHARACTER_CLASS)
-/// next to the `i d m s x` flags ICU also understands; ICU rejects the former as
-/// an invalid pattern. ICU already folds case and classifies `\w` / `\d` / `\b`
-/// by Unicode properties, so those two flags are semantically a no-op here and
-/// are dropped from flag groups such as `(?U)`, `(?iU)`, `(?U-i:...)`.
-/// Escapes, `\Q...\E` quotes and character classes are copied verbatim.
-func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
-    guard pattern.contains("(?") else { return pattern }
+/// Two JVM behaviours differ from ICU defaults and are emulated here:
+///
+/// 1. **Predefined classes are ASCII by default.** On the JVM `\w`, `\d`, `\s`
+///    (and their negations `\W`, `\D`, `\S`) match US-ASCII characters only
+///    unless `UNICODE_CHARACTER_CLASS` (`(?U)`) is in effect; `\b` / `\B` use the
+///    same ASCII word class. ICU's `\w` / `\d` / `\s` are always Unicode-aware,
+///    so while the ASCII mode is active each class escape is rewritten to the
+///    equivalent explicit class and `\b` / `\B` expand to lookaround
+///    assertions over `[a-zA-Z0-9_]`.
+/// 2. **`(?U)` / `(?u)` inline flags are unknown to ICU.** The `u`
+///    (UNICODE_CASE) flag is a no-op — ICU folds case over Unicode already —
+///    and `U` toggles the translation mode: while Unicode character classes are
+///    active the escapes are copied through so ICU applies its Unicode
+///    semantics, which match the JVM's `UNICODE_CHARACTER_CLASS` definitions.
+///    Bare `(?flags)` groups retarget the mode until the end of the enclosing
+///    group, exactly like the JVM; `(?flags:...)` groups save the enclosing
+///    mode and restore it at the matching `)`.
+///
+/// Inside character classes the ASCII expansions are emitted as nested classes
+/// (`[...]` members) so they union correctly with neighbours and cannot merge
+/// into unintended ranges (e.g. `[\w-y]` keeps `-`/`y` literal).
+/// Escapes, `\Q...\E` quotes and character-class structure are otherwise copied
+/// verbatim.
+func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitially: Bool = false) -> String {
+    var unicodeClasses = unicodeCharacterClassesInitially
+    var savedModes: [Bool] = []
     let chars = Array(pattern)
     var out = ""
     out.reserveCapacity(chars.count)
@@ -222,11 +261,38 @@ func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
                 end = min(end + 2, chars.count)
                 out.append(contentsOf: chars[index..<end])
                 index = end
-            } else {
-                let end = min(index + 2, chars.count)
-                out.append(contentsOf: chars[index..<end])
-                index = end
+                continue
             }
+            guard index + 1 < chars.count else {
+                out.append(c)
+                index += 1
+                continue
+            }
+            let escape = chars[index + 1]
+            if classDepth > 0 {
+                switch escape {
+                case "w": out.append(unicodeClasses ? "\\w" : "[a-zA-Z0-9_]")
+                case "W": out.append(unicodeClasses ? "\\W" : "[^a-zA-Z0-9_]")
+                case "d": out.append(unicodeClasses ? "\\d" : "[0-9]")
+                case "D": out.append(unicodeClasses ? "\\D" : "[^0-9]")
+                case "s": out.append(unicodeClasses ? "\\s" : "[\\t\\n\\x0B\\f\\r ]")
+                case "S": out.append(unicodeClasses ? "\\S" : "[^\\t\\n\\x0B\\f\\r ]")
+                default: out.append(contentsOf: chars[index...index + 1])
+                }
+            } else {
+                switch escape {
+                case "w": out.append(unicodeClasses ? "\\w" : "[a-zA-Z0-9_]")
+                case "W": out.append(unicodeClasses ? "\\W" : "[^a-zA-Z0-9_]")
+                case "d": out.append(unicodeClasses ? "\\d" : "[0-9]")
+                case "D": out.append(unicodeClasses ? "\\D" : "[^0-9]")
+                case "s": out.append(unicodeClasses ? "\\s" : "[ \\t\\n\\x0B\\f\\r]")
+                case "S": out.append(unicodeClasses ? "\\S" : "[^ \\t\\n\\x0B\\f\\r]")
+                case "b": out.append(unicodeClasses ? unicodeWordBoundaryPattern : asciiWordBoundaryPattern)
+                case "B": out.append(unicodeClasses ? unicodeNonWordBoundaryPattern : asciiNonWordBoundaryPattern)
+                default: out.append(contentsOf: chars[index...index + 1])
+                }
+            }
+            index += 2
             continue
         }
         if classDepth > 0 {
@@ -244,16 +310,31 @@ func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
             if index < chars.count, chars[index] == "]" { out.append("]"); index += 1 }
             continue
         }
+        if c == ")" {
+            // Closing a group restores the character-class mode saved when the
+            // group opened; bare (?flags) directives set the mode only until
+            // this point on the JVM.
+            if let saved = savedModes.popLast() {
+                unicodeClasses = saved
+            }
+            out.append(c)
+            index += 1
+            continue
+        }
         if c == "(", index + 1 < chars.count, chars[index + 1] == "?" {
             var cursor = index + 2
             var on = ""
             var off = ""
+            var onUnicode = false
+            var offUnicode = false
             var seenMinus = false
             while cursor < chars.count {
                 let f = chars[cursor]
                 if f == "-", !seenMinus { seenMinus = true; cursor += 1; continue }
                 guard isFlag(f) else { break }
-                if f != "u" && f != "U" {
+                if f == "U" {
+                    if seenMinus { offUnicode = true } else { onUnicode = true }
+                } else if f != "u" {
                     if seenMinus { off.append(f) } else { on.append(f) }
                 }
                 cursor += 1
@@ -263,6 +344,12 @@ func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
                 && (chars[cursor] == ")" || chars[cursor] == ":")
             if isFlagGroup {
                 let terminator = chars[cursor]
+                // `(?flags:` opens a scoped group: save the enclosing mode, then
+                // apply this group's own flags. A bare `(?flags)` retargets the
+                // mode in place (the enclosing `)` restores it via savedModes).
+                if terminator == ":" { savedModes.append(unicodeClasses) }
+                if onUnicode { unicodeClasses = true }
+                if offUnicode { unicodeClasses = false }
                 if on.isEmpty && off.isEmpty {
                     // `(?U)` vanishes entirely; `(?U:...)` becomes a plain non-capturing group.
                     if terminator == ":" { out.append("(?:") }
@@ -275,11 +362,35 @@ func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
                 index = cursor + 1
                 continue
             }
+            // Some other `(?...)` construct (lookaround, named group, atomic
+            // group, ...): it still opens a group on the JVM, so flag
+            // directives inside it end at its `)`.
+            savedModes.append(unicodeClasses)
+            out.append(c)
+            index += 1
+            continue
+        }
+        if c == "(" {
+            savedModes.append(unicodeClasses)
+            out.append(c)
+            index += 1
+            continue
         }
         out.append(c)
         index += 1
     }
     return out
+}
+
+/// Removes the `java.util.regex` inline flags that ICU does not know about.
+///
+/// Kept for existing callers/tests as a narrow wrapper around
+/// ``translateJavaPatternForICU`` with Unicode character classes enabled
+/// initially: predefined class escapes pass through verbatim, so for patterns
+/// without `\b` / `\B` / `(?-U)` this reduces to the historical flag-stripping
+/// behaviour.
+func stripJavaOnlyInlineFlags(_ pattern: String) -> String {
+    translateJavaPatternForICU(pattern, unicodeCharacterClassesInitially: true)
 }
 
 /// Defense-in-depth bounds for regex evaluation.

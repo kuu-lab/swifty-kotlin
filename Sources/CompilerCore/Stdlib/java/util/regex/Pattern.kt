@@ -73,6 +73,15 @@ public class Pattern internal constructor(
             } else {
                 flags
             }
+            // `kotlin.text.RegexOption` has no UNICODE_CHARACTER_CLASS member
+            // (matching the real Kotlin stdlib), so embed the equivalent (?U)
+            // inline flag instead. Skipped under LITERAL, where the whole
+            // pattern is literal text and the flag would be quoted anyway.
+            val effectivePattern = if ((flags and UNICODE_CHARACTER_CLASS) != 0 && (flags and LITERAL) == 0) {
+                "(?U)" + pattern
+            } else {
+                pattern
+            }
             val options = mutableSetOf<RegexOption>()
             if ((effectiveFlags and CASE_INSENSITIVE) != 0) options.add(RegexOption.IGNORE_CASE)
             if ((effectiveFlags and MULTILINE) != 0) options.add(RegexOption.MULTILINE)
@@ -82,7 +91,7 @@ public class Pattern internal constructor(
             if ((effectiveFlags and DOTALL) != 0) options.add(RegexOption.DOT_MATCHES_ALL)
             if ((effectiveFlags and CANON_EQ) != 0) options.add(RegexOption.CANON_EQ)
 
-            return Pattern(Regex(pattern, options), pattern, effectiveFlags)
+            return Pattern(Regex(effectivePattern, options), pattern, effectiveFlags)
         }
 
         public fun matches(regex: String, input: CharSequence): Boolean =
