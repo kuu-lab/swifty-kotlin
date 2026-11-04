@@ -13,6 +13,9 @@ struct LoweringCodegenRegressionTests {
         // process status: `main`'s own value is discarded by the entry wrapper
         // (see `testEntryWrapperDiscardsNonUnitMainResult`).
         let source = """
+        import kotlinx.coroutines.delay
+        import kotlinx.coroutines.runBlocking
+
         suspend fun delayedValue(): Int {
             delay(1)
             return 42
