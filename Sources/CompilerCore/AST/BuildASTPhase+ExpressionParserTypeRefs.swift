@@ -138,6 +138,15 @@ extension BuildASTPhase.ExpressionParser {
                     index = savedIndex
                     return nil
                 }
+                // Kotlin 1.4+ permits one trailing comma in call-site type
+                // arguments (`id<Int,>(x)`), mirroring
+                // TypeRefParserCore.parseTypeArgRefsPrefix. A doubled comma
+                // (`f<Int,,>`) or an opening comma (`f<,>`) still falls
+                // through to the type parser below and is rejected.
+                if matches(.symbol(.greaterThan)) {
+                    _ = consume()
+                    return refs
+                }
             }
             guard let parsed = TypeRefParserCore.parseTypeRefPrefix(
                 tokens[index...],
