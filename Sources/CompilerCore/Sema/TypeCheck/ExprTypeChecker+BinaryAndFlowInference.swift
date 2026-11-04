@@ -473,6 +473,19 @@ extension ExprTypeChecker {
             true
         }
         let rhsIntegerLiteral = driver.callChecker.integerLiteralValues(rhsID, ast: ast)
+        // kotlinc reports ARGUMENT_TYPE_MISMATCH for the range infix calls
+        // (`a..b`, `a..<b`, `a downTo b`, `p step s`) exactly as it does for
+        // named calls — the NONE_APPLICABLE grouping that `isOperatorCall`
+        // enables applies only to true operator conventions (arithmetic,
+        // comparisons, `in`, indexed access). Keep the per-candidate
+        // argument-mismatch diagnostic for these instead of collapsing the
+        // multi-overload failure into "no viable overload" (KUU-4128).
+        let reportsAsOperatorConvention: Bool = switch op {
+        case .rangeTo, .rangeUntil, .downTo, .step:
+            false
+        default:
+            true
+        }
         let operatorCall = CallExpr(
             range: range,
             calleeName: operatorName,
@@ -481,7 +494,7 @@ extension ExprTypeChecker {
                 signedIntegerLiteral: rhsIntegerLiteral.signed,
                 unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
             )],
-            isOperatorCall: true
+            isOperatorCall: reportsAsOperatorConvention
         )
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
