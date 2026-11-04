@@ -1,5 +1,6 @@
 package kotlin.io
 
+import java.io.IOException
 import kotlin.internal.KsSymbolName
 
 // KSP-614: Only "write one already-rendered value to stdout" stays in the
@@ -57,7 +58,17 @@ public fun println(message: Any?) {
 @KsSymbolName("__kk_readline_raw")
 internal external fun __readLineRaw(): String?
 
-public fun readLine(): String? = __readLineRaw()
+// KUU-4162: `java.lang.System.in` is a runtime-backed InputStream whose close
+// marks stdin closed, like KUU-4156's console-sink closed flags do for
+// stdout/stderr. On the JVM, console reads after `System.in.close()` throw
+// `java.io.IOException("Stream closed")` instead of returning null.
+@KsSymbolName("__kk_console_stdin_closed")
+internal external fun __consoleStdinClosed(): Boolean
+
+public fun readLine(): String? {
+    if (__consoleStdinClosed()) throw IOException("Stream closed")
+    return __readLineRaw()
+}
 
 public fun readln(): String = readLine() ?: throw RuntimeException("EOF has already been reached")
 

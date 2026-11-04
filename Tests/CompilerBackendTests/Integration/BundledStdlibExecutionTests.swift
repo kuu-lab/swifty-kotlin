@@ -572,6 +572,52 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4162: `kotlin.io.readLine`/`readln`/`readlnOrNull` lower straight to
+    /// `__kk_readline_raw` but must still follow `java.lang.System.in`'s
+    /// closed state like the JVM — closing `System.in` makes later console
+    /// reads (and `System.in.read()`) throw `java.io.IOException` with
+    /// "Stream closed" instead of silently returning null.
+    @Test(arguments: [true, false])
+    func testSystemInCloseThrowsOnReadLine(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            import java.io.IOException
+
+            fun main() {
+                println("before")
+                System.`in`.close()
+                try {
+                    val line = readLine()
+                    println("readLine:$line")
+                } catch (e: IOException) {
+                    println("readLine-io:${e.message}")
+                }
+                try {
+                    val value = System.`in`.read()
+                    println("read:$value")
+                } catch (e: IOException) {
+                    println("read-io:${e.message}")
+                }
+                try {
+                    val line = readln()
+                    println("readln:$line")
+                } catch (e: IOException) {
+                    println("readln-io:${e.message}")
+                }
+                try {
+                    val line = readlnOrNull()
+                    println("readlnOrNull:$line")
+                } catch (e: IOException) {
+                    println("readlnOrNull-io:${e.message}")
+                }
+                println("after")
+            }
+            """,
+            expectedOutput: "before\nreadLine-io:Stream closed\nread-io:Stream closed\nreadln-io:Stream closed\nreadlnOrNull-io:Stream closed\nafter\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // KSP-625: The public ArrayDeque surface is bundled Kotlin. Empty and bounds checks
     // and toString stay in Kotlin; only ring-buffer mutation crosses the __kk_arraydeque_* bridges.
     @Test
