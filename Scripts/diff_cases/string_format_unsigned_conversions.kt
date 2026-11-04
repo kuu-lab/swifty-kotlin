@@ -96,12 +96,18 @@ fun main() {
     check("%c", (-29).toByte())
 
     // KUU-4147: the alternate-form prefix survives on zero (C's printf drops
-    // it); non-zero behavior is unchanged.
+    // it); non-zero behavior is unchanged. Every boxed integer width hits the
+    // same zero path (Byte/Short/Int share RuntimeIntBox).
     check("%#x", 0)
     check("%#X", 0)
     check("%#o", 0)
     check("%#x", 0.toByte())
+    check("%#o", 0.toByte())
+    check("%#x", 0.toShort())
+    check("%#o", 0.toShort())
     check("%#x", 0L)
+    check("%#o", 0L)
+    check("%#X", 0L)
     check("%#5x", 0)
     check("%#05x", 0)
     check("%#-6x|", 0)

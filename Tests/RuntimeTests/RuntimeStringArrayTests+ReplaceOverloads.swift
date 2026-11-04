@@ -649,13 +649,17 @@ extension RuntimeStringArrayTests {
     }
 
     /// KUU-4147: java.util.Formatter keeps the alternate-form prefix on zero
-    /// ("0x0"/"0X0" for %x/%X, "00" for %o); C's printf drops it.
+    /// ("0x0"/"0X0" for %x/%X, "00" for %o); C's printf drops it. Byte/Short
+    /// box through RuntimeIntBox with a distinct primitiveTypeBase, so their
+    /// zero bit patterns are pinned too.
     @Test
     func testStringFormatAlternateFormKeepsPrefixOnZero() {
-        let args = makeRuntimeArray([kk_box_int(0), kk_box_long_nonnull(0)])
-        #expect(flatStringReturnValue("%1$#x|%1$#X|%1$#o|%1$#5x|%1$#05x|%1$#-6x!|%2$#x|%2$#o",
+        let args = makeRuntimeArray([
+            kk_box_int(0), kk_box_long_nonnull(0), kk_box_byte(0), kk_box_short(0),
+        ])
+        #expect(flatStringReturnValue("%1$#x|%1$#X|%1$#o|%1$#5x|%1$#05x|%1$#-6x!|%2$#x|%2$#o|%3$#x|%3$#o|%4$#x|%4$#o",
             intArg: args, using: __kk_string_format_flat)
-            == "0x0|0X0|00|  0x0|0x000|0x0   !|0x0|00")
+            == "0x0|0X0|00|  0x0|0x000|0x0   !|0x0|00|0x0|00|0x0|00")
     }
 
     @Test
