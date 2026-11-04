@@ -462,14 +462,35 @@ extension KotlinParser {
             // declarations on the next line are part of the property declaration.
             // After parseTail stops at a newline, absorb trailing accessor and
             // explicit field lines into dedicated CST nodes.
-            while isPropertyAccessorStart(allowsBodyless: allowsBodylessAccessors)
-                || isExplicitBackingFieldStart(stream.peek())
-            {
+            var absorbedAnyAccessorOrField = false
+            var absorbedBareDefaultAccessor = false
+            while true {
+                // A `;` does not separate accessor lines the way `semi` does in
+                // the rest of the grammar. Right after a property head with no
+                // accessor it is tolerated only on the same line —
+                // `var x = 1; get() = 2` compiles while `var x = 1;\nget` is
+                // kotlinc's "Expecting member declaration". Once the accessor
+                // list has started — including an inline header the head line
+                // itself carried (`var f: Int get() = x;\nset(v) {}`) — it
+                // always separates. A bare `get`/`set` accessor ends the list
+                // instead (`get; set` is rejected even on the same line).
+                if lastConsumedToken?.kind == .symbol(.semicolon),
+                   absorbedBareDefaultAccessor
+                       || (!absorbedAnyAccessorOrField
+                           && !propertyTailContainsAccessorHeader(children)
+                           && hasLeadingNewline(stream.peek()))
+                {
+                    break
+                }
                 if isExplicitBackingFieldStart(stream.peek()) {
                     parseExplicitBackingField(into: &children, range: &range)
+                    absorbedBareDefaultAccessor = false
+                } else if isPropertyAccessorStart(allowsBodyless: allowsBodylessAccessors) {
+                    absorbedBareDefaultAccessor = parsePropertyAccessor(into: &children, range: &range)
                 } else {
-                    parsePropertyAccessor(into: &children, range: &range)
+                    break
                 }
+                absorbedAnyAccessorOrField = true
             }
         }
 
@@ -479,7 +500,11 @@ extension KotlinParser {
         )
     }
 
-    private func parsePropertyAccessor(into children: inout [SyntaxChild], range: inout RangeAccumulator) {
+    /// Parses one accessor node and reports whether it was a bare `get`/`set`
+    /// keyword accessor — the only accessor shape after which a `;` ends the
+    /// accessor list instead of separating the next accessor.
+    @discardableResult
+    private func parsePropertyAccessor(into children: inout [SyntaxChild], range: inout RangeAccumulator) -> Bool {
         var accessorChildren: [SyntaxChild] = []
         var accessorRange = RangeAccumulator()
 
@@ -494,6 +519,23 @@ extension KotlinParser {
         )
         children.append(.node(nodeID))
         range.append(accessorNodeRange)
+
+        // A bare accessor is a lone `get`/`set` keyword plus the optional `;`
+        // the tail consumed. Annotations, modifiers, a parameter list, or a
+        // body child all make it a non-bare accessor.
+        return accessorChildren.allSatisfy { child in
+            guard case let .token(tokenID) = child,
+                  let token = arena.token(tokenID)
+            else {
+                return false
+            }
+            switch token.kind {
+            case .softKeyword(.get), .softKeyword(.set), .symbol(.semicolon):
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     /// Reuses the `.propertyAccessor` kind so the AST builder can detect it

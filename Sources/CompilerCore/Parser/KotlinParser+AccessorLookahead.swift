@@ -27,11 +27,16 @@ extension KotlinParser {
             if isAccessorHeaderFollowedByBody(at: offset) {
                 return true
             }
-            // Without an accessor prefix, a bare get/set can be the next
-            // statement's ordinary name (notably a lambda's return value).
+            // A bare `get`/`set` on the next line is the default accessor
+            // spelling — after a member or top-level property it attaches
+            // even without a modifier or annotation prefix (`var w = 1\nget`).
+            // For a local property the same token is the next statement's
+            // ordinary name (kotlinc reports `var x = 1\nget` inside a
+            // function body as an unresolved reference), so only the legacy
+            // `private set` spelling keeps attaching there.
             let isLegacyDefaultSetter = hasVisibilityModifier
                 && stream.peek(offset).kind == .softKeyword(.set)
-            guard offset > 0, allowsBodyless || isLegacyDefaultSetter else { return false }
+            guard allowsBodyless || isLegacyDefaultSetter else { return false }
             // A default accessor has no parameter list or body. Annotations
             // may precede either accessor, including `@JvmName(...) get` on
             // an expect property; keep it attached to that property.
@@ -43,6 +48,73 @@ extension KotlinParser {
         default:
             return false
         }
+    }
+
+    /// Whether the already-consumed property children contain an inline
+    /// accessor header (`get() = x`, `set(v) { }`) — a `get`/`set` token
+    /// immediately followed by `(` whose matching `)` leads into a body or
+    /// return type. Member calls (`a.get()`, `get()` as an initializer
+    /// expression) do not qualify, so `var x = get();\nset` still treats the
+    /// `;`+newline as the end of the declaration.
+    func propertyTailContainsAccessorHeader(_ children: [SyntaxChild]) -> Bool {
+        var tokens: [Token] = []
+        tokens.reserveCapacity(children.count)
+        for child in children {
+            guard case let .token(tokenID) = child,
+                  let token = arena.token(tokenID)
+            else {
+                continue
+            }
+            tokens.append(token)
+        }
+        for (index, token) in tokens.enumerated() {
+            switch token.kind {
+            case .softKeyword(.get), .softKeyword(.set):
+                break
+            default:
+                continue
+            }
+            if index > 0 {
+                // `get`/`set` in call or expression position — member call,
+                // initializer, argument list, or inside a lambda — is not an
+                // accessor header, so `var x = get() {}` does not extend the
+                // declaration the way `var x: Int get() = x` does.
+                switch tokens[index - 1].kind {
+                case .symbol(.dot), .symbol(.questionDot), .symbol(.doubleColon),
+                     .symbol(.assign), .symbol(.comma), .symbol(.lParen),
+                     .symbol(.lBrace), .symbol(.lBracket),
+                     .keyword, .softKeyword:
+                    continue
+                default:
+                    break
+                }
+            }
+            guard index + 1 < tokens.count,
+                  tokens[index + 1].kind == .symbol(.lParen)
+            else {
+                continue
+            }
+            var close = index + 1
+            var depth = 0
+            while close < tokens.count {
+                if tokens[close].kind == .symbol(.lParen) { depth += 1 }
+                if tokens[close].kind == .symbol(.rParen) {
+                    depth -= 1
+                    if depth == 0 { break }
+                }
+                close += 1
+            }
+            guard close < tokens.count, close + 1 < tokens.count else {
+                continue
+            }
+            switch tokens[close + 1].kind {
+            case .symbol(.assign), .symbol(.lBrace), .symbol(.colon):
+                return true
+            default:
+                continue
+            }
+        }
+        return false
     }
 
     /// Explicit backing field declaration (Kotlin 2.0 feature):
