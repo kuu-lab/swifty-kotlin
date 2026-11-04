@@ -576,9 +576,20 @@ public func kk_mutable_list_listIterator(_ listRaw: Int) -> Int {
 @_cdecl("kk_list_iterator")
 public func kk_list_iterator(_ listRaw: Int) -> Int {
     if let list = runtimeListBox(from: listRaw) {
+        // KUU-3962: `emptyList()`/`emptyMap().values` produce the shared
+        // `EmptyIterator` on the JVM, a Kotlin-marked object that fails
+        // `as MutableIterator`/`as MutableListIterator` with
+        // `ClassCastException`. Leaving the mutation actions unset keeps the
+        // box on the plain `Iterator`/`ListIterator` conformance so the cast
+        // fails the same way. Other read-only boxes (singletons, frozen
+        // views) keep java-style mutable iterators that throw
+        // `UnsupportedOperationException` from `remove()`.
+        let isCanonicalEmptyIterator =
+            listRaw == emptyListSingletonRaw
+            || list.mapValuesViewBackingRaw == emptyMapSingletonRaw
         let iterator = RuntimeListIteratorBox(
             values: list.values,
-            removeAction: { index in
+            removeAction: isCanonicalEmptyIterator ? nil : { index in
                 guard list.indices.contains(index) else { return }
                 if list.isMapValuesView {
                     _ = list.removeMapBackedValue(at: index)
@@ -586,11 +597,11 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                 }
                 list.withMutableValues { $0.remove(at: index) }
             },
-            setAction: { index, value in
+            setAction: isCanonicalEmptyIterator ? nil : { index, value in
                 guard list.indices.contains(index) else { return }
                 list.setValue(value, at: index)
             },
-            addAction: { index, value in
+            addAction: isCanonicalEmptyIterator ? nil : { index, value in
                 guard (0...list.count).contains(index) else { return }
                 list.withMutableValues { $0.insert(value, at: index) }
             },
@@ -604,16 +615,24 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
             runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: false)
         let raw = registerRuntimeObject(iterator)
         registerListIteratorItable(raw: raw)
-        registerMutableListIteratorItable(raw: raw)
+        if !isCanonicalEmptyIterator {
+            registerMutableListIteratorItable(raw: raw)
+        }
         return raw
     }
     if let set = runtimeSetBox(from: listRaw) {
         // `Set`/`MutableSet` have no `listIterator()`, so this box is only ever
         // exposed through `Iterator`/`MutableIterator` — no `setAction`/`addAction`
         // needed here, unlike the `list` branch above.
+        // KUU-3962: `emptySet()` and `emptyMap().keys`/`.entries` share the
+        // JVM `EmptyIterator` identity — no `MutableIterator` conformance, so
+        // `as MutableIterator` throws `ClassCastException` like the JVM.
+        let isCanonicalEmptyIterator =
+            listRaw == emptySetSingletonRaw
+            || set.mapViewBacking?.mapRaw == emptyMapSingletonRaw
         let iterator = RuntimeListIteratorBox(
             values: set.values,
-            removeAction: { index in
+            removeAction: isCanonicalEmptyIterator ? nil : { index in
                 guard set.indices.contains(index) else { return }
                 _ = set.remove(rawValue: set[index])
             },
@@ -672,17 +691,22 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         )
         return 0
     }
+    // KUU-3962: `emptyList().listIterator(0)` is the shared `EmptyIterator` on
+    // the JVM — a Kotlin-marked object failing `as MutableIterator` /
+    // `as MutableListIterator` with `ClassCastException`. Keeping the mutation
+    // actions unset preserves that cast behavior (see `kk_list_iterator`).
+    let isCanonicalEmptyIterator = listRaw == emptyListSingletonRaw
     let iter = RuntimeListIteratorBox(
         values: list.values,
-        removeAction: { removedIndex in
+        removeAction: isCanonicalEmptyIterator ? nil : { removedIndex in
             guard list.indices.contains(removedIndex) else { return }
             list.withMutableValues { $0.remove(at: removedIndex) }
         },
-        setAction: { setIndex, value in
+        setAction: isCanonicalEmptyIterator ? nil : { setIndex, value in
             guard list.indices.contains(setIndex) else { return }
             list.setValue(value, at: setIndex)
         },
-        addAction: { addIndex, value in
+        addAction: isCanonicalEmptyIterator ? nil : { addIndex, value in
             guard (0...list.count).contains(addIndex) else { return }
             list.withMutableValues { $0.insert(value, at: addIndex) }
         },
@@ -695,7 +719,9 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: true)
     let raw = registerRuntimeObject(iter)
     registerListIteratorItable(raw: raw)
-    registerMutableListIteratorItable(raw: raw)
+    if !isCanonicalEmptyIterator {
+        registerMutableListIteratorItable(raw: raw)
+    }
     return raw
 }
 

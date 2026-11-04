@@ -26,6 +26,12 @@ private external fun <T> __kk_emptySet(): Set<T>
 @KsSymbolName("__kk_set_of")
 private external fun <T> __kk_set_of(array: Any?, count: Int): MutableSet<T>
 
+@KsSymbolName("__kk_set_of_not_null")
+private external fun <T> __kk_set_of_not_null(array: Any?, count: Int): MutableSet<T>
+
+@KsSymbolName("__kk_linked_hash_set_of")
+private external fun <T> __kk_linked_hash_set_of(array: Any?, count: Int): MutableSet<T>
+
 @KsSymbolName("__kk_emptyMap")
 private external fun <K, V> __kk_emptyMap(): Map<K, V>
 
@@ -102,41 +108,32 @@ public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
 
 public fun <T> setOf(): Set<T> = emptySet()
 
-public fun <T> setOf(element: T): Set<T> {
-    val result: MutableSet<T> = __kk_set_of(null, 0)
-    result.add(element)
-    return result
-}
+// KUU-3962: JVM `setOf(e)` is the unmodifiable `Collections.singleton` and
+// `setOf(*oneElementArray)` routes through the same runtime count==1 freeze;
+// `setOf(e1, e2, ...)` keeps a mutable `LinkedHashSet` backing like the JVM.
+public fun <T> setOf(element: T): Set<T> = __kk_set_of(arrayOf(element), 1)
 
 public fun <T> setOf(vararg elements: T): Set<T> {
     if (elements.size == 0) return emptySet<T>()
-    val result: MutableSet<T> = __kk_set_of(null, 0)
-    for (element in elements) {
-        result.add(element)
-    }
-    return result
+    return __kk_set_of(elements, elements.size)
 }
 
 public fun <T : Any> setOfNotNull(element: T?): Set<T> =
     if (element != null) setOf(element) else emptySet()
 
-public fun <T : Any> setOfNotNull(vararg elements: T?): Set<T> {
-    val result: MutableSet<T> = __kk_set_of(null, 0)
-    for (element in elements) {
-        if (element != null) result.add(element)
-    }
-    return result
-}
+public fun <T : Any> setOfNotNull(vararg elements: T?): Set<T> =
+    __kk_set_of_not_null(elements, elements.size)
 
-public fun <T> mutableSetOf(): MutableSet<T> = __kk_set_of(null, 0)
+// NOTE for RF-LOWER-CALL (mirrors the mutableMapOf bodies below): the mutable
+// set factories bind `__kk_linked_hash_set_of` so a missed interception still
+// answers `is MutableSet` / `is LinkedHashSet`. `__kk_set_of` stays on the
+// read-only `Set` identity and freezes singleton results (KUU-3962), so it
+// must not back these bodies.
 
-public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
-    val result: MutableSet<T> = __kk_set_of(null, 0)
-    for (element in elements) {
-        result.add(element)
-    }
-    return result
-}
+public fun <T> mutableSetOf(): MutableSet<T> = __kk_linked_hash_set_of(null, 0)
+
+public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> =
+    __kk_linked_hash_set_of(elements, elements.size)
 
 // KUU-1361: JVM `sortedSetOf`/`sortedMapOf` — the concrete instances are
 // TreeSet/TreeMap; the declared return types match upstream.
@@ -172,7 +169,10 @@ public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     for (pair in pairs) {
         result[pair.first] = pair.second
     }
-    return __kk_map_freeze(result)
+    // KUU-3962: JVM `mapOf(*pairs)` is a `Collections.singletonMap` only for
+    // exactly one pair; 2+ stays a mutable `LinkedHashMap` under `Map`.
+    if (pairs.size == 1) return __kk_map_freeze(result)
+    return result
 }
 
 public fun <K, V> sortedMapOf(vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> {

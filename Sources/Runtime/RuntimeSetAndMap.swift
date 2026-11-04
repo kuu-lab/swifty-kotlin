@@ -32,7 +32,19 @@ public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
         elements = Array(array.elements.prefix(count))
     }
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)))
+    // JVM `setOf` family: 0 elements is the shared immutable `EmptySet`,
+    // exactly 1 supplied element is the unmodifiable `Collections.singleton`,
+    // and 2+ is a `LinkedHashSet` (mutable under the read-only `Set` type).
+    // Mutable factories and `setOfNotNull` use their own callees, so only
+    // `setOf` call sites reach this box. KUU-3962.
+    if count == 0 {
+        return emptySetSingletonRaw
+    }
+    let set = RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements))
+    if count == 1 {
+        set.freeze()
+    }
+    return registerRuntimeObject(set)
 }
 
 /// HashSet constructor storage. Keep ordinary Set factories on the shared Set
@@ -99,7 +111,7 @@ public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
 }
 
 // Kotlin exposes emptySet() as a shared immutable instance.
-private let emptySetSingletonRaw: Int = {
+let emptySetSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeSetBox(elements: []))
     runtimeSetBox(from: raw)?.freeze()
     return raw
@@ -493,13 +505,22 @@ private func runtimeThrowIfReadOnlyMap(
 
 @_cdecl("__kk_map_of")
 public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    // JVM `mapOf`: 0 pairs is the shared `EmptyMap`, 1 is the unmodifiable
+    // `Collections.singletonMap`, and 2+ is a `LinkedHashMap` (mutable under
+    // the read-only `Map` type). Only `mapOf` call sites reach this bridge;
+    // mutable factories use the HashMap/LinkedHashMap tags. KUU-3962.
+    if count == 0 {
+        return emptyMapSingletonRaw
+    }
     let raw = runtimeMapOf(
         keysArrayRaw: keysArrayRaw,
         valuesArrayRaw: valuesArrayRaw,
         count: count,
         typeID: mapRuntimeTypeID
     )
-    runtimeMapBox(from: raw)?.freeze()
+    if count == 1 {
+        runtimeMapBox(from: raw)?.freeze()
+    }
     return raw
 }
 
@@ -535,8 +556,16 @@ public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ 
 /// the HashMap / LinkedHashMap pair variants below.
 @_cdecl("__kk_map_of_pairs")
 public func kk_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> Int {
+    // Same JVM factory contract as `kk_map_of` for spread `mapOf(*pairs)`:
+    // `pairs.toMap()` yields `emptyMap()` for 0, `singletonMap` for 1, and a
+    // `LinkedHashMap` for 2+. KUU-3962.
+    if count == 0 {
+        return emptyMapSingletonRaw
+    }
     let raw = runtimeMapOfPairs(pairsArrayRaw: pairsArrayRaw, count: count, typeID: mapRuntimeTypeID)
-    runtimeMapBox(from: raw)?.freeze()
+    if count == 1 {
+        runtimeMapBox(from: raw)?.freeze()
+    }
     return raw
 }
 
@@ -552,7 +581,7 @@ public func kk_linked_hash_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> I
 
 // Kotlin exposes emptyMap() as a shared immutable instance. Keep the
 // read-only `Map` tag so `as MutableMap` fails the way listOf/setOf casts do.
-private let emptyMapSingletonRaw: Int = {
+let emptyMapSingletonRaw: Int = {
     let raw = registerRuntimeObject(RuntimeMapBox(keys: [], values: []), typeID: mapRuntimeTypeID)
     runtimeMapBox(from: raw)?.freeze()
     return raw
