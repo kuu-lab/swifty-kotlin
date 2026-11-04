@@ -24,6 +24,39 @@ private struct RuntimeFormatSpecifier {
         flags.contains("<")
     }
 
+    /// `java.util.Formatter`'s `Flags.toString` ordering:
+    /// `-`, `#`, `+`, ` `, `0`, `,`, `(`, `<` (the internal UPPERCASE marker
+    /// is stripped before rendering).
+    var canonicalFlags: String {
+        runtimeFormatCanonicalFlags(Set(flags))
+    }
+
+    /// `java.util.Formatter.FormatSpecifier.toString()` — the reconstructed
+    /// specifier that MissingFormatWidthException and
+    /// MissingFormatArgumentException report: `%` + canonical flags +
+    /// `index$` + width + `.precision` + `t`/`T` + conversion. The `<` flag
+    /// and the text conversions (`%`, `n`) discard the index, like the JVM.
+    var jvmDescription: String {
+        var text = "%"
+        text += canonicalFlags
+        if let explicitArgumentIndex, !reusesPreviousArgument, conversion != "%", conversion != "n" {
+            text += "\(explicitArgumentIndex + 1)$"
+        }
+        if let width {
+            text += "\(width)"
+        }
+        if let precision {
+            text += ".\(precision)"
+        }
+        if let dateTimeConversion {
+            text.append(conversion)
+            text.append(conversion == "T" ? Character(dateTimeConversion.uppercased()) : dateTimeConversion)
+        } else {
+            text.append(conversion)
+        }
+        return text
+    }
+
     var usesParenthesesForNegativeValues: Bool {
         flags.contains("(")
     }
@@ -61,6 +94,29 @@ internal let runtimeFormatMaxArgumentIndex = 100_000
 internal let runtimeFormatMaxOutputBudget = 100_000
 
 private let runtimeFormatFlagCharacters: Set<Character> = ["-", "+", " ", "0", "#", ",", "(", "<"]
+
+/// `java.util.Formatter`'s `Flags.toString` ordering for an arbitrary flag
+/// set: `-`, `#`, `+`, ` `, `0`, `,`, `(`, `<`.
+private func runtimeFormatCanonicalFlags(_ flags: Set<Character>) -> String {
+    var result = ""
+    for flag in "-#+ 0,(<" where flags.contains(flag) {
+        result.append(flag)
+    }
+    return result
+}
+
+/// java.util.UnknownFormatConversionException's message is
+/// `Conversion = '<conversion text>'`.
+private func runtimeUnknownFormatConversion(_ conversion: Character) -> RuntimeFormatError {
+    RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Conversion = '\(conversion)'")
+}
+
+/// The character set that can complete a `java.util.Formatter` specifier:
+/// ASCII letters and `%` (the regex's final `[a-zA-Z%]` group).
+private func runtimeFormatIsConversionCharacter(_ char: Character) -> Bool {
+    char == "%" || (char.isASCII && char.isLetter)
+}
+
 private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "x", "X", "o", "f", "e", "E", "g", "G", "a", "A", "c", "C",
     "h", "H", "t", "T", "%", "n",
@@ -73,49 +129,106 @@ private let runtimeSupportedDateTimeConversions: Set<Character> = [
     "R", "T", "r", "D", "F", "c",
 ]
 
+/// Validates a parsed specifier the way `java.util.Formatter`'s
+/// FormatSpecifier constructor checks it, so each java.util format
+/// exception reports the same message text as the JVM:
+/// `Flags = '<flags>'`, `Conversion = <c>, Flags = <flags>`,
+/// the reconstructed specifier, or the bare numeric width.
 private func runtimeValidateFormatSpecifier(_ specifier: RuntimeFormatSpecifier) throws {
-    func fail(_ kind: String) throws {
-        throw RuntimeFormatError(kind: kind, message: "Invalid format: %\(specifier.flags)\(specifier.conversion)")
-    }
     let flags = Set(specifier.flags)
-    if flags.count != specifier.flags.count { try fail("DuplicateFormatFlagsException") }
     let conversion = specifier.normalizedConversion
-    let numeric = "doxfega".contains(conversion)
-    if !numeric && specifier.precision != nil && "ct%n".contains(conversion) {
-        try fail("IllegalFormatPrecisionException")
+
+    func illegalFormatFlags() throws -> Never {
+        // IllegalFormatFlagsException reports every parsed flag in
+        // canonical order.
+        throw RuntimeFormatError(
+            kind: "IllegalFormatFlagsException", message: "Flags = '\(specifier.canonicalFlags)'")
     }
-    if conversion == "n" {
-        if specifier.width != nil { try fail("IllegalFormatWidthException") }
-        if !flags.isEmpty { try fail("IllegalFormatFlagsException") }
-        return
+    func missingFormatWidth() throws -> Never {
+        // MissingFormatWidthException reports FormatSpecifier.toString().
+        throw RuntimeFormatError(kind: "MissingFormatWidthException", message: specifier.jvmDescription)
     }
-    if numeric && (flags.contains("-") || flags.contains("0")) && specifier.width == nil {
-        try fail("MissingFormatWidthException")
+    func illegalFormatPrecision() throws -> Never {
+        throw RuntimeFormatError(kind: "IllegalFormatPrecisionException", message: "\(specifier.precision!)")
     }
-    if numeric && (flags.isSuperset(of: ["+", " "]) || flags.isSuperset(of: ["-", "0"])) {
-        try fail("IllegalFormatFlagsException")
+    func flagsMismatch(_ badFlags: Set<Character>) throws {
+        // failMismatch reports the conversion plus the offending flags,
+        // intersected with the disallowed set, in canonical order.
+        let offenders = runtimeFormatCanonicalFlags(flags.intersection(badFlags))
+        if !offenders.isEmpty {
+            let reported = specifier.dateTimeConversion ?? conversion
+            throw RuntimeFormatError(
+                kind: "FormatFlagsConversionMismatchException",
+                message: "Conversion = \(reported), Flags = \(offenders)")
+        }
     }
-    if numeric && specifier.precision != nil && "dox".contains(conversion) {
-        try fail("IllegalFormatPrecisionException")
-    }
-    let allowed: String
+
     switch conversion {
-    case "s": allowed = "-#<"
-    case "b", "h", "c", "t": allowed = "-<"
-    case "d": allowed = "-+ 0,(<"
-    case "o", "x": allowed = "-#0<"
-    case "f": allowed = "-+ 0#,(<"
-    case "e": allowed = "-+ 0#(<"
-    case "g": allowed = "-+ 0,(<"
-    case "a": allowed = "-+ 0#<"
-    case "%": allowed = "-"
-    default: allowed = ""
-    }
-    if flags.contains(where: { !allowed.contains($0) }) {
-        try fail(conversion == "%" ? "IllegalFormatFlagsException" : "FormatFlagsConversionMismatchException")
-    }
-    if !numeric && flags.contains("-") && specifier.width == nil {
-        try fail("MissingFormatWidthException")
+    case "%":
+        if specifier.precision != nil { try illegalFormatPrecision() }
+        if !(flags.isEmpty || flags == ["-"]) { try illegalFormatFlags() }
+        if specifier.width == nil && flags.contains("-") { try missingFormatWidth() }
+    case "n":
+        if specifier.precision != nil { try illegalFormatPrecision() }
+        if let width = specifier.width {
+            throw RuntimeFormatError(kind: "IllegalFormatWidthException", message: "\(width)")
+        }
+        if !flags.isEmpty { try illegalFormatFlags() }
+    case "b", "h":
+        // '#' is checked ahead of missing width and the other bad flags
+        // for %b/%h (java.util.Formatter's checkGeneral).
+        if flags.contains("#") {
+            throw RuntimeFormatError(
+                kind: "FormatFlagsConversionMismatchException",
+                message: "Conversion = \(conversion), Flags = #")
+        }
+        if specifier.width == nil && flags.contains("-") { try missingFormatWidth() }
+        try flagsMismatch(["+", " ", "0", ",", "("])
+    case "s":
+        if specifier.width == nil && flags.contains("-") { try missingFormatWidth() }
+        // '#' for %s is a per-argument check (java.util.Formatter's
+        // Formattable path), handled in runtimeValidateFormatArgument.
+        try flagsMismatch(["+", " ", "0", ",", "("])
+    case "c":
+        if specifier.precision != nil { try illegalFormatPrecision() }
+        try flagsMismatch(["#", "+", " ", "0", ",", "("])
+        if specifier.width == nil && flags.contains("-") { try missingFormatWidth() }
+    case "t":
+        // checkDateTime: precision, then the date/time suffix itself, then
+        // flags, then missing width.
+        if specifier.precision != nil { try illegalFormatPrecision() }
+        if let dateTimeConversion = specifier.dateTimeConversion,
+           !runtimeSupportedDateTimeConversions.contains(dateTimeConversion) {
+            // The JVM reports "t" + suffix — a literal lowercase 't' even
+            // for %T.
+            throw RuntimeFormatError(
+                kind: "UnknownFormatConversionException",
+                message: "Conversion = 't\(dateTimeConversion)'")
+        }
+        try flagsMismatch(["#", "+", " ", "0", ",", "("])
+        if specifier.width == nil && flags.contains("-") { try missingFormatWidth() }
+    case "d", "o", "x", "f", "e", "g", "a":
+        // checkNumeric runs first: '-'/'0' need a width, then the illegal
+        // '+'/' ' and '-'/'0' flag combinations report every parsed flag.
+        if specifier.width == nil && (flags.contains("-") || flags.contains("0")) {
+            try missingFormatWidth()
+        }
+        if flags.isSuperset(of: ["+", " "]) || flags.isSuperset(of: ["-", "0"]) {
+            try illegalFormatFlags()
+        }
+        if "dox".contains(conversion), specifier.precision != nil {
+            try illegalFormatPrecision()
+        }
+        switch conversion {
+        case "d": try flagsMismatch(["#"])
+        case "o", "x": try flagsMismatch([","])
+        case "e": try flagsMismatch([","])
+        case "g": try flagsMismatch(["#"])
+        case "a": try flagsMismatch([",", "("])
+        default: break // %f accepts every numeric flag
+        }
+    default:
+        break
     }
 }
 
@@ -123,7 +236,11 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
     let conversion = specifier.normalizedConversion
     if conversion == "s", specifier.flags.contains("#") {
         // Formattable is not supported; all current arguments use ordinary %s.
-        throw RuntimeFormatError(kind: "FormatFlagsConversionMismatchException", message: "# with s")
+        // The JVM reports "Conversion = s, Flags = #" — before null and
+        // after the missing-argument check.
+        throw RuntimeFormatError(
+            kind: "FormatFlagsConversionMismatchException",
+            message: "Conversion = \(conversion), Flags = #")
     }
     if runtimeFormatArgumentIsNull(value) { return }
     if "sbh".contains(conversion) { return }
@@ -173,6 +290,18 @@ private func runtimeValidateFormatArgument(_ value: RuntimeValue, specifier: Run
             "\(reportedConversion) != \($0)"
         } ?? "Invalid argument for \(specifier.conversion)"
         throw RuntimeFormatError(kind: "IllegalFormatConversionException", message: message)
+    }
+    if conversion == "o" || conversion == "x" {
+        // java.util.Formatter checks %o/%x's sign and parenthesis flags
+        // inside the integer printing path — after the argument's null
+        // and type checks, so a String argument reports
+        // IllegalFormatConversionException instead.
+        let offenders = runtimeFormatCanonicalFlags(Set(specifier.flags).intersection(["+", " ", "("]))
+        if !offenders.isEmpty {
+            throw RuntimeFormatError(
+                kind: "FormatFlagsConversionMismatchException",
+                message: "Conversion = \(conversion), Flags = \(offenders)")
+        }
     }
     if conversion == "c" {
         let codePoint = runtimeFormatIntegerValue(value)
@@ -359,10 +488,11 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
                 argument = arguments[argumentIndex]
             } else {
                 // java.util.MissingFormatArgumentException reports
-                // "Format specifier '<specifier text>'".
+                // "Format specifier '<specifier text>'" — the reconstructed
+                // specifier (FormatSpecifier.toString()), not the raw text.
                 throw RuntimeFormatError(
                     kind: "MissingFormatArgumentException",
-                    message: "Format specifier '\(String(characters[cursor ..< next]))'"
+                    message: "Format specifier '\(specifier.jvmDescription)'"
                 )
             }
             try runtimeValidateFormatArgument(argument, specifier: specifier)
@@ -391,7 +521,13 @@ private func runtimeFormatString(_ template: String, values arguments: [RuntimeV
 private func runtimeParseFormatToken(_ characters: [Character], start: Int) throws -> RuntimeParsedFormatToken {
     var cursor = start + 1
     guard cursor < characters.count else {
-        throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
+        // Trailing '%' — java.util.Formatter reports '%' as the conversion.
+        throw runtimeUnknownFormatConversion("%")
+    }
+    // When the specifier cannot be completed, the JVM reports the first
+    // character after '%' in UnknownFormatConversionException.
+    var incompleteSpecifierError: RuntimeFormatError {
+        runtimeUnknownFormatConversion(characters[start + 1])
     }
 
     let initialDigitsStart = cursor
@@ -401,10 +537,19 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
     var explicitArgumentIndex: Int?
     if cursor < characters.count, characters[cursor] == "$", initialDigitsStart < cursor {
         let indexString = String(characters[initialDigitsStart ..< cursor])
-        guard let index = Int(indexString), index > 0, index <= runtimeFormatMaxArgumentIndex else {
-            throw RuntimeFormatError(kind: "IllegalFormatArgumentIndexException", message: indexString)
+        guard let index = Int(indexString), let index32 = Int32(exactly: index) else {
+            // Digits that overflow a Java int report Integer.MIN_VALUE as
+            // "Format argument index: (not representable as int)".
+            throw RuntimeFormatError(
+                kind: "IllegalFormatArgumentIndexException",
+                message: "Format argument index: (not representable as int)")
         }
-        explicitArgumentIndex = index - 1
+        guard index32 > 0, Int(index32) <= runtimeFormatMaxArgumentIndex else {
+            throw RuntimeFormatError(
+                kind: "IllegalFormatArgumentIndexException",
+                message: "Illegal format argument index = \(index32)")
+        }
+        explicitArgumentIndex = Int(index32) - 1
         cursor += 1
     } else {
         cursor = initialDigitsStart
@@ -415,6 +560,13 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
         cursor += 1
     }
     let flags = String(characters[flagsStart ..< cursor])
+    // java.util.Formatter parses flags left to right and throws
+    // DuplicateFormatFlagsException on the first flag already seen —
+    // before any width/precision/conversion handling.
+    var seenFlags = Set<Character>()
+    for flag in flags where !seenFlags.insert(flag).inserted {
+        throw RuntimeFormatError(kind: "DuplicateFormatFlagsException", message: "Flags = '\(flag)'")
+    }
 
     let widthStart = cursor
     while cursor < characters.count, characters[cursor].isNumber {
@@ -423,10 +575,14 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
     var width: Int?
     if widthStart < cursor {
         let widthString = String(characters[widthStart ..< cursor])
-        guard let parsedWidth = Int(widthString), parsedWidth >= 0, parsedWidth <= runtimeFormatMaxWidth else {
-            throw RuntimeFormatError(kind: "IllegalFormatWidthException", message: widthString)
+        guard let parsedWidth = Int(widthString), let width32 = Int32(exactly: parsedWidth) else {
+            // parseInt overflow maps to Integer.MIN_VALUE ("-2147483648").
+            throw RuntimeFormatError(kind: "IllegalFormatWidthException", message: "-2147483648")
         }
-        width = parsedWidth
+        guard Int(width32) <= runtimeFormatMaxWidth else {
+            throw RuntimeFormatError(kind: "IllegalFormatWidthException", message: "\(width32)")
+        }
+        width = Int(width32)
     }
 
     var precision: Int?
@@ -438,38 +594,41 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) thro
         }
         if precisionStart < cursor {
             let precisionDigits = String(characters[precisionStart ..< cursor])
-            guard let parsedPrecision = Int(precisionDigits),
-                  parsedPrecision >= 0,
-                  parsedPrecision <= runtimeFormatMaxPrecision else {
-                throw RuntimeFormatError(kind: "IllegalFormatPrecisionException", message: precisionDigits)
+            guard let parsedPrecision = Int(precisionDigits), let precision32 = Int32(exactly: parsedPrecision)
+            else {
+                throw RuntimeFormatError(kind: "IllegalFormatPrecisionException", message: "-2147483648")
             }
-            precision = parsedPrecision
+            guard Int(precision32) <= runtimeFormatMaxPrecision else {
+                throw RuntimeFormatError(kind: "IllegalFormatPrecisionException", message: "\(precision32)")
+            }
+            precision = Int(precision32)
         } else {
-            throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: ".")
+            throw incompleteSpecifierError
         }
     }
 
     // Java Formatter has no C-style length modifiers. Do not consume `h`/`t`
     // here: they are conversions (`%h` hash, `%t*` date/time), not lengths.
     guard cursor < characters.count else {
-        throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
+        throw incompleteSpecifierError
     }
 
     let conversion = characters[cursor]
+    guard runtimeFormatIsConversionCharacter(conversion) else {
+        throw incompleteSpecifierError
+    }
     guard runtimeSupportedFormatConversions.contains(conversion) else {
-        throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
+        throw runtimeUnknownFormatConversion(conversion)
     }
     var next = cursor + 1
     var dateTimeConversion: Character?
     if conversion == "t" || conversion == "T" {
-        guard next < characters.count else {
-            throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
+        // Without an ASCII-letter (or '%') suffix the specifier backtracks
+        // and 't'/'T' itself becomes the reported conversion.
+        guard next < characters.count, runtimeFormatIsConversionCharacter(characters[next]) else {
+            throw runtimeUnknownFormatConversion(conversion)
         }
-        let suffix = characters[next]
-        guard runtimeSupportedDateTimeConversions.contains(suffix) else {
-            throw RuntimeFormatError(kind: "UnknownFormatConversionException", message: "Invalid format conversion")
-        }
-        dateTimeConversion = suffix
+        dateTimeConversion = characters[next]
         next += 1
     }
 

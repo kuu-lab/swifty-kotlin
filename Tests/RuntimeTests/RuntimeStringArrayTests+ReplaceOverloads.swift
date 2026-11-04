@@ -505,6 +505,136 @@ extension RuntimeStringArrayTests {
             expectedMessage: "d != kotlin.Unit")
     }
 
+    /// KUU-4150: the remaining java.util format-exception kinds report the
+    /// JVM's message text byte-for-byte. DuplicateFormatFlagsException
+    /// reports only the first repeated flag; IllegalFormatFlagsException and
+    /// FormatFlagsConversionMismatchException use the JVM's canonical flag
+    /// order ("-#+ 0,(<"); MissingFormatWidthException and
+    /// MissingFormatArgumentException report FormatSpecifier.toString()
+    /// (flags before the argument index, '%'/'n' drop the index); width and
+    /// precision exceptions report the bare digits (Int.MIN_VALUE on
+    /// parseInt overflow); UnknownFormatConversionException reports the
+    /// conversion text — the first character after '%' for incomplete
+    /// specifiers. %o's and %x's sign/parenthesis flags are per-argument
+    /// checks in java.util.Formatter's integer printing path.
+    @Test
+    func testStringFormatExceptionMessagesMatchJVM() {
+        let string = rawFromRuntimeString("s")
+        expectFormatError("%--5s", [string], "DuplicateFormatFlagsException",
+            expectedMessage: "Flags = '-'")
+        expectFormatError("%00d", [5], "DuplicateFormatFlagsException",
+            expectedMessage: "Flags = '0'")
+        expectFormatError("%<<s", [string], "DuplicateFormatFlagsException",
+            expectedMessage: "Flags = '<'")
+
+        expectFormatError("%+ d", [5], "IllegalFormatFlagsException",
+            expectedMessage: "Flags = '+ '")
+        expectFormatError("%0%", [], "IllegalFormatFlagsException",
+            expectedMessage: "Flags = '0'")
+        expectFormatError("%,n", [], "IllegalFormatFlagsException",
+            expectedMessage: "Flags = ','")
+        expectFormatError("%- %", [], "IllegalFormatFlagsException",
+            expectedMessage: "Flags = '- '")
+        expectFormatError("%-+0 5d", [5], "IllegalFormatFlagsException",
+            expectedMessage: "Flags = '-+ 0'")
+
+        expectFormatError("%#s", [string], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = s, Flags = #")
+        expectFormatError("%0s", [string], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = s, Flags = 0")
+        expectFormatError("%(s", [string], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = s, Flags = (")
+        expectFormatError("%#S", [string], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = s, Flags = #")
+        expectFormatError("%#h", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = h, Flags = #")
+        expectFormatError("%+b", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = b, Flags = +")
+        expectFormatError("%0c", [65], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = c, Flags = 0")
+        expectFormatError("%#d", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = d, Flags = #")
+        expectFormatError("%,o", [8], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = o, Flags = ,")
+        expectFormatError("%+o", [8], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = o, Flags = +")
+        expectFormatError("% o", [8], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = o, Flags =  ")
+        expectFormatError("%+x", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = x, Flags = +")
+        expectFormatError("%(x", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = x, Flags = (")
+        expectFormatError("% (x", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = x, Flags =  (")
+        expectFormatError("%,e", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = e, Flags = ,")
+        expectFormatError("%(a", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = a, Flags = (")
+        expectFormatError("%#g", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = g, Flags = #")
+        expectFormatError("%#tQ", [5], "FormatFlagsConversionMismatchException",
+            expectedMessage: "Conversion = Q, Flags = #")
+
+        expectFormatError("%-d", [5], "MissingFormatWidthException", expectedMessage: "%-d")
+        expectFormatError("%-0f", [5], "MissingFormatWidthException", expectedMessage: "%-0f")
+        expectFormatError("%-+d", [5], "MissingFormatWidthException", expectedMessage: "%-+d")
+        expectFormatError("%0+d", [5], "MissingFormatWidthException", expectedMessage: "%+0d")
+        expectFormatError("%0#d", [5], "MissingFormatWidthException", expectedMessage: "%#0d")
+        expectFormatError("%-+,s", [5], "MissingFormatWidthException", expectedMessage: "%-+,s")
+        expectFormatError("%-%", [], "MissingFormatWidthException", expectedMessage: "%-%")
+        expectFormatError("%-.2d", [5], "MissingFormatWidthException", expectedMessage: "%-.2d")
+        expectFormatError("%1$-s", [5], "MissingFormatWidthException", expectedMessage: "%-1$s")
+        expectFormatError("%1$-%", [], "MissingFormatWidthException", expectedMessage: "%-%")
+
+        expectFormatError("%5n", [], "IllegalFormatWidthException", expectedMessage: "5")
+        expectFormatError("%,5n", [], "IllegalFormatWidthException", expectedMessage: "5")
+        expectFormatError("%2147483648d", [5], "IllegalFormatWidthException",
+            expectedMessage: "-2147483648")
+        expectFormatError("%99999999999d", [5], "IllegalFormatWidthException",
+            expectedMessage: "-2147483648")
+
+        expectFormatError("%q", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 'q'")
+        expectFormatError("%", [], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = '%'")
+        expectFormatError("%.", [], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = '.'")
+        expectFormatError("%-", [], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = '-'")
+        expectFormatError("%t", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 't'")
+        expectFormatError("%tq", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 'tq'")
+        expectFormatError("%Tq", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 'tq'")
+        expectFormatError("%t%", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 't%'")
+        expectFormatError("%1$q", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 'q'")
+        expectFormatError("%.2q", [5], "UnknownFormatConversionException",
+            expectedMessage: "Conversion = 'q'")
+
+        expectFormatError("%<s", [string], "MissingFormatArgumentException",
+            expectedMessage: "Format specifier '%<s'")
+        expectFormatError("%3$d", [5], "MissingFormatArgumentException",
+            expectedMessage: "Format specifier '%3$d'")
+        expectFormatError("%#s", [], "MissingFormatArgumentException",
+            expectedMessage: "Format specifier '%#s'")
+        // %o/%x's sign flags are per-argument checks on the JVM, so a
+        // missing argument still reports MissingFormatArgumentException.
+        expectFormatError("%+x", [], "MissingFormatArgumentException",
+            expectedMessage: "Format specifier '%+x'")
+
+        expectFormatError("%0$d", [5], "IllegalFormatArgumentIndexException",
+            expectedMessage: "Illegal format argument index = 0")
+        expectFormatError("%99999999999$d", [5], "IllegalFormatArgumentIndexException",
+            expectedMessage: "Format argument index: (not representable as int)")
+        expectFormatError("%.2n", [], "IllegalFormatPrecisionException", expectedMessage: "2")
+        expectFormatError("%.2tq", [5], "IllegalFormatPrecisionException", expectedMessage: "2")
+        expectFormatError("%.2147483648f", [5], "IllegalFormatPrecisionException",
+            expectedMessage: "-2147483648")
+    }
+
     /// KUU-4146: java.util.IllegalFormatCodePointException reports
     /// "Code point = 0x" + Integer.toHexString(codePoint) — the 32-bit pattern
     /// for sign-extended values, not the decimal rendering.
