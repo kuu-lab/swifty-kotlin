@@ -42,4 +42,51 @@ struct ReflectKCallableSourceTests {
         }
         """)
     }
+
+    /// KUU-4088: a callable reference satisfies `F : KCallable<R>` /
+    /// `F : KFunction<R>` bounds — the reference's return type binds R.
+    /// Property references qualify too; this is the assertk `having` shape.
+    @Test func callableReferenceSatisfiesKCallableTypeParameterBound() throws {
+        _ = try Self.fixture.make(source: """
+        import kotlin.reflect.KCallable
+        import kotlin.reflect.KFunction
+        class Person(val name: String, val age: Int)
+        fun <R, F> useK(c: F): String where F : KCallable<R> = c.name
+        fun <R, F> useKFn(c: F): String where F : KFunction<R> = c.name
+        fun <F> useKStar(c: F): String where F : KCallable<*> = c.name
+        fun <R> take(c: KCallable<R>): String = c.name
+        fun <T, R, F> having(subject: T, callable: F): String where F : (T) -> R, F : KCallable<R> = callable.name
+        fun inc(x: Int) = x + 1
+        fun greet(p: Person) = "hi"
+        fun check() {
+            useK(::inc)
+            useKFn(::inc)
+            useKStar(::inc)
+            take(::inc)
+            useK(Person::name)
+            val p = Person("a", 1)
+            having(p, Person::name)
+            having(p, Person::age)
+            having(p, ::greet)
+        }
+        """)
+    }
+
+    /// KUU-4088 parity: a plain lambda still cannot satisfy `F : KCallable<R>`
+    /// — lambdas carry no reflective contract, so kotlinc rejects them too.
+    @Test func lambdaDoesNotSatisfyKCallableTypeParameterBound() throws {
+        try withTemporaryFiles(contents: ["""
+        import kotlin.reflect.KCallable
+        fun <R, F> useK(c: F): String where F : KCallable<R> = c.name
+        fun check() { useK { x: Int -> x + 1 } }
+        """]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, allowDefaultStdlibLibrary: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.contains { $0.code == "KSWIFTK-TYPE-0001" },
+                "Expected KSWIFTK-TYPE-0001 for a lambda against a KCallable bound, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
 }

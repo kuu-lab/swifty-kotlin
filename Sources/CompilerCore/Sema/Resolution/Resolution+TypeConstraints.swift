@@ -827,6 +827,34 @@ extension OverloadResolver {
                     break
                 }
             }
+            // A callable reference (`::f`) also satisfies the reflective
+            // `KCallable<R>` / `KFunction<R>` view — both interfaces carry
+            // only the return type, so the bound decomposes the same way the
+            // `Function<R>` case above does (KUU-4088). Only references get
+            // this reading: plain lambdas do not implement KCallable, so they
+            // keep falling through to the nominal subtype check that rejects
+            // them.
+            if superClass.classSymbol == typeSystem.kCallableInterfaceSymbol
+                || superClass.classSymbol == typeSystem.kFunctionInterfaceSymbol,
+               case let .functionType(subFunction) = subtypeKind,
+               subFunction.isCallableReference,
+               superClass.args.count == 1,
+               let returnArg = superClass.args.first
+            {
+                switch returnArg {
+                case let .out(type), let .invariant(type):
+                    return decomposeSubtypeConstraintImpl(
+                        subtype: subFunction.returnType,
+                        supertype: type,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: blameRange,
+                        depth: depth + 1
+                    )
+                case .in, .star:
+                    break
+                }
+            }
             if case let .kClassType(subKClass) = subtypeKind,
                superClass.classSymbol == typeSystem.kClassInterfaceSymbol,
                subKClass.nullability == superClass.nullability || superClass.nullability == .nullable,
