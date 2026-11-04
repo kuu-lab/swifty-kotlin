@@ -7,6 +7,8 @@ import kotlin.collections.buildMap
 import kotlin.internal.KsSymbolName
 
 public object System {
+    public val out: PrintStream = PrintStream(writesToStdout = true)
+
     public val err: PrintStream = PrintStream()
 
     @KsSymbolName("__kk_system_in")
