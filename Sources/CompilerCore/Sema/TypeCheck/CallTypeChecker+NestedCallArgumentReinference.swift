@@ -124,6 +124,59 @@ extension CallTypeChecker {
         }
     }
 
+    /// Whether `expected` refines a position where `inferred` collapsed to
+    /// `Any`/`Any?`: same nominal head, and at least one type-argument slot
+    /// where the inferred argument is `Any` while the expected one is a
+    /// different concrete type. A nested call whose type parameter only feeds
+    /// input positions (`compareBy { -it }`'s selector is the sole use of its
+    /// `T`) still "resolves" without an expected type — to `Comparator<Any>` —
+    /// even though the enclosing parameter proves the position concretely
+    /// (`Comparator<in Int>`). Pairwise recursion into matching heads also
+    /// catches a `List<Comparator<Any>>` nested result.
+    func nestedCallExpectedTypeRefinesAnyArgument(
+        inferred: ClassType,
+        expected: ClassType,
+        sema: SemaModule,
+        depth: Int = 0
+    ) -> Bool {
+        guard inferred.classSymbol == expected.classSymbol,
+              inferred.args.count == expected.args.count,
+              depth < 4
+        else {
+            return false
+        }
+        func innerType(_ argument: TypeArg) -> TypeID? {
+            switch argument {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                return inner
+            case .star:
+                return nil
+            }
+        }
+        return zip(inferred.args, expected.args).contains { inferredArg, expectedArg in
+            guard let inferredInner = innerType(inferredArg),
+                  let expectedInner = innerType(expectedArg)
+            else {
+                return false
+            }
+            if inferredInner == sema.types.anyType || inferredInner == sema.types.nullableAnyType {
+                return expectedInner != sema.types.anyType
+                    && expectedInner != sema.types.nullableAnyType
+            }
+            if case let .classType(inferredClass) = sema.types.kind(of: inferredInner),
+               case let .classType(expectedClass) = sema.types.kind(of: expectedInner)
+            {
+                return nestedCallExpectedTypeRefinesAnyArgument(
+                    inferred: inferredClass,
+                    expected: expectedClass,
+                    sema: sema,
+                    depth: depth + 1
+                )
+            }
+            return false
+        }
+    }
+
     /// A nested call with an empty explicit type argument list can still be
     /// steered by an expected type — unlike `mutableListOf<Nothing>()`, where
     /// the explicit argument must be respected.
@@ -300,6 +353,7 @@ extension CallTypeChecker {
             let typeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
 
             var knownArgumentTypes: [Int: TypeID] = [:]
+            var parameterIndexByArgumentIndex: [Int: Int] = [:]
             for index in args.indices
             where !lambdaLiteralIndices.contains(index) && !callableReferenceIndices.contains(index) {
                 guard originalArgumentTypes.indices.contains(index),
@@ -321,6 +375,7 @@ extension CallTypeChecker {
                     continue
                 }
                 knownArgumentTypes[parameterIndex] = argumentType
+                parameterIndexByArgumentIndex[index] = parameterIndex
             }
             var substitution = ctx.resolver.probeArgumentTypeSubstitution(
                 signature: signature,
@@ -374,6 +429,60 @@ extension CallTypeChecker {
                 }
                 var candidateExpectedType = expectedType
                 var expectedTypeWasErased = false
+                // The argument's own provisional type can poison the shared
+                // substitution: `Comparator<Any> <: Comparator<in T>` only
+                // proves `T <: Any`, which conflicts once a sibling argument
+                // binds T to a nullable element — the whole substitution then
+                // comes back empty and the expected type keeps the variable.
+                // A nested call's expected type should come from the enclosing
+                // context, not from the result it is about to replace, so
+                // re-derive it without that self-evidence before resorting to
+                // erasure or a bail-out.
+                if ctx.resolver.containsTypeVariable(
+                    candidateExpectedType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                ), let ownParameterIndex = parameterIndexByArgumentIndex[index],
+                    knownArgumentTypes[ownParameterIndex] != nil,
+                    let parameterType = contextualCallArgumentType(
+                        args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                    )
+                {
+                    var reducedKnownArgumentTypes = knownArgumentTypes
+                    reducedKnownArgumentTypes[ownParameterIndex] = nil
+                    var reducedSubstitution = ctx.resolver.probeArgumentTypeSubstitution(
+                        signature: signature,
+                        typeVarBySymbol: typeVarBySymbol,
+                        knownArgumentTypes: reducedKnownArgumentTypes,
+                        typeSystem: ctx.sema.types,
+                        implicitReceiverType: implicitReceiverType
+                    )
+                    for (typeArgumentIndex, typeArgument) in explicitTypeArgs.enumerated() {
+                        guard typeArgument != TypeID.invalid,
+                              signature.typeParameterSymbols.indices.contains(
+                                  explicitTypeArgumentOffset + typeArgumentIndex
+                              ),
+                              let variable = typeVarBySymbol[
+                                  signature.typeParameterSymbols[explicitTypeArgumentOffset + typeArgumentIndex]
+                              ]
+                        else {
+                            continue
+                        }
+                        reducedSubstitution[variable] = typeArgument
+                    }
+                    let reducedExpectedType = ctx.sema.types.substituteTypeParameters(
+                        in: parameterType,
+                        substitution: reducedSubstitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    if !ctx.resolver.containsTypeVariable(
+                        reducedExpectedType,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: ctx.sema.types
+                    ) {
+                        candidateExpectedType = reducedExpectedType
+                    }
+                }
                 // A residual *function* type parameter is bound by the outer
                 // call from the nested call's result, so offered plainly it
                 // either fails as a rigid bound or self-binds the outer
@@ -421,15 +530,15 @@ extension CallTypeChecker {
             expectedTypesByCandidate[candidate] = candidateExpectedTypes
         }
 
-        let hasUnresolvedNestedArgument = nestedArgumentIndices.contains { index in
+        let unresolvedNestedArgumentIndices = Set(nestedArgumentIndices.filter { index in
             guard originalArgumentTypes.indices.contains(index) else { return false }
             let argumentType = originalArgumentTypes[index]
             return argumentType == ctx.sema.types.errorType
                 || typeContainsErrorType(argumentType, sema: ctx.sema)
                 || typeContainsNothingType(argumentType, sema: ctx.sema)
                 || typeContainsLeakedTypeParameterArgument(argumentType, sema: ctx.sema)
-        }
-        let hasCandidateSpecificExpectation = nestedArgumentIndices.contains { index in
+        })
+        let distinctExpectationIndices = Set(nestedArgumentIndices.filter { index in
             var distinctTypes: [TypeID] = []
             for candidate in candidates {
                 guard let type = expectedTypesByCandidate[candidate]?[index],
@@ -440,8 +549,43 @@ extension CallTypeChecker {
                 distinctTypes.append(type)
             }
             return distinctTypes.count > 1
+        })
+        // A nested call can also *resolve too loosely*: `compareBy { -it }`'s
+        // selector is the only use of its `T`, so with no expected type the
+        // argument collapses to `Comparator<Any>` — still a valid substitution
+        // for the parameter's `Comparator<in Int>`, but materializing a
+        // comparator over `Any` traps at runtime. A candidate parameter that
+        // proves the same slot concretely therefore joins the probe below as a
+        // retry-only hint: a failed refined probe keeps the first-pass result
+        // instead of disqualifying the candidate.
+        var degradedExpectedIndicesByCandidate: [SymbolID: Set<Int>] = [:]
+        for index in nestedArgumentIndices
+        where !unresolvedNestedArgumentIndices.contains(index)
+            && !distinctExpectationIndices.contains(index)
+        {
+            guard originalArgumentTypes.indices.contains(index),
+                  case let .classType(argumentClassType) = ctx.sema.types.kind(of: originalArgumentTypes[index])
+            else {
+                continue
+            }
+            for candidate in candidates {
+                guard let expectedType = expectedTypesByCandidate[candidate]?[index],
+                      case let .classType(expectedClassType) = ctx.sema.types.kind(of: expectedType),
+                      nestedCallExpectedTypeRefinesAnyArgument(
+                          inferred: argumentClassType,
+                          expected: expectedClassType,
+                          sema: ctx.sema
+                      )
+                else {
+                    continue
+                }
+                degradedExpectedIndicesByCandidate[candidate, default: []].insert(index)
+            }
         }
-        guard hasUnresolvedNestedArgument || hasCandidateSpecificExpectation else {
+        guard !unresolvedNestedArgumentIndices.isEmpty
+            || !distinctExpectationIndices.isEmpty
+            || !degradedExpectedIndicesByCandidate.isEmpty
+        else {
             return nil
         }
 
@@ -483,13 +627,17 @@ extension CallTypeChecker {
                       argumentType != ctx.sema.types.errorType,
                       !typeContainsErrorType(argumentType, sema: ctx.sema)
                 else {
-                    // An erased expected type is only a hint: its failure does
-                    // not prove the candidate inapplicable — the first-pass
-                    // argument (a self-bound `Result<T>` leaked-parameter type,
-                    // or an already-failed type the resolver reports on its own)
-                    // can still be judged against the real parameter. Keep it
-                    // and drop the unusable hint.
-                    if erasedExpectedIndicesByCandidate[candidate]?.contains(index) == true {
+                    // An erased or precision-degraded expected type is only a
+                    // hint: its failure does not prove the candidate
+                    // inapplicable — the first-pass argument (a self-bound
+                    // `Result<T>` leaked-parameter type, an `Any`-collapsed
+                    // nested result the hint could not refine, or an
+                    // already-failed type the resolver reports on its own) can
+                    // still be judged against the real parameter. Keep it and
+                    // drop the unusable hint.
+                    if erasedExpectedIndicesByCandidate[candidate]?.contains(index) == true
+                        || degradedExpectedIndicesByCandidate[candidate]?.contains(index) == true
+                    {
                         expectedTypesByCandidate[candidate]?.removeValue(forKey: index)
                         continue
                     }
