@@ -344,14 +344,16 @@ extension CallTypeChecker {
         switch sema.types.kind(of: nonNullCalleeType) {
         case let .functionType(type):
             functionType = type
-        case .intersection:
+        case .intersection, .typeParam:
             // A smart cast (`f as KFunction<*>`) or a positive `is` branch
             // narrows a stable local to an intersection such as
             // `(Boolean) -> Any & KFunction<*>`. The value stays invocable
             // through its structural conjunct — select it only when the
             // intersection holds one unique function type; a genuinely
             // ambiguous set of conjuncts keeps the unresolved path
-            // (KUU-3652).
+            // (KUU-3652). A type parameter bounded by a function type —
+            // `c: F` where `F : (T) -> R` — is invocable through the bound
+            // the same way (KUU-4087).
             guard let structuralFunction = sema.types.uniqueStructuralFunctionType(for: nonNullCalleeType) else {
                 return nil
             }
