@@ -222,9 +222,9 @@ extension CallTypeChecker {
         // implicit-receiver shape: a receiver-typed callee must always
         // supply it positionally as argument 0 (`ef.invoke(5, 6)`, never
         // `ef.invoke(6)`).
-        // A non-safe `x.invoke` on a nullable function value is left for
-        // the existing fallback (KUU-644): `h?.f.invoke(3)` must stay
-        // illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
+        // A non-safe `x.invoke` on a nullable function value is rejected by
+        // the callable-value arm itself (KUU-644, KUU-4138): `h?.f.invoke(3)`
+        // stays illegal, while `h?.f?.invoke(3)` unwraps first via `safeCall`.
         // Callable references also retain their structural function type here.
         // The reflective KFunction lookup view above is for metadata/extensions;
         // it must not hide the parameter types needed for explicit invocation.
@@ -232,8 +232,7 @@ extension CallTypeChecker {
         // structural function conjunct invocable the same way (KUU-3652).
         if calleeName == knownNames.invoke,
            explicitTypeArgs.isEmpty,
-           let invokeFunctionType = sema.types.uniqueStructuralFunctionType(for: baseLookupReceiverType),
-           invokeFunctionType.nullability != .nullable,
+           sema.types.uniqueStructuralFunctionType(for: baseLookupReceiverType) != nil,
            let result = inferCallableValueInvocation(
                id,
                calleeType: baseLookupReceiverType,
@@ -244,7 +243,9 @@ extension CallTypeChecker {
                ctx: ctx,
                locals: &locals,
                expectedType: expectedType,
-               arityPolicy: .receiverRequiredExplicit
+               arityPolicy: .receiverRequiredExplicit,
+               safeCall: safeCall,
+               calleeValueExpr: receiverID
            )
         {
             let finalType = safeCall ? sema.types.makeNullable(result) : result

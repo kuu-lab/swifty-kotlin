@@ -1,0 +1,12 @@
+Scripts/diff_cases/kuu_4138_nullable_function_value_invoke.kt:7:32: error KSWIFTK-SEMA-0026: Reference has a nullable type '(() -> Unit)?'. Use explicit '?.invoke' to make a function-like call instead.
+fun direct(f: (() -> Unit)?) = f()
+                               ^
+Scripts/diff_cases/kuu_4138_nullable_function_value_invoke.kt:8:40: error KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
+fun explicitInvoke(f: (() -> Unit)?) = f.invoke()
+                                       ^
+Scripts/diff_cases/kuu_4138_nullable_function_value_invoke.kt:9:56: error KSWIFTK-SEMA-0026: Reference has a nullable type 'F'. Use explicit '?.invoke' to make a function-like call instead.
+fun <T, R, F : ((T) -> R)?> boundCall(t: T, c: F): R = c(t)
+                                                       ^
+Scripts/diff_cases/kuu_4138_nullable_function_value_invoke.kt:10:58: error KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
+fun <T, R, F : ((T) -> R)?> boundInvoke(t: T, c: F): R = c.invoke(t)
+                                                         ^
