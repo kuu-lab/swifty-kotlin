@@ -214,6 +214,40 @@ private let unicodeWordBoundaryPattern =
 private let unicodeNonWordBoundaryPattern =
     "(?:(?<!\\w)(?!\\w)|(?<=\\w)(?=\\w))"
 
+/// JVM POSIX `\p{Name}` classes and their US-ASCII expansions.
+///
+/// On the JVM these names match ASCII characters only unless
+/// `UNICODE_CHARACTER_CLASS` is in effect; ICU's `\p{Name}` always uses its
+/// Unicode property tables, so while ASCII mode is active each POSIX name is
+/// rewritten to the explicit ASCII class below (and `\P{Name}` to the
+/// complemented class). Under `(?U)` the escape is copied through verbatim:
+/// ICU's `\p{Name}` implements the same UTS#18 compatibility properties the
+/// JVM uses in Unicode mode (e.g. `Upper` = `Lu + Other_Uppercase`,
+/// `Cntrl` = `gc=Cc`, `Blank` = `TAB + Zs`, `Space` = `White_Space`), so the
+/// semantics already agree.
+///
+/// `\p{ASCII}` is included for completeness — it is `[\x00-\x7F]` on the JVM
+/// in both modes — and all names are matched case-sensitively: the JVM
+/// rejects `\p{lower}` while ICU would accept it. Names absent from the
+/// table (Unicode categories such as `Lu`, scripts, blocks, `java*` /
+/// `Is*` / `gc=*` properties) are Unicode-aware on both sides and always
+/// pass through.
+private let jvmAsciiPosixClassExpansions: [String: String] = [
+    "Lower": "[a-z]",
+    "Upper": "[A-Z]",
+    "ASCII": "[\\x00-\\x7F]",
+    "Alpha": "[a-zA-Z]",
+    "Digit": "[0-9]",
+    "Alnum": "[a-zA-Z0-9]",
+    "Punct": "[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]",
+    "Graph": "[\\x21-\\x7E]",
+    "Print": "[\\x20-\\x7E]",
+    "Blank": "[ \\t]",
+    "Cntrl": "[\\x00-\\x1F\\x7F]",
+    "XDigit": "[0-9a-fA-F]",
+    "Space": "[ \\t\\n\\x0B\\f\\r]",
+]
+
 /// Translates a `java.util.regex` pattern into the ICU dialect used by
 /// `NSRegularExpression`.
 ///
@@ -222,10 +256,13 @@ private let unicodeNonWordBoundaryPattern =
 /// 1. **Predefined classes are ASCII by default.** On the JVM `\w`, `\d`, `\s`
 ///    (and their negations `\W`, `\D`, `\S`) match US-ASCII characters only
 ///    unless `UNICODE_CHARACTER_CLASS` (`(?U)`) is in effect; `\b` / `\B` use the
-///    same ASCII word class. ICU's `\w` / `\d` / `\s` are always Unicode-aware,
-///    so while the ASCII mode is active each class escape is rewritten to the
-///    equivalent explicit class and `\b` / `\B` expand to lookaround
-///    assertions over `[a-zA-Z0-9_]`.
+///    same ASCII word class, and the POSIX `\p{Name}` classes
+///    (`\p{Lower}` … `\p{Space}`) are US-ASCII as well. ICU's `\w` / `\d` /
+///    `\s` / `\p{Name}` are always Unicode-aware, so while the ASCII mode is
+///    active each predefined escape is rewritten to the equivalent explicit
+///    class, `\b` / `\B` expand to lookaround assertions over
+///    `[a-zA-Z0-9_]`, and POSIX `\p{Name}` escapes expand via
+///    ``jvmAsciiPosixClassExpansions`` (`\P{Name}` complements it).
 /// 2. **`(?U)` / `(?u)` inline flags are unknown to ICU.** The `u`
 ///    (UNICODE_CASE) flag is a no-op — ICU folds case over Unicode already —
 ///    and `U` toggles the translation mode: while Unicode character classes are
@@ -237,7 +274,12 @@ private let unicodeNonWordBoundaryPattern =
 ///
 /// Inside character classes the ASCII expansions are emitted as nested classes
 /// (`[...]` members) so they union correctly with neighbours and cannot merge
-/// into unintended ranges (e.g. `[\w-y]` keeps `-`/`y` literal).
+/// into unintended ranges (e.g. `[\w-y]` keeps `-`/`y` literal). ICU set
+/// operators `[.`/`[=`/`[:` (collation elements, equivalence classes, POSIX
+/// classes) have no `java.util.regex` counterpart — the inner `[` opens an
+/// ordinary nested class of literal members on the JVM — so the operator's
+/// second character is escaped in both modes (`[[:alpha:]]` becomes
+/// `[[\:alpha:]]`, a nested class matching `:alpha:` literally).
 /// Escapes, `\Q...\E` quotes and character-class structure are otherwise copied
 /// verbatim.
 func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitially: Bool = false) -> String {
@@ -269,6 +311,57 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 continue
             }
             let escape = chars[index + 1]
+            if escape == "p" || escape == "P" {
+                // `\p{Name}` / `\P{Name}`: the POSIX names are ASCII-only on
+                // the JVM unless (?U), so they expand via
+                // `jvmAsciiPosixClassExpansions` while ASCII mode is active.
+                // Emitted as a `[...]` class the expansion is safe in both
+                // contexts: it is a nested class inside `[...]` and a plain
+                // class outside. `\P{Name}` complements the expansion. Every
+                // other `\p{...}` name (Unicode categories, scripts, blocks,
+                // `java*`/`Is*`/`gc=*` properties) is Unicode-aware on both
+                // engines and passes through verbatim, as does the whole
+                // escape under `(?U)` where the semantics already agree.
+                if index + 2 < chars.count, chars[index + 2] == "{" {
+                    var end = index + 3
+                    while end < chars.count, chars[end] != "}" { end += 1 }
+                    if end < chars.count {
+                        if !unicodeClasses,
+                           let asciiClass = jvmAsciiPosixClassExpansions[String(chars[(index + 3)..<end])] {
+                            if escape == "P" {
+                                var complemented = asciiClass
+                                complemented.insert("^", at: complemented.index(after: complemented.startIndex))
+                                out.append(complemented)
+                            } else {
+                                out.append(asciiClass)
+                            }
+                        } else {
+                            out.append(contentsOf: chars[index...end])
+                        }
+                        index = end + 1
+                        continue
+                    }
+                } else if index + 2 < chars.count, "LMNPSZC".contains(chars[index + 2]) {
+                    // Unbraced single-letter categories `\pL` / `\PL`: the JVM
+                    // accepts exactly one of L M N P S Z C (the major
+                    // general-category codes) without braces; ICU requires
+                    // them, so the letter is wrapped. Other letters (`\pU`,
+                    // `\pl`) are invalid on the JVM too and pass through to
+                    // fail compilation the same way.
+                    out.append("\\")
+                    out.append(escape)
+                    out.append("{")
+                    out.append(chars[index + 2])
+                    out.append("}")
+                    index += 3
+                    continue
+                }
+                // Not a `\p{...}` construct (unterminated or missing braces):
+                // copy the two-character escape verbatim.
+                out.append(contentsOf: chars[index...index + 1])
+                index += 2
+                continue
+            }
             if classDepth > 0 {
                 switch escape {
                 case "w": out.append(unicodeClasses ? "\\w" : "[a-zA-Z0-9_]")
@@ -296,7 +389,24 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             continue
         }
         if classDepth > 0 {
-            if c == "[" { classDepth += 1 } else if c == "]" { classDepth -= 1 }
+            if c == "[" {
+                classDepth += 1
+                out.append(c)
+                index += 1
+                // `[:`, `[.`, `[=` open ICU POSIX-class / collating-element /
+                // equivalence operators inside a set. `java.util.regex` has
+                // no such operators — the inner `[` opens an ordinary nested
+                // class and the rest are literal members — so the operator's
+                // second character is escaped (`[[:alpha:]]` becomes
+                // `[[\:alpha:]]`, matching the literal characters `:alpha:`).
+                // Applies in both modes: the JVM treats them as literals even
+                // under (?U).
+                if index < chars.count, chars[index] == ":" || chars[index] == "." || chars[index] == "=" {
+                    out.append("\\")
+                }
+                continue
+            }
+            if c == "]" { classDepth -= 1 }
             out.append(c)
             index += 1
             continue
