@@ -2,39 +2,144 @@ package java.io
 
 import java.io.OutputStream
 import kotlin.internal.KsSymbolName
+import kotlin.text.format
 
 @KsSymbolName("__kk_printStderr")
 internal external fun __printStderrRaw(message: String): Int
 
+@KsSymbolName("__kk_print_raw")
+internal external fun __printStdoutRaw(message: String)
+
 public class PrintStream internal constructor() {
     private var output: OutputStream? = null
+    private var writesToStdout: Boolean = false
+    private var closed: Boolean = false
+
+    internal constructor(writesToStdout: Boolean) : this() {
+        this.writesToStdout = writesToStdout
+    }
 
     public constructor(output: OutputStream) : this() {
         this.output = output
     }
 
-    public fun print(message: String) {
+    private fun writeMessage(message: String) {
+        if (closed) {
+            return
+        }
         val target = output
-        if (target == null) {
-            __printStderrRaw(message)
-        } else {
+        if (target != null) {
             target.write(message.toByteArray())
+        } else if (writesToStdout) {
+            __printStdoutRaw(message)
+        } else {
+            __printStderrRaw(message)
         }
     }
 
+    public fun print(message: String) {
+        writeMessage(message)
+    }
+
     public fun print(message: Any?) {
-        print(message.toString())
+        writeMessage(message.toString())
     }
 
-    public fun println(message: String) {
-        print(message + "\n")
+    public fun print(message: Boolean) {
+        writeMessage(message.toString())
     }
 
-    public fun println(message: Any?) {
-        println(message.toString())
+    public fun print(message: Char) {
+        writeMessage(message.toString())
+    }
+
+    public fun print(message: Int) {
+        writeMessage(message.toString())
+    }
+
+    public fun print(message: Long) {
+        writeMessage(message.toString())
+    }
+
+    public fun print(message: Float) {
+        writeMessage(message.toString())
+    }
+
+    public fun print(message: Double) {
+        writeMessage(message.toString())
+    }
+
+    public fun print(message: CharArray) {
+        writeMessage(message.concatToString())
     }
 
     public fun println() {
-        print("\n")
+        writeMessage("\n")
+    }
+
+    public fun println(message: String) {
+        writeMessage(message + "\n")
+    }
+
+    public fun println(message: Any?) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: Boolean) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: Char) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: Int) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: Long) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: Float) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: Double) {
+        writeMessage(message.toString() + "\n")
+    }
+
+    public fun println(message: CharArray) {
+        writeMessage(message.concatToString() + "\n")
+    }
+
+    public fun format(format: String, vararg args: Any?): PrintStream {
+        writeMessage(format.format(*args))
+        return this
+    }
+
+    public fun format(locale: java.util.Locale?, format: String, vararg args: Any?): PrintStream {
+        writeMessage(format.format(locale, *args))
+        return this
+    }
+
+    public fun printf(format: String, vararg args: Any?): PrintStream =
+        this.format(format, *args)
+
+    public fun printf(locale: java.util.Locale?, format: String, vararg args: Any?): PrintStream =
+        this.format(locale, format, *args)
+
+    public fun flush() {
+        output?.flush()
+    }
+
+    public fun close() {
+        if (closed) {
+            return
+        }
+        closed = true
+        val target = output
+        output = null
+        target?.close()
     }
 }

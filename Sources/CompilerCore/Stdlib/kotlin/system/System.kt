@@ -7,7 +7,10 @@ import kotlin.internal.KsSymbolName
 // Compatibility object retained for the JVM-shaped system API used by existing
 // diff cases.
 public object System {
-    // The default-import compatibility object must expose the JVM stderr stream too.
+    // The default-import compatibility object must expose the JVM console
+    // streams too.
+    public val out: PrintStream = java.lang.System.out
+
     public val err: PrintStream = java.lang.System.err
 
     public val `in`: InputStream = java.lang.System.`in`
