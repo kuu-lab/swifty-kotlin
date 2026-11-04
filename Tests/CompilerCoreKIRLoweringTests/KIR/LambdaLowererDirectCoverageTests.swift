@@ -535,5 +535,49 @@ struct LambdaLowererDirectCoverageTests {
         )
         #expect(nonCapturable == nil)
     }
+
+    /// KUU-4158: `Nothing?` is inhabited by `null` — unlike `Unit`/non-null
+    /// `Nothing` it must not collapse the adapter to `returnUnit`, which would
+    /// hand the caller the Unit zero word (observed as `0` instead of `null`
+    /// through the erased `FunctionN.invoke` ABI).
+    @Test
+    func nothingNullableLambdaAdapterReturnsCallResult() throws {
+        let fixture = makeKIRDirectLoweringFixture()
+        let range = makeRange()
+        let nothingNullableType = fixture.types.makeNullable(fixture.types.nothingType)
+        let body = appendTypedExpr(.nullLiteral(range), type: nothingNullableType, fixture: fixture)
+        let functionType = fixture.types.make(.functionType(FunctionType(
+            params: [], returnType: nothingNullableType
+        )))
+        let lambda = appendTypedExpr(
+            .lambdaLiteral(params: [], body: body, label: nil, range: range),
+            type: functionType, fixture: fixture
+        )
+        var instructions: [KIRInstruction] = []
+        _ = fixture.driver.lambdaLowerer.lowerLambdaLiteralExpr(
+            lambda, params: [], bodyExpr: body,
+            ast: fixture.ast, sema: fixture.sema, arena: fixture.kirArena,
+            interner: fixture.interner, propertyConstantInitializers: [:],
+            instructions: &instructions
+        )
+        let functions = fixture.driver.ctx.drainGeneratedCallableDecls().compactMap { id -> KIRFunction? in
+            guard case let .function(function)? = fixture.kirArena.decl(id) else { return nil }
+            return function
+        }
+        let adapter = try #require(functions.first { function in
+            fixture.interner.resolve(function.name).hasPrefix("kk_function_value_adapter_")
+        })
+        let terminator = adapter.body.last(where: { instruction in
+            if case .returnValue = instruction { return true }
+            if case .returnUnit = instruction { return true }
+            return false
+        })
+        guard case .returnValue = terminator else {
+            Issue.record(
+                "expected .returnValue terminator for () -> Nothing? adapter, got \(String(describing: terminator)): \(adapter.body)"
+            )
+            return
+        }
+    }
 }
 #endif

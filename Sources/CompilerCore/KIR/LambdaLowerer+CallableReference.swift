@@ -241,7 +241,7 @@ extension LambdaLowerer {
             )
         }
         switch sema.types.kind(of: functionType.returnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable):
+        case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(resultToReturn))
@@ -391,7 +391,7 @@ extension LambdaLowerer {
             body.append(.call(symbol: targetSymbol, callee: callee, arguments: callArguments, result: callResult, canThrow: isReifiedThunk))
         }
         switch sema.types.kind(of: returnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable):
+        case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(callResult))
@@ -1355,7 +1355,7 @@ extension LambdaLowerer {
                 dispatch: dispatch
             ))
             switch sema.types.kind(of: returnType) {
-            case .unit, .nothing(.nonNull), .nothing(.nullable):
+            case .unit, .nothing(.nonNull):
                 body.append(.returnUnit)
             default:
                 body.append(.returnValue(callResult))
@@ -1468,7 +1468,7 @@ extension LambdaLowerer {
                 canThrow: !needsHOFWrapper
             ))
             switch sema.types.kind(of: returnType) {
-            case .unit, .nothing(.nonNull), .nothing(.nullable):
+            case .unit, .nothing(.nonNull):
                 body.append(.returnUnit)
             default:
                 body.append(.returnValue(callResult))
@@ -1521,7 +1521,7 @@ extension LambdaLowerer {
                               callee: callTargetName ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner),
                               arguments: arguments, result: result, canThrow: true))
             switch sema.types.kind(of: functionType.returnType) {
-            case .unit, .nothing: body.append(.returnUnit)
+            case .unit, .nothing(.nonNull): body.append(.returnUnit)
             default: body.append(.returnValue(result))
             }
             body.append(.endBlock)
@@ -1560,8 +1560,14 @@ extension LambdaLowerer {
             }
             var body: [KIRInstruction] = [.beginBlock]
             switch sema.types.kind(of: fallbackReturnType) {
-            case .unit, .nothing(.nonNull), .nothing(.nullable):
+            case .unit, .nothing(.nonNull):
                 body.append(.returnUnit)
+            case .nothing(.nullable), .nothing(.platformType):
+                // `Nothing?`/`Nothing!` are inhabited — their only legal
+                // stub value is `null` (KUU-4158).
+                let nullValue = arena.appendExpr(.null, type: fallbackReturnType)
+                body.append(.constValue(result: nullValue, value: .null))
+                body.append(.returnValue(nullValue))
             default:
                 let zero = arena.appendExpr(.intLiteral(0), type: fallbackReturnType)
                 body.append(.constValue(result: zero, value: .intLiteral(0)))
