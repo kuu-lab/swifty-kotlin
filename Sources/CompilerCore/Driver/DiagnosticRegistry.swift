@@ -165,6 +165,12 @@ enum DiagnosticRegistry {
         "ARGUMENT_TYPE_MISMATCH": [
             "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-TYPE", "KSWIFTK-SEMA-0473",
         ],
+        // kotlinc K2 checks an explicit accessor visibility against the
+        // property's effective visibility with two distinct names (verified
+        // against kotlinc 2.4.20 @Suppress): the getter must spell the same
+        // visibility while the setter may only be narrower.
+        "GETTER_VISIBILITY_DIFFERS_FROM_PROPERTY_VISIBILITY": ["KSWIFTK-SEMA-0476"],
+        "SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY": ["KSWIFTK-SEMA-0477"],
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
@@ -1393,6 +1399,18 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Argument type mismatch."        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0476",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "getter visibility must be the same as property visibility."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0477",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "setter visibility cannot be more permissive than property visibility."
+        ),
     ]
 
 

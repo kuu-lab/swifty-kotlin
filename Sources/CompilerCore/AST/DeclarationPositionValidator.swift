@@ -10,6 +10,13 @@ struct DeclarationPositionValidator {
     let diagnostics: DiagnosticEngine?
     var fullValueClassesEnabled: Bool = false
     var jvmInlineAnnotationNames: Set<String> = ["JvmInline", "kotlin.jvm.JvmInline"]
+    /// KUU-4119: sema-time resolver for the effective visibility of an
+    /// `override` property that does not repeat a visibility modifier (it
+    /// inherits the overridden member's visibility). AST-build-time callers
+    /// (local and anonymous declarations) leave this nil; the accessor
+    /// visibility check then treats the effective visibility as unknown
+    /// instead of wrongly assuming `public`.
+    var inheritedPropertyVisibility: ((DeclID) -> Visibility?)? = nil
 
     static func validateMultipleVarargParameters(
         _ parameters: [ValueParamDecl],
@@ -114,10 +121,10 @@ struct DeclarationPositionValidator {
         guard let decl = astArena.decl(declID) else {
             return
         }
-        validate(decl, site: site)
+        validate(decl, site: site, declID: declID)
     }
 
-    func validate(_ decl: Decl, site: OwnerSite) {
+    private func validate(_ decl: Decl, site: OwnerSite, declID: DeclID) {
         switch decl {
         case .classDecl(let classDecl):
             validateClass(classDecl, site: site)
@@ -128,7 +135,7 @@ struct DeclarationPositionValidator {
         case .funDecl(let funDecl):
             validateFunction(funDecl, site: site)
         case .propertyDecl(let propertyDecl):
-            validateProperty(propertyDecl, site: site)
+            validateProperty(propertyDecl, site: site, declID: declID)
         case .typeAliasDecl(let typeAliasDecl):
             validateTypeAlias(typeAliasDecl, site: site)
         case .enumEntryDecl:
@@ -268,7 +275,7 @@ struct DeclarationPositionValidator {
         }
     }
 
-    private func validateProperty(_ decl: PropertyDecl, site: OwnerSite) {
+    private func validateProperty(_ decl: PropertyDecl, site: OwnerSite, declID: DeclID) {
         // Primary-constructor `val`/`var` parameters are materialized as
         // member properties; modifier applicability and conflicts were already
         // reported on the parameter tokens by BuildAST.
@@ -388,8 +395,72 @@ struct DeclarationPositionValidator {
 
         emitPairConflicts(pairPlan.emissions, range: decl.range)
 
+        validateAccessorVisibility(decl, declID: declID)
+
         validatePropertyInitialization(decl, site: site)
     }
+
+    /// KUU-4119: kotlinc rejects an accessor whose explicit visibility does
+    /// not fit the property's visibility — the getter must spell the same
+    /// visibility (`GETTER_VISIBILITY_DIFFERS_FROM_PROPERTY_VISIBILITY`),
+    /// while the setter may only be narrower
+    /// (`SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY`).
+    /// `protected` and `internal` are unordered relative to each other, so
+    /// either direction of that pairing is rejected. An `override` without
+    /// its own visibility modifier inherits the overridden member's; the
+    /// `inheritedPropertyVisibility` resolver supplies it at sema time.
+    private func validateAccessorVisibility(_ decl: PropertyDecl, declID: DeclID) {
+        let effectiveVisibility: Visibility?
+        if decl.modifiers.contains(.override),
+           decl.modifiers.isDisjoint(with: Self.visibilityModifierMask)
+        {
+            effectiveVisibility = inheritedPropertyVisibility?(declID)
+        } else {
+            effectiveVisibility = Visibility(modifiers: decl.modifiers)
+        }
+
+        if let getter = decl.getter, let getterVisibility = getter.visibility {
+            let differs: Bool
+            if let effectiveVisibility {
+                differs = getterVisibility != effectiveVisibility
+            } else {
+                // The inherited visibility is unknown; `private` is the only
+                // spelling that provably differs, since no overridable member
+                // can be private.
+                differs = getterVisibility == .private
+            }
+            if differs {
+                diagnostics?.error(
+                    "KSWIFTK-SEMA-0476",
+                    "getter visibility must be the same as property visibility.",
+                    range: getter.range
+                )
+            }
+        }
+        if let setter = decl.setter, let setterVisibility = setter.visibility,
+           let effectiveVisibility,
+           !Self.isNotMorePermissive(setterVisibility, than: effectiveVisibility)
+        {
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0477",
+                "setter visibility cannot be more permissive than property visibility.",
+                range: setter.range
+            )
+        }
+    }
+
+    /// Kotlin's visibility partial order: `private` is narrower than every
+    /// visibility, and both `protected` and `internal` are narrower than
+    /// `public` but unordered relative to each other — kotlinc therefore
+    /// rejects both directions of a `protected`/`internal` property–setter
+    /// pair as "more permissive".
+    private static func isNotMorePermissive(_ accessor: Visibility, than property: Visibility) -> Bool {
+        accessor == property || accessor == .private || property == .public
+    }
+
+    private static let visibilityModifierMask: Modifiers = [
+        .private, .internal, .protected, .public,
+    ]
 
     private func isImplicitlyAbstractInterfaceProperty(_ decl: PropertyDecl) -> Bool {
         decl.initializer == nil && decl.getter == nil && decl.setter == nil
