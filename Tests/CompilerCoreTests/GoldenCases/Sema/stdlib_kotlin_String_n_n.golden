@@ -1,25 +1,36 @@
 symbol fq=__local_0.empty[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
 symbol fq=__local_1.typed[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=golden.sema.codePointsToString.$0.codePoints[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.codePointsToString[kind=fun;params=kotlin.IntArray;ret=String;names=[codePoints];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.IntArray] ret=String
 symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=golden.sema.takeString.$0.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.takeString.$1.value[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.takeString[kind=fun;params=String;ret=String;names=[value];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[String] ret=String
 file fstdlib_kotlin_String_n_n package=golden.sema
   decl golden.sema.takeString[kind=fun;params=String;ret=String;names=[value];origin=fixture] fun takeString sym=golden.sema.takeString[kind=fun;params=String;ret=String;names=[value];origin=fixture]
+  decl golden.sema.codePointsToString[kind=fun;params=kotlin.IntArray;ret=String;names=[codePoints];origin=fixture] fun codePointsToString sym=golden.sema.codePointsToString[kind=fun;params=kotlin.IntArray;ret=String;names=[codePoints];origin=fixture]
   decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
-expr e@3:41 name(value) type=String ref=golden.sema.takeString.$0.value[kind=vparam;origin=fixture]
-expr e@6:25 call callee=e@6:25#1 args=[] type=String call=kotlin.String[kind=fun;params=;ret=String]
-expr e@6:5 localDecl empty mutable=0 type=String init=e@6:25 type=Unit ref=__local_0.empty[kind=local;type=String;origin=fixture]
-expr e@7:28 name(empty) type=String ref=__local_0.empty[kind=local;type=String;origin=fixture]
-expr e@7:17 call callee=e@7:17#1 args=[_:e@7:28] type=String call=golden.sema.takeString[kind=fun;params=String;ret=String;names=[value];origin=fixture]
-expr e@7:5 localDecl typed mutable=0 type=_ init=e@7:17 type=Unit ref=__local_1.typed[kind=local;type=String;origin=fixture]
-expr e@8:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
-expr e@8:22 string() type=String
-expr e@8:13#1 binary(equal) lhs=e@8:13 rhs=e@8:22 type=Boolean
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
-expr e@9:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
-expr e@9:13#1 memberCall recv=e@9:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:41 name(value) type=String ref=golden.sema.takeString.$1.value[kind=vparam;origin=fixture]
+expr e@5:63 name(codePoints) type=kotlin.IntArray ref=golden.sema.codePointsToString.$0.codePoints[kind=vparam;origin=fixture]
+expr e@5:75 int(0) type=Int
+expr e@5:78 int(1) type=Int
+expr e@5:56 call callee=e@5:56#1 args=[_:e@5:63,_:e@5:75,_:e@5:78] type=String call=kotlin.String[kind=fun;params=kotlin.IntArray,Int,Int;ret=String;names=[codePoints,offset,count]]
+expr e@8:25 call callee=e@8:25#1 args=[] type=String call=kotlin.String[kind=fun;params=;ret=String]
+expr e@8:5 localDecl empty mutable=0 type=String init=e@8:25 type=Unit ref=__local_0.empty[kind=local;type=String;origin=fixture]
+expr e@9:28 name(empty) type=String ref=__local_0.empty[kind=local;type=String;origin=fixture]
+expr e@9:17 call callee=e@9:17#1 args=[_:e@9:28] type=String call=golden.sema.takeString[kind=fun;params=String;ret=String;names=[value];origin=fixture]
+expr e@9:5 localDecl typed mutable=0 type=_ init=e@9:17 type=Unit ref=__local_1.typed[kind=local;type=String;origin=fixture]
 expr e@10:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
-expr e@10:21 string(x) type=String
-expr e@10:13#1 binary(add) lhs=e@10:13 rhs=e@10:21 type=String
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@10:22 string() type=String
+expr e@10:13#1 binary(equal) lhs=e@10:13 rhs=e@10:22 type=Boolean
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@11:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
+expr e@11:13#1 memberCall recv=e@11:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@12:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
+expr e@12:21 string(x) type=String
+expr e@12:13#1 binary(add) lhs=e@12:13 rhs=e@12:21 type=String
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@13:43 int(128512) type=Int
+expr e@13:32 call callee=e@13:32#1 args=[_:e@13:43] type=kotlin.IntArray call=kotlin.intArrayOf[kind=fun;params=*Int;ret=kotlin.IntArray;vararg=[1];names=[elements]]
+expr e@13:13 call callee=e@13:13#1 args=[_:e@13:32] type=String call=golden.sema.codePointsToString[kind=fun;params=kotlin.IntArray;ret=String;names=[codePoints];origin=fixture]
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
