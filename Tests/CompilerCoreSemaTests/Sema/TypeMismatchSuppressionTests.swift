@@ -139,6 +139,41 @@ struct TypeMismatchSuppressionTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
     }
 
+    // KUU-4128: the range infix calls (`downTo`, `..`, `..<`, `step`) offer
+    // several bundled overloads, but kotlinc reports ARGUMENT_TYPE_MISMATCH
+    // when none fits — the operator-convention collapse to NONE_APPLICABLE
+    // covers only true operators (`+`, `in`, `a[i]`, ...). A single-overload
+    // call already emitted KSWIFTK-SEMA-0473; multi-overload calls must not
+    // lose it.
+    @Test(arguments: [
+        "fun f() { for (i in 10 downTo \"x\") {} }",
+        "fun f() { println(1L..\"x\") }",
+        "fun f() { println(1..<\"x\") }",
+        "fun f() { println((1..10) step \"x\") }",
+        "fun f() { println(1 until \"x\") }",
+    ])
+    func multiOverloadRangeInfixEmitsArgumentMismatch(source: String) throws {
+        let ctx = try context(for: source)
+        assertHasDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+    }
+
+    @Test func validRangeInfixCallsEmitNoError() throws {
+        // Acceptance guard: the diagnostic change must not reject valid range
+        // infix calls (KUU-4128).
+        let ctx = try context(for: """
+            fun f() {
+                for (i in 10 downTo 1) {}
+                val a = 1L..5L
+                val b = 1..<10
+                val c = (1..10) step 2
+                val d = 1 until 10
+            }
+            """)
+        assertNoDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+    }
+
     @Test func argumentTypeMismatchSuppressesVarargMismatch() throws {
         // A lone non-array argument to a vararg parameter is an argument
         // type mismatch in kotlinc.
