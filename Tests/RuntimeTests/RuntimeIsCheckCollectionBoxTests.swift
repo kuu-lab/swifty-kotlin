@@ -197,7 +197,12 @@ struct RuntimeIsCheckCollectionBoxTests {
         #expect(kk_op_is(iter, token("kotlin.collections.Iterator")) == 1)
         #expect(try iteratorMethod(iter, slot: 0)(iter, &thrown) == 1)
         let value = try iteratorMethod(iter, slot: 1)(iter, &thrown)
-        #expect((resolveRuntimeObjectHandle(value) as? RuntimePairBox)?.first == 0)
+        // `next()` yields an `IndexedValue` object (index@2, value@3) matching
+        // the source-backed data class layout, not a `Pair` box — read the
+        // fields like compiled component calls do.
+        #expect(kk_op_is(value, token("kotlin.collections.IndexedValue")) == 1)
+        #expect(kk_array_get(value, 2, &thrown) == 0) // index
+        #expect(kk_array_get(value, 3, &thrown) == 9) // element
         #expect(thrown == 0)
     }
 
