@@ -20,6 +20,14 @@ public suspend fun <T> Flow<T>.collectLatest(action: suspend (value: T) -> Unit)
     this.mapLatest { value -> action(value) }.collect { }
 }
 
+internal object NopCollector : FlowCollector<Any?> {
+    override suspend fun emit(value: Any?) {
+        // does nothing
+    }
+}
+
+public suspend fun Flow<*>.collect() = collect(NopCollector)
+
 public suspend fun <T> FlowCollector<T>.emitAll(flow: Flow<T>) {
     val collector = this
     flow.collect { value -> collector.emit(value) }

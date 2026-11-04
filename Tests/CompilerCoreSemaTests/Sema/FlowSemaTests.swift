@@ -381,6 +381,53 @@ struct FlowSemaTests {
         }
     }
 
+    // KUU-4045: the bundled `suspend fun Flow<*>.collect()` terminal must
+    // resolve for `Flow<T>` and `Flow<*>` receivers alike, and the inline
+    // multi-emit `flow { }` builder chain must keep its inferred element type.
+    @Test func testFlowNoArgCollectTerminalResolves() throws {
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: [
+            """
+            package flow_noarg_collect
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.flow.*
+
+            suspend fun drainStar(stream: Flow<*>) {
+                stream.collect()
+            }
+
+            fun main() {
+                runBlocking {
+                    flow { emit(1); emit(2) }.collect()
+                    flowOf(1).onEach { println(it) }.collect()
+                    flow { emit(1); emit(2) }.collect { println(it) }
+                    drainStar(flowOf("x"))
+                }
+            }
+            """
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+        assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+        // Both no-arg calls must bind the source-backed bundled declaration,
+        // not be left unbound for lowering to synthesize a phantom callee.
+        let sema = try #require(ctx.sema)
+        let bundledCollects = sema.bindings.callBindings.values.compactMap(\.chosenCallee).filter { callee in
+            guard let symbol = sema.symbols.symbol(callee) else { return false }
+            return ctx.interner.resolve(symbol.name) == "collect"
+                && sema.symbols.isSourceBackedSymbol(callee)
+        }
+        #expect(bundledCollects.count >= 3,
+            "Expected no-arg collect calls to bind the bundled Flow.collect declaration")
+    }
+
     @Test func testChannelFlowAndCallbackFlowTypeCheckWithProducerScope() throws {
         var result: CompilationContext?
         try withTemporaryFiles(contents: [
