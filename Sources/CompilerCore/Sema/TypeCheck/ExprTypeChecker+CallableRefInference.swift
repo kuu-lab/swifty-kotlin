@@ -2630,6 +2630,13 @@ extension ExprTypeChecker {
     /// (`LambdaLowerer.lowerPrimitiveOperatorCallableRef`) to build a
     /// wrapper around, since there is no symbol for it to call either.
     ///
+    /// `Boolean::and` / `::or` / `::xor` (KUU-4092) share the same mechanism:
+    /// upstream declares them as `infix fun` members of kotlin.Boolean, but
+    /// `true and false` calls resolve through the Boolean intrinsic fast
+    /// path, so no member symbol exists for the reference to bind to either.
+    /// Unlike the numeric operator families the signature is unique --
+    /// `(Boolean, Boolean) -> Boolean` -- so no expected type is required.
+    ///
     /// Returns `nil` when `receiverName`/`member` don't name a supported
     /// primitive-operator pair, so the caller falls through to ordinary
     /// candidate resolution.
@@ -2650,11 +2657,19 @@ extension ExprTypeChecker {
         switch interner.resolve(member) {
         case "plus": op = .add
         case "times": op = .multiply
+        case "and": op = .bitwiseAnd
+        case "or": op = .bitwiseOr
+        case "xor": op = .bitwiseXor
         default: return nil
         }
+        let requiresExpectedType: Bool
         switch primitive {
         case .int, .long, .uint, .ulong, .float, .double:
-            break
+            guard op == .add || op == .multiply else { return nil }
+            requiresExpectedType = true
+        case .boolean:
+            guard op == .bitwiseAnd || op == .bitwiseOr || op == .bitwiseXor else { return nil }
+            requiresExpectedType = false
         default:
             return nil
         }
@@ -2663,14 +2678,16 @@ extension ExprTypeChecker {
                 sema.types.make(.functionType($0))
             } ?? type
         }
-        guard let expectedType = contextualType, case .functionType = sema.types.kind(of: expectedType) else {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0003",
-                "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",
-                range: range
-            )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
+        if requiresExpectedType {
+            guard let contextualType, case .functionType = sema.types.kind(of: contextualType) else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0003",
+                    "Ambiguous overload resolution for '\(interner.resolve(receiverName))::\(interner.resolve(member))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
         }
         let operandType = sema.types.make(.primitive(primitive, .nonNull))
         let functionType = sema.types.make(.functionType(FunctionType(
@@ -2680,18 +2697,21 @@ extension ExprTypeChecker {
             isCallableReference: true,
             nullability: .nonNull
         )))
-        driver.emitSubtypeConstraint(
-            left: functionType,
-            right: expectedType,
-            range: range,
-            solver: ConstraintSolver(),
-            sema: sema,
-            diagnostics: ctx.sema.diagnostics
-        )
+        if let contextualType {
+            driver.emitSubtypeConstraint(
+                left: functionType,
+                right: contextualType,
+                range: range,
+                solver: ConstraintSolver(),
+                sema: sema,
+                diagnostics: ctx.sema.diagnostics
+            )
+        }
         sema.bindings.bindPrimitiveOperatorCallableRef(id, op: op)
         sema.bindings.bindCallableRefKind(id, kind: .functionRef)
-        sema.bindings.bindExprType(id, type: expectedType)
-        return expectedType
+        let resultType = contextualType ?? functionType
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
     }
 
     /// REFL-PRIMOP: `Boolean::not` has no real member symbol because ordinary
