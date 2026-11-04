@@ -17,16 +17,23 @@ struct RuntimeArrayTypeTests {
     }
 
     // Floating-point arrays render contents under the KUU-1048 policy.
+    // KUU-4001: identity toString spells the JVM array descriptor
+    // (`[I`, `[Ljava.lang.Object;`), not `kotlin.*Array`.
     @Test(arguments: [
-        "Array", "BooleanArray", "ByteArray", "CharArray",
-        "IntArray", "LongArray", "ShortArray", "UByteArray", "UShortArray", "UIntArray", "ULongArray",
+        ("Array", "[Ljava.lang.Object;"),
+        ("BooleanArray", "[Z"),
+        ("ByteArray", "[B"),
+        ("CharArray", "[C"),
+        ("IntArray", "[I"),
+        ("LongArray", "[J"),
+        ("ShortArray", "[S"),
     ])
-    func arrayRenderingUsesStableIdentity(typeName: String) {
+    func arrayRenderingUsesStableIdentity(typeName: String, jvmDescriptor: String) {
         let array = kk_array_new(1)
         let fqName = "kotlin.\(typeName)"
         _ = kk_array_tag_type(array, Int(runtimeStableNominalTypeID(fqName: fqName)))
         let hash = String(UInt32(truncatingIfNeeded: kk_any_hashCode(array, 0)), radix: 16)
-        let expected = "\(fqName)@\(hash)"
+        let expected = "\(jvmDescriptor)@\(hash)"
 
         #expect(runtimeElementToString(array) == expected)
         #expect(runtimeRenderAnyForPrint(array) == expected)
@@ -37,6 +44,66 @@ struct RuntimeArrayTypeTests {
         #expect(thrown == 0)
         #expect(runtimeElementToString(array) == expected)
         #expect(runtimeElementToString(__kk_array_copyOf(array)) != expected)
+    }
+
+    /// Unsigned arrays are value classes over their signed storage: their
+    /// toString renders `U*Array(storage=[...])` contents, never identity.
+    @Test(arguments: ["UByteArray", "UShortArray", "UIntArray", "ULongArray"])
+    func unsignedArrayRenderingShowsStorage(typeName: String) {
+        let array = kk_array_new(1)
+        _ = kk_array_tag_type(array, Int(runtimeStableNominalTypeID(fqName: "kotlin.\(typeName)")))
+        #expect(runtimeElementToString(array) == "\(typeName)(storage=[0])")
+        #expect(runtimeRenderAnyForPrint(array) == "\(typeName)(storage=[0])")
+        #expect(extractString(from: kk_any_to_string(array, 0)) == "\(typeName)(storage=[0])")
+
+        var thrown = 0
+        _ = kk_array_set(array, 0, 42, &thrown)
+        #expect(thrown == 0)
+        #expect(runtimeElementToString(array) == "\(typeName)(storage=[42])")
+        // The copy renders equal contents, so its spelling matches here;
+        // identity would differ, contents do not.
+        #expect(runtimeElementToString(__kk_array_copyOf(array)) == "\(typeName)(storage=[42])")
+    }
+
+    /// KUU-4001: component-tagged `Array<E>` renders the element's JVM
+    /// descriptor — `[Ljava.lang.Integer;`, `[[I`, `[[Ljava.lang.String;`.
+    @Test
+    func componentTaggedArrayRendersJvmElementDescriptor() {
+        func nominal(_ name: String) -> Int {
+            Int(RuntimeTypeTokenEncoding.nominalBase | (runtimeStableNominalTypeID(fqName: name) << RuntimeTypeTokenEncoding.payloadShift))
+        }
+        func taggedArray(component: Int) -> Int {
+            let array = kk_array_new(1)
+            _ = kk_array_tag_type(array, Int(truncatingIfNeeded: runtimeStableNominalTypeID(fqName: "kotlin.Array")))
+            _ = __kk_array_tag_component(array, component)
+            return array
+        }
+
+        let intComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.intBase), 0)
+        #expect(runtimeElementToString(taggedArray(component: intComponent))
+            .hasPrefix("[Ljava.lang.Integer;@"))
+
+        let stringComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.stringBase), 0)
+        #expect(runtimeElementToString(taggedArray(component: stringComponent))
+            .hasPrefix("[Ljava.lang.String;@"))
+
+        // Compiled programs carry KClass metadata for builtin array classes;
+        // the descriptor's qualified-name lookup resolves through it.
+        let intArrayName = runtimeMakeStringRaw("kotlin.IntArray")
+        _ = __kk_kclass_register_metadata(
+            nominal("kotlin.IntArray"), intArrayName, intArrayName, 0, 0, -1, -1, -1
+        )
+        let intArrayComponent = __kk_array_component_type(nominal("kotlin.IntArray"), 0)
+        #expect(runtimeElementToString(taggedArray(component: intArrayComponent))
+            .hasPrefix("[[I@"))
+
+        let stringArrayComponent = __kk_array_component_type(nominal("kotlin.Array"), stringComponent)
+        #expect(runtimeElementToString(taggedArray(component: stringArrayComponent))
+            .hasPrefix("[[Ljava.lang.String;@"))
+
+        let anyComponent = __kk_array_component_type(Int(RuntimeTypeTokenEncoding.anyBase), 0)
+        #expect(runtimeElementToString(taggedArray(component: anyComponent))
+            .hasPrefix("[Ljava.lang.Object;@"))
     }
 
     @Test

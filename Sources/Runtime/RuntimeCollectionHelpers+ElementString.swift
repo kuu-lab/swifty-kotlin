@@ -195,6 +195,10 @@ func runtimeDefaultObjectIdentityToString(_ raw: Int) -> String? {
     {
         // Runtime-backed sequences collapse the stdlib's wrapper objects into one box.
         className = "kotlin.sequences.TransformingSequence"
+    } else if let arrayName = runtimeJavaArrayClassName(rawValue: raw) {
+        // KUU-4001: array boxes spell their JVM descriptor (`[I`, `[LFoo;`)
+        // in Object.toString() too, matching runtimeArrayIdentityToString.
+        className = arrayName
     } else if let typeID = runtimeObjectTypeID(rawValue: raw),
               let metadata = runtimeKClassMetadataRegistry.lookup(
                 typeToken: runtimeNominalTypeToken(typeID)
