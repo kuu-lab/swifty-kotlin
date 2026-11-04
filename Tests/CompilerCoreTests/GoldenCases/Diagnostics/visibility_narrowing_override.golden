@@ -9,9 +9,35 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-VISIBILITY",
+      "code": "KSWIFTK-SEMA-0402",
       "source": "kswiftk",
-      "message": "'describe' cannot override 'Vehicle.describe' because it has private visibility, which is more restrictive than the public visibility of the overridden member.",
+      "message": "modifier 'override' is incompatible with 'private'.",
+      "codeActions": []
+    },
+    {
+      "file": "visibility_narrowing_override.kt",
+      "range": {
+        "start": { "line": 9, "character": 4 },
+        "end": { "line": 9, "character": 51 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0402",
+      "source": "kswiftk",
+      "message": "modifier 'private' is incompatible with 'override'.",
+      "codeActions": []
+    },
+    {
+      "file": "visibility_narrowing_override.kt",
+      "range": {
+        "start": { "line": 9, "character": 4 },
+        "end": { "line": 9, "character": 51 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0478",
+      "source": "kswiftk",
+      "message": "cannot weaken access privilege private for 'describe' in 'Vehicle'.",
       "codeActions": []
     },
     {
@@ -22,9 +48,35 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-VISIBILITY",
+      "code": "KSWIFTK-SEMA-0402",
       "source": "kswiftk",
-      "message": "'info' cannot override 'Vehicle.info' because it has private visibility, which is more restrictive than the protected visibility of the overridden member.",
+      "message": "modifier 'override' is incompatible with 'private'.",
+      "codeActions": []
+    },
+    {
+      "file": "visibility_narrowing_override.kt",
+      "range": {
+        "start": { "line": 13, "character": 4 },
+        "end": { "line": 13, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0402",
+      "source": "kswiftk",
+      "message": "modifier 'private' is incompatible with 'override'.",
+      "codeActions": []
+    },
+    {
+      "file": "visibility_narrowing_override.kt",
+      "range": {
+        "start": { "line": 13, "character": 4 },
+        "end": { "line": 13, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0478",
+      "source": "kswiftk",
+      "message": "cannot weaken access privilege private for 'info' in 'Vehicle'.",
       "codeActions": []
     }
   ]

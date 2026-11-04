@@ -37,7 +37,7 @@ struct JavaThreadLocalTests {
 
     @Test(arguments: [
         ("class Local : ThreadLocal<String>() { override fun initialValue(): Int = 1 }", "KSWIFTK-SEMA-OVERRIDE-RETURN"),
-        ("class Local : ThreadLocal<String>() { private override fun initialValue(): String = \"bad\" }", "KSWIFTK-SEMA-VISIBILITY"),
+        ("class Local : ThreadLocal<String>() { private override fun initialValue(): String = \"bad\" }", "KSWIFTK-SEMA-0478"),
     ])
     func invalidOverridesAreRejected(source: String, diagnosticCode: String) throws {
         try withTemporaryFile(contents: source) { path in

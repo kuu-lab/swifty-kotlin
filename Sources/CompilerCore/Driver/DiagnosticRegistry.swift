@@ -1422,13 +1422,13 @@ enum DiagnosticRegistry {
             code: "KSWIFTK-SEMA-0478",
             pass: "SEMA",
             defaultSeverity: .error,
-            summary: "An override accessor cannot weaken the overridden accessor's visibility."
+            summary: "An override cannot weaken the overridden member or accessor's visibility."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0479",
             pass: "SEMA",
             defaultSeverity: .error,
-            summary: "An override accessor cannot change the overridden accessor's visibility."
+            summary: "An override cannot change the overridden member or accessor's visibility."
         ),
     ]
 

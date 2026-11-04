@@ -1858,6 +1858,11 @@ struct DeclarationPositionValidator {
         (.final, "final", .open, "open"),
         (.private, "private", .open, "open"),
         (.private, "private", .abstract, "abstract"),
+        // KUU-4155: `private` members cannot participate in overriding, so
+        // `private` and `override` are incompatible in both directions —
+        // even where `override` is itself not applicable (e.g. top level),
+        // kotlinc still reports the pair rather than the site diagnostic.
+        (.private, "private", .override, "override"),
         (.expect, "expect", .actual, "actual"),
     ]
 
