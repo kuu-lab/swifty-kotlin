@@ -2,6 +2,12 @@
 extension DataFlowSemaPhase {
     private struct DiamondDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
+        // Member-extension overloads may differ only by their extension
+        // receiver; nil for ordinary members, whose signature receiverType is
+        // the dispatch receiver and would split one declaration per owner.
+        let extensionReceiverType: TypeID?
+        let contextReceiverTypes: [TypeID]
+        let contextParameterTypes: [TypeID]
         let parameterTypes: [TypeID]
         let isSuspend: Bool
 
@@ -528,8 +534,14 @@ extension DataFlowSemaPhase {
     ) -> DiamondDispatchKey {
         let methodName = symbols.symbol(methodSymbol)?.name ?? InternedString(rawValue: -1)
         let signature = symbols.functionSignature(for: methodSymbol)
+        let extensionReceiverType = symbols.memberExtensionOwnerSymbol(for: methodSymbol) != nil
+            ? signature?.receiverType
+            : nil
         return DiamondDispatchKey(
             name: methodName,
+            extensionReceiverType: extensionReceiverType,
+            contextReceiverTypes: signature?.contextReceiverTypes ?? [],
+            contextParameterTypes: signature?.contextParameterTypes ?? [],
             parameterTypes: signature?.parameterTypes ?? [],
             isSuspend: signature?.isSuspend ?? false
         )

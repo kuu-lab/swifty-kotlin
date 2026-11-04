@@ -125,6 +125,116 @@ struct KUU3521InterfaceDiamondSemaTests {
     }
 
     @Test
+    func diamondWithSameNamedExtensionOverloadsInCommonAncestor() throws {
+        // KUU-3959 / KUU-4011: every path reaches the same declarations, so
+        // overloads that differ only by receiver must not count as conflicts.
+        let source = """
+        class Entities
+        interface Tag {
+            operator fun Entities.unaryPlus() {}
+            operator fun String.unaryPlus() {}
+        }
+        interface A : Tag
+        interface B : Tag
+        interface C : A, B
+        fun main() { println("ok") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
+        }
+    }
+
+    @Test
+    func diamondWithMixedAbstractConcreteExtensionOverloads() throws {
+        // KUU-3959: one abstract + one concrete overload on different receivers.
+        let source = """
+        interface T {
+            operator fun String.unaryPlus()
+            operator fun Int.unaryPlus() {}
+        }
+        interface A : T
+        interface B : T
+        interface C : A, B
+        fun main() { println("ok") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
+        }
+    }
+
+    @Test
+    func threeWayDiamondWithExtensionOverloads() throws {
+        // KUU-4081: three paths converging on the same overloaded ancestors.
+        let source = """
+        interface T {
+            operator fun String.unaryPlus() {}
+            operator fun Int.unaryPlus() {}
+        }
+        interface A : T
+        interface B : T
+        interface C : T
+        interface D : A, B, C
+        fun main() { println("ok") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
+        }
+    }
+
+    @Test
+    func extensionMembersWithDifferentReceiversAcrossInterfacesDoNotConflict() throws {
+        let source = """
+        interface T1 { fun String.m() {} }
+        interface T2 { fun Int.m() {} }
+        class C : T1, T2
+        fun main() { println("ok") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
+        }
+    }
+
+    @Test
+    func sameExtensionSignatureAcrossInterfacesStillConflicts() throws {
+        // Same receiver + same signature from two unrelated interfaces is a
+        // real conflict — the dispatch key fix must not hide it.
+        let source = """
+        interface T1 { fun String.m() {} }
+        interface T2 { fun String.m() {} }
+        class C : T1, T2
+        class OK : T1, T2 { override fun String.m() {} }
+        fun main() { println("ok") }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let conflicts = ctx.diagnostics.diagnostics.filter {
+                $0.code == "KSWIFTK-SEMA-0171"
+            }
+            #expect(conflicts.count == 1)
+            #expect(conflicts.first?.message == "class 'C' must override 'm' because it inherits multiple interface methods for it.")
+        }
+    }
+
+    @Test
     func localClassAndAnonymousObjectRequireDiamondOverride() throws {
         let source = """
         interface I1 { fun g(): Int }
