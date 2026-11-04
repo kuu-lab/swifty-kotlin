@@ -65,4 +65,34 @@ struct CollectionInputTypeInferenceTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
+
+    @Test
+    func genericSetFactoryKeepsItsDeclaredResultDuringOverloadResolution() throws {
+        let ctx = makeContextFromSource("""
+        interface GenericProbe {
+            fun <T> probe(values: List<T>): Int
+        }
+        class CustomProbe : GenericProbe {
+            override fun <T> probe(values: List<T>): Int = 7
+            fun <T> probe(values: Set<T>): Int = 9
+        }
+        fun main() { println(CustomProbe().probe(setOf(2))) }
+        """)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func setFactoryRejectsAnIncompatibleExpectedCollectionType() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val values: List<String> = setOf(1)
+            println(values)
+        }
+        """)
+
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected setOf to retain its declared Set result type")
+    }
 }

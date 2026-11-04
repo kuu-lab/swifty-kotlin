@@ -192,9 +192,42 @@ extension CallTypeChecker {
 
             case "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf":
                 let expectedType = expectedCollectionType(withArity: 1)
+                func collectionType(elementType: TypeID) -> TypeID {
+                    if name == "linkedSetOf" {
+                        makeSyntheticLinkedHashSetType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    } else if name == "hashSetOf" {
+                        makeSyntheticHashSetType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    } else if name == "mutableSetOf" {
+                        makeSyntheticMutableSetType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    } else {
+                        makeSyntheticSetType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: elementType
+                        )
+                    }
+                }
                 if let expectedType, explicitTypeArgs.isEmpty {
-                    let isImmutable = name == "emptySet" || name == "setOf" || name == "setOfNotNull"
-                    if !(isImmutable && isMutableCollection(expectedType)) {
+                    let expectedElementType = typeArgs(from: expectedType).first
+                    if let expectedElementType,
+                       sema.types.isSubtype(collectionType(elementType: expectedElementType), expectedType)
+                    {
                         return (expectedType, typeArgs(from: expectedType))
                     }
                 }
@@ -238,37 +271,7 @@ extension CallTypeChecker {
                     ? contextualIntegerType ?? fallbackElementType
                     : fallbackElementType
                 let elementType = explicitElementType ?? inferredElementType
-                let resultType: TypeID
-                if name == "linkedSetOf" {
-                    resultType = makeSyntheticLinkedHashSetType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
-                } else if name == "hashSetOf" {
-                    resultType = makeSyntheticHashSetType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
-                } else if name == "mutableSetOf" {
-                    resultType = makeSyntheticMutableSetType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
-                } else {
-                    resultType = makeSyntheticSetType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: elementType
-                    )
-                }
-                return (resultType, [elementType])
+                return (collectionType(elementType: elementType), [elementType])
 
             case "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 let expectedType = expectedCollectionType(withArity: 2)
