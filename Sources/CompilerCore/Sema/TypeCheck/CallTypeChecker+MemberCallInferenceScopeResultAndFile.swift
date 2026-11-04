@@ -378,23 +378,34 @@ extension CallTypeChecker {
                     return finalType
 
                 case "fold" where args.count == 2:
+                    // `R` is shared by both transforms, so it must stay open
+                    // until both lambda bodies have been analysed. Seeding the
+                    // failure transform's expected return with the success
+                    // transform's inferred return type pins `R` to the first
+                    // lambda's result and rejects valid Kotlin —
+                    // `fold({ it + 1 }, { it.message })` infers `R` as the join
+                    // of `Int` and `String?` on the JVM.
+                    let callbackReturnHint = expectedType ?? sema.types.nullableAnyType
                     let onSuccessExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [resultElementType],
-                        returnType: expectedType ?? sema.types.anyType
+                        returnType: callbackReturnHint
                     )))
                     let onSuccessType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: onSuccessExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    let foldReturnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: onSuccessType) {
+                    let onSuccessReturnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: onSuccessType) {
                         fnType.returnType
                     } else {
                         sema.types.anyType
                     }
                     let onFailureExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
-                        returnType: foldReturnType
+                        returnType: callbackReturnHint
                     )))
                     _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: onFailureExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                    let onFailureReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
+                    let foldReturnType = expectedType
+                        ?? sema.types.lub([onSuccessReturnType, onFailureReturnType])
                     if let foldSymbol = lookupResultMember("fold", sema: sema, interner: interner) {
                         sema.bindings.bindCall(id, binding: CallBinding(
                             chosenCallee: foldSymbol,

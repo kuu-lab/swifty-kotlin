@@ -317,13 +317,34 @@ extension CallTypeChecker {
         } ?? false
         var result = parameterType
         if !inferredNonLambdaArgTypes.isEmpty || !inferredLambdaInputAnnotations.isEmpty {
-            let substitution = resolver.probeArgumentTypeSubstitution(
+            var substitution = resolver.probeArgumentTypeSubstitution(
                 signature: signature,
                 typeVarBySymbol: typeVarBySymbol,
                 knownArgumentTypes: inferredNonLambdaArgTypes,
                 knownLambdaInputAnnotations: inferredLambdaInputAnnotations,
                 typeSystem: sema.types
             )
+            // Kotlin fixes only the variables a lambda's input types mention
+            // before analysing it; variables occurring solely in the lambda's
+            // return type (e.g. `R` in `fold(f: (T) -> R, g: (Throwable) -> R)`)
+            // stay open so this lambda's own return type contributes a lower
+            // bound to the final solve. Seeding them from a sibling argument's
+            // already-inferred type would wrongly pin `R`:
+            // `fold({ it + 1 }, { it.message })` would check the second lambda
+            // against `(Throwable) -> Int`.
+            if case let .functionType(lambdaFunctionType) = sema.types.kind(of: result) {
+                let lambdaInputs = lambdaFunctionType.params
+                    + lambdaFunctionType.contextReceivers
+                    + (lambdaFunctionType.receiver.map { [$0] } ?? [])
+                var inputVariables: Set<TypeVarID> = []
+                for (symbol, variable) in typeVarBySymbol
+                where lambdaInputs.contains(where: {
+                    sema.types.typeContainsTypeParam($0, symbol: symbol)
+                }) {
+                    inputVariables.insert(variable)
+                }
+                substitution = substitution.filter { inputVariables.contains($0.key) }
+            }
             if !substitution.isEmpty {
                 result = sema.types.substituteTypeParameters(
                     in: result,
