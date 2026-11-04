@@ -81,6 +81,99 @@ extension CallTypeChecker {
         return constraints
     }
 
+    /// A member extension's declared extension receiver can mention the
+    /// builder's variables through the *dispatch* receiver's type arguments —
+    /// inside `binding { parse().bind() }`, `bind`'s declared `R<V, E>`
+    /// receiver becomes `R<V, E_binding>` once `Scope<E_binding>` supplies
+    /// the owner arguments, so the call-site receiver `R<Int, String>` pins
+    /// `E` to `String` (KUU-4079). Returns nil when no session is active, the
+    /// owner substitution leaves the receiver rigid, or the joined solve
+    /// fails; callers only append the result once a unique candidate is
+    /// selected, matching `deferredBuilderReceiverConstraints` discipline.
+    func deferredMemberExtensionReceiverConstraints(
+        callSiteReceiver: TypeID,
+        declaredReceiver: TypeID,
+        signature: FunctionSignature,
+        candidate: SymbolID,
+        ctx: TypeInferenceContext,
+        blameRange: SourceRange? = nil
+    ) -> [VariableConstraint]? {
+        let sema = ctx.sema
+        guard let session = ctx.builderInference,
+              !session.isFinalized,
+              signature.classTypeParameterCount > 0
+        else {
+            return nil
+        }
+        let substituted = applyDispatchReceiverClassTypeArgs(
+            to: declaredReceiver, signature: signature, candidate: candidate, ctx: ctx
+        )
+        guard substituted != declaredReceiver,
+              session.mentionsVariable(substituted, types: sema.types)
+        else {
+            return nil
+        }
+        let actual = sema.types.makeNonNullable(callSiteReceiver)
+        let declared = sema.types.makeNonNullable(substituted)
+        // Even when `actual` already reads as a subtype of `declared`, the
+        // lenient check discards the evidence the session needs (`String` vs
+        // `E` both satisfy the raw `R<V, E>` shape), so the receiver match is
+        // always decomposed into constraints here.
+        // The member's own type parameters are unknowns of this inner call,
+        // not rigid types: map them to fresh variables so a declared receiver
+        // such as `R<V, E>` accepts `R<Int, String>` as evidence for both.
+        // `makeTypeVarBySymbol` numbers variables positionally, so reusing it
+        // would alias `V` onto an existing session variable — mint the fresh
+        // identifiers past every variable the session already uses instead.
+        let freshBase = (Set(session.typeVarBySymbol.values)
+            .union(ctx.resolver.usedTypeVariables(from: session.constraints))
+            .map(\.rawValue).max() ?? -1) + 1
+        var variables = session.typeVarBySymbol
+        var freshIndex: Int32 = 0
+        for symbol in signature.typeParameterSymbols where variables[symbol] == nil {
+            variables[symbol] = TypeVarID(rawValue: freshBase + freshIndex)
+            freshIndex += 1
+        }
+        let constraints = ctx.resolver.decomposeSubtypeConstraint(
+            subtype: actual,
+            supertype: declared,
+            typeVarBySymbol: variables,
+            typeSystem: sema.types,
+            blameRange: blameRange
+        ).filter {
+            !constraintMentionsForeignTypeParam($0, session: session, types: sema.types)
+        }
+        let sessionVariables = Set(session.typeVarBySymbol.values)
+        let introducedVariables = Set(ctx.resolver.usedTypeVariables(from: constraints))
+        guard !sessionVariables.isDisjoint(with: introducedVariables) else { return nil }
+
+        let proposedConstraints = session.constraints + constraints
+        let solution = ConstraintSolver().solve(
+            vars: ctx.resolver.usedTypeVariables(from: proposedConstraints),
+            constraints: proposedConstraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else { return nil }
+        let resolvedActual = sema.types.substituteTypeParameters(
+            in: actual,
+            substitution: solution.substitution,
+            typeVarBySymbol: variables
+        )
+        let resolvedDeclared = sema.types.substituteTypeParameters(
+            in: declared,
+            substitution: solution.substitution,
+            typeVarBySymbol: variables
+        )
+        guard extensionSyntheticFallbackReceiverMatches(
+            callSiteReceiver: resolvedActual,
+            declaredReceiver: resolvedDeclared,
+            sema: sema
+        ) else {
+            return nil
+        }
+        return constraints
+    }
+
     /// A constraint operand holding a type parameter the builder session does
     /// not own. Such parameters originate on the candidate's declared side
     /// (session variables only ever come from the call-site receiver), so the

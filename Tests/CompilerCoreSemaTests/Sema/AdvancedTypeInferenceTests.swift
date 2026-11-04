@@ -114,6 +114,72 @@ struct AdvancedTypeInferenceTests {
         #expect(!ctx.diagnostics.hasError, "Expected collect's receiver lambda to infer T from add(), got: \(diagnostics)")
     }
 
+    /// KUU-4079: kotlin-result's `binding { result.bind() }`. `bind` is a
+    /// member extension on `Scope<E>`, so its declared `R<V, E>` receiver
+    /// mentions the builder's unsolved `E` only through the *dispatch*
+    /// receiver's arguments. Matching `R<Int, String>` against that
+    /// owner-substituted receiver must feed `E = String` back into the
+    /// builder session instead of reporting an uninferred type variable.
+    @Test func testReceiverLambdaMemberExtensionSolvesOuterTypeVariable() throws {
+        let ctx = makeContextFromSource("""
+        interface R<V, E>
+        interface Scope<E> { fun <V> R<V, E>.bind(): V }
+        fun <V, E> binding(block: Scope<E>.() -> V): R<V, E> = TODO()
+        fun parse(): R<Int, String> = TODO()
+
+        fun demo() {
+            binding {
+                val a = parse().bind()
+                a + 1
+            }
+        }
+        """)
+        try runSema(ctx)
+        let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
+        #expect(!ctx.diagnostics.hasError, "Expected bind() to solve the builder's E, got: \(diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let bindingCall = try #require(ast.arena.exprs.indices.compactMap { ExprID(rawValue: Int32($0)) }.first { exprID in
+            guard isUserSourceExpr(exprID, in: ctx),
+                  case let .call(callee, _, _, _) = ast.arena.expr(exprID),
+                  case let .nameRef(name, _) = ast.arena.expr(callee)
+            else { return false }
+            return ctx.interner.resolve(name) == "binding"
+        })
+        let type = try #require(sema.bindings.exprType(for: bindingCall))
+        guard case let .classType(classType) = sema.types.kind(of: type) else {
+            Issue.record("Expected binding() to produce a nominal type, got \(sema.types.renderType(type))")
+            return
+        }
+        #expect(
+            classType.args == [.invariant(sema.types.intType), .invariant(sema.types.stringType)],
+            "Expected binding() to infer R<Int, String>, got \(sema.types.renderType(type))"
+        )
+    }
+
+    /// Same receiver-lambda shape, but the call-site receiver is unrelated to
+    /// the member extension's declared receiver. No evidence pins `E`, so the
+    /// inference diagnostic must remain (kotlinc rejects this too).
+    @Test func testReceiverLambdaMemberExtensionKeepsUninferredDiagnostic() throws {
+        let ctx = makeContextFromSource("""
+        interface R<V, E>
+        interface Q<V, E>
+        interface Scope<E> { fun <V> R<V, E>.bind(): V }
+        fun <V, E> binding(block: Scope<E>.() -> V): R<V, E> = TODO()
+        fun parse(): Q<Int, String> = TODO()
+
+        fun demo() {
+            binding {
+                val a = parse().bind()
+                a + 1
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected an inference failure for the unmatched bind() receiver")
+    }
+
     @Test func testListOfUsesCommonTypeParameterUpperBoundForVarargInference() throws {
         let ctx = makeContextWithoutStdlib("""
         class List<out T>
