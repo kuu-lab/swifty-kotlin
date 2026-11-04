@@ -599,16 +599,16 @@ extension TypeSystem {
     /// platform-neutral `Comparable<*>` bound for mixed comparable primitives.
     /// Ordinary expression LUBs keep their existing nominal approximation.
     func inferenceLubRetainingSharedSupertypes(_ types: [TypeID]) -> TypeID {
-        let fallback = lub(types, retainingCommonIntersection: true)
-        guard fallback == anyType || fallback == nullableAnyType else {
-            return fallback
-        }
-
         let filtered = types.filter {
             kind(of: $0) != .error
                 && kind(of: $0) != .nothing(.nonNull)
                 && kind(of: $0) != .nothing(.nullable)
         }
+        let fallback = lub(types, retainingCommonIntersection: true)
+        guard fallback == anyType || fallback == nullableAnyType else {
+            return platformNumericJoinIntersection(fallback: fallback, from: filtered) ?? fallback
+        }
+
         guard filtered.count > 1 else {
             return fallback
         }
@@ -631,7 +631,80 @@ extension TypeSystem {
         guard filtered.allSatisfy({ isSubtype($0, comparable) }) else {
             return fallback
         }
+        // kotlinc keeps every most-specific supertype a mix of platform
+        // builtins shares — `Comparable<*>` & `Serializable` for `String` +
+        // `Int`, or `Comparable<String & Char>` & `Serializable` for `String` +
+        // `Char` — where this approximation drops to bare `Comparable<*>`.
+        // Reifying the join as an intersection keeps a reified type argument
+        // inferred from it forbidden (KT-72035). A join that also involves a
+        // non-builtin input is honestly single-conjunct (`Comparable<C>` +
+        // `Int` has only `Comparable<*>` in common) and stays approximated.
+        if filtered.allSatisfy({ isPlatformBuiltinJoinInput($0) }),
+           Set(filtered.map { makeNonNullable($0) }).count > 1,
+           filtered.contains(where: { !isIntegerFamilyJoinInput($0) }) {
+            return make(.intersection([comparable]))
+        }
         return comparable
+    }
+
+    /// The all-numeric shortcut in `nearestCommonSupertype` collapses a mixed
+    /// numeric join to bare `Number`, dropping the `Comparable<*>` conjunct
+    /// kotlinc retains — `Number & Comparable<*>` for `Int` + `Double`
+    /// (KT-72035). Integer-only mixes stay exempted: unsuffixed literals adopt
+    /// the widest member (`arrayOf(1, 2L)` → `Array<Long>`) and kotlinc's
+    /// common-supertype computation also unifies several declared integer
+    /// pairs (`UByte` + `Int`, `UInt` + `ULong`), so a pure integer join is
+    /// not necessarily an intersection there either.
+    private func platformNumericJoinIntersection(fallback: TypeID, from filtered: [TypeID]) -> TypeID? {
+        guard let numberSym = numberClassSymbol,
+              case let .classType(numberClass) = kind(of: fallback),
+              numberClass.classSymbol == numberSym,
+              Set(filtered.map { makeNonNullable($0) }).count > 1,
+              filtered.allSatisfy(isNumericPrimitiveType),
+              filtered.contains(where: { !isIntegerFamilyJoinInput($0) }),
+              let comparableSymbol = comparableInterfaceSymbol
+        else {
+            return nil
+        }
+        let comparable = make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: numberClass.nullability
+        )))
+        return make(.intersection([fallback, comparable]))
+    }
+
+    /// A platform builtin — a Kotlin primitive or `String` — whose implicit
+    /// `Comparable`/`Serializable` supertypes let kotlinc infer a
+    /// multi-conjunct intersection from a heterogeneous join.
+    private func isPlatformBuiltinJoinInput(_ type: TypeID) -> Bool {
+        switch kind(of: makeNonNullable(type)) {
+        case .primitive, .stringStruct:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// An integer-family primitive. Pure integer joins are exempted from the
+    /// intersection marker: unsuffixed integer literals adopt the widest
+    /// member (`1` fits `Long` inside `arrayOf(1, 2L)`) and kotlinc's
+    /// common-supertype computation unifies several declared integer pairs as
+    /// well (`UByte` + `Int` → `Int`, `UInt` + `ULong` → `ULong`). This type
+    /// system erases integer literal types to concrete primitives before
+    /// constraint solving, so the joins kotlinc still rejects — declared
+    /// `Int` + `Long`, `Byte` + `Short`, `Short` + `Int`, `Int` + `UInt` —
+    /// cannot be told apart from the literal-driven joins it accepts.
+    private func isIntegerFamilyJoinInput(_ type: TypeID) -> Bool {
+        guard case let .primitive(primitive, _) = kind(of: makeNonNullable(type)) else {
+            return false
+        }
+        switch primitive {
+        case .byte, .short, .int, .long, .ubyte, .ushort, .uint, .ulong:
+            return true
+        case .boolean, .char, .float, .double:
+            return false
+        }
     }
 
     private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {

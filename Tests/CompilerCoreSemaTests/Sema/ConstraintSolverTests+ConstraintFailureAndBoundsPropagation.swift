@@ -26,8 +26,12 @@ extension ConstraintSolverTests {
         )
 
         #expect(solution.isSuccess)
-        #expect(solution.substitution[t0] == comparableStar)
-        #expect(solution.substitution[t0] != types.anyType)
+        // KUU-3964: the join keeps an intersection marker so a reified type
+        // argument inferred from it stays forbidden (KT-72035); its single
+        // conjunct remains `Comparable<*>`.
+        let inferred = solution.substitution[t0]
+        #expect(inferred.map { types.kind(of: $0) } == .intersection([comparableStar]))
+        #expect(inferred != types.anyType)
     }
 
     @Test func testSolvePreservesNullabilityForCommonComparableSupertype() {
@@ -52,7 +56,8 @@ extension ConstraintSolverTests {
         )
 
         #expect(solution.isSuccess)
-        #expect(solution.substitution[t0] == comparableNullable)
+        let inferred = solution.substitution[t0]
+        #expect(inferred.map { types.kind(of: $0) } == .intersection([comparableNullable]))
     }
 
     @Test func testSolveDoesNotMakeCommonComparableNullableForPlatformLowerBound() {
@@ -77,7 +82,8 @@ extension ConstraintSolverTests {
         )
 
         #expect(solution.isSuccess)
-        #expect(solution.substitution[t0] == comparableStar)
+        let inferred = solution.substitution[t0]
+        #expect(inferred.map { types.kind(of: $0) } == .intersection([comparableStar]))
     }
 
     @Test func testConflictingComparableInferenceDiagnosticDoesNotExposeSymbolID() throws {
