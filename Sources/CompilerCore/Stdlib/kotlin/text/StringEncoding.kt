@@ -134,3 +134,9 @@ public fun ByteArray.decodeToString(
 }
 
 public fun ByteArray.toString(charset: Charset): String = decodeToString(charset)
+
+// KUU-4077: `kotlin.text.charset` — the JVM top-level factory delegates to
+// `java.nio.charset.Charset.forName`, so IllegalCharsetNameException /
+// UnsupportedCharsetException surface unchanged.
+public fun charset(charsetName: String): Charset =
+    java.nio.charset.Charset.forName(charsetName)

@@ -158,5 +158,56 @@ struct CodegenBackendFileIOReadWriteTests {
             + "\n"
         )
     }
+
+    // KUU-4077: File.readBytes() and the charset-parameterized line readers
+    // (readLines/forEachLine/useLines) are Kotlin-source extensions over the
+    // existing `__kk_io_fs_*` descriptor bridges and `__kk_file_readText`;
+    // kotlin.text.charset() delegates to java.nio.charset.Charset.forName.
+    @Test func testCodegenFileReadBytesAndCharsetApis() throws {
+        let tmpPath = "/tmp/kswiftk_file_read_bytes_codegen_\(UUID().uuidString).txt"
+        try "alpha\nbeta\n".write(toFile: tmpPath, atomically: true, encoding: .utf8)
+
+        let source = """
+        import java.io.File
+
+        fun main() {
+            val file = File("\(tmpPath)")
+            val bytes = file.readBytes()
+            println(bytes.size)
+            println(bytes.toString(Charsets.UTF_8).trim())
+            println(file.readLines(Charsets.US_ASCII))
+            file.forEachLine(Charsets.US_ASCII) { println("L:$it") }
+            println(file.useLines(Charsets.UTF_8) { it.size })
+            println(charset("UTF-8"))
+            println(kotlin.text.charset("US-ASCII"))
+            try {
+                File("\(tmpPath).missing").readBytes()
+                println("missing: not thrown")
+            } catch (failure: java.io.FileNotFoundException) {
+                println("missing: caught")
+            }
+            try {
+                charset("NO-SUCH-CHARSET")
+                println("charset: not thrown")
+            } catch (failure: java.nio.charset.UnsupportedCharsetException) {
+                println("charset: caught")
+            }
+        }
+        """
+        let expected = "11\nalpha\nbeta\n[alpha, beta]\nL:alpha\nL:beta\n2\nUTF-8\nUS-ASCII\nmissing: caught\ncharset: caught\n"
+        let stdlibModes: [(name: String, allowDefaultStdlibLibrary: Bool)] = [
+            ("Source", false),
+            ("Library", true),
+        ]
+
+        for mode in stdlibModes {
+            try assertKotlinOutput(
+                source,
+                moduleName: "FileReadBytesCharset\(mode.name)",
+                expected: expected,
+                allowDefaultStdlibLibrary: mode.allowDefaultStdlibLibrary
+            )
+        }
+    }
 }
 #endif
