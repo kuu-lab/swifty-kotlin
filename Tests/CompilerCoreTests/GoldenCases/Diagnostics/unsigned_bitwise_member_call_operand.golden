@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 16, "character": 4 },
+        "end": { "line": 16, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 17, "character": 4 },
+        "end": { "line": 17, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 18, "character": 4 },
+        "end": { "line": 18, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 19, "character": 4 },
+        "end": { "line": 19, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 20, "character": 11 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 21, "character": 4 },
+        "end": { "line": 21, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 22, "character": 4 },
+        "end": { "line": 22, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 23, "character": 4 },
+        "end": { "line": 23, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 24, "character": 4 },
+        "end": { "line": 24, "character": 11 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 25, "character": 4 },
+        "end": { "line": 25, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 26, "character": 4 },
+        "end": { "line": 26, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 27, "character": 4 },
+        "end": { "line": 27, "character": 12 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 28, "character": 4 },
+        "end": { "line": 28, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    },
+    {
+      "file": "unsigned_bitwise_member_call_operand.kt",
+      "range": {
+        "start": { "line": 29, "character": 4 },
+        "end": { "line": 29, "character": 13 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0473",
+      "source": "kswiftk",
+      "message": "Argument type mismatch.",
+      "codeActions": []
+    }
+  ]
+}
