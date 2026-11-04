@@ -990,6 +990,93 @@ extension CompilerCoreTests {
         }
     }
 
+    /// KUU-4137: `kotlin.Int::plus` / `kotlin.Boolean::and` write the
+    /// receiver as a package-qualified `memberCall` qualifier chain instead
+    /// of a bare `nameRef`, but the intrinsic operator binding must fire the
+    /// same way it does for `Int::plus` / `Boolean::and`.
+    @Test func testQualifiedPrimitiveOperatorReferencesInferFunctionType() throws {
+        let source = """
+        val plusRef: (Int, Int) -> Int = kotlin.Int::plus
+        val timesRef: (Int, Int) -> Int = kotlin.Int::times
+        val andRef: (Boolean, Boolean) -> Boolean = kotlin.Boolean::and
+        val orRef: (Boolean, Boolean) -> Boolean = kotlin.Boolean::or
+        val xorRef: (Boolean, Boolean) -> Boolean = kotlin.Boolean::xor
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let refs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard ast.arena.exprRange(id)?.start.file == sourceFile,
+                  case .callableRef = ast.arena.expr(id)
+            else { return nil }
+            return id
+        }
+        #expect(refs.count == 5)
+
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let booleanType = sema.types.booleanType
+        let expectedOps: [BinaryOp] = [.add, .multiply, .bitwiseAnd, .bitwiseOr, .bitwiseXor]
+        let expectedParams: [[TypeID]] = [
+            [intType, intType], [intType, intType],
+            [booleanType, booleanType], [booleanType, booleanType], [booleanType, booleanType],
+        ]
+        for (index, ref) in refs.enumerated() {
+            let op = expectedOps[index]
+            let params = expectedParams[index]
+            #expect(sema.bindings.primitiveOperatorCallableRef(for: ref) == op)
+            #expect(sema.bindings.callableRefKind(for: ref) == .functionRef)
+            let refType = try #require(sema.bindings.exprTypes[ref])
+            guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+                Issue.record("Qualified primitive operator reference should infer a function type.")
+                continue
+            }
+            #expect(functionType.params == params)
+            #expect(functionType.returnType == params.first)
+        }
+    }
+
+    /// KUU-4137: `kotlin.Boolean::not` is the qualified form of the unary
+    /// intrinsic reference and binds `primitiveUnaryOperatorCallableRef`
+    /// like `Boolean::not` does.
+    @Test func testQualifiedPrimitiveUnaryOperatorReferenceInfersFunctionType() throws {
+        let source = """
+        val notRef: (Boolean) -> Boolean = kotlin.Boolean::not
+        """
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource(source, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
+            String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
+        })
+        let ref = try #require(firstExprID(in: ast) { exprID, expr in
+            guard ast.arena.exprRange(exprID)?.start.file == sourceFile,
+                  case .callableRef = expr
+            else { return false }
+            return true
+        })
+        #expect(sema.bindings.primitiveUnaryOperatorCallableRef(for: ref) == .not)
+        #expect(sema.bindings.callableRefKind(for: ref) == .functionRef)
+        let refType = try #require(sema.bindings.exprTypes[ref])
+        guard case let .functionType(functionType) = sema.types.kind(of: refType) else {
+            Issue.record("kotlin.Boolean::not should infer a function type.")
+            return
+        }
+        #expect(functionType.params == [sema.types.booleanType])
+        #expect(functionType.returnType == sema.types.booleanType)
+    }
+
     /// `Boolean::and` on a non-Boolean member (`Boolean::plus`) and unrelated
     /// names all stay unresolved: the intrinsic binding only covers the real
     /// kotlin.Boolean member surface.
