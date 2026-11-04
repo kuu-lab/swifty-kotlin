@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import TestStdlibCache
 import Testing
 @testable import CompilerTestSupport
 
@@ -67,6 +68,70 @@ struct GenericFunctionValueOverloadResolutionTests {
                     }
                 }
             }
+        }
+    }
+
+    /// KUU-3960: inside `at(p: KProperty0<T>)`, the nested `at(p.get())`
+    /// argument carries the enclosing rigid `T`. It must not be conflated
+    /// with the candidate's own inference variable (`T <: KProperty0<V>`
+    /// cannot self-bind to `V := KProperty0<V>`), so the nested call selects
+    /// `at(v: T)` while the outer `at(prop)` keeps the KProperty0 overload —
+    /// the pattern assertk relies on (`assertThat(getter: KProperty0<T>)`
+    /// delegating to `assertThat(getter.get())`).
+    @Test
+    func nestedPropertyGetCallSelectsValueOverload() throws {
+        TestStdlibCache.shared.prepare()
+        let source = """
+        import kotlin.reflect.KProperty0
+
+        var backing: Int = 1
+        val prop: KProperty0<Int> = ::backing
+
+        fun <T> at(v: T): T = v
+        fun <T> at(p: KProperty0<T>): T = at(p.get())
+
+        fun main() {
+            val got: Int = at(prop)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], allowDefaultStdlibLibrary: true)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let atCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
+                      case let .call(callee, _, _, _) = ast.arena.expr(exprID),
+                      case let .nameRef(name, _) = ast.arena.expr(callee),
+                      ctx.interner.resolve(name) == "at"
+                else {
+                    return nil
+                }
+                return exprID
+            }
+            #expect(atCalls.count == 2)
+
+            var sawValueOverload = false
+            var sawPropertyOverload = false
+            for call in atCalls {
+                let binding = try #require(sema.bindings.callBinding(for: call))
+                let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+                let parameter = try #require(signature.parameterTypes.first)
+                switch sema.types.kind(of: parameter) {
+                case .typeParam:
+                    sawValueOverload = true
+                case .classType:
+                    sawPropertyOverload = true
+                default:
+                    Issue.record("Unexpected selected parameter type: \(sema.types.renderType(parameter))")
+                }
+            }
+            #expect(sawValueOverload, "at(p.get()) must select at(v: T)")
+            #expect(sawPropertyOverload, "at(prop) must select at(p: KProperty0<T>)")
         }
     }
 

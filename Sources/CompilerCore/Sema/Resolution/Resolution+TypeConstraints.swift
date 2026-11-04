@@ -559,12 +559,22 @@ extension OverloadResolver {
     ///
     /// Falls back to a simple `subtype <: supertype` type constraint when no
     /// decomposition is possible (different class symbols, non-generic types, etc.).
+    ///
+    /// `rigidSubtypeTypeParameters` marks symbols whose subtype-side occurrences are
+    /// rigid caller types rather than the candidate's fresh inference variables. A
+    /// call argument or implicit receiver inside a generic declaration can mention
+    /// the enclosing `T`, which shares its symbol with the candidate's own `T` when
+    /// the call is recursive (or simply collides through `typeVarBySymbol`). Mapping
+    /// it to the variable would misread `T <: KProperty0<V>` as a `V <: KProperty0<V>`
+    /// self-bound — a constraint that "solves" as `V := KProperty0<V>` instead of
+    /// rejecting the candidate (KUU-3960).
     func decomposeSubtypeConstraint(
         subtype: TypeID,
         supertype: TypeID,
         typeVarBySymbol: [SymbolID: TypeVarID],
         typeSystem: TypeSystem,
-        blameRange: SourceRange?
+        blameRange: SourceRange?,
+        rigidSubtypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
         decomposeSubtypeConstraintImpl(
             subtype: subtype,
@@ -572,7 +582,8 @@ extension OverloadResolver {
             typeVarBySymbol: typeVarBySymbol,
             typeSystem: typeSystem,
             blameRange: blameRange,
-            depth: 0
+            depth: 0,
+            rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
         )
     }
 
@@ -582,7 +593,8 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
-        depth: Int
+        depth: Int,
+        rigidSubtypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
         // Guard against infinite recursion in cyclic type hierarchies.
         if depth > 20 {
@@ -603,6 +615,7 @@ extension OverloadResolver {
             // rather than treating the left parameter as an opaque Any value.
             if case let .typeParam(subParameter) = typeSystem.kind(of: subtype),
                subParameter.capture == nil,
+               !rigidSubtypeTypeParameters.contains(subParameter.symbol),
                let subVariable = typeVarBySymbol[subParameter.symbol],
                subParameter.nullability == .nonNull,
                typeParam.nullability == .nonNull
@@ -692,7 +705,8 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: blameRange,
-                    depth: depth + 1
+                    depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 ))
             }
             if !result.isEmpty {
@@ -716,6 +730,7 @@ extension OverloadResolver {
                }
                return parameter
            }).first,
+           !rigidSubtypeTypeParameters.contains(typeParameter.symbol),
            let variable = typeVarBySymbol[typeParameter.symbol]
         {
             return [VariableConstraint(
@@ -744,7 +759,8 @@ extension OverloadResolver {
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: blameRange,
-                depth: depth + 1
+                depth: depth + 1,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
         }
 
@@ -757,7 +773,8 @@ extension OverloadResolver {
                 return decomposeSubtypeConstraintImpl(
                     subtype: subtype, supertype: typeSystem.make(.functionType(function)),
                     typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                    blameRange: blameRange, depth: depth + 1
+                    blameRange: blameRange, depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 )
             }
             if case let .functionType(superFunction) = supertypeKind,
@@ -771,7 +788,8 @@ extension OverloadResolver {
                 return decomposeSubtypeConstraintImpl(
                     subtype: typeSystem.make(.functionType(function)), supertype: supertype,
                     typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                    blameRange: blameRange, depth: depth + 1
+                    blameRange: blameRange, depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 )
             }
         }
@@ -811,7 +829,8 @@ extension OverloadResolver {
                     decomposeSubtypeConstraintImpl(
                         subtype: bound, supertype: supertype,
                         typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                        blameRange: blameRange, depth: depth + 1
+                        blameRange: blameRange, depth: depth + 1,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                     )
                 }
             }
@@ -832,7 +851,8 @@ extension OverloadResolver {
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                     )
                 case .in, .star:
                     break
@@ -860,7 +880,8 @@ extension OverloadResolver {
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                     )
                 case .in, .star:
                     break
@@ -877,7 +898,8 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: blameRange,
-                    depth: depth + 1
+                    depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 )
             }
             if case let .classType(subClass) = subtypeKind,
@@ -904,7 +926,8 @@ extension OverloadResolver {
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                     )
                 }
                 let subArguments = typeSystem.allTypeArguments(for: alignedClass)
@@ -940,7 +963,8 @@ extension OverloadResolver {
                         depth: depth + 1,
                         declarationVariance: declarationVariances.indices.contains(index)
                             ? declarationVariances[index] : .invariant,
-                        subStarUpperBound: subStarUpperBound
+                        subStarUpperBound: subStarUpperBound,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -960,7 +984,8 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: blameRange,
-                    depth: depth + 1
+                    depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 )
             }
         }
@@ -977,7 +1002,8 @@ extension OverloadResolver {
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: blameRange,
-                depth: depth + 1
+                depth: depth + 1,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
         }
 
@@ -1036,15 +1062,22 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: blameRange,
-                    depth: depth + 1
+                    depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 ))
                 return result
             }
         }
 
         let subtypeKind = typeSystem.kind(of: subtype)
+        // A bare type parameter on the caller-derived side is rigid: its
+        // symbol can coincide with the candidate's inference variable (for a
+        // recursive call it *is* the same declaration parameter), but it is
+        // not bindable — `T <: KProperty0<V>` must fail rather than solving
+        // as `V := KProperty0<V>` (KUU-3960).
         if case let .typeParam(typeParam) = subtypeKind,
            typeParam.capture == nil,
+           !rigidSubtypeTypeParameters.contains(typeParam.symbol),
            let variable = typeVarBySymbol[typeParam.symbol]
         {
             return [VariableConstraint(
@@ -1087,7 +1120,8 @@ extension OverloadResolver {
                         depth: depth + 1,
                         declarationVariance: declarationVariances.indices.contains(index)
                             ? declarationVariances[index] : .invariant,
-                        subStarUpperBound: subStarUpperBound
+                        subStarUpperBound: subStarUpperBound,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -1112,7 +1146,8 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: blameRange,
-                    depth: depth + 1
+                    depth: depth + 1,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 )
             }
         }
@@ -1128,7 +1163,8 @@ extension OverloadResolver {
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: blameRange,
-                depth: depth + 1
+                depth: depth + 1,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
         }
 
@@ -1211,7 +1247,8 @@ extension OverloadResolver {
         blameRange: SourceRange?,
         depth: Int,
         declarationVariance: TypeVariance = .invariant,
-        subStarUpperBound: TypeID? = nil
+        subStarUpperBound: TypeID? = nil,
+        rigidSubtypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
         // Kotlin declaration-site variance applies even when source syntax uses
         // invariant type arguments (`Sequence<T>` is still covariant because
@@ -1230,11 +1267,15 @@ extension OverloadResolver {
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
-            // Invariant: both directions (equality).
+            // Invariant: both directions (equality). Only the first direction
+            // keeps the caller-derived side in the subtype position, so the
+            // rigid set follows it; the flipped direction decomposes the
+            // signature-derived side and must keep ordinary variable lookups.
             var result = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
             result.append(contentsOf: decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
@@ -1248,7 +1289,8 @@ extension OverloadResolver {
             return decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
 
         case let (.invariant(subInner), .in(superInner)),
@@ -1269,7 +1311,8 @@ extension OverloadResolver {
             return decomposeSubtypeConstraintImpl(
                 subtype: starUpperBound, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             ) + decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: starUpperBound,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
@@ -1314,7 +1357,8 @@ extension OverloadResolver {
             var fallback = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
             fallback.append(contentsOf: decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
