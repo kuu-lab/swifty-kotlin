@@ -126,6 +126,8 @@ private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     RuntimeABISpec.sequenceFilterNotSpec,
     bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
             isThrowing: false),
+    bridgeSpec("__kk_set_of_not_null_single", section: "Collection", params: ["arrayRaw", "count"],
+            isThrowing: false),
 ]
 
 public extension RuntimeABISpec {

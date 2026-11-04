@@ -16,6 +16,7 @@ struct SetLookupNames {
     let kkEmptySetName: InternedString
     let kkSetOfName: InternedString
     let kkSetOfNotNullName: InternedString
+    let kkSetOfNotNullSingleName: InternedString
     let kkSetSizeName: InternedString
     let kkSetContainsName: InternedString
     let kkSetIsEmptyName: InternedString
@@ -46,6 +47,7 @@ struct SetLookupNames {
         kkEmptySetName = interner.intern("__kk_emptySet")
         kkSetOfName = interner.intern("__kk_set_of")
         kkSetOfNotNullName = interner.intern("__kk_set_of_not_null")
+        kkSetOfNotNullSingleName = interner.intern("__kk_set_of_not_null_single")
         kkSetSizeName = interner.intern("__kk_set_size")
         kkSetContainsName = interner.intern("__kk_set_contains")
         kkSetIsEmptyName = interner.intern("__kk_set_is_empty")

@@ -133,6 +133,7 @@ struct CollectionLiteralLookupTables {
     var kkEmptySetName: InternedString { setLookup.kkEmptySetName }
     var kkSetOfName: InternedString { setLookup.kkSetOfName }
     var kkSetOfNotNullName: InternedString { setLookup.kkSetOfNotNullName }
+    var kkSetOfNotNullSingleName: InternedString { setLookup.kkSetOfNotNullSingleName }
     var kkSetSizeName: InternedString { setLookup.kkSetSizeName }
     var kkSetContainsName: InternedString { setLookup.kkSetContainsName }
     var kkSetIsEmptyName: InternedString { setLookup.kkSetIsEmptyName }

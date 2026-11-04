@@ -169,9 +169,9 @@ public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     for (pair in pairs) {
         result[pair.first] = pair.second
     }
-    // KUU-3962: JVM `mapOf(*pairs)` is a `Collections.singletonMap` only for
-    // exactly one pair; 2+ stays a mutable `LinkedHashMap` under `Map`.
-    if (pairs.size == 1) return __kk_map_freeze(result)
+    // KUU-4144: JVM `mapOf(vararg pairs)` is a `LinkedHashMap` for every
+    // non-empty spread — including a single pair, unlike the fixed
+    // `mapOf(pair)` overload's `Collections.singletonMap`. No freeze.
     return result
 }
 

@@ -35,16 +35,18 @@ public func kk_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     // JVM `setOf` family: 0 elements is the shared immutable `EmptySet`,
     // exactly 1 supplied element is the unmodifiable `Collections.singleton`,
     // and 2+ is a `LinkedHashSet` (mutable under the read-only `Set` type).
-    // Mutable factories and `setOfNotNull` use their own callees, so only
-    // `setOf` call sites reach this box. KUU-3962.
+    // The singleton keeps the read-only `Set` tag + freeze; the erased-check
+    // helper in `kk_op_is` still answers `is MutableSet` true for it, the way
+    // `Collections$SingletonSet` does on the JVM. KUU-3962, KUU-4144.
     if count == 0 {
         return emptySetSingletonRaw
     }
     let set = RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements))
     if count == 1 {
         set.freeze()
+        return registerRuntimeObject(set)
     }
-    return registerRuntimeObject(set)
+    return registerRuntimeObject(set, typeID: linkedHashSetRuntimeTypeID)
 }
 
 /// HashSet constructor storage. Keep ordinary Set factories on the shared Set
@@ -99,6 +101,9 @@ public func kk_linked_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
+/// `setOfNotNull(*elements)` — the vararg overload. JVM `filterNotNullTo`
+/// targets a fresh `LinkedHashSet` for any supplied count, so `is MutableSet`
+/// answers true even when filtering leaves zero or one element (KUU-4144).
 @_cdecl("__kk_set_of_not_null")
 public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
@@ -107,7 +112,31 @@ public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
             elements.append(element)
         }
     }
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)))
+    return registerRuntimeObject(
+        RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)),
+        typeID: linkedHashSetRuntimeTypeID
+    )
+}
+
+/// Single-element `setOfNotNull(element)` overload: null maps to the shared
+/// `EmptySet`, a non-null element to the unmodifiable `Collections.singleton`
+/// identity — the same shape `__kk_set_of` produces for `count == 1`.
+/// Keeping the two JVM overloads on separate callees preserves the
+/// singleton/empty-vs-LinkedHashSet identity split (KUU-4144).
+@_cdecl("__kk_set_of_not_null_single")
+public func kk_set_of_not_null_single(_ arrayRaw: Int, _ count: Int) -> Int {
+    var elements: [Int] = []
+    if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
+        for element in array.elements.prefix(count) where element != runtimeNullSentinelInt {
+            elements.append(element)
+        }
+    }
+    guard !elements.isEmpty else {
+        return emptySetSingletonRaw
+    }
+    let set = RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements))
+    set.freeze()
+    return registerRuntimeObject(set)
 }
 
 // Kotlin exposes emptySet() as a shared immutable instance.
@@ -507,21 +536,28 @@ private func runtimeThrowIfReadOnlyMap(
 public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
     // JVM `mapOf`: 0 pairs is the shared `EmptyMap`, 1 is the unmodifiable
     // `Collections.singletonMap`, and 2+ is a `LinkedHashMap` (mutable under
-    // the read-only `Map` type). Only `mapOf` call sites reach this bridge;
-    // mutable factories use the HashMap/LinkedHashMap tags. KUU-3962.
+    // the read-only `Map` type). The singleton keeps the read-only `Map` tag
+    // + freeze; `kk_op_is`'s erased check answers `is MutableMap` true for it
+    // the way `Collections$SingletonMap` does on the JVM. KUU-3962, KUU-4144.
     if count == 0 {
         return emptyMapSingletonRaw
     }
-    let raw = runtimeMapOf(
+    if count == 1 {
+        let raw = runtimeMapOf(
+            keysArrayRaw: keysArrayRaw,
+            valuesArrayRaw: valuesArrayRaw,
+            count: count,
+            typeID: mapRuntimeTypeID
+        )
+        runtimeMapBox(from: raw)?.freeze()
+        return raw
+    }
+    return runtimeMapOf(
         keysArrayRaw: keysArrayRaw,
         valuesArrayRaw: valuesArrayRaw,
         count: count,
-        typeID: mapRuntimeTypeID
+        typeID: linkedHashMapRuntimeTypeID
     )
-    if count == 1 {
-        runtimeMapBox(from: raw)?.freeze()
-    }
-    return raw
 }
 
 @_cdecl("__kk_hash_map_of")
@@ -556,17 +592,15 @@ public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ 
 /// the HashMap / LinkedHashMap pair variants below.
 @_cdecl("__kk_map_of_pairs")
 public func kk_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> Int {
-    // Same JVM factory contract as `kk_map_of` for spread `mapOf(*pairs)`:
-    // `pairs.toMap()` yields `emptyMap()` for 0, `singletonMap` for 1, and a
-    // `LinkedHashMap` for 2+. KUU-3962.
+    // JVM `mapOf(vararg pairs)` is a `LinkedHashMap` for every non-empty
+    // spread — including a single pair, unlike the fixed `mapOf(pair)`
+    // overload's `Collections.singletonMap`. No freeze: the box stays
+    // mutable under the read-only `Map` type, so `is MutableMap` and
+    // post-cast writes match the JVM. KUU-4144.
     if count == 0 {
         return emptyMapSingletonRaw
     }
-    let raw = runtimeMapOfPairs(pairsArrayRaw: pairsArrayRaw, count: count, typeID: mapRuntimeTypeID)
-    if count == 1 {
-        runtimeMapBox(from: raw)?.freeze()
-    }
-    return raw
+    return runtimeMapOfPairs(pairsArrayRaw: pairsArrayRaw, count: count, typeID: linkedHashMapRuntimeTypeID)
 }
 
 @_cdecl("__kk_hash_map_of_pairs")
@@ -896,7 +930,13 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
     // MutableMap.entries is a mutable view. Keep this set handle connected to
     // the map so MutableIterable.removeAll/retainAll can remove through its
     // iterator rather than mutating a detached entry snapshot.
-    return registerRuntimeObject(RuntimeSetBox(mapEntriesOf: mapRaw))
+    // JVM entry-set impls (`java.util.*Map$EntrySet`, `Collections$SingletonSet`)
+    // all answer `is MutableSet` true — except `emptyMap()`'s `EmptySet` view,
+    // which keeps the read-only `Set` tag (KUU-4144).
+    return registerRuntimeObject(
+        RuntimeSetBox(mapEntriesOf: mapRaw),
+        typeID: mapRaw == emptyMapSingletonRaw ? setRuntimeTypeID : mutableMapViewSetRuntimeTypeID
+    )
 }
 
 @_cdecl("__kk_map_keys")
@@ -916,19 +956,41 @@ public func kk_map_keys(_ mapRaw: Int) -> Int {
         view.enableSorted(comparatorRaw: map.comparatorRaw, invertCompare: map.invertCompare)
         return registerRuntimeObject(view, typeID: navigableSetRuntimeTypeID)
     }
-    return registerRuntimeObject(view)
+    // Same `is MutableSet` split as `.entries` above: `java.util.*Map$KeySet`
+    // views are mutable impls, `emptyMap().keys` is `EmptySet` (KUU-4144).
+    return registerRuntimeObject(
+        view,
+        typeID: mapRaw == emptyMapSingletonRaw ? setRuntimeTypeID : mutableMapViewSetRuntimeTypeID
+    )
 }
 
 @_cdecl("__kk_map_values")
 public func kk_map_values(_ mapRaw: Int) -> Int {
-    guard runtimeMapBox(from: mapRaw) != nil else {
+    guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMapValues(mapRaw)
             ?? registerRuntimeObject(RuntimeListBox(elements: []))
     }
+    // JDK `Collections$SingletonMap.values` is a `Collections$SingletonSet` —
+    // a Set impl answering `is Set` true. A frozen snapshot keeps the same
+    // shape as `setOf(v)` since the singleton map can never change (KUU-4144).
+    if map.count == 1,
+       runtimeObjectTypeID(rawValue: mapRaw) == mapRuntimeTypeID,
+       map.isEffectivelyReadOnly,
+       let value = map.values.first
+    {
+        let view = RuntimeSetBox(elements: [value])
+        view.freeze()
+        return registerRuntimeObject(view)
+    }
     // MutableMap.values is a mutable, write-through view (mirrors .entries
     // / .keys above): removing through it removes the corresponding
-    // key/value pair from the map.
-    return registerRuntimeObject(RuntimeListBox(mapValuesOf: mapRaw))
+    // key/value pair from the map. JVM `*Map$*Values` impls are
+    // `AbstractCollection`s — mutable collections, not lists — while
+    // `emptyMap().values` shares `EmptyList` (KUU-4144).
+    return registerRuntimeObject(
+        RuntimeListBox(mapValuesOf: mapRaw),
+        typeID: mapRaw == emptyMapSingletonRaw ? listRuntimeTypeID : mutableMapViewCollectionRuntimeTypeID
+    )
 }
 
 @_cdecl("__kk_map_iterator")

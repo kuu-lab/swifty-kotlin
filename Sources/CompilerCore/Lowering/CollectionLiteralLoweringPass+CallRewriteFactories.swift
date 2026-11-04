@@ -452,34 +452,26 @@ extension CollectionLiteralConstructionLoweringPass {
                     lookup: lookup,
                     loweredBody: &loweredBody
                 )
-                let runtimeCallee = callee == lookup.hashSetOfName
-                    ? lookup.kkHashSetOfName
-                    : callee == lookup.setOfNotNullName
-                    ? lookup.kkSetOfNotNullName
-                    : callee == lookup.mutableSetOfName || callee == lookup.linkedSetOfName
-                    ? lookup.kkLinkedHashSetOfName
-                    : lookup.kkSetOfName
-                // KUU-3962: `setOfNotNull(element)` resolves to the
-                // single-element overload, a JVM `Collections.singleton` —
-                // freeze the produced set. The vararg overload (spread calls)
-                // stays a mutable `LinkedHashSet`, and `setOf` freezes inside
-                // `__kk_set_of` by supplied element count.
-                let freezesSingleton = callee == lookup.setOfNotNullName
+                // KUU-4144: `setOfNotNull(element)` resolves to the
+                // single-element overload — `Collections.singleton` for a
+                // non-null element, the shared `EmptySet` for null — so it
+                // lowers to `__kk_set_of_not_null_single` (which freezes
+                // internally). The vararg overload keeps `__kk_set_of_not_null`,
+                // a mutable `LinkedHashSet` for any count on the JVM. `setOf`
+                // freezes inside `__kk_set_of` by supplied element count.
+                let singletonElementOverload = callee == lookup.setOfNotNullName
+                    && count == 1
                     && symbol.flatMap {
                         ctx.sema?.symbols.functionSignature(for: $0)
                     }?.valueParameterIsVararg != [true]
-                let factoryResult = freezesSingleton
-                    ? module.arena.appendTemporary(type: nil)
-                    : result
-                loweredBody.append(.call(callee: runtimeCallee, arguments: [arrayExpr, countExpr], result: factoryResult, canThrow: false))
-                if freezesSingleton, let factoryResult {
-                    loweredBody.append(.call(
-                        callee: lookup.kkBuilderSetFreezeName,
-                        arguments: [factoryResult],
-                        result: result,
-                        canThrow: false
-                    ))
-                }
+                let runtimeCallee = callee == lookup.hashSetOfName
+                    ? lookup.kkHashSetOfName
+                    : callee == lookup.setOfNotNullName
+                    ? (singletonElementOverload ? lookup.kkSetOfNotNullSingleName : lookup.kkSetOfNotNullName)
+                    : callee == lookup.mutableSetOfName || callee == lookup.linkedSetOfName
+                    ? lookup.kkLinkedHashSetOfName
+                    : lookup.kkSetOfName
+                loweredBody.append(.call(callee: runtimeCallee, arguments: [arrayExpr, countExpr], result: result, canThrow: false))
             }
             if let result { state.setExprIDs.insert(result.rawValue) }
             return true

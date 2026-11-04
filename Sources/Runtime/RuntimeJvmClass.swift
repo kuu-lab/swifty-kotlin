@@ -115,55 +115,65 @@ func runtimeJavaClassToStringText(_ classRaw: Int) -> String? {
     resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self)?.displayText
 }
 
+/// `x.javaClass` / `x::class.java` impl-name lookup for the collection
+/// static types (and `Any`/`Unknown`). The JVM impl class follows the
+/// factory's nominal tag and canonical singleton identity rather than the
+/// element count: only the shared `emptyList()`/`emptySet()`/`emptyMap()`
+/// handles report `Empty*`, one-element read-only boxes report the
+/// `Collections$Singleton*` impls, mutable tags name their `java.util` impl,
+/// and view/iterator boxes reuse `runtimeReflectedCollectionClass`'s names
+/// (KUU-4144).
 private func runtimeJavaCollectionImplementationName(receiverRaw: Int, qualifiedName: String) -> String? {
     switch qualifiedName {
-    case "kotlin.collections.List", "kotlin.collections.MutableList":
-        guard let list = runtimeListBox(from: receiverRaw) else { return nil }
-        return switch list.count {
-        case 0: "kotlin.collections.EmptyList"
-        case 1: "java.util.Collections$SingletonList"
-        default: "java.util.Arrays$ArrayList"
-        }
-    case "kotlin.collections.Set", "kotlin.collections.MutableSet":
-        guard let set = runtimeSetBox(from: receiverRaw) else { return nil }
-        return switch set.count {
-        case 0: "kotlin.collections.EmptySet"
-        case 1: "java.util.Collections$SingletonSet"
-        default: "java.util.LinkedHashSet"
-        }
-    case "kotlin.collections.Map", "kotlin.collections.MutableMap":
-        guard let map = runtimeMapBox(from: receiverRaw) else { return nil }
-        return switch map.count {
-        case 0: "kotlin.collections.EmptyMap"
-        case 1: "java.util.Collections$SingletonMap"
-        default: "java.util.LinkedHashMap"
-        }
-    case "kotlin.Any", "Unknown":
-        if let list = runtimeListBox(from: receiverRaw) {
-            return switch list.count {
-            case 0: "kotlin.collections.EmptyList"
-            case 1: "java.util.Collections$SingletonList"
-            default: "java.util.Arrays$ArrayList"
-            }
-        }
-        if let set = runtimeSetBox(from: receiverRaw) {
-            return switch set.count {
-            case 0: "kotlin.collections.EmptySet"
-            case 1: "java.util.Collections$SingletonSet"
-            default: "java.util.LinkedHashSet"
-            }
-        }
-        if let map = runtimeMapBox(from: receiverRaw) {
-            return switch map.count {
-            case 0: "kotlin.collections.EmptyMap"
-            case 1: "java.util.Collections$SingletonMap"
-            default: "java.util.LinkedHashMap"
-            }
-        }
-        return nil
+    case "kotlin.collections.List", "kotlin.collections.MutableList",
+         "kotlin.collections.Set", "kotlin.collections.MutableSet",
+         "kotlin.collections.Map", "kotlin.collections.MutableMap",
+         "kotlin.collections.Collection", "kotlin.collections.MutableCollection",
+         "kotlin.Any", "Unknown":
+        break
     default:
         return nil
     }
+    guard let typeID = runtimeObjectTypeID(rawValue: receiverRaw) else { return nil }
+    // Concrete `java.util`/builder impl tags name their own class directly;
+    // `runtimeReflectedCollectionClass` intentionally returns nil for them.
+    switch typeID {
+    case arrayListRuntimeTypeID, mutableListRuntimeTypeID:
+        return "java.util.ArrayList"
+    case singletonListRuntimeTypeID:
+        return "java.util.Collections$SingletonList"
+    case arraysBackedListRuntimeTypeID:
+        return "java.util.Arrays$ArrayList"
+    case arrayDequeRuntimeTypeID:
+        return "java.util.ArrayDeque"
+    case runtimeListBuilderTypeID:
+        return "kotlin.collections.builders.ListBuilder"
+    case hashSetRuntimeTypeID:
+        return "java.util.HashSet"
+    case linkedHashSetRuntimeTypeID:
+        return "java.util.LinkedHashSet"
+    case treeSetRuntimeTypeID:
+        return "java.util.TreeSet"
+    case runtimeSetBuilderTypeID:
+        return "kotlin.collections.builders.SetBuilder"
+    case hashMapRuntimeTypeID:
+        return "java.util.HashMap"
+    case linkedHashMapRuntimeTypeID:
+        return "java.util.LinkedHashMap"
+    case treeMapRuntimeTypeID, sortedMapRuntimeTypeID, navigableMapRuntimeTypeID:
+        return "java.util.TreeMap"
+    case mutableMapRuntimeTypeID:
+        return "kotlin.collections.builders.MapBuilder"
+    default:
+        break
+    }
+    // Interface tags and view boxes resolve through the reflected impl
+    // identity, which already gates `Empty*`/`Singleton*` names on canonical
+    // identity rather than element count (KUU-4144).
+    guard let identity = runtimeReflectedCollectionClass(rawValue: receiverRaw, typeID: typeID),
+          case let .named(_, reflectedQualifiedName) = identity
+    else { return nil }
+    return runtimeJavaBinaryName(reflectedQualifiedName, metadataDisplayName: nil)
 }
 
 func runtimeJavaQualifiedName(typeToken: Int, nameHint: Int = 0) -> String {
@@ -442,18 +452,29 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
         ) {
             return identity
         }
-        return list.count == 0
-            ? .named(
+        // Only the shared `emptyList()` handle reflects `EmptyList` — an
+        // emptied ArrayList/mutable list keeps `java.util.ArrayList` identity
+        // on the JVM (KUU-4144).
+        if list.count == 0, rawValue == emptyListSingletonRaw {
+            return .named(
                 typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptyList"),
                 qualifiedName: "kotlin.collections.EmptyList"
             )
-            : .named(
-                typeID: arrayListRuntimeTypeID,
-                qualifiedName: "kotlin.collections.ArrayList"
-            )
-    case setRuntimeTypeID:
+        }
+        return .named(
+            typeID: arrayListRuntimeTypeID,
+            qualifiedName: "kotlin.collections.ArrayList"
+        )
+    case mutableMapViewCollectionRuntimeTypeID:
+        // `.values` views share the `RuntimeListBox` storage but reflect the
+        // backing map's `*Values` impl class (KUU-4144).
+        guard let list = runtimeListBox(from: rawValue),
+              let mapRaw = list.mapValuesViewBackingRaw
+        else { return nil }
+        return runtimeReflectedMapValuesViewClass(mapRaw: mapRaw)
+    case setRuntimeTypeID, mutableMapViewSetRuntimeTypeID:
         guard let set = runtimeSetBox(from: rawValue) else { return nil }
-        return runtimeReflectedSetClass(set: set)
+        return runtimeReflectedSetClass(rawValue: rawValue, set: set)
     case runtimeSetBuilderTypeID:
         return .named(
             typeID: typeID,
@@ -473,8 +494,10 @@ func runtimeReflectedCollectionClass(rawValue: Int, typeID: Int64) -> RuntimeRef
                 qualifiedName: "java.util.IdentityHashMap"
             )
         }
+        // Only the shared `emptyMap()` handle reflects `EmptyMap`; an emptied
+        // LinkedHashMap keeps its impl identity on the JVM (KUU-4144).
         switch map.count {
-        case 0:
+        case 0 where rawValue == emptyMapSingletonRaw:
             return .named(
                 typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptyMap"),
                 qualifiedName: "kotlin.collections.EmptyMap"
@@ -549,8 +572,11 @@ private func runtimeReflectedListViewClass(
 
 /// Plain `RuntimeSetBox` handles (read-only `setOf`, empty sets, views that
 /// reach the Set tag). Map-backed views take their names from the map's
-/// implementation; everything else follows the JVM `setOf` family by count.
-private func runtimeReflectedSetClass(set: RuntimeSetBox) -> RuntimeReflectedClassIdentity {
+/// implementation; everything else follows the JVM `setOf` family. The
+/// `EmptySet`/`SingletonSet` impls are gated on canonical identity and
+/// read-only state rather than count — an emptied `LinkedHashSet` keeps its
+/// impl identity on the JVM (KUU-4144).
+private func runtimeReflectedSetClass(rawValue: Int, set: RuntimeSetBox) -> RuntimeReflectedClassIdentity {
     if let (mapRaw, kind) = set.mapViewBacking {
         return runtimeReflectedMapSetViewClass(mapRaw: mapRaw, kind: kind)
     }
@@ -558,7 +584,7 @@ private func runtimeReflectedSetClass(set: RuntimeSetBox) -> RuntimeReflectedCla
         return .named(typeID: treeSetRuntimeTypeID, qualifiedName: "java.util.TreeSet")
     }
     switch set.count {
-    case 0:
+    case 0 where rawValue == emptySetSingletonRaw:
         return .named(
             typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptySet"),
             qualifiedName: "kotlin.collections.EmptySet"
@@ -589,8 +615,11 @@ private func runtimeReflectedMapSetViewClass(
 ) -> RuntimeReflectedClassIdentity {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
     let map = runtimeMapBox(from: mapRaw)
+    // `emptyMap()`'s views share `EmptySet` identity; an emptied mutable map's
+    // views keep the map's impl name (`LinkedKeySet`/`EntrySet`) on the JVM
+    // (KUU-4144).
     switch map?.count ?? 0 {
-    case 0:
+    case 0 where mapRaw == emptyMapSingletonRaw:
         return .named(
             typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptySet"),
             qualifiedName: "kotlin.collections.EmptySet"
@@ -627,8 +656,11 @@ private func runtimeReflectedMapSetViewClass(
 private func runtimeReflectedMapValuesViewClass(mapRaw: Int) -> RuntimeReflectedClassIdentity {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
     let map = runtimeMapBox(from: mapRaw)
+    // Same canonical-empty split as the key/entry views: `emptyMap().values`
+    // is `EmptyList`, an emptied mutable map's values keeps the map's impl
+    // name (`LinkedValues`/`Values`) on the JVM (KUU-4144).
     switch map?.count ?? 0 {
-    case 0:
+    case 0 where mapRaw == emptyMapSingletonRaw:
         return .named(
             typeID: runtimeReflectedImplTypeID("kotlin.collections.EmptyList"),
             qualifiedName: "kotlin.collections.EmptyList"
@@ -738,8 +770,10 @@ private func runtimeReflectedMapViewIteratorName(
 ) -> (typeID: Int64, qualifiedName: String?) {
     let mapTag = runtimeObjectTypeID(rawValue: mapRaw)
     let map = runtimeMapBox(from: mapRaw)
+    // Only `emptyMap()`'s views produce `EmptyIterator`; an emptied mutable
+    // map's view iterator keeps the map's node-iterator class (KUU-4144).
     switch map?.count ?? 0 {
-    case 0:
+    case 0 where mapRaw == emptyMapSingletonRaw:
         let name = "kotlin.collections.EmptyIterator"
         return (runtimeReflectedImplTypeID(name), name)
     case 1 where mapTag == mapRuntimeTypeID && map?.isEffectivelyReadOnly == true:
@@ -834,7 +868,9 @@ func runtimeReflectedListIteratorClass(
             "kotlin.collections.builders.ListBuilder.Itr"
         )
     case arrayListRuntimeTypeID, listRuntimeTypeID, mutableListRuntimeTypeID:
-        if list.count == 0 {
+        // Only the shared `emptyList()` handle yields `EmptyIterator`; an
+        // emptied ArrayList keeps `java.util.ArrayList$Itr` (KUU-4144).
+        if list.count == 0, sourceRaw == emptyListSingletonRaw {
             let name = "kotlin.collections.EmptyIterator"
             return (runtimeReflectedImplTypeID(name), name)
         }
@@ -879,7 +915,9 @@ func runtimeReflectedSetIteratorClass(
         return (runtimeReflectedImplTypeID(name), name)
     default:
         switch set.count {
-        case 0:
+        // Only the shared `emptySet()` handle yields `EmptyIterator`; an
+        // emptied LinkedHashSet keeps its `LinkedKeyIterator` (KUU-4144).
+        case 0 where setRaw == emptySetSingletonRaw:
             let name = "kotlin.collections.EmptyIterator"
             return (runtimeReflectedImplTypeID(name), name)
         case 1 where set.isEffectivelyReadOnly:

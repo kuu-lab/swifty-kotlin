@@ -41,6 +41,10 @@ let mutableListRuntimeTypeID: Int64 = {
 /// Kotlin/JVM erases `List` and `MutableList` to the same runtime interface.
 /// Built-in frozen list boxes therefore pass mutable collection type checks
 /// even though source-defined `List` implementations retain their own identity.
+/// The shared `EmptyList` singleton (and `emptyMap().values`, which JVM
+/// reflects as `EmptyList`) is a Kotlin read-only object instead — its
+/// `Collections.EmptyList` impl carries the Kotlin marker, so it stays
+/// excluded (KUU-4144).
 func runtimeIsJvmErasedListAssignable(
     rawValue: Int,
     sourceTypeID: Int64,
@@ -49,7 +53,10 @@ func runtimeIsJvmErasedListAssignable(
     guard sourceTypeID == listRuntimeTypeID
             || sourceTypeID == singletonListRuntimeTypeID
             || sourceTypeID == arraysBackedListRuntimeTypeID,
-          runtimeListBox(from: rawValue)?.isEffectivelyReadOnly == true
+          rawValue != emptyListSingletonRaw,
+          let list = runtimeListBox(from: rawValue),
+          list.isEffectivelyReadOnly,
+          list.mapValuesViewBackingRaw != emptyMapSingletonRaw
     else { return false }
     return runtimeIsAssignable(sourceTypeID: mutableListRuntimeTypeID, targetTypeID: targetTypeID)
 }
@@ -152,6 +159,69 @@ let setRuntimeTypeID: Int64 = {
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
     return id
 }()
+
+/// `Map.keys`/`Map.entries` views are write-through `java.util.*Map$*Set`
+/// impls on the JVM — every one of them answers `is MutableSet` /
+/// `is MutableCollection` true except `emptyMap()`'s `EmptySet` view, which
+/// keeps the plain `Set` tag at the call sites. Give the non-canonical views
+/// a mutable view identity that also keeps `is Set` true, mirroring
+/// `runtimeSetBuilderTypeID`'s dual MutableSet/Set parents (KUU-4144).
+let mutableMapViewSetRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKMutableMapViewSet")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableSetRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: setRuntimeTypeID)
+    return id
+}()
+
+/// Same JVM erasure for `Set`/`MutableSet`: the unmodifiable
+/// `Collections$SingletonSet` that `setOf(e)` (and the single-element
+/// `setOfNotNull` overload) returns answers mutable interface checks true
+/// even though mutation throws `UnsupportedOperationException`. The shared
+/// `EmptySet` singleton is a Kotlin read-only object instead, and so are
+/// `emptyMap().keys`/`.entries` (which reflect as `EmptySet` on the JVM), so
+/// both stay excluded by canonical identity (KUU-4144).
+func runtimeIsJvmErasedSetAssignable(
+    rawValue: Int,
+    sourceTypeID: Int64,
+    targetTypeID: Int64
+) -> Bool {
+    guard sourceTypeID == setRuntimeTypeID,
+          rawValue != emptySetSingletonRaw,
+          let set = runtimeSetBox(from: rawValue),
+          set.isEffectivelyReadOnly,
+          set.mapViewBacking?.mapRaw != emptyMapSingletonRaw
+    else { return false }
+    return runtimeIsAssignable(sourceTypeID: mutableSetRuntimeTypeID, targetTypeID: targetTypeID)
+}
+
+/// `Map.values` views are `java.util.*Map$*Values` impls on the JVM —
+/// `AbstractCollection` subclasses, not lists — that answer
+/// `is MutableCollection` true. The box shares the `RuntimeListBox` storage,
+/// so its identity comes from this tag: a mutable collection that stays a
+/// `Collection`/`Iterable` without claiming `List` (KUU-4144). `emptyMap()`'s
+/// values view keeps the `List` tag because `EmptyList` answers `is List`
+/// true on the JVM.
+let mutableMapViewCollectionRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.__KSwiftKMutableMapViewCollection")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableCollectionRuntimeTypeID)
+    return id
+}()
+
+/// `Map`/`MutableMap` erase to `java.util.Map` the same way: the unmodifiable
+/// `Collections$SingletonMap` backing `mapOf(pair)` answers `is MutableMap`
+/// true while the shared `EmptyMap` singleton does not (KUU-4144).
+func runtimeIsJvmErasedMapAssignable(
+    rawValue: Int,
+    sourceTypeID: Int64,
+    targetTypeID: Int64
+) -> Bool {
+    guard sourceTypeID == mapRuntimeTypeID,
+          rawValue != emptyMapSingletonRaw,
+          let map = runtimeMapBox(from: rawValue),
+          map.isEffectivelyReadOnly
+    else { return false }
+    return runtimeIsAssignable(sourceTypeID: mutableMapRuntimeTypeID, targetTypeID: targetTypeID)
+}
 
 /// Ordinary Set factories keep using `setRuntimeTypeID`; only HashSet
 /// constructors opt into this more specific identity.
