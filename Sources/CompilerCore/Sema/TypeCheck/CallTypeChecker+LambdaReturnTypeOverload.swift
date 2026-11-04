@@ -872,7 +872,16 @@ extension CallTypeChecker {
             explicitTypeArgs: explicitTypeArgs,
             dispatchReceiverTypes: additionalDispatchReceiverTypes + (bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
-                : []) + ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                : []) + ctx.implicitReceiverMemberLookupEntries().map {
+                    // Inside a builder-inference callback an implicit receiver
+                    // can still hold the outer call's unsolved variables
+                    // (`Scope<E>` from `binding`'s receiver parameter). Once
+                    // the body's earlier evidence pinned them — e.g. a member
+                    // extension's receiver match — resolution must see the
+                    // solved owner so member-extension class parameters bind
+                    // to the concrete argument (KUU-4079).
+                    resolvedBuilderInferenceType($0.type, ctx: ctx)
+                },
             boundObjectDispatchReceiverCandidates: additionalBoundObjectDispatchReceiverCandidates.union(
                 bindsObjectDispatchReceiver
                 ? importedObjectDispatchReceiverCandidates(named: calleeName, candidates: candidates, ctx: ctx)

@@ -390,6 +390,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let receivers = ctx.implicitReceiverMemberLookupEntries().map(\.type)
         for receiver in receivers {
+            var deferredConstraintsByCandidate: [SymbolID: [VariableConstraint]] = [:]
             let candidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: receiver,
@@ -401,13 +402,41 @@ extension CallTypeChecker {
                       let signature = sema.symbols.functionSignature(for: candidateID),
                       let declaredReceiver = signature.receiverType
                 else { return false }
-                return extensionReceiverMatchesDuringBuilderInference(
+                let strictMatch = extensionReceiverMatchesDuringBuilderInference(
                     callSiteReceiver: extensionReceiverType,
                     declaredReceiver: declaredReceiver,
                     ctx: ctx
                 )
+                // Inside a receiver-builder lambda the declared receiver can
+                // still mention the outer call's unsolved variables through
+                // the dispatch receiver's arguments (`R<V, E>` seen from
+                // `Scope<E>`). The strict match above accepts such receivers
+                // leniently without recording why — matching the call-site
+                // receiver against the owner-substituted declaration yields
+                // the session constraints (e.g. `E = String`) the postponed
+                // solve needs. They are appended only once a single
+                // candidate survives (KUU-4079).
+                if let constraints = deferredMemberExtensionReceiverConstraints(
+                    callSiteReceiver: extensionReceiverType,
+                    declaredReceiver: declaredReceiver,
+                    signature: signature,
+                    candidate: candidateID,
+                    ctx: ctx
+                ) {
+                    deferredConstraintsByCandidate[candidateID] = constraints
+                    return true
+                }
+                return strictMatch
             }
-            if !candidates.isEmpty { return candidates }
+            if !candidates.isEmpty {
+                if candidates.count == 1,
+                   let candidate = candidates.first,
+                   let constraints = deferredConstraintsByCandidate[candidate]
+                {
+                    ctx.builderInference?.constraints.append(contentsOf: constraints)
+                }
+                return candidates
+            }
         }
         return []
     }
