@@ -186,7 +186,7 @@ extension CallTypeChecker {
             {
                 continue
             }
-            let concreteType: TypeID
+            var concreteType: TypeID
             switch concreteClassArgs[index] {
             case let .invariant(type), let .out(type), let .in(type):
                 concreteType = type
@@ -195,6 +195,23 @@ extension CallTypeChecker {
                 // unbounded star includes null; explicit bounds stay intact.
                 let bounds = sema.symbols.typeParameterUpperBounds(for: declaredTypeParam.symbol)
                 concreteType = bounds.isEmpty ? sema.types.nullableAnyType : sema.types.glb(bounds)
+            }
+            // A nullable declared argument owns its `?`: matching `C<T?>`
+            // against `C<X?>` determines `T` only up to `{X, X?}`, mirroring
+            // the `X <: T` bound `decomposeSubtypeConstraintImpl` derives
+            // from `X? <: T?` (KUU-3976). When every upper bound of `T` is
+            // non-nullable (`T : Any`), `X` is the unique solution, so the
+            // substituted types must use it: binding `X?` here would violate
+            // the bound once it reaches the argument check. When a bound
+            // still admits null (`T : Any?`), the whole `X?` argument stays —
+            // it matches the variable Kotlin's `Nothing? <: T` picks.
+            if declaredTypeParam.nullability == .nullable {
+                let bounds = sema.symbols.typeParameterUpperBounds(for: declaredTypeParam.symbol)
+                if !bounds.isEmpty,
+                   bounds.allSatisfy({ sema.types.nullability(of: $0) == .nonNull })
+                {
+                    concreteType = sema.types.makeNonNullable(concreteType)
+                }
             }
             substitution[typeVar] = concreteType
         }
