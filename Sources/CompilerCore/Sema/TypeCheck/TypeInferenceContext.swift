@@ -96,6 +96,16 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// parameter. Keep its source function type visible so call lowering can
     /// emit a required suspend-conversion adapter.
     var isCallableReferenceArgument = false
+    /// The argument expression currently being inferred in a call's argument
+    /// position. A bare collection factory (`emptyList()`) *at that exact
+    /// expression* keeps its `Nothing`-shaped result when the propagated
+    /// expected type carries no concrete evidence, so the enclosing call's
+    /// chosen parameter can still pin it — the same joint inference kotlinc
+    /// performs for `this(emptyList())` or `xs.addAll(emptyList())`. The id
+    /// (not a boolean) is recorded so the deferral cannot leak into receiver
+    /// positions or deeper sub-expressions: `listOf().size` still reports
+    /// (KUU-4002).
+    var callArgumentExprBeingInferred: ExprID?
     var loopDepth: Int
     var loopLabelStack: [InternedString]
     /// Loop targets share jump snapshots across copied branch contexts.

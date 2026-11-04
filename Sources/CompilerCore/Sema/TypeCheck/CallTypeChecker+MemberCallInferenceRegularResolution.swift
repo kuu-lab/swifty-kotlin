@@ -102,7 +102,12 @@ extension CallTypeChecker {
         // Skip lambda literals and callable refs so that their first inference
         // happens inside prepareCallArguments with a contextual expected type,
         // preventing a stale no-expectedType binding from poisoning the cache.
+        // Arguments inferred here sit in a call-argument position: a bare
+        // `emptyList()` keeps its Nothing-shaped intermediate so the chosen
+        // member parameter can pin it afterwards (KUU-4002).
+        var memberArgumentCtx = ctx
         let argTypes = args.map { arg -> TypeID in
+            memberArgumentCtx.callArgumentExprBeingInferred = arg.expr
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {
                 case .lambdaLiteral, .callableRef:
@@ -114,7 +119,7 @@ extension CallTypeChecker {
             if isLongRangeLiteralContainsCall {
                 return driver.inferExpr(
                     arg.expr,
-                    ctx: ctx,
+                    ctx: memberArgumentCtx,
                     locals: &locals,
                     expectedType: sema.types.longType
                 )
@@ -122,7 +127,7 @@ extension CallTypeChecker {
             if isULongRangeLiteralContainsCall {
                 return driver.inferExpr(
                     arg.expr,
-                    ctx: ctx,
+                    ctx: memberArgumentCtx,
                     locals: &locals,
                     expectedType: sema.types.ulongType
                 )
@@ -130,7 +135,7 @@ extension CallTypeChecker {
             if isLongBitwiseLiteralCall {
                 return driver.inferExpr(
                     arg.expr,
-                    ctx: ctx,
+                    ctx: memberArgumentCtx,
                     locals: &locals,
                     expectedType: sema.types.longType
                 )
@@ -144,17 +149,17 @@ extension CallTypeChecker {
                 if case .nameRef = ast.arena.expr(arg.expr) { return true }
                 return false
             }() {
-                inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                inferredType = driver.inferExpr(arg.expr, ctx: memberArgumentCtx, locals: &locals)
             } else if let boundType = sema.bindings.exprType(for: arg.expr) {
                 if typeContainsErrorType(boundType, sema: sema),
                    isInferableNestedCallExpr(arg.expr, ast: ast)
                 {
-                    inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                    inferredType = driver.inferExpr(arg.expr, ctx: memberArgumentCtx, locals: &locals)
                 } else {
                     inferredType = boundType
                 }
             } else {
-                inferredType = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+                inferredType = driver.inferExpr(arg.expr, ctx: memberArgumentCtx, locals: &locals)
             }
             if calleeName == knownNames.coerceIn,
                let rangeType = floatingPointRangeArgumentType(

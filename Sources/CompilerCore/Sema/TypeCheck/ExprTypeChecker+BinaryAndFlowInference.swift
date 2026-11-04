@@ -250,6 +250,22 @@ extension ExprTypeChecker {
         if requiresEqualityOperandFactoryInference {
             rhsCtx.collectionFactoryInferenceRequiredForEqualityOperand = rhsID
         }
+        // An operator RHS is the argument of the desugared member call
+        // (`list + emptyList()` is `list.plus(emptyList())`): let a bare
+        // factory keep its Nothing-shaped intermediate until the operator's
+        // parameter pins it. Equality is excluded — `x == emptyList()` feeds
+        // `equals(Any?)`, which supplies no evidence and must still report
+        // (KUU-4002).
+        switch op {
+        case .add, .subtract, .multiply, .divide, .modulo,
+             .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual,
+             .rangeTo, .rangeUntil, .downTo, .step,
+             .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
+            rhsCtx.callArgumentExprBeingInferred = rhsID
+        case .equal, .notEqual, .identityEqual, .notIdentityEqual,
+             .logicalAnd, .logicalOr, .elvis:
+            break
+        }
         if op == .elvis, expectedType == nil, rhsIsCall,
            nonNullLhs != sema.types.errorType,
            nonNullLhs != sema.types.nothingType

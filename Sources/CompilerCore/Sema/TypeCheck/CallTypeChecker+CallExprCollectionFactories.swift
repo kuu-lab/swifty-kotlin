@@ -56,12 +56,173 @@ extension CallTypeChecker {
                 return sema.types.makeNonNullable(expectedType)
             }
 
+            /// The nominal collection type the factory produces for the given
+            /// arguments — used only to test whether an expected type is one
+            /// the call result can satisfy (`List<Int>` fits `Collection<Int>`
+            /// but never `MutableList<Int>` or `Sequence<Int>`).
+            func producedFactoryReturnType(elements: [TypeID]) -> TypeID? {
+                guard let first = elements.first else { return nil }
+                let second = elements.count > 1 ? elements[1] : elements[0]
+                switch name {
+                case "emptyList", "listOf", "listOfNotNull":
+                    return makeSyntheticListType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "mutableListOf":
+                    return makeSyntheticMutableListType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "arrayListOf":
+                    return makeSyntheticListConstructorType(
+                        name: "ArrayList", symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "emptySet", "setOf", "setOfNotNull":
+                    return makeSyntheticSetType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "mutableSetOf":
+                    return makeSyntheticMutableSetType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "hashSetOf":
+                    return makeSyntheticHashSetType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "linkedSetOf":
+                    return makeSyntheticLinkedHashSetType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, elementType: first
+                    )
+                case "emptyMap", "mapOf":
+                    return makeSyntheticMapType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, keyType: first, valueType: second
+                    )
+                case "mutableMapOf":
+                    return makeSyntheticMutableMapType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, keyType: first, valueType: second
+                    )
+                case "hashMapOf":
+                    return makeSourceBackedHashMapType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, keyType: first, valueType: second
+                    )
+                case "linkedMapOf":
+                    return makeSourceBackedLinkedHashMapType(
+                        symbols: sema.symbols, types: sema.types,
+                        interner: interner, keyType: first, valueType: second
+                    )
+                default:
+                    return nil
+                }
+            }
+
+            /// Whether the expected type supplies a concrete argument for
+            /// every type parameter the factory still needs — the way
+            /// `List<Int>` or `Collection<Int>` pins T while `List<*>`,
+            /// `Collection<*>`, `Any` and `Any?` do not, and `Map<String, *>`
+            /// pins K but not V. The produced nominal must also fit:
+            /// `MutableList<Int>` pins the element of `mutableListOf` but not
+            /// of `listOf` (KUU-4002).
+            func expectedTypeProvidesConcreteElementTypes(arity: Int) -> Bool {
+                guard let expected = expectedCollectionType(withArity: arity),
+                      case let .classType(expectedClass) = sema.types.kind(of: expected)
+                else { return false }
+                var elements: [TypeID] = []
+                for argument in expectedClass.args.prefix(arity) {
+                    let element: TypeID
+                    switch argument {
+                    case let .invariant(type), let .out(type), let .in(type):
+                        element = type
+                    case .star:
+                        return false
+                    }
+                    // A star-captured argument is not proper evidence either:
+                    // `T <: Captured` cannot fix a type variable in kotlinc.
+                    if case let .typeParam(parameter) = sema.types.kind(of: element),
+                       parameter.capture != nil
+                    {
+                        return false
+                    }
+                    elements.append(element)
+                }
+                guard let produced = producedFactoryReturnType(elements: elements) else {
+                    return false
+                }
+                // The produced nominal must relate to the target either way:
+                // `List<Int>` fits `Collection<Int>` upward, and a narrower
+                // `HashMap<K, V>` can adopt the produced `MutableMap<K, V>`
+                // the way bundled `hashMapOf` relies on. `Set<Int>` never
+                // pins `listOf`/`emptyList` in either direction.
+                return sema.types.isSubtype(produced, expected)
+                    || sema.types.isSubtype(expected, produced)
+            }
+
             if ctx.collectionFactoryInferenceRequiredForEqualityOperand == id,
                args.isEmpty, explicitTypeArgs.isEmpty,
                let factoryTypeArity,
                expectedCollectionType(withArity: factoryTypeArity) == nil
             {
                 return nil
+            }
+
+            // A bare `listOf()`/`emptyList()`/`setOf()`/`mapOf()`-family call
+            // supplies no argument or explicit-type-argument evidence, so the
+            // expected type is the only remaining source of inference.
+            // kotlinc rejects the call when that type cannot pin every factory
+            // type parameter ("cannot infer type for type parameter 'T'"),
+            // so report the same inference failure. An argument position whose
+            // candidates never produced a usable expected type still keeps the
+            // Nothing-shaped result silently: the enclosing call's chosen
+            // parameter can pin the factory through joint inference the way
+            // `this(emptyList())`, `xs.addAll(emptyList())`, or
+            // `list + emptyList()` require (KUU-4002).
+            /// An argument position only defers when the propagated expected
+            /// type offers no concrete evidence at all: either none was
+            /// computed, or every argument position is still a bare type
+            /// parameter the enclosing call binds elsewhere —
+            /// `xs.addAll(emptyList())` sees `Collection<E>` while the
+            /// `MutableList<Int>` receiver supplies `E` (KUU-4002). A star
+            /// projection is an explicit *absence* of evidence, not a hole
+            /// the call will fill, so `Collection<*>` still reports.
+            let suppressesUninferredArgument: Bool = {
+                guard ctx.callArgumentExprBeingInferred == id else { return false }
+                guard let expectedType, expectedType != sema.types.errorType else {
+                    return true
+                }
+                guard case let .classType(expectedClass) = sema.types.kind(of: expectedType),
+                      !expectedClass.args.isEmpty
+                else {
+                    return false
+                }
+                return expectedClass.args.allSatisfy { argument in
+                    switch argument {
+                    case let .invariant(inner), let .out(inner), let .in(inner):
+                        if case .typeParam = sema.types.kind(of: inner) { return true }
+                        return false
+                    case .star:
+                        return false
+                    }
+                }
+            }()
+            if args.isEmpty, explicitTypeArgs.isEmpty,
+               let arity = factoryTypeArity,
+               !expectedTypeProvidesConcreteElementTypes(arity: arity),
+               !suppressesUninferredArgument,
+               let callRange = ctx.ast.arena.exprRange(id)
+            {
+                sema.diagnostics.error(
+                    "KSWIFTK-SEMA-INFER",
+                    "Cannot infer type argument from the call arguments and expected type; provide explicit type arguments or an explicit expected type.",
+                    range: callRange
+                )
             }
 
             func isMutableCollection(_ type: TypeID) -> Bool {

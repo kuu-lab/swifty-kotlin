@@ -463,6 +463,7 @@ extension CallTypeChecker {
                 let checkpoint = ctx.sema.diagnostics.checkpoint()
                 var candidateLocals = locals
                 var probeContext = ctx
+                probeContext.callArgumentExprBeingInferred = args[index].expr
                 if callableReferenceIndices.contains(index) {
                     // Match `prepareCallArguments`: a callable reference probed
                     // under a candidate's parameter keeps its reference-shaped
@@ -510,9 +511,11 @@ extension CallTypeChecker {
             for restoreIndex in nestedArgumentIndices {
                 let checkpoint = ctx.sema.diagnostics.checkpoint()
                 var restoreLocals = locals
+                var restoreContext = ctx
+                restoreContext.callArgumentExprBeingInferred = args[restoreIndex].expr
                 _ = driver.inferExpr(
                     args[restoreIndex].expr,
-                    ctx: ctx,
+                    ctx: restoreContext,
                     locals: &restoreLocals,
                     expectedType: originalExpectedTypeOverrides[restoreIndex]
                 )
@@ -1035,5 +1038,213 @@ extension CallTypeChecker {
             ctx.sema.diagnostics.rollback(to: diagnosticsCheckpoint)
         }
         return nil
+    }
+
+    /// A nested-call argument that could not infer its own type parameters is
+    /// reported eagerly (`KSWIFTK-SEMA-INFER`) while still producing a
+    /// `Nothing`-shaped argument type, so an enclosing call can still resolve
+    /// it under each candidate's parameter the way kotlinc's joint inference
+    /// does. When the *chosen* candidate's substituted parameter supplies
+    /// concrete type arguments — `this(emptyList())` picks the
+    /// `Collection<E>` constructor and pins `T = E` — the argument's
+    /// inference diagnostic was discharged by the enclosing call and must be
+    /// dropped (KUU-4002). Diagnostics deeper inside the argument expression
+    /// are not rescued here.
+    func discardRescuedNestedCallArgumentDiagnostics(
+        resolved: ResolvedCall,
+        args: [CallArgument],
+        ctx: TypeInferenceContext
+    ) {
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee,
+              let signature = ctx.sema.symbols.functionSignature(for: chosen)
+        else {
+            return
+        }
+        let sema = ctx.sema
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (index, argument) in args.enumerated() {
+            guard isInferableNestedCallExpr(argument.expr, ast: ctx.ast),
+                  let parameterIndex = parameterIndexForCallArgument(
+                      at: index,
+                      label: argument.label,
+                      in: signature,
+                      sema: sema
+                  ),
+                  parameterIndex < signature.parameterTypes.count,
+                  let argumentRange = ctx.ast.arena.exprRange(argument.expr)
+            else {
+                continue
+            }
+            var parameterType = signature.parameterTypes[parameterIndex]
+            if parameterIndex < signature.valueParameterIsVararg.count,
+               signature.valueParameterIsVararg[parameterIndex],
+               let elementType = driver.helpers.arrayElementType(
+                   for: parameterType,
+                   sema: sema,
+                   interner: ctx.interner
+               )
+            {
+                // A vararg element is pinned by the element type, not by the
+                // `Array<out T>` parameter itself.
+                parameterType = elementType
+            }
+            let substituted = sema.types.substituteTypeParameters(
+                in: parameterType,
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: typeVarBySymbol
+            )
+            guard nestedCallParameterTypePinsInference(
+                substituted,
+                rawParameterType: parameterType,
+                ctx: ctx
+            ) else {
+                continue
+            }
+            // Only the argument's own inference diagnostic is discharged; an
+            // unrelated error deeper inside the argument expression keeps its
+            // report.
+            for diagnostic in sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+            where diagnostic.code != "KSWIFTK-SEMA-INFER" || diagnostic.primaryRange != argumentRange {
+                sema.diagnostics.emit(diagnostic)
+            }
+        }
+    }
+
+    /// A bare collection factory argument can keep a `Nothing`-shaped first-pass
+    /// type when the prepared expected type carried no concrete evidence — the
+    /// deferral exists so a *pinning* parameter can still rescue it. Once the
+    /// call resolved, a non-pinning chosen parameter (`println(listOf())` picks
+    /// `Any?`, `sizeOf(listOf())` sees `Collection<*>`) proves no evidence ever
+    /// arrived: kotlinc reports "cannot infer type for type parameter" here, so
+    /// surface the deferred diagnostic unless one was already emitted
+    /// (KUU-4002). Restricted to the bare-factory shape — `g()` returning a
+    /// declared `List<Nothing>` is not inference evidence owed to this call.
+    func reportUnpinnedBareFactoryArgumentDiagnostics(
+        resolved: ResolvedCall,
+        args: [CallArgument],
+        argTypes: [TypeID],
+        ctx: TypeInferenceContext
+    ) {
+        guard resolved.diagnostic == nil,
+              let chosen = resolved.chosenCallee,
+              let signature = ctx.sema.symbols.functionSignature(for: chosen)
+        else {
+            return
+        }
+        let sema = ctx.sema
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        for (index, argument) in args.enumerated() {
+            guard index < argTypes.count,
+                  isBareCollectionFactoryCallExpr(argument.expr, ctx: ctx),
+                  typeContainsNothingType(argTypes[index], sema: sema),
+                  let parameterIndex = parameterIndexForCallArgument(
+                      at: index,
+                      label: argument.label,
+                      in: signature,
+                      sema: sema
+                  ),
+                  parameterIndex < signature.parameterTypes.count,
+                  let argumentRange = ctx.ast.arena.exprRange(argument.expr)
+            else {
+                continue
+            }
+            var parameterType = signature.parameterTypes[parameterIndex]
+            if parameterIndex < signature.valueParameterIsVararg.count,
+               signature.valueParameterIsVararg[parameterIndex],
+               let elementType = driver.helpers.arrayElementType(
+                   for: parameterType,
+                   sema: sema,
+                   interner: ctx.interner
+               )
+            {
+                parameterType = elementType
+            }
+            let substituted = sema.types.substituteTypeParameters(
+                in: parameterType,
+                substitution: resolved.substitutedTypeArguments,
+                typeVarBySymbol: typeVarBySymbol
+            )
+            guard !nestedCallParameterTypePinsInference(
+                substituted,
+                rawParameterType: parameterType,
+                ctx: ctx
+            ) else {
+                continue
+            }
+            let alreadyReported = sema.diagnostics.diagnostics.contains { diagnostic in
+                diagnostic.severity == .error
+                    && diagnostic.primaryRange.map { argumentRange.contains($0) } == true
+            }
+            guard !alreadyReported else {
+                continue
+            }
+            sema.diagnostics.error(
+                "KSWIFTK-SEMA-INFER",
+                "Cannot infer type argument from the call arguments and expected type; provide explicit type arguments or an explicit expected type.",
+                range: argumentRange
+            )
+        }
+    }
+
+    /// Whether the expression is one of the bare source-backed collection
+    /// factories (`listOf()`, `emptyMap()`, `mutableSetOf()`, ...) that infer
+    /// their type arguments solely from the call site.
+    func isBareCollectionFactoryCallExpr(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        guard case let .call(calleeID, typeArgs, arguments, _) = ctx.ast.arena.expr(expr),
+              typeArgs.isEmpty,
+              arguments.isEmpty,
+              case let .nameRef(calleeName, _) = ctx.ast.arena.expr(calleeID)
+        else {
+            return false
+        }
+        switch ctx.interner.resolve(calleeName) {
+        case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
+             "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
+             "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf",
+             "emptyArray":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether the enclosing call's substituted parameter type gives a nested
+    /// call concrete evidence for its own type parameters: a class type with
+    /// real type arguments (`Collection<E>`) pins, while a bare type
+    /// parameter (`T`), `Any?`, or a star projection (`Collection<*>`) does
+    /// not. `Nothing` introduced *by the substitution* is self-derived —
+    /// `f<T>(x: List<T>)` binding `T := List<Nothing>` from the argument's own
+    /// fallback must not rescue it — but `Nothing` written in the signature
+    /// (`List<Nothing>`) is explicit evidence.
+    private func nestedCallParameterTypePinsInference(
+        _ type: TypeID,
+        rawParameterType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              !classType.args.isEmpty
+        else {
+            return false
+        }
+        if typeContainsNothingType(type, sema: sema),
+           !typeContainsNothingType(rawParameterType, sema: sema)
+        {
+            return false
+        }
+        return classType.args.allSatisfy { argument in
+            switch argument {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                if case let .typeParam(parameter) = sema.types.kind(of: inner),
+                   parameter.capture != nil
+                {
+                    return false
+                }
+                return true
+            case .star:
+                return false
+            }
+        }
     }
 }
