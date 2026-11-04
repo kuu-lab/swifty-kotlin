@@ -572,6 +572,17 @@ extension CallTypeChecker {
         {
             for (index, expectedArgumentType) in expectedTypes.sorted(by: { $0.key < $1.key }) {
                 let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                // The engine dedups identical diagnostics, so an error already
+                // live inside the argument range makes a re-emitted identical
+                // one invisible to `emittedError` — the re-inference would look
+                // clean and the removal below would strip a live inference
+                // failure. Clear the range first and restore the removed
+                // diagnostics unless the re-inference actually succeeded
+                // (KUU-4002).
+                let argumentRange = ast.arena.exprRange(args[index].expr)
+                let removedDiagnostics = argumentRange.map {
+                    sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+                } ?? []
                 let argumentType = driver.inferExpr(
                     args[index].expr,
                     ctx: ctx,
@@ -581,12 +592,11 @@ extension CallTypeChecker {
                 let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
                     $0.severity == .error
                 }
-                if argumentType != sema.types.errorType,
-                   !typeContainsErrorType(argumentType, sema: sema),
-                   !emittedError,
-                   let argumentRange = ast.arena.exprRange(args[index].expr)
+                if argumentType == sema.types.errorType
+                    || typeContainsErrorType(argumentType, sema: sema)
+                    || emittedError
                 {
-                    sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                    removedDiagnostics.forEach { sema.diagnostics.emit($0) }
                 }
             }
         }

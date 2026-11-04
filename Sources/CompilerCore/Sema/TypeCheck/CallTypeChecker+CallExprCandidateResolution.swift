@@ -512,6 +512,19 @@ extension CallTypeChecker {
                         // way `prepareCallArguments` infers it.
                         probeContext.isCallableReferenceArgument = true
                     }
+                    // The engine dedups identical diagnostics, so an error
+                    // already live inside the argument range makes a re-emitted
+                    // identical one invisible to `emittedError` — a bare
+                    // `listOf()` failing under `Any?` would then look like a
+                    // clean re-inference and the removal below would strip the
+                    // live inference failure. Clear the range first so the
+                    // probe's verdict is real; the removed diagnostics are
+                    // restored unless the re-inference actually succeeded
+                    // (KUU-4002).
+                    let argumentRange = ast.arena.exprRange(args[index].expr)
+                    let removedDiagnostics = argumentRange.map {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+                    } ?? []
                     let argumentType = driver.inferExpr(
                         args[index].expr,
                         ctx: probeContext,
@@ -521,12 +534,11 @@ extension CallTypeChecker {
                     let emittedError = sema.diagnostics.diagnostics.dropFirst(diagnosticsCheckpoint).contains {
                         $0.severity == .error
                     }
-                    if argumentType != sema.types.errorType,
-                       !typeContainsErrorType(argumentType, sema: sema),
-                       !emittedError,
-                       let argumentRange = ast.arena.exprRange(args[index].expr)
+                    if argumentType == sema.types.errorType
+                        || typeContainsErrorType(argumentType, sema: sema)
+                        || emittedError
                     {
-                        sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                        removedDiagnostics.forEach { sema.diagnostics.emit($0) }
                     }
                 }
             }

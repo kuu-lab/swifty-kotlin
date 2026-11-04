@@ -250,7 +250,12 @@ extension CallTypeChecker {
         if let addAllFirstArgumentExpr,
            sema.bindings.exprTypes[addAllFirstArgumentExpr] == nil
         {
-            _ = driver.inferExpr(addAllFirstArgumentExpr, ctx: ctx, locals: &locals)
+            // The argument is being inferred as a call argument: a bare
+            // `emptyList()` keeps its Nothing-shaped intermediate so the
+            // addAll overloads can pin it (KUU-4002).
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = addAllFirstArgumentExpr
+            _ = driver.inferExpr(addAllFirstArgumentExpr, ctx: argumentCtx, locals: &locals)
         }
         let addAllArgumentClassification = addAllFirstArgumentExpr.map {
             receiverClassifier.classify(receiverID: $0)
@@ -489,11 +494,10 @@ extension CallTypeChecker {
                 return sema.types.errorType
             }
         }
-        if memberName == "addAll", args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-        }
-        if memberName == "putAll", args.count == 1 {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        if memberName == "addAll" || memberName == "putAll", args.count == 1 {
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = args[0].expr
+            _ = driver.inferExpr(args[0].expr, ctx: argumentCtx, locals: &locals)
         }
 
         if !rangeIterableSourceCandidates.isEmpty {
@@ -595,8 +599,10 @@ extension CallTypeChecker {
             else {
                 return false
             }
+            var zipArgumentCtx = ctx
+            zipArgumentCtx.callArgumentExprBeingInferred = args[0].expr
             let otherType = sema.bindings.exprTypes[args[0].expr]
-                ?? driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                ?? driver.inferExpr(args[0].expr, ctx: zipArgumentCtx, locals: &locals)
             let otherElementType: TypeID
             if case let .classType(otherClassType) = sema.types.kind(of: sema.types.makeNonNullable(otherType)),
                let firstArg = otherClassType.args.first
@@ -822,8 +828,10 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let argumentTypes = args.map { argument in
-            sema.bindings.exprType(for: argument.expr)
-                ?? driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = argument.expr
+            return sema.bindings.exprType(for: argument.expr)
+                ?? driver.inferExpr(argument.expr, ctx: argumentCtx, locals: &locals)
         }
         guard let callRange = ctx.ast.arena.exprRange(id) ?? ctx.ast.arena.exprRange(receiverID) else {
             return nil
@@ -940,8 +948,10 @@ extension CallTypeChecker {
             )
         }
         let argumentTypes = args.map { argument in
-            sema.bindings.exprType(for: argument.expr)
-                ?? driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = argument.expr
+            return sema.bindings.exprType(for: argument.expr)
+                ?? driver.inferExpr(argument.expr, ctx: argumentCtx, locals: &locals)
         }
         let resolutionCandidates: [SymbolID] = {
             guard memberName == "flatMap",
@@ -1095,7 +1105,9 @@ extension CallTypeChecker {
 
         let argument = args[0].expr
         if sema.bindings.exprTypes[argument] == nil {
-            _ = driver.inferExpr(argument, ctx: ctx, locals: &locals)
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = argument
+            _ = driver.inferExpr(argument, ctx: argumentCtx, locals: &locals)
         }
         let argumentType = sema.bindings.exprTypes[argument] ?? sema.types.anyType
         let classifier = ReceiverClassifier(sema: sema, interner: interner)

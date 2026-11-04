@@ -362,11 +362,13 @@ extension CallTypeChecker {
         var hasUnresolvableImplicitLambdaParameter = false
         var contextualArgExpectedTypes = [TypeID?](repeating: nil, count: args.count)
         var discardedExpectedTypeHintIndices: Set<Int> = []
+        var argumentCtx = ctx
 
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {
                 continue
             }
+            argumentCtx.callArgumentExprBeingInferred = argument.expr
             // Anonymous functions are blocks around a synthetic local function
             // and callable reference. Defer them like callable references so
             // their declaration body is first checked with the parameter type.
@@ -390,7 +392,7 @@ extension CallTypeChecker {
                     sema: sema
                 )
                 inferredNonLambdaArgTypes[index] = driver.inferExpr(
-                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    argument.expr, ctx: argumentCtx, locals: &locals, expectedType: literalExpectedType
                 )
             case .uintLiteral:
                 // Contextualize suffixed unsigned literals too. Kotlin narrows
@@ -403,14 +405,14 @@ extension CallTypeChecker {
                     sema: sema
                 )
                 inferredNonLambdaArgTypes[index] = driver.inferExpr(
-                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    argument.expr, ctx: argumentCtx, locals: &locals, expectedType: literalExpectedType
                 )
             case .unaryExpr(let op, let operandID, _):
                 guard (op == .unaryPlus || op == .unaryMinus),
                       case .intLiteral = ast.arena.expr(operandID)
                 else {
                     if inferredNonLambdaArgTypes[index] == nil {
-                        inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                        inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: argumentCtx, locals: &locals)
                     }
                     continue
                 }
@@ -424,7 +426,7 @@ extension CallTypeChecker {
                     sema: sema
                 )
                 inferredNonLambdaArgTypes[index] = driver.inferExpr(
-                    argument.expr, ctx: ctx, locals: &locals, expectedType: literalExpectedType
+                    argument.expr, ctx: argumentCtx, locals: &locals, expectedType: literalExpectedType
                 )
             default:
                 if let expectedType = expectedTypeOverrides[index],
@@ -432,10 +434,21 @@ extension CallTypeChecker {
                 {
                     let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
                     var contextualLocals = locals
-                    var contextualContext = ctx
+                    var contextualContext = argumentCtx
                     if expectedTypeHintIndices.contains(index) {
                         contextualContext.validatesLiftedHintCollectionArguments = true
                     }
+                    // The engine dedups identical diagnostics, so an error
+                    // already live inside the argument range makes a re-emitted
+                    // identical one invisible to `emittedError` — the
+                    // contextual inference would look clean while a genuine
+                    // failure is silently dropped below. Clear the range
+                    // first and restore the removed diagnostics unless the
+                    // inference actually succeeded (KUU-4002).
+                    let argumentRange = ast.arena.exprRange(argument.expr)
+                    let removedDiagnostics = argumentRange.map {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+                    } ?? []
                     let contextualType = driver.inferExpr(
                         argument.expr,
                         ctx: contextualContext,
@@ -451,18 +464,16 @@ extension CallTypeChecker {
                     if expectedTypeHintIndices.contains(index),
                        contextualType == sema.types.errorType || emittedError {
                         sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+                        removedDiagnostics.forEach { sema.diagnostics.emit($0) }
                         discardedExpectedTypeHintIndices.insert(index)
                         inferredNonLambdaArgTypes[index] = driver.inferExpr(
-                            argument.expr, ctx: ctx, locals: &locals
+                            argument.expr, ctx: argumentCtx, locals: &locals
                         )
                         continue
                     }
                     locals = contextualLocals
-                    if contextualType != sema.types.errorType,
-                       !emittedError,
-                       let argumentRange = ast.arena.exprRange(argument.expr)
-                    {
-                        sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                    if contextualType == sema.types.errorType || emittedError {
+                        removedDiagnostics.forEach { sema.diagnostics.emit($0) }
                     }
                     inferredNonLambdaArgTypes[index] = contextualType
                     continue
@@ -471,7 +482,7 @@ extension CallTypeChecker {
                     continue
                 }
                 inferredNonLambdaArgTypes[index] = driver.inferExpr(
-                    argument.expr, ctx: ctx, locals: &locals,
+                    argument.expr, ctx: argumentCtx, locals: &locals,
                     expectedType: expectedTypeOverrides[index]
                 )
             }
@@ -528,6 +539,7 @@ extension CallTypeChecker {
         var argTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         for (index, argument) in args.enumerated() {
             defer { ctx.dataFlow.localStability.inPlaceLambdaScopes.remove(argument.expr) }
+            argumentCtx.callArgumentExprBeingInferred = argument.expr
             if let override = expectedTypeOverrides[index],
                !discardedExpectedTypeHintIndices.contains(index) {
                 contextualArgExpectedTypes[index] = override
@@ -705,6 +717,7 @@ extension CallTypeChecker {
 
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
                 var inferenceContext = lambdaContextOverrides[index] ?? ctx
+                inferenceContext.callArgumentExprBeingInferred = argument.expr
                 let isCallableReferenceArgument: Bool = {
                     if case .callableRef = ast.arena.expr(argument.expr) { return true }
                     return ast.arena.isAnonymousFunction(argument.expr)
@@ -755,7 +768,7 @@ extension CallTypeChecker {
             } else if let cached = inferredNonLambdaArgTypes[index] {
                 argTypes[index] = cached
             } else {
-                argTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                argTypes[index] = driver.inferExpr(argument.expr, ctx: argumentCtx, locals: &locals)
             }
             argTypes[index] = sourceLevelRangeArgumentType(
                 argument.expr, inferredType: argTypes[index], ctx: ctx
@@ -837,7 +850,62 @@ extension CallTypeChecker {
         )
     }
 
+    /// Resolution funnel for argument-bearing calls. Wraps the resolver so a
+    /// nested-call argument whose own inference failure was already reported —
+    /// a bare `emptyList()` carrying `KSWIFTK-SEMA-INFER` — can still be
+    /// rescued when the *chosen* candidate's parameter pins its type the way
+    /// kotlinc's joint inference does (KUU-4002).
     func resolveCallRespectingLambdaReturnType(
+        candidates: [SymbolID],
+        args: [CallArgument],
+        argTypes: [TypeID],
+        range: SourceRange,
+        calleeName: InternedString,
+        explicitTypeArgs: [TypeID],
+        typeAliasConstructor: TypeAliasConstructorContext? = nil,
+        expectedType: TypeID?,
+        implicitReceiverType: TypeID?,
+        bindsObjectDispatchReceiver: Bool = false,
+        additionalDispatchReceiverTypes: [TypeID] = [],
+        additionalBoundObjectDispatchReceiverCandidates: Set<SymbolID> = [],
+        candidateArgumentTypes: [SymbolID: [Int: TypeID]] = [:],
+        lambdaLiteralIndices: Set<Int>,
+        inputOnlyLambdaIndices: Set<Int>,
+        blockedLambdaRefinement: Bool,
+        hasUnresolvableImplicitLambdaParameter: Bool,
+        ctx: TypeInferenceContext
+    ) -> ResolvedCall {
+        let resolved = resolveCallRespectingLambdaReturnTypeImpl(
+            candidates: candidates,
+            args: args,
+            argTypes: argTypes,
+            range: range,
+            calleeName: calleeName,
+            explicitTypeArgs: explicitTypeArgs,
+            typeAliasConstructor: typeAliasConstructor,
+            expectedType: expectedType,
+            implicitReceiverType: implicitReceiverType,
+            bindsObjectDispatchReceiver: bindsObjectDispatchReceiver,
+            additionalDispatchReceiverTypes: additionalDispatchReceiverTypes,
+            additionalBoundObjectDispatchReceiverCandidates: additionalBoundObjectDispatchReceiverCandidates,
+            candidateArgumentTypes: candidateArgumentTypes,
+            lambdaLiteralIndices: lambdaLiteralIndices,
+            inputOnlyLambdaIndices: inputOnlyLambdaIndices,
+            blockedLambdaRefinement: blockedLambdaRefinement,
+            hasUnresolvableImplicitLambdaParameter: hasUnresolvableImplicitLambdaParameter,
+            ctx: ctx
+        )
+        discardRescuedNestedCallArgumentDiagnostics(resolved: resolved, args: args, ctx: ctx)
+        reportUnpinnedBareFactoryArgumentDiagnostics(
+            resolved: resolved,
+            args: args,
+            argTypes: argTypes,
+            ctx: ctx
+        )
+        return resolved
+    }
+
+    func resolveCallRespectingLambdaReturnTypeImpl(
         candidates: [SymbolID],
         args: [CallArgument],
         argTypes: [TypeID],
