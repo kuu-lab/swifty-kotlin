@@ -882,6 +882,36 @@ final class RuntimeKotlinReaderCharSource: RuntimeReaderCharSource, RuntimeChild
         }
     }
 
+    /// Dispatches the Kotlin object's vtable `read(CharArray, Int, Int)`
+    /// directly into the caller's buffer — no `pendingUnits` staging — so
+    /// chained bulk reads resume exactly where the previous call stopped
+    /// (KUU-4044). The charSource instances `__kk_reader_read_range` builds
+    /// are transient: any chars `refill()` pulled beyond the caller's
+    /// `length` would be dropped with the instance. Returns the subclass's
+    /// own count (or -1 at EOF / on a missing entry); Kotlin throwables
+    /// surface through `thrown` and `outThrown` like a source-level call.
+    func readRangeInto(
+        bufferRaw: Int,
+        offset: Int,
+        length: Int,
+        outThrown: UnsafeMutablePointer<Int>?
+    ) -> Int {
+        let entry = kk_vtable_lookup(readerRaw, RuntimeIoStreamVTableSlot.readerReadChars)
+        guard let fnPtr = UnsafeRawPointer(bitPattern: entry) else { return -1 }
+        let readRange = unsafeBitCast(
+            fnPtr,
+            to: (@convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var failure = 0
+        let count = readRange(readerRaw, bufferRaw, offset, length, &failure)
+        if failure != 0 {
+            thrown = failure
+            outThrown?.pointee = failure
+            return -1
+        }
+        return count
+    }
+
     /// Refills `pendingUnits` from the Kotlin object's vtable
     /// `read(CharArray, Int, Int)` entry. A missing entry, a non-positive
     /// count or a thrown Kotlin exception all settle as EOF (the throwable

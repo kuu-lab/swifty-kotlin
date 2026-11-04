@@ -1796,6 +1796,16 @@ extension CallLowerer {
     /// KSWIFTK-RUNTIME-0001 (KUU-3846). The abstract bases themselves
     /// (`InputStream`/`OutputStream`) are not listed: their member calls
     /// resolve owner == receiver and already stay direct.
+    ///
+    /// `BufferedReader`/`InputStreamReader` are `open` (user subclasses are
+    /// real `kk_object_new` receivers and are handled by the receiver-class
+    /// check above), but their own values are `RuntimeBufferedReaderBox`
+    /// handles registered through `runtimeRegisterJavaReader` — which
+    /// installs only `Reader.read(CharArray, Int, Int)` at vtable slot 0.
+    /// Other inherited `Reader` members such as `read(CharArray)` (KUU-4044)
+    /// must stay on direct `__kk_reader_*` bridge calls; the bridge then
+    /// resolves the char-source contract, so a user `Reader` subclass
+    /// receiver still reaches its 3-arg override through that indirection.
     private func isRuntimeBoxedJavaIOStreamNominal(
         _ classSymbol: SymbolID,
         sema: SemaModule,
@@ -1806,7 +1816,9 @@ extension CallLowerer {
         case ["java", "io", "ByteArrayInputStream"],
              ["java", "io", "SequenceInputStream"],
              ["java", "io", "BufferedInputStream"],
-             ["java", "io", "ByteArrayOutputStream"]:
+             ["java", "io", "ByteArrayOutputStream"],
+             ["java", "io", "BufferedReader"],
+             ["java", "io", "InputStreamReader"]:
             return true
         default:
             return false
