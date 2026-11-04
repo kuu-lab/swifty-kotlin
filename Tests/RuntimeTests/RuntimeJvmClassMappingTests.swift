@@ -71,23 +71,40 @@ struct RuntimeJvmClassMappingTests {
     }
 
     @Test func javaClassHandlesShareConcreteCollectionAndArrayTypes() {
+        // KUU-3963: javaClass interns per reflected JVM implementation class.
+        // `listOf(e1, e2)` is `java.util.Arrays$ArrayList` and `listOf(e)`
+        // `java.util.Collections$SingletonList` on the JVM, so `kk_list_of`
+        // tags the boxes differently and they must not share a Class handle.
         let twoElementListA = registerRuntimeObject(
             RuntimeListBox(elements: [kk_box_int(1), kk_box_int(2)]),
-            typeID: listRuntimeTypeID
+            typeID: arraysBackedListRuntimeTypeID
         )
         let twoElementListB = registerRuntimeObject(
             RuntimeListBox(elements: [kk_box_int(3), kk_box_int(4)]),
-            typeID: listRuntimeTypeID
+            typeID: arraysBackedListRuntimeTypeID
         )
         let oneElementList = registerRuntimeObject(
             RuntimeListBox(elements: [kk_box_int(5)]),
-            typeID: listRuntimeTypeID
+            typeID: singletonListRuntimeTypeID
         )
         let twoElementListClassA = __kk_any_javaClass(twoElementListA)
         let twoElementListClassB = __kk_any_javaClass(twoElementListB)
         let oneElementListClass = __kk_any_javaClass(oneElementList)
         #expect(twoElementListClassA == twoElementListClassB)
         #expect(twoElementListClassA != oneElementListClass)
+
+        // Generic/mutable list boxes reflect `java.util.ArrayList` at every
+        // size (`mutableListOf(1).javaClass == mutableListOf(1, 2).javaClass`
+        // on the JVM), so element count does not partition the shared handle.
+        let genericOneElementList = registerRuntimeObject(
+            RuntimeListBox(elements: [kk_box_int(6)]),
+            typeID: listRuntimeTypeID
+        )
+        let genericTwoElementList = registerRuntimeObject(
+            RuntimeListBox(elements: [kk_box_int(7), kk_box_int(8)]),
+            typeID: listRuntimeTypeID
+        )
+        #expect(__kk_any_javaClass(genericOneElementList) == __kk_any_javaClass(genericTwoElementList))
 
         let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
         func genericArray(componentToken: Int) -> Int {
@@ -235,25 +252,39 @@ struct RuntimeJvmClassMappingTests {
     @Test func javaClassToStringRecognizesRuntimeCollectionImplementations() {
         let elements = [kk_box_int(1), kk_box_int(7), kk_box_int(53)]
         let set = registerRuntimeObject(RuntimeSetBox(elements: elements))
-        let list = registerRuntimeObject(RuntimeListBox(elements: elements))
+        // `listOf(e1, e2, e3)` is `java.util.Arrays$ArrayList` on the JVM; the
+        // arrays-backed tag carries that reflected identity (KUU-3963).
+        let list = registerRuntimeObject(
+            RuntimeListBox(elements: elements),
+            typeID: arraysBackedListRuntimeTypeID
+        )
+        // Generic/mutable list boxes are `java.util.ArrayList` at any size.
+        let mutableList = registerRuntimeObject(
+            RuntimeListBox(elements: [kk_box_int(2)]),
+            typeID: mutableListRuntimeTypeID
+        )
         let map = registerRuntimeObject(RuntimeMapBox(keys: elements, values: elements))
         defer {
             _ = runtimeReleaseObject(set)
             _ = runtimeReleaseObject(list)
+            _ = runtimeReleaseObject(mutableList)
             _ = runtimeReleaseObject(map)
         }
 
         let setClass = __kk_any_javaClass(set)
         let listClass = __kk_any_javaClass(list)
+        let mutableListClass = __kk_any_javaClass(mutableList)
         let mapClass = __kk_any_javaClass(map)
         defer {
             _ = runtimeReleaseObject(setClass)
             _ = runtimeReleaseObject(listClass)
+            _ = runtimeReleaseObject(mutableListClass)
             _ = runtimeReleaseObject(mapClass)
         }
 
         #expect(runtimeJavaClassToStringText(setClass) == "class java.util.LinkedHashSet")
         #expect(runtimeJavaClassToStringText(listClass) == "class java.util.Arrays$ArrayList")
+        #expect(runtimeJavaClassToStringText(mutableListClass) == "class java.util.ArrayList")
         #expect(runtimeJavaClassToStringText(mapClass) == "class java.util.LinkedHashMap")
     }
 
