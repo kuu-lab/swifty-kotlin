@@ -194,6 +194,60 @@ struct GenericCallableReferenceInferenceTests {
         #expect(signature.typeParameterSymbols.isEmpty == preferConcrete)
     }
 
+    @Test(arguments: [
+        // MVIKotlin shape: class type parameters map onto the call's
+        // inference variables; `S` is pinned by the sibling argument.
+        """
+        interface Executor<I, S>
+        class Bypass<I : Any, S : Any> : Executor<I, S>
+        fun <I : Any, S : Any> create(executorFactory: () -> Executor<I, S>, s: S): () -> Executor<I, S> = executorFactory
+        val f = create(::Bypass, 0)
+        """,
+        // Both call type parameters are pinned by sibling arguments.
+        """
+        interface Executor<I, S>
+        class Bypass<I : Any, S : Any> : Executor<I, S>
+        fun <I : Any, S : Any> create(executorFactory: () -> Executor<I, S>, s: S, i: I) = executorFactory
+        val f = create(::Bypass, 0, "x")
+        """,
+        // Overloaded constructors: the expected `() -> Executor<I>` signature
+        // selects the zero-argument constructor while `I` is inferred.
+        """
+        interface Executor<I>
+        class Bypass<I : Any>(val x: Int) : Executor<I> {
+            constructor() : this(0)
+            constructor(s: String) : this(s.length)
+        }
+        fun <I : Any> create(executorFactory: () -> Executor<I>) = executorFactory
+        val f = create<Int>(::Bypass)
+        """,
+    ])
+    func infersGenericConstructorReferenceInsideGenericCall(source: String) throws {
+        // KUU-3974: `::Bypass`-style constructor references must specialize
+        // against the surrounding generic call instead of leaking the
+        // constructor's lexical type parameters into the outer solver.
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected generic constructor reference to infer from the call, got: \(errors)")
+    }
+
+    @Test
+    func stillRejectsAmbiguousConstructorReferenceWithoutExpectedType() throws {
+        // `::C` with multiple constructors and no expected function type must
+        // stay ambiguous, matching kotlinc.
+        let ctx = makeContextFromSource("""
+        class C(val a: Int) {
+            constructor(a: Int, b: Int) : this(a)
+        }
+        val ref = ::C
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+        })
+    }
+
     @Test
     func resolvesOverloadedReferencesFromGenericCallResultType() throws {
         let ctx = makeContextFromSource("""
