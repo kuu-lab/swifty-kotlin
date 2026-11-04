@@ -620,6 +620,39 @@ extension KotlinParser {
         return isDeclarationStart(token.kind)
     }
 
+    /// `@` starting a new line inside an unterminated `<…>` list usually
+    /// annotates the next element (`fun <T,\n    @Anno P>`) rather than a
+    /// following top-level declaration. Look past the annotation prefix;
+    /// the `@` stays inside the list unless what follows can only begin a
+    /// declaration (`@Anno\nfun g()`).
+    func continuesAngleBracketListAtNewlineAnnotation(_ token: Token) -> Bool {
+        guard token.kind == .symbol(.at) else { return false }
+        var cursor = 0
+        var work = 0
+        while stream.peek(cursor).kind == .symbol(.at) {
+            guard consumeDeclarationLookaheadWork(&work, at: cursor),
+                  let end = offsetPastAnnotationPrefix(from: cursor)
+            else {
+                return false
+            }
+            cursor = end
+        }
+        let kind = stream.peek(cursor).kind
+        if case .softKeyword(.context) = kind {
+            // Mirror isLikelyTopLevelDeclarationStart: `context` starts a
+            // declaration only as a context-parameter prefix.
+            return stream.peek(cursor + 1).kind != .symbol(.lParen)
+        }
+        // Modifier keywords (`private`, `inline`, …) are also label names,
+        // so declaration boundaries must be ruled out before treating an
+        // identifier-like token as the next list element.
+        if isDeclarationStart(kind) { return false }
+        if case let .keyword(keyword) = kind, Self.isDeclarationModifierKeyword(keyword) {
+            return !startsDeclarationAfterModifier(at: cursor)
+        }
+        return isIdentifierLike(kind) || kind == .keyword(.in)
+    }
+
     /// Whether the tokens consumed so far end in an infix function name, so a
     /// newline after it continues the expression (`a or\n    (b)`). Kotlin's
     /// grammar allows `{NL}` after an infix identifier, and an identifier that
