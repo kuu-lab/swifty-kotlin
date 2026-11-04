@@ -3,12 +3,17 @@ extension DataFlowSemaPhase {
     func validateDeclarationPositions(
         ast: ASTModule,
         symbols: SymbolTable,
+        bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine?,
         interner: StringInterner,
         sourceManager: SourceManager,
         fullValueClassesEnabled: Bool = false
     ) {
+        let symbolToDecl = Dictionary(
+            bindings.declSymbols.map { ($0.value, $0.key) },
+            uniquingKeysWith: { first, _ in first }
+        )
         for file in ast.sortedFiles {
             if sourceManager.origin(of: file.fileID)?.isBundledStdlib == true {
                 continue
@@ -24,7 +29,14 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 diagnostics: diagnostics,
                 fullValueClassesEnabled: fullValueClassesEnabled,
-                jvmInlineAnnotationNames: jvmInlineAnnotationNames
+                jvmInlineAnnotationNames: jvmInlineAnnotationNames,
+                inheritedPropertyVisibility: { declID in
+                    self.inheritedPropertyVisibility(
+                        forPropertyDecl: declID,
+                        ast: ast, symbols: symbols, bindings: bindings,
+                        symbolToDecl: symbolToDecl
+                    )
+                }
             )
             for declID in file.topLevelDecls {
                 validator.validate(declID: declID, site: .file)
@@ -45,6 +57,99 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             sourceManager: sourceManager
         )
+    }
+
+    /// KUU-4119: resolves the visibility an `override` property without its own
+    /// visibility modifier inherits from the nearest overridden member.
+    /// Returns nil when no overridden property can be found — the accessor
+    /// check then treats the effective visibility as unknown rather than
+    /// wrongly assuming `public`.
+    private func inheritedPropertyVisibility(
+        forPropertyDecl declID: DeclID,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        bindings: BindingTable,
+        symbolToDecl: [SymbolID: DeclID]
+    ) -> Visibility? {
+        guard let symbolID = bindings.declSymbols[declID],
+              let symbol = symbols.symbol(symbolID),
+              symbol.kind == .property,
+              let ownerID = symbols.parentSymbol(for: symbolID),
+              let baseID = nearestOverriddenProperty(named: symbol.name, owner: ownerID, symbols: symbols)
+        else {
+            return nil
+        }
+        return effectivePropertyVisibility(
+            of: baseID,
+            visited: [symbolID],
+            ast: ast, symbols: symbols, symbolToDecl: symbolToDecl
+        )
+    }
+
+    /// The effective visibility of a property symbol: a source-declared
+    /// `override` without its own visibility modifier recurses into the member
+    /// it overrides; anything else carries its declared visibility directly.
+    private func effectivePropertyVisibility(
+        of symbolID: SymbolID,
+        visited: Set<SymbolID>,
+        ast: ASTModule,
+        symbols: SymbolTable,
+        symbolToDecl: [SymbolID: DeclID]
+    ) -> Visibility? {
+        guard let symbol = symbols.symbol(symbolID) else {
+            return nil
+        }
+        guard let declID = symbolToDecl[symbolID],
+              let decl = ast.arena.decl(declID),
+              case let .propertyDecl(propertyDecl) = decl
+        else {
+            // Imported or synthetic members already carry their effective
+            // visibility on the symbol record.
+            return symbol.visibility
+        }
+        guard propertyDecl.modifiers.contains(.override),
+              propertyDecl.modifiers.isDisjoint(with: [.private, .internal, .protected, .public])
+        else {
+            return Visibility(modifiers: propertyDecl.modifiers)
+        }
+        guard let ownerID = symbols.parentSymbol(for: symbolID),
+              let baseID = nearestOverriddenProperty(named: propertyDecl.name, owner: ownerID, symbols: symbols),
+              !visited.contains(baseID)
+        else {
+            return nil
+        }
+        return effectivePropertyVisibility(
+            of: baseID,
+            visited: visited.union([baseID]),
+            ast: ast, symbols: symbols, symbolToDecl: symbolToDecl
+        )
+    }
+
+    /// Walks `ownerID`'s supertypes in declaration order for the nearest
+    /// property member named `name`, mirroring the branch pruning of
+    /// `nearestOverriddenFunctionCandidates`: a supertype that declares the
+    /// member supplies it and shallower ancestors are never reached.
+    /// Properties cannot overload, so a non-private name match is always the
+    /// overridden member.
+    private func nearestOverriddenProperty(
+        named name: InternedString,
+        owner ownerID: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        var visited: Set<SymbolID> = [ownerID]
+        var stack = Array(symbols.directSupertypes(for: ownerID).reversed())
+        while let current = stack.popLast() {
+            guard visited.insert(current).inserted else { continue }
+            guard symbols.symbol(current) != nil else { continue }
+            if let match = symbols.declaredChildren(of: current).first(where: { childID in
+                guard let child = symbols.symbol(childID) else { return false }
+                return child.kind == .property && child.name == name && child.visibility != .private
+            }) {
+                return match
+            }
+            stack.append(contentsOf: symbols.directSupertypes(for: current).reversed())
+        }
+        return nil
     }
 
     private func validateSemanticDeclRules(

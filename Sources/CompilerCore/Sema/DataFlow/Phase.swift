@@ -798,7 +798,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         }
         withSubPhaseTiming("validateDeclarationPositions", timer: ctx.phaseTimer) {
             validateDeclarationPositions(
-                ast: ast, symbols: symbols, types: types,
+                ast: ast, symbols: symbols, bindings: bindings, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner,
                 sourceManager: ctx.sourceManager,
                 fullValueClassesEnabled: ctx.options.fullValueClassesEnabled
