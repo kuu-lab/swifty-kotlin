@@ -14,7 +14,8 @@ extension KotlinParser {
 
         while !stream.atEOF(), depth > 0 {
             let next = stream.peek()
-            if depth == 1, hasLeadingNewline(next), isLikelyTopLevelDeclarationStart(next) {
+            if depth == 1, hasLeadingNewline(next), isLikelyTopLevelDeclarationStart(next),
+               !continuesAngleBracketListAtNewlineAnnotation(next) {
                 break
             }
 
@@ -75,11 +76,22 @@ extension KotlinParser {
                     // In particular a bodiless generic class may be followed
                     // by a hard keyword such as `fun` or `val` starting the
                     // next declaration.
-                    return !projectionExpected
+                    //
+                    // Kotlin also permits one trailing comma (`fun <T,>`),
+                    // so the list may close while a projection is still
+                    // expected. A dangling variance modifier still requires
+                    // its parameter name: `<in>` / `<T, out>` stay rejected.
+                    let previous = stream.peek(lookahead - 1).kind
+                    let danglingVariance = previous == .keyword(.in)
+                        || previous == .softKeyword(.out)
+                    return sawProjection && !danglingVariance
                 }
             case .symbol(.comma):
                 if depth == 1 {
-                    if !sawProjection { return false }
+                    // A comma separates projections, so an opening comma
+                    // (`<,`) or a doubled comma (`<T,,>`) is not a valid
+                    // type-parameter list.
+                    if !sawProjection || projectionExpected { return false }
                     projectionExpected = true
                 }
             case .identifier, .backtickedIdentifier:
