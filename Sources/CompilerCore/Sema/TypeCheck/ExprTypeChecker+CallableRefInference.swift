@@ -233,8 +233,9 @@ extension ExprTypeChecker {
         // candidates that this could shadow.
         if let receiver,
            ast.arena.callableRefReceiverTypeRef(for: id) == nil,
-           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
-           locals[receiverName] == nil,
+           let receiverName = primitiveCallableRefReceiverName(
+               receiver, ctx: ctx, locals: locals
+           ),
            let result = inferPrimitiveOperatorCallableRefExpr(
                id, receiverName: receiverName, member: member,
                expectedType: expectedType, range: range, ctx: ctx
@@ -247,8 +248,9 @@ extension ExprTypeChecker {
         // unary-expression resolution retain their existing paths.
         if let receiver,
            ast.arena.callableRefReceiverTypeRef(for: id) == nil,
-           case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
-           locals[receiverName] == nil,
+           let receiverName = primitiveCallableRefReceiverName(
+               receiver, ctx: ctx, locals: locals
+           ),
            let result = inferPrimitiveUnaryOperatorCallableRefExpr(
                id, receiverName: receiverName, member: member,
                expectedType: expectedType, range: range, ctx: ctx
@@ -363,6 +365,16 @@ extension ExprTypeChecker {
                case .classType = sema.types.kind(of: inferredReceiverType)
             {
                 unboundClassType = inferredReceiverType
+                // A `kotlin.Int` qualifier path binds to the primitive's
+                // nominal anchor class, while member lookup on primitives is
+                // keyed on the dedicated `.primitive` TypeID like the bare
+                // `Int` nameRef path above -- normalize so
+                // `kotlin.Int::compareTo` resolves like `Int::compareTo`.
+                if symbol.fqName == [interner.intern("kotlin"), symbol.name],
+                   let primitive = driver.builtinTypeNamesCache.primitiveType(for: symbol.name)
+                {
+                    unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
+                }
             }
             receiverType = inferredReceiverType
         } else {
@@ -2639,6 +2651,63 @@ extension ExprTypeChecker {
             }
         }
         return false
+    }
+
+    /// Simple name a primitive-operator callable reference sees as its
+    /// receiver: `Int` for the bare `Int::plus` form and `Int` again for the
+    /// package-qualified `kotlin.Int::plus` form, which parses as a
+    /// `memberCall` qualifier chain rather than a `nameRef` (KUU-4137).
+    /// Returns `nil` for every other receiver shape so callers fall through
+    /// to ordinary member lookup -- a local or implicit-receiver member
+    /// named `kotlin`, a non-package `kotlin` visible in lexical scope, or a
+    /// deeper qualifier path keeps its bound/member meaning (`foo.Int::plus`
+    /// still resolves that class's own members, not the intrinsic
+    /// operators).
+    private func primitiveCallableRefReceiverName(
+        _ receiver: ExprID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> InternedString? {
+        let ast = ctx.ast
+        if case let .nameRef(name, _) = ast.arena.expr(receiver) {
+            return locals[name] == nil ? name : nil
+        }
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard case let .memberCall(owner, name, typeArguments, arguments, _) = ast.arena.expr(receiver),
+              arguments.isEmpty, typeArguments.isEmpty,
+              !ast.arena.isExplicitCall(receiver),
+              driver.builtinTypeNamesCache.primitiveType(for: name) != nil,
+              case let .nameRef(packageName, _) = ast.arena.expr(owner),
+              packageName == interner.intern("kotlin"),
+              locals[packageName] == nil
+        else {
+            return nil
+        }
+        // A member `kotlin` of the implicit receiver shadows the package.
+        if let implicitReceiver = ctx.implicitReceiverType,
+           driver.helpers.lookupMemberProperty(
+               named: packageName,
+               receiverType: sema.types.makeNonNullable(implicitReceiver),
+               sema: sema
+           ) != nil {
+            return nil
+        }
+        // `kotlin` must denote the package and `kotlin.<name>` the
+        // primitive's nominal anchor class, so a same-named `kotlin` value
+        // or a classifier path that resolves elsewhere can never reach the
+        // intrinsic operators.
+        guard sema.symbols.lookupAll(fqName: [packageName]).contains(where: {
+                  sema.symbols.symbol($0)?.kind == .package
+              }),
+              sema.symbols.lookupAll(fqName: [packageName, name]).contains(where: {
+                  guard let symbol = sema.symbols.symbol($0) else { return false }
+                  return symbol.kind == .class || symbol.kind == .interface || symbol.kind == .enumClass
+              })
+        else {
+            return nil
+        }
+        return name
     }
 
     /// REFL-PRIMOP: `Int::plus` / `Int::times` (and the other primitive
