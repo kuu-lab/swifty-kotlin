@@ -44,6 +44,18 @@ public class Locale {
     public val variant: String
         get() = getVariant()
 
+    /** JVM `get`-getter synthetic property view of `getDisplayName()`. */
+    public val displayName: String
+        get() = getDisplayName()
+
+    /** JVM `get`-getter synthetic property view of `getDisplayLanguage()`. */
+    public val displayLanguage: String
+        get() = getDisplayLanguage()
+
+    /** JVM `get`-getter synthetic property view of `getDisplayCountry()`. */
+    public val displayCountry: String
+        get() = getDisplayCountry()
+
     public override fun toString(): String = __localeToString()
 
     public companion object {

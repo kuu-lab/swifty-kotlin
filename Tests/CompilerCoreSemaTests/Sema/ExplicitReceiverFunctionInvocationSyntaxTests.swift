@@ -264,6 +264,79 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func bundledJavaIsGetterFunctionsAreAccepted() throws {
+        // KUU-4047: bundled `java.*` shims declare Java `is`-getters as
+        // ordinary Kotlin member functions. On the JVM those methods are
+        // reachable as both `o.isPresent()` and the synthetic property
+        // `o.isPresent`, so property-syntax reads keep binding the `isX()`
+        // call on bundled `java.*` receivers.
+        let diagnostics = try compileAndCollectDiagnostics("""
+        import java.util.Optional
+        import java.util.OptionalInt
+        import java.util.BitSet
+        import java.util.concurrent.LinkedBlockingQueue
+
+        fun main() {
+            val o = Optional.of(5)
+            println(o.isPresent)
+            println(o.isEmpty)
+            println(o.isPresent())
+            println(o.isEmpty())
+            val oi = OptionalInt.of(3)
+            println(oi.isPresent)
+            println(oi.isEmpty)
+            println(BitSet().isEmpty)
+            println(LinkedBlockingQueue<Int>().isEmpty)
+            val nullable: Optional<Int>? = Optional.of(1)
+            println(nullable?.isPresent)
+            Optional.of(1).run { println(isPresent) }
+        }
+        """)
+
+        let errors = diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors for bundled java is-getters: \(errors)")
+    }
+
+    @Test
+    func kotlinReceiverIsNamedFunctionsStillRequireInvocation() throws {
+        // The `is`-getter convention is JVM interop only: Kotlin receivers —
+        // including `java.util` typealiases that resolve to `kotlin.*`
+        // classes — keep the invocation-syntax requirement.
+        let diagnostics = try compileAndCollectDiagnostics("""
+        class C { fun isReady(): Boolean = true }
+
+        fun main() {
+            val l = listOf(1, 2)
+            println(l.isEmpty)
+            println("x".isEmpty)
+            println(C().isReady)
+            val al = java.util.ArrayList<Int>()
+            println(al.isEmpty)
+        }
+        """)
+
+        let invocationErrors = diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0309" }
+        #expect(
+            invocationErrors.count == 4,
+            "Expected SEMA-0309 for each non-java-nominal receiver, got: \(diagnostics.diagnostics.map(\.code))"
+        )
+    }
+
+    @Test
+    func userJavaPackageClassIsGetterIsRejected() throws {
+        // A user class declared in a `java.*` package is still a Kotlin
+        // class — only bundled `java.*` shims get the convention.
+        let diagnostics = try compileAndCollectDiagnostics("""
+        package java.util
+        class Foo { fun isFake(): Boolean = true }
+        fun main() { println(Foo().isFake) }
+        """)
+
+        let found = diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0309" }
+        #expect(found, "Expected SEMA-0309 for user java.* class, got: \(diagnostics.diagnostics.map(\.code))")
+    }
+
+    @Test
     func declaredPropertiesAreAccepted() throws {
         let diagnostics = try compileAndCollectDiagnostics("""
         class C { val p: Int = 3 }

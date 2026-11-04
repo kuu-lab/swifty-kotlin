@@ -63,6 +63,41 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         public const val DST_OFFSET: Int = 16
         public const val FIELD_COUNT: Int = 17
 
+        public const val JANUARY: Int = 0
+        public const val FEBRUARY: Int = 1
+        public const val MARCH: Int = 2
+        public const val APRIL: Int = 3
+        public const val MAY: Int = 4
+        public const val JUNE: Int = 5
+        public const val JULY: Int = 6
+        public const val AUGUST: Int = 7
+        public const val SEPTEMBER: Int = 8
+        public const val OCTOBER: Int = 9
+        public const val NOVEMBER: Int = 10
+        public const val DECEMBER: Int = 11
+        public const val UNDECIMBER: Int = 12
+
+        public const val SUNDAY: Int = 1
+        public const val MONDAY: Int = 2
+        public const val TUESDAY: Int = 3
+        public const val WEDNESDAY: Int = 4
+        public const val THURSDAY: Int = 5
+        public const val FRIDAY: Int = 6
+        public const val SATURDAY: Int = 7
+
+        public const val AM: Int = 0
+        public const val PM: Int = 1
+
+        public const val ALL_STYLES: Int = 0
+        public const val SHORT: Int = 1
+        public const val LONG: Int = 2
+        public const val NARROW_FORMAT: Int = 4
+        public const val NARROW_STANDALONE: Int = 32772
+        public const val SHORT_FORMAT: Int = 65537
+        public const val LONG_FORMAT: Int = 65538
+        public const val SHORT_STANDALONE: Int = 32769
+        public const val LONG_STANDALONE: Int = 32770
+
         public fun getInstance(): Calendar = Calendar(calendarCreate(TimeZone.getDefault().rawHandle))
 
         public fun getInstance(timeZone: TimeZone): Calendar = Calendar(calendarCreate(timeZone.rawHandle))

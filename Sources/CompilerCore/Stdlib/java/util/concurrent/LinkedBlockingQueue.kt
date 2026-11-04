@@ -13,7 +13,7 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 // which re-checks its condition under the guard, so spurious wakeups are
 // harmless. Iterators and toArray are snapshots taken under the guard —
 // weakly consistent like the JVM ones, never ConcurrentModificationException.
-public class LinkedBlockingQueue<E> : BlockingQueue<E> {
+public open class LinkedBlockingQueue<E> : BlockingQueue<E> {
     private val guard = SynchronizedObject()
     private val storage: ArrayDeque<E>
     private val capacity: Int
