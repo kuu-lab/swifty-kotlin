@@ -1,0 +1,100 @@
+symbol fq=__local_0.x[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_1.a[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_2.b[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_3.c[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_4.d[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_5.ub[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_6.us[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=__local_7.e[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_8.f[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=__local_9.g[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_10.h[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_11.i[kind=local;type=ULong;origin=fixture] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_12.j[kind=local;type=UByte;origin=fixture] kind=local vis=private flags=_ type=UByte
+symbol fq=__local_13.k[kind=local;type=UShort;origin=fixture] kind=local vis=private flags=_ type=UShort
+symbol fq=golden.sema.bignumMask.$0.it[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.bignumMask.$0.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.bignumMask[kind=fun;params=ULong,Int;ret=ULong;names=[x,it];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[ULong,Int] ret=ULong
+symbol fq=golden.sema.explicitCall.$1.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.explicitCall[kind=fun;params=ULong;ret=ULong;names=[x];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[ULong] ret=ULong
+symbol fq=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file funsigned_bitwise_literal_expected_type package=golden.sema
+  decl golden.sema.bignumMask[kind=fun;params=ULong,Int;ret=ULong;names=[x,it];origin=fixture] fun bignumMask sym=golden.sema.bignumMask[kind=fun;params=ULong,Int;ret=ULong;names=[x,it];origin=fixture]
+  decl golden.sema.explicitCall[kind=fun;params=ULong;ret=ULong;names=[x];origin=fixture] fun explicitCall sym=golden.sema.explicitCall[kind=fun;params=ULong;ret=ULong;names=[x];origin=fixture]
+  decl golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture] fun main sym=golden.sema.main[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@10:45 name(x) type=ULong ref=golden.sema.bignumMask.$0.x[kind=vparam;origin=fixture]
+expr e@10:52 int(56) type=Int
+expr e@10:58 name(it) type=Int ref=golden.sema.bignumMask.$0.it[kind=vparam;origin=fixture]
+expr e@10:63 int(8) type=Int
+expr e@10:58#1 binary(multiply) lhs=e@10:58 rhs=e@10:63 type=Int
+expr e@10:52#1 binary(subtract) lhs=e@10:52 rhs=e@10:58#1 type=Int
+expr e@10:45#1 memberCall recv=e@10:45 callee=shr args=[_:e@10:52#1] type=ULong
+expr e@10:72 uint(255) type=ULong
+expr e@10:45#2 memberCall recv=e@10:45#1 callee=and args=[_:e@10:72] type=ULong call=kotlin.and[kind=fun;recv=ULong;params=ULong;ret=ULong;names=[other]]
+expr e@11:37 name(x) type=ULong ref=golden.sema.explicitCall.$1.x[kind=vparam;origin=fixture]
+expr e@11:43 uint(255) type=ULong
+expr e@11:37#1 memberCall recv=e@11:37 callee=and args=[_:e@11:43] type=ULong call=kotlin.and[kind=fun;recv=ULong;params=ULong;ret=ULong;names=[other]]
+expr e@14:20 ulong(4660) type=ULong
+expr e@14:5 localDecl x mutable=0 type=ULong init=e@14:20 type=Unit ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@15:13 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@15:19 uint(255) type=ULong
+expr e@15:13#1 memberCall recv=e@15:13 callee=and args=[_:e@15:19] type=ULong call=kotlin.and[kind=fun;recv=ULong;params=ULong;ret=ULong;names=[other]]
+expr e@15:5 localDecl a mutable=0 type=_ init=e@15:13#1 type=Unit ref=__local_1.a[kind=local;type=ULong;origin=fixture]
+expr e@16:13 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@16:18 uint(15) type=ULong
+expr e@16:13#1 memberCall recv=e@16:13 callee=or args=[_:e@16:18] type=ULong call=kotlin.or[kind=fun;recv=ULong;params=ULong;ret=ULong;names=[other]]
+expr e@16:5 localDecl b mutable=0 type=_ init=e@16:13#1 type=Unit ref=__local_2.b[kind=local;type=ULong;origin=fixture]
+expr e@17:13 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@17:19 uint(10) type=ULong
+expr e@17:13#1 memberCall recv=e@17:13 callee=xor args=[_:e@17:19] type=ULong call=kotlin.xor[kind=fun;recv=ULong;params=ULong;ret=ULong;names=[other]]
+expr e@17:5 localDecl c mutable=0 type=_ init=e@17:13#1 type=Unit ref=__local_3.c[kind=local;type=ULong;origin=fixture]
+expr e@18:13 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@18:19 uint(255) type=ULong
+expr e@18:13#1 memberCall recv=e@18:13 callee=and args=[_:e@18:19] type=ULong call=kotlin.and[kind=fun;recv=ULong;params=ULong;ret=ULong;names=[other]]
+expr e@18:5 localDecl d mutable=0 type=_ init=e@18:13#1 type=Unit ref=__local_4.d[kind=local;type=ULong;origin=fixture]
+expr e@19:21 uint(171) type=UByte
+expr e@19:5 localDecl ub mutable=0 type=UByte init=e@19:21 type=Unit ref=__local_5.ub[kind=local;type=UByte;origin=fixture]
+expr e@20:22 uint(65280) type=UShort
+expr e@20:5 localDecl us mutable=0 type=UShort init=e@20:22 type=Unit ref=__local_6.us[kind=local;type=UShort;origin=fixture]
+expr e@21:13 name(ub) type=UByte ref=__local_5.ub[kind=local;type=UByte;origin=fixture]
+expr e@21:20 uint(15) type=UByte
+expr e@21:13#1 memberCall recv=e@21:13 callee=and args=[_:e@21:20] type=UByte call=kotlin.and[kind=fun;recv=UByte;params=UByte;ret=UByte;names=[other]]
+expr e@21:5 localDecl e mutable=0 type=_ init=e@21:13#1 type=Unit ref=__local_7.e[kind=local;type=UByte;origin=fixture]
+expr e@22:13 name(us) type=UShort ref=__local_6.us[kind=local;type=UShort;origin=fixture]
+expr e@22:19 uint(3840) type=UShort
+expr e@22:13#1 memberCall recv=e@22:13 callee=or args=[_:e@22:19] type=UShort call=kotlin.or[kind=fun;recv=UShort;params=UShort;ret=UShort;names=[other]]
+expr e@22:5 localDecl f mutable=0 type=_ init=e@22:13#1 type=Unit ref=__local_8.f[kind=local;type=UShort;origin=fixture]
+expr e@23:13 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@23:19 int(3) type=Int
+expr e@23:13#1 memberCall recv=e@23:13 callee=shl args=[_:e@23:19] type=ULong
+expr e@23:5 localDecl g mutable=0 type=_ init=e@23:13#1 type=Unit ref=__local_9.g[kind=local;type=ULong;origin=fixture]
+expr e@24:13 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@24:19 int(3) type=Int
+expr e@24:13#1 memberCall recv=e@24:13 callee=shr args=[_:e@24:19] type=ULong
+expr e@24:5 localDecl h mutable=0 type=_ init=e@24:13#1 type=Unit ref=__local_10.h[kind=local;type=ULong;origin=fixture]
+expr e@25:20 uint(255) type=ULong
+expr e@25:5 localDecl i mutable=0 type=ULong init=e@25:20 type=Unit ref=__local_11.i[kind=local;type=ULong;origin=fixture]
+expr e@26:20 uint(255) type=UByte
+expr e@26:5 localDecl j mutable=0 type=UByte init=e@26:20 type=Unit ref=__local_12.j[kind=local;type=UByte;origin=fixture]
+expr e@27:21 uint(255) type=UShort
+expr e@27:5 localDecl k mutable=0 type=UShort init=e@27:21 type=Unit ref=__local_13.k[kind=local;type=UShort;origin=fixture]
+expr e@28:15 name(a) type=ULong ref=__local_1.a[kind=local;type=ULong;origin=fixture]
+expr e@28:18 name(b) type=ULong ref=__local_2.b[kind=local;type=ULong;origin=fixture]
+expr e@28:21 name(c) type=ULong ref=__local_3.c[kind=local;type=ULong;origin=fixture]
+expr e@28:24 name(d) type=ULong ref=__local_4.d[kind=local;type=ULong;origin=fixture]
+expr e@28:27 name(e) type=UByte ref=__local_7.e[kind=local;type=UByte;origin=fixture]
+expr e@28:30 name(f) type=UShort ref=__local_8.f[kind=local;type=UShort;origin=fixture]
+expr e@28:33 name(g) type=ULong ref=__local_9.g[kind=local;type=ULong;origin=fixture]
+expr e@28:36 name(h) type=ULong ref=__local_10.h[kind=local;type=ULong;origin=fixture]
+expr e@28:39 name(i) type=ULong ref=__local_11.i[kind=local;type=ULong;origin=fixture]
+expr e@28:42 name(j) type=UByte ref=__local_12.j[kind=local;type=UByte;origin=fixture]
+expr e@28:45 name(k) type=UShort ref=__local_13.k[kind=local;type=UShort;origin=fixture]
+expr e@28:13 stringTemplate[expr(e@28:15),lit( ),expr(e@28:18),lit( ),expr(e@28:21),lit( ),expr(e@28:24),lit( ),expr(e@28:27),lit( ),expr(e@28:30),lit( ),expr(e@28:33),lit( ),expr(e@28:36),lit( ),expr(e@28:39),lit( ),expr(e@28:42),lit( ),expr(e@28:45)] type=String
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
+expr e@29:24 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@29:27 int(6) type=Int
+expr e@29:13 call callee=e@29:13#1 args=[_:e@29:24,_:e@29:27] type=ULong call=golden.sema.bignumMask[kind=fun;params=ULong,Int;ret=ULong;names=[x,it];origin=fixture]
+expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@30:26 name(x) type=ULong ref=__local_0.x[kind=local;type=ULong;origin=fixture]
+expr e@30:13 call callee=e@30:13#1 args=[_:e@30:26] type=ULong call=golden.sema.explicitCall[kind=fun;params=ULong;ret=ULong;names=[x];origin=fixture]
+expr e@30:5 call callee=e@30:5#1 args=[_:e@30:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
