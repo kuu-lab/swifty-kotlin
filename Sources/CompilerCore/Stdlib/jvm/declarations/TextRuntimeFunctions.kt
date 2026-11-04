@@ -1,4 +1,7 @@
 package kotlin.text
+
+import kotlin.contracts.contract
+
 fun String.isEmpty(): Boolean = null!!
 fun String.isNotEmpty(): Boolean = null!!
 fun String.isBlank(): Boolean = null!!
@@ -51,8 +54,14 @@ fun String?.toBoolean(): Boolean = null!!
 fun String.toBooleanStrict(): Boolean = null!!
 fun String.toBooleanStrictOrNull(): Boolean? = null!!
 fun String?.orEmpty(): String = null!!
-fun String?.isNullOrEmpty(): Boolean = null!!
-fun String?.isNullOrBlank(): Boolean = null!!
+fun String?.isNullOrEmpty(): Boolean {
+    contract { returns(false) implies (this@isNullOrEmpty != null) }
+    null!!
+}
+fun String?.isNullOrBlank(): Boolean {
+    contract { returns(false) implies (this@isNullOrBlank != null) }
+    null!!
+}
 fun String.trim(): String = null!!
 fun String.trim(vararg chars: Char): String = null!!
 fun String.trimStart(): String = null!!

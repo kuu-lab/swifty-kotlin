@@ -1,5 +1,6 @@
 package kotlin.text
 
+import kotlin.contracts.contract
 import kotlin.jvm.internal.__jvmParseByte
 import kotlin.jvm.internal.__jvmParseShort
 import kotlin.jvm.internal.__jvmParseInt
@@ -43,8 +44,14 @@ public fun CharSequence.isBlank(): Boolean {
 }
 public fun CharSequence.isNotBlank(): Boolean = !this.isBlank()
 public fun String?.orEmpty(): String = if (this == null) "" else this
-public fun String?.isNullOrEmpty(): Boolean = this == null || this.length == 0
-public fun String?.isNullOrBlank(): Boolean = this == null || this.isBlank()
+public fun String?.isNullOrEmpty(): Boolean {
+    contract { returns(false) implies (this@isNullOrEmpty != null) }
+    return this == null || this.length == 0
+}
+public fun String?.isNullOrBlank(): Boolean {
+    contract { returns(false) implies (this@isNullOrBlank != null) }
+    return this == null || this.isBlank()
+}
 public fun CharSequence.first(): Char {
     if (this.length == 0) throw NoSuchElementException("Char sequence is empty.")
     return this[0]
