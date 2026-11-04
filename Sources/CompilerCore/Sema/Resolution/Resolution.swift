@@ -2037,30 +2037,26 @@ extension OverloadResolver {
               case let .functionType(paramFunction) = typeSystem.kind(of: paramType),
               // Non-suspend arguments satisfy suspend parameters
               // (`() -> T <: suspend () -> T`), not the reverse.
-              paramFunction.isSuspend || !argFunction.isSuspend,
-              argFunction.params.count == paramFunction.params.count
+              paramFunction.isSuspend || !argFunction.isSuspend
         else {
             return false
         }
 
-        if let argReceiver = argFunction.receiver,
-           let paramReceiver = paramFunction.receiver
-        {
-            // Function receivers are contravariant — flip direction.
-            constraints.append(contentsOf: decomposeSubtypeConstraint(
-                subtype: paramReceiver,
-                supertype: argReceiver,
-                typeVarBySymbol: typeVarBySymbol,
-                typeSystem: typeSystem,
-                blameRange: blameRange
-            ))
-        } else if argFunction.receiver != nil || paramFunction.receiver != nil {
+        // Context receivers and a receiver fold into the leading parameter
+        // list (`context(C) (A) -> B`, `C.(A) -> B`, `(C, A) -> B` share one
+        // shape), matching decomposeSubtypeConstraintImpl's effective
+        // parameter pairing (KUU-4098).
+        let argInputs = argFunction.contextReceivers
+            + (argFunction.receiver.map { [$0] } ?? []) + argFunction.params
+        let paramInputs = paramFunction.contextReceivers
+            + (paramFunction.receiver.map { [$0] } ?? []) + paramFunction.params
+        guard argInputs.count == paramInputs.count else {
             return false
         }
 
         // Function type parameters are contravariant — flip direction
         // (matching decomposeSubtypeConstraintImpl in Resolution+TypeConstraints.swift).
-        for (argParameter, paramParameter) in zip(argFunction.params, paramFunction.params) {
+        for (argParameter, paramParameter) in zip(argInputs, paramInputs) {
             constraints.append(contentsOf: decomposeSubtypeConstraint(
                 subtype: paramParameter,
                 supertype: argParameter,

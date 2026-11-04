@@ -955,37 +955,29 @@ extension OverloadResolver {
                || containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
-            // A function type's receiver is interchangeable with a leading
-            // parameter: `ProducerScope<Int>.() -> Unit` and
-            // `(ProducerScope<Int>) -> Unit` are the same Kotlin type. Align
-            // each side's effective parameter list — receiver first when
-            // present — and decompose pairwise, contravariantly.
+            // A function type's context receivers and receiver are
+            // interchangeable with leading parameters: `context(C) (A) -> B`,
+            // `C.(A) -> B`, and `(C, A) -> B` share the same Kotlin type shape
+            // (mirroring isSubtype's folded effective-parameter list in
+            // Subtyping.swift, KUU-4098). Align each side's effective
+            // parameter list — context receivers first, then the receiver,
+            // then value parameters — and decompose pairwise, contravariantly.
             let effectiveParams: [TypeID] = if case let .functionType(subFunc) = subtypeKind {
-                (subFunc.receiver.map { [$0] } ?? []) + subFunc.params
+                subFunc.contextReceivers + (subFunc.receiver.map { [$0] } ?? []) + subFunc.params
             } else {
                 []
             }
-            let superEffectiveParams =
-                (superFunc.receiver.map { [$0] } ?? []) + superFunc.params
+            let superEffectiveParams = superFunc.contextReceivers
+                + (superFunc.receiver.map { [$0] } ?? []) + superFunc.params
             if case let .functionType(subFunc) = subtypeKind,
                effectiveParams.count == superEffectiveParams.count,
-               subFunc.contextReceivers.count == superFunc.contextReceivers.count,
                // A non-suspend function is usable wherever a suspend one is
                // expected (`() -> T <: suspend () -> T`), but not vice versa.
                superFunc.isSuspend || !subFunc.isSuspend,
+               !(superFunc.isCallableReference && !subFunc.isCallableReference),
                typeSystem.nullabilitySubtype(subFunc.nullability, superFunc.nullability)
             {
                 var result: [VariableConstraint] = []
-                for (subContextReceiver, superContextReceiver) in zip(subFunc.contextReceivers, superFunc.contextReceivers) {
-                    result.append(contentsOf: decomposeSubtypeConstraintImpl(
-                        subtype: superContextReceiver,
-                        supertype: subContextReceiver,
-                        typeVarBySymbol: typeVarBySymbol,
-                        typeSystem: typeSystem,
-                        blameRange: blameRange,
-                        depth: depth + 1
-                    ))
-                }
                 // Function types are contravariant in the receiver and
                 // parameter types: `ProducerScope<Int>.() -> Unit <:
                 // ProducerScope<E>.() -> Unit` binds E to Int.
@@ -1160,7 +1152,8 @@ extension OverloadResolver {
         guard case let .classType(subClass) = typeSystem.kind(of: subtype) else {
             return nil
         }
-        let arity = (function.receiver.map { [$0] } ?? []).count + function.params.count
+        let arity = function.contextReceivers.count
+            + (function.receiver.map { [$0] } ?? []).count + function.params.count
         guard let lifted = typeSystem.inheritedFunctionInterfaceClassType(
             of: subClass,
             arity: arity,
