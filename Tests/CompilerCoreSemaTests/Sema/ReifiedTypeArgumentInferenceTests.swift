@@ -188,6 +188,111 @@ struct ReifiedTypeArgumentInferenceTests {
     }
 
     @Test
+    func nativeArrayOfRejectsDeclaredSignedIntegerJoins() throws {
+        // KUU-4160: distinct *declared* signed integer types share only
+        // `Number & Comparable<*>` on the JVM, so reifying their join is an
+        // intersection even though a literal in the same slot would adopt.
+        let source = """
+        package kotlin
+
+        fun <T> arrayOf(vararg elements: T): Array<T> = null!!
+        fun declaredJoins() {
+            val b: Byte = 1
+            val s: Short = 2
+            val i: Int = 3
+            val l: Long = 4L
+            arrayOf(i, 2L)
+            arrayOf(b, s)
+            arrayOf(s, i)
+            arrayOf(i, l)
+            arrayOf(b, 200)
+            arrayOf(i, 5000000000)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 6, "Unexpected diagnostics: \(errors)")
+            #expect(
+                errors.allSatisfy { $0.code == "KSWIFTK-SEMA-REIFIED" },
+                "Expected reified arrayOf diagnostics: \(errors)"
+            )
+        }
+    }
+
+    @Test
+    func nativeArrayOfAcceptsLiteralAndUnsignedIntegerJoins() throws {
+        // KUU-4160: a literal bound adopts a declared member of its literal
+        // type set, and any unsigned member unifies the join on a single
+        // `Comparable<*>` bound — kotlinc accepts all of these.
+        let source = """
+        package kotlin
+
+        fun <T> arrayOf(vararg elements: T): Array<T> = null!!
+        fun adoptableJoins() {
+            val b: Byte = 1
+            val i: Int = 3
+            val l: Long = 4L
+            val ub: UByte = 1u
+            val u: UInt = 3u
+            arrayOf(1, 2L)
+            arrayOf(1, i)
+            arrayOf(i, 1)
+            arrayOf(1, l)
+            arrayOf(b, 100)
+            arrayOf(1, ub)
+            arrayOf(ub, i)
+            arrayOf(1, u)
+            arrayOf(i, 2u)
+            arrayOf(1u, i)
+            arrayOf(1, 2uL)
+            arrayOf(1u, 2uL)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+        }
+    }
+
+    @Test
+    func mixedSignednessLiteralJoinFailsInference() throws {
+        // KUU-4160: `1` + `2u` share no literal-type member, so kotlinc
+        // reports a plain type mismatch instead of an intersection — the
+        // solve must fail for reified and non-reified parameters alike.
+        let source = """
+        package kotlin
+
+        fun <T> arrayOf(vararg elements: T): Array<T> = null!!
+        fun <T> pick(first: T, second: T): T = first
+        fun mismatched() {
+            arrayOf(1, 2u)
+            arrayOf(2u, 1)
+            pick(1, 2u)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count >= 3, "Unexpected diagnostics: \(errors)")
+            #expect(
+                errors.allSatisfy { $0.code != "KSWIFTK-SEMA-REIFIED" },
+                "Expected inference failures, not reified diagnostics: \(errors)"
+            )
+        }
+    }
+
+    @Test
     func nonReifiedInferenceStillInfersMixedBuiltinJoin() throws {
         let source = """
         package builtinjoin

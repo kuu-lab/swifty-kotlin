@@ -1920,7 +1920,20 @@ extension OverloadResolver {
                 blameRange: call.range,
                 rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
-            constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
+            // An unsuffixed integer literal keeps its JVM literal-type
+            // provenance through constraint recording: the join can then tell
+            // literal-adoptable bounds (`1` in `arrayOf(1, 2L)`) from declared
+            // ones (`i` in `arrayOf(i, 2L)`) that stay rigid on the JVM.
+            let integerLiteralProvenance: IntegerLiteralProvenance? =
+                arg.signedIntegerLiteral.map { .signed($0) }
+                    ?? arg.unsignedIntegerLiteral.map { .unsigned($0) }
+            constraints.append(contentsOf: decomposed.map {
+                var constraint = $0.withOrigin(.callArgument)
+                if let integerLiteralProvenance {
+                    constraint = constraint.withIntegerLiteral(integerLiteralProvenance)
+                }
+                return constraint
+            })
         }
         if !processedAll {
             return !(constraints.isEmpty && !call.args.isEmpty)
