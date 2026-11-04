@@ -64,6 +64,10 @@ public extension RuntimeABISpec {
         // slot `readerReadChars`, Kotlin subclasses land their override in
         // the same slot.
         abi.th("__kk_reader_read_range", "readerRaw bufferRaw offsetRaw lengthRaw outThrown"),
+        // `java.io.Reader.read(CharArray)` (KUU-4044) — concrete overload
+        // delegating to `read(cbuf, 0, cbuf.length)` through the same
+        // char-source contract; forwards to `__kk_reader_read_range`.
+        abi.th("__kk_reader_read", "readerRaw bufferRaw outThrown"),
         abi.th("__kk_output_stream_buffered_sized", "streamRaw bufferSize"),
         abi.th("__kk_io_stream_to_string", "stream outThrown"),
         abi.th("__kk_sequence_input_stream_available_throwing", "stream outThrown"),

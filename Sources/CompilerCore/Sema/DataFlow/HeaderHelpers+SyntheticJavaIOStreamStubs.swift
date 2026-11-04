@@ -434,6 +434,20 @@ extension DataFlowSemaPhase {
             where symbols.externalLinkName(for: candidate) == "__kk_reader_read_range" {
                 symbols.insertFlags([.abstractType, .openType], for: candidate)
             }
+            // `Reader.read(CharArray)` (KUU-4044) — JVM models it as a
+            // concrete method that delegates to `read(cbuf, 0, cbuf.length)`.
+            // The `__kk_reader_read` bridge forwards to
+            // `__kk_reader_read_range`, so the virtual 3-arg implementation
+            // (box fast path or Kotlin-reader vtable source) still supplies
+            // the chars. Registered as a concrete member so calls on any
+            // `Reader`/`BufferedReader`/`StringReader` receiver resolve the
+            // inherited overload directly.
+            readerMembers.fn(
+                "read",
+                "__kk_reader_read",
+                [("buffer", charArrayType)],
+                ret: intType
+            )
         }
 
         bufferedReaderMembers.fn("read", "__kk_buffered_reader_read", ret: intType)

@@ -703,6 +703,19 @@ public func __kk_reader_read_range(
         return -1
     }
     if length == 0 { return 0 }
+    // Kotlin-source readers (StringReader, user `Reader` subclasses) dispatch
+    // their own 3-arg implementation straight into the caller's buffer —
+    // staging through this transient charSource would buffer up to 4096
+    // units per refill and silently drop everything past `length` on the
+    // next call (KUU-4044).
+    if let kotlinSource = source as? RuntimeKotlinReaderCharSource {
+        return kotlinSource.readRangeInto(
+            bufferRaw: bufferRaw,
+            offset: offset,
+            length: length,
+            outThrown: outThrown
+        )
+    }
     var copied = 0
     while copied < length {
         let value = source.read()
@@ -717,6 +730,25 @@ public func __kk_reader_read_range(
         return -1
     }
     return copied
+}
+
+/// `java.io.Reader.read(CharArray)` (KUU-4044) — the JVM concrete overload
+/// that delegates to `read(cbuf, 0, cbuf.length)`. Forwarding to
+/// `__kk_reader_read_range` keeps the virtual char-source contract (box fast
+/// path or Kotlin-reader vtable source) as the single implementation, so a
+/// subclass's 3-arg override still supplies the chars.
+@_cdecl("__kk_reader_read")
+public func __kk_reader_read(
+    _ readerRaw: Int,
+    _ bufferRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let array = runtimeArrayBox(from: bufferRaw) else {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected CharArray buffer")
+        return -1
+    }
+    return __kk_reader_read_range(readerRaw, bufferRaw, 0, array.count, outThrown)
 }
 
 //
