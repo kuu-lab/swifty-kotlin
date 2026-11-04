@@ -41,7 +41,10 @@ struct ContextFunctionTypeTests {
         #expect(function.params == [types.intType])
         #expect(function.returnType == types.stringType)
         #expect(types.isSubtype(converted, target))
-        #expect(!types.isSubtype(source, target))
+        // Context receivers fold into the leading parameter list, so the
+        // unconverted source already shares the target's `(String, Int)` input
+        // shape (kotlinc-verified mutual assignability; KUU-4061, KUU-4098).
+        #expect(types.isSubtype(source, target))
     }
 
     @Test func contextualFunctionConversionRejectsDifferentInputArity() {
@@ -60,6 +63,99 @@ struct ContextFunctionTypeTests {
         let source = """
         fun withContext(f: context(String) () -> String) = f("OK")
         fun invalid(f: (Int) -> String) = withContext(f)
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError)
+        }
+    }
+
+    // KUU-4098: constraint decomposition must fold context receivers into the
+    // leading parameter list the same way `isSubtype` does. Type-variable
+    // candidates route through decomposition rather than a plain subtype
+    // check, so a `context(C) () -> A` argument mismatched a `C.() -> A`
+    // (or `(C) -> A`) parameter before the fold was taught here.
+    @Test func contextFunctionArgumentMatchesExtensionReceiverParameterThroughTypeVariables() throws {
+        let source = """
+        interface Raise<in E>
+        fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: Raise<OtherError>.() -> Unit
+        ) {
+        }
+        fun <Error, OtherError> Raise<Error>.forward(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func contextFunctionArgumentMatchesLeadingParameterThroughTypeVariables() throws {
+        let source = """
+        interface Raise<in E>
+        fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: (Raise<OtherError>) -> Unit
+        ) {
+        }
+        fun <Error, OtherError> Raise<Error>.forward(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func extensionFunctionArgumentMatchesContextReceiverParameterThroughTypeVariables() throws {
+        let source = """
+        interface Raise<in E>
+        fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+        }
+        fun <Error, OtherError> Raise<Error>.forward(
+            transform: (OtherError) -> Error,
+            block: Raise<OtherError>.() -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func rejectsContextFunctionValueWithIncompatibleArity() throws {
+        let source = """
+        interface Raise<in E>
+        fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: () -> Unit
+        ) {
+        }
+        fun <Error, OtherError> Raise<Error>.forward(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+            this.withError(transform, block)
+        }
         """
         try withTemporaryFiles(contents: [source]) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)

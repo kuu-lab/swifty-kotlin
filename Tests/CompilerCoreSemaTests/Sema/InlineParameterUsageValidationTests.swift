@@ -260,6 +260,148 @@ struct InlineParameterUsageValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0449", in: ctx)
     }
 
+    // KUU-4098: a `context(C) (P...) -> R` parameter forwards to an `inline`
+    // callee however the target spells the same input list — `C.(P...) -> R`,
+    // `(C, P...) -> R`, and `context(C) (P...) -> R` share one effective
+    // function shape (arrow-core's Raise DSL relies on this).
+
+    @Test
+    func contextReceiverParameterForwardedToExtensionFunctionParameterIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        interface Raise<in E>
+        inline fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: Raise<OtherError>.() -> Unit
+        ) {
+        }
+        inline fun <Error, OtherError> Raise<Error>.useCtx(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func contextReceiverParameterForwardedToPlainFunctionParameterIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        interface Raise<in E>
+        inline fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: (Raise<OtherError>) -> Unit
+        ) {
+        }
+        inline fun <Error, OtherError> Raise<Error>.useCtx(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func extensionFunctionParameterForwardedToContextReceiverParameterIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        interface Raise<in E>
+        inline fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+        }
+        inline fun <Error, OtherError> Raise<Error>.useExt(
+            transform: (OtherError) -> Error,
+            block: Raise<OtherError>.() -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func contextReceiverAndValueParametersForwardedToExtensionFunctionParameterIsAccepted() throws {
+        // `context(C) (A) -> R` folds to `C.(A) -> R` / `(C, A) -> R`:
+        // the context receiver leads, the value parameter follows.
+        let ctx = makeContextFromSource("""
+        interface Raise<in E>
+        inline fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: Raise<OtherError>.(Int) -> Unit
+        ) {
+        }
+        inline fun <Error, OtherError> Raise<Error>.useCtx(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) (Int) -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func contextReceiverParameterForwardedThroughImportAliasIsAccepted() throws {
+        let ctx = makeContextFromSources([
+            """
+            package arrow.core.raise
+            interface Raise<in E>
+            inline fun <Error, OtherError> Raise<Error>.withError(
+                transform: (OtherError) -> Error,
+                block: Raise<OtherError>.() -> Unit
+            ) {
+            }
+            """,
+            """
+            package arrow.core.raise.context
+            import arrow.core.raise.Raise
+            import arrow.core.raise.withError as withErrorExt
+            context(raise: Raise<Error>)
+            inline fun <Error, OtherError> withError(
+                transform: (OtherError) -> Error,
+                block: context(Raise<OtherError>) () -> Unit
+            ) {
+                raise.withErrorExt(transform, block)
+            }
+            """,
+        ], allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func contextReceiverParameterForwardedToNonInlineCalleeIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        interface Raise<in E>
+        fun <Error, OtherError> Raise<Error>.withError(
+            transform: (OtherError) -> Error,
+            block: Raise<OtherError>.() -> Unit
+        ) {
+        }
+        inline fun <Error, OtherError> Raise<Error>.useCtx(
+            transform: (OtherError) -> Error,
+            block: context(Raise<OtherError>) () -> Unit
+        ) {
+            this.withError(transform, block)
+        }
+        """, allowDefaultStdlibLibrary: false)
+
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0449", in: ctx)
+    }
+
     private func assertHasDiagnostic(_ code: String, in ctx: CompilationContext) {
         let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
         let descriptions = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }
