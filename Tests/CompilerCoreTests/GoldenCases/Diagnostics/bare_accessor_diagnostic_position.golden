@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "bare_accessor_diagnostic_position.kt",
+      "range": {
+        "start": { "line": 5, "character": 4 },
+        "end": { "line": 6, "character": 11 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0478",
+      "source": "kswiftk",
+      "message": "cannot weaken access privilege protected for 'accessor' in 'B'.",
+      "codeActions": []
+    },
+    {
+      "file": "bare_accessor_diagnostic_position.kt",
+      "range": {
+        "start": { "line": 6, "character": 8 },
+        "end": { "line": 6, "character": 11 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0478",
+      "source": "kswiftk",
+      "message": "cannot weaken access privilege protected for 'accessor' in 'B'.",
+      "codeActions": []
+    }
+  ]
+}
