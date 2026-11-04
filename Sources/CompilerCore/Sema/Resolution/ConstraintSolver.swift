@@ -42,25 +42,44 @@ enum VariableConstraintOrigin: Equatable {
     case callArgument
 }
 
+/// JVM integer-literal-type provenance for a lower bound contributed by an
+/// unsuffixed integer literal (or constant expression). This type system
+/// erases the literal's type to its inferred primitive before constraints are
+/// recorded, so the constraint carries the literal back to the join: the JVM
+/// treats `1` as ILT{Byte,Short,Int,Long} — able to adopt any member — while a
+/// declared `Int` is rigid. Signedness distinguishes `1` from `1u`: the two
+/// literal families share no member, so an unsigned literal can never adopt a
+/// signed integer type (and vice versa).
+enum IntegerLiteralProvenance: Equatable {
+    case signed(Int64)
+    case unsigned(UInt64)
+}
+
 struct VariableConstraint {
     let kind: ConstraintKind
     let left: ConstraintOperand
     let right: ConstraintOperand
     let blameRange: SourceRange?
     let origin: VariableConstraintOrigin
+    /// Set when the `.type` operand came from an unsuffixed integer literal
+    /// call argument; lets the lower-bound join distinguish literal-adoptable
+    /// bounds from declared-type bounds the JVM keeps rigid.
+    let integerLiteral: IntegerLiteralProvenance?
 
     init(
         kind: ConstraintKind,
         left: ConstraintOperand,
         right: ConstraintOperand,
         blameRange: SourceRange? = nil,
-        origin: VariableConstraintOrigin = .general
+        origin: VariableConstraintOrigin = .general,
+        integerLiteral: IntegerLiteralProvenance? = nil
     ) {
         self.kind = kind
         self.left = left
         self.right = right
         self.blameRange = blameRange
         self.origin = origin
+        self.integerLiteral = integerLiteral
     }
 
     func withOrigin(_ origin: VariableConstraintOrigin) -> VariableConstraint {
@@ -69,7 +88,19 @@ struct VariableConstraint {
             left: left,
             right: right,
             blameRange: blameRange,
-            origin: origin
+            origin: origin,
+            integerLiteral: integerLiteral
+        )
+    }
+
+    func withIntegerLiteral(_ integerLiteral: IntegerLiteralProvenance) -> VariableConstraint {
+        VariableConstraint(
+            kind: kind,
+            left: left,
+            right: right,
+            blameRange: blameRange,
+            origin: origin,
+            integerLiteral: integerLiteral
         )
     }
 }
@@ -111,6 +142,16 @@ final class ConstraintSolver {
         }
     }
 
+    /// Whether a lower-bound type was contributed by an integer-literal call
+    /// argument (`.literal`) or by a rigid source type (`.declared`). A bound
+    /// the program pins declaratively stays declared even when a literal arg
+    /// infers to the same TypeID — `arrayOf(1, i)` joins a declared `Int`
+    /// with a literal `1`, and the `Int` bound is rigid because `i` holds it.
+    private enum LowerBoundMark: Equatable {
+        case declared
+        case literal(IntegerLiteralProvenance)
+    }
+
     private func solveInner(
         vars: [TypeVarID],
         constraints: [VariableConstraint],
@@ -118,6 +159,7 @@ final class ConstraintSolver {
     ) -> Solution {
         var lowerBounds: [TypeVarID: [TypeID]] = [:]
         var upperBounds: [TypeVarID: [TypeID]] = [:]
+        var lowerBoundMarks: [TypeVarID: [TypeID: LowerBoundMark]] = [:]
         var varRelations: [(left: TypeVarID, right: TypeVarID, blame: SourceRange?)] = []
         // A variable equated to a concrete type (only ever produced for an
         // explicit type argument, e.g. `mapOf<Any?, Number?>(...)`) is
@@ -172,6 +214,14 @@ final class ConstraintSolver {
                         to: &lowerBounds[variable, default: []],
                         typeSystem: typeSystem
                     )
+                    let mark: LowerBoundMark = constraint.integerLiteral
+                        .map(LowerBoundMark.literal) ?? .declared
+                    // A declared contribution stays authoritative: deduplication
+                    // can drop the literal constraint while the rigid one keeps
+                    // the same TypeID in the bound pool.
+                    if lowerBoundMarks[variable]?[boundType] != .declared {
+                        lowerBoundMarks[variable, default: [:]][boundType] = mark
+                    }
 
                 case let (.variable(leftVar), .variable(rightVar)):
                     varRelations.append((leftVar, rightVar, relation.blame))
@@ -192,12 +242,24 @@ final class ConstraintSolver {
                     }
 
                     let leftLower = lowerBounds[leftVar, default: []]
-                    for bound in leftLower where appendNonRedundantLowerBound(
-                        bound,
-                        to: &lowerBounds[rightVar, default: []],
-                        typeSystem: typeSystem
-                    ) {
-                        changed = true
+                    for bound in leftLower {
+                        let mark = lowerBoundMarks[leftVar]?[bound] ?? .declared
+                        if appendNonRedundantLowerBound(
+                            bound,
+                            to: &lowerBounds[rightVar, default: []],
+                            typeSystem: typeSystem
+                        ) {
+                            if lowerBoundMarks[rightVar]?[bound] != .declared {
+                                lowerBoundMarks[rightVar, default: [:]][bound] = mark
+                            }
+                            changed = true
+                        } else if mark == .declared,
+                                  lowerBoundMarks[rightVar]?[bound] != .declared {
+                            // Declared stays authoritative even when the bound
+                            // already arrived marked literal from another path.
+                            lowerBoundMarks[rightVar, default: [:]][bound] = .declared
+                            changed = true
+                        }
                     }
                 }
                 if !changed {
@@ -220,13 +282,26 @@ final class ConstraintSolver {
                 continue
             }
 
+            var integerLiterals: [TypeID: IntegerLiteralProvenance] = [:]
+            for (bound, mark) in lowerBoundMarks[variable, default: [:]] {
+                if case let .literal(provenance) = mark {
+                    integerLiterals[bound] = provenance
+                }
+            }
+
             let candidate: TypeID
             if lowers.isEmpty {
                 candidate = typeSystem.glb(uppers)
             } else if uppers.isEmpty {
-                candidate = typeSystem.inferenceLubRetainingSharedSupertypes(lowers)
+                candidate = typeSystem.inferenceLubRetainingSharedSupertypes(
+                    lowers,
+                    integerLiterals: integerLiterals
+                )
             } else {
-                let lowerCandidate = typeSystem.inferenceLubRetainingSharedSupertypes(lowers)
+                let lowerCandidate = typeSystem.inferenceLubRetainingSharedSupertypes(
+                    lowers,
+                    integerLiterals: integerLiterals
+                )
                 let upperCandidate = typeSystem.glb(uppers)
                 guard typeSystem.isSubtype(lowerCandidate, upperCandidate) else {
                     let blameRange = firstRelevantBlameRange(for: variable, relations: constraints)

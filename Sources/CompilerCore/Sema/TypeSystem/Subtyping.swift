@@ -598,11 +598,23 @@ extension TypeSystem {
     /// intersection, declared shared type-parameter upper bounds, and the
     /// platform-neutral `Comparable<*>` bound for mixed comparable primitives.
     /// Ordinary expression LUBs keep their existing nominal approximation.
-    func inferenceLubRetainingSharedSupertypes(_ types: [TypeID]) -> TypeID {
+    /// `integerLiterals` carries the integer-literal provenance the constraint
+    /// recorder preserved per lower-bound TypeID, so an all-integer join can
+    /// distinguish literal-adoptable bounds from declared ones (KUU-4160).
+    func inferenceLubRetainingSharedSupertypes(
+        _ types: [TypeID],
+        integerLiterals: [TypeID: IntegerLiteralProvenance] = [:]
+    ) -> TypeID {
         let filtered = types.filter {
             kind(of: $0) != .error
                 && kind(of: $0) != .nothing(.nonNull)
                 && kind(of: $0) != .nothing(.nullable)
+        }
+        if filtered.count > 1,
+           filtered.allSatisfy(isIntegerFamilyJoinInput),
+           Set(filtered.map { makeNonNullable($0) }).count > 1,
+           let verdict = integerOnlyJoinResult(filtered, integerLiterals: integerLiterals) {
+            return verdict
         }
         let fallback = lub(types, retainingCommonIntersection: true)
         guard fallback == anyType || fallback == nullableAnyType else {
@@ -689,12 +701,13 @@ extension TypeSystem {
     /// An integer-family primitive. Pure integer joins are exempted from the
     /// intersection marker: unsuffixed integer literals adopt the widest
     /// member (`1` fits `Long` inside `arrayOf(1, 2L)`) and kotlinc's
-    /// common-supertype computation unifies several declared integer pairs as
-    /// well (`UByte` + `Int` → `Int`, `UInt` + `ULong` → `ULong`). This type
-    /// system erases integer literal types to concrete primitives before
-    /// constraint solving, so the joins kotlinc still rejects — declared
-    /// `Int` + `Long`, `Byte` + `Short`, `Short` + `Int`, `Int` + `UInt` —
-    /// cannot be told apart from the literal-driven joins it accepts.
+    /// common-supertype computation also unifies any mix that involves an
+    /// unsigned type (`UByte` + `Int`, `Int` + `ULong`), because the unsigned
+    /// types share only the single `Comparable<*>` bound. This type system
+    /// erases integer literal types to concrete primitives before constraint
+    /// solving, so `integerLiterals` carries the provenance needed to tell
+    /// literal-driven joins apart from the declared signed mixes kotlinc
+    /// rejects (`Int` + `Long`, `Byte` + `Short`, `Short` + `Int`).
     private func isIntegerFamilyJoinInput(_ type: TypeID) -> Bool {
         guard case let .primitive(primitive, _) = kind(of: makeNonNullable(type)) else {
             return false
@@ -705,6 +718,147 @@ extension TypeSystem {
         case .boolean, .char, .float, .double:
             return false
         }
+    }
+
+    /// Resolves an all-integer-family inference join the way kotlinc 2.4 does:
+    ///
+    /// - Two or more distinct *declared signed* integer types share only
+    ///   `Number & Comparable<*>` — returning that intersection keeps a
+    ///   reified argument forbidden (`arrayOf(i, 2L)`, `arrayOf(b, s)`).
+    /// - A literal lower bound adopts the declared integer type when that
+    ///   type is a member of its literal-type set (`1` adopts `Long`), and a
+    ///   literal that cannot adopt (`i` + `5000000000`, or `i` + `2L` where
+    ///   `2L` is already a declared `Long`) falls back to the same
+    ///   signed-vs-signed intersection.
+    /// - Any *declared unsigned* member unifies the join into a single bound
+    ///   (`Comparable<*>`), so unsigned mixes — including literals folded
+    ///   through their unsigned defaults — stay accepted.
+    /// - With no declared member at all, the literal defaults decide: mixed
+    ///   signedness (`1` + `2u`) has no common member and fails the solve,
+    ///   while a single signedness keeps the nominal join.
+    ///
+    /// Returns `nil` when the join stays accepted and the ordinary fallback
+    /// result applies.
+    private func integerOnlyJoinResult(
+        _ filtered: [TypeID],
+        integerLiterals: [TypeID: IntegerLiteralProvenance]
+    ) -> TypeID? {
+        var declaredNonNull: Set<TypeID> = []
+        var declaredHasUnsigned = false
+        var literalInputs: [(bound: TypeID, provenance: IntegerLiteralProvenance)] = []
+        for type in filtered {
+            if let provenance = integerLiterals[type] {
+                literalInputs.append((type, provenance))
+            } else {
+                let nonNull = makeNonNullable(type)
+                declaredNonNull.insert(nonNull)
+                if case let .primitive(primitive, _) = kind(of: nonNull),
+                   isUnsignedIntegerPrimitive(primitive) {
+                    declaredHasUnsigned = true
+                }
+            }
+        }
+        guard !declaredHasUnsigned else { return nil }
+
+        if declaredNonNull.count > 1 {
+            return integerJoinIntersection(for: filtered)
+        }
+        if let declared = declaredNonNull.first,
+           case let .primitive(declaredPrimitive, _) = kind(of: declared) {
+            for (bound, provenance) in literalInputs {
+                if integerLiteralPossiblePrimitives(provenance).contains(declaredPrimitive) {
+                    continue
+                }
+                guard case let .primitive(approx, _) = kind(of: makeNonNullable(bound)),
+                      approx != declaredPrimitive
+                else { continue }
+                if !isUnsignedIntegerPrimitive(approx) {
+                    return integerJoinIntersection(for: filtered)
+                }
+            }
+            return nil
+        }
+
+        // No declared input: only literal-driven joins reach here.
+        var hasSignedLiteral = false
+        var hasUnsignedLiteral = false
+        for (_, provenance) in literalInputs {
+            switch provenance {
+            case .signed: hasSignedLiteral = true
+            case .unsigned: hasUnsignedLiteral = true
+            }
+        }
+        if hasSignedLiteral, hasUnsignedLiteral {
+            // `1` + `2u` has no common literal-type member; kotlinc reports a
+            // plain type mismatch, so the solve must fail rather than join an
+            // intersection a non-reified parameter would still accept.
+            return errorType
+        }
+        return nil
+    }
+
+    /// The integer types an unsuffixed literal may adopt under the JVM's
+    /// integer-literal-type rules, narrowed by its value range.
+    private func integerLiteralPossiblePrimitives(
+        _ provenance: IntegerLiteralProvenance
+    ) -> [PrimitiveType] {
+        switch provenance {
+        case let .signed(value):
+            if (-128 ... 127).contains(value) {
+                return [.byte, .short, .int, .long]
+            }
+            if (-32768 ... 32767).contains(value) {
+                return [.short, .int, .long]
+            }
+            if (Int64(Int32.min) ... Int64(Int32.max)).contains(value) {
+                return [.int, .long]
+            }
+            return [.long]
+        case let .unsigned(value):
+            if value <= UInt64(UInt8.max) {
+                return [.ubyte, .ushort, .uint, .ulong]
+            }
+            if value <= UInt64(UInt16.max) {
+                return [.ushort, .uint, .ulong]
+            }
+            if value <= UInt64(UInt32.max) {
+                return [.uint, .ulong]
+            }
+            return [.ulong]
+        }
+    }
+
+    private func isUnsignedIntegerPrimitive(_ primitive: PrimitiveType) -> Bool {
+        switch primitive {
+        case .ubyte, .ushort, .uint, .ulong:
+            return true
+        case .boolean, .byte, .char, .double, .float, .int, .long, .short:
+            return false
+        }
+    }
+
+    /// The `Number & Comparable<*>` intersection kotlinc infers for a join of
+    /// distinct declared signed integer types (KT-72035).
+    private func integerJoinIntersection(for filtered: [TypeID]) -> TypeID? {
+        let resultNullability: Nullability = filtered.contains {
+            nullability(of: $0) == .nullable
+        } ? .nullable : .nonNull
+        guard let numberSym = numberClassSymbol,
+              let comparableSymbol = comparableInterfaceSymbol
+        else {
+            return nil
+        }
+        let number = make(.classType(ClassType(
+            classSymbol: numberSym,
+            args: [],
+            nullability: resultNullability
+        )))
+        let comparable = make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: resultNullability
+        )))
+        return make(.intersection([number, comparable]))
     }
 
     private func inferenceLubRetainingCommonTypeParameterUpperBounds(_ types: [TypeID]) -> TypeID? {
