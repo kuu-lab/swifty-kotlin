@@ -543,15 +543,39 @@ func anyToStringBridgeSymbolForImplementation(
         // itself as the receiver, and a `toString()` that inspects its
         // payload recursed back through this same Any override
         // (`IC(s=IC(s=…`).
-        receiverForCall = unboxedValueClassReceiverExpr(
-            value: receiverExpr,
-            receiverType: receiverType,
-            types: sema.types,
-            symbols: sema.symbols,
-            interner: interner,
-            arena: arena,
-            into: &body
-        )
+        //
+        // The nominal box must be unboxed *here*, not skipped on the
+        // receiver's declared `V` type: this parameter is typed `V` but the
+        // Any dispatch ABI hands us the box itself, and re-boxing it would
+        // nest (`VC(VC(…))`, KUU-4086).
+        if let vcSymbol = nullableUnderlyingValueClassSymbol(
+            of: rawReceiverKind, types: sema.types, symbols: sema.symbols
+        ) ?? referenceBackedValueClassSymbol(
+            of: rawReceiverKind, types: sema.types, symbols: sema.symbols
+        ) {
+            let unboxedReceiver = arena.appendTemporary(type: receiverType)
+            emitValueClassUnboxCall(
+                value: receiverExpr,
+                classSymbol: vcSymbol,
+                result: unboxedReceiver,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                into: &body
+            )
+            receiverForCall = unboxedReceiver
+        } else {
+            receiverForCall = unboxedValueClassReceiverExpr(
+                value: receiverExpr,
+                receiverType: receiverType,
+                types: sema.types,
+                symbols: sema.symbols,
+                interner: interner,
+                arena: arena,
+                into: &body
+            )
+        }
         // A String-backed value class arrives as the tagged `StringBox`:
         // `unboxedValueClassReceiverExpr` deliberately skips `.stringStruct`
         // (a flat `V` repr needs no unbox), so the bridge still converts the

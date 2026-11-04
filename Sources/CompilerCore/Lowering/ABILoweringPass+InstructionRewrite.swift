@@ -84,7 +84,7 @@ extension ABILoweringPass {
                       of: types.kind(of: targetType), types: types, symbols: symbols
                   ),
                   let argType = intrinsicArgType(argument, arena: module.arena, types: types),
-                  valueClassUnboxSourceIsBoxed(types.kind(of: argType))
+                  valueClassUnboxSourceIsBoxed(types.kind(of: argType), targetClassSymbol: vcSymbol)
             else { return nil }
             let unboxed = module.arena.appendTemporary(type: targetType)
             emitValueClassUnboxCall(
@@ -524,7 +524,7 @@ extension ABILoweringPass {
         let rawResultKind = types.kind(of: resultType)
         if let vcSymbol = nullableUnderlyingValueClassSymbol(
             of: rawResultKind, types: types, symbols: symbols
-        ), valueClassUnboxSourceIsBoxed(rawReturnKind) {
+        ), valueClassUnboxSourceIsBoxed(rawReturnKind, targetClassSymbol: vcSymbol) {
             return (vcSymbol, false, returnType)
         }
         if let vcSymbol = referenceBackedValueClassSymbol(of: rawResultKind, types: types, symbols: symbols) {

@@ -775,12 +775,12 @@ public func kk_tag_value_class_box(_ boxedRaw: Int, _ classID: Int) -> Int {
 /// class's `equals`/`hashCode` forward to the underlying value.
 @_cdecl("kk_value_class_box")
 public func kk_value_class_box(_ payload: Int, _ classID: Int) -> Int {
-    // Idempotent: a slot already carrying this value class's box — e.g. an
-    // `Any`-erased value re-widened to `V?` — is returned unchanged rather
-    // than nested inside another box.
-    if runtimeObjectTypeID(rawValue: payload) == Int64(classID) {
-        return payload
-    }
+    // Always wrap: the payload of a `V` slot can itself be a nominal box of
+    // the same class (`VC(VC(5))` stores the boxed inner instance as `v`),
+    // so an already-tagged payload is a legitimate value, not an idempotent
+    // re-boxing of an erased slot. `V?`/`Any` sources never reach here — the
+    // compiler only emits this call for non-null `V` arguments, whose
+    // representation is the raw payload (KUU-4086).
     let box = RuntimeObjectBox(length: 3, classID: Int64(classID))
     box[2] = payload
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())

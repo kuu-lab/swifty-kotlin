@@ -643,6 +643,27 @@ extension ControlFlowLowerer {
                 }
                 if let unboxCallee {
                     instructions.append(.call(callee: unboxCallee, arguments: [notNullResult], result: result, canThrow: false))
+                } else if let resultType,
+                          let operandType = arena.exprType(operand),
+                          let valueClass = nullableUnderlyingValueClassSymbol(
+                              of: sema.types.kind(of: resultType), types: sema.types, symbols: sema.symbols
+                          ) ?? referenceBackedValueClassSymbol(
+                              of: sema.types.kind(of: resultType), types: sema.types, symbols: sema.symbols
+                          ),
+                          valueClassUnboxSourceIsBoxed(
+                              sema.types.kind(of: operandType), targetClassSymbol: valueClass
+                          )
+                {
+                    // `v!!` narrows a nullable-underlying / reference-backed
+                    // value class's `V?`/erased slot (a nominal box) to the raw
+                    // `V` payload — the same `V?` -> `V` boundary the
+                    // non-throwing path lowers in OperatorLoweringPass
+                    // (KUU-3115/KUU-4086).
+                    emitValueClassUnboxCall(
+                        value: notNullResult, classSymbol: valueClass, result: result,
+                        types: sema.types, symbols: sema.symbols, interner: interner,
+                        arena: arena, into: &instructions
+                    )
                 } else {
                     instructions.append(.copy(from: notNullResult, to: result))
                 }

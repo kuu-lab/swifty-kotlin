@@ -713,33 +713,20 @@ final class ValueClassUnboxingPass: LoweringPass {
                    )
                 {
                     if let receiverType = arena.exprType(arguments[0]),
-                       let classSymbol = nullableUnderlyingValueClassSymbol(
+                       nullableUnderlyingValueClassSymbol(
                            of: types.kind(of: receiverType), types: types, symbols: symbols
-                       )
+                       ) != nil
                     {
                         // A non-null nullable-underlying value class already
-                        // carries its payload directly. Keep that payload's
-                        // underlying type visible to ABI lowering: a plain
-                        // copy from the value-class-typed receiver would look
-                        // like V -> Any and re-box the payload as V.
-                        let classID = module.isRawValueClassPayload(arguments[0])
-                            ? 0
-                            : RuntimeTypeCheckToken.stableNominalTypeID(
-                                symbol: classSymbol, symbols: symbols, interner: interner
-                            )
-                        let classIDExpr = arena.appendExpr(
-                            .intLiteral(classID), type: types.intType
-                        )
-                        result.append(.constValue(
-                            result: classIDExpr, value: .intLiteral(classID)
-                        ))
-                        resultLocations.append(location)
-                        result.append(.call(
-                            callee: interner.intern("kk_value_class_unbox"),
-                            arguments: [arguments[0], classIDExpr],
-                            result: callResult,
-                            canThrow: false
-                        ))
+                        // carries its payload directly — and that payload may
+                        // legitimately be a nominal box of the same class
+                        // (`VC(VC(5))` stores a boxed inner `VC` as `v`), so
+                        // `kk_value_class_unbox` must NOT run here: it would
+                        // strip the inner wrapper (KUU-4086). Mark the result
+                        // as the raw payload so ABI lowering keeps the copy
+                        // verbatim instead of re-boxing the V -> Any edge.
+                        module.markRawValueClassPayload(callResult)
+                        result.append(.copy(from: arguments[0], to: callResult))
                     } else if let (unboxCallee, payloadClassSymbol) = valueClassPayloadUnboxCallee(
                         for: arguments[0], arena: arena, types: types, symbols: symbols,
                         valueClassSymbols: valueClassSymbols,
