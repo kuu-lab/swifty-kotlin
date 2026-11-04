@@ -526,6 +526,18 @@ private func runtimeFlowApplyStreamOps(
     return runtimeFlowSortEvents(currentEvents)
 }
 
+/// Collapses an `IntBox`/`BoolBox` back to its raw scalar. Use this ONLY for
+/// operator arguments and predicate decisions (`take`/`retry` counts,
+/// `debounce`/`sample` intervals, `filter`/`takeWhile`/`dropWhile`/`retryWhen`
+/// decisions) — sites that consume the value as a scalar and cannot observe a
+/// tagged box.
+///
+/// Element payloads must NOT pass through here: an element that arrived
+/// Any-erased (a `send`/`emit` boxed per the KUU-4123 ABI) keeps its box so
+/// erased consumers (`toList`, collect lambdas) observe the declared type —
+/// a `BoolBox` prints `true`/`false` rather than degrading to `1`/`0`
+/// (KUU-4133). Typed receivers (`collect { it: Boolean -> }`,
+/// `first(): Boolean`) unbox at their declared-type boundary regardless.
 private func runtimeFlowMaybeUnbox(_ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
         return value
@@ -641,7 +653,9 @@ private func runtimeFlowApplyOpsInFrame(
             if thrown != 0 {
                 return .thrown(thrown)
             }
-            current = runtimeFlowMaybeUnbox(transformed)
+            // Element payload: keep the transform result's Any-erased box
+            // (KUU-4133 — see runtimeFlowMaybeUnbox).
+            current = transformed
             kk_gc_shadow_set(0, current)
 
         case .filter:
@@ -708,7 +722,8 @@ private func runtimeFlowApplyOpsInFrame(
             let transformCtx = RuntimeFlowCollectContext()
             var transformedValues: [RuntimeGCRootedValue] = []
             transformCtx.emitHandler = { v in
-                transformedValues.append(RuntimeGCRootedValue(runtimeFlowMaybeUnbox(v)))
+                // Element payload: preserve Any-erased boxes (KUU-4133).
+                transformedValues.append(RuntimeGCRootedValue(v))
                 return v
             }
             runtimeFlowPushCollectContext(transformCtx)
@@ -848,9 +863,10 @@ private func runtimeFlowRunSourceStage(
     }
 
     let processValue: (Int) -> Int = { rawValue in
-        let valueForOperations = runtimeFlowMaybeUnbox(rawValue)
+        // Element payload: pass the value (and any Any-erased box) through to
+        // ops and collectors — only operator arguments get unboxed (KUU-4133).
         let result = runtimeFlowApplyOpsLazy(
-            valueForOperations,
+            rawValue,
             ops: ops,
             takeCounters: &takeCounters,
             lastValues: &lastValues
@@ -899,7 +915,7 @@ private func runtimeFlowRunSourceStage(
                     break
                 }
                 events.append(RuntimeFlowEvent(
-                    value: runtimeFlowMaybeUnbox(value),
+                    value: value,
                     timestamp: DispatchTime.now().uptimeNanoseconds
                 ))
             }
@@ -919,7 +935,7 @@ private func runtimeFlowRunSourceStage(
                     if status == kChannelResultCancelled { receiveFailure = thrown }
                     break
                 }
-                if processValue(runtimeFlowMaybeUnbox(value)) == runtimeFlowStopSentinel {
+                if processValue(value) == runtimeFlowStopSentinel {
                     stopped = true
                     break
                 }
@@ -1268,7 +1284,9 @@ private func runtimeFlowCollectChannelProducer(
                         )
                         return failure == 0 ? .more : .failed(failure)
                     }
-                    let delivery = emit(runtimeFlowMaybeUnbox(value))
+                    // Element payload: keep the Any-erased box so erased
+                    // collectors observe the declared type (KUU-4133).
+                    let delivery = emit(value)
                     switch delivery {
                     case .more: continue
                     case .stopped, .failed:
@@ -1594,7 +1612,7 @@ private func runtimeFlowCollectStreaming(
                     break
                 }
                 events.append(RuntimeFlowEvent(
-                    value: runtimeFlowMaybeUnbox(value),
+                    value: value,
                     timestamp: DispatchTime.now().uptimeNanoseconds
                 ))
             }
@@ -1629,7 +1647,7 @@ private func runtimeFlowCollectStreaming(
                 break
             }
             switch runtimeFlowApplyOpsLazy(
-                runtimeFlowMaybeUnbox(value),
+                value,
                 ops: ops,
                 takeCounters: &takeCounters,
                 lastValues: &lastValues
@@ -1696,7 +1714,9 @@ private func runtimeFlowCollectStreaming(
     var preLastValues: [Int: RuntimeGCRootedValue] = [:]
 
     context.emitHandler = { emittedValue in
-        let rawValue = runtimeFlowMaybeUnbox(emittedValue)
+        // Element payload: ops and downstream consumers see the Any-erased
+        // box; only operator arguments are unboxed (KUU-4133).
+        let rawValue = emittedValue
         if let transformIdx = transformIndex {
             let transformFnPtr = ops[transformIdx].argument
 
@@ -1729,7 +1749,8 @@ private func runtimeFlowCollectStreaming(
             var transformedValues: [RuntimeGCRootedValue] = []
             let transformCtx = RuntimeFlowCollectContext()
             transformCtx.emitHandler = { v in
-                transformedValues.append(RuntimeGCRootedValue(runtimeFlowMaybeUnbox(v)))
+                // Element payload: preserve Any-erased boxes (KUU-4133).
+                transformedValues.append(RuntimeGCRootedValue(v))
                 return v
             }
             runtimeFlowPushCollectContext(transformCtx)
@@ -2122,10 +2143,11 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrow
             return runtimeFlowStopSentinel
         }
         if let context, !context.cancelled {
-            let unboxed = runtimeFlowMaybeUnbox(value)
+            // Element payload: emitted values keep their Any-erased box so
+            // erased consumers observe the declared type (KUU-4133).
             let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
-            context.emittedValues.append(unboxed)
-            context.emittedEvents.append(RuntimeFlowEvent(value: unboxed, timestamp: timestamp))
+            context.emittedValues.append(value)
+            context.emittedEvents.append(RuntimeFlowEvent(value: value, timestamp: timestamp))
             if let emitHandler = context.emitHandler {
                 let result = emitHandler(value)
                 outThrown?.pointee = context.rootedFailure()
@@ -2153,9 +2175,9 @@ public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentEmitContext()
         if let context, !context.cancelled {
-            let unboxed = runtimeFlowMaybeUnbox(value)
-            context.emittedValues.append(unboxed)
-            context.emittedEvents.append(RuntimeFlowEvent(value: unboxed, timestamp: timestamp))
+            // Element payload: preserve Any-erased boxes (KUU-4133).
+            context.emittedValues.append(value)
+            context.emittedEvents.append(RuntimeFlowEvent(value: value, timestamp: timestamp))
             if let emitHandler = context.emitHandler {
                 return emitHandler(value)
             }
@@ -2357,7 +2379,9 @@ public func __kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: 
     var accumulator = initial
     for value in result.values {
         var thrown = 0
-        accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))
+        // Element payload: the accumulator keeps any Any-erased box so
+        // erased-R folds observe the declared type (KUU-4133).
+        accumulator = operation(0, accumulator, value, &thrown)
         if thrown != 0 {
             runtimeFlowFireCompletionHandlers(flow.opChain, failure: thrown)
             return accumulator
@@ -2390,7 +2414,8 @@ public func __kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -
     var thrownOnReduce: Int?
     for value in values.dropFirst() {
         var thrown = 0
-        accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))
+        // Element payload: preserve Any-erased boxes (KUU-4133).
+        accumulator = operation(0, accumulator, value, &thrown)
         if thrown != 0 {
             thrownOnReduce = thrown
             break
@@ -2737,8 +2762,9 @@ private func runtimeFlowLatestInnerCollectContext(
     var lastValues: [Int: RuntimeGCRootedValue] = [:]
     context.emitHandler = { [weak context] emittedValue in
         guard let context else { return runtimeFlowStopSentinel }
+        // Element payload: preserve Any-erased boxes (KUU-4133).
         let result = runtimeFlowApplyOpsLazy(
-            runtimeFlowMaybeUnbox(emittedValue),
+            emittedValue,
             ops: flow.opChain,
             takeCounters: &takeCounters,
             lastValues: &lastValues
@@ -2772,7 +2798,8 @@ private func runtimeFlowLatestFlatMapInnerReceiver(
 ) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
     let state = Unmanaged<RuntimeFlowLatestFlatMapState>.fromOpaque(pointer).takeUnretainedValue()
-    state.append(runtimeFlowMaybeUnbox(value))
+    // Element payload: preserve Any-erased boxes (KUU-4133).
+    state.append(value)
     outThrown?.pointee = 0
     return value
 }
@@ -2833,7 +2860,8 @@ private func runtimeFlowEvaluateZip(
         if thrown != 0 {
             return RuntimeFlowExecutionResult(values: all, failure: thrown)
         }
-        all.append(runtimeFlowMaybeUnbox(combined))
+        // Element payload: preserve Any-erased boxes (KUU-4133).
+        all.append(combined)
     }
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
 }
@@ -2871,7 +2899,8 @@ private func runtimeFlowEvaluateCombine(
         if thrown != 0 {
             return RuntimeFlowExecutionResult(values: all, failure: thrown)
         }
-        all.append(runtimeFlowMaybeUnbox(combined))
+        // Element payload: preserve Any-erased boxes (KUU-4133).
+        all.append(combined)
     }
     return runtimeFlowRunNormalStage(RuntimeFlowExecutionResult(values: all, failure: nil), ops: ops)
 }
