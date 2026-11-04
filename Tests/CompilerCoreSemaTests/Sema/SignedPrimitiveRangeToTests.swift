@@ -70,6 +70,56 @@ struct SignedPrimitiveRangeToTests {
         #expect(ctx.diagnostics.hasError, "Expected `\(expr)` to be rejected")
     }
 
+    // KUU-4141: the expected type must not steer range-call overload
+    // resolution. `1..10` always resolves to `Int.rangeTo(Int): IntRange`;
+    // kotlinc then reports the range-type mismatch at the enclosing context
+    // instead of retargeting the literal argument into `Int.rangeTo(Long)`.
+    @Test
+    func expectedTypeDoesNotSteerRangeOverloadSelection() throws {
+        let ctx = makeContextFromSource("""
+        val r1: LongRange = 1..10
+        val r2: LongRange = 1.rangeTo(10)
+        val r3: LongRange = 1 until 10
+        val r4: LongRange = 1..<10
+        val r5: ClosedRange<Long> = 1..10
+        val r6: CharRange = 1..10
+        val r7: UIntRange = 1..10
+        val p1: LongProgression = 1 downTo 10
+        val p2: LongProgression = (1..10) step 2
+        val r8: IntRange = 1L..10L
+        fun f(): LongRange = 1..10
+        fun take(r: LongRange) {}
+        fun arg() { take(1..10) }
+        val a: Int = 1
+        val b: Int = 10
+        val r9: LongRange = a..b
+        """)
+
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.count == 13, "\(errors)")
+        #expect(errors.allSatisfy {
+            ["KSWIFTK-SEMA-0468", "KSWIFTK-SEMA-0469", "KSWIFTK-SEMA-0473"].contains($0.code)
+        }, "\(errors)")
+    }
+
+    // KUU-4141: operand-driven overload selection keeps accepting the shapes
+    // where a range overload genuinely produces the expected type.
+    @Test
+    func expectedTypeKeepsMatchingRangeOverloads() throws {
+        let ctx = makeContextFromSource("""
+        val ok1: IntRange = 1..10
+        val ok2: LongRange = 1..10L
+        val ok3: LongRange = 1L..10
+        val ok4: LongRange = 1L..10L
+        val ok5: ClosedRange<Int> = 1..10
+        val ok6: LongProgression = (1L..10L) step 2L
+        """)
+
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func rangeOperatorAcceptsMatchingOperandPairs() throws {
         let ctx = makeContextFromSource("""

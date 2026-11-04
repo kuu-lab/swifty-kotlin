@@ -1284,7 +1284,11 @@ extension OverloadResolver {
                 )
                 constraints.append(contentsOf: returnDecomposed)
                 inputConstraints.append(contentsOf: returnDecomposed)
-            } else {
+            } else if containsTypeVariable(
+                signature.returnType,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: ctx.types
+            ) {
                 let returnDecomposed = decomposeSubtypeConstraint(
                     subtype: signature.returnType,
                     supertype: expectedType,
@@ -1295,6 +1299,13 @@ extension OverloadResolver {
                 constraints.append(contentsOf: returnDecomposed)
                 inputConstraints.append(contentsOf: returnDecomposed)
             }
+            // kotlinc only feeds the expected type into a call's inference
+            // variables; when the return type is already fully concrete the
+            // enclosing context performs the subtype check after the call
+            // resolves. Without this gate `val r: LongRange = 1..10` vetoes
+            // `Int.rangeTo(Int)` and silently retargets the literal `10`
+            // into `Int.rangeTo(Long)` instead of reporting the IntRange
+            // initializer mismatch (KUU-4141).
         }
 
         let constraintsBeforeElvisRhsHint = constraints
