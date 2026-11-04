@@ -51,7 +51,7 @@ extension LambdaLowerer {
             arguments: arguments, result: result, canThrow: true
         ))
         switch sema.types.kind(of: functionType.returnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable): body.append(.returnUnit)
+        case .unit, .nothing(.nonNull): body.append(.returnUnit)
         default: body.append(.returnValue(result))
         }
         body.append(.endBlock)

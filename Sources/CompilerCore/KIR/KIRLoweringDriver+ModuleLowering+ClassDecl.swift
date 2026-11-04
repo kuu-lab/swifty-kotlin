@@ -1083,9 +1083,9 @@ extension KIRLoweringDriver {
             .floatLiteral(0)
         case .primitive(.double, _):
             .doubleLiteral(0)
-        case .primitive, .nothing:
+        case .primitive, .nothing(.nonNull):
             .intLiteral(0)
-        case .nullableUnit, .platformUnit, .stringStruct, .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
+        case .nullableUnit, .platformUnit, .nothing(.nullable), .nothing(.platformType), .stringStruct, .classType, .functionType, .typeParam, .any, .intersection, .kClassType:
             .null
         case .error:
             .intLiteral(0)

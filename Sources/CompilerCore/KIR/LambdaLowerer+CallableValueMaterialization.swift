@@ -216,8 +216,11 @@ extension LambdaLowerer {
                 into: &body
             )
         }
+        // `Nothing?` is inhabited — its sole value `null` must reach the
+        // caller. Only `Unit` and non-null `Nothing` (which never returns
+        // normally) collapse to the zero-word `returnUnit` (KUU-4158).
         switch sema.types.kind(of: adapterReturnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable):
+        case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(returnValue))

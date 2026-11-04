@@ -172,7 +172,7 @@ extension LambdaLowerer {
                 canThrow: false
             ))
             switch sema.types.kind(of: signature.returnType) {
-            case .unit, .nothing(.nonNull), .nothing(.nullable):
+            case .unit, .nothing(.nonNull):
                 body.append(.returnUnit)
             default:
                 body.append(.returnValue(result))
@@ -202,7 +202,7 @@ extension LambdaLowerer {
                 body.append(.label(probeEndLabel))
             }
             switch sema.types.kind(of: signature.returnType) {
-            case .unit, .nothing(.nonNull), .nothing(.nullable):
+            case .unit, .nothing(.nonNull):
                 body.append(.returnUnit)
             default:
                 body.append(.returnValue(result))
