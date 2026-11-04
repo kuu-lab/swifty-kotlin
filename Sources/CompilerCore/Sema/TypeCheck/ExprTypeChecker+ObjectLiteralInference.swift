@@ -763,6 +763,33 @@ extension ExprTypeChecker {
                     sema.symbols.setPropertySetterVisibility(effective, for: propertySymbol)
                 }
             }
+            // KUU-4159: the property itself likewise inherits the overridden
+            // member's effective visibility when it spells no visibility
+            // modifier, and same-body use sites are checked before the
+            // deferred override validation can publish it — resolve it as
+            // the symbol is registered.
+            if propertyDecl.modifiers.contains(.override),
+               propertyDecl.modifiers.isDisjoint(
+                   with: [.private, .protected, .internal, .public]
+               )
+            {
+                if declBySymbolCache == nil {
+                    declBySymbolCache = Dictionary(
+                        uniqueKeysWithValues: sema.bindings.declSymbols.map { ($0.value, $0.key) }
+                    )
+                }
+                if let effective = DataFlowSemaPhase().implicitOverrideMemberVisibility(
+                    kind: .property,
+                    name: propertyDecl.name,
+                    ownerSymbol: ownerSymbol,
+                    parameterTypes: nil,
+                    declBySymbol: declBySymbolCache ?? [:],
+                    ast: ast,
+                    symbols: sema.symbols
+                ) {
+                    sema.symbols.setVisibility(effective, for: propertySymbol)
+                }
+            }
             if let receiver = propertyDecl.receiverType.map(resolvePropertyType) {
                 sema.symbols.insertFlags(.memberExtension, for: propertySymbol)
                 sema.symbols.setExtensionPropertyReceiverType(receiver, for: propertySymbol)
@@ -1358,6 +1385,12 @@ extension ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         var result: [DeclID: SymbolID] = [:]
+        // KUU-4159: body-nested use sites of an `override` member are
+        // type-checked before the deferred override validation can publish
+        // the inherited member visibility, so the effective visibility must
+        // be resolved as the member symbol is registered. The reverse map is
+        // only built when such a member exists.
+        var declBySymbolCache: [SymbolID: DeclID]?
 
         for functionDeclID in memberFunctions {
             guard let decl = ast.arena.decl(functionDeclID),
@@ -1606,6 +1639,32 @@ extension ExprTypeChecker {
                 of: memberSymbol, symbols: sema.symbols, types: sema.types
             ).contains(where: { sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }) {
                 sema.symbols.insertFlags(.infixFunction, for: memberSymbol)
+            }
+            // KUU-4159: an `override` member that spells no visibility
+            // modifier inherits the overridden member's effective
+            // visibility. The signature is published above so overload
+            // matching can find the overridden function by parameter types.
+            if functionDecl.modifiers.contains(.override),
+               functionDecl.modifiers.isDisjoint(
+                   with: [.private, .protected, .internal, .public]
+               )
+            {
+                if declBySymbolCache == nil {
+                    declBySymbolCache = Dictionary(
+                        uniqueKeysWithValues: sema.bindings.declSymbols.map { ($0.value, $0.key) }
+                    )
+                }
+                if let effective = DataFlowSemaPhase().implicitOverrideMemberVisibility(
+                    kind: .function,
+                    name: functionDecl.name,
+                    ownerSymbol: objectSymbol,
+                    parameterTypes: parameterTypes,
+                    declBySymbol: declBySymbolCache ?? [:],
+                    ast: ast,
+                    symbols: sema.symbols
+                ) {
+                    sema.symbols.setVisibility(effective, for: memberSymbol)
+                }
             }
             result[functionDeclID] = memberSymbol
         }
