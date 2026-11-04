@@ -1764,6 +1764,10 @@ extension OverloadResolver {
     ) -> Bool {
         let typeSystem = sema.types
         let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
+        // The argument type is caller-derived: a type parameter it names (for
+        // a recursive call it can share the candidate's own symbol) is a rigid
+        // type, never the candidate's inference variable (KUU-3960).
+        let rigidSubtypeTypeParameters = Set(typeVarBySymbol.keys)
         var processedAll = true
         for argIndex in call.args.indices {
             if ignoredIntegerLiteralArgumentIndices.contains(argIndex) { continue }
@@ -1824,7 +1828,8 @@ extension OverloadResolver {
                     supertype: paramType,
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
-                    blameRange: call.range
+                    blameRange: call.range,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 ).map { $0.withOrigin(.callArgument) })
                 continue
             }
@@ -1846,7 +1851,8 @@ extension OverloadResolver {
                     supertype: paramType,
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
-                    blameRange: call.range
+                    blameRange: call.range,
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
                 )
                 constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
                 continue
@@ -1911,7 +1917,8 @@ extension OverloadResolver {
                 supertype: constraintParameterType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
-                blameRange: call.range
+                blameRange: call.range,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
             )
             constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
         }
@@ -2395,6 +2402,18 @@ extension OverloadResolver {
             if rhsIsFunction, isSam(pair.0) { return false }
         }
         if prefersFunctionParameter { return true }
+
+        // A bare type-parameter parameter is never at least as specific as a
+        // declared-shape parameter: kotlinc picks `at(p: KProperty0<T>)` over
+        // `at(v: T)` for a `KProperty0<Int>` argument. Instantiated types erase
+        // that distinction — the bare parameter's variable absorbs the argument
+        // type, so it can appear as a strict subtype of the other candidate's
+        // instantiation — so when the rhs is preferred on declared shapes the
+        // lhs cannot be more specific, whichever way the instantiation fell
+        // (KUU-3960).
+        if prefersDeclaredShapeOverBareTypeParameter(rhs, than: lhs, typeSystem: typeSystem) {
+            return false
+        }
         if isMoreSpecific(lhs.instantiatedParameterTypes, than: rhs.instantiatedParameterTypes, call: call, typeSystem: typeSystem) {
             return true
         }
