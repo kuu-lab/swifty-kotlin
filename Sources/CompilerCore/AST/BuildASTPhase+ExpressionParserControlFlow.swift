@@ -501,11 +501,19 @@ extension BuildASTPhase.ExpressionParser {
 
             if parenDepth == 0, bracketDepth == 0, braceDepth == 0 {
                 // A guard `if` — and the expression it introduces — may span
-                // newlines (`cond\nif g ->`, `cond if\ng ->`), so only other
-                // newline-leading tokens disqualify the candidate header.
+                // newlines (`cond\nif g ->`, `cond if\ng ->`). The condition
+                // list itself may also span lines everywhere the entry parser
+                // joins them: after a comma (`is A,\nis B ->`), around
+                // separators on their own line (`is A\n, is B ->`,
+                // `is A\n-> b`), or inside a condition expression the
+                // infix/postfix grammar continues (`2 +\n3 ->`,
+                // `x\n.plus(y) ->`, `x\nis T ->`). Only a newline-leading
+                // token that cannot sit in any of those positions disqualifies
+                // the candidate header (KUU-4096).
                 if scan > startIndex,
                    hasLeadingNewline(token),
-                   !sawIfKeyword, token.kind != .keyword(.if)
+                   !sawIfKeyword, token.kind != .keyword(.if),
+                   !whenHeaderContinuesAcrossLineBreak(at: scan)
                 {
                     return false
                 }
@@ -595,6 +603,93 @@ extension BuildASTPhase.ExpressionParser {
             if case .newline = piece {
                 return true
             }
+            return false
+        }
+    }
+
+    /// Whether a line break before `tokens[index]` still sits inside a
+    /// candidate when-branch header. The entry parser accepts a line break
+    /// after every token that cannot end a condition (`cond,\n` expects the
+    /// next condition, `x is\n` expects its type) and before every token that
+    /// resumes the entry: `,`/`->` on their own line, an infix `is`/`in`/`as`
+    /// or binary operator continuing the condition expression, and the
+    /// postfix `.`/`?.`/call/index/lambda/`!!` suffixes
+    /// (`2\n.plus(3) ->`, `x\nis T ->`, `2 +\n3 ->`) (KUU-4096).
+    private func whenHeaderContinuesAcrossLineBreak(at index: Int) -> Bool {
+        let token = tokens[index]
+        let previous = tokens[tokens.index(before: index)]
+        if !whenHeaderTokenCanEndCondition(previous) {
+            return true
+        }
+        switch token.kind {
+        case .symbol(.comma), .symbol(.arrow),
+             .symbol(.dot), .symbol(.questionDot), .symbol(.bangBang),
+             .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace),
+             .keyword(.is), .keyword(.in), .keyword(.as):
+            return true
+        case .symbol(.bang):
+            // `!is`/`!in` extend the checked expression across the break; a
+            // bare `!` starts a new prefix condition and must not.
+            let next = tokens.index(after: index)
+            guard next < tokens.endIndex else {
+                return false
+            }
+            return tokens[next].kind == .keyword(.is) || tokens[next].kind == .keyword(.in)
+        default:
+            return whenHeaderInfixOperator(token)
+        }
+    }
+
+    /// Tokens that cannot terminate a condition expression, so a line break
+    /// after them is always still inside the header (`x is\nT ->`,
+    /// `cond,\ncond2 ->`, `2 +\n3 ->`).
+    private func whenHeaderTokenCanEndCondition(_ token: Token) -> Bool {
+        switch token.kind {
+        case .symbol(.comma), .symbol(.arrow),
+             .symbol(.lParen), .symbol(.lBracket), .symbol(.lBrace),
+             .symbol(.dot), .symbol(.questionDot), .symbol(.doubleColon),
+             .symbol(.bang), .symbol(.bangBang), .symbol(.question),
+             .symbol(.questionQuestion), .symbol(.questionColon),
+             .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
+             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign),
+             .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash),
+             .symbol(.percent), .symbol(.equalEqual), .symbol(.bangEqual),
+             .symbol(.tripleEqual), .symbol(.notTripleEqual),
+             .symbol(.lessThan), .symbol(.lessOrEqual),
+             .symbol(.greaterThan), .symbol(.greaterOrEqual),
+             .symbol(.ampAmp), .symbol(.barBar),
+             .symbol(.dotDot), .symbol(.dotDotLt),
+             .symbol(.colon), .symbol(.at), .symbol(.hash),
+             .keyword(.is), .keyword(.in), .keyword(.as), .keyword(.else):
+            return false
+        default:
+            return true
+        }
+    }
+
+    /// Binary operators that continue a condition expression across a line
+    /// break, mirroring `tryParseBinaryOp`/`tryParseIsCheck`/`tryParseInCheck`/
+    /// `tryParseAsCast`, none of which consult leading trivia. Infix
+    /// identifiers deliberately stay out: `tryParseInfixCall` rejects a
+    /// newline-leading callee (`newlineBeforeInfixContinuesExpression`), so
+    /// `a\nfoo b` remains two entries rather than `a foo b`.
+    private func whenHeaderInfixOperator(_ token: Token) -> Bool {
+        switch token.kind {
+        case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash),
+             .symbol(.percent), .symbol(.equalEqual), .symbol(.bangEqual),
+             .symbol(.tripleEqual), .symbol(.notTripleEqual),
+             .symbol(.lessThan), .symbol(.lessOrEqual),
+             .symbol(.greaterThan), .symbol(.greaterOrEqual),
+             .symbol(.ampAmp), .symbol(.barBar),
+             .symbol(.questionColon), .symbol(.dotDot), .symbol(.dotDotLt):
+            return true
+        case let .identifier(name):
+            // `tryParseBinaryOp` maps `downTo`/`step` identifiers to real
+            // operators, which do not check trivia — `a\ndownTo b` parses as
+            // one continued expression.
+            let resolved = interner.resolve(name)
+            return resolved == "downTo" || resolved == "step"
+        default:
             return false
         }
     }

@@ -520,5 +520,127 @@ extension CompilerCoreTests {
         }
     }
 
+    /// KUU-4096: a compound when-branch condition list may span lines anywhere
+    /// the grammar continues — after a comma (`is X,\nnull ->`), before a
+    /// separator (`is A\n, is B ->`), around infix operators (`a\n&& b`,
+    /// `a &&\nb`), before `is`/`!is`, and before postfix `.` (`x\n.plus(1)`).
+    /// Previously the header scan rejected the break after `,`, so the entry
+    /// was folded into the preceding branch body and its alternatives were
+    /// lost, while a break before `.` made the CST layer splice a missing `->`
+    /// into the token stream.
+    @Test func testWhenBranchConditionsSpanningLinesAreExhaustive() throws {
+        let source = """
+        interface Subject<T> { val v: T? get() = null }
+        interface Disposable
+
+        private sealed class PublishState<T> {
+            abstract val subject: Subject<T>
+
+            class NotConnected<T>(override val subject: Subject<T>) : PublishState<T>()
+            class Connected<T>(override val subject: Subject<T>, val disposables: Disposable) : PublishState<T>()
+            class Disconnected<T>(override val subject: Subject<T>) : PublishState<T>()
+        }
+
+        class Box<T>(private val subjectFactory: () -> Subject<T>) {
+            private fun PublishState<T>?.ensureConnected(): PublishState.Connected<T> =
+                when (this) {
+                    is PublishState.NotConnected -> PublishState.Connected(subject, object : Disposable {})
+                    is PublishState.Connected -> this
+                    is PublishState.Disconnected,
+                    null -> {
+                        val subject = subjectFactory()
+                        PublishState.Connected(subject, object : Disposable {})
+                    }
+                }
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0071", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0004", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-PARSE-0010", in: diagnostics)
+        }
+    }
+
+    /// KUU-4096: newline-leading separators, infix operators, `is`/`!is`, and
+    /// postfix `.` continue a when-branch condition instead of starting a new
+    /// entry.
+    @Test func testWhenBranchConditionsContinueAcrossLineBreaks() throws {
+        let source = """
+        fun Int.plus2(o: Int): Int = this + o
+        fun k(x: Int): Int = when (x) {
+            0 -> 1
+            5
+                .plus2(1) -> 6
+            else -> 7
+        }
+        sealed class S {
+            class A : S()
+            class B : S()
+            class C : S()
+        }
+        fun f(s: S?): Int = when (s) {
+            is S.A
+            ,
+            is S.B -> 1
+            is S.C,
+            null -> 0
+        }
+        fun g(a: Boolean, b: Boolean, y: Any?): Int = when {
+            a
+            && b -> 1
+            a &&
+            b -> 2
+            y
+            is String -> 3
+            y
+            !is Int -> 4
+            else -> 5
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-0010", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-PARSE-0011", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0071", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0004", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: diagnostics)
+        }
+    }
+
+    /// KUU-4096: the multiline-continuation fix must not make genuinely
+    /// non-exhaustive when expressions pass — a sealed branch that is only
+    /// named inside a dropped/broken entry still has to be reported.
+    @Test func testSealedWhenMultilineCompoundMissingBranchIsStillReported() throws {
+        let source = """
+        sealed class S {
+            class A : S()
+            class B : S()
+            class C : S()
+        }
+        fun f(s: S?): Int = when (s) {
+            is S.A,
+            null -> 0
+            is S.B -> 1
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0071", in: diagnostics)
+        }
+    }
+
 }
 #endif
