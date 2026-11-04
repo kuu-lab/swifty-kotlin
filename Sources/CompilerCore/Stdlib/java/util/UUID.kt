@@ -1,5 +1,7 @@
 package java.util
 
+import java.security.MessageDigest
+
 /** A Java-compatible UUID with parsing and bit layout backed by Kotlin values. */
 public class UUID(
     private val mostSigBits: Long,
@@ -8,6 +10,14 @@ public class UUID(
     public fun getMostSignificantBits(): Long = mostSigBits
 
     public fun getLeastSignificantBits(): Long = leastSigBits
+
+    /** JVM `get`-getter synthetic property view of `getMostSignificantBits()`. */
+    public val mostSignificantBits: Long
+        get() = mostSigBits
+
+    /** JVM `get`-getter synthetic property view of `getLeastSignificantBits()`. */
+    public val leastSignificantBits: Long
+        get() = leastSigBits
 
     public fun version(): Int = ((mostSigBits ushr 12) and 0xFL).toInt()
 
@@ -56,6 +66,25 @@ public class UUID(
     public companion object {
         public fun randomUUID(): UUID {
             return kotlin.uuid.Uuid.random().toLongs { most, least -> UUID(most, least) }
+        }
+
+        /** JVM `nameUUIDFromBytes`: MD5 digest with version-3/variant bits applied. */
+        public fun nameUUIDFromBytes(name: ByteArray): UUID {
+            val digest = MessageDigest.getInstance("MD5").digest(name)
+            digest[6] = (digest[6].toInt() and 0x0F or 0x30).toByte()
+            digest[8] = (digest[8].toInt() and 0x3F or 0x80).toByte()
+            var most = 0L
+            var least = 0L
+            var index = 0
+            while (index < 8) {
+                most = (most shl 8) or (digest[index].toLong() and 0xFFL)
+                index += 1
+            }
+            while (index < 16) {
+                least = (least shl 8) or (digest[index].toLong() and 0xFFL)
+                index += 1
+            }
+            return UUID(most, least)
         }
 
         public fun fromString(name: String): UUID {

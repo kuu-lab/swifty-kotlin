@@ -717,6 +717,49 @@ extension ExprTypeChecker {
                 }
             }
         }
+        // KUU-4047: bundled `java.*` shim classes declare Java `is`-getters
+        // as ordinary Kotlin member functions, so a bare read on an
+        // implicit receiver (`o.run { isPresent }`, `with(o) { isEmpty }`)
+        // otherwise dies unresolved — on the JVM `it.isPresent` is the
+        // synthetic property. Bind the matching member `isX()` as a call,
+        // the same shape the explicit `it.isPresent` read produces.
+        if implicitMemberType == nil, resolvedName.count > 2,
+           resolvedName.hasPrefix("is"),
+           resolvedName[resolvedName.index(resolvedName.startIndex, offsetBy: 2)].isUppercase,
+           driver.callChecker.isBundledJavaNominal(receiverType: nonNullReceiver, ctx: ctx)
+        {
+            let javaIsGetters = driver.helpers.collectMemberFunctionCandidates(
+                named: name,
+                receiverType: nonNullReceiver,
+                sema: sema,
+                interner: interner
+            ).filter { driver.callChecker.isBundledJavaIsGetterFunctionShape($0, ctx: ctx) }
+            if !javaIsGetters.isEmpty,
+               let callRange = nameRange ?? ctx.ast.arena.exprRange(id)
+            {
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: javaIsGetters,
+                    call: CallExpr(
+                        range: callRange,
+                        calleeName: name,
+                        args: [],
+                        explicitTypeArgs: [],
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: nonNullReceiver,
+                    ctx: ctx.sema
+                )
+                if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
+                    let memberType = driver.callChecker.bindCallAndResolveReturnType(
+                        id, chosen: chosen, resolved: resolved, sema: sema
+                    )
+                    sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
+                    sema.bindings.bindExprType(id, type: memberType)
+                    return memberType
+                }
+            }
+        }
         if let memberType = implicitMemberType {
             sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindExprType(id, type: memberType)

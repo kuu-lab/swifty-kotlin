@@ -25,6 +25,15 @@ public class GregorianCalendar : Calendar {
                 second
             )
         )
+
+    /** JVM `isLeapYear`: proleptic Gregorian leap-year rule. */
+    public fun isLeapYear(year: Int): Boolean =
+        year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+
+    public companion object {
+        public const val BC: Int = 0
+        public const val AD: Int = 1
+    }
 }
 
 // The runtime resolves the field set atomically so intermediate overflow

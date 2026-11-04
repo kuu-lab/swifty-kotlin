@@ -221,6 +221,13 @@ extension CallTypeChecker {
             if isBundledPropertyStyleFacadeFunction(chosen, ctx: request.ctx) {
                 return result
             }
+            if isBundledJavaIsGetterMemberFunction(
+                chosen,
+                receiverType: sema.bindings.exprType(for: request.receiverID),
+                ctx: request.ctx
+            ) {
+                return result
+            }
         } else {
             // Intrinsic `toString` resolution can bind only the expression
             // type, without a CallBinding. Preserve actual properties with
@@ -357,6 +364,110 @@ extension CallTypeChecker {
         // are still stdlib-internal symbols, so the flag is enough proof
         // of bundled origin for the synthetic facade names.
         return allowsSyntheticStub && symbol.flags.contains(.synthetic)
+    }
+
+    /// KUU-4047: bundled `java.*` shim classes are Kotlin declarations, so
+    /// the Java `is`-getter convention never materializes a synthetic
+    /// property. On the JVM a zero-argument `is`+uppercase method
+    /// (`Optional.isPresent()`, `Optional.isEmpty()`, `BitSet.isEmpty()`)
+    /// is reachable BOTH as `o.isPresent()` and as the property-syntax read
+    /// `o.isPresent`. When property syntax bound such a member function and
+    /// the *receiver's* nominal is a bundled `java.*` class, keep the Java
+    /// dual access — the read binds the same `isX()` call.
+    ///
+    /// The receiver nominal, not the callee's declaring class, carries the
+    /// Java-ness: `java.util.ArrayDeque` overrides may bind a
+    /// `kotlin.collections` supertype declaration here, while on the JVM
+    /// `deque.isEmpty` is a property because the static type is a Java
+    /// class. `get`-prefixed methods are unaffected — they map to a
+    /// differently-named property (`getValue()` → `value`) that the bundled
+    /// surface models as an explicit `val` instead.
+    func isBundledJavaIsGetterMemberFunction(
+        _ candidate: SymbolID,
+        receiverType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        isBundledJavaIsGetterFunctionShape(candidate, ctx: ctx)
+            && isBundledJavaNominal(receiverType: receiverType, ctx: ctx)
+    }
+
+    /// The callee side of the Java `is`-getter convention: a genuine member
+    /// function (declared under a nominal owner, not a package-level
+    /// extension) named `is`+uppercase taking no arguments and returning a
+    /// non-void type.
+    func isBundledJavaIsGetterFunctionShape(
+        _ candidate: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let symbol = sema.symbols.symbol(candidate),
+              symbol.kind == .function,
+              let signature = sema.symbols.functionSignature(for: candidate),
+              signature.parameterTypes.isEmpty,
+              !signature.isSuspend,
+              sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+              !symbol.flags.contains(.extensionMemberAlias)
+        else {
+            return false
+        }
+        switch sema.types.kind(of: signature.returnType) {
+        case .unit, .nullableUnit, .platformUnit, .nothing, .error:
+            return false
+        default:
+            break
+        }
+        let name = interner.resolve(symbol.name)
+        guard name.count > 2,
+              name.hasPrefix("is"),
+              name[name.index(name.startIndex, offsetBy: 2)].isUppercase
+        else {
+            return false
+        }
+        guard let parentID = sema.symbols.parentSymbol(for: candidate),
+              let parent = sema.symbols.symbol(parentID),
+              parent.kind == .class || parent.kind == .interface
+                  || parent.kind == .object || parent.kind == .enumClass
+                  || parent.kind == .annotationClass,
+              symbol.fqName == parent.fqName + [symbol.name]
+        else {
+            return false
+        }
+        return true
+    }
+
+    /// Whether [receiverType]'s nominal symbol is a bundled `java.*`
+    /// declaration — the bundled-source classes and the imported stdlib
+    /// artifact both count; user classes even in `java.*` packages do not
+    /// get the Java convention.
+    func isBundledJavaNominal(
+        receiverType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let receiverType,
+              let nominalID = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(receiverType),
+                  types: sema.types
+              ),
+              let nominal = sema.symbols.symbol(nominalID),
+              nominal.fqName.first == interner.intern("java")
+        else {
+            return false
+        }
+        if sema.bundledIndex.containsNominal(fqName: nominal.fqName)
+            || sema.symbols.isImportedStdlibSymbol(nominalID)
+        {
+            return true
+        }
+        if let declFileID = sema.symbols.sourceFileID(for: nominalID) ?? nominal.declSite?.start.file,
+           let sourceManager = ctx.visibilityChecker.sourceManager,
+           sourceManager.origin(of: declFileID)?.isBundledStdlib == true
+        {
+            return true
+        }
+        return false
     }
 
     private func inferMemberCallOnReceiver(
