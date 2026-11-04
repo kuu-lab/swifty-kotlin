@@ -188,6 +188,32 @@ extension JVMProgramBuilder {
                 }
             }
             if path == "<kswiftk-jvm>/javaCollections.kt" { try visit(file.topLevelDecls, path: path) }
+            if path == "<kswiftk-jvm>/string-constructors.kt" {
+                // Top-level `String(...)` shims lower directly to the matching
+                // java.lang.String <init> descriptors instead of a kotlin
+                // facade method.
+                for id in file.topLevelDecls {
+                    guard case let .funDecl(declaration) = ast.arena.decl(id),
+                          context.interner.resolve(declaration.name) == "String",
+                          let symbol = sema.bindings.declSymbol(for: id)
+                    else { continue }
+                    try method(symbol, owner: "java/lang/String", name: "<init>", declarations: declaration.valueParams)
+                }
+            }
+            if path == "<kswiftk-jvm>/charsets.kt" {
+                // kotlin.text.Charsets members are JDK StandardCharsets static
+                // fields, not a kotlin object instance.
+                for id in file.topLevelDecls {
+                    guard case let .objectDecl(declaration) = ast.arena.decl(id),
+                          context.interner.resolve(declaration.name) == "Charsets" else { continue }
+                    for member in declaration.memberProperties {
+                        guard case let .propertyDecl(property) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member),
+                              let valueType = sema.symbols.propertyType(for: symbol) else { continue }
+                        textLibraryFields[symbol] = JVMField(owner: "java/nio/charset/StandardCharsets", name: context.interner.resolve(property.name), type: try type(valueType), access: 0x19)
+                    }
+                }
+            }
             if path == "<kswiftk-jvm>/collections.kt" {
                 try visit(file.topLevelDecls.filter { id in
                     if case let .interfaceDecl(declaration) = ast.arena.decl(id) { return ["Iterator", "Iterable", "Collection", "MutableIterator", "MutableIterable", "MutableCollection", "List", "MutableList", "Set", "MutableSet", "Map", "MutableMap"].contains(context.interner.resolve(declaration.name)) }

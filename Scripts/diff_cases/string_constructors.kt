@@ -1,3 +1,5 @@
+// DIFF_JVM
+
 fun describeCodePoints(build: () -> String): String {
     return try {
         val text = build()
