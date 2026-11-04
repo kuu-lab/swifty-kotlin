@@ -36,11 +36,16 @@ struct GenericSuspendNullableReturnInferenceTests {
             let sema = try #require(ctx.sema)
             let ast = try #require(ctx.ast)
             let names = Set(["blocking", "timed", "nullableTimed", "scoped", "supervised", "switched", "explicit", "nullableBody", "wrapped"])
+            // The arena also contains the bundled stdlib, whose own locals can
+            // collide by name (e.g. `wrapped` in kotlin/random/JavaUtilRandom.kt
+            // binds kotlin.random.Random?), so only inspect decls in this file.
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: path))
             var checked = Set<String>()
             for index in ast.arena.exprs.indices {
                 let expr = ExprID(rawValue: Int32(index))
                 guard case let .localDecl(name, _, _, initializer, _, _, _) = ast.arena.expr(expr),
-                      let initializer else { continue }
+                      let initializer,
+                      ast.arena.exprRange(expr)?.start.file == sourceFile else { continue }
                 let text = ctx.interner.resolve(name)
                 if names.contains(text) {
                     #expect(sema.bindings.exprType(for: initializer) == sema.types.makeNullable(sema.types.stringType))
