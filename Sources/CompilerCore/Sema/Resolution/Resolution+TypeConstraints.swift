@@ -282,6 +282,14 @@ extension OverloadResolver {
                     continue
                 }
                 if isVararg[positionalCursor] {
+                    // A vararg already supplied by name holds the whole array
+                    // and takes no further positional arguments; the call
+                    // continues binding at the next parameter in declaration
+                    // order (Kotlin 1.4+ mixed named/positional arguments).
+                    if boundNamedVarargParams.contains(positionalCursor) {
+                        positionalCursor += 1
+                        continue
+                    }
                     // Source positional arguments remain vararg elements;
                     // later ordinary parameters must be supplied by name.
                     // A trailing lambda is mapped separately below.
@@ -353,6 +361,9 @@ extension OverloadResolver {
                     boundNamedVarargParams.insert(paramIndex)
                     mapping[argIndex] = paramIndex
                     maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
+                    if paramIndex == positionalCursor {
+                        positionalCursor += 1
+                    }
                     continue
                 }
                 if boundNonVarargParams.contains(paramIndex) {
