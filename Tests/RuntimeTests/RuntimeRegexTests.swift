@@ -462,4 +462,78 @@ struct RuntimeRegexTests {
         #expect(matchValue(matchRaw) == "abc")
         #expect(runtimeString(__kk_regex_pattern(regexRaw)) == "(?U)abc")
     }
+
+    // MARK: - KUU-4073: JVM default ASCII predefined classes
+
+    @Test
+    func translateRewritesPredefinedClassesToAsciiByDefault() {
+        #expect(translateJavaPatternForICU("\\w+") == "[a-zA-Z0-9_]+")
+        #expect(translateJavaPatternForICU("\\W+") == "[^a-zA-Z0-9_]+")
+        #expect(translateJavaPatternForICU("\\d+") == "[0-9]+")
+        #expect(translateJavaPatternForICU("\\D+") == "[^0-9]+")
+        #expect(translateJavaPatternForICU("\\s+") == "[ \\t\\n\\x0B\\f\\r]+")
+        #expect(translateJavaPatternForICU("\\S+") == "[^ \\t\\n\\x0B\\f\\r]+")
+        // Inside classes the expansions are emitted as nested classes so they
+        // union with neighbours instead of merging into a range.
+        #expect(translateJavaPatternForICU("[\\w-]") == "[[a-zA-Z0-9_]-]")
+        #expect(translateJavaPatternForICU("[^\\w]") == "[^[a-zA-Z0-9_]]")
+        #expect(translateJavaPatternForICU("[\\W]") == "[[^a-zA-Z0-9_]]")
+        // Escaped backslash + 'w' is not a class escape.
+        #expect(translateJavaPatternForICU("\\\\w") == "\\\\w")
+        // \Q...\E quoting is untouched.
+        #expect(translateJavaPatternForICU("\\Q\\w\\E\\w") == "\\Q\\w\\E[a-zA-Z0-9_]")
+    }
+
+    @Test
+    func translateKeepsUnicodeClassesInsideUnicodeFlagScopes() {
+        #expect(translateJavaPatternForICU("(?U)\\w+") == "\\w+")
+        #expect(translateJavaPatternForICU("(?U:\\w+)\\w") == "(?:\\w+)[a-zA-Z0-9_]")
+        #expect(translateJavaPatternForICU("(?U)\\w(?-U)\\w") == "\\w[a-zA-Z0-9_]")
+        #expect(translateJavaPatternForICU("(?iU)\\w") == "(?i)\\w")
+        // A bare (?U) applies only until the end of the enclosing group.
+        #expect(translateJavaPatternForICU("(a(?U)\\w)\\w") == "(a\\w)[a-zA-Z0-9_]")
+        // Lookarounds/named groups open groups too and restore the mode on ')'.
+        #expect(translateJavaPatternForICU("(?=(?U)\\w)\\w") == "(?=\\w)[a-zA-Z0-9_]")
+    }
+
+    @Test
+    func asciiWordBoundaryMatchesJvmPositions() {
+        let regexRaw = withFlatString("\\b") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let findAllRaw = withFlatString("Kästner") { data, length, byteCount, hash in
+            kk_regex_findAll_flat(regexRaw, data, length, byteCount, hash)
+        }
+        let starts = runtimeListElements(findAllRaw).map { __kk_match_result_group_start($0, 0) }
+        // JVM Pattern.compile("\\b") boundary positions on "Kästner".
+        #expect(starts == [0, 1, 2, 7])
+    }
+
+    @Test
+    func asciiPredefinedClassesMatchJvmDefaults() {
+        let wordRaw = withFlatString("\\w+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let first = regexFind(wordRaw, input: "Kästner")
+        #expect(first != runtimeNullSentinelInt)
+        #expect(matchValue(first) == "K")
+
+        let digitRaw = withFlatString("\\d+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let digitMatch = regexFind(digitRaw, input: "١٢٣45")
+        #expect(digitMatch != runtimeNullSentinelInt)
+        #expect(matchValue(digitMatch) == "45")
+    }
+
+    @Test
+    func unicodeCharacterClassFlagRestoresUnicodeSemantics() {
+        let wordRaw = withFlatString("(?U)\\w+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let first = regexFind(wordRaw, input: "Kästner")
+        #expect(first != runtimeNullSentinelInt)
+        #expect(matchValue(first) == "Kästner")
+        #expect(runtimeString(__kk_regex_pattern(wordRaw)) == "(?U)\\w+")
+    }
 }
