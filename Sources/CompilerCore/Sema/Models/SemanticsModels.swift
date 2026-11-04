@@ -119,7 +119,11 @@ public struct SemanticSymbol: Sendable {
     public let name: InternedString
     public let fqName: [InternedString]
     public var declSite: SourceRange?
-    public let visibility: Visibility
+    /// KUU-4159: mutable because an `override` member that spells no
+    /// visibility modifier inherits the overridden member's effective
+    /// visibility; the override-validation passes publish the resolved value
+    /// after header collection stored the default.
+    public var visibility: Visibility
     public var flags: SymbolFlags
 }
 

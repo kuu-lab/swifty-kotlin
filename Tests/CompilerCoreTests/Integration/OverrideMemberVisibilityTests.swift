@@ -155,6 +155,97 @@ import Testing
                 "expected no errors in \(diagnostics)")
     }
 
+    /// KUU-4159: an `override` member that spells no visibility modifier
+    /// inherits the overridden member's effective visibility, so use-site
+    /// access control applies that inherited visibility rather than the
+    /// default `public` the header collection stored.
+    private static let implicitProtectedUseSiteCases: [String] = [
+        // The ticket reproducer: an implicit-visibility `override` of a
+        // `protected` member stays `protected` at use sites — kotlinc
+        // reports `cannot access 'fun f(): Int': it is protected in 'C'`.
+        """
+        open class B { protected open fun f() = 0 }
+        class C : B() { override fun f() = 1 }
+        fun use(c: C) { c.f() }
+        """,
+        // Properties behave the same through the implicit getter.
+        """
+        open class B { protected open val v: Int = 0 }
+        class C : B() { override val v: Int = 1 }
+        fun read(c: C) = c.v
+        """,
+        // The inheritance is transitive through unmodified overrides.
+        """
+        open class A { protected open fun f() = 0 }
+        open class B : A() { override fun f() = 1 }
+        class C : B() { override fun f() = 2 }
+        fun use(c: C) { c.f() }
+        """,
+        // Body-nested declarations resolve the inherited visibility as the
+        // member symbol is registered, so same-body use sites see it too —
+        // a local class...
+        """
+        open class B { protected open fun f() = 0 }
+        fun use() {
+            class C : B() { override fun f() = 1 }
+            C().f()
+        }
+        """,
+        // ...and an anonymous object literal alike.
+        """
+        open class B { protected open fun f() = 0 }
+        fun use() {
+            val o = object : B() { override fun f() = 1 }
+            o.f()
+        }
+        """,
+    ]
+
+    private static let implicitVisibilityAcceptedCases: [String] = [
+        // An explicit modifier still wins over the inherited visibility.
+        """
+        open class B { protected open fun f() = 0 }
+        class C : B() { public override fun f() = 1 }
+        fun use(c: C) { c.f() }
+        """,
+        // A public base keeps the implicit override public.
+        """
+        open class B { open fun f() = 0 }
+        class C : B() { override fun f() = 1 }
+        fun use(c: C) { c.f() }
+        """,
+        // An `internal` base member's implicit override is `internal`, which
+        // a same-module use site may still reach.
+        """
+        open class B { internal open fun f() = 0 }
+        class C : B() { override fun f() = 1 }
+        fun use(c: C) { c.f() }
+        """,
+        // Inherited `protected` stays reachable from subclass receivers.
+        """
+        open class B { protected open fun f() = 0 }
+        open class C : B() { override fun f() = 1 }
+        class D : C() { fun call(d: D) = d.f() }
+        """,
+    ]
+
+    @Test(arguments: implicitProtectedUseSiteCases)
+    func testImplicitOverrideVisibilityIsEnforcedAtUseSites(source: String) throws {
+        let diagnostics = try diagnose(source)
+        #expect(diagnostics.contains {
+            $0.code == "KSWIFTK-SEMA-0041"
+                && $0.message.hasPrefix("Cannot access")
+                && $0.message.hasSuffix("it is protected.")
+        }, "expected protected use-site diagnostic in \(diagnostics)")
+    }
+
+    @Test(arguments: implicitVisibilityAcceptedCases)
+    func testImplicitOverrideVisibilityAcceptsLegalAccesses(source: String) throws {
+        let diagnostics = try diagnose(source)
+        #expect(!diagnostics.contains { $0.severity == .error },
+                "expected no errors in \(diagnostics)")
+    }
+
     /// KUU-4155: `private` and `override` are incompatible in both
     /// directions — functions, properties, and top-level declarations where
     /// `override` is not even applicable.

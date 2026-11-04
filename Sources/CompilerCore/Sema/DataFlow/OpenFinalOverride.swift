@@ -1150,6 +1150,12 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ctx: ctx
                 )
+                publishImplicitOverrideMemberVisibility(
+                    memberMeta: memberMeta,
+                    memberSymbol: memberSymbol,
+                    ownerSymbol: symbol,
+                    ctx: ctx
+                )
             } else {
                 validateMissingOverride(
                     memberName: memberMeta.name,
@@ -1172,6 +1178,10 @@ extension DataFlowSemaPhase {
         let hasAbstract: Bool
         let hasFinal: Bool
         let visibility: Visibility
+        /// True when the declaration spells a visibility modifier; an
+        /// implicit-visibility `override` inherits its effective visibility
+        /// from the overridden member instead (KUU-4159).
+        let hasExplicitVisibility: Bool
         let isFunction: Bool
     }
 
@@ -1208,6 +1218,7 @@ extension DataFlowSemaPhase {
                 hasAbstract: fun.modifiers.contains(.abstract),
                 hasFinal: fun.modifiers.contains(.final),
                 visibility: extractVisibility(from: fun.modifiers),
+                hasExplicitVisibility: explicitVisibility(fun.modifiers) != nil,
                 isFunction: true
             )
         case let .propertyDecl(prop):
@@ -1221,6 +1232,7 @@ extension DataFlowSemaPhase {
                 hasAbstract: prop.modifiers.contains(.abstract),
                 hasFinal: prop.modifiers.contains(.final),
                 visibility: extractVisibility(from: prop.modifiers),
+                hasExplicitVisibility: explicitVisibility(prop.modifiers) != nil,
                 isFunction: false
             )
         default:
@@ -1441,6 +1453,130 @@ extension DataFlowSemaPhase {
             of: parent.memberID,
             isSetter: true,
             visited: [],
+            declBySymbol: declBySymbol,
+            ast: ast,
+            symbols: symbols
+        )
+    }
+
+    /// KUU-4159: an `override` member that spells no visibility modifier
+    /// inherits the overridden member's effective visibility — kotlinc
+    /// resolves `override fun f()` over a `protected` base member as
+    /// `protected`, and use sites reject accesses the inherited visibility
+    /// does not permit. Publish the resolved value onto the member symbol so
+    /// every use-site reader of `symbol.visibility` sees it; a member with an
+    /// explicit modifier keeps its declared visibility untouched.
+    private func publishImplicitOverrideMemberVisibility(
+        memberMeta: MemberMeta,
+        memberSymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard !memberMeta.hasExplicitVisibility,
+              let effective = implicitOverrideMemberVisibility(
+                  kind: memberMeta.isFunction ? .function : .property,
+                  name: memberMeta.name,
+                  ownerSymbol: ownerSymbol,
+                  parameterTypes: memberMeta.parameterTypes,
+                  declBySymbol: ctx.declBySymbol,
+                  ast: ctx.ast,
+                  symbols: ctx.symbols
+              ),
+              ctx.symbols.symbol(memberSymbol)?.visibility != effective
+        else {
+            return
+        }
+        ctx.symbols.setVisibility(effective, for: memberSymbol)
+    }
+
+    /// KUU-4159: the visibility an `override` member effectively carries when
+    /// its declaration spells no visibility modifier — the overridden
+    /// member's effective visibility up the override chain. Returns nil when
+    /// no overridden member resolves, leaving the descriptor's stored
+    /// visibility in place. Shared by the declaration-side override
+    /// validation and by local/anonymous member header collection, whose
+    /// symbols are created before the deferred body-nested validation runs.
+    func implicitOverrideMemberVisibility(
+        kind: SymbolKind,
+        name: InternedString,
+        ownerSymbol: SymbolID,
+        parameterTypes: [TypeID]?,
+        declBySymbol: [SymbolID: DeclID],
+        ast: ASTModule,
+        symbols: SymbolTable
+    ) -> Visibility? {
+        guard let parent = findInheritedMember(
+            named: name,
+            for: ownerSymbol,
+            symbols: symbols,
+            kind: kind,
+            parameterTypes: parameterTypes
+        ) else {
+            return nil
+        }
+        return effectiveBaseMemberVisibility(
+            of: parent.memberID,
+            visited: [],
+            declBySymbol: declBySymbol,
+            ast: ast,
+            symbols: symbols
+        )
+    }
+
+    /// The visibility `symbolID`'s member effectively carries at member
+    /// level: its declaration's own modifier when spelled, else — for an
+    /// `override` that repeats none — the visibility inherited from the next
+    /// base member up the override chain. Members with no source decl
+    /// (imported, synthetic) carry the effective visibility their descriptor
+    /// already stored.
+    private func effectiveBaseMemberVisibility(
+        of symbolID: SymbolID,
+        visited: Set<SymbolID>,
+        declBySymbol: [SymbolID: DeclID],
+        ast: ASTModule,
+        symbols: SymbolTable
+    ) -> Visibility? {
+        guard !visited.contains(symbolID),
+              let symbol = symbols.symbol(symbolID)
+        else {
+            return nil
+        }
+        guard let declID = declBySymbol[symbolID],
+              let decl = ast.arena.decl(declID)
+        else {
+            return symbol.visibility
+        }
+        let modifiers: Modifiers
+        switch decl {
+        case let .funDecl(fun):
+            modifiers = fun.modifiers
+        case let .propertyDecl(prop):
+            modifiers = prop.modifiers
+        default:
+            return symbol.visibility
+        }
+        if let explicit = explicitVisibility(modifiers) {
+            return explicit
+        }
+        guard modifiers.contains(.override) else {
+            return symbol.visibility
+        }
+        guard let ownerID = symbols.parentSymbol(for: symbolID),
+              let next = findInheritedMember(
+                  named: symbol.name,
+                  for: ownerID,
+                  symbols: symbols,
+                  kind: symbol.kind,
+                  parameterTypes: symbol.kind == .function
+                      ? symbols.functionSignature(for: symbolID)?.parameterTypes
+                      : nil
+              )
+        else {
+            return symbol.visibility
+        }
+        return effectiveBaseMemberVisibility(
+            of: next.memberID,
+            visited: visited.union([symbolID]),
             declBySymbol: declBySymbol,
             ast: ast,
             symbols: symbols

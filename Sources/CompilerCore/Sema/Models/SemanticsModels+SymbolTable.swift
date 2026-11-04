@@ -969,6 +969,18 @@ public final class SymbolTable {
         bumpBindingVersions(startingAt: symbol)
     }
 
+    /// KUU-4159: stores the resolved effective visibility on a member symbol.
+    /// Scope-level candidate memos replay visibility filters, so the binding
+    /// versions must move exactly like a flag or decl-site mutation.
+    public func setVisibility(_ visibility: Visibility, for symbol: SymbolID) {
+        let index = Int(symbol.rawValue)
+        guard index >= 0, index < symbolsStorage.count else {
+            return
+        }
+        symbolsStorage[index].visibility = visibility
+        bumpBindingVersions(startingAt: symbol)
+    }
+
     /// ARCH-031: deduplicated and sorted by source position so diagnostics
     /// rendering stays deterministic.
     public func sortedDeclSites(of symbols: [SymbolID]) -> [SourceRange] {
