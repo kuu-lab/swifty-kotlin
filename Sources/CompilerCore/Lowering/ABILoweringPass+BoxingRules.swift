@@ -216,13 +216,34 @@ extension ABILoweringPass {
             return false
         }()
 
+        // A `V`-typed argument to a non-null `V`-typed parameter of the same
+        // value class is a raw-payload transfer regardless of which boxing
+        // family the class uses (nominal `RuntimeObjectBox`, tagged box, or
+        // primitive). The payload may itself legitimately be a box of the
+        // same class (`VC(VC(5))` stores a boxed inner `VC` as `v`), so no
+        // wrapper may be added or removed at this boundary (KUU-4086). Note
+        // the check uses the *declared* kinds: a `Box<T>` parameter resolves
+        // to `.typeParam` through `paramKind`, which would otherwise look
+        // like an erased boundary.
+        if case let .classType(argClass) = rawArgKind,
+           argClass.nullability == .nonNull,
+           symbols?.symbol(argClass.classSymbol)?.flags.contains(.valueType) == true,
+           case let .classType(paramClass) = rawParamKind,
+           paramClass.nullability == .nonNull,
+           paramClass.classSymbol == argClass.classSymbol
+        {
+            return nil
+        }
+
         // A nullable-underlying value class has no `kk_box_*` callee: crossing
         // any reference boundary (including an erased `T` parameter, whose
         // callee reads the slot as Any) goes through `kk_value_class_box`,
         // which `emitBoxCallWithValueClassTag` emits for this source kind
         // (KUU-3115). The interned name is only a marker; the callee table has
         // no primitive entry for it.
-        if nullableUnderlyingValueClassSymbol(of: rawArgKind, types: types, symbols: symbols) != nil {
+        if nullableUnderlyingValueClassSymbol(
+            of: rawArgKind, types: types, symbols: symbols
+        ) != nil {
             guard isReferenceBoxingBoundary || ({
                 if case .typeParam = paramKind { return true }
                 return false
@@ -231,14 +252,8 @@ extension ABILoweringPass {
         }
 
         if isReferenceBoxingBoundary,
-           let valueClass = referenceBackedValueClassSymbol(of: rawArgKind, types: types, symbols: symbols)
+           referenceBackedValueClassSymbol(of: rawArgKind, types: types, symbols: symbols) != nil
         {
-            if case let .classType(parameterClass) = rawParamKind,
-               parameterClass.classSymbol == valueClass,
-               parameterClass.nullability == .nonNull
-            {
-                return nil
-            }
             return interner.intern("kk_value_class_box")
         }
 

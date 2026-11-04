@@ -85,9 +85,31 @@ final class OperatorLoweringPass: LoweringPass {
             return
         }
 
-        if let unboxCallee = unboxCallee(for: types.kind(of: resultType), interner: interner) {
+        let resultKind = types.kind(of: resultType)
+        if let unboxCallee = unboxCallee(for: resultKind, interner: interner) {
             newBody.append(
                 .call(callee: unboxCallee, arguments: [checkedOperand], result: result, canThrow: false)
+            )
+            return
+        }
+
+        // `v!!` where `v: V?` narrows a nullable-underlying or reference-backed
+        // value class from its nominal-box slot to the raw `V` payload the
+        // non-null type carries — emit the same `kk_value_class_unbox` other
+        // `V?` -> `V` boundaries use (KUU-3115/KUU-4086). A redundant `x!!`
+        // on a declared `V` keeps its payload verbatim instead: that payload
+        // may itself legitimately be a nominal box of the same class
+        // (`VC(VC(5))`), which an unconditional unbox would strip.
+        if let symbols,
+           let valueClass = nullableUnderlyingValueClassSymbol(of: resultKind, types: types, symbols: symbols)
+               ?? referenceBackedValueClassSymbol(of: resultKind, types: types, symbols: symbols),
+           let operandType = arena.exprType(operand),
+           valueClassUnboxSourceIsBoxed(types.kind(of: operandType), targetClassSymbol: valueClass)
+        {
+            emitValueClassUnboxCall(
+                value: checkedOperand, classSymbol: valueClass, result: result,
+                types: types, symbols: symbols, interner: interner, arena: arena,
+                into: &newBody
             )
         } else {
             newBody.append(.copy(from: checkedOperand, to: result))

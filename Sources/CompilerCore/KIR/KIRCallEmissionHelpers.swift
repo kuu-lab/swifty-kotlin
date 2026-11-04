@@ -497,12 +497,19 @@ func valueClassBoxTargetIsBoxed(_ kind: TypeKind, symbols: SymbolTable?) -> Bool
 
 /// True when `kind` is a slot type whose runtime value may hold a nominal
 /// value-class box that `kk_value_class_unbox` must unwrap back to the `V`
-/// payload (KUU-3115). Any `.classType` qualifies: the helper's class-ID check
-/// makes it a no-op for payloads that arrive already unboxed.
-func valueClassUnboxSourceIsBoxed(_ kind: TypeKind) -> Bool {
+/// payload (KUU-3115). `Any`, type parameters, nullable `V?`, and foreign
+/// reference classifiers all carry box-shaped values. A *non-null* slot of
+/// the same value class is the exception: it holds the raw payload — which
+/// may itself legitimately be a box of the same class (`VC(VC(5))` stores a
+/// boxed inner `VC` as `v`) — so unboxing it would strip a real value layer
+/// (KUU-4086).
+func valueClassUnboxSourceIsBoxed(_ kind: TypeKind, targetClassSymbol: SymbolID) -> Bool {
     switch kind {
-    case .any, .typeParam, .classType:
+    case .any, .typeParam:
         return true
+    case let .classType(classType):
+        return classType.nullability != .nonNull
+            || classType.classSymbol != targetClassSymbol
     default:
         return false
     }
@@ -640,6 +647,20 @@ func unboxedValueClassReceiverExpr<C: RangeReplaceableCollection>(
     ) ?? referenceBackedValueClassSymbol(
         of: rawReceiverKind, types: types, symbols: symbols
     ) {
+        // A value already statically typed as the non-null `V` carries the
+        // raw payload representation — which *is* what member bodies consume
+        // — even when the payload is itself a nominal box of the same class
+        // (`VC(VC(5))` stores a boxed inner `VC` as `v`). Unboxing here would
+        // strip that legitimate inner wrapper (KUU-4086). Only `V?`, erased
+        // (`Any`/type-parameter), or foreign reference slots carry the outer
+        // nominal box that `kk_value_class_unbox` removes.
+        if let valueType = arena.exprType(value),
+           case let .classType(valueClass) = types.kind(of: valueType),
+           valueClass.nullability == .nonNull,
+           valueClass.classSymbol == receiverClass.classSymbol
+        {
+            return value
+        }
         let unboxedReceiver = arena.appendTemporary(type: receiverType)
         emitValueClassUnboxCall(
             value: value,

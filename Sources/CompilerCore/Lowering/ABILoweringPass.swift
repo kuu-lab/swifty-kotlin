@@ -1548,7 +1548,7 @@ final class ABILoweringPass: LoweringPass {
                 of: rawReturnKind, types: types, symbols: symbols
             ) ?? referenceBackedValueClassSymbol(
                 of: rawReturnKind, types: types, symbols: symbols
-            ), valueClassUnboxSourceIsBoxed(rawValueKind) {
+            ), valueClassUnboxSourceIsBoxed(rawValueKind, targetClassSymbol: vcSymbol) {
                 var instructions: [KIRInstruction] = []
                 let unboxed = module.arena.appendTemporary(type: returnType)
                 emitValueClassUnboxCall(
@@ -1678,7 +1678,7 @@ final class ABILoweringPass: LoweringPass {
         if let symbols,
            let vcSymbol = referenceBackedValueClassSymbol(of: rawToKind, types: types, symbols: symbols)
                ?? nullableUnderlyingValueClassSymbol(of: rawToKind, types: types, symbols: symbols),
-           valueClassUnboxSourceIsBoxed(rawFromKind)
+           valueClassUnboxSourceIsBoxed(rawFromKind, targetClassSymbol: vcSymbol)
         {
             var instructions: [KIRInstruction] = []
             emitValueClassUnboxCall(
