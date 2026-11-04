@@ -544,6 +544,34 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4156: `kotlin.io.print`/`println` lower straight to `__kk_print_raw`
+    /// but must still follow `java.lang.System.out`'s closed state like the
+    /// JVM — `PrintStream.close()` on the console sink marks the raw bridge
+    /// closed, so later console writes drop instead of reaching stdout.
+    /// `System.err.close()` must not touch stdout.
+    @Test(arguments: [true, false])
+    func testSystemOutCloseDropsKotlinIoPrintln(allowDefaultStdlibLibrary: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                println("before")
+                System.err.close()
+                println("after-err-close")
+                System.out.close()
+                println("dropped-println")
+                print("dropped-print")
+                println()
+                println(42)
+                println(null as Any?)
+                System.out.println("dropped-system-out")
+                println("still-dropped")
+            }
+            """,
+            expectedOutput: "before\nafter-err-close\n",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     // KSP-625: The public ArrayDeque surface is bundled Kotlin. Empty and bounds checks
     // and toString stay in Kotlin; only ring-buffer mutation crosses the __kk_arraydeque_* bridges.
     @Test

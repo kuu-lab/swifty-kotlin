@@ -27,8 +27,28 @@ private func runtimeReturnTypeDescriptorToString(_ raw: Int) -> String? {
     return runtimeQualifiedTypeName(baseName) + (isNullable ? "?" : "")
 }
 
+/// KUU-4156: `java.lang.System.out`/`System.err` are bundled `PrintStream`
+/// objects whose `closed` flag lives in Kotlin state, while `kotlin.io.print`/
+/// `println` and `Throwable.printStackTrace` lower straight to the raw
+/// bridges below. These flags mirror each console sink's closed state so the
+/// raw bridges follow the stream lifecycle the way the JVM does — closing
+/// `System.out`/`System.err` drops later output instead of writing to the fd.
+private nonisolated(unsafe) var runtimeConsoleStdoutClosed = false
+private nonisolated(unsafe) var runtimeConsoleStderrClosed = false
+
+@_cdecl("__kk_console_stdout_close")
+public func __kk_console_stdout_close() {
+    runtimeConsoleStdoutClosed = true
+}
+
+@_cdecl("__kk_console_stderr_close")
+public func __kk_console_stderr_close() {
+    runtimeConsoleStderrClosed = true
+}
+
 @_cdecl("__kk_print_raw")
 public func __kk_print_raw(_ messageRaw: Int) {
+    if runtimeConsoleStdoutClosed { return }
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
     let printable = KotlinStringSurrogateEncoding.printableString(message)
     let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
@@ -38,6 +58,7 @@ public func __kk_print_raw(_ messageRaw: Int) {
 
 @_cdecl("__kk_println_raw")
 public func __kk_println_raw(_ messageRaw: Int) {
+    if runtimeConsoleStdoutClosed { return }
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
     let printable = KotlinStringSurrogateEncoding.printableString(message)
     let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
@@ -47,6 +68,7 @@ public func __kk_println_raw(_ messageRaw: Int) {
 
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
+    if runtimeConsoleStderrClosed { return 0 }
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
     let data = Data(KotlinStringSurrogateEncoding.printableString(message).utf8)
     let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()

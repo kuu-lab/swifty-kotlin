@@ -455,6 +455,8 @@ enum WasmRuntimeHelpers {
         "__kk_print_raw",
         "__kk_printStderr",
         "$__kk_println_stderr",
+        "__kk_console_stdout_close",
+        "__kk_console_stderr_close",
         "kk_string_length",
         "__kk_string_struct_get_length",
         "kk_string_get",
@@ -1012,6 +1014,20 @@ enum WasmRuntimeHelpers {
             ctx.module.addDataSegment(offset: L.newlineAddress, bytes: [0x0A])
             extraLocals = 0
             emitPrintBody(&code, ctx: ctx, newline: true, fd: 2)
+        case "__kk_console_stdout_close", "__kk_console_stderr_close":
+            // KUU-4156: `System.out`/`System.err` `PrintStream.close()` marks
+            // the matching console fd closed; later writes drop like a closed
+            // JVM PrintStream instead of reaching the WASI fd.
+            extraLocals = 0
+            let closedGlobal = ctx.module.addGlobal(
+                initialValue: 0,
+                name: consoleClosedGlobalName(
+                    fd: name == "__kk_console_stderr_close" ? 2 : 1
+                )
+            )
+            code.i64Const(1)
+            code.globalSet(closedGlobal)
+            code.i64Const(0)
         case "kk_string_length", "__kk_string_struct_get_length":
             extraLocals = 0
             emitStringLengthBody(&code)
@@ -3976,6 +3992,12 @@ enum WasmRuntimeHelpers {
         code.localGet(2)
     }
 
+    /// KUU-4156: module-global flag name mirroring the native runtime's
+    /// per-fd "console stream closed" state (fd 1 → stdout, fd 2 → stderr).
+    private static func consoleClosedGlobalName(fd: Int32) -> String {
+        fd == 2 ? "$__kk_console_stderr_closed" : "$__kk_console_stdout_closed"
+    }
+
     /// `fd_write(fd, iovec, 1, nwritten)` — drops the errno result.
     private static func emitFDWrite(_ code: inout WasmCode, ctx: WasmModuleContext, fd: Int32 = 1) {
         code.i32Const(fd)
@@ -3993,6 +4015,15 @@ enum WasmRuntimeHelpers {
         newline: Bool,
         fd: Int32 = 1
     ) {
+        // KUU-4156: a closed `System.out`/`System.err` drops later writes.
+        let closedGlobal = ctx.module.addGlobal(
+            initialValue: 0, name: consoleClosedGlobalName(fd: fd)
+        )
+        code.globalGet(closedGlobal)
+        code.openIf()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
         // s == 0 → no-op for now (native prints "null"; M2 will match).
         code.localGet(0)
         code.op(WasmOpcode.i64Eqz)
@@ -13329,6 +13360,15 @@ enum WasmRuntimeHelpers {
         _ code: inout WasmCode,
         ctx: WasmModuleContext
     ) {
+        // KUU-4156: a closed `System.out` drops later writes.
+        let closedGlobal = ctx.module.addGlobal(
+            initialValue: 0, name: consoleClosedGlobalName(fd: 1)
+        )
+        code.globalGet(closedGlobal)
+        code.openIf()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
         code.i32Const(Int32(L.iovecAddress))
         code.i32Const(Int32(L.newlineAddress))
         code.i32Store()

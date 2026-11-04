@@ -10,6 +10,16 @@ internal external fun __printStderrRaw(message: String): Int
 @KsSymbolName("__kk_print_raw")
 internal external fun __printStdoutRaw(message: String)
 
+// KUU-4156: closing a console-sink PrintStream (`System.out`/`System.err`,
+// i.e. one without a wrapped OutputStream) marks the matching raw console
+// bridge closed so `kotlin.io.print`/`println` and `printStackTrace` — which
+// bypass this object — also drop output like on the JVM.
+@KsSymbolName("__kk_console_stdout_close")
+internal external fun __closeStdoutRaw()
+
+@KsSymbolName("__kk_console_stderr_close")
+internal external fun __closeStderrRaw()
+
 public class PrintStream internal constructor() {
     private var output: OutputStream? = null
     private var writesToStdout: Boolean = false
@@ -140,6 +150,12 @@ public class PrintStream internal constructor() {
         closed = true
         val target = output
         output = null
-        target?.close()
+        if (target != null) {
+            target.close()
+        } else if (writesToStdout) {
+            __closeStdoutRaw()
+        } else {
+            __closeStderrRaw()
+        }
     }
 }
