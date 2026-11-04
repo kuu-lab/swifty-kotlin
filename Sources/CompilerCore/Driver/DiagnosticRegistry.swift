@@ -171,6 +171,13 @@ enum DiagnosticRegistry {
         // visibility while the setter may only be narrower.
         "GETTER_VISIBILITY_DIFFERS_FROM_PROPERTY_VISIBILITY": ["KSWIFTK-SEMA-0476"],
         "SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY": ["KSWIFTK-SEMA-0477"],
+        // kotlinc K2 checks an `override` accessor's effective visibility
+        // against the overridden accessor's with two distinct names: a
+        // strictly narrower visibility is CANNOT_WEAKEN_ACCESS_PRIVILEGE while
+        // an unordered `protected`/`internal` pairing is
+        // CANNOT_CHANGE_ACCESS_PRIVILEGE.
+        "CANNOT_WEAKEN_ACCESS_PRIVILEGE": ["KSWIFTK-SEMA-0478"],
+        "CANNOT_CHANGE_ACCESS_PRIVILEGE": ["KSWIFTK-SEMA-0479"],
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
@@ -1410,6 +1417,18 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "setter visibility cannot be more permissive than property visibility."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0478",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An override accessor cannot weaken the overridden accessor's visibility."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0479",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "An override accessor cannot change the overridden accessor's visibility."
         ),
     ]
 

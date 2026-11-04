@@ -1144,6 +1144,11 @@ extension DataFlowSemaPhase {
                     ownerSymbol: symbol,
                     ctx: ctx
                 )
+                validateOverrideAccessorVisibility(
+                    memberDecl: memberDecl,
+                    ownerSymbol: symbol,
+                    ctx: ctx
+                )
             } else {
                 validateMissingOverride(
                     memberName: memberMeta.name,
@@ -1247,14 +1252,30 @@ extension DataFlowSemaPhase {
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return }
 
-        validateVisibilityExpansion(
-            childVisibility: memberMeta.visibility,
-            childOwnerSymbol: ownerSymbol,
-            parentSymbol: parentSym,
-            memberName: memberMeta.name,
-            memberRange: memberMeta.range,
-            ctx: ctx
-        )
+        if memberMeta.isFunction {
+            validateVisibilityExpansion(
+                childVisibility: memberMeta.visibility,
+                childOwnerSymbol: ownerSymbol,
+                parentSymbol: parentSym,
+                memberName: memberMeta.name,
+                memberRange: memberMeta.range,
+                ctx: ctx
+            )
+        } else {
+            // KUU-4142: kotlinc has no member-level visibility diagnostic for
+            // properties — an override property's declared visibility flows to
+            // its accessors, and each accessor is compared against the
+            // overridden accessor instead (KSWIFTK-SEMA-0478/0479). Only the
+            // cross-module compatibility rules still apply at member level.
+            validateModuleBoundaryCompatibility(
+                childVisibility: memberMeta.visibility,
+                childOwnerSymbol: ownerSymbol,
+                parentSymbol: parentSym,
+                memberName: memberMeta.name,
+                memberRange: memberMeta.range,
+                ctx: ctx
+            )
+        }
     }
 
     private func visibilityToString(_ visibility: Visibility) -> String {
@@ -1264,6 +1285,181 @@ extension DataFlowSemaPhase {
         case .internal: return "internal"
         case .public: return "public"
         }
+    }
+
+    /// KUU-4142: kotlinc checks each accessor of an `override` property
+    /// against the corresponding accessor of the overridden property and
+    /// reports `cannot weaken access privilege`
+    /// (`CANNOT_WEAKEN_ACCESS_PRIVILEGE`) for a strictly narrower visibility
+    /// or `cannot change access privilege`
+    /// (`CANNOT_CHANGE_ACCESS_PRIVILEGE`) for an unordered
+    /// `protected`/`internal` pairing. A wider visibility stays legal, just
+    /// like widening the member itself.
+    ///
+    /// The override accessor's effective visibility is its own modifier when
+    /// spelled, otherwise the property's explicit visibility modifier, and —
+    /// when neither is spelled — the base accessor's visibility it inherits,
+    /// which is trivially equal and reports nothing. Because a property's
+    /// declared visibility flows to its accessors, this check also covers the
+    /// member-level narrowing kotlinc reports for `protected override` style
+    /// declarations (which likewise say `for 'accessor'`).
+    private func validateOverrideAccessorVisibility(
+        memberDecl: Decl,
+        ownerSymbol: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) {
+        guard case let .propertyDecl(prop) = memberDecl,
+              prop.modifiers.contains(.override)
+        else {
+            return
+        }
+        guard let parent = findInheritedMember(
+            named: prop.name,
+            for: ownerSymbol,
+            symbols: ctx.symbols,
+            kind: .property
+        ), let parentSym = ctx.symbols.symbol(parent.memberID) else {
+            return
+        }
+        let baseOwnerName = ctx.interner.resolve(parent.ownerName)
+        let baseIsMutable: Bool
+        if let baseDeclID = ctx.declBySymbol[parent.memberID],
+           case let .propertyDecl(baseProp) = ctx.ast.arena.decl(baseDeclID)
+        {
+            baseIsMutable = baseProp.isVar
+        } else {
+            baseIsMutable = parentSym.flags.contains(.mutable)
+        }
+
+        var pending: [(code: String, message: String, range: SourceRange)] = []
+        func consider(_ accessor: PropertyAccessorDecl?, isSetter: Bool) {
+            // A fully implicit accessor — no own modifier and no explicit
+            // property modifier — inherits the base accessor's visibility, so
+            // it is equal by construction and there is nothing to report.
+            guard let childVisibility = accessor?.visibility
+                ?? explicitVisibility(prop.modifiers)
+            else {
+                return
+            }
+            guard let baseVisibility = effectiveBaseAccessorVisibility(
+                of: parent.memberID,
+                isSetter: isSetter,
+                visited: [],
+                ctx: ctx
+            ) else {
+                return
+            }
+            let code: String
+            let verb: String
+            switch compareOverrideVisibilities(childVisibility, baseVisibility) {
+            case let order? where order < 0:
+                code = "KSWIFTK-SEMA-0478"
+                verb = "weaken"
+            case nil:
+                code = "KSWIFTK-SEMA-0479"
+                verb = "change"
+            default:
+                return
+            }
+            let candidate = (
+                code: code,
+                message: "cannot \(verb) access privilege \(visibilityToString(childVisibility)) for 'accessor' in '\(baseOwnerName)'.",
+                range: accessor?.range ?? prop.range
+            )
+            // kotlinc deduplicates diagnostics that share position, factory,
+            // and arguments — `internal override var` on a public base, for
+            // example, reports once even though both implicit accessors
+            // weaken at the same modifier.
+            if !pending.contains(where: {
+                $0.code == candidate.code && $0.message == candidate.message && $0.range == candidate.range
+            }) {
+                pending.append(candidate)
+            }
+        }
+
+        consider(prop.getter, isSetter: false)
+        // A `val` child has no setter; a `val` base offers no setter to
+        // override, so an added setter is never compared against it.
+        if prop.isVar, baseIsMutable {
+            consider(prop.setter, isSetter: true)
+        }
+        for diagnostic in pending {
+            ctx.diagnostics.error(diagnostic.code, diagnostic.message, range: diagnostic.range)
+        }
+    }
+
+    /// The visibility an accessor of `symbolID`'s property effectively
+    /// carries: its own modifier when spelled, else the property's explicit
+    /// modifier, else — for an `override` that repeats neither — the
+    /// visibility inherited from the next base accessor up the override
+    /// chain. Imported or synthetic members have no source decl, so their
+    /// accessor shares the member's visibility.
+    private func effectiveBaseAccessorVisibility(
+        of symbolID: SymbolID,
+        isSetter: Bool,
+        visited: Set<SymbolID>,
+        ctx: OpenFinalOverrideContext
+    ) -> Visibility? {
+        guard !visited.contains(symbolID),
+              let symbol = ctx.symbols.symbol(symbolID)
+        else {
+            return nil
+        }
+        guard let declID = ctx.declBySymbol[symbolID],
+              case let .propertyDecl(prop) = ctx.ast.arena.decl(declID)
+        else {
+            return symbol.visibility
+        }
+        let accessor = isSetter ? prop.setter : prop.getter
+        if let explicit = accessor?.visibility {
+            return explicit
+        }
+        if let explicit = explicitVisibility(prop.modifiers) {
+            return explicit
+        }
+        guard prop.modifiers.contains(.override) else {
+            return .public
+        }
+        guard let ownerID = ctx.symbols.parentSymbol(for: symbolID),
+              let next = findInheritedMember(
+                  named: prop.name,
+                  for: ownerID,
+                  symbols: ctx.symbols,
+                  kind: .property
+              )
+        else {
+            return symbol.visibility
+        }
+        return effectiveBaseAccessorVisibility(
+            of: next.memberID,
+            isSetter: isSetter,
+            visited: visited.union([symbolID]),
+            ctx: ctx
+        )
+    }
+
+    /// The visibility spelled by a modifier set, or nil when no visibility
+    /// modifier is present — distinct from `extractVisibility(from:)`, which
+    /// defaults the absent case to `.public` for member-level checks.
+    private func explicitVisibility(_ modifiers: Modifiers) -> Visibility? {
+        if modifiers.contains(.private) { return .private }
+        if modifiers.contains(.protected) { return .protected }
+        if modifiers.contains(.internal) { return .internal }
+        if modifiers.contains(.public) { return .public }
+        return nil
+    }
+
+    /// Kotlin's `Visibilities.compare`: `private` is narrower than every
+    /// visibility and `public` wider than every visibility, while `protected`
+    /// and `internal` are unordered relative to each other (nil result).
+    /// Negative means the child is the narrower visibility.
+    private func compareOverrideVisibilities(_ child: Visibility, _ base: Visibility) -> Int? {
+        if child == base { return 0 }
+        if child == .private { return -1 }
+        if base == .private { return 1 }
+        if child == .public { return 1 }
+        if base == .public { return -1 }
+        return nil
     }
 
     private func validateModifierCombinations(
