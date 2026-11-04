@@ -478,8 +478,21 @@ private func runtimeFormatIntegerBitPattern(_ value: RuntimeValue) -> UInt64 {
        runtimeIsObjectPointer(pointer)
     {
         if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
-            let intValue = Int32(truncatingIfNeeded: intBox.value)
-            return UInt64(UInt32(bitPattern: intValue))
+            // JVM Formatter masks %x/%o to the boxed type's own width:
+            // Byte -> 8 bits, Short -> 16 bits, Int -> 32 bits.
+            // Byte/Short/Int (and the unsigned kinds) share RuntimeIntBox;
+            // `primitiveTypeBase` records which Kotlin type was boxed.
+            switch intBox.primitiveTypeBase {
+            case RuntimeTypeTokenEncoding.byteBase,
+                 RuntimeTypeTokenEncoding.ubyteBase:
+                return UInt64(UInt8(bitPattern: Int8(truncatingIfNeeded: intBox.value)))
+            case RuntimeTypeTokenEncoding.shortBase,
+                 RuntimeTypeTokenEncoding.ushortBase:
+                return UInt64(UInt16(bitPattern: Int16(truncatingIfNeeded: intBox.value)))
+            default:
+                let intValue = Int32(truncatingIfNeeded: intBox.value)
+                return UInt64(UInt32(bitPattern: intValue))
+            }
         }
         if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
             return UInt64(bitPattern: Int64(longBox.value))
