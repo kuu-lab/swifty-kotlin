@@ -1203,7 +1203,12 @@ extension DataFlowSemaPhase {
             let nestedCtorFQName = nestedFQName + [ctorName]
             let nestedHasPrimaryCtorSyntax = nestedClass.hasPrimaryConstructorSyntax
             let nestedHasSecondaryCtors = !nestedClass.secondaryConstructors.isEmpty
-            if nestedHasPrimaryCtorSyntax || !nestedHasSecondaryCtors {
+            // A regular `expect class` has no implicit constructor — the same
+            // rule as the top-level class path above; enum classes keep it
+            // because their entries call it (KUU-3922).
+            let nestedIsExpectClass = nestedClass.modifiers.contains(.expect)
+                && nestedClassKind == .class
+            if nestedHasPrimaryCtorSyntax || (!nestedHasSecondaryCtors && !nestedIsExpectClass) {
                 let nestedPrimaryCtorVisibilityDetail = primaryConstructorVisibilityDetail(
                     for: nestedClass,
                     classKind: nestedClassKind,

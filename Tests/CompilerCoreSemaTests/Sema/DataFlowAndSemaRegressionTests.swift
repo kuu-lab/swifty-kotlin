@@ -931,6 +931,107 @@ struct DataFlowAndSemaRegressionTests {
         }
     }
 
+    // KUU-3922: an `expect class` declares no implicit constructor — every
+    // callable constructor must be written out — so a same-named top-level
+    // `fun UtcOffset()` cannot collide with a ctor that does not exist
+    // (kotlinx-datetime's `expect class UtcOffset` + deprecated `UtcOffset()`).
+    @Test
+    func testExpectClassWithoutCtorSyntaxDoesNotConflictWithSameNamedFunction() throws {
+        let source = """
+        expect class UtcOffset {
+            val totalSeconds: Int
+            companion object {
+                val ZERO: UtcOffset
+            }
+        }
+        actual class UtcOffset private actual constructor(actual val totalSeconds: Int) {
+            actual companion object {
+                actual val ZERO: UtcOffset = UtcOffset(totalSeconds = 0)
+            }
+        }
+        fun UtcOffset(): UtcOffset = UtcOffset.ZERO
+        fun use(): UtcOffset = UtcOffset()
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let initName = ctx.interner.intern("<init>")
+            let ctorParents = sema.symbols.lookupAll(fqName: [
+                ctx.interner.intern("UtcOffset"), initName,
+            ]).compactMap {
+                sema.symbols.parentSymbol(for: $0).flatMap { sema.symbols.symbol($0) }
+            }
+            // Only the actual class's declared `private constructor(Int)`
+            // exists; the expect class contributes no implicit `()` ctor.
+            #expect(ctorParents.count == 1)
+            #expect(ctorParents.allSatisfy { $0.flags.contains(.actualDeclaration) })
+
+            // The no-arg call in `use()` binds the top-level function.
+            let utcOffsetFQName = [ctx.interner.intern("UtcOffset")]
+            let funSymbols = Set(sema.symbols.lookupAll(fqName: utcOffsetFQName).filter {
+                sema.symbols.symbol($0)?.kind == .function
+            })
+            let ctorSymbols = Set(sema.symbols.lookupAll(fqName: utcOffsetFQName + [
+                ctx.interner.intern("<init>"),
+            ]))
+            let chosenCallees = sema.bindings.callBindings.values.map(\.chosenCallee)
+            #expect(chosenCallees.filter { funSymbols.contains($0) }.count == 1)
+            #expect(chosenCallees.filter { ctorSymbols.contains($0) }.count == 1)
+        }
+    }
+
+    // KUU-3922: the same-signature low-priority function must not suppress the
+    // constructor candidate — `LocalDate(...)` binds the regular-priority
+    // constructor, while argument names that exist only on the function keep
+    // binding the function.
+    @Test
+    func testLowPriorityFactoryFunctionYieldsToSameSignatureConstructor() throws {
+        let source = """
+        class LocalDate(val year: Int, val month: Int, val day: Int)
+
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @kotlin.internal.LowPriorityInOverloadResolution
+        fun LocalDate(year: Int, monthNumber: Int, dayOfMonth: Int): LocalDate =
+            LocalDate(year = year, month = monthNumber, day = dayOfMonth)
+
+        fun usePositional(): LocalDate = LocalDate(2020, 1, 1)
+        fun useConstructorNames(): LocalDate = LocalDate(year = 2020, month = 1, day = 1)
+        fun useFunctionNames(): LocalDate = LocalDate(year = 2020, monthNumber = 1, dayOfMonth = 1)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            // Without the stdlib the `kotlin.internal` annotation name is
+            // unresolved (SEMA-0022), but its use-site name still marks the
+            // function low-priority — no declaration clash (SEMA-0001) and no
+            // failed call (SEMA-0002) may occur.
+            let errorCodes = Set(ctx.diagnostics.diagnostics.filter {
+                $0.severity == .error
+            }.map(\.code))
+            #expect(errorCodes.isSubset(of: ["KSWIFTK-SEMA-0022"]),
+                    "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let localDateFQName = [ctx.interner.intern("LocalDate")]
+            let ctorSymbols = Set(sema.symbols.lookupAll(fqName: localDateFQName + [
+                ctx.interner.intern("<init>"),
+            ]))
+            let funSymbols = Set(sema.symbols.lookupAll(fqName: localDateFQName).filter {
+                sema.symbols.symbol($0)?.kind == .function
+            })
+            // The fun body's `LocalDate(year = ..., month = ..., day = ...)`
+            // plus the two ctor-shaped calls bind the constructor; only the
+            // call using the compat function's parameter names binds it.
+            let chosenCallees = sema.bindings.callBindings.values.map(\.chosenCallee)
+            #expect(chosenCallees.filter { ctorSymbols.contains($0) }.count == 3)
+            #expect(chosenCallees.filter { funSymbols.contains($0) }.count == 1)
+        }
+    }
+
     // Regression for KSP-663: builtin companion types remain resolvable in extensions.
     @Test
     func testBuiltinCharCompanionTypeResolvesInExtensionSignature() throws {

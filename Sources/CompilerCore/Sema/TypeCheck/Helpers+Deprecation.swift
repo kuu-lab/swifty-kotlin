@@ -756,6 +756,16 @@ func isHiddenByDeprecationOrVersionAnnotation(_ symbol: SymbolID, symbols: Symbo
     return false
 }
 
+/// A declaration annotated `@kotlin.internal.LowPriorityInOverloadResolution`
+/// legally shares a signature with a regular-priority callable (e.g. a class
+/// constructor): overload resolution ranks it last instead of rejecting the
+/// pair, so it must not suppress the regular candidate (KUU-3922).
+func isLowPriorityInOverloadResolution(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
+    symbols.annotations(for: symbol).contains {
+        $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+    }
+}
+
 private func parseMetadataVersionArgument(
     _ arguments: [String],
     parameterName: String

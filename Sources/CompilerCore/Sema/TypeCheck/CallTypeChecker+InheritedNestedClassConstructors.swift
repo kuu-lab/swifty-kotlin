@@ -91,6 +91,13 @@ extension CallTypeChecker {
                    sema.symbols.parentSymbol(for: existingID) != classID {
                     return false
                 }
+                // A @LowPriorityInOverloadResolution function legitimately
+                // shares the constructor's signature — resolution ranks it
+                // below the ctor, so it must not suppress the ctor candidate
+                // (KUU-3922, kotlinx-datetime's deprecated ctor-compat funs).
+                if isLowPriorityInOverloadResolution(existingID, symbols: sema.symbols) {
+                    return false
+                }
                 // A same-signature companion `invoke` is a distinct call
                 // target: Kotlin prefers the constructor when applicable,
                 // then falls back to `invoke` when it is not.

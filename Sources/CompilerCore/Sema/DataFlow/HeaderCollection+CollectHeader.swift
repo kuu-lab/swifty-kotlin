@@ -135,9 +135,17 @@ extension DataFlowSemaPhase {
             // (b) there are no secondary constructors (implicit default ctor).
             // A class like `class Foo { constructor(x: Int) : ... }` has NO
             // primary constructor and should not get a synthetic no-arg ctor.
+            // A regular `expect class` never gets an implicit ctor either:
+            // callable constructors must be declared, so `expect class Foo`
+            // (unlike `expect class Foo()`) has none — which lets a same-named
+            // `fun Foo()` coexist (KUU-3922, kotlinx-datetime `UtcOffset()`).
+            // Enum classes keep the implicit ctor because enum entries are
+            // constructor calls that must bind it.
             let hasPrimaryCtorSyntax = classDecl.hasPrimaryConstructorSyntax
             let hasSecondaryCtors = !classDecl.secondaryConstructors.isEmpty
-            if hasPrimaryCtorSyntax || !hasSecondaryCtors {
+            let isExpectClass = classDecl.modifiers.contains(.expect)
+                && declaration.kind == .class
+            if hasPrimaryCtorSyntax || (!hasSecondaryCtors && !isExpectClass) {
                 let primaryCtorVisibilityDetail = primaryConstructorVisibilityDetail(
                     for: classDecl,
                     classKind: declaration.kind,
