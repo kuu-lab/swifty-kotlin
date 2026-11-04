@@ -34,4 +34,4 @@ expr e@9:64 name(c) type=Char ref=s-4
 expr e@9:64#1 memberCall recv=e@9:64 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=;ret=Int]
 expr e@9:60#1 binary(add) lhs=e@9:60 rhs=e@9:64#1 type=Int
 expr e@9:50 lambda params=[i,c] body=e@9:60#1 label=mapIndexed type=(Int, Char) -> Any?
-expr e@9:37#1 memberCall recv=e@9:37 callee=mapIndexed args=[_:e@9:50] type=kotlin.collections.List<Int> call=kotlin.text.mapIndexed[kind=fun;recv=kotlin.CharSequence;params=fn{p=Int,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;nonlocal=[0];names=[transform]] targs=[Int]
+expr e@9:37#1 memberCall recv=e@9:37 callee=mapIndexed args=[_:e@9:50] type=kotlin.collections.List<Int> call=kotlin.text.mapIndexed[kind=fun;recv=kotlin.CharSequence;params=fn{p=Int,Char;ret=T0};ret=kotlin.collections.List<T0>;gen=1;names=[transform]] targs=[Int]
