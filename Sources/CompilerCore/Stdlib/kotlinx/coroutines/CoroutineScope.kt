@@ -90,12 +90,13 @@ internal external fun kkCoroutineScopeFail(scope: Any, exception: Throwable)
 @KsSymbolName("kk_coroutine_scope_wait")
 internal external fun kkCoroutineScopeWait(scope: Any): Throwable?
 
-// Keep the erased block/result contract for nested generic builders.
-// Any? permits nullable results; Sema recovers each call's precise type
-// from its block body.
-public suspend fun coroutineScope(block: suspend CoroutineScope.() -> Any?): Any? {
+// Upstream kotlinx.coroutines declares these builders `<R>`-generic so
+// explicit type arguments and the block's result type flow through the
+// signature. Sema additionally narrows each call's bound type from its
+// block body (coroutineBuilderNarrowedReturnType) for erased paths.
+public suspend fun <R> coroutineScope(block: suspend CoroutineScope.() -> R): R {
     val scope = kkCoroutineScopeNew()
-    val result: Any?
+    val result: R
     try {
         result = block(scope)
     } catch (e: Throwable) {
@@ -113,9 +114,9 @@ public suspend fun coroutineScope(block: suspend CoroutineScope.() -> Any?): Any
     return result
 }
 
-public suspend fun supervisorScope(block: suspend CoroutineScope.() -> Any?): Any? {
+public suspend fun <R> supervisorScope(block: suspend CoroutineScope.() -> R): R {
     val scope = kkSupervisorScopeNew()
-    val result: Any?
+    val result: R
     try {
         result = block(scope)
     } catch (e: Throwable) {

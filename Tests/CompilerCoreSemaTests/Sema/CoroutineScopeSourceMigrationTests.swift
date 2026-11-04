@@ -83,6 +83,88 @@ struct CoroutineScopeSourceMigrationTests {
     }
 
     @Test
+    func scopeBuildersAreGenericOverBlockResult() throws {
+        // KUU-4095: upstream declares `suspend fun <R> coroutineScope/
+        // supervisorScope(block: suspend CoroutineScope.() -> R): R`; the
+        // bundled declarations must match so explicit type arguments and the
+        // block's result type flow through the signature.
+        let ctx = makeContextFromSource("""
+        import kotlinx.coroutines.*
+
+        suspend fun probe() {
+            val scopedIntExplicit: Int = coroutineScope<Int> { 5 }
+            val supervisedIntExplicit: Int = supervisorScope<Int> { 6 }
+            val scopedIntInferred = coroutineScope { 7 }
+            val supervisedStrInferred = supervisorScope { "y" }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        for name in ["coroutineScope", "supervisorScope"] {
+            let symbol = try #require(sema.symbols.lookupAll(
+                fqName: ["kotlinx", "coroutines", name].map(ctx.interner.intern)
+            ).first { sema.symbols.symbol($0)?.kind == .function })
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(signature.typeParameterSymbols.count == 1, "\(name) should declare one type parameter")
+            guard case let .typeParam(returnParam) = sema.types.kind(of: signature.returnType) else {
+                Issue.record("Expected \(name) to return its type parameter")
+                continue
+            }
+            #expect(signature.typeParameterSymbols.contains(returnParam.symbol))
+            let blockType = try #require(signature.parameterTypes.first)
+            guard case let .functionType(block) = sema.types.kind(of: blockType),
+                  case let .typeParam(blockReturn) = sema.types.kind(of: block.returnType) else {
+                Issue.record("Expected \(name)'s block to return the type parameter")
+                continue
+            }
+            #expect(blockReturn.symbol == returnParam.symbol)
+        }
+        // Explicit and inferred call results bind to the block's result type.
+        let ast = try #require(ctx.ast)
+        let probedNames: Set<String> = [
+            "scopedIntExplicit", "supervisedIntExplicit",
+            "scopedIntInferred", "supervisedStrInferred",
+        ]
+        var bound: [String: String] = [:]
+        for index in ast.arena.exprs.indices {
+            let expr = ExprID(rawValue: Int32(index))
+            guard case let .localDecl(name, _, _, initializer, _, _, _) = ast.arena.expr(expr),
+                  let initializer,
+                  probedNames.contains(ctx.interner.resolve(name)),
+                  let type = sema.bindings.exprType(for: initializer) else { continue }
+            bound[ctx.interner.resolve(name)] = sema.types.renderType(type)
+        }
+        #expect(bound == [
+            "scopedIntExplicit": "Int",
+            "supervisedIntExplicit": "Int",
+            "scopedIntInferred": "Int",
+            "supervisedStrInferred": "String",
+        ])
+    }
+
+    @Test
+    func mismatchedExplicitScopeResultIsRejected() throws {
+        // KUU-4095: a generic signature enforces the declared result instead
+        // of silently coercing Any?.
+        for statement in [
+            "val x: Int = coroutineScope<Int> { \"nope\" }",
+            "val x: Int = supervisorScope<Int> { \"nope\" }",
+            "val x: String = coroutineScope { 5 }",
+        ] {
+            let ctx = makeContextFromSource("""
+            import kotlinx.coroutines.*
+
+            suspend fun probe() {
+                \(statement)
+            }
+            """)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "Expected rejection of `\(statement)`")
+        }
+    }
+
+    @Test
     func factoriesAndHelpersUseBundledDeclarations() throws {
         let ctx = makeContextFromSource("""
         import kotlin.coroutines.EmptyCoroutineContext
