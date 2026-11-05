@@ -1005,7 +1005,7 @@ extension DeclTypeChecker {
                       symbol.kind == .function,
                       let signature = ctx.sema.symbols.functionSignature(for: candidate),
                       !ctx.isExpectDeclarationSupersededByActual(candidate),
-                      !ctx.isImportedCallableShadowedBySource(candidate)
+                      !ctx.isImportedSymbolShadowedBySource(candidate)
                 else {
                     return false
                 }
@@ -1153,7 +1153,7 @@ extension DeclTypeChecker {
                   symbol.kind == .function,
                   let signature = ctx.sema.symbols.functionSignature(for: candidate),
                   !ctx.isExpectDeclarationSupersededByActual(candidate),
-                  !ctx.isImportedCallableShadowedBySource(candidate)
+                  !ctx.isImportedSymbolShadowedBySource(candidate)
             else {
                 return false
             }

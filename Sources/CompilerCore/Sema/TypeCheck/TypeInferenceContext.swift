@@ -784,7 +784,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
         return results.filter {
             !isExpectDeclarationSupersededByActual($0)
-                && !isImportedCallableShadowedBySource($0)
+                && !isImportedSymbolShadowedBySource($0)
         }
     }
 
@@ -796,7 +796,7 @@ struct TypeInferenceContext: CustomStringConvertible {
     ) -> [SymbolID] {
         scope.lookup(name, matching: predicate).filter {
             !isExpectDeclarationSupersededByActual($0)
-                && !isImportedCallableShadowedBySource($0)
+                && !isImportedSymbolShadowedBySource($0)
         }
     }
 
@@ -823,7 +823,7 @@ struct TypeInferenceContext: CustomStringConvertible {
             currentScope.candidates(for: name).filter { symbolID in
                 guard let symbol = cachedSymbol(symbolID),
                       !isExpectDeclarationSupersededByActual(symbolID),
-                      !isImportedCallableShadowedBySource(symbolID)
+                      !isImportedSymbolShadowedBySource(symbolID)
                 else { return false }
                 let isClassifier = switch symbol.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias: true
@@ -872,30 +872,52 @@ struct TypeInferenceContext: CustomStringConvertible {
         return (fileLevelMatches, inheritedInterfaces)
     }
 
-    /// A source callable shadows an imported callable at the same FQ name when
-    /// their erased signatures match — e.g. upstream `kotlinx.io` sources
-    /// vendored over the bundled stdlib copy. Keeping both as call candidates
-    /// merges two declarations that must behave as one and can leak
-    /// library-side member types into lambda expected types, so the imported
-    /// twin is dropped from scope results here.
-    func isImportedCallableShadowedBySource(_ id: SymbolID) -> Bool {
+    /// A source declaration shadows an imported-library declaration at the
+    /// same FQ name — e.g. upstream `kotlinx.io`/`kotlinx.coroutines` sources
+    /// vendored over the bundled stdlib copy. Callables shadow when their
+    /// erased signatures match; nominal classifiers shadow on a same-kind,
+    /// same-FQ-name pair. Keeping both as candidates merges two declarations
+    /// that must behave as one: type references already prefer the source
+    /// nominal (`sourceFirstThenID` in Helpers.swift), so an imported twin
+    /// left in expression position binds enum entries and qualifier members
+    /// of the library-side type while signatures expect the source type —
+    /// the split surfaces as initializer mismatches and "no viable overload"
+    /// errors (KUU-4274).
+    func isImportedSymbolShadowedBySource(_ id: SymbolID) -> Bool {
         guard let symbol = cachedSymbol(id),
-              symbol.flags.contains(.importedLibrary),
-              symbol.kind == .function || symbol.kind == .constructor,
-              let signature = sema.symbols.functionSignature(for: id)
+              symbol.flags.contains(.importedLibrary)
         else {
             return false
         }
-        return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
-            guard other != id,
-                  let otherSymbol = cachedSymbol(other),
-                  !otherSymbol.flags.contains(.importedLibrary),
-                  otherSymbol.kind == symbol.kind,
-                  let otherSignature = sema.symbols.functionSignature(for: other)
-            else {
+        switch symbol.kind {
+        case .function, .constructor:
+            guard let signature = sema.symbols.functionSignature(for: id) else {
                 return false
             }
-            return hasSameSourceErasedSignature(signature, otherSignature)
+            return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
+                guard other != id,
+                      let otherSymbol = cachedSymbol(other),
+                      !otherSymbol.flags.contains(.importedLibrary),
+                      otherSymbol.kind == symbol.kind,
+                      let otherSignature = sema.symbols.functionSignature(for: other)
+                else {
+                    return false
+                }
+                return hasSameSourceErasedSignature(signature, otherSignature)
+            }
+        case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
+            return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
+                guard other != id,
+                      let otherSymbol = cachedSymbol(other),
+                      !otherSymbol.flags.contains(.importedLibrary),
+                      otherSymbol.kind == symbol.kind
+                else {
+                    return false
+                }
+                return true
+            }
+        default:
+            return false
         }
     }
 

@@ -44,7 +44,7 @@ extension CallTypeChecker {
         let callableCandidates = ctx.scope.lookup(name, matching: { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   !ctx.isExpectDeclarationSupersededByActual(candidate),
-                  !ctx.isImportedCallableShadowedBySource(candidate)
+                  !ctx.isImportedSymbolShadowedBySource(candidate)
             else { return false }
             if symbol.kind == .property {
                 if isNonCallableProperty(candidate) { return false }

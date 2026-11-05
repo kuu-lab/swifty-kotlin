@@ -41,6 +41,18 @@ extension CallTypeChecker {
         }
         let memberFQName = owner.fqName + [memberName]
         var candidates = sema.symbols.lookupAll(fqName: memberFQName).sorted(by: { $0.rawValue < $1.rawValue })
+        // An imported-library twin of the owner classifier shares every member
+        // FQName, so `lookupAll` returns both declarations' entries and the
+        // lower symbol ID — usually the imported copy — would win below even
+        // though the qualifier resolved to the source classifier (KUU-4274).
+        // Prefer members parented to the resolved owner; fall back to the
+        // full list when it declares no direct member of this name.
+        let ownerChildren = candidates.filter {
+            sema.symbols.parentSymbol(for: $0) == ownerNominalSymbol
+        }
+        if !ownerChildren.isEmpty {
+            candidates = ownerChildren
+        }
         if candidates.isEmpty {
             candidates = sema.symbols.lookupByShortName(memberName)
                 .filter { candidate in
