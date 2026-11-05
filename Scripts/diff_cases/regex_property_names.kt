@@ -101,4 +101,38 @@ fun main() {
     println("Lower_match=" + Regex("\\p{Lower}+").findAll("AbCäü").map { it.value }.toList())
     println("U_lower_match=" + Regex("(?U)\\p{lower}+").findAll("aéb").map { it.value }.toList())
     println("Lu_match=" + Regex("\\p{Lu}+").findAll("aBcD").map { it.value }.toList())
+
+    // KUU-4295: names the JVM accepts but ICU rejects must compile and keep
+    // the JVM match semantics — gc=/general_category= POSIX values are
+    // ASCII, LD = L ∪ Nd, L1 = U+0000–U+00FF, all = Any, java* predicates,
+    // every Is<java*> form, IsWORD, the HEXDIGIT spellings, and the empty
+    // SURROGATES_AREA block.
+    probe("kuu4295_LD", "\\p{LD}")
+    probe("kuu4295_L1", "\\p{L1}")
+    probe("kuu4295_all", "\\p{all}")
+    probe("kuu4295_javaAlpha", "\\p{javaAlphabetic}")
+    probe("kuu4295_javaIdeo", "\\p{javaIdeographic}")
+    probe("kuu4295_javaLower", "\\p{javaLowerCase}")
+    probe("kuu4295_javaUpper", "\\p{javaUpperCase}")
+    probe("kuu4295_Isall", "\\p{Isall}")
+    probe("kuu4295_IsLD", "\\p{IsLD}")
+    probe("kuu4295_IsL1", "\\p{IsL1}")
+    probe("kuu4295_IsjavaAlpha", "\\p{IsjavaAlphabetic}")
+    probe("kuu4295_IsjavaDigit", "\\p{IsjavaDigit}")
+    probe("kuu4295_IsjavaWS", "\\p{IsjavaWhitespace}")
+    probe("kuu4295_IsWORD", "\\p{IsWORD}")
+    probe("kuu4295_IsHEXDIGIT", "\\p{IsHEXDIGIT}")
+    probe("kuu4295_gcLower", "\\p{gc=Lower}")
+    probe("kuu4295_gcAll", "\\p{gc=all}")
+    probe("kuu4295_gcLD", "\\p{gc=LD}")
+    probe("kuu4295_gcL1", "\\p{gc=L1}")
+    probe("kuu4295_gcJavaLower", "\\p{gc=javaLowerCase}")
+    probe("kuu4295_gencatLower", "\\p{general_category=Lower}")
+    probe("kuu4295_InSurr", "\\p{InSurrogates_Area}")
+    probe("kuu4295_blkSurr", "\\p{blk=Surrogates_Area}")
+    println("LD_match=" + Regex("\\p{LD}").findAll("a5_").map { it.value }.toList())
+    println("gcLower_match=" + Regex("\\p{gc=Lower}").findAll("Abä").map { it.value }.toList())
+    println("IsWORD_match=" + Regex("\\p{IsWORD}").findAll("_ -").map { it.value }.toList())
+    println("InSurr_match=" + Regex("\\p{InSurrogates_Area}").findAll("abc").map { it.value }.toList())
+    println("PInSurr_match=" + Regex("\\P{InSurrogates_Area}").findAll("abc").map { it.value }.toList())
 }

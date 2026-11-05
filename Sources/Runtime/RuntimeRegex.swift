@@ -232,40 +232,6 @@ private let unicodeWordBoundaryPattern =
 private let unicodeNonWordBoundaryPattern =
     "(?:(?<!\\w)(?!\\w)|(?<=\\w)(?=\\w))"
 
-/// JVM POSIX `\p{Name}` classes and their US-ASCII expansions.
-///
-/// On the JVM these names match ASCII characters only unless
-/// `UNICODE_CHARACTER_CLASS` is in effect; ICU's `\p{Name}` always uses its
-/// Unicode property tables, so while ASCII mode is active each POSIX name is
-/// rewritten to the explicit ASCII class below (and `\P{Name}` to the
-/// complemented class). Under `(?U)` the escape is copied through verbatim:
-/// ICU's `\p{Name}` implements the same UTS#18 compatibility properties the
-/// JVM uses in Unicode mode (e.g. `Upper` = `Lu + Other_Uppercase`,
-/// `Cntrl` = `gc=Cc`, `Blank` = `TAB + Zs`, `Space` = `White_Space`), so the
-/// semantics already agree.
-///
-/// `\p{ASCII}` is included for completeness — it is `[\x00-\x7F]` on the JVM
-/// in both modes — and all names are matched case-sensitively: the JVM
-/// rejects `\p{lower}` while ICU would accept it. Names absent from the
-/// table (Unicode categories such as `Lu`, scripts, blocks, `java*` /
-/// `Is*` / `gc=*` properties) are Unicode-aware on both sides and always
-/// pass through.
-private let jvmAsciiPosixClassExpansions: [String: String] = [
-    "Lower": "[a-z]",
-    "Upper": "[A-Z]",
-    "ASCII": "[\\x00-\\x7F]",
-    "Alpha": "[a-zA-Z]",
-    "Digit": "[0-9]",
-    "Alnum": "[a-zA-Z0-9]",
-    "Punct": "[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]",
-    "Graph": "[\\x21-\\x7E]",
-    "Print": "[\\x20-\\x7E]",
-    "Blank": "[ \\t]",
-    "Cntrl": "[\\x00-\\x1F\\x7F]",
-    "XDigit": "[0-9a-fA-F]",
-    "Space": "[ \\t\\n\\x0B\\f\\r]",
-]
-
 /// Translates a `java.util.regex` pattern into the ICU dialect used by
 /// `NSRegularExpression`.
 ///
@@ -279,8 +245,11 @@ private let jvmAsciiPosixClassExpansions: [String: String] = [
 ///    `\s` / `\p{Name}` are always Unicode-aware, so while the ASCII mode is
 ///    active each predefined escape is rewritten to the equivalent explicit
 ///    class, `\b` / `\B` expand to lookaround assertions over
-///    `[a-zA-Z0-9_]`, and POSIX `\p{Name}` escapes expand via
-///    ``jvmAsciiPosixClassExpansions`` (`\P{Name}` complements it).
+///    `[a-zA-Z0-9_]`, and `\p{Name}` escapes are resolved by
+///    ``jvmRegexICUPropertyReplacement`` (KUU-4295), which applies the JVM's
+///    `Pattern.family` dispatch — ASCII POSIX expansions outside `(?U)`,
+///    `gc=`/`general_category=` and `Is*` rewrites — before falling back to
+///    verbatim copy.
 /// 2. **`(?U)` / `(?u)` inline flags are unknown to ICU.** The `u`
 ///    (UNICODE_CASE) flag is a no-op — ICU folds case over Unicode already —
 ///    and `U` toggles the translation mode: while Unicode character classes are
@@ -330,29 +299,25 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             }
             let escape = chars[index + 1]
             if escape == "p" || escape == "P" {
-                // `\p{Name}` / `\P{Name}`: the POSIX names are ASCII-only on
-                // the JVM unless (?U), so they expand via
-                // `jvmAsciiPosixClassExpansions` while ASCII mode is active.
-                // Emitted as a `[...]` class the expansion is safe in both
-                // contexts: it is a nested class inside `[...]` and a plain
-                // class outside. `\P{Name}` complements the expansion. Every
-                // other `\p{...}` name (Unicode categories, scripts, blocks,
-                // `java*`/`Is*`/`gc=*` properties) is Unicode-aware on both
-                // engines and passes through verbatim, as does the whole
-                // escape under `(?U)` where the semantics already agree.
+                // `\p{Name}` / `\P{Name}`: `jvmRegexICUPropertyReplacement`
+                // mirrors `java.util.regex.Pattern#family` — POSIX names get
+                // their ASCII expansions outside `(?U)`, `gc=`/`general_category=`
+                // values resolve through `forProperty`, `Is*` names follow the
+                // JVM's three-stage dispatch, and names ICU cannot express
+                // (`LD`, `L1`, `all`, `javaAlphabetic`, `javaLowerCase`,
+                // `InSurrogates_Area`, ...) are rewritten to the ICU
+                // expression with the same match set (KUU-4295). Emitted as
+                // `[...]` classes the expansions are safe in both contexts:
+                // nested class inside `[...]`, plain class outside.
                 if index + 2 < chars.count, chars[index + 2] == "{" {
                     var end = index + 3
                     while end < chars.count, chars[end] != "}" { end += 1 }
                     if end < chars.count {
-                        if !unicodeClasses,
-                           let asciiClass = jvmAsciiPosixClassExpansions[String(chars[(index + 3)..<end])] {
-                            if escape == "P" {
-                                var complemented = asciiClass
-                                complemented.insert("^", at: complemented.index(after: complemented.startIndex))
-                                out.append(complemented)
-                            } else {
-                                out.append(asciiClass)
-                            }
+                        let name = String(chars[(index + 3)..<end])
+                        if let replacement = jvmRegexICUPropertyReplacement(
+                            name, negated: escape == "P", unicodeClasses: unicodeClasses
+                        ) {
+                            out.append(replacement)
                         } else {
                             out.append(contentsOf: chars[index...end])
                         }

@@ -807,4 +807,189 @@ struct RuntimeRegexTests {
         #expect(uMatch != runtimeNullSentinelInt)
         #expect(matchValue(uMatch) == "aéb")
     }
+
+    // MARK: - KUU-4295: JVM-accepted \p{...} names ICU rejects
+
+    @Test
+    func translateRewritesJvmOnlyPropertyNames() {
+        // LD = L ∪ Nd, L1 = U+0000–U+00FF, all = Any (JDK CharPredicates).
+        #expect(translateJavaPatternForICU("\\p{LD}") == "[\\p{L}\\p{Nd}]")
+        #expect(translateJavaPatternForICU("\\P{LD}") == "[^\\p{L}\\p{Nd}]")
+        #expect(translateJavaPatternForICU("\\p{L1}") == "[\\x00-\\xFF]")
+        #expect(translateJavaPatternForICU("\\P{L1}") == "[^\\x00-\\xFF]")
+        #expect(translateJavaPatternForICU("\\p{all}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\P{all}") == "\\P{Any}")
+        // java* predicates ICU lacks or resolves differently.
+        #expect(translateJavaPatternForICU("\\p{javaAlphabetic}") == "\\p{Alphabetic}")
+        #expect(translateJavaPatternForICU("\\p{javaIdeographic}") == "\\p{Ideographic}")
+        #expect(translateJavaPatternForICU("\\p{javaLowerCase}") == "\\p{Lowercase}")
+        #expect(translateJavaPatternForICU("\\p{javaUpperCase}") == "\\p{Uppercase}")
+        #expect(translateJavaPatternForICU("\\P{javaLowerCase}") == "\\P{Lowercase}")
+        // java* names ICU already resolves identically stay verbatim.
+        #expect(translateJavaPatternForICU("\\p{javaDigit}") == "\\p{javaDigit}")
+        #expect(translateJavaPatternForICU("\\p{javaWhitespace}") == "\\p{javaWhitespace}")
+        // Is* names follow the JVM's forUnicodeProperty → forProperty →
+        // forUnicodeScript dispatch, then get the same rewrite as the bare
+        // form (ICU rejects every Is<java*> spelling outright).
+        #expect(translateJavaPatternForICU("\\p{Isall}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\p{IsLD}") == "[\\p{L}\\p{Nd}]")
+        #expect(translateJavaPatternForICU("\\p{IsL1}") == "[\\x00-\\xFF]")
+        #expect(translateJavaPatternForICU("\\p{IsjavaAlphabetic}") == "\\p{Alphabetic}")
+        #expect(translateJavaPatternForICU("\\p{IsjavaIdeographic}") == "\\p{Ideographic}")
+        #expect(translateJavaPatternForICU("\\p{IsjavaLowerCase}") == "\\p{Lowercase}")
+        #expect(translateJavaPatternForICU("\\p{IsjavaUpperCase}") == "\\p{Uppercase}")
+        #expect(translateJavaPatternForICU("\\p{IsjavaDigit}") == "\\p{javaDigit}")
+        #expect(translateJavaPatternForICU("\\p{IsjavaWhitespace}") == "\\p{javaWhitespace}")
+        #expect(translateJavaPatternForICU("\\p{IsLu}") == "\\p{Lu}")
+        #expect(translateJavaPatternForICU("\\P{IsLu}") == "\\P{Lu}")
+        #expect(translateJavaPatternForICU("\\p{IsWORD}")
+            == "[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]")
+        #expect(translateJavaPatternForICU("\\p{Isword}")
+            == "[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]")
+        #expect(translateJavaPatternForICU("\\p{IsHEXDIGIT}")
+            == "[\\p{Nd}A-Fa-f\\uFF21-\\uFF26\\uFF41-\\uFF46]")
+        #expect(translateJavaPatternForICU("\\p{IsHEX_DIGIT}")
+            == "[\\p{Nd}A-Fa-f\\uFF21-\\uFF26\\uFF41-\\uFF46]")
+        #expect(translateJavaPatternForICU("\\p{IsXDIGIT}")
+            == "[\\p{Nd}A-Fa-f\\uFF21-\\uFF26\\uFF41-\\uFF46]")
+        // Is* names ICU already resolves keep passing through.
+        #expect(translateJavaPatternForICU("\\p{IsLatin}") == "\\p{IsLatin}")
+        #expect(translateJavaPatternForICU("\\p{Islower}") == "\\p{Islower}")
+        #expect(translateJavaPatternForICU("\\p{IsALPHABETIC}") == "\\p{IsALPHABETIC}")
+        // gc=/general_category= resolve through forProperty: POSIX values take
+        // the ASCII expansion in every mode (?U does not reach forProperty),
+        // categories and java* get the same rewrites as bare names.
+        #expect(translateJavaPatternForICU("\\p{gc=Lu}") == "\\p{Lu}")
+        #expect(translateJavaPatternForICU("\\p{gc=Lower}") == "[a-z]")
+        #expect(translateJavaPatternForICU("\\p{general_category=Lower}") == "[a-z]")
+        #expect(translateJavaPatternForICU("\\p{gc=ASCII}") == "[\\x00-\\x7F]")
+        #expect(translateJavaPatternForICU("\\p{gc=Cntrl}") == "[\\x00-\\x1F\\x7F]")
+        #expect(translateJavaPatternForICU("\\p{gc=Digit}") == "[0-9]")
+        #expect(translateJavaPatternForICU("\\p{gc=Punct}")
+            == "[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]")
+        #expect(translateJavaPatternForICU("\\p{gc=all}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\p{gc=LD}") == "[\\p{L}\\p{Nd}]")
+        #expect(translateJavaPatternForICU("\\p{gc=L1}") == "[\\x00-\\xFF]")
+        #expect(translateJavaPatternForICU("\\p{gc=javaLowerCase}") == "\\p{Lowercase}")
+        #expect(translateJavaPatternForICU("\\p{gc=javaDigit}") == "\\p{javaDigit}")
+        #expect(translateJavaPatternForICU("\\P{gc=Lower}") == "[^a-z]")
+        // The empty Java block SURROGATES_AREA never matches; its complement
+        // matches everything.
+        #expect(translateJavaPatternForICU("\\p{InSurrogates_Area}") == "\\P{Any}")
+        #expect(translateJavaPatternForICU("\\P{InSurrogates_Area}") == "\\p{Any}")
+        #expect(translateJavaPatternForICU("\\p{blk=Surrogates_Area}") == "\\P{Any}")
+        #expect(translateJavaPatternForICU("\\p{block=surrogates_area}") == "\\P{Any}")
+        // Rewrites compose with flags, classes and quotes like the POSIX ones.
+        #expect(translateJavaPatternForICU("(?U)\\p{LD}") == "[\\p{L}\\p{Nd}]")
+        #expect(translateJavaPatternForICU("(?U)\\p{gc=Lower}") == "[a-z]")
+        #expect(translateJavaPatternForICU("(?U)\\p{Lower}") == "\\p{Lower}")
+        #expect(translateJavaPatternForICU("[\\p{LD}x]") == "[[\\p{L}\\p{Nd}]x]")
+        #expect(translateJavaPatternForICU("[\\p{IsWORD}]")
+            == "[[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]]")
+        #expect(translateJavaPatternForICU("\\Q\\p{LD}\\E\\p{LD}")
+            == "\\Q\\p{LD}\\E[\\p{L}\\p{Nd}]")
+    }
+
+    @Test
+    func jvmOnlyPropertyNamesCompileAndMatch() {
+        func find(_ pattern: String, _ input: String) -> String? {
+            var thrown = 0
+            let raw = withFlatString(pattern) { data, length, byteCount, hash in
+                kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0, "expected compile: \(pattern)")
+            guard raw != 0 else { return nil }
+            let match = regexFind(raw, input: input)
+            return match == runtimeNullSentinelInt ? nil : matchValue(match)
+        }
+        // Names ICU rejected before KUU-4295 now compile and match like the
+        // JVM: LD = letters ∪ decimal digits, L1 = U+0000–U+00FF.
+        #expect(find("\\p{LD}", "a") == "a")
+        #expect(find("\\p{LD}", "٥") == "٥")
+        #expect(find("\\p{LD}", "_") == nil)
+        #expect(find("\\p{L1}", "é") == "é")
+        #expect(find("\\p{L1}", "Ā") == nil)
+        #expect(find("\\p{all}", " ") == " ")
+        // java* predicates.
+        #expect(find("\\p{javaAlphabetic}", "a") == "a")
+        #expect(find("\\p{javaAlphabetic}", "5") == nil)
+        #expect(find("\\p{javaIdeographic}", "一") == "一")
+        #expect(find("\\p{javaLowerCase}", "AbC") == "b")
+        #expect(find("\\p{javaUpperCase}", "aBc") == "B")
+        #expect(find("\\p{javaDigit}", "٥") == "٥")
+        #expect(find("\\p{javaWhitespace}", "\t") == "\t")
+        // Is* forms, including the JDK WORD and HEX_DIGIT unions.
+        #expect(find("\\p{Isall}", "a") == "a")
+        #expect(find("\\p{IsLD}", "5") == "5")
+        #expect(find("\\p{IsL1}", "A") == "A")
+        #expect(find("\\p{IsjavaWhitespace}", " ") == " ")
+        #expect(find("\\p{IsWORD}", "_") == "_")
+        #expect(find("\\p{IsWORD}", " ") == nil)
+        #expect(find("\\p{Isword}", "5") == "5")
+        #expect(find("\\p{IsHEXDIGIT}", "٠") == "٠")
+        #expect(find("\\p{IsXDIGIT}", "g") == nil)
+        // gc=/general_category=: POSIX values are ASCII on the JVM even
+        // though ICU would read them as Unicode properties.
+        #expect(find("\\p{gc=Lu}", "AbC") == "A")
+        #expect(find("\\p{gc=Lower}", "AbC") == "b")
+        #expect(find("\\p{gc=Lower}", "ä") == nil)
+        #expect(find("\\p{general_category=Lower}", "a") == "a")
+        #expect(find("\\p{gc=Nd}", "٥") == "٥")
+        #expect(find("\\p{gc=javaLowerCase}", "aB") == "a")
+        // Is* POSIX names keep the JVM's Unicode-POSIX predicates: IsLower is
+        // isLowerCase (Unicode), unlike the ASCII gc=Lower above.
+        #expect(find("\\p{IsLower}", "ä") == "ä")
+        // The empty SURROGATES_AREA block never matches; its complement does.
+        #expect(find("\\p{InSurrogates_Area}", "abc") == nil)
+        #expect(find("\\p{blk=Surrogates_Area}", "abc") == nil)
+        #expect(find("\\P{InSurrogates_Area}", "abc") == "a")
+    }
+
+    @Test
+    func jvmOnlyPropertyNamesAllCompile() {
+        // Every name form the JVM accepts but ICU rejected must now compile:
+        // the catalogued gc=/general_category= values, bare aliases, all 18
+        // java* predicates under both bare and Is* spellings, IsWORD and the
+        // HEXDIGIT spellings, and the empty SURROGATES_AREA block.
+        let patterns = [
+            "\\p{gc=all}", "\\p{gc=L1}", "\\p{gc=LD}",
+            "\\p{gc=Lower}", "\\p{gc=ASCII}", "\\p{gc=Alnum}", "\\p{gc=Alpha}",
+            "\\p{gc=Blank}", "\\p{gc=Graph}", "\\p{gc=Print}", "\\p{gc=Space}",
+            "\\p{gc=Upper}", "\\p{gc=XDigit}", "\\p{gc=Digit}", "\\p{gc=Punct}",
+            "\\p{gc=Cntrl}", "\\p{gc=Lu}", "\\p{gc=Nd}",
+            "\\p{general_category=all}", "\\p{general_category=Lower}",
+            "\\p{gc=javaAlphabetic}", "\\p{gc=javaDefined}", "\\p{gc=javaDigit}",
+            "\\p{gc=javaISOControl}", "\\p{gc=javaIdentifierIgnorable}",
+            "\\p{gc=javaIdeographic}", "\\p{gc=javaJavaIdentifierPart}",
+            "\\p{gc=javaJavaIdentifierStart}", "\\p{gc=javaLetter}",
+            "\\p{gc=javaLetterOrDigit}", "\\p{gc=javaLowerCase}",
+            "\\p{gc=javaMirrored}", "\\p{gc=javaSpaceChar}", "\\p{gc=javaTitleCase}",
+            "\\p{gc=javaUnicodeIdentifierPart}", "\\p{gc=javaUnicodeIdentifierStart}",
+            "\\p{gc=javaUpperCase}", "\\p{gc=javaWhitespace}",
+            "\\p{LD}", "\\p{L1}", "\\p{all}",
+            "\\p{javaAlphabetic}", "\\p{javaIdeographic}", "\\p{javaLowerCase}",
+            "\\p{javaUpperCase}", "\\p{javaDigit}", "\\p{javaWhitespace}",
+            "\\p{Isall}", "\\p{IsLD}", "\\p{IsL1}",
+            "\\p{IsjavaAlphabetic}", "\\p{IsjavaDefined}", "\\p{IsjavaDigit}",
+            "\\p{IsjavaISOControl}", "\\p{IsjavaIdentifierIgnorable}",
+            "\\p{IsjavaIdeographic}", "\\p{IsjavaJavaIdentifierPart}",
+            "\\p{IsjavaJavaIdentifierStart}", "\\p{IsjavaLetter}",
+            "\\p{IsjavaLetterOrDigit}", "\\p{IsjavaLowerCase}",
+            "\\p{IsjavaMirrored}", "\\p{IsjavaSpaceChar}", "\\p{IsjavaTitleCase}",
+            "\\p{IsjavaUnicodeIdentifierPart}", "\\p{IsjavaUnicodeIdentifierStart}",
+            "\\p{IsjavaUpperCase}", "\\p{IsjavaWhitespace}",
+            "\\p{IsWORD}", "\\p{Isword}", "\\p{IsHEXDIGIT}", "\\p{IsHEX_DIGIT}",
+            "\\p{IsXDIGIT}", "\\p{InSurrogates_Area}", "\\p{blk=Surrogates_Area}",
+            "\\p{block=Surrogates_Area}",
+            "\\P{LD}", "\\P{all}", "\\P{gc=Lower}", "\\P{IsWORD}",
+        ]
+        for pattern in patterns {
+            var thrown = 0
+            let raw = withFlatString(pattern) { data, length, byteCount, hash in
+                kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0, "expected compile: \(pattern)")
+            #expect(raw != 0, "expected regex object: \(pattern)")
+        }
+    }
 }
