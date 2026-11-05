@@ -175,10 +175,12 @@ extension BundledStdlibExecutionTests {
     }
 
     /// KUU-1422: non-supervisor propagation is unchanged — a child failure in
-    /// a plain `runBlocking` reaches the top-level panic path (exit 1), and
-    /// must NOT also emit the uncaught-coroutine report (the JVM is silent
-    /// here when the rethrown failure is caught, and reports only once via
-    /// `main` when it isn't).
+    /// a plain `runBlocking` reaches the top-level panic path (exit 1). The
+    /// launch itself stays silent because runBlocking's job absorbs the
+    /// failure; KUU-3991 routes the propagated exception through the entry
+    /// wrapper's JVM-style uncaught report, so `Exception in thread "main"`
+    /// appears exactly once — matching the JVM, which reports the rethrown
+    /// failure once via `main`.
     @Test
     func testPlainRunBlockingLaunchStillPropagates() throws {
         let result = try compileAndRunCapturingAll(
@@ -194,9 +196,11 @@ extension BundledStdlibExecutionTests {
         )
         #expect(result.exitCode != 0)
         #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
+        #expect(result.stderr.contains("Exception in thread \"main\" java.lang.IllegalStateException: y"))
+        let reportCount = result.stderr.components(separatedBy: "Exception in thread").count - 1
         #expect(
-            !result.stderr.contains("Exception in thread"),
-            "propagated failure must not double-report, got stderr: \(result.stderr)"
+            reportCount == 1,
+            "propagated failure must report exactly once, got stderr: \(result.stderr)"
         )
     }
 

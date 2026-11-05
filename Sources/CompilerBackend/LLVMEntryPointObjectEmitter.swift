@@ -40,6 +40,7 @@ private struct LLVMEntryPointFunctionTypes {
     let argumentsType: LLVMCAPIBindings.LLVMTypeRef
     let waitThreadsType: LLVMCAPIBindings.LLVMTypeRef
     let assertionsSetType: LLVMCAPIBindings.LLVMTypeRef
+    let reportUncaughtType: LLVMCAPIBindings.LLVMTypeRef
 }
 
 private struct LLVMEntryPointFunctions {
@@ -49,6 +50,7 @@ private struct LLVMEntryPointFunctions {
     let argumentsFunction: LLVMCAPIBindings.LLVMValueRef
     let waitThreadsFunction: LLVMCAPIBindings.LLVMValueRef
     let assertionsSetFunction: LLVMCAPIBindings.LLVMValueRef?
+    let reportUncaughtFunction: LLVMCAPIBindings.LLVMValueRef
 }
 
 private struct LLVMEntryPointBlocks {
@@ -261,10 +263,17 @@ struct LLVMEntryPointObjectEmitter {
         ) else {
             throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create assertions setter function type")
         }
+        guard let reportUncaughtType = bindings.functionType(
+            returnType: primitiveTypes.int64Type,
+            parameters: [primitiveTypes.int64Type],
+            isVarArg: false
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to create uncaught exception report function type")
+        }
         return LLVMEntryPointFunctionTypes(
             entryType: entryType, writeType: writeType, mainType: mainType,
             argumentsType: argumentsType, waitThreadsType: waitThreadsType,
-            assertionsSetType: assertionsSetType
+            assertionsSetType: assertionsSetType, reportUncaughtType: reportUncaughtType
         )
     }
 
@@ -312,13 +321,21 @@ struct LLVMEntryPointObjectEmitter {
         } else {
             assertionsSetFunction = nil
         }
+        guard let reportUncaughtFunction = bindings.addFunction(
+            module: module,
+            name: "__kk_thread_report_uncaught",
+            functionType: functionTypes.reportUncaughtType
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to declare uncaught exception report function")
+        }
         return LLVMEntryPointFunctions(
             entryFunction: entryFunction,
             writeFunction: writeFunction,
             mainFunction: mainFunction,
             argumentsFunction: argumentsFunction,
             waitThreadsFunction: waitThreadsFunction,
-            assertionsSetFunction: assertionsSetFunction
+            assertionsSetFunction: assertionsSetFunction,
+            reportUncaughtFunction: reportUncaughtFunction
         )
     }
 
@@ -351,6 +368,7 @@ struct LLVMEntryPointObjectEmitter {
         bindings.positionBuilder(builder, at: blocks.failureBlock)
         try emitFailurePath(
             builder: builder,
+            primitiveTypes: primitiveTypes,
             functionTypes: functionTypes,
             functions: functions,
             constants: constants
@@ -525,10 +543,33 @@ struct LLVMEntryPointObjectEmitter {
 
     private func emitFailurePath(
         builder: LLVMCAPIBindings.LLVMBuilderRef,
+        primitiveTypes: LLVMEntryPointPrimitiveTypes,
         functionTypes: LLVMEntryPointFunctionTypes,
         functions: LLVMEntryPointFunctions,
         constants: LLVMEntryPointConstants
     ) throws {
+        // KUU-3991: route the escaped exception through the same uncaught
+        // report a JVM thread's uncaughtException handler produces —
+        // `Exception in thread "main" <type>: <message>` plus the saved
+        // frames — before the LINK-0003 trailer, so the exception type and
+        // message are no longer lost.
+        guard let thrownValue = bindings.buildLoad(
+            builder,
+            type: primitiveTypes.int64Type,
+            pointer: constants.thrownSlot,
+            name: "thrown.report"
+        ) else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to load thrown value for uncaught report")
+        }
+        guard bindings.buildCall(
+            builder,
+            functionType: functionTypes.reportUncaughtType,
+            callee: functions.reportUncaughtFunction,
+            arguments: [thrownValue],
+            name: "uncaught.report"
+        ) != nil else {
+            throw LLVMEntryPointObjectEmitterError.invalidIR("failed to emit uncaught exception report")
+        }
         guard let panicMessage = bindings.buildGlobalStringPtr(
             builder,
             value: panicMessageText,
