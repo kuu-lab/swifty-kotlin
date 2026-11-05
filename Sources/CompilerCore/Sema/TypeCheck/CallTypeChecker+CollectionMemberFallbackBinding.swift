@@ -350,6 +350,22 @@ extension CallTypeChecker {
 
         let receiverElementType = collectionFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
 
+        // KUU-4318: containsAll/addAll/removeAll/retainAll bind synthetically
+        // below without consulting their real Collection-parameter signatures;
+        // decline arguments that cannot conform so regular overload resolution
+        // reports the mismatch like kotlinc instead of letting the call reach
+        // a runtime bridge and crash with ClassCastException.
+        if !collectionFallbackBulkCallArgumentIsAdmissible(
+            memberName: calleeName,
+            args: args,
+            receiverElementType: receiverElementType,
+            isMapReceiver: isMapReceiver,
+            ctx: ctx,
+            locals: &locals
+        ) {
+            return nil
+        }
+
         // flatten() is only valid on List<List<T>>. Reject when the element type
         // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
         // cannot be sure — it may be List<Any> wrapping real lists at runtime,
