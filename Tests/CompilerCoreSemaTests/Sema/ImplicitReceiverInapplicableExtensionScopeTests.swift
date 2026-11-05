@@ -68,5 +68,36 @@ struct ImplicitReceiverInapplicableExtensionScopeTests {
             #expect(chosen == extension_)
         }
     }
+
+    /// KUU-4271: an unqualified `invoke(element)` inside an extension on a
+    /// function type (or a typealias of one, like kotlinx-coroutines'
+    /// `OnUndeliveredElement<E> = (E) -> Unit`) is `this.invoke(element)`.
+    /// An in-scope `invoke` extension on an unrelated receiver
+    /// (`CoroutineDispatcher.invoke` in upstream) must not turn that into
+    /// `KSWIFTK-SEMA-0002` — function types expose no nominal members for
+    /// the ordinary implicit-receiver recovery paths.
+    @Test
+    func inapplicableInvokeExtensionYieldsToFunctionTypeReceiverInvoke() throws {
+        let source = """
+        class Dispatcher
+        operator fun <T> Dispatcher.invoke(block: () -> T): T = block()
+        typealias OnUndeliveredElement<E> = (E) -> Unit
+        fun <E> OnUndeliveredElement<E>.callIt(element: E) {
+            invoke(element)
+        }
+        fun use(handler: OnUndeliveredElement<String>) {
+            handler.callIt("x")
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(nameRefCallExprID(named: "invoke", in: ast, interner: ctx.interner))
+            #expect(sema.bindings.exprType(for: call) == sema.types.unitType)
+        }
+    }
 }
 #endif

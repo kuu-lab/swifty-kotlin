@@ -1,6 +1,54 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// KUU-2173/KUU-4271: an unqualified `invoke(...)` on a function-typed
+    /// implicit receiver (`((A) -> T).foo() = { invoke(x) }`, or an extension
+    /// on a function-type alias such as kotlinx-coroutines'
+    /// `OnUndeliveredElement`) is the implicit-receiver form of
+    /// `this.invoke(...)`. Scope-level `invoke` candidates that fail overload
+    /// resolution must not hide it. Returns nil when the callee is not
+    /// `invoke` or the implicit receiver is not function-typed.
+    func inferImplicitReceiverFunctionTypeInvokeCall(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard ctx.interner.resolve(calleeName) == "invoke",
+              let receiverType = ctx.implicitReceiverType,
+              case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        else {
+            return nil
+        }
+        let thisExpr = ctx.ast.arena.appendExpr(.thisRef(label: nil, range))
+        let returnType = inferMemberCallExpr(
+            id, receiverID: thisExpr, calleeName: calleeName,
+            args: args, range: range, ctx: ctx, locals: &locals,
+            expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+        )
+        if let binding = sema.bindings.callableValueCallBinding(for: id) {
+            sema.bindings.bindCallableValueCall(
+                id,
+                binding: CallableValueCallBinding(
+                    target: binding.target,
+                    functionType: binding.functionType,
+                    parameterMapping: binding.parameterMapping,
+                    extensionCallableExpr: binding.extensionCallableExpr,
+                    implicitInvokeReceiverExpr: thisExpr,
+                    contextArgumentCount: binding.contextArgumentCount,
+                    receiverArgumentOffset: binding.receiverArgumentOffset,
+                    contextReceiverSymbols: binding.contextReceiverSymbols
+                )
+            )
+        }
+        return returnType
+    }
+
     func inferImplicitReceiverFallbackCall(
         _ id: ExprID,
         args: [CallArgument],
@@ -20,32 +68,18 @@ extension CallTypeChecker {
         // extension receiver (`((A) -> T).foo() = { invoke(x) }`) is the
         // implicit-receiver form of `this.invoke(...)`.
         if let calleeName,
-           interner.resolve(calleeName) == "invoke",
-           let receiverType = ctx.implicitReceiverType,
-           case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+           let recovered = inferImplicitReceiverFunctionTypeInvokeCall(
+               id,
+               calleeName: calleeName,
+               args: args,
+               range: range,
+               ctx: ctx,
+               locals: &locals,
+               expectedType: expectedType,
+               explicitTypeArgs: explicitTypeArgs
+           )
         {
-            let thisExpr = ctx.ast.arena.appendExpr(.thisRef(label: nil, range))
-            let returnType = inferMemberCallExpr(
-                id, receiverID: thisExpr, calleeName: calleeName,
-                args: args, range: range, ctx: ctx, locals: &locals,
-                expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
-            )
-            if let binding = sema.bindings.callableValueCallBinding(for: id) {
-                sema.bindings.bindCallableValueCall(
-                    id,
-                    binding: CallableValueCallBinding(
-                        target: binding.target,
-                        functionType: binding.functionType,
-                        parameterMapping: binding.parameterMapping,
-                        extensionCallableExpr: binding.extensionCallableExpr,
-                        implicitInvokeReceiverExpr: thisExpr,
-                        contextArgumentCount: binding.contextArgumentCount,
-                        receiverArgumentOffset: binding.receiverArgumentOffset,
-                        contextReceiverSymbols: binding.contextReceiverSymbols
-                    )
-                )
-            }
-            return returnType
+            return recovered
         }
 
         // KUU-963: `emit` is also an ordinary member name (e.g. a user-defined
