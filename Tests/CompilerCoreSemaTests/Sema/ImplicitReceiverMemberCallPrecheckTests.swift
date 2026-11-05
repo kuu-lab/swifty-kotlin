@@ -13,6 +13,14 @@ import TestStdlibCache
 /// `this.makeInt()` receivers (`thisRef` was not handled). The precheck now
 /// walks the implicit receiver tower for member candidates, the way
 /// `safePrecheckNameReference` already does for member properties.
+///
+/// KUU-4014: the same gap existed for calls *with arguments* —
+/// `val currentLine = getLine(lineN)!!` inside JetBrains/markdown's inner
+/// `LookaheadText.Position` class. The argument-bearing branch used to bail
+/// out as soon as any same-named member existed; it now collects applicable
+/// implicit-receiver members with `precheckArgumentFitsSignature`, lets an
+/// inapplicable member fall through to outer receivers and lexical
+/// candidates, and keeps same-named member properties on the normal pass.
 @Suite
 struct ImplicitReceiverMemberCallPrecheckTests {
     private func semaContext(sources: [String], useLibrary: Bool) throws -> CompilationContext {
@@ -284,5 +292,132 @@ struct ImplicitReceiverMemberCallPrecheckTests {
             fqName: ["B", "fromMemberFunc"].map(ctx.interner.intern)
         ))
         #expect(sema.symbols.propertyType(for: symbol) == sema.types.intType)
+    }
+
+    // MARK: - KUU-4014: implicit-receiver member calls with arguments
+
+    @Test(arguments: [false, true])
+    func innerClassMemberCallWithArgumentsPublishesInferredTypeAcrossFileOrder(useLibrary: Bool) throws {
+        // The ticket repro: an inner-class property inferred from an
+        // enclosing-class method that takes arguments. The consumer file
+        // checked first must still see `String?`/`String`, not `Any?`.
+        let declaring = """
+        class Holder {
+            fun pub(n: Int): String? = if (n > 0) "x" else null
+            fun nonNull(n: Int): String = "v"
+            inner class P(val n: Int) {
+                val inferred = pub(n)
+                val inferredNN = nonNull(n)
+                val explicit: String? = pub(n)
+            }
+        }
+        """
+        let using = """
+        fun c1(p: Holder.P): Int? = p.inferred?.length
+        fun c2(p: Holder.P): Int = p.inferredNN.length
+        fun c3(p: Holder.P): Int? = p.explicit?.length
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func nullAssertWrappedMemberCallPublishesInferredTypeAcrossFileOrder(useLibrary: Bool) throws {
+        // The markdown shape: `val currentLine = getLine(lineN)!!` — a
+        // force-not-null wrapping an implicit-receiver call with arguments.
+        let declaring = """
+        class Lookahead {
+            private fun getLine(n: Int): String? = if (n > 0) "l" else null
+            inner class Position(val lineN: Int) {
+                val currentLine = getLine(lineN)!!
+            }
+        }
+        """
+        let using = """
+        fun read(p: Lookahead.Position): Int = p.currentLine.length
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func nestedClassMemberCallWithArgumentsPublishesInferredTypeAcrossFileOrder(useLibrary: Bool) throws {
+        // A nested (non-inner) class has no enclosing instance, but its own
+        // member call with arguments hits the same implicit-receiver path.
+        let declaring = """
+        class Outer {
+            class Nested(val n: Int) {
+                val own = make(n)
+                fun make(x: Int): Long = x.toLong()
+            }
+        }
+        """
+        let using = """
+        fun c(p: Outer.Nested): Long = p.own
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func memberFunctionWithArgumentsShadowsTopLevelInPrecheck(useLibrary: Bool) throws {
+        // With arguments the member must still win over the same-named
+        // top-level function: `picked` has to publish the member's `Int`,
+        // not the top-level `String`.
+        let declaring = """
+        fun pick(n: Int): String = "top"
+        class B {
+            val picked = pick(1)
+            fun pick(n: Int): Int = 7
+        }
+        """
+        let using = """
+        fun f(b: B) {
+            val i: Int = b.picked
+        }
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+        let ctx = try semaContext(sources: [using, declaring], useLibrary: useLibrary)
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(sema.symbols.lookup(
+            fqName: ["B", "picked"].map(ctx.interner.intern)
+        ))
+        #expect(sema.symbols.propertyType(for: symbol) == sema.types.intType)
+    }
+
+    @Test(arguments: [false, true])
+    func inapplicableMemberWithArgumentsKeepsCallOnNormalPass(useLibrary: Bool) throws {
+        // The member `other(Int)` cannot take a String argument, so the
+        // precheck must not publish a member-derived type. With the
+        // declaration checked first the authoritative pass still resolves
+        // the call to the top-level `other(String)` exactly like kotlinc.
+        let declaring = """
+        fun other(s: String): String = "top"
+        class B {
+            val picked = other("x")
+            fun other(n: Int): Int = 9
+        }
+        """
+        let using = """
+        fun f(b: B) {
+            val s: String = b.picked
+        }
+        """
+        let ctx = try semaContext(sources: [declaring, using], useLibrary: useLibrary)
+        assertNoErrors(ctx, "decl-first library=\(useLibrary)")
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(sema.symbols.lookup(
+            fqName: ["B", "picked"].map(ctx.interner.intern)
+        ))
+        #expect(sema.symbols.propertyType(for: symbol) == sema.types.stringType)
     }
 }
