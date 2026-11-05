@@ -653,11 +653,12 @@ private func runtimeProcessSpawn(
         }
     }
 
-    // `Swift.print` buffers through libc stdout; flush both console streams
+    // `Swift.print` buffers through libc stdout; flush all stdio streams
     // before spawn so INHERIT-redirected children cannot overtake buffered
     // parent output on the shared descriptor, matching JVM println ordering.
-    fflush(stdout)
-    fflush(stderr)
+    // `fflush(nil)` is used instead of `stdout`/`stderr` because Glibc's
+    // FILE* globals are not concurrency-safe under Swift 6.
+    fflush(nil)
 
     do {
         try process.run()
