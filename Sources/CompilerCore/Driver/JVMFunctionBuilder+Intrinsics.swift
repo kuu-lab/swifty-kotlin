@@ -127,6 +127,23 @@ extension JVMFunctionBuilder {
         }
         return nil
     }
+    /// True when Sema selected a Kotlin extension (or another non-member
+    /// callable) for this call. Collection member intrinsics emit fixed JDK
+    /// member signatures, so they must defer to the regular extension
+    /// dispatch when the chosen callee is not the collection member itself.
+    func collectionCallIsExtension(_ id: ExprID) -> Bool {
+        guard let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee else { return false }
+        if program.extensionSymbols.contains(callee)
+            || context.jvmImports?.extensionSymbols.contains(callee) == true {
+            return true
+        }
+        if let entry = program.textLibraryMethods[callee] {
+            return entry.extensionReceiver != nil || entry.method.isStatic
+        }
+        if let method = program.methods[callee] { return method.isStatic }
+        if let method = context.jvmImports?.methods[callee] { return method.isStatic }
+        return program.references[callee] != nil
+    }
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
         if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/lang/Object" {
@@ -314,6 +331,15 @@ extension JVMFunctionBuilder {
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
+            // Sema's chosen callee is authoritative for member vs extension:
+            // when it picked a Kotlin extension, the fixed JDK member signature
+            // below would miscompile the call (e.g. Collection.removeAll for
+            // MutableCollection.removeAll(Array)). Members that keep bespoke
+            // intrinsic lowering for their extension callees stay on this path.
+            if !["filterKeys", "filterValues", "mapKeys", "mapValues", "getOrElse", "getOrPut"].contains(member),
+               collectionCallIsExtension(id) {
+                return nil
+            }
             if ["set", "add", "addAll", "remove", "removeAll", "removeAt", "put", "clear"].contains(member), owner != "java/util/ListIterator", !isIteratorRemove { try requireMutableCollection(receiverID, at: id) }
             if ["set", "add", "addAll", "put"].contains(member), owner != "java/util/ListIterator" { try requireWritableArguments(receiverID, at: id) }
             if ["getOrElse", "getOrPut"].contains(member), ["java/util/List", "java/util/Map"].contains(owner) {

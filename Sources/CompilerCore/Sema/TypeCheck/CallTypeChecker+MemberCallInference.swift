@@ -546,7 +546,18 @@ extension CallTypeChecker {
         }
 
         let memberName = request.ctx.interner.resolve(request.calleeName)
+        let isSuperReceiverCall: Bool = {
+            if case .superRef = request.ctx.ast.arena.expr(request.receiverID) { return true }
+            return false
+        }()
         if memberName == "removeAll" || memberName == "retainAll",
+           !hasUserDefinedMutableBulkCandidate(
+               named: request.calleeName,
+               receiverType: receiverType,
+               isSuperCall: isSuperReceiverCall,
+               ctx: request.ctx,
+               locals: locals
+           ),
            let result = bindMutableCollectionSourceExtension(
                exprID: request.id,
                memberName: request.calleeName,
@@ -577,6 +588,100 @@ extension CallTypeChecker {
         }
 
         return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
+    }
+
+    /// User-declared `removeAll`/`retainAll` members and extensions must reach
+    /// the regular overload resolver: binding the bundled `kotlin.collections`
+    /// source extension in `bindMutableCollectionSourceExtension` would
+    /// otherwise hijack the call before those candidates are even collected
+    /// (KUU-4297). Mirrors the bulk-candidate gate that
+    /// `selectRegularMemberCallReceiverAndFallbacks` applies to `addAll`.
+    func hasUserDefinedMutableBulkCandidate(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        isSuperCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
+        // Extensions are never candidates on a `super.` call, so the bundled
+        // source binding may proceed exactly as before.
+        guard !isSuperCall else { return false }
+        let lookupReceiverType = sema.types.makeNonNullable(receiverType)
+        let bulkReceiverFQName = sema.requiresResolvedLibraryCalls
+            ? knownNames.kotlinCollectionsMutableCollectionFQName
+            : knownNames.kotlinCollectionsMutableSetFQName
+        guard sema.symbols.lookup(fqName: bulkReceiverFQName).map({ owner in
+            driver.helpers.allNominalSymbols(
+                of: lookupReceiverType, types: sema.types, symbols: sema.symbols
+            ).contains {
+                sema.types.isNominalSubtypeSymbol($0, of: owner)
+            }
+        }) == true else {
+            return false
+        }
+        func isUserDeclared(_ candidate: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(candidate),
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  !symbol.fqName.starts(with: knownNames.kotlinCollectionsPackage),
+                  !sema.symbols.isImportedStdlibSymbol(candidate)
+            else { return false }
+            // Bundled stdlib sources model `java.*` and `kotlin.*` surfaces as
+            // ordinary Kotlin declarations; they are not user code either.
+            if let declFileID = sema.symbols.sourceFileID(for: candidate)
+                ?? symbol.declSite?.start.file,
+               let sourceManager = ctx.visibilityChecker.sourceManager,
+               sourceManager.origin(of: declFileID)?.isBundledStdlib == true
+            {
+                return false
+            }
+            return true
+        }
+        let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+            named: calleeName,
+            receiverType: lookupReceiverType,
+            sema: sema,
+            interner: interner
+        )
+        if memberCandidates.contains(where: { candidate in
+            guard isUserDeclared(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate)
+            else { return false }
+            return signature.parameterTypes.count == 1
+        }) {
+            return true
+        }
+        let extensionCandidates = collectExtensionCallCandidates(
+            named: calleeName,
+            memberLookupType: lookupReceiverType,
+            isSuperCall: isSuperCall,
+            supertypeSymbols: [],
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let (visibleExtensions, _) = ctx.filterByVisibility(extensionCandidates)
+        return visibleExtensions.contains { candidate in
+            guard isUserDeclared(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  let declaredReceiver = signature.receiverType
+            else { return false }
+            let receiverSymbols = driver.helpers.allNominalSymbols(
+                of: lookupReceiverType, types: sema.types, symbols: sema.symbols
+            )
+            let declaredReceiverSymbols = driver.helpers.allNominalSymbols(
+                of: declaredReceiver, types: sema.types, symbols: sema.symbols
+            )
+            return receiverSymbols.contains { actual in
+                declaredReceiverSymbols.contains { declared in
+                    sema.types.isNominalSubtypeSymbol(actual, of: declared)
+                }
+            }
+        }
     }
 
     /// Nominal owners reachable from `root` through real `directSupertypes`
