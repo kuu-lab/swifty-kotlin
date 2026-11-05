@@ -96,8 +96,10 @@ private struct JVMSourceGrammar {
     mutating func typeParameters() throws {
         if take(.symbol(.lessThan)) {
             repeat {
+                while kind == .symbol(.at) { try annotation() }
                 _ = take(.keyword(.reified))
                 _ = take(.keyword(.in)) || take(.softKeyword(.out))
+                while kind == .symbol(.at) { try annotation() }
                 try name()
                 if take(.symbol(.colon)) { try type() }
             } while take(.symbol(.comma))

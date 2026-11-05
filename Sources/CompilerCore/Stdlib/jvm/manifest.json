@@ -99,6 +99,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/internal/Annotations.kt",
+      "virtualPath": "<kswiftk-jvm>/internal-annotations.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/Reflection.kt",
       "virtualPath": "<kswiftk-jvm>/reflection.kt",
       "excludeFromStdlibBuild": true
