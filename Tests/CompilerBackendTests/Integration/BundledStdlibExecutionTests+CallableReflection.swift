@@ -130,6 +130,23 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-3812: `KFunctionN.returnType` on a callable reference to a generic
+    /// function must resolve through registered KCallable metadata (the
+    /// ABI-only adapter keeps KCallable identity) and render the literal type
+    /// variable, matching JVM kotlin-reflect. Previously `.returnType` fell
+    /// back to an itable dispatch and crashed with KSWIFTK-RUNTIME-0001.
+    @Test(arguments: [true, false])
+    func genericCallableReferenceReturnTypeRendersTypeVariable(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try compileAndRunKotlin(
+            try diffCaseSource("kuu_3812_generic_kfunction_return_type.kt", file: #filePath),
+            expectedOutput: "T\nT\nT\nkotlin.Pair<T, U>\nkotlin.Int\nfun foo(T): T\n",
+            moduleName: "KUU3812GenericKFunctionReturnType",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     @Test(arguments: [true, false])
     func functionReferenceCallableMembers(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
