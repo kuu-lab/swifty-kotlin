@@ -416,7 +416,10 @@ public object Math {
 
     public fun signum(value: kotlin.Double): kotlin.Double = kotlinSign(value)
     public fun signum(value: kotlin.Float): kotlin.Float = kotlinSign(value)
-    public fun toRadians(degrees: kotlin.Double): kotlin.Double = degrees / 180.0 * PI
+    // The JDK evaluates this as degrees * (PI / 180); the alternative
+    // left-to-right form (degrees / 180) * PI differs in the last ulp
+    // (e.g. toRadians(1e10)).
+    public fun toRadians(degrees: kotlin.Double): kotlin.Double = degrees * (PI / 180.0)
     public fun toDegrees(radians: kotlin.Double): kotlin.Double = radians * 180.0 / PI
 
     public fun copySign(magnitude: kotlin.Double, sign: kotlin.Double): kotlin.Double =
