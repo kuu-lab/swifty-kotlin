@@ -641,13 +641,23 @@ extension BuildASTPhase {
         }
         undoFailedSpeculation()
         // Local fun parsing strips leading annotations itself so it can attach
-        // declaration-level `@Suppress` to the produced declaration.
+        // declaration-level `@Suppress` to the produced declaration. Local
+        // val/var declarations get the same forwarding here: the stripped
+        // view below drops the annotation tokens, so collect leading
+        // `@Suppress` annotations first and re-attach them to the produced
+        // declaration expression (KUU-3920).
+        let localDeclSuppressAnnotations = annotationsFromTokens(filtered, interner: interner).filter {
+            $0.name.split(separator: ".").last == "Suppress"
+        }
         let strippedFiltered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
         undoFailedSpeculation()
         if let expr = parseLocalDeclarationExpr(from: strippedFiltered, interner: interner, astArena: astArena) {
+            if !localDeclSuppressAnnotations.isEmpty {
+                astArena.prependExpressionAnnotations(localDeclSuppressAnnotations, for: expr)
+            }
             return expr
         }
         // `val`/`var` is a hard keyword, so no later probe can parse the group;

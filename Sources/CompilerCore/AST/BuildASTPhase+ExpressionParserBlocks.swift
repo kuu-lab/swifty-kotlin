@@ -273,9 +273,15 @@ extension BuildASTPhase.ExpressionParser {
         let astArena = astArena
         // A statement-initial annotation merged with the declaration by the
         // newline splitter (`@Suppress("X")\nval x = ...`) cannot reach the
-        // val/var head; strip it like parseStatementGroup does — the
-        // annotation itself is still dropped.
+        // val/var head; strip it like parseStatementGroup does. Leading
+        // `@Suppress` annotations are forwarded onto the produced declaration
+        // expression (same as local fun) so their diagnostic ranges cover the
+        // initializer; other annotation kinds stay dropped.
         let labeledTokens = BuildASTPhase.skipLeadingLocalDeclarationLabels(Array(tokens))
+        let suppressAnnotations = BuildASTPhase(diagnostics: diagnostics)
+            .annotationsFromTokens(labeledTokens, interner: interner).filter {
+                $0.name.split(separator: ".").last == "Suppress"
+            }
         let tokens = BuildASTPhase.skipLeadingLocalAnnotations(
             labeledTokens, interner: interner
         )[...]
@@ -289,6 +295,9 @@ extension BuildASTPhase.ExpressionParser {
             diagnostics: diagnostics,
             suppressesLocalModifierDiagnostics: suppressesLocalModifierDiagnostics
         ) {
+            if !suppressAnnotations.isEmpty {
+                astArena.prependExpressionAnnotations(suppressAnnotations, for: destructuring)
+            }
             return destructuring
         }
         let context = BuildASTPhase.LocalStatementCoreContext(
@@ -339,11 +348,17 @@ extension BuildASTPhase.ExpressionParser {
             },
             diagnostics: self.diagnostics
         )
-        return BuildASTPhase.LocalStatementCore.parseLocalDeclaration(
+        guard let declaration = BuildASTPhase.LocalStatementCore.parseLocalDeclaration(
             from: tokens,
             context: context,
             options: requiresCompleteInitializer ? .declaration : .blockExpression
-        )
+        ) else {
+            return nil
+        }
+        if !suppressAnnotations.isEmpty {
+            astArena.prependExpressionAnnotations(suppressAnnotations, for: declaration)
+        }
+        return declaration
     }
 
     func parseLocalAssignFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {

@@ -937,7 +937,9 @@ extension CallTypeChecker {
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 return symbol.kind == .function || symbol.kind == .constructor
             }
-            let (vis, invis) = ctx.filterByVisibility(fqnCandidates)
+            // Same use-site suppression as scope candidates: a covering
+            // @Suppress must expose bundled-internal FQN calls (KUU-3920).
+            let (vis, invis) = ctx.filterByVisibility(fqnCandidates, usageRange: range)
             candidates = vis
             callInvisible.append(contentsOf: invis)
         } else {
