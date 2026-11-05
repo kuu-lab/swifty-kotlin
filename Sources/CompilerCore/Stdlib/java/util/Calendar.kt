@@ -28,6 +28,27 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         calendarAddField(rawHandle, field, amount)
     }
 
+    /** JDK `getMinimum`: structural minimum for the field (Gregorian bounds). */
+    public fun getMinimum(field: Int): Int = calendarGetFieldMinimum(rawHandle, field)
+
+    /** JDK `getMaximum`: structural maximum for the field (Gregorian bounds). */
+    public fun getMaximum(field: Int): Int = calendarGetFieldMaximum(rawHandle, field)
+
+    /** JDK `getGreatestMinimum`: highest possible minimum for the field. */
+    public fun getGreatestMinimum(field: Int): Int = calendarGetFieldGreatestMinimum(rawHandle, field)
+
+    /** JDK `getLeastMaximum`: lowest possible maximum for the field. */
+    public fun getLeastMaximum(field: Int): Int = calendarGetFieldLeastMaximum(rawHandle, field)
+
+    /** JDK `getActualMinimum`: minimum for the field at the current time value. */
+    public fun getActualMinimum(field: Int): Int = calendarGetFieldActualMinimum(rawHandle, field)
+
+    /**
+     * JDK `getActualMaximum`: maximum for the field at the current time
+     * value (e.g. days in the current month, leap-aware).
+     */
+    public fun getActualMaximum(field: Int): Int = calendarGetFieldActualMaximum(rawHandle, field)
+
     public fun getTimeZone(): TimeZone = TimeZone(calendarGetTimeZone(rawHandle))
 
     public fun setTimeZone(timeZone: TimeZone) {
@@ -126,6 +147,24 @@ private external fun calendarSetField(calendarRaw: Long, field: Int, value: Int)
 
 @KsSymbolName("__kk_calendar_add_field")
 private external fun calendarAddField(calendarRaw: Long, field: Int, amount: Int)
+
+@KsSymbolName("__kk_calendar_get_minimum")
+private external fun calendarGetFieldMinimum(calendarRaw: Long, field: Int): Int
+
+@KsSymbolName("__kk_calendar_get_maximum")
+private external fun calendarGetFieldMaximum(calendarRaw: Long, field: Int): Int
+
+@KsSymbolName("__kk_calendar_get_greatest_minimum")
+private external fun calendarGetFieldGreatestMinimum(calendarRaw: Long, field: Int): Int
+
+@KsSymbolName("__kk_calendar_get_least_maximum")
+private external fun calendarGetFieldLeastMaximum(calendarRaw: Long, field: Int): Int
+
+@KsSymbolName("__kk_calendar_get_actual_minimum")
+private external fun calendarGetFieldActualMinimum(calendarRaw: Long, field: Int): Int
+
+@KsSymbolName("__kk_calendar_get_actual_maximum")
+private external fun calendarGetFieldActualMaximum(calendarRaw: Long, field: Int): Int
 
 @KsSymbolName("__kk_calendar_get_time_zone")
 private external fun calendarGetTimeZone(calendarRaw: Long): Long
