@@ -270,7 +270,10 @@ public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _
     let text = extractString(from: message)
     let messageRaw = normalizeNullableRuntimePointer(message).map { Int(bitPattern: $0) } ?? 0
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    let throwableInt = runtimeAllocateThrowable(message: text, cause: cause, messageRaw: messageRaw)
+    // The cause-taking constructor initializes the cause slot even for null.
+    let throwableInt = runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateThrowable(message: text, cause: cause, messageRaw: messageRaw)
+    )
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("__kk_throwable_new_with_cause: allocation returned null")
     }
@@ -281,7 +284,10 @@ public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _
 public func __kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let message = runtimeCauseToString(from: cause)
-    let throwableInt = runtimeAllocateThrowable(message: message, cause: cause)
+    // The cause-taking constructor initializes the cause slot even for null.
+    let throwableInt = runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateThrowable(message: message, cause: cause)
+    )
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("__kk_throwable_new_cause: allocation returned null")
     }
@@ -292,7 +298,10 @@ public func __kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer
 public func kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let message = runtimeThrowableStackTraceText(from: cause)
-    let throwableInt = runtimeAllocateThrowable(message: message.isEmpty ? "Throwable" : message, cause: cause)
+    // The cause-taking constructor initializes the cause slot even for null.
+    let throwableInt = runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateThrowable(message: message.isEmpty ? "Throwable" : message, cause: cause)
+    )
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("kk_throwable_new_cause: allocation returned null")
     }
@@ -468,6 +477,11 @@ public func __kk_throwable_toString(
 }
 
 /// Storage bridge for `Throwable.initCause`: overwrites the cause slot.
+/// Every caller is a constructor-time initialization path (the protected
+/// 4-arg `Throwable` constructor, exception subclass constructor bodies, or
+/// `Throwable.initCause` after its JVM guards passed), so the write always
+/// marks the cause as initialized — matching the JVM where assigning
+/// `this.cause` outside the uninitialized sentinel state is final.
 @_cdecl("__kk_throwable_setCause")
 public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
@@ -478,8 +492,124 @@ public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int
     let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         throwable.cause = causeValue
+        throwable.causeInitialized = true
     } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
         object.throwableCause = causeValue
+        object.throwableCauseInitialized = true
+        runtimeRegisterTypeEdge(
+            childTypeID: object.classID,
+            parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+        )
+    }
+    return throwableRaw
+}
+
+/// Marks a freshly allocated throwable's cause slot as constructor-initialized.
+/// Cause-taking `@_cdecl` factories (`*_new_message_cause`, `*_new_cause`,
+/// `__kk_throwable_new_with_cause`, ...) wrap their allocation with this so a
+/// later `Throwable.initCause` observes the JVM "already initialized" state
+/// even when the constructor's cause argument was null. Non-null causes are
+/// already marked by `RuntimeThrowableBox.init`.
+@discardableResult
+func runtimeMarkThrowableCauseInitialized(_ raw: Int) -> Int {
+    runtimeThrowableBox(from: raw)?.causeInitialized = true
+    return raw
+}
+
+/// `Throwable.initCause` with the JVM guards from `java.lang.Throwable`:
+/// an already-initialized cause slot fails with
+/// `IllegalStateException("Can't overwrite cause with " + cause)` first, then a
+/// self-cause argument fails with
+/// `IllegalArgumentException("Self-causation not permitted")`. Both thrown
+/// exceptions carry the receiver as their own cause, like the JDK.
+@_cdecl("__kk_throwable_initCause")
+public func __kk_throwable_initCause(
+    _ throwableRaw: Int,
+    _ causeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
+    else {
+        return throwableRaw
+    }
+    let causeInitialized: Bool
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        causeInitialized = throwable.causeInitialized
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        causeInitialized = object.throwableCauseInitialized
+    } else {
+        return throwableRaw
+    }
+    let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
+    if causeInitialized {
+        // `Objects.toString(cause, "a null")`: the parameter's `toString()`,
+        // or "a null" when the argument was null.
+        let causeDescription = runtimeCauseToString(from: causeRaw) ?? "a null"
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalStateException(
+                message: "Can't overwrite cause with \(causeDescription)",
+                cause: throwableRaw
+            )
+        )
+        return throwableRaw
+    }
+    if causeValue == throwableRaw {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(
+                message: "Self-causation not permitted",
+                cause: throwableRaw
+            )
+        )
+        return throwableRaw
+    }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        throwable.cause = causeValue
+        throwable.causeInitialized = true
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        object.throwableCause = causeValue
+        object.throwableCauseInitialized = true
+        runtimeRegisterTypeEdge(
+            childTypeID: object.classID,
+            parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+        )
+    }
+    return throwableRaw
+}
+
+/// Copies the cause slot — value and initialized flag — from one throwable to
+/// another. Used by constructor lowering when a Kotlin-defined Throwable
+/// subclass delegates to a runtime-factory super constructor: the factory
+/// product's cause state (including "uninitialized" for message-only
+/// constructors and "initialized to null" for cause-taking ones) must carry
+/// over verbatim so `initCause` keeps JVM semantics on the subclass instance.
+@_cdecl("__kk_throwable_adoptCause")
+public func __kk_throwable_adoptCause(_ throwableRaw: Int, _ sourceRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          let sourcePtr = UnsafeMutableRawPointer(bitPattern: sourceRaw)
+    else {
+        return throwableRaw
+    }
+    let sourceCause: Int
+    let sourceInitialized: Bool
+    if let source = tryCast(sourcePtr, to: RuntimeThrowableBox.self) {
+        sourceCause = source.cause
+        sourceInitialized = source.causeInitialized
+    } else if let source = tryCast(sourcePtr, to: RuntimeObjectBox.self) {
+        sourceCause = source.throwableCause
+        sourceInitialized = source.throwableCauseInitialized
+    } else {
+        return throwableRaw
+    }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        throwable.cause = sourceCause
+        throwable.causeInitialized = sourceInitialized
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        object.throwableCause = sourceCause
+        object.throwableCauseInitialized = sourceInitialized
         runtimeRegisterTypeEdge(
             childTypeID: object.classID,
             parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")

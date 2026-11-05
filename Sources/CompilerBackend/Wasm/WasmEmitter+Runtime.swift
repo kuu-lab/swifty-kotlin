@@ -15214,6 +15214,13 @@ enum WasmRuntimeHelpers {
         case cause
         /// `__kk_throwable_setCause(obj, cause)` — write the cause slot.
         case setCause
+        /// `__kk_throwable_initCause(obj, cause)` — JVM-guarded initCause on
+        /// the native runtime; the wasm MVP has no initialized flag, so this
+        /// stores the cause like `setCause` and returns the receiver.
+        case initCause
+        /// `__kk_throwable_adoptCause(obj, source)` — copy the cause slot from
+        /// a factory-produced throwable onto a subclass instance.
+        case adoptCause
         /// `__kk_throwable_toString(obj)` — `"fqName"` or `"fqName: message"`.
         case toString
         /// `__kk_throwable_suppressedRaw(obj)` — lazily-allocated array slot.
@@ -15314,6 +15321,8 @@ enum WasmRuntimeHelpers {
         case "__kk_throwable_setMessage", "__kkThrowableSetMessage": return .setMessage
         case "__kk_throwable_cause", "__kkThrowableCause": return .cause
         case "__kk_throwable_setCause", "__kkThrowableSetCause": return .setCause
+        case "__kk_throwable_initCause", "__kkThrowableInitCause": return .initCause
+        case "__kk_throwable_adoptCause", "__kkThrowableAdoptCause": return .adoptCause
         case "__kk_throwable_toString", "__kkThrowableToString": return .toString
         case "__kk_throwable_suppressedRaw", "__kkThrowableSuppressedRaw": return .suppressedRaw
         case "__kk_throwable_suppressed_list": return .suppressedList
@@ -15426,6 +15435,16 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: throwableCauseSlotOffset)
         case .setCause:
             emitStoreAt(&code, baseLocal: 0, byteOffset: throwableCauseSlotOffset, valueLocal: 1)
+            code.i64Const(0)
+        case .initCause:
+            emitStoreAt(&code, baseLocal: 0, byteOffset: throwableCauseSlotOffset, valueLocal: 1)
+            code.localGet(0)
+        case .adoptCause:
+            // Copy the source box's cause slot (arg1) into the receiver's (arg0);
+            // the wasm MVP tracks no initialized flag, matching `setCause`.
+            emitLoadAt(&code, baseLocal: 1, byteOffset: throwableCauseSlotOffset)
+            code.localSet(argumentCount)
+            emitStoreAt(&code, baseLocal: 0, byteOffset: throwableCauseSlotOffset, valueLocal: argumentCount)
             code.i64Const(0)
         case .toString:
             extraLocals = 2

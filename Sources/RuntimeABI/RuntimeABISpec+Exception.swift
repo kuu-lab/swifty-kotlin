@@ -146,6 +146,13 @@ public extension RuntimeABISpec {
         bridgeThrowableToStringSpec,
         bridgePrintStderrSpec,
         abi.nt("__kk_throwable_setCause", "throwableRaw causeRaw"),
+        // `Throwable.initCause` with the JVM guards (self-cause →
+        // IllegalArgumentException, overwrite → IllegalStateException) through
+        // the outThrown channel; returns the receiver like the JDK.
+        abi.th("__kk_throwable_initCause", "throwableRaw causeRaw outThrown"),
+        // Constructor-lowering helper: copies a runtime-factory throwable's
+        // cause slot (value + initialized flag) onto a source-defined subclass.
+        abi.nt("__kk_throwable_adoptCause", "throwableRaw sourceRaw"),
         abi.nt("__kk_throwable_appendSuppressed", "throwableRaw suppressedRaw"),
         bridgeThrowableSuppressedRawSpec,
         abi.nt("__kk_throwable_captureStackTrace", "throwableRaw"),

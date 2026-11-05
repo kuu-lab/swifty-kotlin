@@ -273,6 +273,8 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     /// `e.message === arg` holds like on the JVM.
     var throwableMessageRaw: Int = 0
     var throwableCause: Int
+    /// JVM parity for `Throwable.initCause` (see `RuntimeThrowableBox.causeInitialized`).
+    var throwableCauseInitialized: Bool
     var throwableStackTraceAddresses: [Int]?
     var throwableStackTraceElementsRaw: Int
     var throwableSuppressed: [Int]
@@ -286,6 +288,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.backingMapBox = nil
         self.throwableMessage = nil
         self.throwableCause = 0
+        self.throwableCauseInitialized = false
         self.throwableStackTraceAddresses = nil
         self.throwableStackTraceElementsRaw = 0
         self.throwableSuppressed = []

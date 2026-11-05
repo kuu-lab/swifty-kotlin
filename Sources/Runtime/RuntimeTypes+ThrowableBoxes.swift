@@ -8,6 +8,12 @@ class RuntimeThrowableBox {
     /// messages the getter lazily materializes one stable box here.
     var messageRaw: Int
     var cause: Int
+    /// JVM parity for `Throwable.initCause`: the cause slot starts out
+    /// "uninitialized" (the JVM `this` sentinel) and only the first cause write
+    /// — a cause-taking constructor or `initCause` — marks it initialized, so
+    /// a later `initCause` must fail with `IllegalStateException`. A
+    /// constructor-provided `null` cause still counts as initialized.
+    var causeInitialized: Bool
     var stackTraceAddresses: [Int]
     var stackTraceElementsRaw: Int = 0
     var suppressionEnabled = true
@@ -30,6 +36,10 @@ class RuntimeThrowableBox {
     init(message: String?, cause: Int = 0, messageRaw: Int = 0) {
         self.message = message
         self.cause = cause
+        // A non-zero cause can only come from a cause-taking constructor, so it
+        // is already initialized; cause-taking `@_cdecl` factories mark the
+        // explicit-null case via `runtimeMarkThrowableCauseInitialized`.
+        self.causeInitialized = cause != 0
         self.messageRaw = messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
         self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
     }

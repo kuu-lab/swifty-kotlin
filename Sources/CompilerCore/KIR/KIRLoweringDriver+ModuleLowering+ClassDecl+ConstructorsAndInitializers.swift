@@ -479,7 +479,16 @@ extension KIRLoweringDriver {
                 "__kkThrowableSetMessage", arguments: [receiver, messageID], resultType: sema.types.unitType
             )
         }
-        if let causeID = emitHelperCall(
+        // `__kkThrowableAdoptCause` copies the factory box's cause slot
+        // verbatim — value AND the JVM "cause initialized" flag — so
+        // `Throwable.initCause` guards keep working on the subclass instance
+        // (message-only super constructors stay uninitialized; cause-taking
+        // ones stay initialized even for a null cause). Older stdlib caches
+        // without the helper fall back to the value-only copy.
+        let adoptedCause = emitHelperCall(
+            "__kkThrowableAdoptCause", arguments: [receiver, factoryResult], resultType: sema.types.unitType
+        ) != nil
+        if !adoptedCause, let causeID = emitHelperCall(
             "__kkThrowableCause", arguments: [factoryResult], resultType: nullableThrowableType
         ) {
             _ = emitHelperCall(
