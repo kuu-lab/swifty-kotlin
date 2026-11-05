@@ -432,6 +432,21 @@ extension TypeCheckHelpers {
         return copy
     }
 
+    /// Opt-in markers granted by already-resolved annotation records. Local
+    /// function declarations carry their annotations as expression
+    /// annotations (KUU-4290); resolving them to records first keeps import
+    /// aliases (`import kotlin.OptIn as OI`) granting the marker, which the
+    /// source-spelling match in `expressionOptInContext` cannot see.
+    func optInMarkers(
+        from records: [MetadataAnnotationRecord],
+        file: ASTFile?,
+        ctx: TypeInferenceContext
+    ) -> Set<SymbolID> {
+        var markers: Set<SymbolID> = []
+        collectOptInMarkers(from: records, file: file, ctx: ctx, into: &markers)
+        return markers
+    }
+
     /// Opt-ins granted by `@OptIn` annotations attached to the expression `id`.
     /// The markers join `inheritedOptInMarkers` on a copied context, so they
     /// stay active for the expression's whole inference subtree — nested calls

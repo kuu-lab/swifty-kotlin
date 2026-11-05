@@ -45,15 +45,14 @@ extension BuildASTPhase {
         isAnonymousFunction: Bool = false
     ) -> ExprID? {
         // Leading annotations were already peeled by callers for dispatch;
-        // strip them here instead so declaration-level `@Suppress` can reach
-        // the diagnostics below (kotlinc gates local `inline` behind
-        // `NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION`). Only `Suppress` is
-        // forwarded: other annotation kinds were previously dropped, and
-        // re-attaching them as expression annotations would validate them
-        // against the wrong site.
-        let suppressAnnotations = annotationsFromTokens(statementTokens, interner: interner).filter {
-            $0.name.split(separator: ".").last == "Suppress"
-        }
+        // strip them here instead so declaration-level annotations can reach
+        // Sema: they are re-attached to the produced declaration expression
+        // below — the same channel local val/var `@Suppress` uses (KUU-3920) —
+        // where OptIn propagation, annotation-target validation (as a
+        // function site) and symbol annotation registration pick them up
+        // (KUU-4290). Previously only `@Suppress` was forwarded and every
+        // other annotation kind was dropped.
+        let declarationAnnotations = annotationsFromTokens(statementTokens, interner: interner)
         let statementTokens = Self.skipLeadingLocalAnnotations(statementTokens, interner: interner)
         guard !statementTokens.isEmpty else {
             return nil
@@ -402,8 +401,8 @@ extension BuildASTPhase {
         if leadingModifiers.contains(where: { $0.name == "inline" }) {
             astArena.markLocalInlineFunction(declaration)
         }
-        if !suppressAnnotations.isEmpty {
-            astArena.prependExpressionAnnotations(suppressAnnotations, for: declaration)
+        if !declarationAnnotations.isEmpty {
+            astArena.prependExpressionAnnotations(declarationAnnotations, for: declaration)
         }
         if isInfix { astArena.markInfixFunction(declaration) }
         if hasOperator { astArena.markOperatorFunction(declaration) }
