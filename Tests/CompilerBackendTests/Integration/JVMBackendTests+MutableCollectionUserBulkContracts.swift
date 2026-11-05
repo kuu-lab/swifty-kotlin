@@ -79,6 +79,68 @@ extension JVMBackendTests {
         }
     }
 
+    // KUU-4302: range expressions keep a scalar element-type handle during
+    // Sema, so `removeAll(2..4)` used to bind the `Collection` member and the
+    // JVM bridge crashed with a ClassCastException. The bulk extensions must
+    // materialize the range through the `Iterable` overload instead.
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func mutableCollectionBulkCallsAcceptRangeArguments(mode: EmitMode) throws {
+        let library = try ownStdlibRuntime()
+        try withWorkspace { root in
+            let result = try compile("""
+            fun main() {
+                val removed = mutableListOf(1, 2, 3, 4, 5)
+                println(removed.removeAll(2..4))
+                println(removed)
+                val range = 2..4
+                val viaLocal = mutableListOf(1, 2, 3, 4, 5)
+                println(viaLocal.removeAll(range))
+                println(viaLocal)
+                val retained = mutableListOf(1, 2, 3, 4, 5)
+                println(retained.retainAll(2..4))
+                println(retained)
+                val appended = mutableListOf(1, 2, 3)
+                println(appended.addAll(2..4))
+                println(appended)
+                val set = mutableSetOf(1, 2, 3, 4, 5)
+                println(set.removeAll(2..4))
+                println(set)
+                val stepped = mutableListOf(1, 2, 3, 4, 5, 6)
+                println(stepped.removeAll(1..6 step 2))
+                println(stepped)
+                val collection: MutableCollection<Int> = mutableListOf(1, 2, 3, 4, 5)
+                println(collection.removeAll(2..4))
+                println(collection)
+            }
+            """, root: root, mode: mode, classpath: [library.path])
+            try #require(result.0 == 0, "\(result.1.map(\.message))")
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let execution = try java(["-Xverify:all", "-cp", artifact + ":" + library.path, "HelloKt"])
+            #expect(execution.stdout == """
+            true
+            [1, 5]
+            true
+            [1, 5]
+            true
+            [2, 3, 4]
+            true
+            [1, 2, 3, 2, 3, 4]
+            true
+            [1, 5]
+            true
+            [2, 4, 6]
+            true
+            [1, 5]
+
+            """)
+            #expect(execution.stderr.isEmpty)
+            _ = try jvmTool("kotlinc", ["hello.kt", "-d", "official.jar"], root: root)
+            let foreign = try java(["-Xverify:all", "-cp", root.appendingPathComponent("official.jar").path + ":" + library.path, "HelloKt"])
+            #expect(foreign.stdout == execution.stdout)
+            #expect(foreign.stderr.isEmpty)
+        }
+    }
+
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func mutableCollectionBulkCallsPreserveUserExtensions(mode: EmitMode) throws {
         let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/JVMOwnStdlib")

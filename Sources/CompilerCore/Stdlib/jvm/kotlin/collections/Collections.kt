@@ -494,3 +494,13 @@ public fun <T> MutableCollection<in T>.removeAll(elements: kotlin.sequences.Sequ
     val removed = elements.toList()
     return !removed.isEmpty() && __jvmRemoveAllCollection(this, removed)
 }
+public fun <T> MutableCollection<in T>.retainAll(elements: Iterable<T>): Boolean {
+    val retained = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
+    return this.retainAll(retained)
+}
+public fun <T> MutableCollection<in T>.retainAll(elements: Array<out T>): Boolean {
+    return this.retainAll(__jvmArrayList(elements))
+}
+public fun <T> MutableCollection<in T>.retainAll(elements: kotlin.sequences.Sequence<T>): Boolean {
+    return this.retainAll(elements.toList())
+}
