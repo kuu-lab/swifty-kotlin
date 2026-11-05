@@ -470,6 +470,30 @@ extension DeclTypeChecker {
         in ctx: TypeInferenceContext,
         initialLocals: LocalBindings = [:]
     ) -> Bool {
+        // This gate decides whether the whole declaration — initializer or
+        // accessor body included — can run the full check ahead of source
+        // order without emitting diagnostics for not-yet-resolved references.
+        // Constructor result types pinned by explicit type arguments must not
+        // bypass that requirement, so require every call argument to be safe
+        // while probing (KUU-4280). The publish-type-only paths below keep the
+        // lenient probe and still surface the pinned type.
+        let previousFlag = requiresSafePrecheckCallArguments
+        requiresSafePrecheckCallArguments = true
+        defer { requiresSafePrecheckCallArguments = previousFlag }
+        return canSafelyPrecheckInferredPropertyProbing(
+            property,
+            symbol: symbol,
+            in: ctx,
+            initialLocals: initialLocals
+        )
+    }
+
+    private func canSafelyPrecheckInferredPropertyProbing(
+        _ property: PropertyDecl,
+        symbol: SymbolID,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
         guard property.type == nil,
               property.explicitBackingField == nil
         else {
@@ -721,15 +745,26 @@ extension DeclTypeChecker {
         else {
             return nil
         }
-        if symbol.kind == .object {
+        var valueSymbol = symbol
+        if symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .interface,
+           let companion = ctx.sema.symbols.companionObjectSymbol(for: symbol.id),
+           let companionSymbol = ctx.sema.symbols.symbol(companion)
+        {
+            // A classifier name in expression position denotes its companion
+            // object instance (`TrieNode.EMPTY` reads companion member `EMPTY`),
+            // so receiver expressions must see the companion's singleton type
+            // before member reads can publish their result types (KUU-4280).
+            valueSymbol = companionSymbol
+        }
+        if valueSymbol.kind == .object {
             // Singleton receivers already have a nominal type from their header.
             // Their member reads still wait for concrete property types below.
-            if symbol.id == ctx.sema.types.unitClassSymbol {
+            if valueSymbol.id == ctx.sema.types.unitClassSymbol {
                 return ctx.sema.types.unitType
             }
-            return ctx.sema.symbols.propertyType(for: symbol.id)
+            return ctx.sema.symbols.propertyType(for: valueSymbol.id)
                 ?? ctx.sema.types.make(.classType(ClassType(
-                    classSymbol: symbol.id, args: [], nullability: .nonNull
+                    classSymbol: valueSymbol.id, args: [], nullability: .nonNull
                 )))
         }
         guard symbol.kind == .property || symbol.kind == .field,
@@ -765,13 +800,29 @@ extension DeclTypeChecker {
         }
         if namedCandidates.count == 1,
            let symbol = ctx.sema.symbols.symbol(namedCandidates[0]),
-           symbol.kind == .class || symbol.kind == .enumClass,
-           args.allSatisfy({ safePrecheckExpressionType($0.expr, in: ctx, locals: locals) != nil })
+           symbol.kind == .class || symbol.kind == .enumClass
         {
+            // A pinned constructor result does not prove its arguments are
+            // resolvable yet. `canSafelyPrecheckInferredProperty` raises this
+            // flag when it decides whether a whole declaration can be checked
+            // early, so an argument that only resolves on the source-order
+            // pass cannot produce a spurious diagnostic here (KUU-4280).
+            if requiresSafePrecheckCallArguments,
+               !args.allSatisfy({ safePrecheckExpressionType($0.expr, in: ctx, locals: locals) != nil })
+            {
+                return nil
+            }
+            let typeParameters = ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id)
             // Every constructor of this non-generic class returns the same
             // header-resolved type. The property checker still resolves the
             // overload and validates argument types and visibility once.
-            if typeArgs.isEmpty && ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id).isEmpty {
+            // Neither this result nor an explicit type-argument list's result
+            // depends on the argument expressions, so calls like
+            // `TrieNode<Nothing>(0, emptyArray())` publish their type even
+            // when an argument cannot be typed before its own declaration
+            // pass — only the argument-driven inference path below needs
+            // every argument to be independently safe (KUU-4280).
+            if typeArgs.isEmpty && typeParameters.isEmpty {
                 return ctx.sema.types.make(.classType(ClassType(
                     classSymbol: symbol.id, args: [], nullability: .nonNull
                 )))
@@ -782,7 +833,6 @@ extension DeclTypeChecker {
             // which `Pair` ctor overload resolution would pick. Constructors
             // whose parameters mention a nested or unbound type parameter, or
             // that disagree on the result, stay on the normal pass (KUU-3912).
-            let typeParameters = ctx.sema.types.nominalTypeParameterSymbols(for: symbol.id)
             let initName = ctx.interner.intern("<init>")
             let constructorSymbols = ctx.sema.symbols.lookupAll(fqName: symbol.fqName + [initName])
             if typeArgs.isEmpty {

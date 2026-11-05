@@ -3,6 +3,15 @@ final class DeclTypeChecker {
     unowned let driver: TypeCheckDriver
     var annotationConstantEvaluator: ConstPropertyEvaluator?
     var pendingAnnotationConstants: [(ExprID, TypeInferenceContext, Bool)] = []
+    /// When set, constructor calls whose result type is pinned without reading
+    /// their arguments (non-generic classes and explicit type-argument lists)
+    /// must still prove every argument is safe to precheck. `canSafelyPrecheck
+    /// InferredProperty` raises this so a pinned result cannot smuggle an
+    /// argument that only resolves on the source-order pass into an early
+    /// full-declaration check; type-publication probes leave it clear so the
+    /// pinned type can still be published ahead of the arguments' own pass
+    /// (KUU-4280).
+    var requiresSafePrecheckCallArguments = false
 
     init(driver: TypeCheckDriver) {
         self.driver = driver
