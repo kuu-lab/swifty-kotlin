@@ -122,8 +122,6 @@ struct GoldenHarnessMetadataContractTests {
         // loading, so the storage call falls to the synthetic Int factory (KSP-1093).
         "stdlib_kotlin_concurrent_AtomicLongArray_n_n.kt",
         "stdlib_kotlin_collections_Map_iterator.kt",
-        // The artifact-backed golden currently records unresolved internal helper references.
-        "stdlib_kotlin_collections_n_throw.kt",
         "stdlib_kotlin_n_OptionalExpectation.kt",
         "stdlib_kotlin_n_numbers.kt",
         "stdlib_kotlin_Number_Number_n.kt",
@@ -143,10 +141,6 @@ struct GoldenHarnessMetadataContractTests {
         // DeprecationLevel.ERROR — the fixtures intentionally call them.
         "stdlib_kotlin_Number_Number_n.kt",
         "stdlib_kotlin_n_numbers.kt",
-        // kotlin.collections.throwCountOverflow/throwIndexOverflow are
-        // internal; the bundled stdlib does not expose them even under
-        // INVISIBLE_MEMBER suppression, so the calls resolve to `<error>`.
-        "stdlib_kotlin_collections_n_throw.kt",
         // @OptionalExpectation requires ExperimentalMultiplatform opt-in.
         "stdlib_kotlin_n_OptionalExpectation.kt",
         // `exception is IllegalStateException` on the final
@@ -186,9 +180,6 @@ struct GoldenHarnessMetadataContractTests {
         "inner_class.kt",
         "primary_constructor_private_access.kt",
         "primary_constructor_protected_access.kt",
-        // Internal throwCountOverflow/throwIndexOverflow are unresolved, so
-        // the calls and their receivers render `<error>` types.
-        "stdlib_kotlin_collections_n_throw.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
         "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "use_site_variance.kt",
