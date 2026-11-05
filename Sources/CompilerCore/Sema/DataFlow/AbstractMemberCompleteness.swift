@@ -409,6 +409,20 @@ func unimplementedAbstractMembers(
         )) {
             return false
         }
+        // A concrete member declared on the type itself implements the
+        // requirement even without `override`: kotlinc counts
+        // `class C : I { fun g() }` over `fun g(): Int` as implemented and
+        // reports only 'hides member of supertype' for the missing modifier
+        // (KUU-4170). The hides-member diagnostic is emitted by the OFO
+        // phase; here we only decide abstract completeness.
+        if declaredMemberSatisfiesAbstractRequirement(
+            abstractMember,
+            on: classSymbol,
+            symbols: symbols,
+            types: types
+        ) {
+            return false
+        }
         guard !providedMembers.isEmpty,
               let view = abstractMemberViewFromClass(
                   abstractMember, for: classSymbol, symbols: symbols, types: types
@@ -423,4 +437,67 @@ func unimplementedAbstractMembers(
             )
         }
     }
+}
+
+/// Whether a concrete member declared directly on `classSymbol` implements
+/// the inherited abstract `abstractMember` for completeness purposes.
+/// Implementation is decided by name, kind, override family (member
+/// extension vs regular member), and — for functions — the value-parameter
+/// signature after supertype specialization; return types, property types,
+/// and mutability do not participate (kotlinc reports only 'hides member'
+/// for `class C : I { val x: String }` over `val x: Int`, KUU-4170).
+private func declaredMemberSatisfiesAbstractRequirement(
+    _ abstractMember: SymbolID,
+    on classSymbol: SymbolID,
+    symbols: SymbolTable,
+    types: TypeSystem
+) -> Bool {
+    guard let abstract = symbols.symbol(abstractMember),
+          abstract.kind == .function || abstract.kind == .property
+    else { return false }
+    let abstractIsMemberExtension = symbols.memberExtensionOwnerSymbol(for: abstractMember) != nil
+    for childID in symbols.declaredChildren(of: classSymbol) {
+        guard let child = symbols.symbol(childID),
+              child.name == abstract.name,
+              child.kind == abstract.kind,
+              !child.flags.contains(.abstractType),
+              !child.flags.contains(.extensionMemberAlias),
+              (symbols.memberExtensionOwnerSymbol(for: childID) != nil) == abstractIsMemberExtension
+        else { continue }
+        if child.kind == .function {
+            if DataFlowSemaPhase().overrideFunctionSignatureMatches(
+                childMember: childID,
+                parentMember: abstractMember,
+                childOwner: classSymbol,
+                requireCovariantReturn: false,
+                symbols: symbols,
+                types: types
+            ) {
+                return true
+            }
+            continue
+        }
+        // Property: name, kind and override family already match; member
+        // extension receivers must be identical. The property type and
+        // mutability stay out of the completeness verdict — a `val`
+        // spelling still counts as implementing an abstract `var`
+        // requirement, with the val/var conflict reported separately.
+        guard let abstractView = abstractMemberViewFromClass(
+            abstractMember,
+            for: classSymbol,
+            symbols: symbols,
+            types: types
+        ) else { continue }
+        let childReceiverTypes = abstractIsMemberExtension
+            ? (symbols.extensionPropertyReceiverType(for: childID).map { [$0] } ?? [])
+            : []
+        let abstractReceiverTypes = abstractView.extensionReceiverType.map { [$0] } ?? []
+        guard methodIdentityParameterTypesMatch(
+            candidateParameterTypes: childReceiverTypes,
+            interfaceParameterTypes: abstractReceiverTypes,
+            types: types
+        ) else { continue }
+        return true
+    }
+    return false
 }
