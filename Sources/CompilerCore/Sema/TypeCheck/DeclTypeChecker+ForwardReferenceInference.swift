@@ -677,6 +677,16 @@ extension DeclTypeChecker {
                 return nil
             }
             return types.booleanType
+        case let .nullAssert(operand, _):
+            // `expr!!` keeps the operand's type minus nullability — the same
+            // narrowing the authoritative pass records, so an inferred member
+            // property such as `val line = getLine(n)!!` can still publish
+            // its type ahead of source order (KUU-4014).
+            guard let operandType = safePrecheckExpressionType(operand, in: ctx, locals: locals) else {
+                return nil
+            }
+            let nonNullType = types.makeNonNullable(operandType)
+            return isSafePrecheckValueType(nonNullType, in: ctx) ? nonNullType : nil
         case .call:
             return safePrecheckTopLevelCall(exprID, in: ctx, locals: locals)
         case .memberCall:
@@ -872,25 +882,6 @@ extension DeclTypeChecker {
             guard args.allSatisfy({ $0.label == nil && !$0.isSpread }) else {
                 return nil
             }
-            // A member on an implicit receiver shadows lexical functions, but
-            // this branch only weighs receiver-less candidates. Leave such
-            // calls to the normal resolver instead of picking a top-level
-            // overload the member would hide.
-            for receiver in ctx.implicitReceiverMemberLookupEntries() {
-                let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
-                if !driver.helpers.collectMemberFunctionCandidates(
-                    named: name,
-                    receiverType: receiverType,
-                    sema: ctx.sema,
-                    interner: ctx.interner
-                ).isEmpty || driver.helpers.lookupMemberProperty(
-                    named: name,
-                    receiverType: receiver.type,
-                    sema: ctx.sema
-                ) != nil {
-                    return nil
-                }
-            }
             var argumentTypes: [TypeID] = []
             argumentTypes.reserveCapacity(args.count)
             for argument in args {
@@ -900,6 +891,64 @@ extension DeclTypeChecker {
                     return nil
                 }
                 argumentTypes.append(argumentType)
+            }
+            // An unqualified call with arguments can still bind an implicit
+            // receiver member — `val x = pub(n)` inside an inner class reads
+            // the enclosing instance's `pub`. Members shadow lexical
+            // functions, so walk the receiver tower like the zero-argument
+            // path does; only when no receiver supplies an applicable member
+            // or a same-named property do the lexical candidates apply
+            // (KUU-4014).
+            for receiver in ctx.implicitReceiverMemberLookupEntries() {
+                let receiverType = ctx.sema.types.makeNonNullable(receiver.type)
+                let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
+                    named: name,
+                    receiverType: receiverType,
+                    sema: ctx.sema,
+                    interner: ctx.interner
+                ).filter { candidate in
+                    // Member extensions still need a separate extension
+                    // receiver the unqualified call cannot supply.
+                    guard ctx.sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+                          let signature = ctx.sema.symbols.functionSignature(for: candidate)
+                    else {
+                        return false
+                    }
+                    return signature.contextReceiverTypes.isEmpty
+                }
+                let applicableMembers = memberCandidates.filter { candidate in
+                    guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
+                        return false
+                    }
+                    return precheckArgumentFitsSignature(
+                        signature,
+                        candidate: candidate,
+                        argumentTypes: argumentTypes,
+                        receiverType: receiverType,
+                        in: ctx
+                    ) != nil
+                }
+                // An inapplicable member does not stop resolution: the call
+                // continues to outer receivers and the lexical scope.
+                if !applicableMembers.isEmpty {
+                    return safePrecheckCallResultType(
+                        applicableMembers,
+                        receiverType: receiverType,
+                        argumentTypes: argumentTypes,
+                        in: ctx
+                    )
+                }
+                // A member property named `name` still binds the callee at
+                // this receiver through `invoke`; with arguments that result
+                // is not statically safe to guess, and the member shadows
+                // outer scopes — keep the call on the normal pass.
+                if driver.helpers.lookupMemberProperty(
+                    named: name,
+                    receiverType: receiver.type,
+                    sema: ctx.sema
+                ) != nil {
+                    return nil
+                }
             }
             let candidates = namedCandidates.filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
