@@ -238,7 +238,9 @@ extension CallTypeChecker {
                 let nullableReceiverProbeResolves: Bool = {
                     let receiverIsNullableNothing = lookupReceiverType == sema.types.nullableNothingType
                     guard !safeCall,
-                          (diagnostic.code == "KSWIFTK-SEMA-0002" && receiverIsNullableNothing)
+                          ((diagnostic.code == "KSWIFTK-SEMA-0002"
+                              || diagnostic.code == "KSWIFTK-SEMA-0480")
+                              && receiverIsNullableNothing)
                               || (diagnostic.code == "KSWIFTK-TYPE-0001"
                                   && sema.types.nullability(of: lookupReceiverType) == .nullable)
                     else {

@@ -179,6 +179,7 @@ extension CallTypeChecker {
         // inapplicable as an unresolvable one — the tower continues.
         let diagnosticCode = resolved.diagnostic?.code
         return diagnosticCode == "KSWIFTK-SEMA-0002" || diagnosticCode == "KSWIFTK-SEMA-0473"
+            || diagnosticCode == "KSWIFTK-SEMA-0480"
             ? .inapplicable : .deferred
     }
 

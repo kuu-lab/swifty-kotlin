@@ -179,7 +179,13 @@ enum DiagnosticRegistry {
         "CANNOT_WEAKEN_ACCESS_PRIVILEGE": ["KSWIFTK-SEMA-0478"],
         "CANNOT_CHANGE_ACCESS_PRIVILEGE": ["KSWIFTK-SEMA-0479"],
         "TOO_MANY_ARGUMENTS": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
-        "NO_VALUE_FOR_PARAMETER": ["KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY"],
+        // The JS-annotation arity path reports both shapes under
+        // KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY; ordinary calls and
+        // annotation constructors report a missing value as SEMA-0480
+        // (KUU-4168), matching the upstream NO_VALUE_FOR_PARAMETER name.
+        "NO_VALUE_FOR_PARAMETER": [
+            "KSWIFTK-SEMA-ANNOTATION-ARGUMENT-ARITY", "KSWIFTK-SEMA-0480",
+        ],
         "DATA_CLASS_COPY_VISIBILITY": ["KSWIFTK-SEMA-DATA-COPY-VISIBILITY"],
         // kotlinc gates local `inline` functions behind this diagnostic name;
         // the local-function modifier check reports it as KSWIFTK-SEMA-0400.
@@ -1429,6 +1435,12 @@ enum DiagnosticRegistry {
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "An override cannot change the overridden member or accessor's visibility."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0480",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "No value passed for a required parameter."
         ),
     ]
 

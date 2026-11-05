@@ -4,7 +4,7 @@ fun required(a: Int, b: String) = "$a $b"
 
 fun main() {
     // ERROR: Too few arguments
-    required(1)  // KSWIFTK-SEMA-0002: no viable overload found for call (no value passed for parameter 'b')
+    required(1)  // KSWIFTK-SEMA-0480: no value passed for parameter 'b'
 
     // ERROR: Too many arguments
     required(1, "hello", "extra")  // KSWIFTK-SEMA-0002: no viable overload found for call (too many arguments for required(Int, String))
