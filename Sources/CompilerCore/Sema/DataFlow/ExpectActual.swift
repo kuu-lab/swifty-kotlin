@@ -41,6 +41,12 @@ extension DataFlowSemaPhase {
         commonModuleMode: Bool,
         deferredInferredTypePairs: inout [(expect: SymbolID, actual: SymbolID)]
     ) {
+        // Compact-indexed libraries register shells only when a lookup
+        // reaches them, and this check runs before body analysis — an
+        // imported expect no earlier query touched would escape validation
+        // and its compiled stub would link silently (KUU-3969). Claim every
+        // pending expect entry so the check sees the full expect surface.
+        symbols.drainIndexedExpectEntries()
         // Common libraries preserve expect markers so a platform compilation can
         // pair them with local actual declarations. Other imported declarations
         // remain outside this validation unless they are marked expect.

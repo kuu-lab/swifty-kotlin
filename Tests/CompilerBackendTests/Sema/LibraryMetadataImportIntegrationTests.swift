@@ -99,6 +99,72 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
+    /// KUU-3969: a common `.kklib` may legitimately keep unresolved expects, but
+    /// a consumer compilation must reject them — the expect entries register
+    /// lazily through the compact index, so without an explicit drain the
+    /// validation pass never saw them and their default-returning stubs linked
+    /// silently.
+    @Test
+    func testImportedUnresolvedExpectClassMembersAreRejected() throws {
+        let librarySource = """
+        package counter
+        expect class Counter(val v: Int) {
+            fun inc(): Int
+            fun get(): Int
+        }
+        """
+        let libraryBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let libraryPath = libraryBase + ".kklib"
+        defer { try? FileManager.default.removeItem(atPath: libraryPath) }
+
+        try withTemporaryFile(contents: librarySource) { librarySourcePath in
+            let libraryCtx = CompilerTestSupport.makeCompilationContext(
+                inputs: [librarySourcePath],
+                moduleName: "CounterLib",
+                emit: .library,
+                outputPath: libraryBase,
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+            try CompilerTestSupport.runToKIR(libraryCtx)
+            try LoweringPhase().run(libraryCtx)
+            try CodegenPhase().run(libraryCtx)
+
+            // The consumer references the expect class the way the original
+            // report did; validation runs before body analysis, so the
+            // unresolved diagnostics must already be present here.
+            let appSource = """
+            package consumer
+            import counter.Counter
+            fun probe(): Int {
+                val c = Counter(3)
+                return c.inc() + c.get()
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let appCtx = CompilerTestSupport.makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "CounterConsumer",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try CompilerTestSupport.runSema(appCtx)
+
+                let unresolvedMessages = appCtx.diagnostics.diagnostics
+                    .filter { $0.code == "KSWIFTK-MPP-UNRESOLVED" }
+                    .map(\.message)
+                #expect(appCtx.diagnostics.hasError)
+                #expect(unresolvedMessages.contains { $0.contains("'counter.Counter'") })
+                #expect(unresolvedMessages.contains { $0.contains("'counter.Counter.inc'") })
+                #expect(unresolvedMessages.contains { $0.contains("'counter.Counter.get'") })
+            }
+        }
+    }
+
     @Test
     func testMatchedExpectActualClassEmitsSingleNominalMetadata() throws {
         let librarySource = """

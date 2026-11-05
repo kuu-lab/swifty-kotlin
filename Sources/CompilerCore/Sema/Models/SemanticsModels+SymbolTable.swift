@@ -217,6 +217,11 @@ protocol IndexedLibraryEntryProvider: AnyObject {
     func drainChildren(parentFQName: [InternedString])
     /// Register every pending declaration-kind entry with this simple name.
     func drainEntries(shortName: InternedString)
+    /// Register every pending entry whose compact record is marked `isExpect`.
+    /// Expect/actual validation must cover the complete expect surface: an
+    /// expect no earlier lookup reached would otherwise escape the check and
+    /// its compiled stub would link silently (KUU-3969).
+    func drainExpectEntries()
     /// Whether the index contains declarations nested under `fqName` — the
     /// signal that justifies synthesizing a package shell for that path.
     func containsEntriesNested(under fqName: [InternedString]) -> Bool
@@ -572,6 +577,19 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         indexedLibraryProviders.append(provider)
+    }
+
+    /// Registers pending compact-index entries marked `isExpect` on every
+    /// indexed library provider, so expect/actual validation sees the
+    /// complete expect surface rather than only the entries earlier lookups
+    /// happened to reach (KUU-3969).
+    func drainIndexedExpectEntries() {
+        lock.lock()
+        defer { lock.unlock() }
+        for provider in indexedLibraryProviders.sorted(by: { $0.importOrder < $1.importOrder })
+            where provider.importOrder <= importDrainEpoch {
+            provider.drainExpectEntries()
+        }
     }
 
     /// Forces compact-index registration and metadata decoding for snapshot
