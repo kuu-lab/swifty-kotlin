@@ -3,9 +3,12 @@ package java.util
 import kotlin.collections.Collection
 import kotlin.collections.MutableCollection
 
+// KUU-3996: java.util.ArrayDeque implements java.util.Deque on the JVM,
+// which extends Queue; the bundled shim satisfies the Queue contract
+// directly (Deque itself remains unmodelled).
 public class ArrayDeque<E> private constructor(
     private val storage: kotlin.collections.ArrayDeque<E>
-) : MutableCollection<E> by storage {
+) : Queue<E>, MutableCollection<E> by storage {
     public constructor() : this(kotlin.collections.ArrayDeque<E>())
 
     public constructor(initialCapacity: Int) : this(newArrayDeque<E>(initialCapacity))
@@ -90,15 +93,15 @@ public class ArrayDeque<E> private constructor(
         return true
     }
 
-    public fun offer(element: E): Boolean = offerLast(element)
+    override fun offer(element: E): Boolean = offerLast(element)
 
-    public fun remove(): E = removeFirst()
+    override fun remove(): E = removeFirst()
 
-    public fun poll(): E? = pollFirst()
+    override fun poll(): E? = pollFirst()
 
-    public fun element(): E = first
+    override fun element(): E = first
 
-    public fun peek(): E? = peekFirst()
+    override fun peek(): E? = peekFirst()
 
     public fun push(element: E) = addFirst(element)
 

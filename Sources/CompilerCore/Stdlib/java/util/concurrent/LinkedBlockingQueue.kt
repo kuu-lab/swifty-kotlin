@@ -132,7 +132,7 @@ public open class LinkedBlockingQueue<E> : BlockingQueue<E> {
     }
 
     /** JVM `Queue.remove`: like [poll] but throws on an empty queue. */
-    public fun remove(): E {
+    override fun remove(): E {
         val head = poll()
         return head ?: throw NoSuchElementException()
     }
