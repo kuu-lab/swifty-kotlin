@@ -209,6 +209,41 @@ private func runtimeMakeBigDecimal(_ parts: RuntimeBigDecimalParts) throws -> In
     return registerRuntimeObject(RuntimeBigNumberBox(value: value, kind: .decimal))
 }
 
+/// Canonicalize a validated BigDecimal literal the way the JDK string
+/// constructor does: `new BigDecimal("123E-2").toString()` is "1.23", not the
+/// raw input. Arithmetic results already store this form via
+/// `runtimeMakeBigDecimal`; string-constructed values must match it so
+/// `toString()`/`scale()` behave identically regardless of origin.
+func runtimeCanonicalDecimalString(_ source: String) throws -> String {
+    try runtimeFormatBigDecimal(runtimeBigDecimalParts(source))
+}
+
+private func runtimeBigDecimalFromIntegerText(_ value: Int64, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    do {
+        let canonical = try runtimeCanonicalDecimalString(String(value))
+        return registerRuntimeObject(RuntimeBigNumberBox(value: canonical, kind: .decimal))
+    } catch {
+        return runtimeArithmeticException(error, outThrown: outThrown)
+    }
+}
+
+@_cdecl("__kk_int_toBigDecimal")
+public func __kk_int_toBigDecimal(
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeBigDecimalFromIntegerText(Int64(Int32(truncatingIfNeeded: valueRaw)), outThrown: outThrown)
+}
+
+@_cdecl("__kk_long_toBigDecimal")
+public func __kk_long_toBigDecimal(
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeBigDecimalFromIntegerText(Int64(valueRaw), outThrown: outThrown)
+}
+
 @_cdecl("__kk_double_toBigDecimal")
 public func __kk_double_toBigDecimal(
     _ valueRaw: Int,

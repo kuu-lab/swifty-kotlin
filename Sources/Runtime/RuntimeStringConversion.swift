@@ -621,7 +621,13 @@ public func __kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePo
         outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
-    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    // The JDK constructor canonicalizes eagerly (`new BigDecimal("123E-2")`
+    // prints "1.23"), so store the canonical form rather than the raw input.
+    guard let canonical = try? runtimeCanonicalDecimalString(str) else {
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Exponent overflow.")
+        return 0
+    }
+    let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
     return registerRuntimeObject(box)
 }
 
@@ -639,7 +645,11 @@ public func __kk_string_toBigDecimal_flat(
         outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
-    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    guard let canonical = try? runtimeCanonicalDecimalString(str) else {
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Exponent overflow.")
+        return 0
+    }
+    let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
     return registerRuntimeObject(box)
 }
 
@@ -655,7 +665,10 @@ public func __kk_string_toBigDecimalOrNull(_ strRaw: Int) -> Int {
     guard isValidBigDecimalFormat(str) else {
         return runtimeNullSentinelInt
     }
-    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    guard let canonical = try? runtimeCanonicalDecimalString(str) else {
+        return runtimeNullSentinelInt
+    }
+    let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
     return registerRuntimeObject(box)
 }
 
@@ -666,10 +679,12 @@ public func __kk_string_toBigDecimalOrNull_flat(
     _ hash: Int
 ) -> Int {
     let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard isValidBigDecimalFormat(str) else {
+    guard isValidBigDecimalFormat(str),
+          let canonical = try? runtimeCanonicalDecimalString(str)
+    else {
         return runtimeNullSentinelInt
     }
-    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
     return registerRuntimeObject(box)
 }
 

@@ -1,5 +1,6 @@
 package java.lang
 
+import java.io.IOException
 import kotlin.internal.KsSymbolName
 
 @KsSymbolName("__kk_process_start")
@@ -26,7 +27,7 @@ public class ProcessBuilder(vararg command: String) {
             throw IllegalArgumentException("command contains a null character")
         }
         val handle = __startProcess(commandArguments.joinToString(separator = "\u0000"))
-        if (handle == 0L) throw IllegalStateException("Unable to start process")
+        if (handle == 0L) throw IOException("Unable to start process")
         return Process(handle)
     }
 }

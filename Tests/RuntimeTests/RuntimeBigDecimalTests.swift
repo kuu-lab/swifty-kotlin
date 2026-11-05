@@ -27,18 +27,26 @@ struct RuntimeBigDecimalTests {
             __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
         }
         #expect(thrown == 0)
-        #expect(stringValue(__kk_bignum_toString(raw)) == "1.25e3")
+        // The JDK constructor canonicalizes eagerly: new BigDecimal("1.25e3") prints "1.25E+3".
+        #expect(stringValue(__kk_bignum_toString(raw)) == "1.25E+3")
     }
 
     @Test
     func testStringToBigDecimalAcceptsDecimalPointEdgeForms() {
-        for value in [".5", "1.", "-.25", "+12.0E-3"] {
+        // Input -> JDK-canonical toString form.
+        let cases: [(String, String)] = [
+            (".5", "0.5"),
+            ("1.", "1"),
+            ("-.25", "-0.25"),
+            ("+12.0E-3", "0.0120"),
+        ]
+        for (value, expected) in cases {
             var thrown = 0
             let raw = withFlatString(value) { data, length, byteCount, hash in
                 __kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
             }
             #expect(thrown == 0, "Expected \(value) to parse as BigDecimal")
-            #expect(stringValue(__kk_bignum_toString(raw)) == value)
+            #expect(stringValue(__kk_bignum_toString(raw)) == expected)
         }
     }
 
@@ -89,11 +97,48 @@ struct RuntimeBigDecimalTests {
         }
     }
 
+    /// KUU-3997: numeric constructors go through dedicated integer bridges so
+    /// `BigDecimal(2)` / `BigDecimal(2L)` produce canonical integer decimals.
+    @Test
+    func testIntToBigDecimalProducesCanonicalIntegers() {
+        let cases: [(Int, String)] = [
+            (0, "0"),
+            (42, "42"),
+            (-7, "-7"),
+            (Int(Int32.max), "2147483647"),
+            (Int(Int32.min), "-2147483648"),
+        ]
+        for (value, expected) in cases {
+            var thrown = 0
+            let raw = __kk_int_toBigDecimal(value, &thrown)
+            #expect(thrown == 0)
+            #expect(stringValue(__kk_bignum_toString(raw)) == expected)
+        }
+    }
+
+    @Test
+    func testLongToBigDecimalProducesCanonicalIntegers() {
+        let cases: [(Int, String)] = [
+            (0, "0"),
+            (123, "123"),
+            (-5, "-5"),
+            (Int(Int64.max), "9223372036854775807"),
+            (Int(Int64.min), "-9223372036854775808"),
+        ]
+        for (value, expected) in cases {
+            var thrown = 0
+            let raw = __kk_long_toBigDecimal(value, &thrown)
+            #expect(thrown == 0)
+            #expect(stringValue(__kk_bignum_toString(raw)) == expected)
+        }
+    }
+
     @Test
     func testStringToBigDecimalOrNullAcceptsScientificNotation() {
         let raw = __kk_string_toBigDecimalOrNull(runtimeString("+.5E-2"))
         #expect(raw != runtimeNullSentinelInt)
-        #expect(stringValue(__kk_bignum_toString(raw)) == "+.5E-2")
+        // JDK canonical form of "+.5E-2" is "0.005".
+        #expect(stringValue(__kk_bignum_toString(raw)) == "0.005")
     }
 
     @Test
@@ -108,7 +153,7 @@ struct RuntimeBigDecimalTests {
             __kk_string_toBigDecimalOrNull_flat(data, length, byteCount, hash)
         }
         #expect(raw != runtimeNullSentinelInt)
-        #expect(stringValue(__kk_bignum_toString(raw)) == "+.5E-2")
+        #expect(stringValue(__kk_bignum_toString(raw)) == "0.005")
     }
 
     @Test

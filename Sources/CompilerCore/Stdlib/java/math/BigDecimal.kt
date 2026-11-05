@@ -8,6 +8,25 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         public val ZERO: BigDecimal = "0".toBigDecimal()
         public val ONE: BigDecimal = "1".toBigDecimal()
         public val TEN: BigDecimal = "10".toBigDecimal()
+
+        /**
+         * Returns a `BigDecimal` whose value is equal to that of the [value]
+         * argument. Unlike the `BigDecimal(Double)` constructor, which keeps
+         * the exact binary value, `valueOf` goes through the canonical string
+         * representation provided by `Double.toString`, matching the JDK
+         * (`valueOf(2.0)` therefore has scale 1).
+         */
+        public fun valueOf(value: Double): BigDecimal {
+            if (!value.isFinite()) throw NumberFormatException("Infinite or NaN")
+            return BigDecimal(value.toString())
+        }
+
+        /** Returns a `BigDecimal` equal to [value] with scale 0. */
+        public fun valueOf(value: Long): BigDecimal = BigDecimal(value.toString())
+
+        /** Returns a `BigDecimal` whose value is `unscaledVal * 10^-scale`. */
+        public fun valueOf(unscaledVal: Long, scale: Int): BigDecimal =
+            BigDecimal(unscaledVal.toString() + "E" + (-scale.toLong()))
     }
 
     @KsSymbolName("__kk_string_toBigDecimal")
@@ -15,6 +34,12 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
 
     @KsSymbolName("__kk_double_toBigDecimal")
     public constructor(value: Double)
+
+    @KsSymbolName("__kk_int_toBigDecimal")
+    public constructor(value: Int)
+
+    @KsSymbolName("__kk_long_toBigDecimal")
+    public constructor(value: Long)
 
     @KsSymbolName("__kk_bignum_add")
     private external fun __kk_bignum_add(other: BigDecimal): BigDecimal
@@ -109,6 +134,27 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         __kk_bignum_setScale(newScale, roundingMode)
 
     public fun scale(): Int = __kk_bignum_scale()
+
+    /**
+     * Returns a `BigDecimal` whose value is `(this^n)`, computed exactly.
+     * Like the JDK, the exponent must satisfy `0 <= n <= 999999999`; the
+     * preferred scale of the result is `this.scale() * n`. Repeated
+     * squaring keeps the number of exact decimal multiplications logarithmic
+     * in `n` while producing the identical unscaled value and scale.
+     */
+    public fun pow(n: Int): BigDecimal {
+        if (n < 0 || n > 999999999) throw ArithmeticException("Invalid operation")
+        if (n == 0) return ONE
+        var result = ONE
+        var base = this
+        var remaining = n
+        while (remaining > 0) {
+            if ((remaining and 1) != 0) result = result.multiply(base)
+            remaining = remaining shr 1
+            if (remaining > 0) base = base.multiply(base)
+        }
+        return result
+    }
 
     /**
      * Returns a `BigDecimal` whose scale is reduced by [n] (value multiplied by 10^n).
