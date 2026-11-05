@@ -20,6 +20,7 @@ struct TypeCheckScopeBuilder {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
                 if shouldSkipDefaultImport(importedSymbol, sema: sema)
                     || shouldSkipPrimitiveWrapperDefaultImport(importedSymbol, sema: sema, interner: interner)
+                    || isFilePrivateTopLevel(importedSymbol, sema: sema)
                 {
                     continue
                 }
@@ -28,6 +29,7 @@ struct TypeCheckScopeBuilder {
             defaultImportScope.addPackage(packagePath) { [self, sema] symbolID in
                 !shouldSkipDefaultImport(symbolID, sema: sema)
                     && !shouldSkipPrimitiveWrapperDefaultImport(symbolID, sema: sema, interner: interner)
+                    && !isFilePrivateTopLevel(symbolID, sema: sema)
             }
         }
         var fileScopes: [Int32: FileScope] = [:]
@@ -61,10 +63,23 @@ struct TypeCheckScopeBuilder {
                 ) {
                     continue
                 }
-                if let symbol = sema.symbols.symbol(packageSymbol),
-                   symbol.visibility == .private,
-                   (sema.symbols.sourceFileID(for: packageSymbol) ?? symbol.declSite?.start.file) == file.fileID {
+                let packageSymbolInfo = sema.symbols.symbol(packageSymbol)
+                let isFilePrivate = packageSymbolInfo?.visibility == .private
+                let declaredInThisFile = packageSymbolInfo != nil
+                    && (sema.symbols.sourceFileID(for: packageSymbol)
+                        ?? packageSymbolInfo?.declSite?.start.file) == file.fileID
+                if isFilePrivate, declaredInThisFile {
                     fileScope.insert(packageSymbol)
+                } else if let packageSymbolInfo,
+                          !sema.symbols.isFilePrivateTopLevelVisible(packageSymbolInfo, fileID: file.fileID)
+                {
+                    // File-private top-level declarations are visible only
+                    // inside their declaring file. Collecting one declared
+                    // in another file would let the invisible candidate win
+                    // over a visible alternative (e.g. a wildcard-imported
+                    // enum entry) and then fail with SEMA-0040 at the use
+                    // site (KUU-4312).
+                    continue
                 } else {
                     packageScope.insert(packageSymbol)
                 }
@@ -75,13 +90,33 @@ struct TypeCheckScopeBuilder {
                     file: file,
                     sema: sema,
                     interner: interner
-                )
+                ) && isPackageMemberVisibleFromFile(symbolID, file: file, sema: sema)
             }
 
             fileScopes[file.fileID.rawValue] = fileScope
         }
 
         return fileScopes
+    }
+
+    /// File-private top-level declarations never participate in default
+    /// imports: they are visible only inside their declaring file, which
+    /// reaches them through its own package scope instead (KUU-4312).
+    private func isFilePrivateTopLevel(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        sema.symbols.symbol(symbolID)?.visibility == .private
+    }
+
+    /// Whether `symbolID` may be a same-package candidate for `file` through
+    /// the deferred package-member path. File-private top-level declarations
+    /// declared in another file are invisible here and must be skipped so a
+    /// visible alternative can win (KUU-4312).
+    private func isPackageMemberVisibleFromFile(
+        _ symbolID: SymbolID,
+        file: ASTFile,
+        sema: SemaModule
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID) else { return true }
+        return sema.symbols.isFilePrivateTopLevelVisible(symbol, fileID: file.fileID)
     }
 
     private func shouldSkipRootCancellationCompatibilityAlias(

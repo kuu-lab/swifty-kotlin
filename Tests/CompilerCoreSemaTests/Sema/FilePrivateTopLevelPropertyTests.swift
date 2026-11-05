@@ -48,15 +48,65 @@ struct FilePrivateTopLevelPropertyTests {
         }
     }
 
-    @Test(arguments: ["secret", "demo.secret"])
-    func anotherFileCannotAccessPrivateProperty(reference: String) throws {
+    /// KUU-4312: an unqualified reference to a file-private top-level
+    /// property from another file is unresolved (the declaration is not a
+    /// candidate), while the qualified `demo.secret` spelling still reports
+    /// the private-access error, matching kotlinc's "private in file".
+    @Test(arguments: [
+        ("secret", "KSWIFTK-SEMA-0022"),
+        ("demo.secret", "KSWIFTK-SEMA-0040"),
+    ])
+    func anotherFileCannotAccessPrivateProperty(reference: String, expectedCode: String) throws {
         try withTemporaryFiles(contents: [
             "package demo\nprivate val secret = 1",
             "package demo\nfun use(): Int = \(reference)",
         ]) { paths in
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
-            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0040" })
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == expectedCode })
+        }
+    }
+
+    /// KUU-4312: a file-private top-level declaration in another file of the
+    /// same package is not a resolution candidate, so a wildcard-imported
+    /// enum entry with the same name wins instead of the use site reporting
+    /// SEMA-0040.
+    @Test
+    func filePrivateTopLevelDeclDoesNotShadowWildcardImportedEnumEntry() throws {
+        let sources = [
+            """
+            package demo
+
+            private val SUSPEND = "hidden"
+            """,
+            """
+            package demo
+
+            enum class BufferOverflow { SUSPEND, DROP_OLDEST, DROP_LATEST }
+            """,
+            """
+            package demo
+            import demo.BufferOverflow.*
+
+            fun check(): BufferOverflow = SUSPEND
+            fun checkOldest(): BufferOverflow = DROP_OLDEST
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let intern = ctx.interner.intern
+            let entry = try #require(sema.symbols.lookup(fqName: [
+                intern("demo"), intern("BufferOverflow"), intern("SUSPEND"),
+            ]))
+            let hidden = try #require(sema.symbols.lookup(fqName: [
+                intern("demo"), intern("SUSPEND"),
+            ]))
+            let boundSymbols = Set(sema.bindings.identifierSymbols.values)
+            #expect(boundSymbols.contains(entry))
+            #expect(!boundSymbols.contains(hidden))
         }
     }
 
