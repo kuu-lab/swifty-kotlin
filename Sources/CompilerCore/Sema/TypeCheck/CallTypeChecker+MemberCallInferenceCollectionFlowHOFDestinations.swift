@@ -431,6 +431,16 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     return boundSteered
                 }
                 if let reinferExpectedType {
+                    // The first pass diagnosed the still-unconstrained
+                    // destination call (KSWIFTK-SEMA-INFER on bare factories
+                    // such as `mutableListOf()`/`mutableMapOf()`); the
+                    // re-inference below re-derives it under the destination
+                    // bound, so drop those stale errors up front and restore
+                    // them only when re-inference fails.
+                    let firstPassDestinationDiagnostics: [Diagnostic] = ast.arena
+                        .exprRange(args[0].expr)
+                        .map { ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: $0) }
+                        ?? []
                     let reinferDiagnosticsCheckpoint = ctx.sema.diagnostics.checkpoint()
                     let reinferredType = driver.inferExpr(
                         args[0].expr,
@@ -457,11 +467,14 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         }
                     } else {
                         // The factory could not be steered to a concrete
-                        // type; drop the speculative diagnostics and
-                        // restore the destination-shaped lambda
-                        // expectation so the original failure still
-                        // diagnoses at the transform.
+                        // type; drop the speculative diagnostics, restore the
+                        // first pass's destination errors, and restore the
+                        // destination-shaped lambda expectation so the
+                        // original failure still diagnoses at the transform.
                         ctx.sema.diagnostics.rollback(to: reinferDiagnosticsCheckpoint)
+                        for diagnostic in firstPassDestinationDiagnostics {
+                            ctx.sema.diagnostics.emit(diagnostic)
+                        }
                         _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     }
                 } else {

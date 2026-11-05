@@ -19,9 +19,15 @@ struct DestinationCollectionHOFBoundsTests {
         try runSema(ctx)
 
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.count == 3, "Expected one destination-bound error per invalid call, got: \(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0473" })
-        #expect(errors.allSatisfy { $0.message.contains("destination has type") })
+        let boundErrors = errors.filter { $0.code == "KSWIFTK-SEMA-0473" }
+        #expect(boundErrors.count == 3, "Expected one destination-bound error per invalid call, got: \(errors)")
+        #expect(boundErrors.allSatisfy { $0.message.contains("destination has type") })
+        // KUU-4002: the two bare factories (`emptyList()`, `mutableListOf()`)
+        // carry no inference evidence, so they also report
+        // KSWIFTK-SEMA-INFER — kotlinc emits the matching "cannot infer type
+        // for type parameter" next to each destination mismatch.
+        let inferErrors = errors.filter { $0.code == "KSWIFTK-SEMA-INFER" }
+        #expect(inferErrors.count == 2, "Expected inference errors only for the bare factories, got: \(errors)")
     }
 
     @Test
@@ -197,6 +203,92 @@ struct DestinationCollectionHOFBoundsTests {
                 )
             }
         }
+    }
+
+    /// KUU-4292: the aggregate destination HOFs (`associateByTo`,
+    /// `associateWithTo`, `groupByTo`) bound their destination as
+    /// `M : MutableMap<in K, in V>` / `M : MutableMap<in K, MutableList<V>>`,
+    /// so a destination outside the `MutableMap` family or whose key/value
+    /// types are not supertypes of the produced types must diagnose instead
+    /// of reaching lowering.
+    @Test
+    func aggregateDestinationHOFsRejectInvalidDestinations() throws {
+        let ctx = makeContextFromSource("""
+        data class User(val name: String, val age: Int)
+        fun violations(users: List<User>) {
+            users.associateByTo(mutableListOf<String>()) { it.name }
+            users.associateByTo(mutableMapOf<String, Int>()) { it.name }
+            users.associateWithTo(mutableMapOf<String, String>()) { it.name }
+            users.groupByTo(mutableListOf<String>()) { it.name }
+            users.groupByTo(mutableMapOf<String, List<User>>()) { it.name }
+            users.groupByTo(mutableMapOf<String, ArrayList<User>>()) { it.name }
+            users.groupByTo(mutableMapOf<String, MutableList<String>>(), { it.name }, { it.age })
+        }
+        """)
+        try runSema(ctx)
+
+        let boundErrors = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.message.contains("destination has type")
+        }
+        #expect(boundErrors.count == 7, "Expected one destination-bound error per invalid call, got: \(boundErrors)")
+        #expect(boundErrors.allSatisfy { $0.code == "KSWIFTK-SEMA-0473" || $0.code == "KSWIFTK-TYPE-0001" })
+    }
+
+    /// KUU-4292: valid `MutableMap` destinations — including supertyped key
+    /// and value arguments, `LinkedHashMap`, deferred `mutableMapOf()`
+    /// factories, and `groupByTo`'s invariant `MutableList<V>` value slot —
+    /// still satisfy the aggregate destination bounds.
+    @Test
+    func aggregateDestinationHOFsAcceptValidDestinations() throws {
+        let ctx = makeContextFromSource("""
+        data class User(val name: String, val age: Int)
+        fun valid(users: List<User>) {
+            users.associateByTo(mutableMapOf<String, Any>()) { it.name }
+            users.associateByTo(mutableMapOf<Any, User>()) { it.name }
+            users.associateByTo(mutableMapOf<String, Int>(), { it.name }, { it.age })
+            users.associateByTo(mutableMapOf<String, Number>(), { it.name }, { it.age })
+            users.associateWithTo(mutableMapOf<User, String>()) { it.name }
+            users.associateWithTo(mutableMapOf<Any, Any>()) { it.name }
+            users.groupByTo(mutableMapOf<String, MutableList<User>>()) { it.name }
+            users.groupByTo(mutableMapOf<String, MutableList<Int>>(), { it.name }, { it.age })
+            users.groupByTo(mutableMapOf<String, MutableList<Int?>>(), { it.name }, { it.age })
+            users.associateByTo(mutableMapOf()) { it.name }
+            users.associateByTo(mutableMapOf(), { it.name }, { it.age })
+            users.associateWithTo(mutableMapOf()) { it.name }
+            users.groupByTo(mutableMapOf()) { it.name }
+            users.groupByTo(mutableMapOf(), { it.name }, { it.age })
+            users.associateByTo(LinkedHashMap<String, Any>()) { it.name }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected valid aggregate destinations to type-check, got: \(errors)")
+    }
+
+    /// KUU-4292: bare `mutableListOf()`/`mutableMapOf()` destination factories
+    /// are re-inferred under the destination bound, so the first pass's
+    /// `KSWIFTK-SEMA-INFER` must not survive a successful re-inference —
+    /// kotlinc accepts every call below.
+    @Test
+    func deferredDestinationFactoriesDoNotReportStaleInferenceErrors() throws {
+        let ctx = makeContextFromSource("""
+        data class User(val name: String, val age: Int)
+        fun deferred(users: List<User>) {
+            users.mapTo(mutableListOf()) { it.name }
+            users.mapIndexedTo(mutableListOf()) { _, u -> u.name }
+            users.mapNotNullTo(mutableListOf()) { it.name }
+            users.filterTo(mutableListOf()) { it.age > 20 }
+            users.associateTo(mutableMapOf()) { it.name to it.age }
+            val scores = mapOf("a" to 1, "b" to 2)
+            scores.mapKeysTo(mutableMapOf()) { it.key + "!" }
+            scores.mapValuesTo(mutableMapOf()) { it.value * 2 }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected deferred destination factories to type-check, got: \(errors)")
     }
 
     /// The nested-constructor reinference only loosens the destination argument;
