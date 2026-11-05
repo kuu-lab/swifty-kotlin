@@ -94,6 +94,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "kotlin/internal/LowPriorityInOverloadResolution.kt",
+      "virtualPath": "<kswiftk-jvm>/low-priority-in-overload-resolution.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/Reflection.kt",
       "virtualPath": "<kswiftk-jvm>/reflection.kt",
       "excludeFromStdlibBuild": true

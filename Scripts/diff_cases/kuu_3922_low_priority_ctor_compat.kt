@@ -4,6 +4,8 @@
 // used to reject the pair with SEMA-0001). Calls must prefer the regular
 // constructor; calls using the compat function's own parameter names still
 // reach it.
+// DIFF_JVM: KUU-4286 — the JVM lane resolves the annotation through the
+// bundled stdlib declarations and must keep the same overload ordering.
 class LocalDate(val year: Int, val month: Int, val day: Int)
 
 @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")

@@ -29,6 +29,12 @@ extension JVMProgramBuilder {
         }
         for (node, target) in nodes {
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
+            // kotlin.internal.LowPriorityInOverloadResolution is a
+            // compile-time-only overload-resolution marker; consumer compiles
+            // inject it as a residual-stdlib declaration that is never
+            // emitted, so there is no classfile plan to attach (mirrors the
+            // skip in annotations(for:)).
+            if info.fqName.map(context.interner.resolve).joined(separator: ".") == "kotlin.internal.LowPriorityInOverloadResolution" { continue }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
                 if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
