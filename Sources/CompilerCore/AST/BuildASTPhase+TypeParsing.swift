@@ -135,10 +135,43 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> [ContextReceiverDecl] {
-        guard let contextIndex = tokens.firstIndex(where: { $0.kind == .softKeyword(.context) }) else {
-            return []
+        // The `context(...)` clause is a declaration-prefix element: it may
+        // appear before or after the annotation/modifier run, but never inside
+        // one. Skip annotation spans and modifier keywords so `context` used
+        // as an annotation name (`@context(X)`), inside annotation arguments,
+        // or inside an unrelated expression statement is not mistaken for a
+        // clause (KUU-4291).
+        var contextIndex: Int?
+        var prefixIndex = 0
+        while prefixIndex < tokens.count {
+            let kind = tokens[prefixIndex].kind
+            if kind == .symbol(.at) {
+                guard let parsed = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens,
+                    start: prefixIndex,
+                    interner: interner,
+                    allowUseSiteTarget: true
+                ) else {
+                    return []
+                }
+                prefixIndex = parsed.nextIndex
+                continue
+            }
+            if case let .keyword(keyword) = kind,
+               KotlinParser.isDeclarationModifierKeyword(keyword)
+            {
+                prefixIndex += 1
+                continue
+            }
+            if kind == .softKeyword(.context) {
+                contextIndex = prefixIndex
+            }
+            break
         }
-        guard contextIndex + 1 < tokens.count, tokens[contextIndex + 1].kind == .symbol(.lParen) else {
+        guard let contextIndex,
+              contextIndex + 1 < tokens.count,
+              tokens[contextIndex + 1].kind == .symbol(.lParen)
+        else {
             return []
         }
         var index = contextIndex + 2
@@ -204,7 +237,20 @@ extension BuildASTPhase {
         var isCrossinline = false
         var isNoinline = false
         while let first = typeTokens.first {
-            if first.kind == .keyword(.crossinline) {
+            if first.kind == .symbol(.at),
+               let parsed = AnnotationParsingSupport.parseAnnotation(
+                   from: typeTokens,
+                   start: 0,
+                   interner: interner,
+                   allowUseSiteTarget: false
+               )
+            {
+                // Context parameters may be annotated (`context(@Foo name: T)`);
+                // the annotations themselves are not modeled on
+                // `ContextReceiverDecl`, but skipping them keeps the `name:` /
+                // `_:` prefix visible to the checks below.
+                typeTokens.removeFirst(parsed.nextIndex)
+            } else if first.kind == .keyword(.crossinline) {
                 isCrossinline = true
                 typeTokens.removeFirst()
             } else if first.kind == .keyword(.noinline) {
@@ -256,6 +302,16 @@ extension BuildASTPhase {
                 )
             }
             return nil
+        }
+        if !isContextParameter {
+            // Kotlin 2.4 context parameters must be named (`name:`) or
+            // anonymous (`_:`); a bare type is the removed context-receiver
+            // syntax, which kotlinc rejects per element (KUU-4291).
+            diagnostics?.error(
+                "KSWIFTK-PARSE-0030",
+                "context parameters must be named. Use '_' to declare an anonymous context parameter.",
+                range: typeTokens.first?.range ?? tokens.first?.range
+            )
         }
         return (name, ref, isContextParameter, isCrossinline, isNoinline)
     }

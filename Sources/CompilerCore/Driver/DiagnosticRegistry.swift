@@ -394,6 +394,12 @@ enum DiagnosticRegistry {
             summary: "Expecting 'val' keyword in destructuring declaration."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-PARSE-0030",
+            pass: "PARSE",
+            defaultSeverity: .error,
+            summary: "Context parameters must be named or declared anonymous with '_'."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-PARSE-TYPE-DEPTH",
             pass: "PARSE",
             defaultSeverity: .error,

@@ -814,7 +814,7 @@ struct DeclarationBoundaryTests {
         }
         val context = Box()
         context.put()
-        context(Box) fun withContextReceiver() {}
+        context(_: Box) fun withContextReceiver() {}
         """)
 
         #expect(parsed.diagnostics.diagnostics.isEmpty, "\(parsed.diagnostics.diagnostics)")
