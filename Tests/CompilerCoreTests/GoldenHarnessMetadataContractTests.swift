@@ -102,7 +102,6 @@ struct GoldenHarnessMetadataContractTests {
         // surface fixtures already carry diagnostics in their committed goldens.
         // The introspection fixture also pins the invalid top-level `inner` modifier.
         "kclass_type_kind_introspection.kt",
-        "list_distinctBy_nullable_key.kt",
         "local_decl.kt",
         // A named object is intentionally rejected in a local position.
         "local_named_nominal.kt",
