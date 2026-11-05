@@ -57,6 +57,10 @@ struct CoroutineProduceArgumentApplicabilityTests {
         """, emit: .executable, allowDefaultStdlibLibrary: fromArtifact)
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "The unimported builder must remain unavailable")
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+        // kotlinc resolves the nearer `produce(required: String)` and reports
+        // an argument-type mismatch for the lambda plus an unresolved `send`
+        // inside it; the unimported builder must not supply a receiver.
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
     }
 }
