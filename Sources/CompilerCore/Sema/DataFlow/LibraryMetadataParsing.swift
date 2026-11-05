@@ -801,14 +801,21 @@ extension DataFlowSemaPhase {
             return type
         }
         let ownerFQName = Array(record.fqName.dropLast())
+        // A source declaration can shadow an imported nominal at the same
+        // FQ name. The member being normalized still belongs to the imported
+        // nominal (its parent link was resolved the same way), so resolve the
+        // owner through `preferredNominalOwnerSymbol` rather than taking the
+        // first nominal candidate — otherwise owner type parameters would be
+        // rewritten to the shadowing source declaration's symbols while the
+        // signature's `typeParameterSymbols` keep the imported ones.
         let nominalOwners = symbols.lookupAll(fqName: ownerFQName)
-            .compactMap({ symbols.symbol($0) })
+            .compactMap { symbols.symbol($0) }
             .filter { isNominalLayoutTargetSymbol($0.kind) }
         guard let ownerSymbol = preferredNominalOwnerSymbol(
             among: nominalOwners,
             forMember: memberSymbol,
             symbols: symbols
-        ) ?? nominalOwners.first?.id else {
+        ) else {
             return type
         }
         if types.nominalTypeParameterSymbols(for: ownerSymbol).isEmpty {

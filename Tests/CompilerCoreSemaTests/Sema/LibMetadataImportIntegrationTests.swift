@@ -933,6 +933,79 @@ struct LibMetadataImportIntegrationTests {
         }
     }
 
+    // KUU-4265: a source `fun interface` shadowing an imported nominal at the
+    // same FQ name used to make `normalizeImportedOwnerTypeParameters` resolve
+    // the owner through the shadowed FQ name, rewriting the imported member
+    // signature's owner type parameters to the *source* declaration's symbols
+    // while `typeParameterSymbols` kept the imported ones. SAM conversion of
+    // `collect { value -> ... }` then left the lambda parameter as the
+    // unsubstituted `T`, failing with KSWIFTK-SEMA-0002 against
+    // kotlinx-coroutines' `FlowCollector`.
+    @Test func testSourceFlowCollectorShadowKeepsImportedSamSignatureConsistent() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlib = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        try withTemporaryFile(contents: """
+        package kotlinx.coroutines.flow
+        public fun interface FlowCollector<in T> {
+            public suspend fun emit(value: T)
+        }
+        public suspend fun Flow<Int>.probe(destination: MutableCollection<Int>): MutableCollection<Int> {
+            collect { value ->
+                destination.add(value)
+            }
+            return destination
+        }
+        """) { sourcePath in
+            let ctx = makeCompilationContext(
+                inputs: [sourcePath],
+                moduleName: "FlowCollectorSourceOverride",
+                includeStdlib: false,
+                stdlibLibraryPath: stdlib,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    // KUU-4265: kotlinx-coroutines declares its own `Flow` interface with a
+    // `collect(collector: FlowCollector<T>)` member, shadowing the bundled
+    // stdlib nominal that only carries `collect` extensions. The SAM-call
+    // interception used to resolve `collect { ... }` against scope candidates
+    // alone, so the bundled `Flow<T>.collect(FlowCollector<T>)` extension won
+    // over the source member and its receiver constraint failed with
+    // KSWIFTK-TYPE-0001 / KSWIFTK-SEMA-0002. Members on the implicit receiver
+    // must take precedence, matching `this.collect { ... }`.
+    @Test func testSourceFlowMemberCollectWinsOverBundledSamExtension() throws {
+        TestStdlibCache.shared.prepare()
+        let stdlib = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        try withTemporaryFile(contents: """
+        package kotlinx.coroutines.flow
+        public fun interface FlowCollector<in T> {
+            public suspend fun emit(value: T)
+        }
+        public interface Flow<out T> {
+            public suspend fun collect(collector: FlowCollector<T>)
+        }
+        public suspend fun <T, C : MutableCollection<in T>> Flow<T>.toCollection(destination: C): C {
+            collect { value ->
+                destination.add(value)
+            }
+            return destination
+        }
+        """) { sourcePath in
+            let ctx = makeCompilationContext(
+                inputs: [sourcePath],
+                moduleName: "FlowMemberSourceOverride",
+                includeStdlib: false,
+                stdlibLibraryPath: stdlib,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test func sameModuleDuplicateClassStillReportsSema0001() throws {
         try withTemporaryFile(contents: "package dup\npublic class Foo") { firstPath in
             try withTemporaryFile(contents: "package dup\npublic class Foo") { secondPath in
