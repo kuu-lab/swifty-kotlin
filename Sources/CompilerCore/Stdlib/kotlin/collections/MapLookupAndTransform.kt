@@ -83,6 +83,19 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
     return answer
 }
 
+// KUU-4040: java.util.Map.compute — the remapping function always runs,
+// receiving the current value or null, and a null result removes the
+// mapping (matching java.util.HashMap.compute on the kotlinc reference).
+public fun <K, V> MutableMap<K, V>.compute(
+    key: K,
+    remappingFunction: (K, V?) -> V?
+): V? {
+    val oldValue = this[key]
+    val newValue = remappingFunction(key, oldValue)
+    if (newValue == null) remove(key) else this[key] = newValue
+    return newValue
+}
+
 public inline fun <K, V> MutableMap<K, V>.computeIfAbsent(key: K, mappingFunction: (K) -> V): V {
     val value = this[key]
     if (value != null) return value
