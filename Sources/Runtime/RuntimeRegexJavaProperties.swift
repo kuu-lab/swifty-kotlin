@@ -296,6 +296,168 @@ func jvmRegexPropertyNameValid(_ name: String, unicodeClasses: Bool) -> Bool {
     return jvmRegexPropertyNames.contains(name)
 }
 
+// MARK: - ICU translation (KUU-4295)
+//
+// `jvmRegexPropertyNameValid` decides which `\p{...}` names the JVM accepts;
+// the helpers below decide what ICU pattern expresses the same predicate.
+// ICU rejects several names the JVM accepts (`gc=Lower`, `LD`, `L1`, `all`,
+// `javaAlphabetic`, `javaIdeographic`, `javaLowerCase`, `javaUpperCase`,
+// every `Is<java*>` form, `IsWORD`, `IsHEXDIGIT`, `InSurrogates_Area`, ...)
+// and resolves a few shared names differently (`javaLowerCase` folds
+// Other_Lowercase into `Lowercase`, `IsWORD` needs the identifier-part
+// union, `IsHEXDIGIT` includes non-ASCII decimal digits). Each rewrite below
+// was checked against `java.util.regex.Pattern` on a discriminating corpus.
+
+/// JVM POSIX `\p{Name}` classes and their US-ASCII expansions.
+///
+/// On the JVM these names match ASCII characters only unless
+/// `UNICODE_CHARACTER_CLASS` is in effect; ICU's `\p{Name}` always uses its
+/// Unicode property tables, so while ASCII mode is active each POSIX name is
+/// rewritten to the explicit ASCII class below (and `\P{Name}` to the
+/// complemented class). Under `(?U)` a *bare* `\p{Name}` is copied through
+/// verbatim: ICU's `\p{Name}` implements the same UTS#18 compatibility
+/// properties the JVM uses in Unicode mode (e.g. `Upper` = `Lu +
+/// Other_Uppercase`, `Cntrl` = `gc=Cc`, `Blank` = `TAB + Zs`, `Space` =
+/// `White_Space`), so the semantics already agree. `gc=`/`general_category=`
+/// values bypass `forPOSIXName` on the JVM and always take this ASCII path.
+///
+/// `\p{ASCII}` is included for completeness — it is `[\x00-\x7F]` on the JVM
+/// in both modes — and all names are matched case-sensitively: the JVM
+/// rejects `\p{lower}` while ICU would accept it.
+private let jvmAsciiPosixClassExpansions: [String: String] = [
+    "Lower": "[a-z]",
+    "Upper": "[A-Z]",
+    "ASCII": "[\\x00-\\x7F]",
+    "Alpha": "[a-zA-Z]",
+    "Digit": "[0-9]",
+    "Alnum": "[a-zA-Z0-9]",
+    "Punct": "[\\x21-\\x2F\\x3A-\\x40\\x5B-\\x60\\x7B-\\x7E]",
+    "Graph": "[\\x21-\\x7E]",
+    "Print": "[\\x20-\\x7E]",
+    "Blank": "[ \\t]",
+    "Cntrl": "[\\x00-\\x1F\\x7F]",
+    "XDigit": "[0-9a-fA-F]",
+    "Space": "[ \\t\\n\\x0B\\f\\r]",
+]
+
+/// ICU spelling of the JDK `WORD()` predicate behind `IsWORD` /
+/// `Isword` / ... : Java identifier part characters, i.e. letters, marks,
+/// decimal digits, connector punctuation and join controls.
+private let jvmRegexWordClassICU = "[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}\\p{Join_Control}]"
+
+/// ICU spelling of the JDK `HEX_DIGIT()` predicate behind `IsHEXDIGIT` /
+/// `IsHEX_DIGIT` / `IsXDIGIT` and their case variants: every decimal digit
+/// (`Nd`, which also covers the fullwidth digits), ASCII hex letters, and
+/// the fullwidth hex letters.
+private let jvmRegexHexDigitClassICU = "[\\p{Nd}A-Fa-f\\uFF21-\\uFF26\\uFF41-\\uFF46]"
+
+/// Negates a `[...]` class expression by inserting `^` after the opening
+/// bracket — the same trick the POSIX `\P{Name}` expansion uses.
+private func jvmRegexComplementedClass(_ cls: String) -> String {
+    var complemented = cls
+    complemented.insert("^", at: complemented.index(after: complemented.startIndex))
+    return complemented
+}
+
+/// ICU class/escape equivalent of `java.util.regex` `forProperty(name)` —
+/// the predicate behind bare `\p{Name}` outside `(?U)`, `gc=` /
+/// `general_category=` values, and the `Is<Name>` stage-3 lookup. Returns
+/// nil for names ICU already expresses correctly (general categories,
+/// `LC`, the `java*` names ICU resolves identically, ...), which then pass
+/// through verbatim.
+private func jvmRegexForPropertyICU(_ name: String, negated: Bool) -> String? {
+    if let asciiClass = jvmAsciiPosixClassExpansions[name] {
+        return negated ? jvmRegexComplementedClass(asciiClass) : asciiClass
+    }
+    switch name {
+    case "LD": return negated ? "[^\\p{L}\\p{Nd}]" : "[\\p{L}\\p{Nd}]"
+    case "L1": return negated ? "[^\\x00-\\xFF]" : "[\\x00-\\xFF]"
+    case "all": return negated ? "\\P{Any}" : "\\p{Any}"
+    case "javaAlphabetic": return negated ? "\\P{Alphabetic}" : "\\p{Alphabetic}"
+    case "javaIdeographic": return negated ? "\\P{Ideographic}" : "\\p{Ideographic}"
+    case "javaLowerCase": return negated ? "\\P{Lowercase}" : "\\p{Lowercase}"
+    case "javaUpperCase": return negated ? "\\P{Uppercase}" : "\\p{Uppercase}"
+    default: return nil
+    }
+}
+
+/// Returns the ICU replacement for the contents of a `\p{...}` / `\P{...}`
+/// escape, or nil when the escape should be copied through verbatim.
+///
+/// This mirrors `Pattern.family`'s dispatch — `name=value` keys, `In*` blocks,
+/// `Is*` (Unicode property → `forProperty` → Unicode script), then bare
+/// names — so names ICU cannot express get the expression with the same
+/// match set while everything else keeps passing through. `negated` selects
+/// the `\P` complement and `unicodeClasses` the UNICODE_CHARACTER_CLASS
+/// state, matching `jvmRegexPropertyNameValid`.
+func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasses: Bool) -> String? {
+    func propertyEscape(_ value: String) -> String {
+        negated ? "\\P{\(value)}" : "\\p{\(value)}"
+    }
+    if let eq = name.firstIndex(of: "=") {
+        // \p{name=value}: the key is lowercased before dispatch, exactly like
+        // Pattern.family. gc=/general_category= resolve through forProperty —
+        // identical to a bare \p{value} outside (?U), including the ASCII
+        // POSIX expansions which forProperty applies in every mode.
+        let key = name[..<eq].lowercased()
+        let value = String(name[name.index(after: eq)...])
+        switch key {
+        case "gc", "general_category":
+            guard jvmRegexPropertyNames.contains(value) else { return nil }
+            return jvmRegexForPropertyICU(value, negated: negated) ?? propertyEscape(value)
+        case "blk", "block":
+            // Java's UnicodeBlock.SURROGATES_AREA has no member code points,
+            // so the JVM predicate never matches; \P{Any} is the empty class
+            // and \p{Any} its complement.
+            if value.uppercased() == "SURROGATES_AREA" {
+                return negated ? "\\p{Any}" : "\\P{Any}"
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+    if name.hasPrefix("In") {
+        // \p{InBlockName}: Unicode blocks only. SURROGATES_AREA is the one
+        // block ICU cannot name (and which is empty on the JVM anyway).
+        if name.dropFirst(2).uppercased() == "SURROGATES_AREA" {
+            return negated ? "\\p{Any}" : "\\P{Any}"
+        }
+        return nil
+    }
+    if name.hasPrefix("Is") {
+        // \p{IsX}: forUnicodeProperty (binary props + POSIX, uppercase),
+        // then forProperty (exact case), then forUnicodeScript (uppercase).
+        let short = String(name.dropFirst(2))
+        let upper = short.uppercased()
+        if jvmRegexUnicodePropertyNames.contains(upper) || jvmRegexPosixNames.contains(upper) {
+            // The JDK Unicode predicates agree with ICU's \p{IsX} resolution
+            // except WORD (identifier-part union) and the HEXDIGIT spellings
+            // (JDK adds every Nd digit plus fullwidth hex letters).
+            switch upper {
+            case "WORD":
+                return negated ? jvmRegexComplementedClass(jvmRegexWordClassICU) : jvmRegexWordClassICU
+            case "HEXDIGIT", "HEX_DIGIT", "XDIGIT":
+                return negated ? jvmRegexComplementedClass(jvmRegexHexDigitClassICU) : jvmRegexHexDigitClassICU
+            default:
+                return nil
+            }
+        }
+        if jvmRegexPropertyNames.contains(short) {
+            // forProperty(short) is the same predicate a bare \p{short} gets
+            // outside (?U); ICU only fails because it does not know the
+            // Is-prefixed spelling, so emit the bare form.
+            return jvmRegexForPropertyICU(short, negated: negated) ?? propertyEscape(short)
+        }
+        // forUnicodeScript: ICU resolves \p{Is<Script>} identically.
+        return nil
+    }
+    // Bare \p{Name}: forPOSIXName applies only under (?U) and only to the 12
+    // POSIX names; every other name reaches forProperty in both modes.
+    if unicodeClasses, jvmRegexPosixNames.contains(name.uppercased()) { return nil }
+    return jvmRegexForPropertyICU(name, negated: negated)
+}
+
 // MARK: - Pattern scanner
 
 private struct JVMRegexScanMode {
