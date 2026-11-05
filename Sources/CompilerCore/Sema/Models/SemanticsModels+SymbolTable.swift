@@ -285,6 +285,13 @@ public final class SymbolTable {
     private var declaredExtensionProperties: Set<SymbolID> = []
     private var extensionPropertyGetterAccessors: [SymbolID: SymbolID] = [:]
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
+    /// Accessor symbols materialized only so property references and KClass
+    /// member handles have a callable target (`emitPropertyReferenceAccessor`'s
+    /// default-body fallback). Their bodies merely reproduce the property's
+    /// storage access, so `MetadataEncoder` must not export them as
+    /// precompiled accessor link names — consumers reach the same storage
+    /// through field offsets and global slots directly (KUU-4327).
+    private var defaultPropertyAccessorSymbols: Set<SymbolID> = []
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
@@ -456,6 +463,7 @@ public final class SymbolTable {
         worker.declaredExtensionProperties = declaredExtensionProperties
         worker.extensionPropertyGetterAccessors = extensionPropertyGetterAccessors
         worker.extensionPropertySetterAccessors = extensionPropertySetterAccessors
+        worker.defaultPropertyAccessorSymbols = defaultPropertyAccessorSymbols
         worker.typeParameterUpperBoundsMap = typeParameterUpperBoundsMap
         worker.pendingTypeParameterBoundConflictChecks = pendingTypeParameterBoundConflictChecks
         worker.sourceFileIDs = sourceFileIDs
@@ -1531,6 +1539,14 @@ public final class SymbolTable {
 
     public func propertyHasCustomGetter(for symbol: SymbolID) -> Bool {
         propertyHasCustomGetter[symbol] ?? false
+    }
+
+    public func markDefaultPropertyAccessor(_ symbol: SymbolID) {
+        defaultPropertyAccessorSymbols.insert(symbol)
+    }
+
+    public func isDefaultPropertyAccessor(_ symbol: SymbolID) -> Bool {
+        defaultPropertyAccessorSymbols.contains(symbol)
     }
 
     public func setPropertySetterVisibility(_ visibility: Visibility, for symbol: SymbolID) {
