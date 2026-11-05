@@ -79,19 +79,19 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
 
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
-public inline fun <T> MutableCollection<out T>.remove(element: T): Boolean {
+public inline fun <@kotlin.internal.OnlyInputTypes T> MutableCollection<out T>.remove(element: T): Boolean {
     return (this as MutableCollection<T>).remove(element)
 }
 
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
-public inline fun <T> MutableCollection<out T>.removeAll(elements: Collection<T>): Boolean {
+public inline fun <@kotlin.internal.OnlyInputTypes T> MutableCollection<out T>.removeAll(elements: Collection<T>): Boolean {
     return (this as MutableCollection<T>).removeAll(elements)
 }
 
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
-public inline fun <T> MutableCollection<out T>.retainAll(elements: Collection<T>): Boolean {
+public inline fun <@kotlin.internal.OnlyInputTypes T> MutableCollection<out T>.retainAll(elements: Collection<T>): Boolean {
     return (this as MutableCollection<T>).retainAll(elements)
 }
 

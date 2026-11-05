@@ -46,7 +46,7 @@ public inline operator fun <@kotlin.internal.OnlyInputTypes K, V> Map<out K, V>.
 
 public fun <@kotlin.internal.OnlyInputTypes K, V> Map<K, V>.containsKey(key: K): Boolean = keys.contains(key)
 
-public fun <K, V> Map<K, V>.containsValue(value: V): Boolean = values.contains(value)
+public fun <K, @kotlin.internal.OnlyInputTypes V> Map<K, V>.containsValue(value: V): Boolean = values.contains(value)
 
 @PublishedApi
 internal fun <K, V> Map<K, V>.getOrImplicitDefault(key: K): V {
@@ -151,14 +151,14 @@ public fun <K, V> MutableMap<K, V>.replaceAll(function: (K, V) -> V) {
     }
 }
 
-public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
+public inline fun <@kotlin.internal.OnlyInputTypes K, V> MutableMap<out K, V>.remove(key: K): V? {
     return __kk_mutable_map_remove(this, key)
 }
 
 @SinceKotlin("1.1")
 @IgnorableReturnValue
 @Suppress("UNCHECKED_CAST")
-public fun <K, V> MutableMap<out K, out V>.remove(key: K, value: V): Boolean {
+public fun <@kotlin.internal.OnlyInputTypes K, @kotlin.internal.OnlyInputTypes V> MutableMap<out K, out V>.remove(key: K, value: V): Boolean {
     val map = this as MutableMap<K, V>
     val current = map[key]
     if (current != value || (current == null && !map.containsKey(key))) return false
