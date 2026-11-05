@@ -218,4 +218,111 @@ struct ExpressionAnnotationSemanticTests {
             #expect(warnings.count == 1, "\(warnings)")
         }
     }
+
+    @Test
+    func optInOnLocalFunctionCoversSignatureAndBody() throws {
+        // KUU-4290: annotations on a local `fun` reach Sema, so `@OptIn`
+        // consents to experimental API in its signature and body — matching
+        // kotlinc, which compiles the contracts repro cleanly.
+        let source = """
+        @RequiresOptIn
+        annotation class ExperimentalFeature
+
+        @ExperimentalFeature
+        class ExperimentalType
+
+        @ExperimentalFeature
+        fun experimentalApi(): Int = 1
+
+        fun optedIn(): Int {
+            @OptIn(ExperimentalFeature::class)
+            fun helper(x: ExperimentalType): Int {
+                return experimentalApi()
+            }
+            return 0
+        }
+
+        fun notOptedIn(): Int {
+            fun helper(): Int {
+                return experimentalApi()
+            }
+            return 0
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            let optInErrors = context.diagnostics.diagnostics.filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-OPT-IN"
+            }
+            // Only the un-annotated local function's body reports; the
+            // @OptIn-annotated one's signature and body stay clean.
+            #expect(optInErrors.count == 1, "\(optInErrors)")
+        }
+    }
+
+    @Test
+    func deprecatedOnLocalFunctionWarnsAtCallSite() throws {
+        // KUU-4290: symbol annotation registration makes `@Deprecated` on a
+        // local function observable at its call sites.
+        let source = """
+        fun outer(): Int {
+            @Deprecated("old")
+            fun helper(): Int = 1
+            return helper()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let warnings = context.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+            #expect(warnings.count == 1, "\(warnings)")
+        }
+    }
+
+    @Test
+    func localFunctionAnnotationsValidateAgainstFunctionTarget() throws {
+        // KUU-4290: local `fun` annotations are declaration-site — they must
+        // satisfy FUNCTION targets, not EXPRESSION targets.
+        let source = """
+        annotation class AnyTag
+        @Target(AnnotationTarget.EXPRESSION) annotation class ExpressionTag
+
+        fun outer(): Int {
+            @AnyTag
+            fun ok(): Int = 1
+            @ExpressionTag
+            fun bad(): Int = 2
+            return ok() + bad()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.count == 1, "\(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }, "\(errors)")
+        }
+    }
+
+    @Test
+    func unresolvedAnnotationOnLocalFunctionIsReported() throws {
+        // KUU-4290: annotations are no longer silently dropped, so an
+        // unresolvable one on a local function reports like any declaration.
+        let source = """
+        fun outer(): Int {
+            @NoSuchAnnotation
+            fun helper(): Int = 1
+            return helper()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            #expect(context.diagnostics.diagnostics.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-0022"
+            }, "\(context.diagnostics.diagnostics)")
+        }
+    }
 }

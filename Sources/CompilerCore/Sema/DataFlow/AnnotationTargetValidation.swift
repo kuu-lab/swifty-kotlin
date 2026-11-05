@@ -227,12 +227,20 @@ extension DataFlowSemaPhase {
                 enclosingFQName: enclosingOwners.first ?? [],
                 lexicalEnclosingFQNames: enclosingOwners
             )
-            let isFunctionLiteral: Bool
-            if case .lambdaLiteral = ast.arena.expr(exprID) {
-                isFunctionLiteral = true
-            } else {
-                isFunctionLiteral = ast.arena.isAnonymousFunction(exprID)
-            }
+            // A local `fun` declaration's annotations are declaration-site,
+            // not expression-site: they validate against FUNCTION targets
+            // like member functions (KUU-4290). Lambda and anonymous-function
+            // literals keep the expression site, where FUNCTION-targeted
+            // annotations are accepted through `isFunctionLiteral`.
+            let usageSite: AnnotationUsageSite = {
+                if case .localFunDecl = ast.arena.expr(exprID) {
+                    return .function
+                }
+                if case .lambdaLiteral = ast.arena.expr(exprID) {
+                    return .expression(isFunctionLiteral: true)
+                }
+                return .expression(isFunctionLiteral: ast.arena.isAnonymousFunction(exprID))
+            }()
             let annotations = annotationsByExpr[exprID] ?? []
             validateAnnotationRepeatability(
                 annotations: annotations, file: file, symbols: symbols,
@@ -258,7 +266,7 @@ extension DataFlowSemaPhase {
                     }
                 }
                 validateAnnotationTarget(
-                    annotation: annotation, site: .expression(isFunctionLiteral: isFunctionLiteral), ownerRange: range,
+                    annotation: annotation, site: usageSite, ownerRange: range,
                     decl: nil, file: file, propertySymbol: nil, symbols: symbols,
                     diagnostics: diagnostics, interner: interner, filesByID: filesByID,
                     resolutionContext: resolutionContext
