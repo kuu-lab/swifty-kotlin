@@ -113,11 +113,15 @@ extension CallTypeChecker {
                 let emittedType = driver.inferExpr(
                     args[0].expr, ctx: ctx, locals: &locals, expectedType: elementType
                 )
+                // The postponed constraint is the emit argument against the
+                // collector's element parameter, so a concrete mismatch is an
+                // argument-type failure (KSWIFTK-SEMA-0473), not a generic
+                // constraint failure (KUU-4325).
                 builderInference.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
                     subtype: emittedType, supertype: elementType,
                     typeVarBySymbol: builderInference.typeVarBySymbol,
                     typeSystem: sema.types, blameRange: ast.arena.exprRange(args[0].expr)
-                ))
+                ).map { $0.withOrigin(.callArgument) })
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
                 return sema.types.unitType
             }
