@@ -69,6 +69,26 @@ extension CallTypeChecker {
         let samArgIndex = samArgIndices[0]
         let samArgExpr = args[samArgIndex].expr
 
+        // Implicit-receiver members take precedence over same-named scope
+        // functions and extensions during Kotlin overload resolution. This
+        // SAM path only collects scope candidates, so it would let a bundled
+        // `Flow<T>.collect(collector: FlowCollector<T>)` extension shadow the
+        // source `Flow.collect` member when compiling kotlinx-coroutines
+        // (KUU-4265). Abstain whenever a receiver in the implicit tower
+        // declares `calleeName`; the ordinary call path merges members first
+        // and only retries extensions once every member proves inapplicable.
+        let towerHasMember = ctx.implicitReceiverMemberLookupEntries().contains { entry in
+            !driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: ctx.sema.types.makeNonNullable(entry.type),
+                sema: ctx.sema,
+                interner: ctx.interner
+            ).isEmpty
+        }
+        if towerHasMember {
+            return nil
+        }
+
         var visibleCandidates = ctx.filterByVisibility(
             ctx.cachedScopeLookup(calleeName).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else {
