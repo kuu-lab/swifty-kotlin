@@ -291,6 +291,60 @@ struct DestinationCollectionHOFBoundsTests {
         #expect(errors.isEmpty, "Expected deferred destination factories to type-check, got: \(errors)")
     }
 
+    /// KUU-4308: the List-specific `*To` declarations must bound their
+    /// destination as `M : MutableMap<in K, in V>` like the Iterable,
+    /// Sequence, and Array overloads. A user-defined `List` subtype is not a
+    /// known collection receiver, so the member-call fast path does not claim
+    /// these calls and regular overload resolution binds the bundled
+    /// `List<T>` declarations directly. With invariant `MutableMap<K, V>`
+    /// bounds, a destination whose key/value types are supertypes of the
+    /// produced types (e.g. `MutableMap<Any, Int>`) failed constraint solving
+    /// even though kotlinc accepts it.
+    @Test
+    func customListSubtypeAcceptsSupertypeMapDestinations() throws {
+        let ctx = makeContextFromSource("""
+        abstract class StringList : List<String>
+        fun supertypeDestinations(users: StringList) {
+            val d1 = mutableMapOf<Any, Int>()
+            users.associateWithTo(d1) { it.length }
+            val d2 = mutableMapOf<Any, String>()
+            users.associateByTo(d2) { it }
+            val d3 = mutableMapOf<Any, Int>()
+            users.associateByTo(d3, { it }, { it.length })
+            val d4 = mutableMapOf<Any, MutableList<Int>>()
+            users.groupByTo(d4, { it.length % 2 }, { it.length })
+            val d5 = mutableMapOf<Any, MutableList<String>>()
+            users.groupByTo(d5) { it.length % 2 }
+            val d6 = mutableMapOf<Any, Number>()
+            users.associateTo(d6) { it to it.length }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected supertype destinations on a custom List subtype to type-check, got: \(errors)")
+    }
+
+    /// KUU-4308: the `in`-projected bound still rejects a destination whose
+    /// key type is not a supertype of the produced key through regular
+    /// overload resolution — kotlinc reports the same call as an argument
+    /// type mismatch against `MutableMap<in String, in Int>`.
+    @Test
+    func customListSubtypeRejectsNonSupertypeMapDestination() throws {
+        let ctx = makeContextFromSource("""
+        abstract class StringList : List<String>
+        fun violation(users: StringList) {
+            users.associateWithTo(mutableMapOf<Int, Int>()) { it.length }
+        }
+        """)
+        try runSema(ctx)
+
+        let boundErrors = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error && $0.code == "KSWIFTK-TYPE-0001"
+        }
+        #expect(boundErrors.count == 1, "Expected one contravariant bound error, got: \(boundErrors)")
+    }
+
     /// The nested-constructor reinference only loosens the destination argument;
     /// the predicate keeps its declared `(T) -> Boolean` shape so the generated
     /// call still consumes a primitive Boolean (the boxed `Any?` result used to
