@@ -22,7 +22,11 @@ public class ProcessBuilder(vararg command: String) {
     }
 
     public fun start(): Process {
-        if (commandArguments.isEmpty()) throw IllegalArgumentException("command is empty")
+        // The JDK reaches this state through the native launcher indexing
+        // argv[0] of an empty command; surface the same exception.
+        if (commandArguments.isEmpty()) {
+            throw ArrayIndexOutOfBoundsException("Index 0 out of bounds for length 0")
+        }
         if (commandArguments.any { it.contains('\u0000') }) {
             throw IllegalArgumentException("command contains a null character")
         }
