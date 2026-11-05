@@ -1207,6 +1207,45 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3931: the kotlinx-datetime `Instant.Companion.MIN` shape — the
+    /// `actual` class carries a primary constructor with property parameters
+    /// and the companion member's type is inferred from its initializer
+    /// (`internal actual val MIN = Instant(0)`). Matching must defer to the
+    /// inferred type published during body analysis.
+    @Test func testActualCompanionPropertyInferredTypeOnConstructorClass() throws {
+        try withSemaContextFromSourcesWithoutStdlib([
+            """
+            package kotlinx.datetime
+            public expect class Instant {
+                public companion object {
+                    internal val MIN: Instant
+                }
+            }
+            """,
+            """
+            package kotlinx.datetime
+            public actual class Instant internal constructor(val epochSeconds: Long) {
+                public actual companion object {
+                    internal actual val MIN = Instant(0)
+                }
+            }
+            """,
+        ]) { ctx in
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "An inferred companion actual on a constructor-bearing class must satisfy its expect contract: \(errors)"
+            )
+
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlinx", "datetime", "Instant", "Companion", "MIN"].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(symbols.first { $0.flags.contains(.expectDeclaration) })
+            let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+        }
+    }
+
     /// KUU-3921: the same placeholder problem hits top-level/member
     /// properties and expression-bodied functions whose actual side leaves
     /// the type or return type to inference.
