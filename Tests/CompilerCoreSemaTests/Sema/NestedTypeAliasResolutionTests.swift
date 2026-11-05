@@ -287,4 +287,37 @@ struct NestedTypeAliasResolutionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         _ = try expectAlias(["C", "T"], target: ["C", "E"], in: ctx)
     }
+
+    @Test func annotatedMemberTypeAliasResolvesSiblingNestedEnum() throws {
+        // KUU-3926: the kotlinx-cli ArgParser.kt:218 shape — a member
+        // typealias carrying @Deprecated/@Suppress annotations whose RHS is
+        // a sibling nested enum that the primary constructor signature also
+        // references. The deprecated shim stays reachable through the
+        // owner-qualified alias (`ArgParser.OPTION_PREFIX_STYLE.GNU`) from
+        // outside the class.
+        let ctx = try context(["""
+        open class ArgParser(
+            val programName: String,
+            var prefixStyle: OptionPrefixStyle = OptionPrefixStyle.LINUX
+        ) {
+            enum class OptionPrefixStyle { LINUX, JVM, GNU }
+
+            @Deprecated(
+                "OPTION_PREFIX_STYLE is deprecated. Please, use OptionPrefixStyle.",
+                ReplaceWith("OptionPrefixStyle", "kotlinx.cli.OptionPrefixStyle")
+            )
+            @Suppress("TOPLEVEL_TYPEALIASES_ONLY")
+            typealias OPTION_PREFIX_STYLE = OptionPrefixStyle
+
+            fun describe(): String = "$programName:$prefixStyle"
+        }
+        fun check(): ArgParser.OPTION_PREFIX_STYLE = ArgParser.OPTION_PREFIX_STYLE.GNU
+        """])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        _ = try expectAlias(
+            ["ArgParser", "OPTION_PREFIX_STYLE"],
+            target: ["ArgParser", "OptionPrefixStyle"],
+            in: ctx
+        )
+    }
 }
