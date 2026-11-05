@@ -208,6 +208,53 @@ struct MetadataSerializerTests {
         #expect(Set(completeRecords.map(\.fqName)) == Self.expectedVisibilityNames)
     }
 
+    /// KUU-4287: expect/actual contracts must reach the matching compilation
+    /// at any visibility — an `internal expect` member is still part of the
+    /// contract a platform source set must satisfy (the kotlinx-datetime
+    /// `Instant.Companion.MIN` shape). Ordinary internal declarations stay
+    /// filtered out; only contract records bypass the visibility gate.
+    @Test
+    func testExpectActualContractSymbolsExportAtAnyVisibility() {
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let ownerName = interner.intern("Owner")
+        let memberName = interner.intern("member")
+        let actualName = interner.intern("impl")
+        let plainName = interner.intern("plain")
+        let owner = symbols.define(
+            kind: .class, name: ownerName, fqName: [ownerName],
+            declSite: nil, visibility: .internal, flags: [.expectDeclaration]
+        )
+        let member = symbols.define(
+            kind: .property, name: memberName, fqName: [ownerName, memberName],
+            declSite: nil, visibility: .internal, flags: [.expectDeclaration]
+        )
+        symbols.setParentSymbol(owner, for: member)
+        symbols.setPropertyType(types.intType, for: member)
+        let actual = symbols.define(
+            kind: .property, name: actualName, fqName: [ownerName, actualName],
+            declSite: nil, visibility: .private, flags: [.actualDeclaration]
+        )
+        symbols.setParentSymbol(owner, for: actual)
+        symbols.setPropertyType(types.intType, for: actual)
+        // Non-contract internal/private declarations stay filtered out.
+        let plain = symbols.define(
+            kind: .property, name: plainName, fqName: [ownerName, plainName],
+            declSite: nil, visibility: .internal
+        )
+        symbols.setParentSymbol(owner, for: plain)
+        symbols.setPropertyType(types.intType, for: plain)
+
+        let encoder = MetadataEncoder()
+        let records = encoder.buildRecords(
+            symbols: symbols, types: types, moduleName: "Contract",
+            interner: interner, functionLinkNames: [:]
+        )
+        #expect(Set(records.map(\.fqName)) == ["Owner", "Owner.member", "Owner.impl"])
+        #expect(records.allSatisfy { $0.isExpect || $0.isActual })
+    }
+
     @Test func testAutoInlineBodiesDoNotEnableNonLocalCallbackReturns() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()

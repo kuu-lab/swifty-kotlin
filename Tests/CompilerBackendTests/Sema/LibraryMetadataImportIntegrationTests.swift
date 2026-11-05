@@ -165,6 +165,119 @@ struct LibraryMetadataImportIntegrationTests {
         }
     }
 
+    /// KUU-4287: expect/actual contracts must reach the matching compilation
+    /// at any visibility — Kotlin/Native klibs carry internal declarations
+    /// and a platform source set is a friend module of its common module, so
+    /// `internal expect` members (the kotlinx-datetime
+    /// `Instant.Companion.MIN` shape) are part of the contract. When the
+    /// metadata export filtered them out by visibility, mismatched or
+    /// missing actuals went undiagnosed.
+    @Test
+    func testInternalExpectClassMembersAreValidatedAcrossKklib() throws {
+        let librarySource = """
+        package counter
+        expect class Counter {
+            internal val secret: Int
+            internal fun hidden(): Int
+            companion object {
+                internal val FLOOR: Int
+            }
+        }
+        """
+        try withCompiledLibrary(
+            source: librarySource,
+            moduleName: "CounterCommon",
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false,
+            frontendFlags: ["common-module"]
+        ) { libraryPath in
+            // `hidden()` has no actual at all; `secret` and `FLOOR` actuals
+            // carry the wrong type. All three internal contracts must be
+            // diagnosed.
+            let platformSource = """
+            package counter
+            actual class Counter {
+                actual internal val secret: String = "x"
+                actual companion object {
+                    actual internal val FLOOR: String = "y"
+                }
+            }
+            """
+            try withTemporaryFile(contents: platformSource) { platformPath in
+                let platformCtx = makeCompilationContext(
+                    inputs: [platformPath],
+                    moduleName: "CounterPlatform",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try runSema(platformCtx)
+
+                let unresolvedMessages = platformCtx.diagnostics.diagnostics
+                    .filter { $0.code == "KSWIFTK-MPP-UNRESOLVED" }
+                    .map(\.message)
+                #expect(platformCtx.diagnostics.hasError)
+                #expect(unresolvedMessages.contains { $0.contains("'counter.Counter.secret'") })
+                #expect(unresolvedMessages.contains { $0.contains("'counter.Counter.hidden'") })
+                #expect(unresolvedMessages.contains { $0.contains("'counter.Counter.Companion.FLOOR'") })
+            }
+        }
+    }
+
+    /// KUU-4287: the same internal contract must also pair cleanly — matching
+    /// internal actuals produce no diagnostics and link expect to actual.
+    @Test
+    func testInternalExpectClassMembersLinkToMatchingActuals() throws {
+        let librarySource = """
+        package counter
+        expect class Counter {
+            internal val secret: Int
+            companion object {
+                internal val FLOOR: Int
+            }
+        }
+        """
+        try withCompiledLibrary(
+            source: librarySource,
+            moduleName: "CounterCommon",
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false,
+            frontendFlags: ["common-module"]
+        ) { libraryPath in
+            let platformSource = """
+            package counter
+            actual class Counter {
+                actual internal val secret: Int = 1
+                actual companion object {
+                    actual internal val FLOOR: Int = 2
+                }
+            }
+            """
+            try withTemporaryFile(contents: platformSource) { platformPath in
+                let platformCtx = makeCompilationContext(
+                    inputs: [platformPath],
+                    moduleName: "CounterPlatform",
+                    emit: .kirDump,
+                    searchPaths: [libraryPath],
+                    includeStdlib: false,
+                    allowDefaultStdlibLibrary: false
+                )
+                try runSema(platformCtx)
+
+                #expect(!platformCtx.diagnostics.hasError, "Unexpected diagnostics: \(platformCtx.diagnostics.diagnostics)")
+                let sema = try #require(platformCtx.sema)
+                let fqName = ["counter", "Counter", "Companion", "FLOOR"].map(platformCtx.interner.intern)
+                let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+                let expectSymbol = try #require(symbols.first {
+                    $0.flags.contains(.expectDeclaration) && $0.flags.contains(.importedLibrary)
+                })
+                let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+                #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+            }
+        }
+    }
+
     @Test
     func testMatchedExpectActualClassEmitsSingleNominalMetadata() throws {
         let librarySource = """
