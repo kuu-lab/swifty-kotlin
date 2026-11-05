@@ -510,8 +510,18 @@ extension LocalDeclTypeChecker {
                     }
                     valueTypes.append(sema.types.makeNonNullable(paramType))
                 }
-                if let first = valueTypes.first {
-                    if valueTypes.dropFirst().allSatisfy({ $0 == first }) { return first }
+                // Candidates swept up through the generic-receiver fallback
+                // can declare an unresolved type parameter as the value type
+                // (e.g. `CPointer<CPointerVarOf<P>>.set` collected for a
+                // concrete `CPointer<IntVar>` receiver). An unresolved type
+                // parameter cannot narrow an integer literal, so prefer the
+                // concrete declared types when both are present.
+                let concreteValueTypes = valueTypes.filter {
+                    !driver.callChecker.typeMentionsTypeParameter($0, sema: sema)
+                }
+                let narrowingValueTypes = concreteValueTypes.isEmpty ? valueTypes : concreteValueTypes
+                if let first = narrowingValueTypes.first {
+                    if narrowingValueTypes.dropFirst().allSatisfy({ $0 == first }) { return first }
                     if isBuiltinArray { return nil }
                 }
             }

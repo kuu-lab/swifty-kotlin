@@ -460,6 +460,77 @@ public extension RuntimeABISpec {
             p("handle", .intptr),
             p("typeToken", .intptr),
         ], isThrowing: false),
+        abiParitySpec("kk_cpointer_get_pointer", parameters: [
+            p("handle", .intptr),
+            p("scope", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_raw_ptr", parameters: [
+            p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_plus", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_bool", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_byte", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_ubyte", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_short", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_ushort", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_int", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_uint", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_long", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_ulong", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_float", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_double", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_cpointer_set_cpointer", parameters: [
+            p("handle", .intptr),
+            p("index", .intptr),
+            p("value", .intptr),
+        ], isThrowing: false),
         abiParitySpec("kk_interpret_cpointer", parameters: [
             p("nativePtrHandle", .intptr),
             p("typeToken", .intptr),

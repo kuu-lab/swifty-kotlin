@@ -704,6 +704,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // KUU-4028: `CPointer.getPointer`/`rawValue`, indexed `get`/`set`,
+        // and pointer `plus` operators.
+        registerCInteropPointerElementOperators(
+            cinteropPkg: cinteropPkg,
+            cPointerSymbol: cPointerSymbol,
+            cPointedType: cPointedType,
+            cPointerStarType: cPointerStarType,
+            nativePtrType: nativePtrType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         registerCInteropPlacementScopeMembers(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,
