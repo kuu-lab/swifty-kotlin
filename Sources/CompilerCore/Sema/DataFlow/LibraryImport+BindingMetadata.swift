@@ -350,6 +350,7 @@ extension DataFlowSemaPhase {
         }
         let propertyType = importedPropertyType(
             record: record,
+            memberSymbol: symbol,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
@@ -414,7 +415,7 @@ extension DataFlowSemaPhase {
                         cache: cache, allowPlaceholders: isStdlibArtifact
                     ) else { return nil }
                     return normalizeImportedOwnerTypeParameters(
-                        bound, record: record, symbols: symbols, types: types,
+                        bound, record: record, memberSymbol: symbol, symbols: symbols, types: types,
                         diagnostics: diagnostics, interner: interner, metadataPath: binding.metadataPath,
                         cache: cache, allowPlaceholders: isStdlibArtifact
                     )

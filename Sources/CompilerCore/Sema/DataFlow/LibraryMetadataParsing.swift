@@ -359,6 +359,7 @@ extension DataFlowSemaPhase {
         let decoded = normalizeImportedOwnerTypeParameters(
             decodedRaw,
             record: record,
+            memberSymbol: ownerSymbol,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
@@ -531,6 +532,7 @@ extension DataFlowSemaPhase {
                 return normalizeImportedOwnerTypeParameters(
                     decodedBound,
                     record: record,
+                    memberSymbol: ownerSymbol,
                     symbols: symbols,
                     types: types,
                     diagnostics: diagnostics,
@@ -741,6 +743,7 @@ extension DataFlowSemaPhase {
 
     func importedPropertyType(
         record: ImportedLibrarySymbolRecord,
+        memberSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
@@ -769,6 +772,7 @@ extension DataFlowSemaPhase {
         return normalizeImportedOwnerTypeParameters(
             decoded,
             record: record,
+            memberSymbol: memberSymbol,
             symbols: symbols,
             types: types,
             diagnostics: diagnostics,
@@ -782,6 +786,7 @@ extension DataFlowSemaPhase {
     func normalizeImportedOwnerTypeParameters(
         _ type: TypeID,
         record: ImportedLibrarySymbolRecord,
+        memberSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
@@ -796,10 +801,14 @@ extension DataFlowSemaPhase {
             return type
         }
         let ownerFQName = Array(record.fqName.dropLast())
-        guard let ownerSymbol = symbols.lookupAll(fqName: ownerFQName)
+        let nominalOwners = symbols.lookupAll(fqName: ownerFQName)
             .compactMap({ symbols.symbol($0) })
-            .first(where: { isNominalLayoutTargetSymbol($0.kind) })?.id
-        else {
+            .filter { isNominalLayoutTargetSymbol($0.kind) }
+        guard let ownerSymbol = preferredNominalOwnerSymbol(
+            among: nominalOwners,
+            forMember: memberSymbol,
+            symbols: symbols
+        ) ?? nominalOwners.first?.id else {
             return type
         }
         if types.nominalTypeParameterSymbols(for: ownerSymbol).isEmpty {

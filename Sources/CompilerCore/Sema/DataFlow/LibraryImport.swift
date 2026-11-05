@@ -1949,6 +1949,7 @@ extension DataFlowSemaPhase {
                 self.normalizeImportedOwnerTypeParameters(
                     type,
                     record: binding.record,
+                    memberSymbol: binding.symbol,
                     symbols: symbols,
                     types: types,
                     diagnostics: diagnostics,
@@ -2023,6 +2024,7 @@ extension DataFlowSemaPhase {
             }
             let propertyType = importedPropertyType(
                 record: binding.record,
+                memberSymbol: binding.symbol,
                 symbols: symbols,
                 types: types,
                 diagnostics: diagnostics,
@@ -2060,7 +2062,7 @@ extension DataFlowSemaPhase {
             : types.nominalTypeParameterSymbols(for: owner)
         let normalize: (TypeID) -> TypeID = {
             self.normalizeImportedOwnerTypeParameters(
-                $0, record: binding.record, symbols: symbols, types: types,
+                $0, record: binding.record, memberSymbol: binding.symbol, symbols: symbols, types: types,
                 diagnostics: diagnostics, interner: interner,
                 metadataPath: binding.metadataPath, cache: cache,
                 allowPlaceholders: binding.isStdlibArtifact
