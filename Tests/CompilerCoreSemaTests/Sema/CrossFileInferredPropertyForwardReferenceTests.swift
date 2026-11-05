@@ -322,6 +322,66 @@
         }
 
         @Test
+        func inferredPropertyWithLambdaArgumentInitializerResolvesInEitherFileOrder() throws {
+            let use = """
+            package sample
+            object Holder {
+                val built: DateTimeFormat<String> = Lib.buildDate {
+                    date(inferredFormat)
+                    date(lazyFormat)
+                }
+            }
+            """
+            let declarations = """
+            package sample
+            interface DateTimeFormat<T>
+            class LocalDateFormat : DateTimeFormat<String>
+            object Lib {
+                fun buildDate(block: Builder.() -> Unit): DateTimeFormat<String> {
+                    block(object : Builder {
+                        override fun date(format: DateTimeFormat<String>) {}
+                        override fun chars(value: String) {}
+                    })
+                    return LocalDateFormat()
+                }
+                interface Builder {
+                    fun date(format: DateTimeFormat<String>)
+                    fun chars(value: String)
+                }
+            }
+            val inferredFormat = Lib.buildDate { chars("x") }
+            val lazyFormat by lazy { Lib.buildDate { chars("y") } }
+            """
+
+            for sources in [[use, declarations], [declarations, use]] {
+                let (sema, interner) = try SemaFixture(
+                    surface: "inferred property with a lambda-argument initializer across files"
+                ).make(sources: sources)
+
+                let formatSymbol = try #require(sema.symbols.lookup(
+                    fqName: ["sample", "DateTimeFormat"].map(interner.intern)
+                ))
+                let formatType = sema.types.make(.classType(ClassType(
+                    classSymbol: formatSymbol,
+                    args: [.invariant(sema.types.stringType)],
+                    nullability: .nonNull
+                )))
+                try expectPropertyType(
+                    ["sample", "inferredFormat"],
+                    equals: formatType,
+                    in: sema,
+                    interner: interner
+                )
+                try expectPropertyType(
+                    ["sample", "lazyFormat"],
+                    equals: formatType,
+                    in: sema,
+                    interner: interner
+                )
+            }
+        }
+
+        @Test
         func functionInitializedPropertyKeepsDeclarationOrder() throws {
             let source = """
             package sample

@@ -84,6 +84,12 @@ final class TypeCheckDriver {
     var pendingPropertyTypes: Set<SymbolID> = []
     var deferredInferredReturnFunctions: Set<SymbolID> = []
     var deferredInferredProperties: Set<SymbolID> = []
+    /// Set while the authoritative source-order body pass runs. During that
+    /// pass a property read may resolve a still-pending inferred property on
+    /// demand, covering initializers the module pre-pass cannot publish early
+    /// (for example calls that take a lambda argument). Pre-pass and worker
+    /// checking leave this unset so speculative inference keeps its contract.
+    var isCheckingSourceOrderBodies = false
 
     let ast: ASTModule
     let sema: SemaModule
@@ -710,6 +716,7 @@ final class TypeCheckDriver {
         // Workers cannot demand an inferred declaration or modify a signature.
         let independentBodies = try checkIndependentBodies(files: files, fileScopes: fileScopes, frontendJobs: frontendJobs)
 
+        isCheckingSourceOrderBodies = true
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
             for declID in file.topLevelDecls {
