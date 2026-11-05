@@ -576,6 +576,75 @@ struct LinkPhaseIntegrationTests {
         }
     }
 
+    /// KUU-4322: the uncaught report follows `printEnclosedStackTrace`
+    /// formatting — `Suppressed:` captions indent one tab deeper than their
+    /// parent (accumulating with nesting), `Caused by:` keeps the parent's
+    /// indent, and frame tails shared with the enclosing trace collapse into
+    /// a `\t... N more` line. Assigned `stackTrace` elements make the shared
+    /// suffix deterministic.
+    @Test
+    func testEntryWrapperUncaughtReportUsesJvmEnclosedTraceFormat() throws {
+        let source = """
+        class CustomException(message: String, cause: Throwable?) : Exception(message, cause)
+
+        fun ste(cls: String, m: String, f: String, l: Int) = StackTraceElement(cls, m, f, l)
+
+        fun main() {
+            val e = CustomException("boom", IllegalStateException("root"))
+            val sup = RuntimeException("extra")
+            e.addSuppressed(sup)
+            val common = arrayOf(ste("s.Bot", "z", "S.kt", 2), ste("r.Root", "m", "R.kt", 1))
+            e.stackTrace = common
+            e.cause!!.stackTrace = arrayOf(ste("i.Top", "z", "I.kt", 7)) + common
+            sup.stackTrace = arrayOf(ste("x.Top", "z", "X.kt", 5)) + common
+            throw e
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "UncaughtFormat", emit: .executable, outputPath: out)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            let result: CommandResult
+            do {
+                result = try CommandRunner.run(executable: out, arguments: [])
+                Issue.record("Expected executable to fail on unhandled top-level exception.")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                result = failed
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("Exception in thread \"main\" CustomException: boom"))
+            // Root frames print in full at one tab.
+            #expect(result.stderr.contains("\n\tat s.Bot.z(S.kt:2)\n\tat r.Root.m(R.kt:1)\n"))
+            // Suppressed caption + frames indent one level deeper; the two
+            // shared tail frames collapse into "... 2 more".
+            #expect(
+                result.stderr.contains(
+                    "\n\tSuppressed: java.lang.RuntimeException: extra\n\t\tat x.Top.z(X.kt:5)\n\t\t... 2 more\n"
+                ),
+                "missing JVM-format Suppressed block in stderr: \(result.stderr)"
+            )
+            // Caused by keeps the enclosing (root) indent: caption at column 0,
+            // frames at one tab, elision at one tab.
+            #expect(
+                result.stderr.contains(
+                    "\nCaused by: java.lang.IllegalStateException: root\n\tat i.Top.z(I.kt:7)\n\t... 2 more\n"
+                ),
+                "missing JVM-format Caused by block in stderr: \(result.stderr)"
+            )
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
+        }
+    }
+
     /// `main`'s own value must never reach the process status.
     ///
     /// kotlinc does not recognise a `main` whose return type is not `Unit` as
