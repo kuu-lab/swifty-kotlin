@@ -126,6 +126,40 @@ struct InferredMemberPropertyForwardReferenceTests {
     }
 
     @Test
+    func explicitTypeArgumentConstructorWithDeferredArgumentPublishesType() throws {
+        // KUU-4280 (kotlinx.collections.immutable TrieNode): a companion
+        // singleton `EMPTY = TrieNode<Nothing>(0, emptyArray())` pins its
+        // result through explicit type arguments even though `emptyArray()`
+        // cannot be typed during the early pass. The earlier-file reader must
+        // still see `TrieNode<Nothing>` — and `TrieNode` in expression
+        // position must resolve to its companion object — so
+        // `TrieNode.EMPTY.buffer` publishes `Array<Any?>` instead of `Any?`.
+        let consumer = """
+        package consumer
+        import lib.*
+        class Reader {
+            val bufferSize: Int = TrieNode.EMPTY.buffer.size
+        }
+        """
+        let lib = """
+        package lib
+        class TrieNode<E>(val dataMap: Int, val buffer: Array<Any?>) {
+            companion object {
+                val EMPTY = TrieNode<Nothing>(0, emptyArray())
+            }
+        }
+        """
+        for sources in [[consumer, lib], [lib, consumer]] {
+            let ctx = makeContextFromSources(sources)
+            try runSema(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected TrieNode.EMPTY to publish its pinned type, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
     func unresolvedGetterBodyStaysOnNormalPass() throws {
         // The intrinsic array fallback must not invent a type for a body that
         // genuinely does not resolve — `size` here has no receiver and no
