@@ -242,10 +242,12 @@ the diff gate quietly is if someone then marks it `SKIP-DIFF`.
   `kk_op_is` at runtime. A box whose runtime metadata is wrong will disagree with
   kotlinc on the erased form while the static form can hide the bug.
 - **Verify the exception TYPE on wrong `as` casts, not just that it crashes.**
-  An uncaught bad cast surfaces only as `KSwiftK panic [KSWIFTK-LINK-0003]:
-  Unhandled top-level exception` — the message does not name the exception.
-  Wrap the cast in `try/catch (e: ClassCastException)` to prove the thrown type
-  is the kotlinc-compatible one.
+  An uncaught bad cast surfaces as `Exception in thread "main"
+  java.lang.ClassCastException: ...` followed by the
+  `KSwiftK panic [KSWIFTK-LINK-0003]: Unhandled top-level exception` trailer
+  and exit 1 (KUU-3991). The report names the exception but its frames are
+  native symbols, not `file:line` (KUU-4074). Wrap the cast in
+  `try/catch (e: ClassCastException)` when you need the exact kotlinc type.
 - **kotlinc parity probes are cheap.** `~/tools/kotlinc/bin/kotlinc probe.kt
   -include-runtime -d /tmp/p.jar && $HOME/tools/jdk21/bin/java -jar /tmp/p.jar`
   (~30-60s) gives the JVM reference output for the exact same probe file — use

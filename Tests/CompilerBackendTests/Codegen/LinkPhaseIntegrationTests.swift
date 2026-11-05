@@ -437,6 +437,48 @@ struct LinkPhaseIntegrationTests {
             #expect(result.exitCode == 1)
             #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
             #expect(result.stderr.contains("KSwiftK panic"))
+            // KUU-3991: the escaped exception is reported JVM-style before the
+            // LINK-0003 trailer — type name and saved frames reach stderr.
+            #expect(result.stderr.contains("Exception in thread \"main\""))
+            #expect(result.stderr.contains("ArrayIndexOutOfBoundsException"))
+        }
+    }
+
+    /// KUU-3991: an exception escaping `main` must surface its type and
+    /// message on stderr (`Exception in thread "main" <type>: <message>`)
+    /// instead of only the KSWIFTK-LINK-0003 panic line, and still exit 1.
+    @Test
+    func testEntryWrapperReportsUncaughtExceptionTypeAndMessage() throws {
+        let source = """
+        fun main() {
+            throw Exception("boom")
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "UncaughtReport", emit: .executable, outputPath: out)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            let result: CommandResult
+            do {
+                result = try CommandRunner.run(executable: out, arguments: [])
+                Issue.record("Expected executable to fail on unhandled top-level exception.")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                result = failed
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("Exception in thread \"main\" java.lang.Exception: boom"))
+            #expect(result.stderr.contains("\tat "))
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
         }
     }
 

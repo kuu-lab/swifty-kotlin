@@ -36,8 +36,9 @@ public func kk_exception_handler_new() -> Int {
 /// thread's uncaughtException handler — which writes
 /// `Exception in thread "<name>" <throwable.toString()>` plus stack frames to
 /// stderr and lets the process continue (JVM exits 0 for supervisor/absent
-/// parents; only exceptions propagating out of `main` exit non-zero, and that
-/// case reaches the KSWIFTK-LINK-0003 panic instead of this helper).
+/// parents; only exceptions propagating out of `main` exit non-zero — the
+/// entry wrapper routes those through this same helper and then exits 1 with
+/// the KSWIFTK-LINK-0003 trailer, KUU-3991).
 ///
 /// KUU-1422: previously this fallback just printed `CoroutineExceptionHandler:
 /// <message>`, which looked like routine handled output and swallowed the
