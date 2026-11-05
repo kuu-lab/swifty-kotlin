@@ -111,17 +111,33 @@ private func runtimeUncaughtThrowableLines(
         frames[0] = prefix + frames[0]
     }
     lines.append(contentsOf: frames)
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
-          let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
-    else { return }
-    for suppressed in throwable.suppressed {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else { return }
+    // Kotlin classes extending Throwable — user-defined ones and the
+    // source-backed bundled exceptions alike — arrive as RuntimeObjectBox via
+    // kk_object_new and keep the chain in throwableCause/throwableSuppressed
+    // (KUU-4301). Non-throwable object boxes leave both fields empty, so an
+    // unconditional read is safe — the same contract __kk_throwable_cause and
+    // __kk_throwable_suppressedRaw use, the latter applying the same
+    // suppressionEnabled gate before exposing the list.
+    let suppressed: [Int]
+    let cause: Int
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        suppressed = throwable.suppressionEnabled ? throwable.suppressed : []
+        cause = throwable.cause
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        suppressed = object.throwableSuppressionEnabled ? object.throwableSuppressed : []
+        cause = object.throwableCause
+    } else {
+        return
+    }
+    for suppressedThrowable in suppressed {
         runtimeUncaughtThrowableLines(
-            from: suppressed, prefix: "Suppressed: ", into: &lines, depth: depth + 1
+            from: suppressedThrowable, prefix: "Suppressed: ", into: &lines, depth: depth + 1
         )
     }
-    if throwable.cause != 0, throwable.cause != runtimeNullSentinelInt {
+    if cause != 0, cause != runtimeNullSentinelInt {
         runtimeUncaughtThrowableLines(
-            from: throwable.cause, prefix: "Caused by: ", into: &lines, depth: depth + 1
+            from: cause, prefix: "Caused by: ", into: &lines, depth: depth + 1
         )
     }
 }

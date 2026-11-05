@@ -100,6 +100,40 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4301: a Kotlin-defined exception (RuntimeObjectBox) thrown from an
+    /// uncaught launch must report its cause chain — the walker previously
+    /// only recursed into RuntimeThrowableBox instances.
+    @Test
+    func testUncaughtLaunchReportsSourceExceptionCauseChain() throws {
+        let result = try compileAndRunCapturingAll(
+            """
+            import kotlinx.coroutines.*
+
+            class LaunchFailure(message: String, cause: Throwable?) : Exception(message, cause)
+
+            fun main() = runBlocking {
+                supervisorScope {
+                    launch {
+                        throw LaunchFailure("launch-fail", IllegalStateException("inner"))
+                    }
+                    launch { delay(50); println("sib-alive") }
+                }
+                println("after")
+            }
+            """
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout == "sib-alive\nafter\n")
+        #expect(
+            result.stderr.contains("Exception in thread \"main\" LaunchFailure: launch-fail"),
+            "expected uncaught report header, got stderr: \(result.stderr)"
+        )
+        #expect(
+            result.stderr.contains("Caused by: java.lang.IllegalStateException: inner"),
+            "expected Caused by chain for object-box throwable, got stderr: \(result.stderr)"
+        )
+    }
+
     /// KUU-1422: `async` keeps deferred semantics — an unawaited failure stays
     /// silent on the JVM too, so no report may fire here.
     @Test

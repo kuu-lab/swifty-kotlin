@@ -482,6 +482,55 @@ struct LinkPhaseIntegrationTests {
         }
     }
 
+    /// KUU-4301: Kotlin-defined exception classes are allocated as
+    /// RuntimeObjectBox, not RuntimeThrowableBox. The uncaught report must
+    /// still walk their `Caused by:`/`Suppressed:` chains — suppressed first,
+    /// then cause, matching `Throwable.stackTraceToString` and the JVM.
+    @Test
+    func testEntryWrapperReportsUncaughtExceptionCauseAndSuppressedChains() throws {
+        let source = """
+        class CustomException(message: String, cause: Throwable?) : Exception(message, cause)
+
+        fun main() {
+            val e = CustomException("boom", IllegalStateException("root"))
+            e.addSuppressed(RuntimeException("extra"))
+            throw e
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "UncaughtChains", emit: .executable, outputPath: out)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            let result: CommandResult
+            do {
+                result = try CommandRunner.run(executable: out, arguments: [])
+                Issue.record("Expected executable to fail on unhandled top-level exception.")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                result = failed
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("Exception in thread \"main\" CustomException: boom"))
+            let suppressedRange = result.stderr.range(of: "Suppressed: java.lang.RuntimeException: extra")
+            let causedRange = result.stderr.range(of: "Caused by: java.lang.IllegalStateException: root")
+            #expect(suppressedRange != nil, "missing Suppressed chain in stderr: \(result.stderr)")
+            #expect(causedRange != nil, "missing Caused by chain in stderr: \(result.stderr)")
+            if let suppressedRange, let causedRange {
+                #expect(suppressedRange.lowerBound < causedRange.lowerBound)
+            }
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
+        }
+    }
+
     /// `main`'s own value must never reach the process status.
     ///
     /// kotlinc does not recognise a `main` whose return type is not `Unit` as
