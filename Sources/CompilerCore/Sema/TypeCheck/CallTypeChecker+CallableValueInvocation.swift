@@ -247,11 +247,20 @@ extension CallTypeChecker {
             return nil
         }
 
-        for importDecl in file.imports where !importDecl.isWildcard
-            && (importDecl.alias ?? importDecl.path.last) == sourceName
-            && importDecl.path.last == importedMemberName
+        // A wildcard import of a JDK static facade (`import java.lang.Math.*`)
+        // contributes the facade object's members at wildcard priority, so it
+        // must also supply the object dispatch receiver (KUU-4008).
+        for importDecl in file.imports where importDecl.isWildcard
+            || ((importDecl.alias ?? importDecl.path.last) == sourceName
+                && importDecl.path.last == importedMemberName)
         {
-            let importedObjects = sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+            let ownerPath: [InternedString]
+            if importDecl.isWildcard {
+                ownerPath = importDecl.path
+            } else {
+                ownerPath = Array(importDecl.path.dropLast())
+            }
+            let importedObjects = sema.symbols.lookupAll(fqName: ownerPath)
             if let object = importedObjects.first(where: { object in
                 sema.symbols.symbol(object)?.kind == .object
                     && sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)

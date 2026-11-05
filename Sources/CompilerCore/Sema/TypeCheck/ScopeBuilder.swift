@@ -134,19 +134,29 @@ struct TypeCheckScopeBuilder {
         return mapping
     }
 
-    /// `java.lang.Math` is a static-member class on the JVM, so both
-    /// `import java.lang.Math.*` and `import java.lang.Math.sqrt` are valid.
-    /// The bundled stub is an `object` (not importable on demand) that only
-    /// carries constants, so route those imports to the `kotlin.math` package
-    /// that owns the shared function implementations.
-    private func rewritingJavaLangMathFacade(_ decl: ImportDecl, interner: StringInterner) -> ImportDecl {
-        let facade = ["java", "lang", "Math"].map { interner.intern($0) }
-        let path = decl.path
-        guard path.count == facade.count + (decl.isWildcard ? 0 : 1),
-              Array(path.prefix(facade.count)) == facade
-        else { return decl }
-        let rewritten = ["kotlin", "math"].map { interner.intern($0) } + path.dropFirst(facade.count)
-        return ImportDecl(range: decl.range, path: rewritten, alias: decl.alias, isWildcard: decl.isWildcard)
+    /// JDK classes that expose only static members are modelled as objects
+    /// (for example `java.lang.Math`). On the JVM a star import such as
+    /// `import java.lang.Math.*` contributes those static members, so the
+    /// object's callable members are imported at wildcard priority instead
+    /// of rejecting the import as an object star-import (KUU-4008).
+    private func isJavaStaticFacade(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
+        guard symbol.kind == .object, let root = symbol.fqName.first else { return false }
+        return root == interner.intern("java") || root == interner.intern("javax")
+    }
+
+    private func importJavaStaticFacadeMembers(
+        _ owner: SymbolID,
+        wildcardImportScope: PackageMembersScope,
+        sema: SemaModule,
+        isAccessibleWildcardSymbol: (SymbolID) -> Bool
+    ) {
+        for member in sema.symbols.declaredChildren(of: owner) {
+            guard let memberSymbol = sema.symbols.symbol(member),
+                  memberSymbol.kind == .function || memberSymbol.kind == .property,
+                  isAccessibleWildcardSymbol(member)
+            else { continue }
+            wildcardImportScope.insert(member)
+        }
     }
 
     /// Under `--profile minimal`, an import into a package the minimal stdlib
@@ -431,8 +441,7 @@ struct TypeCheckScopeBuilder {
             return false
         }
 
-        for declaredImport in file.imports {
-            let importDecl = rewritingJavaLangMathFacade(declaredImport, interner: interner)
+        for importDecl in file.imports {
             if validatesImports,
                reportMinimalProfileExcludedImport(
                    importDecl,
@@ -556,6 +565,24 @@ struct TypeCheckScopeBuilder {
                             && isAccessibleWildcardSymbol(symbolID)
                     }
                 }
+                continue
+            }
+
+            // A JDK static facade (`java.lang.Math`, `java.util.Arrays`, ...)
+            // is modelled as an object, but Kotlin/JVM admits star imports of
+            // its static members. Contribute the object's callable members at
+            // wildcard priority before the generic object-import rejection.
+            if importDecl.isWildcard,
+               let facadeOwner = resolved.first(where: { symbolID in
+                   sema.symbols.symbol(symbolID).map { isJavaStaticFacade($0, interner: interner) } == true
+               })
+            {
+                importJavaStaticFacadeMembers(
+                    facadeOwner,
+                    wildcardImportScope: wildcardImportScope,
+                    sema: sema,
+                    isAccessibleWildcardSymbol: isAccessibleWildcardSymbol
+                )
                 continue
             }
 

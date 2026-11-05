@@ -399,6 +399,42 @@ struct ExplicitImportResolutionTests {
         #expect(diagnostics.first?.message == "Cannot import on demand from object 'Holder'.")
     }
 
+    /// KUU-4008: `import java.lang.Math.*` must contribute the JDK static
+    /// facade's members — including members kotlin.math does not provide —
+    /// instead of being rewritten onto the kotlin.math package.
+    @Test
+    func javaLangMathStarImportResolvesStaticMembers() throws {
+        let source = """
+        import java.lang.Math.*
+
+        fun mathStarImportCalls(x: Double): Double =
+            asin(x) + sqrt(x) + pow(x, 2.0) + floorDiv(7, 2).toDouble() + toRadians(180.0)
+
+        fun mathStarImportProperties(): Double = PI + E + TAU
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// Two explicit star imports of the same simple name stay ambiguous, the
+    /// same overload set kotlinc reports for `java.lang.Math.*` +
+    /// `kotlin.math.*` (kotlin.math is not a default import, so the facade
+    /// members are not silently replaced by kotlin.math declarations).
+    @Test
+    func javaLangMathAndKotlinMathStarImportsStayAmbiguous() throws {
+        let source = """
+        import java.lang.Math.*
+        import kotlin.math.*
+
+        fun ambiguousProbe(x: Double) = asin(x)
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+        let ambiguous = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0003" }
+        #expect(!ambiguous.isEmpty, "Expected star-import ambiguity: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func explicitAndAliasedNestedObjectImportsResolve() throws {
         let source = """
