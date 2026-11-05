@@ -30,6 +30,7 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
+        explicitTypeArgs: [TypeID],
         calleeName: InternedString?
     ) -> TypeID? {
         let ast = ctx.ast
@@ -39,7 +40,6 @@ extension CallTypeChecker {
            calleeName == knownNames.produce,
            bundledProduceIsVisible(calleeName, ctx: ctx),
            !args.isEmpty,
-           args.count <= 2,
            locals[calleeName] == nil,
            let lastArgumentExprID = args.last?.expr,
            isLambdaLiteralArg(lastArgumentExprID, ast: ast)
@@ -53,7 +53,8 @@ extension CallTypeChecker {
                 args: args,
                 ctx: ctx,
                 locals: &locals,
-                expectedType: expectedType) {
+                expectedType: expectedType,
+                explicitTypeArgs: explicitTypeArgs) {
                 return boundProduceResult
             }
         }

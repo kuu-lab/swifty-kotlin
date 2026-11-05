@@ -197,6 +197,7 @@ extension CallTypeChecker {
             ctx: ctx,
             locals: &locals,
             expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs,
             calleeName: calleeName
         ) {
             return inferred
