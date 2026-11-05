@@ -317,10 +317,14 @@ extension ExprTypeChecker {
                 // Primitive class names are represented by dedicated primitive
                 // TypeIDs at expression sites. Keep that representation here so
                 // member lookup also probes package-level extensions such as
-                // `Char::titlecase` in kotlin.text.
-                if let primitive = driver.builtinTypeNamesCache.primitiveType(for: sym.name) {
+                // `Char::titlecase` in kotlin.text. Only the kotlin builtin
+                // anchor itself maps to a primitive; a user classifier that
+                // merely shares the short name (foo.Int) keeps its class type
+                // (KUU-4163).
+                let isKotlinBuiltinAnchor = sym.fqName == [interner.intern("kotlin"), sym.name]
+                if isKotlinBuiltinAnchor, let primitive = driver.builtinTypeNamesCache.primitiveType(for: sym.name) {
                     unboundClassType = sema.types.make(.primitive(primitive, .nonNull))
-                } else if let builtin = driver.builtinTypeNamesCache.resolveBuiltinType(sym.name, types: sema.types) {
+                } else if isKotlinBuiltinAnchor, let builtin = driver.builtinTypeNamesCache.resolveBuiltinType(sym.name, types: sema.types) {
                     unboundClassType = builtin
                 } else {
                     unboundClassType = sema.types.make(
@@ -2669,11 +2673,25 @@ extension ExprTypeChecker {
         locals: LocalBindings
     ) -> InternedString? {
         let ast = ctx.ast
+        let interner = ctx.interner
         if case let .nameRef(name, _) = ast.arena.expr(receiver) {
-            return locals[name] == nil ? name : nil
+            guard locals[name] == nil else { return nil }
+            // A user classifier that shares the primitive's short name
+            // (foo.Int referenced as bare `Int`) keeps its own members;
+            // only the kotlin builtin anchor itself may reach the
+            // intrinsic operators (KUU-4163).
+            for candidateID in ctx.cachedScopeLookup(name) {
+                guard let sym = ctx.cachedSymbol(candidateID),
+                      sym.kind == .class || sym.kind == .interface || sym.kind == .enumClass
+                else { continue }
+                if sym.fqName != [interner.intern("kotlin"), sym.name] {
+                    return nil
+                }
+                break
+            }
+            return name
         }
         let sema = ctx.sema
-        let interner = ctx.interner
         guard case let .memberCall(owner, name, typeArguments, arguments, _) = ast.arena.expr(receiver),
               arguments.isEmpty, typeArguments.isEmpty,
               !ast.arena.isExplicitCall(receiver),
