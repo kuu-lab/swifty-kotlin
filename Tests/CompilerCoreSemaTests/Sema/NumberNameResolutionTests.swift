@@ -149,4 +149,42 @@ struct NumberNameResolutionTests {
             }
         }
     }
+
+    /// KUU-4304: a root-package `Number` must not hijack `Number` supertype
+    /// resolution inside named packages (bundled `java.math.BigDecimal` /
+    /// `BigInteger` rely on this). Files in the root package keep the user
+    /// class as their same-package supertype; named packages resolve the
+    /// default-import `kotlin.Number` first and only fall back to the root
+    /// declaration when no imported candidate matches.
+    @Test(arguments: [false, true])
+    func rootPackageNumberDoesNotShadowKotlinNumberSupertype(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        try withTemporaryFiles(contents: [
+            """
+            open class Number(val n: Int)
+            class RootSub : Number(1)
+            """,
+            """
+            package numeric
+            abstract class NamedSub : Number()
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let rootNumber = try #require(sema.symbols.lookup(fqName: ["Number"].map(ctx.interner.intern)))
+            let kotlinNumber = try #require(sema.types.numberClassSymbol)
+            let rootSub = try #require(sema.symbols.lookup(fqName: ["RootSub"].map(ctx.interner.intern)))
+            let namedSub = try #require(sema.symbols.lookup(fqName: ["numeric", "NamedSub"].map(ctx.interner.intern)))
+            #expect(sema.symbols.directSupertypes(for: rootSub).contains(rootNumber))
+            #expect(!sema.symbols.directSupertypes(for: rootSub).contains(kotlinNumber))
+            #expect(sema.symbols.directSupertypes(for: namedSub).contains(kotlinNumber))
+            #expect(!sema.symbols.directSupertypes(for: namedSub).contains(rootNumber))
+        }
+    }
 }

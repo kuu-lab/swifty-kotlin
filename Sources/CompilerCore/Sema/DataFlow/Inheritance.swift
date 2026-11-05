@@ -597,10 +597,15 @@ extension DataFlowSemaPhase {
                 }
             }
 
-            // A root-package declaration is not a file-scoped import. Keep it
-            // as a fallback for compatibility with root-package source files,
-            // but never let it shadow an explicit import above.
-            append(path)
+            // A root-package declaration is not a file-scoped import. Files in
+            // the root package resolve the bare path as their same-package
+            // tier here; named packages defer it to the caller's
+            // post-default-import fallback so default imports (e.g.
+            // kotlin.Number) are not shadowed by a user root-package
+            // declaration (KUU-4304).
+            if currentPackage.isEmpty {
+                append(path)
+            }
         } else {
             // An imported classifier (including an alias) may qualify a nested
             // supertype, e.g. CoroutineContext.Key<E>. Resolve that prefix before
@@ -611,7 +616,15 @@ extension DataFlowSemaPhase {
                     append(importDecl.path + path.dropFirst())
                 }
             }
-            append(path)
+            // The bare qualified path doubles as the root-package lookup.
+            // Root-package files resolve it as their same-package tier here;
+            // named packages defer it to the caller's post-default-import
+            // fallback so a user root-package declaration cannot shadow
+            // default-imported classifiers such as
+            // kotlin.collections.Map.Entry (KUU-4304).
+            if currentPackage.isEmpty {
+                append(path)
+            }
             if !currentPackage.isEmpty {
                 // Allow nested/package-relative supertypes such as
                 // `TimeSource.WithComparableMarks` inside `kotlin.time`.
@@ -837,6 +850,18 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+        // The bare path is the root-package/absolute fallback for named
+        // packages: lowest priority, after the default imports, matching the
+        // ordering resolveNominalCandidates uses for signature types
+        // (KUU-4304). Root-package files already tried it as their
+        // same-package tier inside inheritanceCandidatePaths.
+        if !currentPackage.isEmpty,
+           let symbol = symbols.lookupAll(fqName: path)
+               .compactMap({ symbols.symbol($0) })
+               .first(where: { isNominalTypeSymbol($0.kind) })?.id
+        {
+            return resolvedSupertype(symbol)
+        }
         // FunctionN interfaces have compiler-internal FQNs under the synthetic
         // `kotlin.Function` package, but source code names them as `FunctionN`
         // or `kotlin.FunctionN`.
@@ -861,7 +886,8 @@ extension DataFlowSemaPhase {
                 imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters,
                 enclosingClassScopes: enclosingClassScopes,
-                symbols: symbols
+                symbols: symbols,
+                interner: interner
             ))
         }
         return nil
@@ -878,13 +904,17 @@ extension DataFlowSemaPhase {
         imports: [ImportDecl],
         enclosingTypeParameters: [InternedString: SymbolID],
         enclosingClassScopes: [[InternedString]],
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        interner: StringInterner
     ) -> InternedString {
         guard path.count > 1 else { return path[0] }
         let segmentResolves: ([InternedString]) -> Bool = { prefixPath in
             if prefixPath.count == 1, enclosingTypeParameters[prefixPath[0]] != nil {
                 return true
             }
+            // Mirror the resolution tiers: lexical/package/import candidates,
+            // then default imports, then the root-package fallback that named
+            // packages reach only after the default imports (KUU-4304).
             let symbolResolves = self.inheritanceCandidatePaths(
                 for: prefixPath,
                 currentPackage: currentPackage,
@@ -897,6 +927,18 @@ extension DataFlowSemaPhase {
                     .contains(where: { $0.kind == .package || self.isNominalTypeSymbol($0.kind) })
             }
             if symbolResolves { return true }
+            let defaultImportResolves = TypeCheckScopeBuilder()
+                .makeDefaultImportPackages(interner: interner)
+                .contains { defaultPackage in
+                    symbols.lookupAll(fqName: defaultPackage + prefixPath)
+                        .compactMap({ symbols.symbol($0) })
+                        .contains(where: { $0.kind == .package || self.isNominalTypeSymbol($0.kind) })
+                }
+            if defaultImportResolves { return true }
+            let rootFallbackResolves = symbols.lookupAll(fqName: prefixPath)
+                .compactMap({ symbols.symbol($0) })
+                .contains(where: { $0.kind == .package || self.isNominalTypeSymbol($0.kind) })
+            if rootFallbackResolves { return true }
             return enclosingClassScopes.contains { scope in
                 guard let scopeSymbol = symbols.lookupAll(fqName: scope)
                     .compactMap({ symbols.symbol($0) })
@@ -1266,13 +1308,23 @@ extension DataFlowSemaPhase {
                     }
                 }
             }
+            // Root-package/absolute fallback for named packages, below the
+            // default imports (KUU-4304).
+            if !currentPackage.isEmpty,
+               let nominalSymbol = symbols.lookupAll(fqName: path)
+                   .compactMap({ symbols.symbol($0) })
+                   .first(where: { isNominalTypeSymbol($0.kind) })
+            {
+                return resolvedType(nominalSymbol.id)
+            }
             reportUnresolved?(unresolvedSupertypeSegment(
                 path: path,
                 currentPackage: currentPackage,
                 imports: imports,
                 enclosingTypeParameters: enclosingTypeParameters,
                 enclosingClassScopes: enclosingClassScopes,
-                symbols: symbols
+                symbols: symbols,
+                interner: interner
             ))
             return nil
         case let .functionType(contextReceiverRefIDs, receiverRefID, paramRefIDs, returnRefID, isSuspend, nullable):

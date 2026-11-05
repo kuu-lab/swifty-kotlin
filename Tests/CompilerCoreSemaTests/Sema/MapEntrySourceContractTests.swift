@@ -33,6 +33,49 @@ struct MapEntrySourceContractTests {
         }
     }
 
+    /// KUU-4304: a root-package `Map.Entry` must not shadow the
+    /// default-imported `kotlin.collections.Map.Entry` inside named
+    /// packages — the same ordering bug as the `Number` supertype case, but
+    /// through the qualified-name path used by both supertype and signature
+    /// type resolution.
+    @Test(arguments: [false, true])
+    func rootPackageMapEntryDoesNotShadowKotlinCollectionsEntry(useArtifact: Bool) throws {
+        if useArtifact { TestStdlibCache.shared.prepare() }
+        try withTemporaryFiles(contents: [
+            """
+            class Map {
+                open class Entry
+            }
+            """,
+            """
+            package shadowed
+            abstract class Impl : Map.Entry<String, Int>
+            fun takes(entry: Map.Entry<String, Int>): Map.Entry<String, Int> = entry
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: useArtifact ? .executable : .kirDump,
+                allowDefaultStdlibLibrary: useArtifact
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let kotlinEntry = try #require(sema.symbols.lookup(fqName: [
+                "kotlin", "collections", "Map", "Entry",
+            ].map(interner.intern)))
+            let rootEntry = try #require(sema.symbols.lookup(fqName: [
+                "Map", "Entry",
+            ].map(interner.intern)))
+            let impl = try #require(sema.symbols.lookup(fqName: [
+                "shadowed", "Impl",
+            ].map(interner.intern)))
+            #expect(sema.symbols.directSupertypes(for: impl).contains(kotlinEntry))
+            #expect(!sema.symbols.directSupertypes(for: impl).contains(rootEntry))
+        }
+    }
+
     @Test
     func nestedInterfaceBoundResolvesImportAlias() throws {
         let sources = [
