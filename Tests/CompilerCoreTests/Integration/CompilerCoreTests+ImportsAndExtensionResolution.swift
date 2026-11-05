@@ -510,5 +510,36 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
     }
 
+    @Test func testImplicitReceiverExtensionFallsThroughToStarImportTier() throws {
+        // KUU-4276: inside `with(r)`, ordinary name lookup stops at the
+        // package tier, so the same-named package extension hides the
+        // star-imported applicable overload. When its parameter cannot
+        // accept the argument, resolution must continue to the outer tier
+        // instead of reporting KSWIFTK-SEMA-0473. The argument is a call
+        // expression so the receiver-tower probe defers to the normal path.
+        let sources = [
+            """
+            package lib
+            class Receiver
+            class Payload(val tag: Int = 0)
+            fun Receiver.decorate(p: Payload): Receiver = this
+            fun makePayload(): Payload = Payload()
+            """,
+            """
+            package app
+            import lib.*
+            class Other
+            fun Receiver.decorate(o: Other): Receiver = this
+            fun use(r: Receiver): Receiver = with(r) { decorate(makePayload()) }
+            """,
+        ]
+        let ctx = makeContextFromSources(sources)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0473", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+    }
+
 }
 #endif
