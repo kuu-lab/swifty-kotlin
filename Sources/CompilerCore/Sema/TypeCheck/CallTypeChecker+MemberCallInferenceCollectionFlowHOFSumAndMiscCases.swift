@@ -165,7 +165,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
                 }
-                let lambdaReturnType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType
+                // Kotlin's transform is (T, T) -> R with unbounded R, so the
+                // erased placeholder must accept nullable results (Any?).
+                let lambdaReturnType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.nullableAnyType
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType, collectionElementType],
                     returnType: lambdaReturnType
@@ -947,11 +949,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
             }
-            // Match the synthetic stub: selector is (T) -> Any (non-null, non-suspend).
-            // KNOWN LIMITATION: nullable keys are not supported; see stub comment.
+            // Kotlin's selector is (T) -> K with unbounded K, so the erased
+            // placeholder must accept nullable keys (Any?) like map/groupBy.
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [collectionElementType],
-                returnType: sema.types.anyType,
+                returnType: sema.types.nullableAnyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))
