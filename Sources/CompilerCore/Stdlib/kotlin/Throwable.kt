@@ -92,15 +92,28 @@ public fun Throwable.fillInStackTrace(): Throwable = this
 
 public fun Throwable.stackTraceToString(): String {
     val lines = mutableListOf<String>()
-    collectThrowableTraceLines(this, lines, null)
+    collectThrowableTraceLines(this, lines, null, mutableListOf())
     return lines.joinToString("\n")
 }
 
 private fun collectThrowableTraceLines(
     throwable: Throwable,
     lines: MutableList<String>,
-    prefix: String?
+    prefix: String?,
+    visited: MutableList<Throwable>
 ) {
+    // Mirrors java.lang.Throwable#printEnclosedStackTrace's `dejaVu` identity
+    // set: a throwable already emitted anywhere in this traversal — a true
+    // cycle or a diamond reachable through two branches — collapses to a
+    // single "[CIRCULAR REFERENCE: ...]" line instead of recursing without
+    // bound. `===` keeps the check referential so a user-overridden
+    // equals() can neither forge nor hide a revisit.
+    if (visited.any { it === throwable }) {
+        lines.add((prefix ?: "") + "[CIRCULAR REFERENCE: " + throwable.toString() + "]")
+        return
+    }
+    visited.add(throwable)
+
     val frames = __kkThrowableRawStackFrames(throwable)
     for (i in 0 until frames.size) {
         val line = if (prefix != null && i == 0) prefix + frames[i] else frames[i]
@@ -109,12 +122,12 @@ private fun collectThrowableTraceLines(
 
     val suppressed = throwable.getSuppressed()
     for (i in 0 until suppressed.size) {
-        collectThrowableTraceLines(suppressed[i], lines, "Suppressed: ")
+        collectThrowableTraceLines(suppressed[i], lines, "Suppressed: ", visited)
     }
 
     val cause = throwable.cause
     if (cause != null) {
-        collectThrowableTraceLines(cause, lines, "Caused by: ")
+        collectThrowableTraceLines(cause, lines, "Caused by: ", visited)
     }
 }
 

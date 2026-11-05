@@ -94,7 +94,7 @@ func runtimeThrowableToString(_ receiver: Int) -> String? {
     return extractString(from: rendered)
 }
 
-private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
+func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return ""
     }

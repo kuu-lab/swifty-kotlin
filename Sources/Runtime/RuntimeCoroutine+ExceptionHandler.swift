@@ -69,8 +69,9 @@ func runtimeReportUncaughtException(_ exceptionRaw: Int) {
         threadName = "coroutine"
     }
     var lines: [String] = []
+    var visitedThrowables = Set<Int>()
     runtimeUncaughtThrowableLines(
-        from: exceptionRaw, prefix: nil, into: &lines, depth: 0
+        from: exceptionRaw, prefix: nil, into: &lines, visited: &visitedThrowables
     )
     guard let header = lines.first else {
         FileHandle.standardError.write(
@@ -98,14 +99,24 @@ public func kk_handle_coroutine_exception(_ contextRaw: Int, _ exceptionRaw: Int
 /// Append a throwable's header + saved native frames, then its `Suppressed:`
 /// and `Caused by:` chains (same order as the Kotlin-side
 /// `collectThrowableTraceLines` used by `Throwable.stackTraceToString`), to
-/// `lines`. `depth` bounds recursion against corrupt cause cycles.
+/// `lines`. `visited` mirrors the JVM `printEnclosedStackTrace` `dejaVu`
+/// identity set: a throwable already emitted anywhere in this report — a
+/// true cycle or a diamond reachable through two branches — collapses to a
+/// single `[CIRCULAR REFERENCE: ...]` line, so recursion always terminates.
 private func runtimeUncaughtThrowableLines(
     from throwableRaw: Int,
     prefix: String?,
     into lines: inout [String],
-    depth: Int
+    visited: inout Set<Int>
 ) {
-    guard depth < 16 else { return }
+    if visited.contains(throwableRaw) {
+        let name = runtimeThrowableToString(throwableRaw)
+            ?? runtimeThrowableStackTraceText(from: throwableRaw)
+        let display = name.isEmpty ? "kotlin.Throwable" : name
+        lines.append((prefix ?? "") + "[CIRCULAR REFERENCE: \(display)]")
+        return
+    }
+    visited.insert(throwableRaw)
     var frames = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
     if let prefix, !frames.isEmpty {
         frames[0] = prefix + frames[0]
@@ -132,12 +143,12 @@ private func runtimeUncaughtThrowableLines(
     }
     for suppressedThrowable in suppressed {
         runtimeUncaughtThrowableLines(
-            from: suppressedThrowable, prefix: "Suppressed: ", into: &lines, depth: depth + 1
+            from: suppressedThrowable, prefix: "Suppressed: ", into: &lines, visited: &visited
         )
     }
     if cause != 0, cause != runtimeNullSentinelInt {
         runtimeUncaughtThrowableLines(
-            from: cause, prefix: "Caused by: ", into: &lines, depth: depth + 1
+            from: cause, prefix: "Caused by: ", into: &lines, visited: &visited
         )
     }
 }
