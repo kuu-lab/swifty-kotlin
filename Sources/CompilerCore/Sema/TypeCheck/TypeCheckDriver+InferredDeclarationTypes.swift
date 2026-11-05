@@ -14,9 +14,13 @@ extension TypeCheckDriver {
     }
 
     func resolveInferredPropertyType(for symbol: SymbolID) {
-        // Resolve initializer dependencies of a function being inferred early.
-        // Ordinary property checking retains the existing module pre-pass.
-        guard !checkingInferredReturnFunctions.isEmpty,
+        // Resolve initializer dependencies of a function being inferred early,
+        // or of a declaration read during the authoritative source-order pass.
+        // The module pre-pass publishes only initializers it can check without
+        // running bodies; a read in the source-order pass may still meet a
+        // pending inferred property (for example one initialized by a call that
+        // takes a lambda argument), so resolve it on demand here.
+        guard !checkingInferredReturnFunctions.isEmpty || isCheckingSourceOrderBodies,
               let declaration = inferredPropertyDeclarations[symbol],
               !precheckedPropertyDecls.contains(declaration.declaration)
         else { return }
