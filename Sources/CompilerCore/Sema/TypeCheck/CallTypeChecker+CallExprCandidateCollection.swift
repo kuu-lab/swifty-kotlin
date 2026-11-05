@@ -97,15 +97,36 @@ extension CallTypeChecker {
                 // A scope tier that only offers inaccessible declarations must
                 // not stop the call tower — keep looking in outer tiers so a
                 // bundled-internal `maxOf` cannot hide `kotlin.math.maxOf`.
-                // Restrict the retry to plain callables; receiver-bearing
-                // candidates need the implicit-receiver matching done above.
+                // Receiver-bearing package extensions join the retry only
+                // when an implicit receiver can supply the declared receiver,
+                // mirroring the matching the innermost tier applies above:
+                // kotlinx-coroutines' `FlowCollector<R>.combineInternal` in
+                // `flow.internal` must not stay hidden behind the bundled
+                // stdlib's internal `flow.combineInternal` (KUU-4262).
                 let blocked = Set(allCallCandidates).union(invis.map(\.id))
+                let receiverEntries = ctx.implicitReceiverMemberLookupEntries()
                 let outerTierCandidates = ctx.scope.lookup(calleeName, matching: { candidate in
                     guard !blocked.contains(candidate),
-                          let symbol = ctx.cachedSymbol(candidate) else { return false }
-                    return (symbol.kind == .function || symbol.kind == .constructor)
-                        && sema.symbols.functionSignature(for: candidate)?.receiverType == nil
-                }).filter { !ctx.isCandidateBlockedByDslMarker($0) }
+                          let symbol = ctx.cachedSymbol(candidate),
+                          symbol.kind == .function || symbol.kind == .constructor
+                    else { return false }
+                    if sema.symbols.functionSignature(for: candidate)?.receiverType == nil {
+                        return true
+                    }
+                    guard isScopeExtensionCandidate(candidate, ctx: ctx) else { return false }
+                    return receiverEntries.contains { entry in
+                        callCandidateDeclaredReceiver(
+                            candidate, matchesTowerEntryType: entry.type, ctx: ctx
+                        )
+                    }
+                }).filter {
+                    !ctx.isCandidateBlockedByDslMarker($0)
+                        && !isCallCandidateBlockedByDslHiddenReceivers(
+                            $0,
+                            hiddenReceiverTypes: dslHiddenReceiverTypes,
+                            ctx: ctx
+                        )
+                }
                 let outerVisible = ctx.filterByVisibility(outerTierCandidates).visible
                 if !outerVisible.isEmpty {
                     candidates = outerVisible

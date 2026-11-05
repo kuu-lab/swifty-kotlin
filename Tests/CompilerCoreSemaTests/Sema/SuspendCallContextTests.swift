@@ -475,4 +475,47 @@ struct SuspendCallContextTests {
         #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0308" })
     }
 
+    @Test
+    func flowCollectorExtensionSurvivesInvisibleSameNameInInnerTier() throws {
+        // KUU-4262: upstream kotlinx.coroutines `combineTransform` calls
+        // `FlowCollector<R>.combineInternal` (flow.internal, @PublishedApi
+        // internal) inside a `flow { }` lambda. The bundled stdlib's own
+        // internal receiverless `flow.combineInternal` must not hide the
+        // outer-tier package extension: without it the nested
+        // `transform(it)` lambda loses its suspend function type and Sema
+        // reports a bogus KSWIFTK-SEMA-0308.
+        let ctx = makeContextFromSources([
+            """
+            package kotlinx.coroutines.flow.internal
+
+            import kotlinx.coroutines.flow.Flow
+            import kotlinx.coroutines.flow.FlowCollector
+
+            @PublishedApi
+            internal suspend fun <R, T> FlowCollector<R>.combineInternal(
+                flows: Array<out Flow<T>>,
+                arrayFactory: () -> Array<T?>?,
+                transform: suspend FlowCollector<R>.(Array<T>) -> Unit
+            ): Unit = TODO()
+            """,
+            """
+            package kotlinx.coroutines.flow
+
+            import kotlinx.coroutines.flow.internal.*
+            import kotlinx.coroutines.flow.flow as safeFlow
+
+            public fun <T> flow(block: suspend FlowCollector<T>.() -> Unit): Flow<T> = TODO()
+
+            public inline fun <reified T, R> combineTransform(
+                vararg flows: Flow<T>,
+                crossinline transform: suspend FlowCollector<R>.(Array<T>) -> Unit
+            ): Flow<R> = safeFlow {
+                combineInternal(flows, { null }, { transform(it) })
+            }
+            """,
+        ])
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
 }
