@@ -299,6 +299,91 @@ public final class BindingTable {
     public private(set) var destructuringComponentCallees: [ExprID: [Int: SymbolID]] = [:]
     var destructuringPropertyBindings: [ExprID: [Int: DestructuringPropertyBinding]] = [:]
 
+    /// Drops every binding recorded for `expr` so the expression can be
+    /// re-inferred from scratch. Speculative call resolution uses this when
+    /// a probe binds the expression and then loses: e.g. the KUU-4310
+    /// `this.invoke` applicability probe must not leave `callableValueCalls`
+    /// or `callBindings` residue that would compete with the binding the
+    /// ordinary candidate path records afterwards.
+    public func removeExprBindings(_ expr: ExprID) {
+        exprTypes.removeValue(forKey: expr)
+        genericCallConsumerTypes.removeValue(forKey: expr)
+        compoundAssignReceiverTypes.removeValue(forKey: expr)
+        platformNullAssertionTypes.removeValue(forKey: expr)
+        unitReturnCoercionExprs.remove(expr)
+        whenExhaustiveness.removeValue(forKey: expr)
+        identifierSymbols.removeValue(forKey: expr)
+        lambdaReturnTargets.removeValue(forKey: expr)
+        lambdaReturnLambdaPaths.removeValue(forKey: expr)
+        functionReturnLambdaPaths.removeValue(forKey: expr)
+        loopJumpLambdaPaths.removeValue(forKey: expr)
+        callBindings.removeValue(forKey: expr)
+        callableReferenceBindings.removeValue(forKey: expr)
+        workerExecuteJobRanges.removeValue(forKey: expr)
+        loopIterationBindings.removeValue(forKey: expr)
+        indexedCompoundAssignOperatorBindings.removeValue(forKey: expr)
+        indexedCompoundAssignElementOperatorBindings.removeValue(forKey: expr)
+        callableTargets.removeValue(forKey: expr)
+        enumEntryInvokeReceiverSymbols.removeValue(forKey: expr)
+        callableValueCalls.removeValue(forKey: expr)
+        isCheckTargetTypes.removeValue(forKey: expr)
+        castTargetTypes.removeValue(forKey: expr)
+        findAnnotationSearchTypes.removeValue(forKey: expr)
+        catchClauseBindings.removeValue(forKey: expr)
+        captureSymbolsByExpr.removeValue(forKey: expr)
+        if contractCallsInPlaceInitializedSymbolsByExpr.removeValue(forKey: expr) != nil {
+            cachedContractCallsInPlaceInitializedSymbolsUnion = nil
+        }
+        superCallExprs.remove(expr)
+        invokeOperatorCallExprs.remove(expr)
+        extensionPropertyGetterCalls.removeValue(forKey: expr)
+        invokeOperatorPropertyCalls.removeValue(forKey: expr)
+        collectionExprIDs.remove(expr)
+        rangeExprIDs.remove(expr)
+        charRangeExprIDs.remove(expr)
+        uintRangeExprIDs.remove(expr)
+        ulongRangeExprIDs.remove(expr)
+        floatingPointRangeExprIDs.remove(expr)
+        flowExprIDs.remove(expr)
+        floatingPointRangeElementTypesByExpr.removeValue(forKey: expr)
+        openFloatingPointRangeExprIDs.remove(expr)
+        flowElementTypesByExpr.removeValue(forKey: expr)
+        deferredElementTypesByExpr.removeValue(forKey: expr)
+        classRefTargetTypes.removeValue(forKey: expr)
+        boundClassRefExprs.remove(expr)
+        constExprValues.removeValue(forKey: expr)
+        samConversionExprs.remove(expr)
+        samUnderlyingFunctionTypes.removeValue(forKey: expr)
+        samInterfaceTypes.removeValue(forKey: expr)
+        scopeFunctionExprIDs.remove(expr)
+        scopeFunctionKinds.removeValue(forKey: expr)
+        collectionHOFLambdaExprIDs.remove(expr)
+        functionValueExpectedTypes.removeValue(forKey: expr)
+        directlyInvokedLambdaExprIDs.remove(expr)
+        fqnTopLevelCallExprIDs.remove(expr)
+        fqnQualifiedValueExprIDs.remove(expr)
+        typeQualifiedConstructorCallExprIDs.remove(expr)
+        coroutineLauncherLambdaExprIDs.remove(expr)
+        rawSuspendEntryLambdaExprIDs.remove(expr)
+        coroutineScopeLambdaReceiverTypes.removeValue(forKey: expr)
+        sourceDeclaredExpectedTypeExprIDs.remove(expr)
+        nominalFunctionExpectedTypes.removeValue(forKey: expr)
+        stdlibSpecialCallExprIDs.remove(expr)
+        stdlibSpecialCallKinds.removeValue(forKey: expr)
+        implicitReceiverMemberNames.removeValue(forKey: expr)
+        implicitReceiverMemberReceiverTypes.removeValue(forKey: expr)
+        implicitReceiverOuterReceiverSymbols.removeValue(forKey: expr)
+        implicitExtensionReceiverSymbols.removeValue(forKey: expr)
+        coroutineScopeImplicitReceiverCallExprs.remove(expr)
+        callableRefKinds.removeValue(forKey: expr)
+        unboundCallableRefs.remove(expr)
+        primitiveOperatorCallableRefs.removeValue(forKey: expr)
+        primitiveUnaryOperatorCallableRefs.removeValue(forKey: expr)
+        anyToStringCallableRefs.remove(expr)
+        destructuringComponentCallees.removeValue(forKey: expr)
+        destructuringPropertyBindings.removeValue(forKey: expr)
+    }
+
     /// The initial independent-body contract permits scalar expression types,
     /// parameter references, and flow-refined compound-assignment receiver
     /// types. Any other side-table write rejects the worker delta, including

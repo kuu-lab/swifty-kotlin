@@ -49,6 +49,69 @@ extension CallTypeChecker {
         return returnType
     }
 
+    /// KUU-4310: probe whether `this.invoke(args)` on a function-typed
+    /// implicit receiver is applicable *before* ordinary scope candidates
+    /// commit. Kotlin's call tower resolves implicit-receiver members ahead
+    /// of package/import scope tiers, but function types expose no nominal
+    /// `invoke` member for ordinary candidate collection to rank, so an
+    /// applicable scope-level `invoke` would otherwise win silently.
+    ///
+    /// The expected type is deliberately not forwarded: kotlinc keeps the
+    /// receiver-tier candidate and reports a return-type mismatch at the
+    /// use site rather than falling through to a scope overload. On failure
+    /// the probe's diagnostics and `id` bindings are rolled back so the
+    /// ordinary candidate path continues unchanged — including the
+    /// KUU-4271 post-failure fallback — and argument expressions are
+    /// re-inferred by the normal argument preparation that follows.
+    /// Returns the bound result type on success; `locals` then carries the
+    /// probe's flow effects.
+    func probeFunctionTypeReceiverInvoke(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard let receiverType = ctx.implicitReceiverType,
+              case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        else {
+            return nil
+        }
+        let checkpoint = sema.diagnostics.checkpoint()
+        let savedLocals = locals
+        // `markSourceDeclaredExpectedType` runs on an initializer before its
+        // inference, so the mark predates this probe and is not re-emitted
+        // by the ordinary path — preserve it across the binding cleanup.
+        let hadSourceDeclaredExpectedType = sema.bindings
+            .sourceDeclaredExpectedTypeExprIDs.contains(id)
+        guard let recovered = inferImplicitReceiverFunctionTypeInvokeCall(
+            id,
+            calleeName: calleeName,
+            args: args,
+            range: range,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: nil,
+            explicitTypeArgs: explicitTypeArgs
+        ), recovered != sema.types.errorType,
+           !sema.diagnostics.diagnostics.dropFirst(checkpoint).contains(where: {
+               $0.severity == .error
+           })
+        else {
+            sema.diagnostics.rollback(to: checkpoint)
+            locals = savedLocals
+            sema.bindings.removeExprBindings(id)
+            if hadSourceDeclaredExpectedType {
+                sema.bindings.markSourceDeclaredExpectedType(id)
+            }
+            return nil
+        }
+        return recovered
+    }
+
     func inferImplicitReceiverFallbackCall(
         _ id: ExprID,
         args: [CallArgument],

@@ -638,6 +638,44 @@ extension CallTypeChecker {
             }
         }
 
+        // KUU-4310: on a function-typed implicit receiver, unqualified
+        // `invoke(args)` is the implicit-receiver member `this.invoke`.
+        // Kotlin's call tower resolves receiver members before every
+        // lexical/import scope tier, so an applicable scope-level `invoke`
+        // must not win merely by resolving — function types expose no
+        // nominal `invoke` member for ordinary candidate collection to
+        // rank. Probe `this.invoke` before arguments are prepared for the
+        // ordinary candidates; a failed probe rolls its bindings back and
+        // argument preparation below re-infers the arguments, while the
+        // KUU-4271 post-failure fallback still covers scope candidates
+        // that all fail. A same-named local function occupies a nearer
+        // tower level and keeps its priority through the ordinary path
+        // (`collectCallExprCandidates` reduces `candidates` to it), and a
+        // same-named local *value* — parameter, property, variable —
+        // shadows both the receiver member and the probe outright.
+        if let calleeName,
+           interner.resolve(calleeName) == "invoke",
+           !ast.arena.isInfixCall(id),
+           locals[calleeName].map({ local in
+               ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true
+           }) ?? true,
+           !candidates.contains(where: { candidate in
+               ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true
+           }),
+           let recovered = probeFunctionTypeReceiverInvoke(
+               id,
+               calleeName: calleeName,
+               args: args,
+               range: range,
+               ctx: ctx,
+               locals: &locals,
+               explicitTypeArgs: explicitTypeArgs
+           )
+        {
+            sema.bindings.bindExprType(id, type: recovered)
+            return recovered
+        }
+
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
