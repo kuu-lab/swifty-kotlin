@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 @testable import CompilerTestSupport
 
 // MARK: - DataFlow + Sema Regression Tests
@@ -1026,6 +1027,57 @@ struct DataFlowAndSemaRegressionTests {
             // The fun body's `LocalDate(year = ..., month = ..., day = ...)`
             // plus the two ctor-shaped calls bind the constructor; only the
             // call using the compat function's parameter names binds it.
+            let chosenCallees = sema.bindings.callBindings.values.map(\.chosenCallee)
+            #expect(chosenCallees.filter { ctorSymbols.contains($0) }.count == 3)
+            #expect(chosenCallees.filter { funSymbols.contains($0) }.count == 1)
+        }
+    }
+
+    // KUU-3932: the upstream kotlinx-datetime shape imports the annotation
+    // unqualified through `import kotlin.internal.*` and stacks the
+    // @Deprecated/ReplaceWith migration trio on top. The star-imported use
+    // must still resolve to kotlin.internal.LowPriorityInOverloadResolution
+    // so the ctor/fn pair stays exempt from SEMA-0001; this needs the real
+    // stdlib because the short annotation name only acquires its FQ name
+    // through import resolution.
+    @Test
+    func testStarImportedLowPriorityDeprecatedCtorShim() throws {
+        let source = """
+        import kotlin.internal.*
+
+        class LocalDate(val year: Int, val month: Int, val day: Int)
+
+        @Deprecated("shim", ReplaceWith("LocalDate(year = year, month = monthNumber, day = dayOfMonth)"), level = DeprecationLevel.WARNING)
+        @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        @LowPriorityInOverloadResolution
+        fun LocalDate(year: Int, monthNumber: Int, dayOfMonth: Int): LocalDate =
+            LocalDate(year = year, month = monthNumber, day = dayOfMonth)
+
+        fun usePositional(): LocalDate = LocalDate(2020, 1, 1)
+        fun useConstructorNames(): LocalDate = LocalDate(year = 2020, month = 1, day = 1)
+        fun useFunctionNames(): LocalDate = LocalDate(year = 2020, monthNumber = 1, dayOfMonth = 1)
+        """
+        TestStdlibCache.shared.prepare()
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                stdlibLibraryPath: try #require(CompilerOptions.defaultStdlibLibraryPath)
+            )
+            try runSema(ctx)
+            let errorCodes = Set(ctx.diagnostics.diagnostics.filter {
+                $0.severity == .error
+            }.map(\.code))
+            #expect(errorCodes.isEmpty,
+                    "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let localDateFQName = [ctx.interner.intern("LocalDate")]
+            let ctorSymbols = Set(sema.symbols.lookupAll(fqName: localDateFQName + [
+                ctx.interner.intern("<init>"),
+            ]))
+            let funSymbols = Set(sema.symbols.lookupAll(fqName: localDateFQName).filter {
+                sema.symbols.symbol($0)?.kind == .function
+            })
             let chosenCallees = sema.bindings.callBindings.values.map(\.chosenCallee)
             #expect(chosenCallees.filter { ctorSymbols.contains($0) }.count == 3)
             #expect(chosenCallees.filter { funSymbols.contains($0) }.count == 1)
