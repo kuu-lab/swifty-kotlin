@@ -195,15 +195,19 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
 |---|---|---|---|---|
 | kotlinx_io | 0 | 30 | 0 | 0 |
 | ktor_io | 0 | 45 | 0 | 1 |
-| ktor_utils | 0 | 55 | 0 | 8 |
-| ktor_http | 未再計測 | 62 | — | — |
+| ktor_utils | 0 | 55 | 0 | 5 |
+| ktor_http | 1 | 62 | 13 | 0 |
 
 - kotlinx_io は上流ソースが完全クリーンにコンパイルできる（旧5件のドリフトは解消）
 - ktor_io は引き続き 0 errors。consumer ハーネスも O0/O2 とも PASS
-- ktor_utils は KUU-3910 の internal API 可視性修正後、**0 errors / 8 warnings**。
+- ktor_utils は KUU-3910 の internal API 可視性修正後、**0 errors / 5 warnings**。
   `recoverStackTrace` / `isDispatchNeeded` の未解決が消え、55 files をコンパイルできる
-- Ktor HTTP はこの変更後に未再計測。前回の 341 errors は `ktor_utils.kklib` が
-  未生成だった時点の値であり、現在値とはみなさない
+- KUU-3920 で FQN 形式（`kotlinx.coroutines.internal.recoverStackTrace`）の呼び出しが
+  use-site `@Suppress` 配下で解決するようになり、上流 `StackTraceRecover.kt` /
+  `SuspendFunctionGun.kt` の実際の呼び出し形が通ることを確認した
+- KUU-3920 時点の再計測で ktor_http は **13 errors**（Regex API・型推論まわり。
+  coroutines internal API とは無関係）。前回の 341 errors は `ktor_utils.kklib` が
+  未生成だった時点の値
 - KUU-3919 で bundled stdlib が `kotlinx.serialization` の
   API 面（`Serializable`/`KSerializer`/`descriptors`/`encoding`/`modules`/`serializer()`）を
   提供し、`reflect/Type.kt`（`serializer(it)`・`?:` 型合成）と `util/date/Date.kt` は
@@ -217,5 +221,5 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
 
 pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
 0 errors を維持している。ktor_utils も coroutines 内部 API を internal 可視性のまま解決し、
-55 files / 0 errors / 8 warnings でコンパイルできる。ktor_http は今回未再計測のため、
-Ktor 全体のコンパイル状況を判断するには fresh な probe が必要。
+55 files / 0 errors / 5 warnings でコンパイルできる。KUU-3920 の再計測で ktor_http は
+62 files / 13 errors（Regex API・型推論まわり）まで確認できた。

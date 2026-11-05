@@ -186,4 +186,36 @@ struct ExpressionAnnotationSemanticTests {
             }
         }
     }
+
+    @Test
+    func declarationPositionSuppressCoversLocalValAndVarInitializers() throws {
+        // KUU-3920: a statement-initial @Suppress on a local val/var applies to
+        // the whole declaration, including its initializer — matching kotlinc
+        // and the existing local-fun behavior.
+        let source = """
+        @Deprecated("old") fun old(): Int = 7
+        fun quietVal(): Int {
+            @Suppress("DEPRECATION")
+            val result = old()
+            return result
+        }
+        fun quietVar(): Int {
+            @Suppress("DEPRECATION")
+            var result = old()
+            result += 1
+            return result
+        }
+        fun noisy(): Int {
+            val result = old()
+            return result
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let warnings = context.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }
+            #expect(warnings.count == 1, "\(warnings)")
+        }
+    }
 }

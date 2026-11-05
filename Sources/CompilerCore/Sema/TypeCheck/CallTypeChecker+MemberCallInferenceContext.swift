@@ -129,7 +129,7 @@ extension CallTypeChecker {
             return parentKind == nil || parentKind == .package || isStaticObjectProperty
         }
         if !propertyCandidates.isEmpty {
-            let visibility = ctx.filterByVisibility(propertyCandidates)
+            let visibility = ctx.filterByVisibility(propertyCandidates, usageRange: request.range)
             guard let property = visibility.visible.first else {
                 if let inaccessible = visibility.invisible.first {
                     driver.helpers.emitVisibilityError(
@@ -470,7 +470,11 @@ extension CallTypeChecker {
             }
         }
 
-        let (vis, _) = ctx.filterByVisibility(fqnCandidates)
+        // Pass the use-site range so a covering @Suppress (expression or
+        // declaration level) can expose bundled-internal declarations the
+        // way unqualified calls do (KUU-3920: ktor-utils calls
+        // `kotlinx.coroutines.internal.recoverStackTrace` by FQN).
+        let (vis, _) = ctx.filterByVisibility(fqnCandidates, usageRange: range)
         guard !vis.isEmpty else { return nil }
 
         if sema.requiresResolvedLibraryCalls,

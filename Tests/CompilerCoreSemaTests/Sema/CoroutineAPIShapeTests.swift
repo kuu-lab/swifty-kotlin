@@ -74,6 +74,32 @@ struct CoroutineAPIShapeTests {
     }
 
     @Test
+    func fullyQualifiedInternalCoroutineCallsResolveUnderUseSiteSuppression() throws {
+        // KUU-3920: ktor-utils reaches `kotlinx.coroutines.internal` by FQN
+        // under @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE"), both at
+        // expression position and on a local `val` declaration.
+        let ctx = makeContextFromSource("""
+        import kotlin.coroutines.*
+        import kotlinx.coroutines.*
+
+        fun recoverBridged(exception: Throwable, continuation: Continuation<*>): Throwable = try {
+            @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+            kotlinx.coroutines.internal.recoverStackTrace(exception, continuation)
+        } catch (_: Throwable) {
+            exception
+        }
+
+        fun recoverDeclared(exception: Throwable): Throwable {
+            @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+            val recovered = kotlinx.coroutines.internal.recoverStackTrace(exception)
+            return recovered
+        }
+        """, allowDefaultStdlibLibrary: false)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func explicitJobImportResolvesFactoryAlongsideInterface() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.coroutines.Job
