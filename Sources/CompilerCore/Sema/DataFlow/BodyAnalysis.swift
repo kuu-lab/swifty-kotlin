@@ -1044,7 +1044,15 @@ extension DataFlowSemaPhase {
                 if let currentPackageFQName, !currentPackageFQName.isEmpty {
                     paths.append(currentPackageFQName + path)
                 }
-                paths.append(path)
+                // The bare qualified path doubles as the root-package lookup.
+                // Root-package files resolve it as their same-package tier
+                // here; named packages defer it to the post-default-import
+                // fallback below so a user root-package declaration cannot
+                // shadow default-imported classifiers such as
+                // kotlin.collections.Map.Entry (KUU-4304).
+                if currentPackageFQName?.isEmpty != false {
+                    paths.append(path)
+                }
                 paths.append(contentsOf: wildcardQualifiedPaths)
             }
             return paths
@@ -1064,6 +1072,13 @@ extension DataFlowSemaPhase {
             // explicit import of the outer declaration.
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
                 candidatePaths.append(defaultPackage + path)
+            }
+            // The bare qualified path is the last fallback for named
+            // packages: it still covers fully-qualified names (kotlin.Number)
+            // and root-package declarations, both below the default imports
+            // (KUU-4304).
+            if let currentPackageFQName, !currentPackageFQName.isEmpty {
+                candidatePaths.append(path)
             }
         }
 
