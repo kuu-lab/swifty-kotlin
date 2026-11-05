@@ -187,6 +187,10 @@ private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
     return tryCast(pointer, to: RuntimeMatchResultBox.self)
 }
 
+private enum RuntimeRegexCompileError: Error {
+    case invalidPattern(String)
+}
+
 /// Kotlin's `Regex("")` is a legal pattern that matches the empty string at
 /// every position. `NSRegularExpression` rejects an empty pattern string, so
 /// the equivalent non-capturing empty group `(?:)` is compiled instead.
@@ -195,6 +199,20 @@ private func compileRegexPattern(_ pattern: String, options: NSRegularExpression
     // translates to empty as well, so fall back to the equivalent
     // non-capturing empty group `(?:)` in both cases.
     let source = pattern.isEmpty ? "(?:)" : pattern
+    // KUU-4169: reject \p{...} property names java.util.regex would reject.
+    // ICU resolves names case-insensitively and knows aliases and property
+    // keys the JVM does not (`\p{lower}`, `\p{gc=lu}`, `\p{scx=Latn}`, ...),
+    // so without this check those patterns compile where the JVM throws
+    // PatternSyntaxException. The scan mirrors Pattern's inline-flag, group,
+    // character-class and \Q...\E tracking; the initial COMMENTS / UNIX_LINES
+    // state comes from the RegexOption-derived NSRegularExpression options.
+    if let propertyError = jvmRegexPropertyError(
+        source,
+        commentsInitially: options.contains(.allowCommentsAndWhitespace),
+        unixLinesInitially: options.contains(.useUnixLineSeparators)
+    ) {
+        throw RuntimeRegexCompileError.invalidPattern(propertyError)
+    }
     let translated = translateJavaPatternForICU(source)
     return try NSRegularExpression(pattern: translated.isEmpty ? "(?:)" : translated, options: options)
 }
