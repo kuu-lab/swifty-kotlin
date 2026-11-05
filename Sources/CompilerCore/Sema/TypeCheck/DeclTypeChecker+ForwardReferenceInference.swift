@@ -1000,7 +1000,117 @@ extension DeclTypeChecker {
                     return nil
                 }
             }
-            let candidates = namedCandidates.filter { candidate in
+            // `cachedScopeLookup` stops at the innermost scope binding
+            // `name` — including member tiers the receiver tower cannot
+            // see, such as the class member scope itself or a companion
+            // scope. Walk the chain like the zero-argument path: a level
+            // binding `name` only to member functions yields them as
+            // implicit-dispatch candidates when an implicit receiver
+            // supplies the dispatch receiver and the arguments fit;
+            // inapplicable members continue outward instead of hiding the
+            // lexical candidates. Any other binding kind keeps its normal
+            // shadowing (KUU-4293).
+            var scopeLevel = ctx.scope as? BaseScope
+            var scopeCandidates: [SymbolID] = []
+            while let level = scopeLevel {
+                let bound = level.candidates(for: name)
+                if bound.isEmpty {
+                    scopeLevel = level.parent as? BaseScope
+                    continue
+                }
+                var memberFunctions: [SymbolID] = []
+                var bindsOtherDeclaration = false
+                for candidate in bound {
+                    guard let symbol = ctx.cachedSymbol(candidate),
+                          symbol.kind == .function,
+                          let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                          signature.receiverType != nil
+                    else {
+                        bindsOtherDeclaration = true
+                        break
+                    }
+                    memberFunctions.append(candidate)
+                }
+                if bindsOtherDeclaration {
+                    scopeCandidates = bound
+                    break
+                }
+                var applicableMembers: [(candidate: SymbolID, receiverType: TypeID)] = []
+                for candidate in memberFunctions {
+                    guard let signature = ctx.sema.symbols.functionSignature(for: candidate),
+                          signature.contextReceiverTypes.isEmpty,
+                          let declaredReceiver = signature.receiverType,
+                          case let .classType(declaredClass) = ctx.sema.types.kind(
+                              of: ctx.sema.types.makeNonNullable(declaredReceiver)
+                          )
+                    else {
+                        continue
+                    }
+                    // A receiver-typed function at a lexical tier is callable
+                    // only when an implicit receiver supplies its dispatch
+                    // receiver — the enclosing nominal or one of its
+                    // companion objects. This keeps a same-named extension on
+                    // an unrelated type (e.g. `fun String.f()` at package
+                    // scope) from being treated as applicable here.
+                    for entry in ctx.implicitReceiverMemberLookupEntries() {
+                        guard case let .classType(receiverClass) = ctx.sema.types.kind(
+                            of: ctx.sema.types.makeNonNullable(entry.type)
+                        ) else {
+                            continue
+                        }
+                        guard ctx.sema.types.isNominalSubtypeSymbol(
+                            receiverClass.classSymbol, of: declaredClass.classSymbol
+                        ) || ctx.sema.symbols.companionObjectSymbol(
+                            for: receiverClass.classSymbol
+                        ) == declaredClass.classSymbol
+                        else {
+                            continue
+                        }
+                        let supplyingReceiver = ctx.sema.types.makeNonNullable(entry.type)
+                        if precheckArgumentFitsSignature(
+                            signature,
+                            candidate: candidate,
+                            argumentTypes: argumentTypes,
+                            receiverType: supplyingReceiver,
+                            in: ctx
+                        ) != nil {
+                            applicableMembers.append((candidate, supplyingReceiver))
+                            break
+                        }
+                    }
+                }
+                if !applicableMembers.isEmpty {
+                    // Members bound at one tier can be supplied by different
+                    // receivers; resolve each receiver group on its own and
+                    // publish only when they agree on one concrete type.
+                    var grouped: [TypeID: [SymbolID]] = [:]
+                    var receiverOrder: [TypeID] = []
+                    for member in applicableMembers {
+                        if grouped[member.receiverType] == nil {
+                            receiverOrder.append(member.receiverType)
+                        }
+                        grouped[member.receiverType, default: []].append(member.candidate)
+                    }
+                    var resultType: TypeID?
+                    for receiverType in receiverOrder {
+                        guard let groupResult = safePrecheckCallResultType(
+                            grouped[receiverType] ?? [],
+                            receiverType: receiverType,
+                            argumentTypes: argumentTypes,
+                            in: ctx
+                        ) else {
+                            return nil
+                        }
+                        if let resultType, resultType != groupResult {
+                            return nil
+                        }
+                        resultType = groupResult
+                    }
+                    return resultType
+                }
+                scopeLevel = level.parent as? BaseScope
+            }
+            let candidates = scopeCandidates.filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       let signature = ctx.sema.symbols.functionSignature(for: candidate),
@@ -1012,11 +1122,20 @@ extension DeclTypeChecker {
                 return signature.receiverType == nil
                     && signature.contextReceiverTypes.isEmpty
             }
-            return safePrecheckCallResultType(
-                candidates,
-                argumentTypes: argumentTypes,
-                in: ctx
-            )
+            if !candidates.isEmpty {
+                return safePrecheckCallResultType(
+                    candidates,
+                    argumentTypes: argumentTypes,
+                    in: ctx
+                )
+            }
+            // The tier that stopped the walk bound `name` only to
+            // non-function declarations or to member functions that do not
+            // apply. A property or object there can still answer `name(...)`
+            // through `invoke`, but invoke-with-arguments is not guessed
+            // here — the call stays on the normal pass, which keeps any
+            // same-named member property shadowing the outer scopes.
+            return nil
         }
 
         // An unqualified call inside a class or object can resolve to a
