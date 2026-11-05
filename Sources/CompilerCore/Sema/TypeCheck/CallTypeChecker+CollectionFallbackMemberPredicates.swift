@@ -336,4 +336,98 @@ extension CallTypeChecker {
             return true
         }
     }
+
+    /// KUU-4318: `containsAll`/`addAll`/`removeAll`/`retainAll` are bound by
+    /// the synthetic collection fallback without consulting their real
+    /// Collection-parameter signatures, and `add`/`remove`/`contains` bind the
+    /// same way without an element-type check. A range expression keeps a
+    /// scalar or nominal range type — `IntRange` is `Iterable` but not
+    /// `Collection`, and `ClosedFloatingPointRange` is neither — so an
+    /// unchecked argument reaches the runtime bridge and crashes with
+    /// ClassCastException. Returns false when the single non-lambda argument
+    /// cannot conform to any bundled overload shape so regular overload
+    /// resolution reports the mismatch like kotlinc.
+    func collectionFallbackBulkCallArgumentIsAdmissible(
+        memberName: InternedString,
+        args: [CallArgument],
+        receiverElementType: TypeID,
+        isMapReceiver: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        let isContainsAll = memberName == knownNames.containsAll
+        let isBulkMutation = memberName == knownNames.addAll
+            || memberName == knownNames.removeAll
+            || memberName == knownNames.retainAll
+        // Map.remove takes a key and Map has no add/contains element members;
+        // the entry element type must not be used as their parameter type.
+        let isElementMember = !isMapReceiver
+            && (memberName == knownNames.add
+                || memberName == knownNames.remove
+                || memberName == knownNames.contains)
+        guard isContainsAll || isBulkMutation || isElementMember,
+              args.count == 1,
+              !args[0].isSpread
+        else {
+            return true
+        }
+        let argumentExpr = args[0].expr
+        // Predicate overloads (`removeAll { }`, `retainAll { }`) take a
+        // function, not a collection argument; leave them to the existing
+        // lambda paths.
+        if ctx.ast.arena.expr(argumentExpr)?.isLambdaOrCallableRef == true {
+            return true
+        }
+        let sema = ctx.sema
+        if sema.bindings.exprTypes[argumentExpr] == nil {
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = argumentExpr
+            _ = driver.inferExpr(argumentExpr, ctx: argumentCtx, locals: &locals)
+        }
+        let inferredArgumentType = sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType
+        // KUU-569: restore the nominal range type for scalar-marked range
+        // expressions so `IntRange`/`ClosedFloatingPointRange` conformance is
+        // checked against the source-level type rather than the runtime handle.
+        let argumentType = sourceLevelRangeArgumentType(
+            argumentExpr,
+            inferredType: inferredArgumentType,
+            ctx: ctx
+        )
+        let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
+        guard nonNullArgumentType != sema.types.anyType,
+              !typeContainsErrorType(nonNullArgumentType, sema: sema)
+        else {
+            return true
+        }
+        // add/remove/contains take the receiver's element type directly.
+        if isElementMember {
+            return sema.types.isSubtype(argumentType, receiverElementType)
+        }
+        // containsAll only has Collection-parameter overloads. The bulk
+        // mutation members additionally accept Iterable/Array/Sequence
+        // arguments through source extensions; those are normally bound by
+        // bindMutableCollectionSourceExtension first, but admitting the shapes
+        // here keeps receivers whose source candidates are unavailable on the
+        // same synthetic path as before.
+        var expectedShapeFQNames = [knownNames.kotlinCollectionsCollectionFQName]
+        if isBulkMutation {
+            expectedShapeFQNames.append(contentsOf: [
+                knownNames.kotlinCollectionsIterableFQName,
+                knownNames.kotlinArrayFQName,
+                knownNames.kotlinSequenceFQName,
+            ])
+        }
+        return expectedShapeFQNames.contains { fqName in
+            guard let shapeSymbol = sema.symbols.lookup(fqName: fqName) else {
+                return false
+            }
+            let expectedType = sema.types.make(.classType(ClassType(
+                classSymbol: shapeSymbol,
+                args: [.out(receiverElementType)],
+                nullability: .nonNull
+            )))
+            return sema.types.isSubtype(argumentType, expectedType)
+        }
+    }
 }

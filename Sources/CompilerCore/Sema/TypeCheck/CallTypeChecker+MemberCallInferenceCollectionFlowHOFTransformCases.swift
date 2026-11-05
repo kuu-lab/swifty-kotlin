@@ -63,6 +63,22 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 return sema.types.booleanType
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.anyType)
+            // KUU-4318: containsAll's only overloads take a Collection
+            // parameter; a range expression or other non-Collection argument
+            // must reach regular overload resolution so the mismatch is
+            // reported like kotlinc instead of binding the source function
+            // unchecked.
+            guard checker.collectionFallbackBulkCallArgumentIsAdmissible(
+                memberName: calleeName,
+                args: args,
+                receiverElementType: collectionElementType,
+                isMapReceiver: isMapReceiver,
+                ctx: ctx,
+                locals: &locals
+            ) else {
+                didReturnNil = true
+                return nil
+            }
             resultType = sema.types.booleanType
             _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
 
