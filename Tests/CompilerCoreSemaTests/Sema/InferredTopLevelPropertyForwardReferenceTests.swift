@@ -136,6 +136,101 @@ struct InferredTopLevelPropertyForwardReferenceTests {
         #expect(secondArg == sema.types.intType)
     }
 
+    // KUU-4278 (kotlinx-datetime `LocalDateTimeFormat.kt:80` and sibling
+    // `DateTimeComponents.kt:108`): `internal val ISO_DATE/ISO_TIME by lazy {
+    // XFormat.build { ... } }` kept the header `Any?` placeholder for readers
+    // checked before the declaring file. The safe precheck cannot prove a
+    // call whose arguments include a lambda on a companion-scope receiver, so
+    // the property stayed pending and `date(ISO_DATE)`/`time(ISO_TIME)` failed
+    // constraint solving with KSWIFTK-SEMA-0473 even though `kotlinc` accepts
+    // the module. On-demand inference now resolves the pending property when
+    // the reader binds it.
+    @Test(arguments: [true, false])
+    func delegatedBuilderPropertiesResolveAcrossFileOrder(consumerFirst: Bool) throws {
+        let lib = """
+        package lib
+        interface DateTimeFormat<T>
+        class LocalDate
+        class LocalTime
+
+        interface WithDate {
+            fun year()
+            fun monthNumber()
+            fun day()
+        }
+        interface WithTime {
+            fun hour()
+            fun minute()
+        }
+
+        interface DateTimeFormatBuilder {
+            fun date(format: DateTimeFormat<LocalDate>)
+            fun time(format: DateTimeFormat<LocalTime>)
+        }
+
+        class FormatBuilder : DateTimeFormatBuilder, WithDate, WithTime {
+            override fun date(format: DateTimeFormat<LocalDate>) {}
+            override fun time(format: DateTimeFormat<LocalTime>) {}
+            override fun year() {}
+            override fun monthNumber() {}
+            override fun day() {}
+            override fun hour() {}
+            override fun minute() {}
+        }
+
+        class LocalDateFormat private constructor() : DateTimeFormat<LocalDate> {
+            companion object {
+                fun build(block: WithDate.() -> Unit): DateTimeFormat<LocalDate> {
+                    FormatBuilder().block()
+                    return LocalDateFormat()
+                }
+            }
+        }
+
+        class LocalTimeFormat private constructor() : DateTimeFormat<LocalTime> {
+            companion object {
+                fun build(block: WithTime.() -> Unit): LocalTimeFormat {
+                    FormatBuilder().block()
+                    return LocalTimeFormat()
+                }
+            }
+        }
+
+        internal val ISO_DATE by lazy {
+            LocalDateFormat.build {
+                year()
+                monthNumber()
+                day()
+            }
+        }
+        internal val ISO_TIME by lazy {
+            LocalTimeFormat.build {
+                hour()
+                minute()
+            }
+        }
+
+        fun runFormat(block: DateTimeFormatBuilder.() -> Unit) {
+            FormatBuilder().block()
+        }
+        """
+        let use = """
+        package use
+        import lib.*
+        fun buildFormats() = runFormat {
+            date(ISO_DATE)
+            time(ISO_TIME)
+        }
+        """
+        let sources = consumerFirst ? [use, lib] : [lib, use]
+        let ctx = makeContextFromSources(sources)
+        try runSema(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected earlier-file readers to see the delegated formats' inferred types, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     @Test
     func nonInfixCallStillRequiresTheModifier() throws {
         // The precheck must not launder invalid Kotlin: `a or b` without the
