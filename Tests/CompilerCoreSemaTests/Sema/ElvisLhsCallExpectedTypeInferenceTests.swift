@@ -119,6 +119,45 @@ struct ElvisLhsCallExpectedTypeInferenceTests {
     }
 
     @Test
+    func nullableLambdaResultOnElvisLeftKeepsNullableTypeParameter() throws {
+        // KUU-4279: `x?.let { ... nullable body ... } ?: fallback` must let the
+        // scope function's result type parameter resolve to `T?`. Seeding the
+        // lambda's expected return type with the non-null Elvis expected type
+        // rejected a legitimately nullable body with SEMA-0469.
+        let source = """
+            package elvisLhsNullableLambdaResult
+            fun <T, R> T.myLet(block: (T) -> R): R = block(this)
+            class Holder {
+                var hourOfAmPm: Int? = null
+                var amPm: String? = null
+                fun toHour(): Int {
+                    val hour: Int = amPm?.myLet { amPm ->
+                        hourOfAmPm?.myLet { hourOfAmPm ->
+                            hourOfAmPm.myLet { hour -> if (hour == 12) 0 else hour }
+                        }
+                    } ?: 0
+                    return hour
+                }
+                fun direct(value: Int?, other: Int?): Int {
+                    val result: Int = value?.myLet { other } ?: 0
+                    return result
+                }
+                fun nonSafe(value: Int, other: Int?): Int {
+                    val result: Int = value.myLet { other } ?: 0
+                    return result
+                }
+            }
+            """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(path, in: ctx)
+            let errors = diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "got: \(errors.map { "\($0.code): \($0.message)" })")
+        }
+    }
+
+    @Test
     func genericCallWithoutExpectedTypeStillRejectsUnresolvedTypeArgument() throws {
         let source = """
             package elvisLhsUnresolved

@@ -678,8 +678,15 @@ extension CallTypeChecker {
                     // while replacing only its matching return type parameter.
                     // Use the same narrowed candidates that supplied the lambda shape:
                     // an inapplicable unqualified extension must not hide this context.
+                    // An Elvis LHS result may stay nullable (`x?.let { ... } ?: fb`),
+                    // so its expected type only bounds R from above; forcing the
+                    // non-null form would reject a legitimately nullable body
+                    // before overload resolution can pick `R = T?` (KUU-4279).
                     let contextualLambdaType = contextualCallableArgumentType(
-                        expectation.type, callResultType: contextualCallResultType,
+                        expectation.type,
+                        callResultType: ctx.isElvisBranchExpectedTypeHint
+                            ? contextualCallResultType.map { sema.types.makeNullable($0) }
+                            : contextualCallResultType,
                         candidates: expectedTypeCandidates,
                         argumentIndex: index,
                         argumentLabel: argument.label,

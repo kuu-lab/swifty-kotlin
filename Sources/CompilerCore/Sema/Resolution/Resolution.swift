@@ -1278,7 +1278,13 @@ extension OverloadResolver {
                     typeVarBySymbol: methodTypeVarBySymbol,
                     typeSystem: ctx.types
                 ) {
-                    let returnTypeHint = ctx.types.makeNonNullable(signature.returnType)
+                    // The Elvis LHS only needs its definitely-non-null view to
+                    // fit the expected type (`x?.let { ... } ?: fallback` still
+                    // accepts a nullable `R`). For a bare type parameter that
+                    // view is `R & Any`, which decomposes with nullable
+                    // allowance (`R <: expected?`) instead of forcing
+                    // `R <: expected` and rejecting `R = T?` (KUU-4279).
+                    let returnTypeHint = ctx.types.definitelyNonNullForm(of: signature.returnType)
                     let expectedTypeHint = ctx.types.makeNonNullable(expectedType)
                     let returnDecomposed = decomposeSubtypeConstraint(
                         subtype: returnTypeHint,
