@@ -82,6 +82,9 @@ struct CInteropPointerElementOpsExecutionTests {
                 ptrs[1] = ints + 1
                 println(ptrs[0].value.toLong() == ints.toLong())
                 println(ptrs[1].value.toLong() == (ints + 1)!!.toLong())
+                println(ptrs[0].value.pointed.value)
+                println(ptrs[0].value[1].value)
+                println((ptrs[0].value + 1)!![0].value)
                 val pp = ptrs + 1
                 println(pp!![0].value.toLong() == (ints + 1)!!.toLong())
                 ptrs[0] = null
@@ -124,6 +127,9 @@ struct CInteropPointerElementOpsExecutionTests {
         true
         true
         true
+        11
+        22
+        22
         true
         true
         7

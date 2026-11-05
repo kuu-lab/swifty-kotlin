@@ -700,13 +700,19 @@ public func kk_cvar_double_store(_ varHandle: Int, _ value: Int) -> Int {
 
 /// `CPointerVar.value` reads a pointer word out of storage; a nonzero word is
 /// boxed as a CPointer handle, zero reads back as `null` (the sentinel).
+/// `pointeeTypeToken` carries the pointee nominal type recovered from the
+/// `CPointerVarOf<T>` instantiation at the call site so `pointed`/`get`/`plus`
+/// keep the concrete pointee instead of degrading to the generic CVariable.
 @_cdecl("kk_cvar_cpointer_load")
-public func kk_cvar_cpointer_load(_ varHandle: Int) -> Int {
+public func kk_cvar_cpointer_load(_ varHandle: Int, _ pointeeTypeToken: Int) -> Int {
     cinteropLoadValue(varHandle) { ptr in
         let address = ptr.load(as: UInt.self)
         guard address != 0 else { return runtimeNullSentinelInt }
         return registerRuntimeObject(
-            RuntimeCPointerBox(address: address, pointeeTypeID: 0),
+            RuntimeCPointerBox(
+                address: address,
+                pointeeTypeID: runtimeCInteropNominalTypeID(forTypeToken: pointeeTypeToken)
+            ),
             typeID: cinteropCPointerTypeID
         )
     }
