@@ -21,8 +21,11 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> [SymbolID: SymbolID] {
         guard let name, let file = ctx.currentASTFile else { return [:] }
+        // Wildcard imports of a JDK static facade (`import java.lang.Math.*`)
+        // contribute the facade object's members at wildcard priority, so they
+        // must also supply the object dispatch receiver (KUU-4008).
         let imports = file.imports.filter {
-            !$0.isWildcard && ($0.alias ?? $0.path.last) == name
+            $0.isWildcard || ($0.alias ?? $0.path.last) == name
         }
         guard !imports.isEmpty else { return [:] }
 
@@ -45,8 +48,18 @@ extension CallTypeChecker {
                   ownerSymbol.kind == .class || ownerSymbol.kind == .interface || ownerSymbol.kind == .object
             else { continue }
 
-            for importDecl in imports where importDecl.path.last == importedMemberName {
-                let importedObjects = ctx.sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+            for importDecl in imports {
+                // A named import ends in the member name, so the dispatch
+                // owner is the path's parent; a wildcard import of a static
+                // facade names the owner itself (`import java.lang.Math.*`).
+                let ownerPath: [InternedString]
+                if importDecl.isWildcard {
+                    ownerPath = importDecl.path
+                } else {
+                    guard importDecl.path.last == importedMemberName else { continue }
+                    ownerPath = Array(importDecl.path.dropLast())
+                }
+                let importedObjects = ctx.sema.symbols.lookupAll(fqName: ownerPath)
                 if let object = importedObjects.first(where: { object in
                     ctx.sema.symbols.symbol(object)?.kind == .object
                         && ctx.sema.types.isNominalSubtypeSymbol(object, of: dispatchOwner)

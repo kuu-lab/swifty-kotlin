@@ -59,4 +59,47 @@ struct JavaLangMathTests {
         #expect(result.stdout == Array(repeating: "true", count: 24).joined(separator: "\n") + "\n")
         #expect(result.stderr.isEmpty, "stderr: \(result.stderr)")
     }
+
+    /// KUU-4008: `import java.lang.Math.*` contributes the static facade's
+    /// members at wildcard priority — including members kotlin.math lacks —
+    /// and binds the facade object as their dispatch receiver.
+    @Test(arguments: [0, 2])
+    func starImportResolvesStaticMembersUnqualified(optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourcePath = directory.appendingPathComponent("consumer.kt").path
+        let outputPath = directory.appendingPathComponent("consumer").path
+        let source = """
+        import java.lang.Math.*
+
+        fun main() {
+            println(sqrt(4.0) == 2.0 && pow(2.0, 3.0) == 8.0)
+            println(asin(0.0) == 0.0 && atan2(1.0, 1.0) == PI / 4.0)
+            println(floorDiv(7, 2) == 3 && toRadians(180.0) == PI)
+            println(copySign(3.0, -1.0) == -3.0 && IEEEremainder(5.0, 3.0) == -1.0)
+            println(PI > 3.14 && E > 2.71 && TAU == PI * 2.0)
+            println(max(1, 2) == 2 && min(3L, 1L) == 1L)
+        }
+        """
+        try source.write(toFile: sourcePath, atomically: true, encoding: .utf8)
+
+        let options = CompilerOptions(
+            moduleName: "KUU4008MathStarImport",
+            inputs: [sourcePath],
+            outputPath: outputPath,
+            emit: .executable,
+            target: defaultTargetTriple(),
+            optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: try testStdlibArtifactPath(),
+            allowDefaultStdlibLibrary: false
+        )
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: options))
+
+        let result = try CommandRunner.run(executable: outputPath, arguments: [])
+        #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+        #expect(result.stdout == Array(repeating: "true", count: 6).joined(separator: "\n") + "\n")
+        #expect(result.stderr.isEmpty, "stderr: \(result.stderr)")
+    }
 }
