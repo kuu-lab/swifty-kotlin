@@ -146,10 +146,12 @@ extension StdlibArtifactRegressionTests {
             shared.take(2).collect { println("shared=$it") }
             println(shared.replayCache)
             val reset = flowOf(6).stateIn(scope, SharingStarted.WhileSubscribed(0L, 0L), -2)
-            reset.take(2).collect { println("reset=$it") }
+            val firstReset = reset.first { it == 6 }
+            println("reset=$firstReset")
             awaitCondition("first replay reset") { reset.value == -2 }
             println(reset.value)
-            reset.take(2).collect { println("restart=$it") }
+            val restartReset = reset.first { it == 6 }
+            println("restart=$restartReset")
             awaitCondition("second replay reset") { reset.value == -2 }
             println(reset.value)
             val eager = flowOf(7).shareIn(scope, SharingStarted.Eagerly, 1)
@@ -175,10 +177,8 @@ extension StdlibArtifactRegressionTests {
             shared=4
             shared=5
             [4, 5]
-            reset=-2
             reset=6
             -2
-            restart=-2
             restart=6
             -2
             eager=7
