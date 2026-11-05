@@ -177,5 +177,42 @@ struct ObjectLiteralOverrideValidationTests {
         """)
         assertHasDiagnostic("KSWIFTK-SEMA-OVERRIDE-NOTHING", in: diagnostics)
     }
+
+    // KUU-4300: the object literal's `declBySymbolCache` reverse map was built
+    // with `Dictionary(uniqueKeysWithValues:)`, which trapped whenever
+    // `bindings.declSymbols` bound two decls to one symbol deduplicated by
+    // `SymbolTable.define` (e.g. a repeated `class Dup`). An `override` member
+    // without an explicit visibility modifier forces the cache build during
+    // implicit-visibility resolution, so the whole sema pass crashed instead
+    // of reporting the redeclaration.
+    @Test
+    func reportsRedeclarationInsteadOfTrappingOnDedupSymbol() throws {
+        let diagnostics = try diagnosticsFor("""
+        interface I { fun f() }
+        class Dup {}
+        class Dup {}
+        fun make() {
+            val o = object : I { override fun f() {} }
+        }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0001", in: diagnostics)
+    }
+
+    // Same dedup-symbol trap on the property path: an `override var` with no
+    // explicit visibility forces both the implicit setter visibility and the
+    // implicit member visibility lookups, each of which builds the reverse
+    // declBySymbol map.
+    @Test
+    func reportsRedeclarationInsteadOfTrappingOnDedupSymbolForProperty() throws {
+        let diagnostics = try diagnosticsFor("""
+        interface I { var x: Int }
+        class Dup {}
+        class Dup {}
+        fun make() {
+            val o = object : I { override var x: Int = 1 }
+        }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0001", in: diagnostics)
+    }
 }
 #endif
