@@ -508,13 +508,24 @@ extension CallTypeChecker {
             )
         }
 
-        var candidates = ctx.cachedScopeLookup(calleeName).filter {
-            matches($0, requireSynthetic: false)
+        // Ordinary name lookup stops at the innermost scope tier that binds
+        // the name, so a same-named extension declared in the current package
+        // hides every outer-tier (star/default-import) extension on the same
+        // implicit receiver — e.g. `Instant.plus(Duration)` from
+        // `kotlin.time.*` behind a package-level `Instant.plus(TimeBased)`
+        // (KUU-4276). This recovery runs only after scope-candidate
+        // resolution already failed, so merge the whole scope chain and let
+        // overload resolution pick the applicable outer-tier declaration,
+        // mirroring the explicit-receiver extension fallback.
+        var candidates = ctx.scope.lookupMergingChain(calleeName).filter {
+            !ctx.isExpectDeclarationSupersededByActual($0)
+                && !ctx.isImportedCallableShadowedBySource($0)
+                && matches($0, requireSynthetic: false)
         }
         // An implicit member can hide an imported package extension in ordinary
         // name lookup. Retry through visible scopes rather than importing every
         // same-named library extension from the global symbol table.
-        let visibleExtensions = ctx.scope.lookup(calleeName, matching: { candidate in
+        let visibleExtensions = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
             guard isScopeExtensionCandidate(candidate, ctx: ctx),
                   let symbol = ctx.cachedSymbol(candidate),
                   ctx.visibilityChecker.isAccessible(
@@ -525,7 +536,7 @@ extension CallTypeChecker {
             return extensionSyntheticFallbackReceiverMatches(
                 callSiteReceiver: nonNullReceiver, declaredReceiver: receiver, sema: sema
             )
-        })
+        }
         candidates.append(contentsOf: visibleExtensions.filter {
             matches($0, requireSynthetic: false)
         })
