@@ -6,9 +6,12 @@ import kotlin.collections.MutableIterator
 import kotlin.collections.MutableList
 import kotlin.internal.__valuesEqual
 
+// KUU-3996: java.util.LinkedList implements java.util.Deque on the JVM,
+// which extends Queue; the bundled shim satisfies the Queue contract
+// directly (Deque itself remains unmodelled).
 public class LinkedList<E> private constructor(
     private val storage: ArrayDeque<E>
-) : MutableList<E> by storage {
+) : Queue<E>, MutableList<E> by storage {
     public constructor() : this(ArrayDeque<E>())
 
     public constructor(elements: Collection<E>) : this(ArrayDeque<E>(elements))
@@ -46,7 +49,7 @@ public class LinkedList<E> private constructor(
     }
 
     @IgnorableReturnValue
-    public fun offer(element: E): Boolean = offerLast(element)
+    override fun offer(element: E): Boolean = offerLast(element)
 
     @IgnorableReturnValue
     public fun offerFirst(element: E): Boolean {
@@ -60,19 +63,19 @@ public class LinkedList<E> private constructor(
         return true
     }
 
-    public fun peek(): E? = peekFirst()
+    override fun peek(): E? = peekFirst()
 
     public fun peekFirst(): E? = storage.firstOrNull()
 
     public fun peekLast(): E? = storage.lastOrNull()
 
-    public fun poll(): E? = pollFirst()
+    override fun poll(): E? = pollFirst()
 
     public fun pollFirst(): E? = if (isEmpty()) null else storage.removeFirst()
 
     public fun pollLast(): E? = storage.removeLastOrNull()
 
-    public fun element(): E = getFirst()
+    override fun element(): E = getFirst()
 
     public fun getFirst(): E {
         if (isEmpty()) throw NoSuchElementException()
@@ -84,7 +87,7 @@ public class LinkedList<E> private constructor(
         return storage.last()
     }
 
-    public fun remove(): E = removeFirst()
+    override fun remove(): E = removeFirst()
 
     public fun removeFirst(): E {
         if (isEmpty()) throw NoSuchElementException()

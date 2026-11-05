@@ -58,7 +58,7 @@ public class ConcurrentLinkedQueue<E> private constructor(
         }
     }
 
-    public fun remove(): E {
+    override fun remove(): E {
         guard.lock()
         try {
             if (storage.isEmpty()) throw NoSuchElementException()

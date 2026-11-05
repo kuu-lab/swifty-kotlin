@@ -1,9 +1,13 @@
 package java.util
 
+import kotlin.collections.Collection
+
+// KUU-3996: java.util.PriorityQueue extends AbstractQueue on the JVM, which
+// implements Queue; the bundled shim satisfies the Queue contract directly.
 public open class PriorityQueue<E>(
     initialCapacity: Int,
     private val ordering: Comparator<in E>?
-) : AbstractMutableCollection<E>() {
+) : AbstractMutableCollection<E>(), Queue<E> {
     private val heap: MutableList<Entry<E>> = ArrayList<Entry<E>>(initialCapacity)
     private var modCount: Int = 0
 
@@ -15,6 +19,33 @@ public open class PriorityQueue<E>(
     public constructor(initialCapacity: Int) : this(initialCapacity, null)
     public constructor(comparator: Comparator<in E>?) : this(11, comparator)
 
+    // KUU-3996: JVM PriorityQueue(Collection)/PriorityQueue(PriorityQueue)/
+    // PriorityQueue(SortedSet). The JDK Collection constructor keeps the
+    // ordering of a SortedSet or PriorityQueue argument even when it
+    // arrives through a Collection-typed reference, so orderingOf
+    // replicates that dispatch; the dedicated overloads cover the
+    // directly-typed calls (TreeSet's SortedSet constructor precedent).
+    public constructor(elements: Collection<E>) : this(
+        initialCapacityFor(elements.size),
+        orderingOf(elements)
+    ) {
+        addAll(elements)
+    }
+
+    public constructor(queue: PriorityQueue<E>) : this(
+        initialCapacityFor(queue.size),
+        queue.comparator()
+    ) {
+        addAll(queue)
+    }
+
+    public constructor(sortedSet: SortedSet<E>) : this(
+        initialCapacityFor(sortedSet.size),
+        sortedSet.comparator()
+    ) {
+        addAll(sortedSet)
+    }
+
     override val size: Int get() = heap.size
     override fun isEmpty(): Boolean = heap.isEmpty()
     public fun comparator(): Comparator<in E>? = ordering
@@ -23,7 +54,7 @@ public open class PriorityQueue<E>(
     override fun add(element: E): Boolean = offer(element)
 
     @IgnorableReturnValue
-    public fun offer(element: E): Boolean {
+    override fun offer(element: E): Boolean {
         if (element == null) throw NullPointerException()
         if (ordering == null && element !is Comparable<*>) throw ClassCastException()
         var insertion = heap.size
@@ -45,15 +76,15 @@ public open class PriorityQueue<E>(
         return true
     }
 
-    public fun peek(): E? = if (isEmpty()) null else heap[0].value
-    public fun poll(): E? = if (isEmpty()) null else removeAt(0)
+    override fun peek(): E? = if (isEmpty()) null else heap[0].value
+    override fun poll(): E? = if (isEmpty()) null else removeAt(0)
 
-    public fun element(): E {
+    override fun element(): E {
         if (isEmpty()) throw NoSuchElementException()
         return heap[0].value
     }
 
-    public fun remove(): E {
+    override fun remove(): E {
         if (isEmpty()) throw NoSuchElementException()
         return removeAt(0)
     }
@@ -166,4 +197,17 @@ public open class PriorityQueue<E>(
             if (owner.modCount != expectedModCount) throw ConcurrentModificationException()
         }
     }
+}
+
+private fun initialCapacityFor(size: Int): Int = if (size < 1) 1 else size
+
+// JDK PriorityQueue(Collection) inspects the runtime collection: a SortedSet
+// or PriorityQueue argument keeps its ordering even through a
+// Collection-typed reference. TreeSet boxes answer `is SortedSet<*>`, so the
+// same instanceof dispatch applies here.
+@Suppress("UNCHECKED_CAST")
+private fun <E> orderingOf(elements: Collection<E>): Comparator<in E>? = when {
+    elements is SortedSet<*> -> elements.comparator() as Comparator<in E>?
+    elements is PriorityQueue<*> -> elements.comparator() as Comparator<in E>?
+    else -> null
 }
