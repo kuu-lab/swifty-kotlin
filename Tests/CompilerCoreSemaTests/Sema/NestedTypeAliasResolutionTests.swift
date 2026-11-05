@@ -265,4 +265,26 @@ struct NestedTypeAliasResolutionTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         _ = try expectAlias(["B", "Alias"], target: ["B", "N"], in: ctx)
     }
+
+    // MARK: - Owner-qualified alias access (KUU-4010)
+
+    @Test func memberTypeAliasQualifiedAccessFromOutsideClass() throws {
+        // KUU-4010 minimal repro: the alias also serves as a parameter type,
+        // `C.T` works in type position, and the enum entry stays reachable
+        // through the owner-qualified alias path (`C.T.X`) from outside the
+        // class. Fixed by KUU-3840; pinned here as regression coverage.
+        let ctx = try context(["""
+        class C {
+            enum class E { X, Y }
+            typealias T = E
+            fun f(t: T) = t
+        }
+        fun check(): C.T {
+            C().f(C.T.X)
+            return C.T.Y
+        }
+        """])
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        _ = try expectAlias(["C", "T"], target: ["C", "E"], in: ctx)
+    }
 }
