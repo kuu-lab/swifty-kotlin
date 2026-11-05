@@ -644,4 +644,167 @@ struct RuntimeRegexTests {
         #expect(unicodeMatch != runtimeNullSentinelInt)
         #expect(matchValue(unicodeMatch) == "b")
     }
+
+    // MARK: - KUU-4169: JVM \p{...} property-name validation
+
+    @Test
+    func jvmRegexPropertyErrorRejectsCaseVariantPosixNames() {
+        // JVM throws PatternSyntaxException for these; ICU accepts them.
+        for pattern in [
+            "\\p{lower}", "\\P{lower}", "\\p{LOWER}", "\\p{lOWER}",
+            "\\p{upper}", "\\p{ascii}", "\\p{alpha}", "\\p{digit}",
+            "\\p{islatin}", "\\p{inGreek}", "\\p{IN_GREEK}",
+            "[\\p{lower}]", "x\\p{lower}y", "(a|\\p{lower})",
+        ] {
+            #expect(jvmRegexPropertyError(pattern) != nil, "expected rejection: \(pattern)")
+        }
+        // Canonical spellings and the (?U) Unicode-POSIX mode stay valid.
+        for pattern in [
+            "\\p{Lower}", "\\p{Upper}", "\\p{ASCII}", "\\p{Alpha}",
+            "\\p{Lu}", "\\p{L}", "\\pL", "\\p{InGreek}", "\\p{IsLatin}",
+            "\\p{Islower}", "\\p{gc=Lu}", "\\p{sc=Latin}", "\\p{blk=Basic Latin}",
+            "(?U)\\p{lower}", "(?U)\\p{LOWER}", "(?U)\\p{lOwEr}", "(?U)\\p{xdigit}",
+            "(?U:\\p{lower})x(?-U:\\p{Lower})", "\\Q\\p{lower}\\E",
+        ] {
+            #expect(jvmRegexPropertyError(pattern) == nil, "expected acceptance: \(pattern)")
+        }
+    }
+
+    @Test
+    func jvmRegexPropertyErrorRejectsIcuOnlyPropertyForms() {
+        // Property keys java.util.regex does not know (ICU accepts them).
+        for pattern in [
+            "\\p{scx=Latn}", "\\p{age=3.0}", "\\p{ccc=0}", "\\p{nv=1}",
+            "\\p{GCB=XX}", "\\p{lb=XX}", "\\p{WB=XX}", "\\p{ea=F}",
+            "\\p{Script_Extensions=Latin}", "\\p{InSC=Latin}",
+        ] {
+            #expect(jvmRegexPropertyError(pattern) != nil, "expected rejection: \(pattern)")
+        }
+        // Bare binary property names need the Is prefix on the JVM.
+        for pattern in [
+            "\\p{Any}", "\\p{any}", "\\p{Word}", "\\p{word}", "\\p{perl}",
+            "\\p{join_control}", "\\p{IDS_Binary_Operator}",
+            "\\p{Changes_When_Uppercased}", "\\p{graph}", "\\p{gc=lu}",
+            "\\p{gc=Decimal_Number}", "\\p{sc=Old Italic}", "\\p{IsBasicLatin}",
+            "\\p{blk=No_Block}", "\\p{InNo_Block}",
+        ] {
+            #expect(jvmRegexPropertyError(pattern) != nil, "expected rejection: \(pattern)")
+        }
+        for pattern in [
+            "\\p{IsAlphabetic}", "\\p{IsEmoji}", "\\p{IsNd}",
+            "\\p{gc=Nd}", "\\p{gc=all}", "\\p{gc=ASCII}", "\\p{sc=Ital}",
+            "\\p{sc=latn}", "\\p{blk=basic latin}", "\\p{block=Basic Latin}",
+            "\\p{Script=GREEK}", "\\p{IsLC}", "\\p{IsL}",
+        ] {
+            #expect(jvmRegexPropertyError(pattern) == nil, "expected acceptance: \(pattern)")
+        }
+    }
+
+    @Test
+    func jvmRegexPropertyErrorTracksFlagsClassesAndQuotes() {
+        // Flag scope: (?U) ends at the enclosing group's ')' on the JVM.
+        #expect(jvmRegexPropertyError("(?U)\\p{lower}") == nil)
+        #expect(jvmRegexPropertyError("(?U)\\p{lower}(?-U)\\p{lower}") != nil)
+        #expect(jvmRegexPropertyError("x(?U)\\p{lower}y(?-U)\\p{lower}") != nil)
+        #expect(jvmRegexPropertyError("(a(?U)\\p{lower})\\p{lower}") != nil)
+        // 'c' (CANON_EQ) is an inline flag letter too: it must not desync
+        // the (?U-...) parse.
+        #expect(jvmRegexPropertyError("(?U-c:\\p{lower})") == nil)
+        #expect(jvmRegexPropertyError("(?c-U:\\p{lower})") != nil)
+        // Inside character classes flag groups are literals, so (?U) there
+        // does not enable POSIX names — but \p escapes still validate.
+        #expect(jvmRegexPropertyError("(?U)[\\p{lower}]") == nil)
+        #expect(jvmRegexPropertyError("[(?U)\\p{lower}]") != nil)
+        #expect(jvmRegexPropertyError("[\\p{lower}]") != nil)
+        #expect(jvmRegexPropertyError("[\\p{Lu}[x]]") == nil)
+        // \Q...\E quotes property-looking text literally, inside and
+        // outside classes.
+        #expect(jvmRegexPropertyError("\\Q\\p{lower}\\E") == nil)
+        #expect(jvmRegexPropertyError("[\\Q\\p{lower}\\E]") == nil)
+        #expect(jvmRegexPropertyError("\\\\Q\\p{lower}\\E") != nil)
+        // COMMENTS mode: whitespace/comments around the name are skipped,
+        // comments work inside classes, and (?-x) turns it back off.
+        #expect(jvmRegexPropertyError("(?x)\\p{ Lu}") == nil)
+        #expect(jvmRegexPropertyError("(?x)\\p {Lu}") == nil)
+        #expect(jvmRegexPropertyError("(?x)\\p {lower}") != nil)
+        #expect(jvmRegexPropertyError("(?x)\\p { Lu }") != nil)
+        #expect(jvmRegexPropertyError("(?x)[#c\n\\p{ Lu}]") == nil)
+        #expect(jvmRegexPropertyError("(?x)(?-x)\\p{ Lu}") != nil)
+        #expect(jvmRegexPropertyError("(?x)\\p{Lu }") != nil)
+        // Initial COMMENTS state (RegexOption.COMMENTS) applies from the
+        // start of the pattern.
+        #expect(jvmRegexPropertyError("\\p{ Lu}", commentsInitially: true) == nil)
+        #expect(jvmRegexPropertyError("(?-x)\\p{ Lu}", commentsInitially: true) != nil)
+        // Malformed property escapes the JVM also rejects.
+        for pattern in ["\\p", "\\p{", "\\p}", "\\p{}", "\\p{=}", "\\p{a=b=c}", "\\p{gc=}", "\\p{L }"] {
+            #expect(jvmRegexPropertyError(pattern) != nil, "expected rejection: \(pattern)")
+        }
+    }
+
+    @Test
+    func invalidPropertyNamesThrowIllegalArgumentException() {
+        for pattern in ["\\p{lower}", "\\p{LOWER}", "\\p{gc=lu}", "\\p{scx=Latn}", "\\p{Any}", "\\p{word}"] {
+            var thrown = 0
+            let raw = withFlatString(pattern) { data, length, byteCount, hash in
+                kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown != 0, "expected IllegalArgumentException: \(pattern)")
+            #expect(raw == 0)
+        }
+        for pattern in ["\\p{Lower}", "\\p{Lu}", "(?U)\\p{lower}", "(?U)\\p{xdigit}", "\\Q\\p{lower}\\E", "[\\p{IsLatin}]"] {
+            var thrown = 0
+            let raw = withFlatString(pattern) { data, length, byteCount, hash in
+                kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown == 0, "expected successful compile: \(pattern)")
+            #expect(raw != 0)
+        }
+    }
+
+    @Test
+    func commentsOptionEnablesWhitespaceInsidePropertyNames() {
+        // RegexOption.COMMENTS (ordinal 4) maps to .allowCommentsAndWhitespace;
+        // the JVM's Pattern.COMMENTS flag likewise permits \p{ Lu }.
+        var thrown = 0
+        let optionRaw = kk_box_int(4)
+        let raw = withFlatString("\\p{ Lu}") { data, length, byteCount, hash in
+            kk_regex_create_with_option_flat(data, length, byteCount, hash, optionRaw, &thrown)
+        }
+        #expect(thrown == 0)
+        #expect(raw != 0)
+
+        var thrownDefault = 0
+        let rejected = withFlatString("\\p{ Lu}") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, &thrownDefault)
+        }
+        #expect(thrownDefault != 0)
+        #expect(rejected == 0)
+    }
+
+    @Test
+    func validPropertyNamesStillMatch() {
+        // Acceptance must not change match semantics: canonical POSIX names
+        // keep their KUU-4148 ASCII defaults, and Unicode names match as
+        // before.
+        let lowerRaw = withFlatString("\\p{Lower}+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let first = regexFind(lowerRaw, input: "AbCäü")
+        #expect(first != runtimeNullSentinelInt)
+        #expect(matchValue(first) == "b")
+
+        let luRaw = withFlatString("\\p{Lu}+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let luMatch = regexFind(luRaw, input: "aBcD")
+        #expect(luMatch != runtimeNullSentinelInt)
+        #expect(matchValue(luMatch) == "B")
+
+        let uLowerRaw = withFlatString("(?U)\\p{lower}+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let uMatch = regexFind(uLowerRaw, input: "aéb")
+        #expect(uMatch != runtimeNullSentinelInt)
+        #expect(matchValue(uMatch) == "aéb")
+    }
 }
