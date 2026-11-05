@@ -765,6 +765,180 @@ public func kk_cpointer_reinterpret(_ handle: Int, _ typeToken: Int) -> Int {
     )
 }
 
+/// `CPointer<T>.getPointer(scope)` — upstream returns `this`; the scope is
+/// accepted for signature parity and ignored.
+@_cdecl("kk_cpointer_get_pointer")
+public func kk_cpointer_get_pointer(_ handle: Int, _ scope: Int) -> Int {
+    _ = scope
+    return handle
+}
+
+/// `CPointer<T>.rawValue` — the raw address as a `NativePtr` box.
+@_cdecl("kk_cpointer_raw_ptr")
+public func kk_cpointer_raw_ptr(_ handle: Int) -> Int {
+    let address = resolveCPointerBox(from: handle)?.address ?? 0
+    return registerRuntimeObject(
+        RuntimeCInteropNativePtrBox(address: address),
+        typeID: cinteropNativePtrTypeID
+    )
+}
+
+/// `plus`/`set` accept the index as a boxed Int on the `Int` overload and a
+/// boxed Long on the `Long` overload; both unbox through the same helper.
+@inline(__always)
+private func cinteropIndexValue(_ raw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          runtimeIsRegisteredObjectPointer(UInt(bitPattern: ptr))
+    else {
+        return raw
+    }
+    if let intBox = tryCast(ptr, to: RuntimeIntBox.self) { return intBox.value }
+    if let longBox = tryCast(ptr, to: RuntimeLongBox.self) { return longBox.value }
+    return raw
+}
+
+/// `CPointer<T>?.plus(index)` — the stride is `sizeOf<pointee>()`, recovered
+/// from the pointee type token stored on the box at allocation time. A null
+/// receiver produces the null sentinel, matching upstream's nullable
+/// receiver/return shape.
+@_cdecl("kk_cpointer_plus")
+public func kk_cpointer_plus(_ handle: Int, _ index: Int) -> Int {
+    guard handle != 0, handle != runtimeNullSentinelInt else {
+        return handle == runtimeNullSentinelInt ? runtimeNullSentinelInt : 0
+    }
+    guard let box = resolveCPointerBox(from: handle) else { return 0 }
+    let stride = runtimeCInteropVarKind(forNominalTypeID: box.pointeeTypeID)?.size ?? 0
+    let offset = cinteropIndexValue(index) &* stride
+    return registerRuntimeObject(
+        RuntimeCPointerBox(
+            address: box.address &+ UInt(bitPattern: offset),
+            pointeeTypeID: box.pointeeTypeID
+        ),
+        typeID: cinteropCPointerTypeID
+    )
+}
+
+/// Shared store path for the per-kind `CPointer<XVarOf<T>>.set` bridges: the
+/// element offset uses the pointee stride stored on the box; `write` stores
+/// the raw `value` word at the computed address.
+@inline(__always)
+private func cinteropStoreCPointerElement(
+    _ handle: Int,
+    _ index: Int,
+    _ value: Int,
+    _ write: (UnsafeMutableRawPointer, Int) -> Void
+) -> Int {
+    guard let box = resolveCPointerBox(from: handle),
+          let base = UnsafeMutableRawPointer(bitPattern: box.address)
+    else {
+        return 0
+    }
+    let stride = runtimeCInteropVarKind(forNominalTypeID: box.pointeeTypeID)?.size ?? 0
+    let offset = cinteropIndexValue(index) &* stride
+    write(base.advanced(by: offset), value)
+    return 0
+}
+
+@_cdecl("kk_cpointer_set_bool")
+public func kk_cpointer_set_bool(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: UInt8(kk_unbox_bool(v) != 0 ? 1 : 0), as: UInt8.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_byte")
+public func kk_cpointer_set_byte(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: UInt8(truncatingIfNeeded: kk_unbox_int(v)), as: UInt8.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_ubyte")
+public func kk_cpointer_set_ubyte(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: UInt8(truncatingIfNeeded: kk_unbox_int(v)), as: UInt8.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_short")
+public func kk_cpointer_set_short(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: Int16(truncatingIfNeeded: kk_unbox_int(v)), as: Int16.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_ushort")
+public func kk_cpointer_set_ushort(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: UInt16(truncatingIfNeeded: kk_unbox_int(v)), as: UInt16.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_int")
+public func kk_cpointer_set_int(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: Int32(truncatingIfNeeded: kk_unbox_int(v)), as: Int32.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_uint")
+public func kk_cpointer_set_uint(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: UInt32(truncatingIfNeeded: kk_unbox_int(v)), as: UInt32.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_long")
+public func kk_cpointer_set_long(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: Int64(kk_unbox_long(v)), as: Int64.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_ulong")
+public func kk_cpointer_set_ulong(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(of: UInt64(bitPattern: Int64(kk_unbox_ulong(v))), as: UInt64.self)
+    }
+}
+
+@_cdecl("kk_cpointer_set_float")
+public func kk_cpointer_set_float(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(
+            of: Float(bitPattern: UInt32(truncatingIfNeeded: kk_unbox_float(v))),
+            as: Float.self
+        )
+    }
+}
+
+@_cdecl("kk_cpointer_set_double")
+public func kk_cpointer_set_double(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        ptr.storeBytes(
+            of: Double(bitPattern: UInt64(truncatingIfNeeded: kk_unbox_double(v))),
+            as: Double.self
+        )
+    }
+}
+
+/// `CPointer<CPointerVarOf<P>>.set(index, value)` — stores the pointee
+/// pointer word; a null `P?` stores 0, matching `kk_cvar_cpointer_store`.
+@_cdecl("kk_cpointer_set_cpointer")
+public func kk_cpointer_set_cpointer(_ handle: Int, _ index: Int, _ value: Int) -> Int {
+    cinteropStoreCPointerElement(handle, index, value) { ptr, v in
+        let address: UInt
+        if let box = resolveCPointerBox(from: v) {
+            address = box.address
+        } else if let opaque = resolveCOpaquePointerBox(from: v) {
+            address = opaque.address
+        } else {
+            address = 0
+        }
+        ptr.storeBytes(of: address, as: UInt.self)
+    }
+}
+
 @_cdecl("kk_interpret_cpointer")
 public func kk_interpret_cpointer(_ nativePtrHandle: Int, _ typeToken: Int) -> Int {
     guard let box = resolveCInteropNativePtrBox(from: nativePtrHandle), box.address != 0 else {
