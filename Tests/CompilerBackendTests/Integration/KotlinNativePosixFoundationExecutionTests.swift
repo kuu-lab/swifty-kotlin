@@ -61,5 +61,64 @@ struct KotlinNativePosixFoundationExecutionTests {
             optLevel: level
         )
     }
+
+    @Test
+    func nsDataCompressionAndMutableDataCreateLengthRoundTrip() throws {
+        TestStdlibCache.shared.prepare()
+        let level = try #require(OptimizationLevel(rawValue: 0))
+        try compileAndRunKotlin(
+            """
+            @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
+            import kotlinx.cinterop.*
+            import platform.Foundation.*
+
+            fun main() {
+                val text = "Compress me, please!"
+                val bytes = text.encodeToByteArray()
+
+                val data = NSMutableData()
+                bytes.usePinned { data.appendBytes(it.addressOf(0), bytes.size.toULong()) }
+
+                val compressed = data.compressedDataUsingAlgorithm(
+                    algorithm = NSDataCompressionAlgorithmZlib,
+                    error = null
+                )!!
+                val hex = StringBuilder()
+                val raw = compressed.bytes!!
+                for (index in 0 until compressed.length.toInt()) {
+                    val value = raw[index].toInt() and 0xFF
+                    hex.append((value shr 4).toString(16)).append((value and 0xF).toString(16))
+                }
+                println("zlib-hex=${hex.toString() == "73cecf2d284a2d2e56c84dd55128c8494d2c4e550400"}")
+
+                val decompressed = compressed.decompressedDataUsingAlgorithm(
+                    algorithm = NSDataCompressionAlgorithmZlib,
+                    error = null
+                )!!
+                println("roundtrip=${NSString.create(decompressed, NSUTF8StringEncoding) == text}")
+
+                for (algorithm in listOf(NSDataCompressionAlgorithmLZFSE,
+                                         NSDataCompressionAlgorithmLZ4,
+                                         NSDataCompressionAlgorithmLZMA,
+                                         NSDataCompressionAlgorithmZlib)) {
+                    val packed = data.compressedDataUsingAlgorithm(algorithm = algorithm, error = null)
+                    val unpacked = packed?.decompressedDataUsingAlgorithm(algorithm = algorithm, error = null)
+                    println("algo-$algorithm=${packed != null && unpacked != null && unpacked.length == data.length.toULong()}")
+                }
+
+                val readData = NSMutableData.create(length = 100.convert())!!
+                println("created=${readData.length == 100uL}")
+                readData.appendBytes(compressed.bytes, compressed.length)
+                println("appended=${readData.length == 100uL + compressed.length}")
+            }
+            """,
+            expectedOutput: "zlib-hex=true\nroundtrip=true\n" +
+                "algo-0=true\nalgo-1=true\nalgo-2=true\nalgo-3=true\n" +
+                "created=true\nappended=true\n",
+            allowDefaultStdlibLibrary: true,
+            optLevel: level
+        )
+    }
 }
 #endif

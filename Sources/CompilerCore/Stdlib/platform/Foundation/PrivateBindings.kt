@@ -35,6 +35,15 @@ internal external fun __foundation_mutable_data_create(): Long
 @KsSymbolName("__kk_foundation_mutable_data_append")
 internal external fun __foundation_mutable_data_append(handle: Long, bytes: CPointer<*>?, length: ULong): Unit
 
+@KsSymbolName("__kk_foundation_mutable_data_create_length")
+internal external fun __foundation_mutable_data_create_length(length: ULong): Long?
+
+@KsSymbolName("__kk_foundation_data_compressed")
+internal external fun __foundation_data_compressed(handle: Long, algorithm: Long): Long?
+
+@KsSymbolName("__kk_foundation_data_decompressed")
+internal external fun __foundation_data_decompressed(handle: Long, algorithm: Long): Long?
+
 @KsSymbolName("__kk_foundation_string_data_using_encoding")
 internal external fun __foundation_string_data_using_encoding(text: String, encoding: ULong): Long?
 

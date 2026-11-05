@@ -6,8 +6,13 @@ import kotlinx.cinterop.CPointer
 
 public class NSMutableData internal constructor(handle: Long) : NSData(handle) {
     public constructor() : this(__foundation_mutable_data_create())
+    public companion object {}
 
     public fun appendBytes(bytes: CPointer<*>?, length: ULong) {
         __foundation_mutable_data_append(__handle, bytes, length)
     }
 }
+
+// +dataWithLength: (NSMutableDataCreation category).
+public fun NSMutableData.Companion.create(length: ULong): NSMutableData? =
+    __foundation_mutable_data_create_length(length)?.let { NSMutableData(it) }
