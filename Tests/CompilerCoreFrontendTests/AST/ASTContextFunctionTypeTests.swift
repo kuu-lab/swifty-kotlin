@@ -116,6 +116,69 @@ struct ASTContextFunctionTypeTests {
         #expect(contextParameter.isContextParameter)
     }
 
+    /// KUU-4291: Kotlin 2.4 context parameters must be named (`name:`) or
+    /// anonymous (`_:`). A bare `context(T)` element is the removed
+    /// context-receiver syntax; kotlinc rejects it per element, so kswiftc
+    /// reports KSWIFTK-PARSE-0030 on each unnamed element.
+    @Test
+    func testUnnamedContextParameterElementsAreRejected() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        interface R
+        context(R)
+        fun single() {}
+        context(R, R)
+        fun multi() {}
+        fun outer() {
+            context(R)
+            fun local() {}
+        }
+        """)
+        let unnamed = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PARSE-0030" }
+        #expect(unnamed.count == 4, "\(ctx.diagnostics.diagnostics)")
+
+        // The clause still attaches for recovery: bare elements stay legacy
+        // (non-parameter) receivers so downstream phases keep working.
+        let single = try #require(firstFunDecl(named: "single", in: ast, interner: ctx.interner))
+        #expect(single.contextReceivers.count == 1)
+        #expect(single.contextReceivers.first?.isContextParameter == false)
+        let multi = try #require(firstFunDecl(named: "multi", in: ast, interner: ctx.interner))
+        #expect(multi.contextReceivers.count == 2)
+        #expect(multi.contextReceivers.allSatisfy { !$0.isContextParameter })
+    }
+
+    @Test
+    func testNamedAndAnonymousContextParametersAreNotRejected() throws {
+        let (_, ctx) = try buildASTModule(from: """
+        interface R
+        context(_: R)
+        fun anon() {}
+        context(r: R)
+        fun named() {}
+        fun apply(block: context(R) () -> String): String = "x"
+        """)
+        #expect(
+            !ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0030" },
+            "\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    /// `context` is a soft keyword usable as an annotation name; `@context(X)`
+    /// must not be mistaken for a context clause (KUU-4291).
+    @Test
+    func testContextAnnotationNameIsNotAContextClause() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        annotation class context(val x: Int)
+        @context(String)
+        fun f() {}
+        """, includeStdlib: false)
+        let function = try #require(firstFunDecl(named: "f", in: ast, interner: ctx.interner))
+        #expect(function.contextReceivers.isEmpty)
+        #expect(
+            !ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0030" },
+            "\(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     @Test
     func testBuildASTParsesNestedGenericContextFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """
