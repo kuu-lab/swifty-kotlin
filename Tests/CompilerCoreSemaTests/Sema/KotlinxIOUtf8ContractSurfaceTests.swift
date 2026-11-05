@@ -273,6 +273,39 @@ struct KotlinxIOUtf8ContractSurfaceTests {
         try #require(signature.returnType == sema.types.longType)
     }
 
+    /// KUU-3924: upstream kotlinx-io 0.9.1 declares
+    /// `internal const val REPLACEMENT_CHARACTER: Char = '\ufffd'` in
+    /// kotlinx.io.internal (-Utf8.kt), and upstream Utf8Test.kt consumes it as
+    /// `REPLACEMENT_CHARACTER.toString()` under INVISIBLE_MEMBER /
+    /// INVISIBLE_REFERENCE suppressions. The bundled port must expose the same
+    /// declaration on both the bundled-source and .kklib surfaces so the import
+    /// no longer fails with SEMA-UNRESOLVED-IMPORT.
+    @Test(arguments: [false, true])
+    func replacementCharacterResolvesForUpstreamInternalConsumers(library: Bool) throws {
+        let ctx = try check("""
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+        import kotlinx.io.internal.REPLACEMENT_CHARACTER
+        import kotlinx.io.internal.REPLACEMENT_CODE_POINT
+        fun replacementProbe(): String {
+            val text: String = REPLACEMENT_CHARACTER.toString()
+            val point: Int = REPLACEMENT_CODE_POINT
+            return text + point.toString()
+        }
+        """, library: library, expectsErrors: false)
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(sema.symbols.lookup(
+            fqName: ["kotlinx", "io", "internal", "REPLACEMENT_CHARACTER"].map(ctx.interner.intern)
+        ))
+        let resolved = try #require(sema.symbols.symbol(symbol))
+        try #require(resolved.kind == .property)
+        try #require(resolved.visibility == .internal)
+        try #require(sema.symbols.constValueExprKind(for: symbol) == .charLiteral(0xfffd))
+        let codePoint = try #require(sema.symbols.lookup(
+            fqName: ["kotlinx", "io", "internal", "REPLACEMENT_CODE_POINT"].map(ctx.interner.intern)
+        ))
+        try #require(sema.symbols.constValueExprKind(for: codePoint) == .intLiteral(0xfffd))
+    }
+
     @Test(arguments: [false, true], ["source.readUtf8()", "sink.writeUtf8(\"A\")",
         "buffer.commonReadUtf8CodePoint()", "buffer.commonWriteUtf8CodePoint(65)"])
     func privateCodecsAndOkioHomonymsDoNotLeakThroughWildcard(library: Bool, forbiddenCall: String) throws {
