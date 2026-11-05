@@ -240,6 +240,9 @@ final class TypeCheckDriver {
             expressionContext.elvisRhsCallResultTypeHint = nil
             expressionContext.elvisRhsCallResultTypeHintExpr = nil
         }
+        // `@OptIn` on an expression scopes to that expression's inference
+        // subtree only; the copied context keeps siblings unaffected.
+        expressionContext = helpers.expressionOptInContext(id, ctx: expressionContext)
         let ctx = expressionContext.syncingImplicitReceiver(from: locals)
         let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
         if let expectedType, sema.bindings.hasSourceDeclaredExpectedType(id) {

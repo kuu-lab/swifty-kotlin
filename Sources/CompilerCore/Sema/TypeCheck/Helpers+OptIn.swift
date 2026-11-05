@@ -432,6 +432,28 @@ extension TypeCheckHelpers {
         return copy
     }
 
+    /// Opt-ins granted by `@OptIn` annotations attached to the expression `id`.
+    /// The markers join `inheritedOptInMarkers` on a copied context, so they
+    /// stay active for the expression's whole inference subtree — nested calls
+    /// and lambdas included — without leaking into sibling expressions.
+    func expressionOptInContext(_ id: ExprID, ctx: TypeInferenceContext) -> TypeInferenceContext {
+        let annotations = ctx.ast.arena.expressionAnnotations(for: id)
+        guard !annotations.isEmpty,
+              annotations.contains(where: { KnownCompilerAnnotation.optIn.matches($0.name) }),
+              let file = currentFile(in: ctx)
+        else {
+            return ctx
+        }
+        var copy = ctx
+        collectOptInMarkers(
+            from: annotations.filter { KnownCompilerAnnotation.optIn.matches($0.name) },
+            file: file,
+            ctx: ctx,
+            into: &copy.inheritedOptInMarkers
+        )
+        return copy
+    }
+
     private func activeOptInMarkers(in ctx: TypeInferenceContext) -> Set<SymbolID> {
         var markers = ctx.accessorOptInMarkers.union(ctx.inheritedOptInMarkers)
         let file = currentFile(in: ctx)
