@@ -749,8 +749,14 @@ extension ExprTypeChecker {
                 // KUU-4152: the implicit setter's effective visibility is the
                 // property's own modifier, otherwise the overridden setter's.
                 if declBySymbolCache == nil {
+                    // `declSymbols` can hold two decls bound to one
+                    // deduplicated symbol when `SymbolTable.define` reuses
+                    // an existing symbol for a colliding FQName; the reverse
+                    // map only needs a representative decl, so keep the
+                    // first like every other declBySymbol consumer.
                     declBySymbolCache = Dictionary(
-                        uniqueKeysWithValues: sema.bindings.declSymbols.map { ($0.value, $0.key) }
+                        sema.bindings.declSymbols.map { ($0.value, $0.key) },
+                        uniquingKeysWith: { first, _ in first }
                     )
                 }
                 if let effective = DataFlowSemaPhase().implicitOverrideSetterVisibility(
@@ -774,8 +780,14 @@ extension ExprTypeChecker {
                )
             {
                 if declBySymbolCache == nil {
+                    // `declSymbols` can hold two decls bound to one
+                    // deduplicated symbol when `SymbolTable.define` reuses
+                    // an existing symbol for a colliding FQName; the reverse
+                    // map only needs a representative decl, so keep the
+                    // first like every other declBySymbol consumer.
                     declBySymbolCache = Dictionary(
-                        uniqueKeysWithValues: sema.bindings.declSymbols.map { ($0.value, $0.key) }
+                        sema.bindings.declSymbols.map { ($0.value, $0.key) },
+                        uniquingKeysWith: { first, _ in first }
                     )
                 }
                 if let effective = DataFlowSemaPhase().implicitOverrideMemberVisibility(
@@ -785,7 +797,9 @@ extension ExprTypeChecker {
                     parameterTypes: nil,
                     declBySymbol: declBySymbolCache ?? [:],
                     ast: ast,
-                    symbols: sema.symbols
+                    symbols: sema.symbols,
+                    childMember: propertySymbol,
+                    types: sema.types
                 ) {
                     sema.symbols.setVisibility(effective, for: propertySymbol)
                 }
@@ -1650,8 +1664,14 @@ extension ExprTypeChecker {
                )
             {
                 if declBySymbolCache == nil {
+                    // `declSymbols` can hold two decls bound to one
+                    // deduplicated symbol when `SymbolTable.define` reuses
+                    // an existing symbol for a colliding FQName; the reverse
+                    // map only needs a representative decl, so keep the
+                    // first like every other declBySymbol consumer.
                     declBySymbolCache = Dictionary(
-                        uniqueKeysWithValues: sema.bindings.declSymbols.map { ($0.value, $0.key) }
+                        sema.bindings.declSymbols.map { ($0.value, $0.key) },
+                        uniquingKeysWith: { first, _ in first }
                     )
                 }
                 if let effective = DataFlowSemaPhase().implicitOverrideMemberVisibility(
@@ -1661,7 +1681,9 @@ extension ExprTypeChecker {
                     parameterTypes: parameterTypes,
                     declBySymbol: declBySymbolCache ?? [:],
                     ast: ast,
-                    symbols: sema.symbols
+                    symbols: sema.symbols,
+                    childMember: memberSymbol,
+                    types: sema.types
                 ) {
                     sema.symbols.setVisibility(effective, for: memberSymbol)
                 }

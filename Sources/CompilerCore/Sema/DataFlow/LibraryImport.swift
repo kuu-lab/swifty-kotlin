@@ -374,7 +374,20 @@ extension DataFlowSemaPhase {
             switch record.modality {
             case .abstract: flags.insert(.abstractType)
             case .open: flags.insert(.openType)
-            case .final: break
+            case .final:
+                // Kotlin members are final unless `open`/`abstract`, but an
+                // `override` member is implicitly open unless spelled `final`.
+                // Metadata records that `final` as modality .final, so member
+                // kinds must keep the flag — dropping it made imported
+                // `final override` members (e.g. kotlin.Enum.compareTo)
+                // look overridable to the Open/Final/Override checks
+                // (KUU-4170). Nominal kinds stay flag-free: finality is their
+                // default and no check reads `.finalMember` off them.
+                if record.kind == .function || record.kind == .property
+                    || record.kind == .field
+                {
+                    flags.insert(.finalMember)
+                }
             }
             if record.isSealedClass { flags.insert(.sealedType) }
             if record.isFunInterface { flags.insert(.funInterface) }
