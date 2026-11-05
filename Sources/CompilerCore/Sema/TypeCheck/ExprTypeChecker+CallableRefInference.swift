@@ -2627,6 +2627,7 @@ extension ExprTypeChecker {
         return candidates.filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
+                  sema.symbols.isFilePrivateTopLevelVisible(symbol, fileID: ctx.currentFileID),
                   isCompanionExtension(candidate, ctx: ctx),
                   let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
             else {

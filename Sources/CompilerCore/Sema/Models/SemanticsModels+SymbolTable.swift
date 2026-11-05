@@ -1274,6 +1274,23 @@ public final class SymbolTable {
         return existingFile != fileID
     }
 
+    /// Whether `symbol` may be a resolution candidate for `fileID` when
+    /// collecting same-package top-level members. Kotlin `private`
+    /// declarations are file-scoped: a private symbol declared in another
+    /// file is invisible here and must be skipped during candidate
+    /// collection, or the invisible declaration can win over a visible
+    /// alternative (e.g. a wildcard-imported enum entry) and the use site
+    /// then reports SEMA-0040 (KUU-4312). This mirrors
+    /// `VisibilityChecker.isAccessible`'s private branch: imported private
+    /// symbols are never visible, the declaration site decides otherwise,
+    /// and symbols without one stay visible.
+    func isFilePrivateTopLevelVisible(_ symbol: SemanticSymbol, fileID: FileID) -> Bool {
+        guard symbol.visibility == .private else { return true }
+        if symbol.flags.contains(.importedLibrary) { return false }
+        guard let declarationFile = symbol.declSite?.start.file else { return true }
+        return declarationFile == fileID
+    }
+
     private func canCoexistAsOverload(
         kind: SymbolKind,
         existingSymbols: [SemanticSymbol],
