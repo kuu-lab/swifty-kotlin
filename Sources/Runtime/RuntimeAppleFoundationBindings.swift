@@ -146,6 +146,80 @@ public func __kk_foundation_mutable_data_append(_ handle: Int, _ bytes: Int, _ l
     #endif
 }
 
+@_cdecl("__kk_foundation_mutable_data_create_length")
+public func __kk_foundation_mutable_data_create_length(_ length: Int,
+                                                       _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    guard length >= 0 else {
+        return foundationFailure("Invalid NSMutableData length", outThrown)
+    }
+    guard let data = NSMutableData(length: length) else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_long_nonnull(runtimeForeignResourceCreate(data))
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
+#if canImport(Darwin)
+/// NSDataCompressionAlgorithm raw values from NSData.h (NS_ENUM(NSInteger)).
+private func runtimeFoundationCompressionAlgorithm(_ raw: Int) -> NSData.CompressionAlgorithm? {
+    switch raw {
+    case 0: return .lzfse
+    case 1: return .lz4
+    case 2: return .lzma
+    case 3: return .zlib
+    default: return nil
+    }
+}
+#endif
+
+@_cdecl("__kk_foundation_data_compressed")
+public func __kk_foundation_data_compressed(_ handle: Int, _ algorithm: Int,
+                                            _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    guard let data = runtimeForeignResource(handle, as: NSData.self) else {
+        return foundationFailure("Invalid NSData", outThrown)
+    }
+    guard let algorithm = runtimeFoundationCompressionAlgorithm(algorithm) else {
+        return foundationFailure("Unknown NSDataCompressionAlgorithm", outThrown)
+    }
+    do {
+        let compressed = try data.compressed(using: algorithm)
+        return kk_box_long_nonnull(runtimeForeignResourceCreate(compressed as NSData))
+    } catch {
+        return runtimeNullSentinelInt
+    }
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
+@_cdecl("__kk_foundation_data_decompressed")
+public func __kk_foundation_data_decompressed(_ handle: Int, _ algorithm: Int,
+                                              _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    #if canImport(Darwin)
+    guard let data = runtimeForeignResource(handle, as: NSData.self) else {
+        return foundationFailure("Invalid NSData", outThrown)
+    }
+    guard let algorithm = runtimeFoundationCompressionAlgorithm(algorithm) else {
+        return foundationFailure("Unknown NSDataCompressionAlgorithm", outThrown)
+    }
+    do {
+        let decompressed = try data.decompressed(using: algorithm)
+        return kk_box_long_nonnull(runtimeForeignResourceCreate(decompressed as NSData))
+    } catch {
+        return runtimeNullSentinelInt
+    }
+    #else
+    return foundationFailure("Apple Foundation requires Darwin", outThrown)
+    #endif
+}
+
 @_cdecl("__kk_foundation_string_data_using_encoding")
 public func __kk_foundation_string_data_using_encoding(_ textRaw: Int, _ encoding: Int,
                                                        _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

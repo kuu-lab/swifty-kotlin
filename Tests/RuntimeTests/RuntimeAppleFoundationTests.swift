@@ -165,6 +165,85 @@ struct RuntimeAppleFoundationTests {
         try getBufferForwardsExactMutableNativeOutputsAndRejectsNullStorage()
     }
 
+    @Test func nsDataCompressionRoundTripsAndMutableDataCreateLength() throws {
+        let payload = Array("Compress me, please!".utf8)
+        let bytes = UnsafeMutablePointer<UInt8>.allocate(capacity: payload.count)
+        defer { bytes.deallocate() }
+        bytes.initialize(from: payload, count: payload.count)
+        let pointer = registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: bytes)))
+        defer { _ = runtimeReleaseObject(pointer) }
+        var thrown = 0
+        let token = __kk_foundation_data_create(pointer, payload.count, 0, 0, &thrown)
+        try #require(thrown == 0)
+        defer { runtimeForeignResourceDiscardUnattached(token) }
+
+        // NSDataCompressionAlgorithmZlib == 3 (NSData.h NS_ENUM order).
+        let compressedBoxed = __kk_foundation_data_compressed(token, 3, &thrown)
+        try #require(thrown == 0)
+        #expect(compressedBoxed != runtimeNullSentinelInt)
+        let compressedHandle = kk_unbox_long(compressedBoxed)
+        defer { runtimeForeignResourceDiscardUnattached(compressedHandle) }
+        let compressed = try #require(runtimeForeignResource(compressedHandle, as: NSData.self))
+        #expect(compressed.length == 22)
+        let expectedZlib: [UInt8] = [0x73, 0xce, 0xcf, 0x2d, 0x28, 0x4a, 0x2d, 0x2e,
+                                      0x56, 0xc8, 0x4d, 0xd5, 0x51, 0x28, 0xc8, 0x49,
+                                      0x4d, 0x2c, 0x4e, 0x55, 0x04, 0x00]
+        #expect(Array(compressed as Data) == expectedZlib)
+
+        let decompressedBoxed = __kk_foundation_data_decompressed(compressedHandle, 3, &thrown)
+        try #require(thrown == 0)
+        #expect(decompressedBoxed != runtimeNullSentinelInt)
+        let decompressedHandle = kk_unbox_long(decompressedBoxed)
+        defer { runtimeForeignResourceDiscardUnattached(decompressedHandle) }
+        let decompressed = try #require(runtimeForeignResource(decompressedHandle, as: NSData.self))
+        #expect(Array(decompressed as Data) == payload)
+
+        // LZFSE=0, LZ4=1, LZMA=2 also round-trip through the same bridges.
+        for algorithm in 0...2 {
+            let compressedOther = __kk_foundation_data_compressed(token, algorithm, &thrown)
+            try #require(thrown == 0)
+            #expect(compressedOther != runtimeNullSentinelInt)
+            let otherHandle = kk_unbox_long(compressedOther)
+            let restored = __kk_foundation_data_decompressed(otherHandle, algorithm, &thrown)
+            try #require(thrown == 0)
+            #expect(restored != runtimeNullSentinelInt)
+            let restoredHandle = kk_unbox_long(restored)
+            let restoredData = try #require(runtimeForeignResource(restoredHandle, as: NSData.self))
+            #expect(Array(restoredData as Data) == payload)
+            runtimeForeignResourceDiscardUnattached(otherHandle)
+            runtimeForeignResourceDiscardUnattached(restoredHandle)
+        }
+
+        // An undefined algorithm value throws rather than corrupting state.
+        _ = __kk_foundation_data_compressed(token, 99, &thrown)
+        #expect(thrown != 0)
+        _ = runtimeReleaseObject(thrown)
+        thrown = 0
+
+        // Decompressing uncompressed bytes follows the nullable API: nil, no throw.
+        let invalidDecompressed = __kk_foundation_data_decompressed(token, 3, &thrown)
+        #expect(thrown == 0)
+        #expect(invalidDecompressed == runtimeNullSentinelInt)
+
+        // +dataWithLength: zero-fills and reports the requested length.
+        let mutableBoxed = __kk_foundation_mutable_data_create_length(8, &thrown)
+        try #require(thrown == 0)
+        #expect(mutableBoxed != runtimeNullSentinelInt)
+        let mutableHandle = kk_unbox_long(mutableBoxed)
+        defer { runtimeForeignResourceDiscardUnattached(mutableHandle) }
+        let mutable = try #require(runtimeForeignResource(mutableHandle, as: NSMutableData.self))
+        #expect(mutable.length == 8)
+        let mutableBytes = mutable.bytes
+        for index in 0..<mutable.length {
+            #expect(mutableBytes.load(fromByteOffset: index, as: UInt8.self) == 0)
+        }
+
+        // A negative length (e.g. a ULong above Int64.max) is rejected, not crashed.
+        _ = __kk_foundation_mutable_data_create_length(-1, &thrown)
+        #expect(thrown != 0)
+        _ = runtimeReleaseObject(thrown)
+    }
+
     @Test func actualNSErrorUserInfoKeepsOriginalKotlinCauseIdentity() throws {
         let cause = runtimeAllocateIllegalArgumentException(message: "original Kotlin cause")
         defer { _ = runtimeReleaseObject(cause) }
