@@ -72,4 +72,23 @@ extension StdlibArtifactRegressionTests {
             #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "worker\nfalse\nworker\ntrue\n7\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\ninvalid priority\nsurvived\nmain finished\nnon-daemon finished\n")
         }
     }
+
+    /// KUU-4283: bundled java.lang.Thread implements java.lang.Runnable, so a
+    /// Thread instance is assignable to Runnable and runs through the
+    /// Executor/FutureTask surfaces like on the JVM.
+    @Test
+    func testThreadIsRunnableThroughStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = try diffCaseSource("kuu_4283_thread_runnable.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { inputPath in
+            let outputPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let context = try runCodegenPipeline(inputPath: inputPath, moduleName: "ThreadRunnable", outputPath: outputPath, optLevel: .O0, allowDefaultStdlibLibrary: false, stdlibLibraryPath: artifactPath, prepareTestStdlibCache: false)
+            try assertNoDiagnosticErrors(context)
+            try LinkPhase().run(context)
+            let result = try CommandRunner.run(executable: outputPath, arguments: [], timeout: 20)
+            #expect(result.exitCode == 0, "\(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "true\ntrue\nthread\nother\nthread-body\ntrue\nfalse\nthread-body\ndone\ntrue\n")
+        }
+    }
 }

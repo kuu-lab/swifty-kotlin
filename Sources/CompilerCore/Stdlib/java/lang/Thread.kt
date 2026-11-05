@@ -31,7 +31,7 @@ public open class Thread private constructor(
     private val target: Runnable?,
     initialName: String?,
     currentThread: kotlin.Boolean
-) {
+) : Runnable {
     private val threadId: kotlin.Long = allocateId()
     public var name: String = initialName ?: allocateName()
     public var isDaemon: kotlin.Boolean = false
@@ -85,7 +85,7 @@ public open class Thread private constructor(
     public val id: kotlin.Long
         get() = threadId
 
-    public open fun run() {
+    public open override fun run() {
         target?.run()
     }
 
