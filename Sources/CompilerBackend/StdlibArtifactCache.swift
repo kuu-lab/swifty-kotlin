@@ -618,6 +618,19 @@ public enum StdlibArtifactBuilder {
             interner: StringInterner()
         )
 
+        func describeDiagnostics() -> String {
+            context.diagnostics.diagnostics
+                .map { diagnostic in
+                    guard let range = diagnostic.primaryRange else {
+                        return "\(diagnostic.code): \(diagnostic.message)"
+                    }
+                    let location = context.sourceManager.lineColumn(of: range.start)
+                    let path = context.sourceManager.path(of: range.start.file)
+                    return "\(path):\(location.line):\(location.column): \(diagnostic.code): \(diagnostic.message)"
+                }
+                .joined(separator: "; ")
+        }
+
         do {
             try LoadSourcesPhase().run(context)
             try LexPhase().run(context)
@@ -628,17 +641,12 @@ public enum StdlibArtifactBuilder {
             try LoweringPhase().run(context)
             try CodegenPhase().run(context)
         } catch {
-            let diagnostics = context.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: "; ")
+            let diagnostics = describeDiagnostics()
             throw Error.diagnostics(diagnostics.isEmpty ? String(describing: error) : diagnostics)
         }
 
         if context.diagnostics.hasError {
-            let diagnostics = context.diagnostics.diagnostics
-                .map { "\($0.code): \($0.message)" }
-                .joined(separator: "; ")
-            throw Error.diagnostics(diagnostics)
+            throw Error.diagnostics(describeDiagnostics())
         }
 
         let artifactPath = outputBase.hasSuffix(".kklib") ? outputBase : outputBase + ".kklib"
