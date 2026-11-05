@@ -79,7 +79,22 @@ package final class MetadataEncoder {
                 {
                     return false
                 }
-                let includeNonPublicSymbol = includeNonPublic || requiredNonPublicSymbols.contains(symbol.id)
+                // Expect/actual contracts must reach the matching compilation
+                // at any visibility: Kotlin/Native klibs carry internal
+                // declarations and a platform source set is a friend module of
+                // its common module, so an `internal expect` member (the
+                // kotlinx-datetime `Instant.Companion.MIN` shape) is part of
+                // the contract the consumer must validate. Without the record
+                // the expect/actual check never sees the member and mismatched
+                // or missing actuals go undiagnosed (KUU-4287). Imported
+                // internal symbols stay invisible to source lookups
+                // (VisibilityChecker), so exporting the contract records
+                // leaks no callable API.
+                let isExpectActualContract = symbol.flags.contains(.expectDeclaration)
+                    || symbol.flags.contains(.actualDeclaration)
+                let includeNonPublicSymbol = includeNonPublic
+                    || requiredNonPublicSymbols.contains(symbol.id)
+                    || isExpectActualContract
                 if !includeNonPublicSymbol && symbol.visibility != .public && symbol.visibility != .protected {
                     return false
                 }
