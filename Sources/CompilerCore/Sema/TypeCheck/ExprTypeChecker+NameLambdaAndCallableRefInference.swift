@@ -477,12 +477,34 @@ extension ExprTypeChecker {
                 range: nameRange,
                 diagnostics: ctx.sema.diagnostics
             )
-            driver.helpers.checkOptIn(
-                for: preferredCandidate.id,
-                ctx: ctx,
-                range: nameRange,
-                diagnostics: ctx.sema.diagnostics
-            )
+            // An object referenced purely as a member-call qualifier does
+            // not need its own opt-in check: the resolved callee re-checks
+            // the same markers through owner propagation (members) or the
+            // receiver type in the callee's signature (extensions). Keeping
+            // the qualifier check would double-report one marker, e.g.
+            // `UnsafeBufferOperations.readFromHead` warns once for the call
+            // instead of once for the object reference and once for the
+            // extension (KUU-4299). Objects with nested classifiers keep the
+            // check because a following classifier segment does not propagate
+            // the owner's markers.
+            let qualifierObjectSkipsOptIn = isQualifier
+                && preferredCandidate.kind == .object
+                && !sema.symbols.children(of: preferredCandidate.id).contains { child in
+                    switch sema.symbols.symbol(child)?.kind {
+                    case .class, .interface, .enumClass, .object, .annotationClass, .typeAlias:
+                        return true
+                    default:
+                        return false
+                    }
+                }
+            if !qualifierObjectSkipsOptIn {
+                driver.helpers.checkOptIn(
+                    for: preferredCandidate.id,
+                    ctx: ctx,
+                    range: nameRange,
+                    diagnostics: ctx.sema.diagnostics
+                )
+            }
             // DEBT-SEMA-003: a property's initializer referencing the property's
             // own symbol reads it before it has ever been assigned a value.
             if let initializingPropertySymbol = ctx.initializingPropertySymbol,

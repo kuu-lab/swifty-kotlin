@@ -191,6 +191,27 @@ extension CallTypeChecker {
                                   && (importDecl.alias ?? symbol.name) == calleeName
                           }) else { return false }
                 }
+                // Bundled source-backed extensions obey Kotlin's package
+                // visibility: without an explicit import they are only
+                // callable from their own package or a default-import
+                // package (KUU-4299). The lenient short-name recovery stays
+                // for bundled-stdlib call sites, which rely on it for
+                // cross-package helpers such as kotlinx.io.unsafe.
+                if isSourceBackedExtension, !scopedCandidates.contains(candidate),
+                   let file = ctx.currentASTFile,
+                   driver.sourceManager?.origin(of: ctx.currentFileID) == .user
+                {
+                    let candidatePackage = Array(symbol.fqName.dropLast())
+                    let visibleWithoutImport = candidatePackage == file.packageFQName
+                        || TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner)
+                            .contains(candidatePackage)
+                    let explicitlyImported = file.imports.contains { importDecl in
+                        if importDecl.isWildcard { return importDecl.path == candidatePackage }
+                        return importDecl.path == symbol.fqName
+                            && (importDecl.alias ?? symbol.name) == calleeName
+                    }
+                    guard visibleWithoutImport || explicitlyImported else { return false }
+                }
                 guard !symbol.flags.contains(.localFunction),
                       symbol.flags.contains(.synthetic) || isSourceBackedExtension else {
                     return false
