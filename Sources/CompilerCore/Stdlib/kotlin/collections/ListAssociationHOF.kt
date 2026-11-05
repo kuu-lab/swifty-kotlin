@@ -56,58 +56,54 @@ public fun <T, V> List<T>.associateWith(valueTransform: (T) -> V): Map<T, V> {
     return result as Map<T, V>
 }
 
-public fun <T, K, V, M : MutableMap<K, V>> List<T>.associateTo(
+public fun <T, K, V, M : MutableMap<in K, in V>> List<T>.associateTo(
     destination: M,
     transform: (T) -> Pair<K, V>
 ): M {
-    val dest: MutableMap<K, V> = destination
     var i = 0
     while (i < size) {
         val pair = transform(this[i])
-        dest[pair.first] = pair.second
+        destination.put(pair.first, pair.second)
         i += 1
     }
     return destination
 }
 
-public fun <T, K, M : MutableMap<K, T>> List<T>.associateByTo(
+public fun <T, K, M : MutableMap<in K, in T>> List<T>.associateByTo(
     destination: M,
     keySelector: (T) -> K
 ): M {
-    val dest: MutableMap<K, T> = destination
     var i = 0
     while (i < size) {
         val elem = this[i]
-        dest[keySelector(elem)] = elem
+        destination.put(keySelector(elem), elem)
         i += 1
     }
     return destination
 }
 
-public fun <T, K, V, M : MutableMap<K, V>> List<T>.associateByTo(
+public fun <T, K, V, M : MutableMap<in K, in V>> List<T>.associateByTo(
     destination: M,
     keySelector: (T) -> K,
     valueTransform: (T) -> V
 ): M {
-    val dest: MutableMap<K, V> = destination
     var i = 0
     while (i < size) {
         val elem = this[i]
-        dest[keySelector(elem)] = valueTransform(elem)
+        destination.put(keySelector(elem), valueTransform(elem))
         i += 1
     }
     return destination
 }
 
-public fun <T, V, M : MutableMap<T, V>> List<T>.associateWithTo(
+public fun <T, V, M : MutableMap<in T, in V>> List<T>.associateWithTo(
     destination: M,
     valueTransform: (T) -> V
 ): M {
-    val dest: MutableMap<T, V> = destination
     var i = 0
     while (i < size) {
         val elem = this[i]
-        dest[elem] = valueTransform(elem)
+        destination.put(elem, valueTransform(elem))
         i += 1
     }
     return destination
@@ -155,20 +151,19 @@ public inline fun <T, K, V> List<T>.groupBy(
     return result as Map<K, List<V>>
 }
 
-public fun <T, K, M : MutableMap<K, MutableList<T>>> List<T>.groupByTo(
+public fun <T, K, M : MutableMap<in K, MutableList<T>>> List<T>.groupByTo(
     destination: M,
     keySelector: (T) -> K
 ): M {
-    val dest: MutableMap<K, MutableList<T>> = destination
     var i = 0
     while (i < size) {
         val elem = this[i]
         val key = keySelector(elem)
-        val existing = dest[key]
+        val existing = destination[key]
         if (existing == null) {
             val bucket = mutableListOf<T>()
             bucket.add(elem)
-            dest[key] = bucket
+            destination[key] = bucket
         } else {
             existing.add(elem)
         }
@@ -177,22 +172,21 @@ public fun <T, K, M : MutableMap<K, MutableList<T>>> List<T>.groupByTo(
     return destination
 }
 
-public fun <T, K, V, M : MutableMap<K, MutableList<V>>> List<T>.groupByTo(
+public fun <T, K, V, M : MutableMap<in K, MutableList<V>>> List<T>.groupByTo(
     destination: M,
     keySelector: (T) -> K,
     valueTransform: (T) -> V
 ): M {
-    val dest: MutableMap<K, MutableList<V>> = destination
     var i = 0
     while (i < size) {
         val elem = this[i]
         val key = keySelector(elem)
         val value = valueTransform(elem)
-        val existing = dest[key]
+        val existing = destination[key]
         if (existing == null) {
             val bucket = mutableListOf<V>()
             bucket.add(value)
-            dest[key] = bucket
+            destination[key] = bucket
         } else {
             existing.add(value)
         }
