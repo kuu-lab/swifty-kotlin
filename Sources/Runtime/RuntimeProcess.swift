@@ -190,39 +190,197 @@ private final class RuntimeProcessPipeOutputSink: RuntimeOutputStreamSink {
     }
 }
 
-private final class RuntimeProcessBox: @unchecked Sendable {
+/// JDK `ProcessBuilder.NullOutputStream`: every non-empty write fails with
+/// `IOException("Stream closed")`; `flush()`/`close()` are no-ops.
+private final class RuntimeNullOutputStreamSink: RuntimeOutputStreamSink {
+    func write(_ data: Data) throws {
+        guard !data.isEmpty else { return }
+        throw RuntimeKotlinThrownError(thrownRaw: runtimeAllocateIOException(message: "Stream closed"))
+    }
+
+    func flush() throws {}
+    func close() {}
+    func closeThrowing() throws {}
+}
+
+/// One stream's redirection target, decoded from the `ProcessBuilder` spec
+/// strings passed to `__kk_process_start_full`.
+private enum RuntimeProcessRedirectKind {
+    case pipe
+    case inherit
+    case discard
+    case fileRead
+    case fileWrite
+    case fileAppend
+}
+
+private struct RuntimeProcessRedirectSpec {
+    var kind: RuntimeProcessRedirectKind
+    var path: String?
+}
+
+/// Parses `"P"`/`"I"`/`"D"` or `kind + path` (`R`/`W`/`A`); returns nil on
+/// malformed input so the spawn fails instead of silently mis-wiring I/O.
+private func runtimeParseRedirectSpec(_ spec: String) -> RuntimeProcessRedirectSpec? {
+    guard let kindChar = spec.first else { return nil }
+    let path = spec.count > 1 ? String(spec.dropFirst()) : nil
+    switch kindChar {
+    case "P": return RuntimeProcessRedirectSpec(kind: .pipe, path: nil)
+    case "I": return RuntimeProcessRedirectSpec(kind: .inherit, path: nil)
+    case "D": return RuntimeProcessRedirectSpec(kind: .discard, path: nil)
+    case "R": return path.map { RuntimeProcessRedirectSpec(kind: .fileRead, path: $0) }
+    case "W": return path.map { RuntimeProcessRedirectSpec(kind: .fileWrite, path: $0) }
+    case "A": return path.map { RuntimeProcessRedirectSpec(kind: .fileAppend, path: $0) }
+    default: return nil
+    }
+}
+
+/// Opens `path` for child stdio redirection. `writing` selects
+/// `O_WRONLY|O_CREAT` with `O_TRUNC` or `O_APPEND`; reads use `O_RDONLY`.
+/// The returned handle owns the descriptor (`closeOnDealloc`).
+private func runtimeOpenProcessRedirectFile(path: String, writing: Bool, append: Bool) -> FileHandle? {
+    let flags: Int32
+    if writing {
+        flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC)
+    } else {
+        flags = O_RDONLY
+    }
+    let fd = open(path, flags, 0o666)
+    guard fd >= 0 else { return nil }
+    return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+}
+
+private func runtimeOpenDevNull(writing: Bool) -> FileHandle? {
+    let fd = open("/dev/null", writing ? O_WRONLY : O_RDONLY)
+    guard fd >= 0 else { return nil }
+    return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+}
+
+/// Tracks one spawned child: exit status (published by a monitor thread that
+/// reaps the process exactly once), the optional parent-held pipe ends, and
+/// the lazy stream boxes exposed through `Process.getXStream()`.
+final class RuntimeProcessBox: @unchecked Sendable {
     let process: Foundation.Process
-    /// Parent-held pipe ends. `stdinPipe.fileHandleForWriting` feeds the
-    /// child's stdin; `stdoutPipe`/`stderrPipe.fileHandleForReading` drain the
-    /// child's stdout/stderr. The child-side ends were closed right after
+    let pid: pid_t
+    /// Parent-held pipe ends; each is non-nil exactly when that stream was
+    /// redirected to `PIPE`. The child-side ends were closed right after
     /// `run()` so reads observe EOF when the child exits.
-    let stdinPipe: Pipe
-    let stdoutPipe: Pipe
-    let stderrPipe: Pipe
+    let stdinPipe: Pipe?
+    let stdoutPipe: Pipe?
+    let stderrPipe: Pipe?
+
+    private let exitLock = NSCondition()
+    private var exited = false
+    private var exitStatus = 0
+    private var exitMonitorStarted = false
+
     private let streamLock = NSLock()
-    private var inputStreamBox: RuntimeProcessPipeInputStreamBox?
+    private var inputStreamBox: RuntimeInputStreamBox?
     private var outputStreamBox: RuntimeOutputStreamBox?
-    private var errorStreamBox: RuntimeProcessPipeInputStreamBox?
+    private var errorStreamBox: RuntimeInputStreamBox?
+    private var nullInputStreamBox: RuntimeInputStreamBox?
+    private var nullOutputStreamBox: RuntimeOutputStreamBox?
     private var inputStreamRawValue = 0
     private var outputStreamRawValue = 0
     private var errorStreamRawValue = 0
+    private var nullInputStreamRawValue = 0
+    private var nullOutputStreamRawValue = 0
 
-    init(_ process: Foundation.Process, stdinPipe: Pipe, stdoutPipe: Pipe, stderrPipe: Pipe) {
+    init(process: Foundation.Process, pid: pid_t, stdinPipe: Pipe?, stdoutPipe: Pipe?, stderrPipe: Pipe?) {
         self.process = process
+        self.pid = pid
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
         self.stderrPipe = stderrPipe
     }
 
-    func waitFor() -> Int {
-        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-        process.waitUntilExit()
-        if gcBlocking { runtimeGCSafepoints.endBlocking() }
-        return Int(process.terminationStatus)
+    /// Spawns a daemon thread that reaps the child exactly once and publishes
+    /// its decoded exit status (128+signal for signal deaths, matching the
+    /// JDK's `exitValue()` for `kill -TERM`/`kill -KILL` children).
+    func startExitMonitor(registry: RuntimeProcessRegistry) {
+        exitLock.lock()
+        if exitMonitorStarted {
+            exitLock.unlock()
+            return
+        }
+        exitMonitorStarted = true
+        exitLock.unlock()
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+            self.process.waitUntilExit()
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
+            let status: Int
+            if self.process.terminationReason == .uncaughtSignal {
+                status = 128 + Int(self.process.terminationStatus)
+            } else {
+                status = Int(self.process.terminationStatus)
+            }
+            self.markExited(status: status)
+            registry.removePidMapping(pid: self.pid, box: self)
+        }
     }
 
+    private func markExited(status: Int) {
+        exitLock.lock()
+        exited = true
+        exitStatus = status
+        exitLock.broadcast()
+        exitLock.unlock()
+    }
+
+    /// Blocks until the monitor publishes the exit status.
+    func waitFor() -> Int {
+        exitLock.lock()
+        while !exited {
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+            exitLock.wait()
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
+        }
+        let status = exitStatus
+        exitLock.unlock()
+        return status
+    }
+
+    /// Non-blocking check followed by a timed wait on the exit condition.
+    /// `timeoutNanos <= 0` polls once, matching `Process.waitFor(long, unit)`
+    /// for non-positive timeouts.
+    func waitFor(timeoutNanos: Int64) -> Bool {
+        exitLock.lock()
+        defer { exitLock.unlock() }
+        var remainingNanos = timeoutNanos
+        let startUptime = DispatchTime.now().uptimeNanoseconds
+        while !exited {
+            if remainingNanos <= 0 { return false }
+            // NSCondition.wait(until:) takes a wall-clock Date; cap each slice
+            // so a huge timeout still re-checks `exited` periodically and the
+            // monotonic uptime delta drives the real deadline.
+            let slice = min(remainingNanos, 3_600_000_000_000)
+            let deadline = Date(timeIntervalSinceNow: Double(slice) / 1_000_000_000.0)
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+            _ = exitLock.wait(until: deadline)
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
+            if exited { break }
+            let elapsed = Int64(DispatchTime.now().uptimeNanoseconds &- startUptime)
+            remainingNanos = timeoutNanos &- elapsed
+        }
+        return exited
+    }
+
+    /// `Int32.min` while running so Kotlin maps it to
+    /// `IllegalThreadStateException`. The sentinel must fit the Kotlin `Int`
+    /// return slot: `Int.min` (Int64.min) truncates to 0 across the ABI.
     func exitValue() -> Int {
-        process.isRunning ? Int.min : Int(process.terminationStatus)
+        exitLock.lock()
+        defer { exitLock.unlock() }
+        return exited ? exitStatus : Int(Int32.min)
+    }
+
+    var isExited: Bool {
+        exitLock.lock()
+        defer { exitLock.unlock() }
+        return exited
     }
 
     func destroy() {
@@ -231,53 +389,98 @@ private final class RuntimeProcessBox: @unchecked Sendable {
         }
     }
 
-    /// `Process.getInputStream()`: the child's stdout, readable by the parent.
-    /// The same stream object is returned on repeated calls, matching the JDK.
+    func destroyForcibly() {
+        if process.isRunning {
+            kill(pid, SIGKILL)
+        }
+    }
+
+    /// Shared `NullInputStream` for both non-piped readable streams; the JDK
+    /// returns the same singleton for `getInputStream()`/`getErrorStream()`
+    /// under non-PIPE redirects, so reference equality holds here too.
+    private func sharedNullInputStreamRaw() -> Int {
+        if nullInputStreamRawValue != 0 { return nullInputStreamRawValue }
+        let box = RuntimeInputStreamBox(data: Data())
+        nullInputStreamBox = box
+        nullInputStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.InputStream", input: true)
+        return nullInputStreamRawValue
+    }
+
+    private func sharedNullOutputStreamRaw() -> Int {
+        if nullOutputStreamRawValue != 0 { return nullOutputStreamRawValue }
+        let box = RuntimeOutputStreamBox(sink: RuntimeNullOutputStreamSink())
+        nullOutputStreamBox = box
+        nullOutputStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.OutputStream", input: false)
+        return nullOutputStreamRawValue
+    }
+
+    /// `Process.getInputStream()`: the child's stdout, or a null stream when
+    /// stdout was redirected away from a pipe.
     func inputStreamRaw() -> Int {
         streamLock.lock()
         defer { streamLock.unlock() }
         if inputStreamRawValue != 0 { return inputStreamRawValue }
-        let box = RuntimeProcessPipeInputStreamBox(fileHandle: stdoutPipe.fileHandleForReading)
-        inputStreamBox = box
-        inputStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.InputStream", input: true)
+        if let stdoutPipe {
+            let box = RuntimeProcessPipeInputStreamBox(fileHandle: stdoutPipe.fileHandleForReading)
+            inputStreamBox = box
+            inputStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.InputStream", input: true)
+        } else {
+            inputStreamRawValue = sharedNullInputStreamRaw()
+        }
         return inputStreamRawValue
     }
 
-    /// `Process.getOutputStream()`: the child's stdin, writable by the parent.
+    /// `Process.getOutputStream()`: the child's stdin, or a null output stream
+    /// when stdin was redirected away from a pipe.
     func outputStreamRaw() -> Int {
         streamLock.lock()
         defer { streamLock.unlock() }
         if outputStreamRawValue != 0 { return outputStreamRawValue }
-        let box = RuntimeOutputStreamBox(sink: RuntimeProcessPipeOutputSink(fileHandle: stdinPipe.fileHandleForWriting))
-        outputStreamBox = box
-        outputStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.OutputStream", input: false)
+        if let stdinPipe {
+            let box = RuntimeOutputStreamBox(sink: RuntimeProcessPipeOutputSink(fileHandle: stdinPipe.fileHandleForWriting))
+            outputStreamBox = box
+            outputStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.OutputStream", input: false)
+        } else {
+            outputStreamRawValue = sharedNullOutputStreamRaw()
+        }
         return outputStreamRawValue
     }
 
-    /// `Process.getErrorStream()`: the child's stderr, readable by the parent.
+    /// `Process.getErrorStream()`: the child's stderr, a null stream under
+    /// `redirectErrorStream(true)`, or a null stream for non-PIPE redirects.
     func errorStreamRaw() -> Int {
         streamLock.lock()
         defer { streamLock.unlock() }
         if errorStreamRawValue != 0 { return errorStreamRawValue }
-        let box = RuntimeProcessPipeInputStreamBox(fileHandle: stderrPipe.fileHandleForReading)
-        errorStreamBox = box
-        errorStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.InputStream", input: true)
+        if let stderrPipe {
+            let box = RuntimeProcessPipeInputStreamBox(fileHandle: stderrPipe.fileHandleForReading)
+            errorStreamBox = box
+            errorStreamRawValue = runtimeRegisterIoStream(box, fqName: "java.io.InputStream", input: true)
+        } else {
+            errorStreamRawValue = sharedNullInputStreamRaw()
+        }
         return errorStreamRawValue
     }
 }
 
-private final class RuntimeProcessRegistry: @unchecked Sendable {
+final class RuntimeProcessRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var nextHandle = 1
     private var processes: [Int: RuntimeProcessBox] = [:]
+    /// Live registry children by PID so `ProcessHandle.isAlive`/`of` can
+    /// distinguish our (reaped-once) children from foreign processes. Entries
+    /// are removed when the exit monitor publishes the status, so a recycled
+    /// PID correctly falls through to the `kill(pid, 0)` probe.
+    private var byPid: [pid_t: RuntimeProcessBox] = [:]
 
-    func insert(_ process: Foundation.Process, stdinPipe: Pipe, stdoutPipe: Pipe, stderrPipe: Pipe) -> Int {
+    func insert(_ box: RuntimeProcessBox) -> Int {
         lock.lock()
         defer { lock.unlock() }
 
         let handle = nextHandle
         nextHandle += 1
-        processes[handle] = RuntimeProcessBox(process, stdinPipe: stdinPipe, stdoutPipe: stdoutPipe, stderrPipe: stderrPipe)
+        processes[handle] = box
+        byPid[box.pid] = box
         return handle
     }
 
@@ -286,9 +489,23 @@ private final class RuntimeProcessRegistry: @unchecked Sendable {
         defer { lock.unlock() }
         return processes[handle]
     }
+
+    func box(forPid pid: pid_t) -> RuntimeProcessBox? {
+        lock.lock()
+        defer { lock.unlock() }
+        return byPid[pid]
+    }
+
+    func removePidMapping(pid: pid_t, box: RuntimeProcessBox) {
+        lock.lock()
+        defer { lock.unlock() }
+        if byPid[pid] === box {
+            byPid.removeValue(forKey: pid)
+        }
+    }
 }
 
-private let runtimeProcessRegistry = RuntimeProcessRegistry()
+let runtimeProcessRegistry = RuntimeProcessRegistry()
 
 private func runtimeProcessExecutablePath(_ name: String) -> String? {
     let fileManager = FileManager.default
@@ -326,10 +543,17 @@ private func runtimeProcessEnvironment(_ envp: [String]?) -> [String: String]? {
 }
 
 /// Spawns `command` (NUL-joined argv produced by `ProcessBuilder`/`Runtime.exec`)
-/// with stdin/stdout/stderr attached to fresh pipes so the parent can stream
-/// the child's output through `Process.getInputStream()`/`getOutputStream()`/
-/// `getErrorStream()`.
-private func runtimeProcessSpawn(commandRaw: Int, envp: [String]?, dirPath: String?) -> Int {
+/// with stdin/stdout/stderr wired per `redirects` (`nil` means all-PIPE, the
+/// `Runtime.exec`/`__kk_process_start` behavior). `mergeErrorStream` dups the
+/// child's stderr onto its stdout target, matching
+/// `ProcessBuilder.redirectErrorStream(true)`.
+private func runtimeProcessSpawn(
+    commandRaw: Int,
+    envp: [String]?,
+    dirPath: String?,
+    redirects: [RuntimeProcessRedirectSpec]?,
+    mergeErrorStream: Bool
+) -> Int {
     guard let command = runtimeStringFromRaw(commandRaw) else { return 0 }
     let arguments = command.split(separator: "\0", omittingEmptySubsequences: false).map(String.init)
     guard let executable = arguments.first,
@@ -337,18 +561,13 @@ private func runtimeProcessSpawn(commandRaw: Int, envp: [String]?, dirPath: Stri
           let executablePath = runtimeProcessExecutablePath(executable)
     else { return 0 }
 
+    let stdinSpec = redirects?[0] ?? RuntimeProcessRedirectSpec(kind: .pipe, path: nil)
+    let stdoutSpec = redirects?[1] ?? RuntimeProcessRedirectSpec(kind: .pipe, path: nil)
+    let stderrSpec = redirects?[2] ?? RuntimeProcessRedirectSpec(kind: .pipe, path: nil)
+
     let process = Foundation.Process()
     process.executableURL = URL(fileURLWithPath: executablePath)
     process.arguments = Array(arguments.dropFirst())
-
-    let stdinPipe = Pipe()
-    let stdoutPipe = Pipe()
-    let stderrPipe = Pipe()
-    // The child receives the ends it reads/writes; the parent keeps the
-    // opposite ends for `Process` stream access.
-    process.standardInput = stdinPipe.fileHandleForReading
-    process.standardOutput = stdoutPipe.fileHandleForWriting
-    process.standardError = stderrPipe.fileHandleForWriting
     if let environment = runtimeProcessEnvironment(envp) {
         process.environment = environment
     }
@@ -356,15 +575,102 @@ private func runtimeProcessSpawn(commandRaw: Int, envp: [String]?, dirPath: Stri
         process.currentDirectoryURL = URL(fileURLWithPath: dirPath)
     }
 
+    var stdinPipe: Pipe?
+    var stdoutPipe: Pipe?
+    var stderrPipe: Pipe?
+    var ownedHandles: [FileHandle] = []
+
+    // --- stdin ---
+    switch stdinSpec.kind {
+    case .pipe:
+        let pipe = Pipe()
+        stdinPipe = pipe
+        process.standardInput = pipe.fileHandleForReading
+    case .inherit:
+        process.standardInput = FileHandle.standardInput
+    case .discard:
+        guard let handle = runtimeOpenDevNull(writing: false) else { return 0 }
+        ownedHandles.append(handle)
+        process.standardInput = handle
+    case .fileRead:
+        guard let path = stdinSpec.path,
+              let handle = runtimeOpenProcessRedirectFile(path: path, writing: false, append: false)
+        else { return 0 }
+        ownedHandles.append(handle)
+        process.standardInput = handle
+    case .fileWrite, .fileAppend:
+        return 0  // invalid redirect for stdin; Kotlin validates earlier
+    }
+
+    // --- stdout ---
+    switch stdoutSpec.kind {
+    case .pipe:
+        let pipe = Pipe()
+        stdoutPipe = pipe
+        process.standardOutput = pipe.fileHandleForWriting
+    case .inherit:
+        process.standardOutput = FileHandle.standardOutput
+    case .discard:
+        guard let handle = runtimeOpenDevNull(writing: true) else { return 0 }
+        ownedHandles.append(handle)
+        process.standardOutput = handle
+    case .fileWrite, .fileAppend:
+        guard let path = stdoutSpec.path,
+              let handle = runtimeOpenProcessRedirectFile(path: path, writing: true, append: stdoutSpec.kind == .fileAppend)
+        else { return 0 }
+        ownedHandles.append(handle)
+        process.standardOutput = handle
+    case .fileRead:
+        return 0
+    }
+
+    // --- stderr ---
+    if mergeErrorStream {
+        // JDK: child fd2 is dup'd onto fd1's target. Reusing the same
+        // FileHandle instance gives identical semantics for pipes, files,
+        // inherit, and discard.
+        process.standardError = process.standardOutput
+    } else {
+        switch stderrSpec.kind {
+        case .pipe:
+            let pipe = Pipe()
+            stderrPipe = pipe
+            process.standardError = pipe.fileHandleForWriting
+        case .inherit:
+            process.standardError = FileHandle.standardError
+        case .discard:
+            guard let handle = runtimeOpenDevNull(writing: true) else { return 0 }
+            ownedHandles.append(handle)
+            process.standardError = handle
+        case .fileWrite, .fileAppend:
+            guard let path = stderrSpec.path,
+                  let handle = runtimeOpenProcessRedirectFile(path: path, writing: true, append: stderrSpec.kind == .fileAppend)
+            else { return 0 }
+            ownedHandles.append(handle)
+            process.standardError = handle
+        case .fileRead:
+            return 0
+        }
+    }
+
+    // `Swift.print` buffers through libc stdout; flush all stdio streams
+    // before spawn so INHERIT-redirected children cannot overtake buffered
+    // parent output on the shared descriptor, matching JVM println ordering.
+    // `fflush(nil)` is used instead of `stdout`/`stderr` because Glibc's
+    // FILE* globals are not concurrency-safe under Swift 6.
+    fflush(nil)
+
     do {
         try process.run()
     } catch {
-        // The child never started; release every pipe end so no descriptor leaks.
-        for handle in [
-            stdinPipe.fileHandleForReading, stdinPipe.fileHandleForWriting,
-            stdoutPipe.fileHandleForReading, stdoutPipe.fileHandleForWriting,
-            stderrPipe.fileHandleForReading, stderrPipe.fileHandleForWriting,
-        ] {
+        // The child never started; release every descriptor we opened so
+        // nothing leaks.
+        for pipe in [stdinPipe, stdoutPipe, stderrPipe].compactMap({ $0 }) {
+            for handle in [pipe.fileHandleForReading, pipe.fileHandleForWriting] {
+                try? handle.close()
+            }
+        }
+        for handle in ownedHandles {
             try? handle.close()
         }
         return 0
@@ -373,17 +679,25 @@ private func runtimeProcessSpawn(commandRaw: Int, envp: [String]?, dirPath: Stri
     // The child owns its dup'd descriptors now. Closing the parent's copies
     // of the child-side ends keeps the descriptor table clean and — for the
     // stdout/stderr write ends — is what lets parent reads observe EOF once
-    // the child exits.
-    try? stdinPipe.fileHandleForReading.close()
-    try? stdoutPipe.fileHandleForWriting.close()
-    try? stderrPipe.fileHandleForWriting.close()
+    // the child exits. `ownedHandles` are the parent's copies of redirect
+    // files/devnull (never the inherited standard handles).
+    try? stdinPipe?.fileHandleForReading.close()
+    try? stdoutPipe?.fileHandleForWriting.close()
+    try? stderrPipe?.fileHandleForWriting.close()
+    for handle in ownedHandles {
+        try? handle.close()
+    }
 
-    return runtimeProcessRegistry.insert(
-        process,
+    let box = RuntimeProcessBox(
+        process: process,
+        pid: pid_t(process.processIdentifier),
         stdinPipe: stdinPipe,
         stdoutPipe: stdoutPipe,
         stderrPipe: stderrPipe
     )
+    let handle = runtimeProcessRegistry.insert(box)
+    box.startExitMonitor(registry: runtimeProcessRegistry)
+    return handle
 }
 
 @_cdecl("__kk_process_current_pid")
@@ -393,7 +707,7 @@ public func __kk_process_current_pid() -> Int {
 
 @_cdecl("__kk_process_start")
 public func __kk_process_start(_ commandRaw: Int) -> Int {
-    runtimeProcessSpawn(commandRaw: commandRaw, envp: nil, dirPath: nil)
+    runtimeProcessSpawn(commandRaw: commandRaw, envp: nil, dirPath: nil, redirects: nil, mergeErrorStream: false)
 }
 
 /// `Runtime.exec` envp/dir overloads: `commandRaw` keeps the NUL-joined argv
@@ -412,7 +726,45 @@ public func __kk_process_start_ex(_ commandRaw: Int, _ envpRaw: Int, _ dirRaw: I
     return runtimeProcessSpawn(
         commandRaw: commandRaw,
         envp: envp,
-        dirPath: runtimeStringFromRaw(dirRaw)
+        dirPath: runtimeStringFromRaw(dirRaw),
+        redirects: nil,
+        mergeErrorStream: false
+    )
+}
+
+/// `ProcessBuilder.start()` full form: `redirectsRaw` is a 3-element
+/// `Array<String>` of stream specs (stdin/stdout/stderr, each `"P"`/`"I"`/`"D"`
+/// or a kind letter plus path); `errorStreamRaw` nonzero merges stderr into
+/// stdout.
+@_cdecl("__kk_process_start_full")
+public func __kk_process_start_full(_ commandRaw: Int, _ envpRaw: Int, _ dirRaw: Int, _ redirectsRaw: Int, _ errorStreamRaw: Int) -> Int {
+    var envp: [String]? = nil
+    if envpRaw != runtimeNullSentinelInt,
+       let array = runtimeArrayBox(from: envpRaw)
+    {
+        envp = array.elements.compactMap { runtimeStringFromRaw($0) }
+    }
+    var redirects: [RuntimeProcessRedirectSpec]? = nil
+    if redirectsRaw != runtimeNullSentinelInt,
+       let array = runtimeArrayBox(from: redirectsRaw)
+    {
+        var parsed: [RuntimeProcessRedirectSpec] = []
+        parsed.reserveCapacity(3)
+        for element in array.elements {
+            guard let specString = runtimeStringFromRaw(element),
+                  let spec = runtimeParseRedirectSpec(specString)
+            else { return 0 }
+            parsed.append(spec)
+        }
+        guard parsed.count == 3 else { return 0 }
+        redirects = parsed
+    }
+    return runtimeProcessSpawn(
+        commandRaw: commandRaw,
+        envp: envp,
+        dirPath: runtimeStringFromRaw(dirRaw),
+        redirects: redirects,
+        mergeErrorStream: errorStreamRaw != 0
     )
 }
 
@@ -421,26 +773,37 @@ public func __kk_process_wait_for(_ handle: Int) -> Int {
     runtimeProcessRegistry.process(for: handle)?.waitFor() ?? -1
 }
 
+@_cdecl("__kk_process_wait_for_timeout")
+public func __kk_process_wait_for_timeout(_ handle: Int, _ timeoutNanos: Int) -> Int {
+    guard let box = runtimeProcessRegistry.process(for: handle) else { return 0 }
+    return box.waitFor(timeoutNanos: Int64(timeoutNanos)) ? 1 : 0
+}
+
 @_cdecl("__kk_process_exit_value")
 public func __kk_process_exit_value(_ handle: Int) -> Int {
-    runtimeProcessRegistry.process(for: handle)?.exitValue() ?? Int.min
+    runtimeProcessRegistry.process(for: handle)?.exitValue() ?? Int(Int32.min)
 }
 
 @_cdecl("__kk_process_is_alive")
 public func __kk_process_is_alive(_ handle: Int) -> Int {
-    guard let process = runtimeProcessRegistry.process(for: handle) else { return 0 }
-    return process.process.isRunning ? 1 : 0
+    guard let box = runtimeProcessRegistry.process(for: handle) else { return 0 }
+    return box.isExited ? 0 : 1
 }
 
 @_cdecl("__kk_process_pid")
 public func __kk_process_pid(_ handle: Int) -> Int {
-    guard let process = runtimeProcessRegistry.process(for: handle) else { return 0 }
-    return Int(process.process.processIdentifier)
+    guard let box = runtimeProcessRegistry.process(for: handle) else { return 0 }
+    return Int(box.pid)
 }
 
 @_cdecl("__kk_process_destroy")
 public func __kk_process_destroy(_ handle: Int) {
     runtimeProcessRegistry.process(for: handle)?.destroy()
+}
+
+@_cdecl("__kk_process_destroy_forcibly")
+public func __kk_process_destroy_forcibly(_ handle: Int) {
+    runtimeProcessRegistry.process(for: handle)?.destroyForcibly()
 }
 
 @_cdecl("__kk_process_input_stream")
