@@ -90,6 +90,32 @@ struct ContextClauseOptInTests {
                 "\(ctx.diagnostics.diagnostics)")
     }
 
+    // KUU-3980: the literal arrow-core report — function-level @OptIn with a
+    // named context parameter must cover the contract{} body. Regression
+    // coverage for the parser fix that keeps annotations before `context(...)`
+    // on the FunDecl (see optInBeforeContextCoversContractBlock above); this
+    // pins the exact reported shape: star import, non-generic context type,
+    // inferred Unit return.
+    @Test
+    func kuu3980FunctionOptInCoversContractUnderContextParam() throws {
+        let ctx = runSemaCollectingDiagnostics("""
+        import kotlin.contracts.*
+
+        interface R
+
+        @OptIn(ExperimentalContracts::class)
+        context(r: R)
+        inline fun f(block: () -> Unit) {
+            contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }
+            block()
+        }
+        """)
+        #expect(diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx).isEmpty,
+                "\(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.diagnostics.contains(where: isError),
+                "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func contractUsageInsideContextFunctionStillRequiresOptIn() throws {
         let ctx = runSemaCollectingDiagnostics("""
