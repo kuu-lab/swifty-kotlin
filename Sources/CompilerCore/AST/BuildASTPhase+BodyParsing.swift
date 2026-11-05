@@ -642,21 +642,22 @@ extension BuildASTPhase {
         undoFailedSpeculation()
         // Local fun parsing strips leading annotations itself so it can attach
         // all declaration-level annotations to the produced declaration
-        // (KUU-4290). Local val/var declarations get `@Suppress` forwarding
-        // here: the stripped view below drops the annotation tokens, so
-        // collect leading `@Suppress` annotations first and re-attach them to
-        // the produced declaration expression (KUU-3920).
-        let localDeclSuppressAnnotations = annotationsFromTokens(filtered, interner: interner).filter {
-            $0.name.split(separator: ".").last == "Suppress"
-        }
+        // (KUU-4290). Local val/var declarations get the same forwarding here:
+        // the stripped view below drops the annotation tokens, so collect the
+        // leading annotations first and re-attach them to the produced
+        // declaration expression — the channel local fun uses, where OptIn
+        // propagation, annotation-target validation and symbol annotation
+        // registration pick them up (KUU-3920 forwarded only `@Suppress`;
+        // KUU-4284 forwards every declaration annotation).
+        let localDeclAnnotations = annotationsFromTokens(filtered, interner: interner)
         let strippedFiltered = Self.skipLeadingLocalAnnotations(filtered, interner: interner)
         if let expr = parseLocalFunDeclExpr(from: raw, interner: interner, astArena: astArena) {
             return expr
         }
         undoFailedSpeculation()
         if let expr = parseLocalDeclarationExpr(from: strippedFiltered, interner: interner, astArena: astArena) {
-            if !localDeclSuppressAnnotations.isEmpty {
-                astArena.prependExpressionAnnotations(localDeclSuppressAnnotations, for: expr)
+            if !localDeclAnnotations.isEmpty {
+                astArena.prependExpressionAnnotations(localDeclAnnotations, for: expr)
             }
             return expr
         }

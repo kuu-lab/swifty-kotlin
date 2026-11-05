@@ -21,6 +21,22 @@ final class LocalDeclTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        // Declaration annotations BuildAST forwarded onto this expression
+        // (KUU-4284) resolve once up front: the records are registered on the
+        // local symbol below, and their `@OptIn` markers scope over the type
+        // annotation, delegate and initializer — including lambda bodies —
+        // like a member property's own annotations. `expressionOptInContext`
+        // already covers the name-matched `@OptIn` spelling; the records path
+        // additionally keeps import aliases (`import kotlin.OptIn as OI`)
+        // working, matching the local-function handling (KUU-4290).
+        let localDeclAnnotationRecords = driver.helpers.localDeclarationAnnotationRecords(for: id, ctx: ctx)
+        let localDeclOptInMarkers = driver.helpers.optInMarkers(
+            from: localDeclAnnotationRecords,
+            file: ctx.currentASTFile,
+            ctx: ctx
+        )
+        var declCtx = ctx
+        declCtx.inheritedOptInMarkers.formUnion(localDeclOptInMarkers)
 
         driver.diagnoseLocalValueOrClassifierRedeclaration(
             named: name,
@@ -38,7 +54,7 @@ final class LocalDeclTypeChecker {
                 interner: interner,
                 scope: ctx.scope,
                 diagnostics: ctx.sema.diagnostics,
-                inferenceContext: ctx,
+                inferenceContext: declCtx,
                 usageRange: range
             )
         }
@@ -74,7 +90,7 @@ final class LocalDeclTypeChecker {
                 fallbackRange: range,
                 symbol: localSymbol,
                 inferredPropertyType: declaredType,
-                ctx: ctx,
+                ctx: declCtx,
                 locals: &locals,
                 diagnostics: ctx.sema.diagnostics
             ) ?? declaredType ?? sema.types.nullableAnyType
@@ -84,7 +100,7 @@ final class LocalDeclTypeChecker {
                 if declaredType != nil {
                     sema.bindings.markSourceDeclaredExpectedType(initializer)
                 }
-                initializerType = driver.inferExpr(initializer, ctx: ctx, locals: &locals, expectedType: declaredType)
+                initializerType = driver.inferExpr(initializer, ctx: declCtx, locals: &locals, expectedType: declaredType)
                 if declaredType == nil,
                    sema.bindings.callableRefKind(for: initializer) != nil {
                     sema.bindings.inferredCallableReferenceSymbols.insert(localSymbol)
@@ -213,6 +229,9 @@ final class LocalDeclTypeChecker {
             }
         }
         sema.symbols.setPropertyType(localType, for: localSymbol)
+        if !localDeclAnnotationRecords.isEmpty {
+            sema.symbols.setAnnotations(localDeclAnnotationRecords, for: localSymbol)
+        }
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
         // kotlinc narrows a `when` subject through the initializer only for
         // enum-typed locals declared without a type annotation (`val e = E.A`
