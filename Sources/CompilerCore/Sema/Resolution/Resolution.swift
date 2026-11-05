@@ -882,13 +882,35 @@ extension OverloadResolver {
         let inheritedDefaultValues = defaultArgumentOwner.flatMap {
             ctx.symbols.functionSignature(for: $0)?.valueParameterHasDefaultValues
         }
-        guard let argumentMappings = buildArgumentMappings(
+        let argumentMappings: CallArgumentMappings
+        switch buildArgumentMappings(
             signature: signature,
             callArgs: call.args,
             symbols: ctx.symbols,
             typeSystem: ctx.types,
             inheritedDefaultValues: inheritedDefaultValues
-        ) else {
+        ) {
+        case let .success(mappings):
+            argumentMappings = mappings
+        case let .missingParameterValue(name):
+            // kotlinc reports NO_VALUE_FOR_PARAMETER when a required
+            // parameter receives no argument (KUU-4168). Annotation
+            // constructor calls share this resolution path, so `@A()` gets
+            // the same dedicated diagnostic upstream does.
+            let parameterName = name
+                .flatMap { ctx.interner?.resolve($0) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+            let message = parameterName.map {
+                "No value passed for parameter '\($0)'."
+            } ?? "No value passed for parameter."
+            return .constraintFailure(Diagnostic(
+                severity: .error,
+                code: "KSWIFTK-SEMA-0480",
+                message: message,
+                primaryRange: call.range,
+                secondaryRanges: []
+            ))
+        case .failure:
             return .rejected
         }
         let parameterMapping = argumentMappings.parameterMapping

@@ -119,9 +119,10 @@ struct InternalAnnotationConstructionTests {
             #expect(errors.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }.count == 2, "Unexpected target errors for \(surface): \(errors)")
             // kotlinc splits annotation-constructor argument failures:
             // a missing required argument reports NO_VALUE_FOR_PARAMETER
-            // (the generic no-viable-overload shape here) while a wrong
-            // argument type reports ARGUMENT_TYPE_MISMATCH (KUU-3953).
-            #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0002" }.count == 2, "Unexpected missing-argument errors for \(surface): \(errors)")
+            // (KUU-4168) while a wrong argument type reports
+            // ARGUMENT_TYPE_MISMATCH (KUU-3953).
+            #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0480" }.count == 2, "Unexpected missing-argument errors for \(surface): \(errors)")
+            #expect(errors.filter { $0.message.contains("No value passed for parameter 'value'") }.count == 2, "Missing parameter name mismatch for \(surface): \(errors)")
             #expect(errors.filter { $0.code == "KSWIFTK-SEMA-0473" }.count == 2, "Unexpected argument type mismatch errors for \(surface): \(errors)")
             #expect(errors.filter { $0.code == "KSWIFTK-SEMA-DEPRECATED" }.count == 2, "Unexpected deprecation errors for \(surface): \(errors)")
             #expect(errors.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }.count == 2, "Unexpected opt-in errors for \(surface): \(errors)")

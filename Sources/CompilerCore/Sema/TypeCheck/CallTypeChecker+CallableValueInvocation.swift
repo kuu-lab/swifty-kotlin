@@ -563,14 +563,106 @@ extension CallTypeChecker {
             }
             return (0, offset)
         }()
-        guard !args.contains(where: { $0.label != nil || $0.isSpread }),
-              let layout
-        else {
+        /// Feasible receiver offsets ignoring the supplied argument count —
+        /// the count-sensitive `receiverOffset(for:)` returns nil for the
+        /// too-few shapes this is meant to diagnose.
+        func receiverOffsetCandidates() -> [Int] {
+            switch arityPolicy {
+            case .receiverNeverExplicit:
+                return functionType.receiver == nil || hasImplicitReceiverValue() ? [0] : []
+            case .receiverOptionallyExplicit:
+                guard functionType.receiver != nil else { return [0] }
+                return hasImplicitReceiverValue() ? [0, 1] : [1]
+            case let .receiverExplicitOrMemberDispatch(dispatchReceiverType):
+                guard let functionReceiver = functionType.receiver else { return [0] }
+                return sema.types.isSubtype(
+                    sema.types.makeNonNullable(dispatchReceiverType), functionReceiver
+                ) ? [0, 1] : [1]
+            case .receiverRequiredExplicit:
+                return functionType.receiver == nil ? [0] : [1]
+            case .receiverMustBePresent:
+                return functionType.receiver != nil ? [1] : []
+            }
+        }
+        /// kotlinc reports NO_VALUE_FOR_PARAMETER (KUU-4168) when every
+        /// feasible reading of the call supplies fewer arguments than the
+        /// function type requires. Function-type parameters carry no declared
+        /// names, so the diagnostic uses kotlinc's synthesized `pN` names,
+        /// numbered over context receivers, the extension receiver, then the
+        /// value parameters in declaration order.
+        func missingCallableValueParameterName() -> String? {
+            let offsets = receiverOffsetCandidates().sorted()
+            var interpretations: [(contextCount: Int, offset: Int)] = []
+            if !contextTypes.isEmpty, argTypes.count >= contextTypes.count {
+                interpretations += offsets.map { (contextTypes.count, $0) }
+            }
+            if hasImplicitContextValues() {
+                interpretations += offsets.map { (0, $0) }
+            }
+            guard !interpretations.isEmpty,
+                  interpretations.allSatisfy({
+                      $0.contextCount + $0.offset + functionType.params.count > argTypes.count
+                  })
+            else {
+                return nil
+            }
+            // The layout attempts explicit context arguments first, so the
+            // first interpretation determines which slot is reported missing.
+            let best = interpretations[0]
+            let missingIndex = argTypes.count - best.contextCount - best.offset
+            // A direct callable reference (`::f(...)`, `f.invoke(...)` on a
+            // reference-typed value) exposes the referenced declaration's
+            // parameter names, which kotlinc prefers over the synthesized
+            // `pN` names. Value-typed locals (`val h = ::f`) do not carry
+            // them, so those keep the synthesized names.
+            if missingIndex >= 0,
+               case let .symbol(symbol) = callableTarget,
+               let signature = sema.symbols.functionSignature(for: symbol),
+               signature.valueParameterSymbols.count == functionType.params.count,
+               let referenced = sema.symbols.symbol(signature.valueParameterSymbols[missingIndex])?.name,
+               referenced != .invalid
+            {
+                let name = driver.interner.resolve(referenced)
+                if !name.isEmpty {
+                    return name
+                }
+            }
+            let receiverSlotCount = functionType.receiver != nil ? 1 : 0
+            let ordinal: Int
+            if missingIndex >= 0 {
+                ordinal = contextTypes.count + receiverSlotCount + missingIndex + 1
+            } else if best.contextCount == contextTypes.count, !contextTypes.isEmpty,
+                      argTypes.count < contextTypes.count
+            {
+                ordinal = argTypes.count + 1
+            } else {
+                ordinal = contextTypes.count + 1
+            }
+            return "p\(ordinal)"
+        }
+        guard !args.contains(where: { $0.label != nil || $0.isSpread }) else {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for call.",
                 range: range
             )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        guard let layout else {
+            if let parameterName = missingCallableValueParameterName() {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0480",
+                    "No value passed for parameter '\(parameterName)'.",
+                    range: range
+                )
+            } else {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for call.",
+                    range: range
+                )
+            }
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
         }

@@ -86,6 +86,7 @@ extension ExprTypeChecker {
         if usesScopedCharExtensions, resolved.chosenCallee == nil,
            resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
                || resolved.diagnostic?.code == "KSWIFTK-SEMA-0473"
+               || resolved.diagnostic?.code == "KSWIFTK-SEMA-0480"
         {
             return nil
         }
@@ -93,6 +94,7 @@ extension ExprTypeChecker {
             if allowFallbackOnNoViableOverload,
                diagnostic.code == "KSWIFTK-SEMA-0002"
                    || diagnostic.code == "KSWIFTK-SEMA-0473"
+                   || diagnostic.code == "KSWIFTK-SEMA-0480"
             {
                 return nil
             }

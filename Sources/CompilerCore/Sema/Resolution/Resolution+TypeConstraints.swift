@@ -85,6 +85,19 @@ struct CallArgumentMappings {
     let contextParameterArgumentMapping: [Int: Int]
 }
 
+/// Why binding call arguments to a signature's parameters failed. The
+/// missing-value case is distinguished because kotlinc reports it as
+/// NO_VALUE_FOR_PARAMETER ("no value passed for parameter 'x'") rather than
+/// the generic no-viable-overload diagnostic (KUU-4168); every other shape
+/// stays on that generic path.
+enum CallArgumentMappingResult {
+    case success(CallArgumentMappings)
+    /// A required parameter received no argument. The associated name is the
+    /// parameter's declared name when the signature exposes stable names.
+    case missingParameterValue(InternedString?)
+    case failure
+}
+
 extension OverloadResolver {
     func buildArgumentMappings(
         signature: FunctionSignature,
@@ -93,9 +106,9 @@ extension OverloadResolver {
         typeSystem: TypeSystem,
         inheritedDefaultValues: [Bool]? = nil,
         isCallableArgument: ((Int) -> Bool)? = nil
-    ) -> CallArgumentMappings? {
+    ) -> CallArgumentMappingResult {
         guard signature.hasStableParameterNames || !callArgs.contains(where: { $0.label != nil }) else {
-            return nil
+            return .failure
         }
         var contextParameterArgumentMapping: [Int: Int] = [:]
         for (argumentIndex, argument) in callArgs.enumerated() {
@@ -111,7 +124,7 @@ extension OverloadResolver {
                   argument.isTrailingLambda != true,
                   !contextParameterArgumentMapping.values.contains(contextIndex)
             else {
-                return nil
+                return .failure
             }
             contextParameterArgumentMapping[argumentIndex] = contextIndex
         }
@@ -126,7 +139,7 @@ extension OverloadResolver {
         {
             // KEEP-448 disallows positional arguments after an explicit context
             // argument because context parameters have no positional slot.
-            return nil
+            return .failure
         }
 
         let valueArgumentIndices = callArgs.indices.filter { !explicitContextArgumentIndices.contains($0) }
@@ -134,24 +147,30 @@ extension OverloadResolver {
         let compactCallableArgument: ((Int) -> Bool)? = isCallableArgument.map { isCallable in
             { compactIndex in isCallable(valueArgumentIndices[compactIndex]) }
         }
-        guard let compactValueMapping = buildValueParameterMapping(
+        let compactValueMapping: [Int: Int]
+        switch buildValueParameterMapping(
             signature: signature,
             callArgs: valueArguments,
             symbols: symbols,
             typeSystem: typeSystem,
             inheritedDefaultValues: inheritedDefaultValues,
             isCallableArgument: compactCallableArgument
-        ) else {
-            return nil
+        ) {
+        case let .success(mapping):
+            compactValueMapping = mapping
+        case let .missingParameterValue(name):
+            return .missingParameterValue(name)
+        case .failure:
+            return .failure
         }
         var parameterMapping: [Int: Int] = [:]
         for (compactIndex, parameterIndex) in compactValueMapping {
             parameterMapping[valueArgumentIndices[compactIndex]] = parameterIndex
         }
-        return CallArgumentMappings(
+        return .success(CallArgumentMappings(
             parameterMapping: parameterMapping,
             contextParameterArgumentMapping: contextParameterArgumentMapping
-        )
+        ))
     }
 
     func explicitContextParameterArgumentMapping(
@@ -183,14 +202,23 @@ extension OverloadResolver {
         inheritedDefaultValues: [Bool]? = nil,
         isCallableArgument: ((Int) -> Bool)? = nil
     ) -> [Int: Int]? {
-        buildArgumentMappings(
+        guard case let .success(mappings) = buildArgumentMappings(
             signature: signature,
             callArgs: callArgs,
             symbols: symbols,
             typeSystem: typeSystem,
             inheritedDefaultValues: inheritedDefaultValues,
             isCallableArgument: isCallableArgument
-        )?.parameterMapping
+        ) else {
+            return nil
+        }
+        return mappings.parameterMapping
+    }
+
+    private enum ValueParameterMappingResult {
+        case success([Int: Int])
+        case missingParameterValue(InternedString?)
+        case failure
     }
 
     private func buildValueParameterMapping(
@@ -200,10 +228,10 @@ extension OverloadResolver {
         typeSystem: TypeSystem,
         inheritedDefaultValues: [Bool]? = nil,
         isCallableArgument: ((Int) -> Bool)? = nil
-    ) -> [Int: Int]? {
+    ) -> ValueParameterMappingResult {
         let paramCount = signature.parameterTypes.count
         if paramCount == 0 {
-            return callArgs.isEmpty ? [:] : nil
+            return callArgs.isEmpty ? .success([:]) : .failure
         }
 
         let hasDefaultValues = Self.normalizeFlags(inheritedDefaultValues ?? signature.valueParameterHasDefaultValues, count: paramCount)
@@ -325,9 +353,9 @@ extension OverloadResolver {
                       !arg.isSpread,
                       arg.isTrailingLambda != true,
                       !mapping.values.contains(parameterIndex)
-                else { return nil }
+                else { return .failure }
                 if !isVararg[parameterIndex] {
-                    guard !boundNonVarargParams.contains(parameterIndex) else { return nil }
+                    guard !boundNonVarargParams.contains(parameterIndex) else { return .failure }
                     boundNonVarargParams.insert(parameterIndex)
                 }
                 mapping[argIndex] = parameterIndex
@@ -338,7 +366,7 @@ extension OverloadResolver {
             if arg.isTrailingLambda == true {
                 guard arg.label == nil, !arg.isSpread,
                       let parameterIndex = trailingLambdaParameterIndex(for: argIndex)
-                else { return nil }
+                else { return .failure }
                 boundNonVarargParams.insert(parameterIndex)
                 mapping[argIndex] = parameterIndex
                 maxBoundParamIndex = max(maxBoundParamIndex, parameterIndex)
@@ -348,16 +376,16 @@ extension OverloadResolver {
             if let label = arg.label {
                 sawNamedArgument = true
                 guard let paramIndex = paramNames.firstIndex(where: { $0 == label }) else {
-                    return nil
+                    return .failure
                 }
                 if paramIndex != positionalCursor {
                     sawOutOfOrderNamedArgument = true
                 }
                 if arg.isSpread, !isVararg[paramIndex] {
-                    return nil
+                    return .failure
                 }
                 if isVararg[paramIndex] {
-                    guard !mapping.values.contains(paramIndex) else { return nil }
+                    guard !mapping.values.contains(paramIndex) else { return .failure }
                     boundNamedVarargParams.insert(paramIndex)
                     mapping[argIndex] = paramIndex
                     maxBoundParamIndex = max(maxBoundParamIndex, paramIndex)
@@ -367,7 +395,7 @@ extension OverloadResolver {
                     continue
                 }
                 if boundNonVarargParams.contains(paramIndex) {
-                    return nil
+                    return .failure
                 }
                 boundNonVarargParams.insert(paramIndex)
                 mapping[argIndex] = paramIndex
@@ -387,7 +415,7 @@ extension OverloadResolver {
                    trailingLambdaParamIndex >= maxBoundParamIndex
                 {
                     if boundNonVarargParams.contains(trailingLambdaParamIndex) {
-                        return nil
+                        return .failure
                     }
                     boundNonVarargParams.insert(trailingLambdaParamIndex)
                     mapping[argIndex] = trailingLambdaParamIndex
@@ -399,12 +427,12 @@ extension OverloadResolver {
                 }
                 advancePositionalCursor(for: argIndex)
                 if sawOutOfOrderNamedArgument || positionalCursor >= paramCount || positionalCursor < maxBoundParamIndex {
-                    return nil
+                    return .failure
                 }
                 if arg.isSpread, !isVararg[positionalCursor] {
-                    return nil
+                    return .failure
                 }
-                guard !boundNamedVarargParams.contains(positionalCursor) else { return nil }
+                guard !boundNamedVarargParams.contains(positionalCursor) else { return .failure }
                 maxBoundParamIndex = max(maxBoundParamIndex, positionalCursor)
                 mapping[argIndex] = positionalCursor
                 if !isVararg[positionalCursor] {
@@ -416,7 +444,7 @@ extension OverloadResolver {
 
             advancePositionalCursor(for: argIndex)
             if positionalCursor >= paramCount {
-                return nil
+                return .failure
             }
 
             // Trailing lambda: a lambda outside parentheses can be bound to a later
@@ -430,10 +458,10 @@ extension OverloadResolver {
                 paramIndex = positionalCursor
             }
             if arg.isSpread, !isVararg[paramIndex] {
-                return nil
+                return .failure
             }
             if isVararg[paramIndex] {
-                guard !boundNamedVarargParams.contains(paramIndex) else { return nil }
+                guard !boundNamedVarargParams.contains(paramIndex) else { return .failure }
                 mapping[argIndex] = paramIndex
                 continue
             }
@@ -454,10 +482,10 @@ extension OverloadResolver {
                 continue
             }
             if !hasDefaultValues[paramIndex] {
-                return nil
+                return .missingParameterValue(paramNames[paramIndex])
             }
         }
-        return mapping
+        return .success(mapping)
     }
 
     static func normalizeFlags(_ flags: [Bool], count: Int) -> [Bool] {
