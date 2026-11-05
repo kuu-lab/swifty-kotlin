@@ -447,6 +447,51 @@ extension TypeCheckHelpers {
         return markers
     }
 
+    /// Resolve the declaration annotations BuildAST forwarded onto a local
+    /// declaration expression (local `fun`, KUU-4290; local val/var and
+    /// destructuring, KUU-4284) into symbol records, mirroring the header
+    /// pass's `registerAnnotations`: short names resolve against the
+    /// enclosing declaration's lexical context so they land on the same FQ
+    /// name a member declaration would record (import aliases included).
+    func localDeclarationAnnotationRecords(
+        for exprID: ExprID,
+        ctx: TypeInferenceContext
+    ) -> [MetadataAnnotationRecord] {
+        let annotations = ctx.ast.arena.expressionAnnotations(for: exprID)
+        guard !annotations.isEmpty, let file = ctx.currentASTFile
+        else {
+            return []
+        }
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let enclosingFQName = ctx.currentDeclSymbol
+            .flatMap { sema.symbols.symbol($0)?.fqName } ?? file.packageFQName
+        return annotations.map { annotation in
+            let resolvedFQName: String?
+            if annotation.name.contains(".") {
+                resolvedFQName = annotation.name
+            } else {
+                resolvedFQName = resolveAnnotationSymbol(
+                    named: annotation.name,
+                    in: file,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    types: sema.types,
+                    enclosingFQName: enclosingFQName
+                ).flatMap { symbolID in
+                    sema.symbols.symbol(symbolID)?.fqName.map(interner.resolve).joined(separator: ".")
+                }
+            }
+            let name = resolvedFQName.flatMap { $0.isEmpty ? nil : $0 } ?? annotation.name
+            return MetadataAnnotationRecord(
+                annotationFQName: name,
+                arguments: annotation.arguments,
+                useSiteTarget: annotation.useSiteTarget,
+                usageID: annotation.usageID
+            )
+        }
+    }
+
     /// Opt-ins granted by `@OptIn` annotations attached to the expression `id`.
     /// The markers join `inheritedOptInMarkers` on a copied context, so they
     /// stay active for the expression's whole inference subtree — nested calls

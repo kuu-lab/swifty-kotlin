@@ -13,7 +13,20 @@ extension ControlFlowTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        let rhsType = driver.inferExpr(initializer, ctx: ctx, locals: &locals)
+        // Declaration annotations BuildAST forwarded onto this expression
+        // (KUU-4284) grant their `@OptIn` markers over the initializer and
+        // the component/property resolution below — the same scoping a local
+        // val/var declaration gets (see LocalDeclTypeChecker).
+        let declAnnotationRecords = driver.helpers.localDeclarationAnnotationRecords(for: id, ctx: ctx)
+        let declOptInMarkers = driver.helpers.optInMarkers(
+            from: declAnnotationRecords,
+            file: ctx.currentASTFile,
+            ctx: ctx
+        )
+        var declCtx = ctx
+        declCtx.inheritedOptInMarkers.formUnion(declOptInMarkers)
+
+        let rhsType = driver.inferExpr(initializer, ctx: declCtx, locals: &locals)
         let layout = ctx.ast.arena.destructuringDeclLayout(for: id)
         let usesNameBasedDestructuring = layout.map { layout in
             layout.syntax == .parentheses
@@ -44,7 +57,7 @@ extension ControlFlowTypeChecker {
                         loopExpr: id,
                         receiverType: rhsType,
                         range: range,
-                        ctx: ctx
+                        ctx: declCtx
                     )
                 }
                 if let name {

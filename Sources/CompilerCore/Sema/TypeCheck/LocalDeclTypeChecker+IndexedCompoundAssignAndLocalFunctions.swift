@@ -818,7 +818,7 @@ extension LocalDeclTypeChecker {
         // (KUU-4290) resolve once up front: the records are registered on the
         // function symbol below, and their `@OptIn` markers scope over the
         // signature and body like a member function's own annotations.
-        let localFunAnnotationRecords = localFunAnnotationRecords(for: id, ctx: ctx)
+        let localFunAnnotationRecords = driver.helpers.localDeclarationAnnotationRecords(for: id, ctx: ctx)
         let localFunOptInMarkers = driver.helpers.optInMarkers(
             from: localFunAnnotationRecords,
             file: ctx.currentASTFile,
@@ -1379,47 +1379,4 @@ extension LocalDeclTypeChecker {
         return sema.types.unitType
     }
 
-    /// Resolve the declaration annotations BuildAST forwarded onto a local
-    /// function expression (KUU-4290) into symbol records, mirroring the
-    /// header pass's `registerAnnotations`: short names resolve against the
-    /// enclosing declaration's lexical context so they land on the same FQ
-    /// name a member function would record (import aliases included).
-    private func localFunAnnotationRecords(
-        for exprID: ExprID,
-        ctx: TypeInferenceContext
-    ) -> [MetadataAnnotationRecord] {
-        let annotations = ctx.ast.arena.expressionAnnotations(for: exprID)
-        guard !annotations.isEmpty, let file = ctx.currentASTFile
-        else {
-            return []
-        }
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let enclosingFQName = ctx.currentDeclSymbol
-            .flatMap { sema.symbols.symbol($0)?.fqName } ?? file.packageFQName
-        return annotations.map { annotation in
-            let resolvedFQName: String?
-            if annotation.name.contains(".") {
-                resolvedFQName = annotation.name
-            } else {
-                resolvedFQName = resolveAnnotationSymbol(
-                    named: annotation.name,
-                    in: file,
-                    symbols: sema.symbols,
-                    interner: interner,
-                    types: sema.types,
-                    enclosingFQName: enclosingFQName
-                ).flatMap { symbolID in
-                    sema.symbols.symbol(symbolID)?.fqName.map(interner.resolve).joined(separator: ".")
-                }
-            }
-            let name = resolvedFQName.flatMap { $0.isEmpty ? nil : $0 } ?? annotation.name
-            return MetadataAnnotationRecord(
-                annotationFQName: name,
-                arguments: annotation.arguments,
-                useSiteTarget: annotation.useSiteTarget,
-                usageID: annotation.usageID
-            )
-        }
-    }
 }

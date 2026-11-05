@@ -274,14 +274,14 @@ extension BuildASTPhase.ExpressionParser {
         // A statement-initial annotation merged with the declaration by the
         // newline splitter (`@Suppress("X")\nval x = ...`) cannot reach the
         // val/var head; strip it like parseStatementGroup does. Leading
-        // `@Suppress` annotations are forwarded onto the produced declaration
-        // expression (same as local fun) so their diagnostic ranges cover the
-        // initializer; other annotation kinds stay dropped.
+        // annotations are forwarded onto the produced declaration expression
+        // (same as local fun, KUU-4290) so their diagnostic ranges cover the
+        // initializer and Sema sees declaration-level annotations such as
+        // `@OptIn` (KUU-3920 forwarded only `@Suppress`; KUU-4284 forwards
+        // every annotation kind).
         let labeledTokens = BuildASTPhase.skipLeadingLocalDeclarationLabels(Array(tokens))
-        let suppressAnnotations = BuildASTPhase(diagnostics: diagnostics)
-            .annotationsFromTokens(labeledTokens, interner: interner).filter {
-                $0.name.split(separator: ".").last == "Suppress"
-            }
+        let declarationAnnotations = BuildASTPhase(diagnostics: diagnostics)
+            .annotationsFromTokens(labeledTokens, interner: interner)
         let tokens = BuildASTPhase.skipLeadingLocalAnnotations(
             labeledTokens, interner: interner
         )[...]
@@ -295,8 +295,8 @@ extension BuildASTPhase.ExpressionParser {
             diagnostics: diagnostics,
             suppressesLocalModifierDiagnostics: suppressesLocalModifierDiagnostics
         ) {
-            if !suppressAnnotations.isEmpty {
-                astArena.prependExpressionAnnotations(suppressAnnotations, for: destructuring)
+            if !declarationAnnotations.isEmpty {
+                astArena.prependExpressionAnnotations(declarationAnnotations, for: destructuring)
             }
             return destructuring
         }
@@ -355,8 +355,8 @@ extension BuildASTPhase.ExpressionParser {
         ) else {
             return nil
         }
-        if !suppressAnnotations.isEmpty {
-            astArena.prependExpressionAnnotations(suppressAnnotations, for: declaration)
+        if !declarationAnnotations.isEmpty {
+            astArena.prependExpressionAnnotations(declarationAnnotations, for: declaration)
         }
         return declaration
     }

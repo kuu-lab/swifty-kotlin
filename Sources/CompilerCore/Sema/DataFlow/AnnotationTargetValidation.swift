@@ -229,12 +229,20 @@ extension DataFlowSemaPhase {
             )
             // A local `fun` declaration's annotations are declaration-site,
             // not expression-site: they validate against FUNCTION targets
-            // like member functions (KUU-4290). Lambda and anonymous-function
+            // like member functions (KUU-4290). Local val/var (and
+            // destructuring) declarations likewise validate against
+            // LOCAL_VARIABLE targets (KUU-4284). Lambda and anonymous-function
             // literals keep the expression site, where FUNCTION-targeted
             // annotations are accepted through `isFunctionLiteral`.
             let usageSite: AnnotationUsageSite = {
                 if case .localFunDecl = ast.arena.expr(exprID) {
                     return .function
+                }
+                if case .localDecl = ast.arena.expr(exprID) {
+                    return .localVariable
+                }
+                if case .destructuringDecl = ast.arena.expr(exprID) {
+                    return .localVariable
                 }
                 if case .lambdaLiteral = ast.arena.expr(exprID) {
                     return .expression(isFunctionLiteral: true)
@@ -995,6 +1003,22 @@ extension DataFlowSemaPhase {
             return
         }
 
+        // kotlinc rejects opt-in requirement markers on local variables:
+        // `@ExperimentalApi val x = ...` cannot grant itself the way a
+        // function or property marker can. `@OptIn` itself is not a marker,
+        // so it still reaches the LOCAL_VARIABLE target check below.
+        if case .localVariable = site,
+           symbols.annotations(for: annotationSymbolID).contains(where: {
+               KnownCompilerAnnotation.requiresOptIn.matches($0.annotationFQName)
+           }) {
+            diagnostics.error(
+                "KSWIFTK-SEMA-OPT-IN-LOCAL-VARIABLE",
+                "Opt-in requirement marker annotation cannot be used on local variable.",
+                range: ownerRange
+            )
+            return
+        }
+
         // kotlinc rejects '@SubclassOptInRequired' on annotation classes: an
         // opt-in marker cannot require opt-in for subclassing itself, even
         // though its '@Target(AnnotationTarget.CLASS)' set technically covers
@@ -1313,6 +1337,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("FILE")
         case .type:
             return allowedTargets.contains("TYPE")
+        case .localVariable:
+            return allowedTargets.contains("LOCAL_VARIABLE")
         case let .expression(isFunctionLiteral):
             return allowedTargets.contains("EXPRESSION") || (isFunctionLiteral && allowedTargets.contains("FUNCTION"))
         case .typeAlias:
@@ -1371,6 +1397,8 @@ extension DataFlowSemaPhase {
             return "the file"
         case .type:
             return "a type usage"
+        case .localVariable:
+            return "a local variable"
         case .expression:
             return "an expression"
         case .typeAlias:
@@ -1432,6 +1460,7 @@ extension DataFlowSemaPhase {
         case file
         case type
         case expression(isFunctionLiteral: Bool)
+        case localVariable
         case typeAlias
     }
 }

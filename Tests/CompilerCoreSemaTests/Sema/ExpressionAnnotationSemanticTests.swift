@@ -325,4 +325,192 @@ struct ExpressionAnnotationSemanticTests {
             }, "\(context.diagnostics.diagnostics)")
         }
     }
+
+    @Test
+    func optInOnLocalVariableCoversInitializerAndLambdaBody() throws {
+        // KUU-4284: `@OptIn` on a local val/var declaration applies to its
+        // whole initializer — lambda bodies included — matching kotlinc.
+        let source = """
+        @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
+        annotation class LocalMarker
+
+        @LocalMarker
+        fun restricted(): Int = 1
+
+        fun callerVal(): Int {
+            @OptIn(LocalMarker::class)
+            val a = restricted()
+            return a
+        }
+
+        fun callerVar(): Int {
+            @OptIn(LocalMarker::class)
+            var b = restricted()
+            b += 1
+            return b
+        }
+
+        fun callerLambda(): Int {
+            @OptIn(LocalMarker::class)
+            val a = run { restricted() }
+            return a
+        }
+
+        fun callerDestructuring(): Int {
+            @OptIn(LocalMarker::class)
+            val (x, y) = Pair(restricted(), 2)
+            return x + y
+        }
+
+        fun callerUnannotated(): Int {
+            val c = restricted()
+            return c
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            let optInErrors = context.diagnostics.diagnostics.filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-OPT-IN"
+            }
+            // Only the un-annotated local declaration's initializer reports;
+            // every @OptIn-annotated one's initializer stays clean.
+            #expect(optInErrors.count == 1, "\(optInErrors)")
+        }
+    }
+
+    @Test
+    func optInOnLocalVariableWithAliasedOptIn() throws {
+        // KUU-4284: resolving the forwarded annotations to records keeps
+        // import aliases working — `expressionOptInContext`'s source-spelling
+        // match cannot see `import kotlin.OptIn as OI`.
+        let source = """
+        import kotlin.OptIn as OI
+
+        @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
+        annotation class LocalMarker
+
+        @LocalMarker
+        fun restricted(): Int = 1
+
+        fun caller(): Int {
+            @OI(LocalMarker::class)
+            val a = restricted()
+            return a
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func optInOnLocalVariableCoversDelegatedInitializer() throws {
+        // KUU-4284: the opt-in scope also covers a `by` delegate expression.
+        let source = """
+        @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
+        annotation class LocalMarker
+
+        @LocalMarker
+        fun restricted(): Int = 1
+
+        fun caller(): Int {
+            @OptIn(LocalMarker::class)
+            val a by lazy { restricted() }
+            return a
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func localVariableAnnotationsValidateAgainstLocalVariableTarget() throws {
+        // KUU-4284: local val/var annotations are declaration-site — they
+        // must satisfy LOCAL_VARIABLE targets, not EXPRESSION targets.
+        let source = """
+        annotation class AnyTag
+        @Target(AnnotationTarget.LOCAL_VARIABLE) annotation class LocalTag
+        @Target(AnnotationTarget.PROPERTY) annotation class PropertyTag
+        @Target(AnnotationTarget.EXPRESSION) annotation class ExpressionTag
+
+        fun outer(): Int {
+            @AnyTag
+            val ok = 1
+            @LocalTag
+            val alsoOk = 2
+            @PropertyTag
+            val badProperty = 3
+            @ExpressionTag
+            val badExpression = 4
+            return ok + alsoOk + badProperty + badExpression
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            let errors = context.diagnostics.diagnostics.filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+            }
+            #expect(errors.count == 2, "\(errors)")
+            #expect(errors.allSatisfy { $0.message.contains("a local variable") }, "\(errors)")
+        }
+    }
+
+    @Test
+    func optInMarkerOnLocalVariableIsRejected() throws {
+        // KUU-4284: kotlinc rejects opt-in requirement markers on local
+        // variables outright; `@OptIn` remains the way to consent there.
+        let source = """
+        @RequiresOptIn(level = RequiresOptIn.Level.ERROR)
+        annotation class LocalMarker
+
+        @LocalMarker
+        fun restricted(): Int = 1
+
+        fun caller(): Int {
+            @LocalMarker
+            val a = restricted()
+            return a
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            let errors = context.diagnostics.diagnostics.filter {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-OPT-IN-LOCAL-VARIABLE"
+            }
+            #expect(errors.count == 1, "\(errors)")
+            // The prohibited marker still self-grants inside the declaration
+            // scope, so the initializer itself does not report KSWIFTK-SEMA-OPT-IN.
+            #expect(!context.diagnostics.diagnostics.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-OPT-IN"
+            }, "\(context.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func unresolvedAnnotationOnLocalVariableIsReported() throws {
+        // KUU-4284: annotations are no longer silently dropped, so an
+        // unresolvable one on a local variable reports like any declaration.
+        let source = """
+        fun outer(): Int {
+            @NoSuchAnnotation
+            val result = 1
+            return result
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = try makeExpressionAnnotationContext(inputs: [path])
+            try runSema(context)
+            #expect(context.diagnostics.diagnostics.contains {
+                $0.severity == .error && $0.code == "KSWIFTK-SEMA-0022"
+            }, "\(context.diagnostics.diagnostics)")
+        }
+    }
 }
