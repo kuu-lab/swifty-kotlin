@@ -444,6 +444,7 @@ public extension RuntimeABISpec {
         ], isThrowing: false),
         abiParitySpec("kk_cvar_cpointer_load", parameters: [
             p("varHandle", .intptr),
+            p("pointeeTypeToken", .intptr),
         ], isThrowing: false),
         abiParitySpec("kk_cvar_cpointer_store", parameters: [
             p("varHandle", .intptr),

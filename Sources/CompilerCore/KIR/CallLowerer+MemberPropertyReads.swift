@@ -1779,6 +1779,15 @@ extension CallLowerer {
         ) {
             propertyReadArguments.insert(dispatchReceiver, at: 0)
         }
+        if externalLinkName == "kk_cvar_cpointer_load" {
+            propertyReadArguments.append(cinteropCPointerPointeeTypeToken(
+                resultType: resultType,
+                sema: sema,
+                interner: interner,
+                arena: arena,
+                instructions: &instructions
+            ))
+        }
         instructions.append(.call(
             symbol: propertySymbol,
             callee: interner.intern(externalLinkName),
@@ -1794,6 +1803,44 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    /// `CPointerVarOf<T>.value` loads a pointer word whose pointee type is
+    /// erased from `T` (`CPointer<P>` -> `P`). The runtime box needs `P`'s
+    /// nominal type id so `pointed`/`get`/`plus` keep the concrete pointee
+    /// instead of degrading to the generic `CVariable`, so the getter ABI
+    /// takes a trailing type-token argument encoded from the substituted
+    /// result type. Unresolvable pointees encode 0, which the runtime decodes
+    /// back to the previous unknown-pointee behavior.
+    private func cinteropCPointerPointeeTypeToken(
+        resultType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner,
+        arena: KIRArena,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        var pointeeType: TypeID?
+        if case let .classType(pointerType) = sema.types.kind(of: resultType),
+           let cPointerSymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlinx"), interner.intern("cinterop"), interner.intern("CPointer"),
+           ]),
+           pointerType.classSymbol == cPointerSymbol,
+           pointerType.args.count == 1
+        {
+            switch pointerType.args[0] {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                pointeeType = inner
+            case .star:
+                break
+            }
+        }
+        let token = pointeeType.map {
+            RuntimeTypeCheckToken.encode(type: $0, sema: sema, interner: interner)
+        } ?? 0
+        let tokenExpr = arena.appendExpr(.intLiteral(token), type: intType)
+        instructions.append(.constValue(result: tokenExpr, value: .intLiteral(token)))
+        return tokenExpr
     }
 
     func shouldDeferCollectionSizePropertyRead(
