@@ -3,10 +3,10 @@ package java.security
 /** Message digest facade over the algorithms used by the bundled JVM APIs. */
 public class MessageDigest private constructor(public val algorithm: String) {
     private var input = ByteArray(0)
-    private val normalizedAlgorithm = algorithm.replace("-", "").uppercase()
+    private val normalizedAlgorithm = normalizeAlgorithmName(algorithm)
 
     public val digestLength: Int
-        get() = if (normalizedAlgorithm == "SHA256") 32 else 16
+        get() = if (normalizedAlgorithm == "SHA256") 32 else if (normalizedAlgorithm == "SHA1") 20 else 16
 
     public fun update(value: Byte) {
         update(byteArrayOf(value))
@@ -27,7 +27,13 @@ public class MessageDigest private constructor(public val algorithm: String) {
     }
 
     public fun digest(): ByteArray {
-        val result = if (normalizedAlgorithm == "SHA256") sha256(input) else md5(input)
+        val result = if (normalizedAlgorithm == "SHA256") {
+            sha256(input)
+        } else if (normalizedAlgorithm == "SHA1") {
+            sha1(input)
+        } else {
+            md5(input)
+        }
         input = ByteArray(0)
         return result
     }
@@ -52,8 +58,8 @@ public class MessageDigest private constructor(public val algorithm: String) {
 
     public companion object {
         public fun getInstance(algorithm: String): MessageDigest {
-            val normalized = algorithm.replace("-", "").uppercase()
-            if (normalized != "MD5" && normalized != "SHA256") {
+            val normalized = normalizeAlgorithmName(algorithm)
+            if (normalized != "MD5" && normalized != "SHA1" && normalized != "SHA256") {
                 throw NoSuchAlgorithmException("$algorithm MessageDigest not available")
             }
             return MessageDigest(algorithm)
@@ -162,6 +168,96 @@ private fun md5(input: ByteArray): ByteArray {
         var byteIndex = 0
         while (byteIndex < 4) {
             result[stateIndex * 4 + byteIndex] = (state[stateIndex] ushr (byteIndex * 8)).toByte()
+            byteIndex++
+        }
+        stateIndex++
+    }
+    return result
+}
+
+private fun sha1(input: ByteArray): ByteArray {
+    val paddedLength = ((input.size + 8) / 64 + 1) * 64
+    val padded = ByteArray(paddedLength)
+    input.copyInto(padded)
+    padded[input.size] = 0x80.toByte()
+    val bitLength = input.size.toLong() * 8L
+    var lengthIndex = 0
+    while (lengthIndex < 8) {
+        padded[paddedLength - 1 - lengthIndex] = (bitLength ushr (lengthIndex * 8)).toByte()
+        lengthIndex++
+    }
+
+    var state0 = 0x67452301
+    var state1 = 0xefcdab89.toInt()
+    var state2 = 0x98badcfe.toInt()
+    var state3 = 0x10325476
+    var state4 = 0xc3d2e1f0.toInt()
+    val words = IntArray(80)
+    var block = 0
+    while (block < padded.size) {
+        var wordIndex = 0
+        while (wordIndex < 16) {
+            val byteIndex = block + wordIndex * 4
+            words[wordIndex] = ((padded[byteIndex].toInt() and 0xFF) shl 24) or
+                ((padded[byteIndex + 1].toInt() and 0xFF) shl 16) or
+                ((padded[byteIndex + 2].toInt() and 0xFF) shl 8) or
+                (padded[byteIndex + 3].toInt() and 0xFF)
+            wordIndex++
+        }
+        while (wordIndex < 80) {
+            words[wordIndex] = rotateLeft(
+                words[wordIndex - 3] xor words[wordIndex - 8] xor
+                    words[wordIndex - 14] xor words[wordIndex - 16],
+                1
+            )
+            wordIndex++
+        }
+
+        var a = state0
+        var b = state1
+        var c = state2
+        var d = state3
+        var e = state4
+        var round = 0
+        while (round < 80) {
+            val function: Int
+            val constant: Int
+            if (round < 20) {
+                function = (b and c) or (b.inv() and d)
+                constant = 0x5a827999
+            } else if (round < 40) {
+                function = b xor c xor d
+                constant = 0x6ed9eba1
+            } else if (round < 60) {
+                function = (b and c) or (b and d) or (c and d)
+                constant = 0x8f1bbcdc.toInt()
+            } else {
+                function = b xor c xor d
+                constant = 0xca62c1d6.toInt()
+            }
+            val temporary = rotateLeft(a, 5) + function + e + constant + words[round]
+            e = d
+            d = c
+            c = rotateLeft(b, 30)
+            b = a
+            a = temporary
+            round++
+        }
+        state0 += a
+        state1 += b
+        state2 += c
+        state3 += d
+        state4 += e
+        block += 64
+    }
+
+    val result = ByteArray(20)
+    val state = intArrayOf(state0, state1, state2, state3, state4)
+    var stateIndex = 0
+    while (stateIndex < state.size) {
+        var byteIndex = 0
+        while (byteIndex < 4) {
+            result[stateIndex * 4 + byteIndex] = (state[stateIndex] ushr ((3 - byteIndex) * 8)).toByte()
             byteIndex++
         }
         stateIndex++
@@ -286,3 +382,9 @@ private fun rotateLeft(value: Int, distance: Int): Int =
 
 private fun rotateRight(value: Int, distance: Int): Int =
     (value ushr distance) or (value shl (32 - distance))
+
+private fun normalizeAlgorithmName(algorithm: String): String {
+    val normalized = algorithm.replace("-", "").uppercase()
+    // The JDK accepts "SHA" as an alias for SHA-1.
+    return if (normalized == "SHA") "SHA1" else normalized
+}
