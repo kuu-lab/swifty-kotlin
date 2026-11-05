@@ -1110,9 +1110,21 @@ extension CallTypeChecker {
             _ = driver.inferExpr(argument, ctx: argumentCtx, locals: &locals)
         }
         let argumentType = sema.bindings.exprTypes[argument] ?? sema.types.anyType
+        // Range expressions keep a scalar element-type handle during inference
+        // (KUU-569), so `removeAll(2..4)` arrives here as `Int` with no nominal
+        // `Iterable` supertype and the `Collection` member would win — the JVM
+        // bridge then fails with a ClassCastException (KUU-4302). Recover the
+        // nominal range type for classification and the element constraint,
+        // matching `sourceLevelRangeArgumentType`'s contract for regular
+        // argument checks. Non-range arguments are returned unchanged.
+        let argumentConstraintType = sourceLevelRangeArgumentType(
+            argument,
+            inferredType: argumentType,
+            ctx: ctx
+        )
         let classifier = ReceiverClassifier(sema: sema, interner: interner)
         var argumentNominalSymbols = driver.helpers.allNominalSymbols(
-            of: sema.types.makeNonNullable(argumentType),
+            of: sema.types.makeNonNullable(argumentConstraintType),
             types: sema.types,
             symbols: sema.symbols
         )
@@ -1132,22 +1144,22 @@ extension CallTypeChecker {
             }
         }
         let parameterID: InternedString?
-        if classifier.isArrayLikeType(argumentType)
+        if classifier.isArrayLikeType(argumentConstraintType)
             || hasNominalType(knownNames.kotlinArrayFQName)
         {
             parameterID = knownNames.array
-        } else if classifier.isSequenceLikeType(argumentType)
+        } else if classifier.isSequenceLikeType(argumentConstraintType)
                     || hasNominalType(knownNames.kotlinSequenceFQName)
         {
             parameterID = knownNames.sequence
-        } else if classifier.isCollectionLikeType(argumentType)
+        } else if classifier.isCollectionLikeType(argumentConstraintType)
                     || hasNominalType(knownNames.kotlinCollectionsCollectionFQName)
                     || hasNominalType(knownNames.kotlinCollectionsMutableCollectionFQName)
         {
             // Kotlin gives the MutableCollection member overload priority for
             // Collection arguments; the extension must not replace that call.
             parameterID = nil
-        } else if classifier.isIterableLikeType(argumentType)
+        } else if classifier.isIterableLikeType(argumentConstraintType)
                     || hasNominalType(knownNames.kotlinCollectionsIterableFQName)
                     || hasNominalType(knownNames.kotlinCollectionsMutableIterableFQName)
         {
@@ -1278,7 +1290,7 @@ extension CallTypeChecker {
                 substitution: substitutions,
                 typeVarBySymbol: typeVarBySymbol
             )
-            guard sema.types.isSubtype(argumentType, expectedArgumentType) else {
+            guard sema.types.isSubtype(argumentConstraintType, expectedArgumentType) else {
                 sema.diagnostics.error(
                     "KSWIFTK-TYPE-0001",
                     sema.requiresResolvedLibraryCalls ? "Type mismatch for mutable collection bulk elements." : "Type mismatch for MutableSet.addAll elements.",
