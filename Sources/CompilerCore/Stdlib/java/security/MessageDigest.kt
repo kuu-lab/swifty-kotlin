@@ -1,9 +1,11 @@
 package java.security
 
 /** Message digest facade over the algorithms used by the bundled JVM APIs. */
-public class MessageDigest private constructor(public val algorithm: String) {
+public class MessageDigest private constructor(
+    public val algorithm: String,
+    private val normalizedAlgorithm: String,
+) {
     private var input = ByteArray(0)
-    private val normalizedAlgorithm = normalizeAlgorithmName(algorithm)
 
     public val digestLength: Int
         get() = when (normalizedAlgorithm) {
@@ -107,12 +109,9 @@ public class MessageDigest private constructor(public val algorithm: String) {
 
     public companion object {
         public fun getInstance(algorithm: String): MessageDigest {
-            val normalized = normalizeAlgorithmName(algorithm)
-            if (!isSupportedAlgorithm(normalized) ||
-                !hasAcceptedAlgorithmSpelling(algorithm, normalized)) {
-                throw NoSuchAlgorithmException("$algorithm MessageDigest not available")
-            }
-            return MessageDigest(algorithm)
+            val normalized = resolveAlgorithmName(algorithm)
+                ?: throw NoSuchAlgorithmException("$algorithm MessageDigest not available")
+            return MessageDigest(algorithm, normalized)
         }
 
         public fun isEqual(first: ByteArray?, second: ByteArray?): Boolean {
@@ -453,32 +452,37 @@ private fun rotateRight(value: Long, distance: Int): Long =
 private fun rotateLeft(value: Long, distance: Int): Long =
     (value shl distance) or (value ushr (64 - distance))
 
-private fun isSupportedAlgorithm(normalized: String): Boolean = when (normalized) {
-    "MD2", "MD5", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512",
-    "SHA512/224", "SHA512/256",
-    "SHA3224", "SHA3256", "SHA3384", "SHA3512",
-    "SHAKE128", "SHAKE256", "SHAKE128256", "SHAKE256512" -> true
-    else -> false
-}
-
-// The JDK registers SHAKE only under the spellings "SHAKE128", "SHAKE256",
-// "SHAKE128-256" and "SHAKE256-512" (matched case-insensitively).
-// normalizeAlgorithmName folds '-' and case, so lookalikes such as
-// "SHAKE-128" or the undashed "SHAKE128256" would normalize to a supported
-// name; the original spelling is checked here to reject them like the JDK.
-private fun hasAcceptedAlgorithmSpelling(algorithm: String, normalized: String): Boolean =
-    when (normalized) {
-        "SHAKE128" -> algorithm.uppercase() == "SHAKE128"
-        "SHAKE256" -> algorithm.uppercase() == "SHAKE256"
-        "SHAKE128256" -> algorithm.uppercase() == "SHAKE128-256"
-        "SHAKE256512" -> algorithm.uppercase() == "SHAKE256-512"
-        else -> true
-    }
-
-private fun normalizeAlgorithmName(algorithm: String): String {
-    val normalized = algorithm.replace("-", "").uppercase()
-    // The JDK accepts "SHA" as an alias for SHA-1.
-    return if (normalized == "SHA") "SHA1" else normalized
+// The JDK's SUN provider resolves MessageDigest names through a fixed
+// alias table (sun.security.provider.SunEntries +
+// sun.security.util.KnownOIDs): each digest is reachable only under its
+// registered spellings — the service name, its KnownOIDs aliases, and
+// the "OID.<oid>" / bare "<oid>" forms — matched case-insensitively.
+// Spellings outside that set are rejected with NoSuchAlgorithmException
+// even when removing dashes would map them onto a supported algorithm
+// ("SHA3256", "SHA-3-256", "S-H-A-256", "MD-5"). The table below mirrors
+// the OpenJDK 27 alias set verified by probing
+// MessageDigest.getInstance; each value is the internal algorithm name
+// used by digest()/digestLength.
+private fun resolveAlgorithmName(algorithm: String): String? = when (algorithm.uppercase()) {
+    "MD2", "OID.1.2.840.113549.2.2", "1.2.840.113549.2.2" -> "MD2"
+    "MD5", "OID.1.2.840.113549.2.5", "1.2.840.113549.2.5" -> "MD5"
+    "SHA", "SHA-1", "SHA1", "OID.1.3.14.3.2.26", "1.3.14.3.2.26" -> "SHA1"
+    "SHA-224", "SHA224", "OID.2.16.840.1.101.3.4.2.4", "2.16.840.1.101.3.4.2.4" -> "SHA224"
+    "SHA-256", "SHA256", "OID.2.16.840.1.101.3.4.2.1", "2.16.840.1.101.3.4.2.1" -> "SHA256"
+    "SHA-384", "SHA384", "OID.2.16.840.1.101.3.4.2.2", "2.16.840.1.101.3.4.2.2" -> "SHA384"
+    "SHA-512", "SHA512", "OID.2.16.840.1.101.3.4.2.3", "2.16.840.1.101.3.4.2.3" -> "SHA512"
+    "SHA-512/224", "SHA512/224", "OID.2.16.840.1.101.3.4.2.5", "2.16.840.1.101.3.4.2.5" -> "SHA512/224"
+    "SHA-512/256", "SHA512/256", "OID.2.16.840.1.101.3.4.2.6", "2.16.840.1.101.3.4.2.6" -> "SHA512/256"
+    "SHA3-224", "OID.2.16.840.1.101.3.4.2.7", "2.16.840.1.101.3.4.2.7" -> "SHA3224"
+    "SHA3-256", "OID.2.16.840.1.101.3.4.2.8", "2.16.840.1.101.3.4.2.8" -> "SHA3256"
+    "SHA3-384", "OID.2.16.840.1.101.3.4.2.9", "2.16.840.1.101.3.4.2.9" -> "SHA3384"
+    "SHA3-512", "OID.2.16.840.1.101.3.4.2.10", "2.16.840.1.101.3.4.2.10" -> "SHA3512"
+    // SHAKE128/SHAKE256 are aliases of the SHAKE128-256/SHAKE256-512
+    // services; "SHAKE128"/"SHAKE256" and the "-256"/"-512" spellings all
+    // resolve to the same XOF with the JDK's fixed default digest length.
+    "SHAKE128", "SHAKE128-256", "OID.2.16.840.1.101.3.4.2.11", "2.16.840.1.101.3.4.2.11" -> "SHAKE128256"
+    "SHAKE256", "SHAKE256-512", "OID.2.16.840.1.101.3.4.2.12", "2.16.840.1.101.3.4.2.12" -> "SHAKE256512"
+    else -> null
 }
 
 // MARK: - SHA-512 family (FIPS 180-4)
