@@ -945,8 +945,16 @@ struct TypeCheckHelpers {
                 return sema.types.errorType
             }
             let nullability: Nullability = nullable ? .nullable : .nonNull
+            // A qualified builtin name only resolves through the kotlin package
+            // itself (kotlin.Int); any other qualifier denotes a user classifier
+            // such as foo.Int or Outer.Int (KUU-4163).
+            let builtinNameApplies = if path.count == 1 {
+                scope.map { hasUserDeclaredClassifier(shortName, scope: $0, sema: sema, interner: interner) } != true
+            } else {
+                path.count == 2 && path[0] == interner.intern("kotlin")
+            }
             if let builtin = resolveBuiltinTypeName(shortName, nullability: nullability, types: sema.types, interner: interner),
-               !(path.count == 1 && scope.map { hasUserDeclaredClassifier(shortName, scope: $0, sema: sema, interner: interner) } == true)
+               builtinNameApplies
             {
                 return builtin
             }

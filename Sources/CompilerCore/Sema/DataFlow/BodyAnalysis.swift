@@ -72,13 +72,18 @@ extension DataFlowSemaPhase {
                 return types.make(.typeParam(TypeParamType(symbol: typeParamSymbol, nullability: nullability)))
             }
 
+            let kotlinRoot = interner.intern("kotlin")
+            // A qualified builtin name only resolves through the kotlin package
+            // itself (kotlin.Int); any other qualifier denotes a user classifier
+            // such as foo.Int or Outer.Int (KUU-4163).
+            let builtinNameApplies = path.count == 1 || (path.count == 2 && path[0] == kotlinRoot)
             var builtinShadow: SemanticSymbol?
-            if let builtinType = builtinTypeNames(interner: interner).resolveBuiltinType(
-                shortName,
-                nullability: nullability,
-                types: types
-            ) {
-                let kotlinRoot = interner.intern("kotlin")
+            if builtinNameApplies,
+               let builtinType = builtinTypeNames(interner: interner).resolveBuiltinType(
+                   shortName,
+                   nullability: nullability,
+                   types: types
+               ) {
                 let mayShadow = path.count == 1 && (
                     imports.contains { !$0.isWildcard && ($0.alias == shortName || $0.path.last == shortName) }
                         || symbols.lookupByShortName(shortName).contains { id in
