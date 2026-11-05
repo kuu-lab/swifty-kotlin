@@ -70,6 +70,66 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3969: v3 compact-indexed libraries register shells lazily, so an
+    /// expect no lookup reaches before validation must still be checked —
+    /// otherwise its stub body links silently and returns defaults.
+    @Test
+    func testCompactIndexedImportedExpectWithoutLocalActualIsUnresolved() throws {
+        let libraryDirectory = try makeImportedExpectLibrary(compactIndexed: true)
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        // The source never references `platformName`: only the eager expect
+        // drain inside expect/actual validation can surface the import.
+        try withTemporaryFile(contents: "package sample.kmp\nfun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.map(\.code) == ["KSWIFTK-MPP-UNRESOLVED"], "Unexpected diagnostics: \(errors)")
+        }
+    }
+
+    /// KUU-3969: the same lazy-index drain must still pair an imported
+    /// expect with a local actual instead of reporting it unresolved.
+    @Test
+    func testCompactIndexedImportedExpectLinksToLocalActual() throws {
+        let libraryDirectory = try makeImportedExpectLibrary(compactIndexed: true)
+        defer { try? FileManager.default.removeItem(at: libraryDirectory) }
+
+        try withTemporaryFile(
+            contents: """
+            package sample.kmp
+            actual fun platformName(): Int = 7
+            fun usePlatformName(): Int = platformName()
+            """
+        ) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "Platform",
+                searchPaths: [libraryDirectory.path],
+                includeStdlib: false
+            )
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            let fqName = ["sample", "kmp", "platformName"].map(ctx.interner.intern)
+            let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
+            let expectSymbol = try #require(symbols.first {
+                $0.flags.contains(.expectDeclaration) && $0.flags.contains(.importedLibrary)
+            })
+            let actualSymbol = try #require(symbols.first { $0.flags.contains(.actualDeclaration) })
+            #expect(sema.symbols.actualSymbol(for: expectSymbol.id) == actualSymbol.id)
+        }
+    }
+
     @Test(arguments: [false, true])
     func testImportedExpectWithoutLocalActualIsUnresolved(indexed: Bool) throws {
         let libraryDirectory = try makeImportedExpectLibrary(indexed: indexed)
@@ -1503,13 +1563,13 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
-    private func makeImportedExpectLibrary(indexed: Bool) throws -> URL {
+    private func makeImportedExpectLibrary(indexed: Bool = false, compactIndexed: Bool = false) throws -> URL {
         let libraryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kklib")
         try FileManager.default.createDirectory(at: libraryDirectory, withIntermediateDirectories: true)
 
         let manifest = """
-        { "formatVersion": 1, "moduleName": "Common", "metadata": "metadata.bin" }
+        { "formatVersion": \(compactIndexed ? 2 : 1), "moduleName": "Common", "metadata": "metadata.bin" }
         """
         let record = MetadataRecord(
             kind: .function,
@@ -1520,9 +1580,15 @@ struct ExpectActualCompatibilityTests {
             isExpect: true
         )
         let encoder = MetadataEncoder()
-        let metadata = indexed ? encoder.serializeIndexed([record]) : encoder.serialize([record])
+        let metadata: Data
+        if compactIndexed {
+            metadata = encoder.serializeCompactIndexed([record])
+        } else {
+            let text = indexed ? encoder.serializeIndexed([record]) : encoder.serialize([record])
+            metadata = Data(text.utf8)
+        }
         try manifest.write(to: libraryDirectory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
-        try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libraryDirectory.appendingPathComponent("metadata.bin"), options: .atomic)
         return libraryDirectory
     }
 }

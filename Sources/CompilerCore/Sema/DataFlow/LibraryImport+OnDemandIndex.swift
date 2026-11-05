@@ -238,6 +238,21 @@ extension DataFlowSemaPhase {
             }
         }
 
+        /// Registers every pending `isExpect` entry so expect/actual
+        /// validation covers the complete expect surface, not only the
+        /// entries earlier lookups happened to reach (KUU-3969). The pending
+        /// maps are not consulted: claims key on the entry index and already
+        /// deduplicate against lookup-driven drains.
+        func drainExpectEntries() {
+            buildMapsIfNeeded()
+            for index in indexedFile.entries.indices {
+                guard let record = indexedFile.entries[index].compactRecord,
+                      record.isExpect
+                else { continue }
+                claim(index: index)
+            }
+        }
+
         /// Claims the initializer-bearing entries once, at import time. The
         /// module-init emission enumerates registered owner symbols to emit
         /// object/companion/enum init calls before `main`; an entry that
