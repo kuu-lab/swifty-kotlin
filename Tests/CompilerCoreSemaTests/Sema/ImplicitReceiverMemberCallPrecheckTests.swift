@@ -420,4 +420,86 @@ struct ImplicitReceiverMemberCallPrecheckTests {
         ))
         #expect(sema.symbols.propertyType(for: symbol) == sema.types.stringType)
     }
+
+    // MARK: - KUU-4293: inapplicable same-named member + top-level function with args
+
+    @Test(arguments: [false, true])
+    func inapplicableMemberWithArgumentsFallsThroughToTopLevelAcrossFileOrder(useLibrary: Bool) throws {
+        // KUU-4293: `other("x")` cannot bind the member `other(Int)`, so
+        // resolution continues past the class member scope to the top-level
+        // `other(String)` — the same walk the zero-argument path already
+        // performs. The consumer file checked first must still see `String`.
+        let declaring = """
+        fun other(s: String): String = "top"
+        class B {
+            val picked = other("x")
+            fun other(n: Int): Int = 9
+        }
+        """
+        let using = """
+        fun f(b: B) {
+            val s: String = b.picked
+            val n: Int = b.picked.length
+        }
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+        let ctx = try semaContext(sources: [using, declaring], useLibrary: useLibrary)
+        let sema = try #require(ctx.sema)
+        let symbol = try #require(sema.symbols.lookup(
+            fqName: ["B", "picked"].map(ctx.interner.intern)
+        ))
+        #expect(sema.symbols.propertyType(for: symbol) == sema.types.stringType)
+    }
+
+    @Test(arguments: [false, true])
+    func getterBodiedPropertyWithInapplicableMemberCallPublishesTypeAcrossFileOrder(useLibrary: Bool) throws {
+        // KUU-4293: a getter-bodied inferred property is not registered for
+        // on-demand resolution, so when the precheck cannot see past the
+        // inapplicable member `other(Int)` its `Any?` placeholder leaks to
+        // the consumer and `b.picked.length` reports SEMA-0024. The args
+        // branch must fall through to the top-level `other(String)`.
+        let declaring = """
+        fun other(s: String): String = "top"
+        class B {
+            val picked get() = other("x")
+            fun other(n: Int): Int = 9
+        }
+        """
+        let using = """
+        fun f(b: B): Int {
+            return b.picked.length
+        }
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func customSetterVarWithInapplicableMemberCallPublishesTypeAcrossFileOrder(useLibrary: Bool) throws {
+        // KUU-4293: a `var` with a real custom setter is likewise outside
+        // on-demand resolution — its initializer `other("x")` must publish
+        // `String` during the precheck or the placeholder leaks.
+        let declaring = """
+        fun other(s: String): String = "top"
+        class B {
+            var picked = other("x")
+                set(value) { field = value }
+            fun other(n: Int): Int = 9
+        }
+        """
+        let using = """
+        fun f(b: B): Int {
+            return b.picked.length
+        }
+        """
+        for sources in [[declaring, using], [using, declaring]] {
+            let ctx = try semaContext(sources: sources, useLibrary: useLibrary)
+            assertNoErrors(ctx, "order=\(sources[0] == declaring ? "decl-first" : "use-first") library=\(useLibrary)")
+        }
+    }
 }
