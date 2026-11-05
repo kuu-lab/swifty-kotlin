@@ -558,12 +558,59 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
         case "associateByTo", "associateWithTo", "groupByTo":
             // *To(destination, keySelector/valueSelector, [valueTransform]): returns the destination map
-            guard args.count == 2 || args.count == 3 else {
+            guard args.count == 2 || (args.count == 3 && calleeStr != "associateWithTo") else {
                 sema.bindings.bindExprType(id, type: sema.types.anyType)
                 return sema.types.anyType
             }
             var destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             var nonNullableDestType = sema.types.makeNonNullable(destType)
+
+            // The bundled declarations bound the destination as a
+            // `MutableMap` (`M : MutableMap<in K, in V>` for associateByTo /
+            // associateWithTo, `M : MutableMap<in K, MutableList<V>>` for
+            // groupByTo). Re-parameterize the bound with the destination's own
+            // arguments — the same nominal-family check the collection
+            // destination path runs — so a non-map destination such as
+            // `mutableListOf()` cannot reach lowering (KUU-4292).
+            if let mutableMapSymbol = lookupStdlibSymbol("MutableMap", symbols: sema.symbols, interner: interner) {
+                let shapeBoundArguments: [TypeArg] = if case let .classType(destClassType) = sema.types.kind(
+                    of: nonNullableDestType
+                ), destClassType.args.count >= 2 {
+                    destClassType.args.prefix(2).map { argument in
+                        switch argument {
+                        case let .invariant(type), let .out(type), let .in(type): .in(type)
+                        case .star: .in(sema.types.nothingType)
+                        }
+                    }
+                } else {
+                    [.in(sema.types.nothingType), .in(sema.types.nothingType)]
+                }
+                let destinationShapeBound = sema.types.make(.classType(ClassType(
+                    classSymbol: mutableMapSymbol,
+                    args: shapeBoundArguments,
+                    nullability: .nonNull
+                )))
+                guard sema.types.isSubtype(nonNullableDestType, destinationShapeBound) else {
+                    let actualTypeName = sema.types.displayName(
+                        of: destType,
+                        symbols: sema.symbols,
+                        interner: interner
+                    )
+                    let requiredTypeName = sema.types.displayName(
+                        of: destinationShapeBound,
+                        symbols: sema.symbols,
+                        interner: interner
+                    )
+                    ctx.sema.diagnostics.emit(Diagnostic(
+                        severity: .error,
+                        code: "KSWIFTK-SEMA-0473",
+                        message: "Type mismatch: destination has type '\(actualTypeName)', but '\(requiredTypeName)' is required for '\(calleeStr)'.",
+                        primaryRange: ast.arena.exprRange(args[0].expr) ?? range,
+                        secondaryRanges: []
+                    ))
+                    return sema.types.errorType
+                }
+            }
             let destKeyType: TypeID
             let destValueType: TypeID
             if let destClassType = resolveClassType(nonNullableDestType, sema: sema),
@@ -655,9 +702,164 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     boundType: boundType,
                     sema: sema
                 ) {
-                    destType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: destinationExpectedType)
-                    nonNullableDestType = sema.types.makeNonNullable(destType)
+                    // The first pass diagnosed the still-unconstrained
+                    // destination call (KSWIFTK-SEMA-INFER on bare factories
+                    // such as `mutableMapOf()`); the re-inference below
+                    // re-derives it under the destination bound, so drop
+                    // those stale errors up front and restore them only when
+                    // re-inference fails.
+                    let firstPassDestinationDiagnostics: [Diagnostic] = ast.arena
+                        .exprRange(args[0].expr)
+                        .map { ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: $0) }
+                        ?? []
+                    let reinferDiagnosticsCheckpoint = ctx.sema.diagnostics.checkpoint()
+                    let reinferredType = driver.inferExpr(
+                        args[0].expr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: destinationExpectedType
+                    )
+                    if reinferredType != sema.types.errorType,
+                       !typeContainsNothingType(reinferredType, sema: sema)
+                    {
+                        destType = reinferredType
+                        nonNullableDestType = sema.types.makeNonNullable(destType)
+                    } else {
+                        ctx.sema.diagnostics.rollback(to: reinferDiagnosticsCheckpoint)
+                        for diagnostic in firstPassDestinationDiagnostics {
+                            ctx.sema.diagnostics.emit(diagnostic)
+                        }
+                    }
                 }
+            }
+
+            // The shape check above re-parameterized `MutableMap` with the
+            // destination's *own* arguments, so it only proves the destination
+            // is a map at all. kotlinc declares the bound contravariantly —
+            // `M : MutableMap<in K, in V>` for associateByTo/associateWithTo
+            // and `M : MutableMap<in K, MutableList<V>>` for groupByTo — which
+            // additionally requires the destination key/value types to be
+            // *supertypes* of what the selectors produce. The produced types
+            // are only knowable after the lambdas — and any deferred factory
+            // destination — have been inferred, so the check runs here
+            // against the final destination type (KUU-4292).
+            let producedLambdaReturn: (ExprID) -> TypeID? = { argExpr in
+                if case let .lambdaLiteral(_, bodyExpr, _, _) = self.ast.arena.expr(argExpr) {
+                    return self.sema.bindings.exprType(for: bodyExpr)
+                }
+                if let argType = self.sema.bindings.exprType(for: argExpr),
+                   case let .functionType(functionType) = self.sema.types.kind(of: argType)
+                {
+                    return functionType.returnType
+                }
+                return nil
+            }
+            // A receiver whose declared type arguments are absent
+            // (`class L : MutableList<Int>`) leaves `collectionElementType` at
+            // its `Any` fallback — not evidence the bound demands `in Any`,
+            // so element-derived positions stay unchecked there (the same
+            // guard the collection destination path applies).
+            let receiverDeclaresElementArgument = collectionElementType != sema.types.anyType
+                || (resolveClassType(receiverType, sema: sema).map { !$0.args.isEmpty } ?? false)
+            let requiredKeyType: TypeID?
+            let requiredValueType: TypeID?
+            let requiredGroupElementType: TypeID?
+            switch calleeStr {
+            case "associateWithTo":
+                requiredKeyType = receiverDeclaresElementArgument ? collectionElementType : nil
+                requiredValueType = producedLambdaReturn(args[1].expr)
+                requiredGroupElementType = nil
+            case "associateByTo":
+                requiredKeyType = producedLambdaReturn(args[1].expr)
+                requiredValueType = args.count == 3
+                    ? producedLambdaReturn(args[2].expr)
+                    : (receiverDeclaresElementArgument ? collectionElementType : nil)
+                requiredGroupElementType = nil
+            default:
+                requiredKeyType = producedLambdaReturn(args[1].expr)
+                requiredValueType = nil
+                requiredGroupElementType = args.count == 3
+                    ? producedLambdaReturn(args[2].expr)
+                    : (receiverDeclaresElementArgument ? collectionElementType : nil)
+            }
+            // A `nil` produced type means the call never fixed it — an
+            // unbound lambda result or a receiver without declared type
+            // arguments — so there is no evidence the bound is violated;
+            // checking anyway could reject destinations the bound does not
+            // actually forbid.
+            var requiredBoundViolation = false
+            var requiredBoundForMessage: TypeID?
+            if let requiredKeyType,
+               !typeContainsNothingType(nonNullableDestType, sema: sema),
+               let mutableMapSymbol = lookupStdlibSymbol("MutableMap", symbols: sema.symbols, interner: interner)
+            {
+                if calleeStr == "groupByTo" {
+                    if let requiredGroupElementType,
+                       let mutableListSymbol = lookupStdlibSymbol("MutableList", symbols: sema.symbols, interner: interner)
+                    {
+                        let messageListType = sema.types.make(.classType(ClassType(
+                            classSymbol: mutableListSymbol,
+                            args: [.invariant(requiredGroupElementType)],
+                            nullability: .nonNull
+                        )))
+                        requiredBoundForMessage = sema.types.make(.classType(ClassType(
+                            classSymbol: mutableMapSymbol,
+                            args: [.in(requiredKeyType), .invariant(messageListType)],
+                            nullability: .nonNull
+                        )))
+                        // The `in Nothing` placeholder verifies the key
+                        // position and the `MutableMap` nominal shape without
+                        // committing `V`; the invariant `MutableList<V>` value
+                        // is verified separately below.
+                        let keyAndShapeBound = sema.types.make(.classType(ClassType(
+                            classSymbol: mutableMapSymbol,
+                            args: [.in(requiredKeyType), .in(sema.types.nothingType)],
+                            nullability: .nonNull
+                        )))
+                        requiredBoundViolation = !sema.types.isSubtype(nonNullableDestType, keyAndShapeBound)
+                            || !groupByDestinationValueAccepts(
+                                nonNullableDestType,
+                                producedElementType: requiredGroupElementType,
+                                mutableMapSymbol: mutableMapSymbol,
+                                mutableListSymbol: mutableListSymbol
+                            )
+                    }
+                } else if let requiredValueType {
+                    let requiredBound = sema.types.make(.classType(ClassType(
+                        classSymbol: mutableMapSymbol,
+                        args: [.in(requiredKeyType), .in(requiredValueType)],
+                        nullability: .nonNull
+                    )))
+                    requiredBoundForMessage = requiredBound
+                    requiredBoundViolation = !sema.types.isSubtype(nonNullableDestType, requiredBound)
+                }
+            }
+            if requiredBoundViolation, let requiredBoundForMessage {
+                let actualTypeName = sema.types.displayName(
+                    of: destType,
+                    symbols: sema.symbols,
+                    interner: interner
+                )
+                let requiredTypeName = sema.types.displayName(
+                    of: requiredBoundForMessage,
+                    symbols: sema.symbols,
+                    interner: interner
+                )
+                ctx.sema.diagnostics.emit(Diagnostic(
+                    severity: .error,
+                    code: "KSWIFTK-TYPE-0001",
+                    message: "Type mismatch: destination has type '\(actualTypeName)', but '\(requiredTypeName)' is required for '\(calleeStr)'.",
+                    primaryRange: ast.arena.exprRange(args[0].expr) ?? range,
+                    secondaryRanges: []
+                ))
+                for argumentIndex in [1, 2] where argumentIndex < args.count {
+                    if let lambdaExpr = ast.arena.expr(args[argumentIndex].expr),
+                       lambdaExpr.isLambdaOrCallableRef
+                    {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[argumentIndex].expr)
+                    }
+                }
+                return sema.types.errorType
             }
 
             resultType = destType
@@ -1041,6 +1243,77 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 break
         }
         return nil
+    }
+
+    /// `groupByTo` stores `MutableList<V>` values: the destination's map value
+    /// argument must itself be a `MutableList<X>` and the produced element
+    /// only needs to be a subtype of `X`. kotlinc fixes `V := X` through the
+    /// invariant `MutableList<V>` position of `MutableMap<in K, MutableList<V>>`
+    /// rather than comparing the produced element type against the whole list
+    /// type — so `MutableMap<String, MutableList<Int?>>` still accepts an
+    /// `Int` transform while `MutableMap<String, List<Int>>` and
+    /// `MutableMap<String, ArrayList<Int>>` do not (KUU-4292).
+    ///
+    /// The value argument is read through the destination's `MutableMap`
+    /// supertype so map implementations whose own type parameters do not
+    /// mirror `MutableMap`'s (for example `class StringKeyMap<V> :
+    /// MutableMap<String, V>`) are checked by their projected map type rather
+    /// than rejected for lacking two type arguments of their own.
+    func groupByDestinationValueAccepts(
+        _ destinationType: TypeID,
+        producedElementType: TypeID,
+        mutableMapSymbol: SymbolID,
+        mutableListSymbol: SymbolID
+    ) -> Bool {
+        guard case let .classType(destinationClass) = sema.types.kind(of: destinationType),
+              let mapArguments = sema.types.liftedNominalSupertypeArgs(
+                  from: destinationClass,
+                  to: mutableMapSymbol
+              ),
+              mapArguments.count >= 2
+        else {
+            // A destination that is not a concrete `MutableMap` class type —
+            // a type parameter bounded by one, an intersection, or an
+            // already-failed expression — gives no positive evidence the
+            // `MutableList<V>` slot is violated, so the check stays lenient
+            // there rather than rejecting what the bound does not forbid.
+            return true
+        }
+        let mapValueType: TypeID?
+        switch mapArguments[1] {
+        case let .invariant(id), let .out(id), let .in(id):
+            mapValueType = id
+        case .star:
+            mapValueType = nil
+        }
+        guard let mapValueType else {
+            // `MutableMap<K, *>` cannot satisfy the invariant `MutableList<V>`
+            // slot for any concrete `V`.
+            return false
+        }
+        guard case let .classType(valueClass) = sema.types.kind(
+            of: sema.types.makeNonNullable(mapValueType)
+        ) else {
+            // A non-class value argument (a type parameter, an error type)
+            // is not positive evidence of a violation either.
+            return true
+        }
+        guard valueClass.classSymbol == mutableListSymbol,
+              valueClass.args.count == 1
+        else {
+            return false
+        }
+        let listElementType: TypeID?
+        switch valueClass.args[0] {
+        case let .invariant(id), let .out(id), let .in(id):
+            listElementType = id
+        case .star:
+            listElementType = nil
+        }
+        guard let listElementType else {
+            return false
+        }
+        return sema.types.isSubtype(producedElementType, listElementType)
     }
 }
 
