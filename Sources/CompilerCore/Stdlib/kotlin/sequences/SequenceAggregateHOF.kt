@@ -653,7 +653,7 @@ public fun <T> Sequence<T>.joinToString(
 // KSP-442: Sequence terminal operations migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeSequence.swift
 
-public fun <T> Sequence<T>.indexOf(element: T): Int {
+public fun <@kotlin.internal.OnlyInputTypes T> Sequence<T>.indexOf(element: T): Int {
     val iterator = this.iterator()
     var i = 0
     while (iterator.hasNext()) {
@@ -686,7 +686,7 @@ public fun <T> Sequence<T>.indexOfLast(predicate: (T) -> Boolean): Int {
     return -1
 }
 
-public fun <T> Sequence<T>.lastIndexOf(element: T): Int {
+public fun <@kotlin.internal.OnlyInputTypes T> Sequence<T>.lastIndexOf(element: T): Int {
     val elements = this.toList()
     var i = elements.size - 1
     while (i >= 0) {
@@ -696,7 +696,7 @@ public fun <T> Sequence<T>.lastIndexOf(element: T): Int {
     return -1
 }
 
-public operator fun <T> Sequence<T>.contains(element: T): Boolean = indexOf(element) >= 0
+public operator fun <@kotlin.internal.OnlyInputTypes T> Sequence<T>.contains(element: T): Boolean = indexOf(element) >= 0
 
 public fun <T> Sequence<T>.any(): Boolean {
     val elements = this.toList()
