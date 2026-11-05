@@ -50,4 +50,55 @@ extension StdlibArtifactRegressionTests {
             """)
         }
     }
+
+    /// KUU-4075: `Calendar.timeZone` property view plus the Rosetta date-task
+    /// surface (`isLeapYear`, field constants, `TimeZone.getTimeZone`) must
+    /// resolve and execute through a fresh bundled stdlib artifact.
+    @Test(arguments: [false, true])
+    func testCalendarTimeZonePropertySurface(optimize: Bool) throws {
+        let optLevel: OptimizationLevel = optimize ? .O2 : .O0
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = try diffCaseSource("java_util_calendar_timezone_property.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: outputBase) }
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "JavaUtilCalendarTimeZoneProperty",
+                outputPath: outputBase,
+                optLevel: optLevel,
+                allowDefaultStdlibLibrary: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try assertNoDiagnosticErrors(ctx)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.exitCode == 0, "\(result.stderr)")
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == """
+            true
+            false
+            false
+            6
+            1
+            7
+            0
+            11
+            7
+            14
+            MST
+            -25200000
+            -25200000
+            MST
+            MST
+            UTC
+            1970
+            0
+            1
+            5
+            UTC
+
+            """)
+        }
+    }
 }
