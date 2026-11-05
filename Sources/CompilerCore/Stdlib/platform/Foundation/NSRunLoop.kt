@@ -20,6 +20,13 @@ public class NSThread internal constructor(handle: Long) : NSObject(handle) {
     public fun start() { __foundation_thread_start(__handle) }
     public companion object { public val currentThread: NSThread get() = NSThread(__foundation_thread_current()) }
 }
+// +[NSThread callStackSymbols]: NSArray of NSString bridged as List<String>.
+public val NSThread.Companion.callStackSymbols: List<String>
+    get() = __foundation_thread_callstack()
+public fun NSThread.Companion.isMainThread(): Boolean = __foundation_thread_is_main()
+public fun NSThread.Companion.sleepForTimeInterval(interval: NSTimeInterval) {
+    __foundation_thread_sleep(interval)
+}
 public class NSRecursiveLock internal constructor(handle: Long) : NSObject(handle) {
     public constructor() : this(__foundation_lock_create())
     public fun lock() { __foundation_lock_lock(__handle) }
