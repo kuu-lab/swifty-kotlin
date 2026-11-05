@@ -137,6 +137,30 @@ struct ProducerFlowBuilderInferenceTests {
     }
 
     @Test(arguments: [false, true])
+    func memberShadowedByInapplicableSignatureKeepsExtensionBinding(fromSource: Bool) throws {
+        let context = try frontend(["""
+        package regression
+        interface CancelHandler {
+            fun invoke(cause: Throwable?)
+        }
+        interface SelectChannel<T> {
+            fun invokeOnCancellation(handler: (cause: Throwable?) -> Unit)
+        }
+        fun <T> SelectChannel<T>.invokeOnCancellation(handler: CancelHandler) {}
+        fun <T> withSelect(block: (SelectChannel<T>) -> Unit) {}
+        class SelectImpl : CancelHandler {
+            override fun invoke(cause: Throwable?) {}
+            fun wait() {
+                withSelect<Unit> { cont ->
+                    cont.invokeOnCancellation(this)
+                }
+            }
+        }
+        """], fromSource: fromSource)
+        try #require(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [false, true])
     func absentEvidenceAndIncompatibleValuesRemainErrors(fromSource: Bool) throws {
         let probes: [(String, String)] = [
             ("val bad = channelFlow {}", "KSWIFTK-SEMA-INFER"),

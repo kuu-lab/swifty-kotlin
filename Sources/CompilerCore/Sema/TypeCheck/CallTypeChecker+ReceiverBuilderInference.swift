@@ -229,6 +229,22 @@ extension CallTypeChecker {
         }
     }
 
+    private func constraintReferencesSessionVariable(
+        _ constraint: VariableConstraint,
+        session: BuilderInferenceSession,
+        types: TypeSystem
+    ) -> Bool {
+        let sessionVariables = Set(session.typeVarBySymbol.values)
+        return [constraint.left, constraint.right].contains { operand in
+            switch operand {
+            case let .variable(variable):
+                return sessionVariables.contains(variable)
+            case let .type(type):
+                return session.mentionsVariable(type, types: types)
+            }
+        }
+    }
+
     /// Check extension receiver applicability without committing speculative
     /// constraints from competing overloads.
     func extensionReceiverMatchesDuringBuilderInference(
@@ -538,11 +554,15 @@ extension CallTypeChecker {
                 || session.mentionsVariable(argTypes[index], types: sema.types)
                 || signature.classTypeParameterCount > 0
             else { continue }
-            session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
+            let decomposed = ctx.resolver.decomposeSubtypeConstraint(
                 subtype: argTypes[index], supertype: parameterType,
                 typeVarBySymbol: session.typeVarBySymbol, typeSystem: sema.types,
                 blameRange: ctx.ast.arena.exprRange(args[index].expr)
-            ))
+            )
+            guard decomposed.contains(where: {
+                constraintReferencesSessionVariable($0, session: session, types: sema.types)
+            }) else { continue }
+            session.constraints.append(contentsOf: decomposed)
         }
         let solution = ConstraintSolver().solve(
             vars: ctx.resolver.usedTypeVariables(from: session.constraints),
