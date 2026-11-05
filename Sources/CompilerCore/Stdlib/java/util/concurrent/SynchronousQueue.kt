@@ -84,7 +84,7 @@ public class SynchronousQueue<E>(fair: Boolean = false) : BlockingQueue<E> {
     override fun element(): E = throw NoSuchElementException()
 
     /** JVM `Queue.remove`: like [poll] but throws on an empty queue. */
-    public fun remove(): E {
+    override fun remove(): E {
         val head = poll()
         return head ?: throw NoSuchElementException()
     }
