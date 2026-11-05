@@ -246,6 +246,43 @@ import Testing
                 "expected no errors in \(diagnostics)")
     }
 
+    /// KUU-4285: `bindings.declSymbols` is many-to-one — two files declaring
+    /// the same nominal FQ name share a single symbol — so the SymbolID →
+    /// DeclID reverse map built for implicit override visibility must
+    /// tolerate duplicate values instead of trapping in
+    /// `Dictionary(uniqueKeysWithValues:)`.
+    @Test func testImplicitOverrideVisibilityToleratesSharedDeclSymbols() throws {
+        try withTemporaryFiles(contents: [
+            """
+            package sample.kmp
+            interface Marker
+            interface Worker {
+                fun work()
+            }
+            """,
+            """
+            package sample.kmp
+            interface Marker
+            fun make(): Worker {
+                return object : Worker {
+                    override fun work() {}
+                }
+            }
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            // The duplicated `Marker` interface is what puts two DeclIDs on
+            // one SymbolID; the duplicate-declaration diagnostic is expected,
+            // everything else must stay clean.
+            #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0001" },
+                    "Expected the duplicate Marker declaration diagnostic: \(errors)")
+            #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0001" },
+                    "Unexpected diagnostics: \(errors)")
+        }
+    }
+
     /// KUU-4155: `private` and `override` are incompatible in both
     /// directions — functions, properties, and top-level declarations where
     /// `override` is not even applicable.
