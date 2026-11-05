@@ -519,7 +519,7 @@ extension CallTypeChecker {
         // mirroring the explicit-receiver extension fallback.
         var candidates = ctx.scope.lookupMergingChain(calleeName).filter {
             !ctx.isExpectDeclarationSupersededByActual($0)
-                && !ctx.isImportedCallableShadowedBySource($0)
+                && !ctx.isImportedSymbolShadowedBySource($0)
                 && matches($0, requireSynthetic: false)
         }
         // An implicit member can hide an imported package extension in ordinary
