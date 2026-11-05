@@ -43,6 +43,19 @@ private let ioFiniteRangeThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutabl
     state[0] += copied
     return copied
 }
+/// Records the `bytes` handle a `(ByteArray, Int, Int)` read callback receives
+/// and reports EOF. Kotlin callback entries cast that argument to ByteArray,
+/// so callers must hand over a nominally tagged array (KUU-4298).
+private let ioRecordRangeBytesThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, bytes, offset, count, thrown in
+    thrown?.pointee = 0
+    if let state = runtimeArrayBox(from: raw) {
+        state[0] += 1
+        state[2] = bytes
+        state[3] = offset
+        state[4] = count
+    }
+    return -1
+}
 private let ioByteArrayWholeArrayBridge: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { environment, arguments, mask, thrown in
     thrown?.pointee = 0
     if let state = runtimeArrayBox(from: environment) { state[0] += 1; state[1] = mask }
@@ -360,6 +373,63 @@ struct RuntimeIoInteropStreamTests {
             #expect(try values(observed) == [1, 0])
             #expect(try values(returned) == expected)
         }
+    }
+
+    @Test func runtimeScratchReadBuffersCarryByteArrayTagForKotlinCallbacks() throws {
+        // KUU-4298: `__kk_input_stream_copyTo` and the KotlinInputStream branch
+        // of `__kk_input_stream_readAllBytes` build a scratch RuntimeArrayBox
+        // and pass it through `__kk_input_stream_read_range` into the Kotlin
+        // `(ByteArray, Int, Int) -> Int` read callback, whose entry casts the
+        // argument to ByteArray. An untagged buffer fails that cast with
+        // ClassCastException; the nominal tag is the contract.
+        let typeID = runtimeStableNominalTypeID(fqName: "kotlin.ByteArray")
+        let token = Int(RuntimeTypeTokenEncoding.nominalBase
+            | ((typeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift))
+        func recordingStream(_ stateRaw: Int) -> Int {
+            __kk_kotlin_source_input_stream(
+                unsafeBitCast(ioReadThunk, to: Int.self), stateRaw,
+                unsafeBitCast(ioRecordRangeBytesThunk, to: Int.self), stateRaw,
+                unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw,
+                unsafeBitCast(ioNoopThunk, to: Int.self), stateRaw,
+                unsafeBitCast(ioDescriptionThunk, to: Int.self), stateRaw)
+        }
+        var thrown = 0
+
+        let readAllStateRaw = array([0, 0, 0, 0, 0, 0])
+        let readAllState = try #require(runtimeArrayBox(from: readAllStateRaw))
+        _ = __kk_input_stream_readAllBytes(recordingStream(readAllStateRaw), &thrown)
+        #expect(thrown == 0 && readAllState[0] == 1)
+        #expect(kk_op_is(readAllState[2], token) == 1,
+                "readAllBytes must hand the Kotlin read callback a kotlin.ByteArray")
+        #expect(readAllState[3] == 0 && readAllState[4] == 8192)
+
+        let copyStateRaw = array([0, 0, 0, 0, 0, 0])
+        let copyState = try #require(runtimeArrayBox(from: copyStateRaw))
+        let sink = __kk_kotlin_sink_output_stream_range(
+            unsafeBitCast(ioNoopThunk, to: Int.self), copyStateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), copyStateRaw,
+            unsafeBitCast(ioNoopThunk, to: Int.self), copyStateRaw,
+            unsafeBitCast(ioDescriptionThunk, to: Int.self), copyStateRaw)
+        #expect(kk_unbox_long(__kk_input_stream_copyTo(recordingStream(copyStateRaw), sink, kk_box_int(1), &thrown)) == 0)
+        #expect(thrown == 0 && copyState[0] == 1)
+        #expect(kk_op_is(copyState[2], token) == 1,
+                "copyTo must hand the Kotlin read callback a kotlin.ByteArray")
+        #expect(copyState[3] == 0 && copyState[4] == 1)
+
+        // The same scratch buffer also reaches Kotlin callbacks through a
+        // SequenceInputStream's per-child readRange delegation (KUU-4298).
+        let firstStateRaw = array([0, 0, 0, 0, 0, 0])
+        let firstState = try #require(runtimeArrayBox(from: firstStateRaw))
+        let secondStateRaw = array([0, 0, 0, 0, 0, 0])
+        let secondState = try #require(runtimeArrayBox(from: secondStateRaw))
+        let sequence = __kk_sequence_input_stream_new(
+            recordingStream(firstStateRaw), recordingStream(secondStateRaw))
+        #expect(kk_unbox_long(__kk_input_stream_copyTo(sequence, sink, kk_box_int(1), &thrown)) == 0)
+        #expect(thrown == 0)
+        #expect(firstState[0] == 1 && secondState[0] == 1)
+        #expect(firstState[2] == secondState[2], "SequenceInputStream forwards one scratch buffer to each child")
+        #expect(kk_op_is(firstState[2], token) == 1 && kk_op_is(secondState[2], token) == 1,
+                "SequenceInputStream children must receive a kotlin.ByteArray scratch buffer")
     }
 
     @Test func nativeFileChannelWritesActualBytesAndKeepsDescriptorAndRangeFailures() throws {

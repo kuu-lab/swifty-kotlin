@@ -1067,6 +1067,10 @@ public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: Unsafe
     if runtimeKotlinInputStream(from: streamRaw) != nil {
         let array = RuntimeArrayBox(length: 8192)
         let raw = registerRuntimeObject(array)
+        // The scratch buffer crosses into the Kotlin `(ByteArray, Int, Int)`
+        // read callback, whose entry casts the argument to ByteArray — tag the
+        // nominal type or the cast fails with ClassCastException (KUU-4298).
+        runtimeRegisterArrayType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
         var result: [Int] = []
         while true {
             let count = __kk_input_stream_read_range(streamRaw, raw, 0, array.count, outThrown)
@@ -1160,6 +1164,12 @@ public func __kk_input_stream_copyTo(
     var totalBytesCopied: Int = 0
     let buffer = RuntimeArrayBox(length: bufferSize)
     let rawBuffer = registerRuntimeObject(buffer)
+    // The scratch buffer crosses into the Kotlin `(ByteArray, Int, Int)`
+    // read callback (via `__kk_input_stream_read_range` on callback-backed
+    // streams such as `Source.asInputStream()`), whose entry casts the
+    // argument to ByteArray — tag the nominal type or the cast fails with
+    // ClassCastException (KUU-4298).
+    runtimeRegisterArrayType(rawValue: rawBuffer, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
     while true {
         let bytesRead = __kk_input_stream_read_range(streamRaw, rawBuffer, 0, bufferSize, outThrown)
         if let outThrown, outThrown.pointee != 0 { return kk_box_long(totalBytesCopied) }
