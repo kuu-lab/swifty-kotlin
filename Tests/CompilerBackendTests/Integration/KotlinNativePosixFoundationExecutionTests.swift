@@ -120,5 +120,133 @@ struct KotlinNativePosixFoundationExecutionTests {
             optLevel: level
         )
     }
+
+    @Test
+    func nsDateFormatterDefaultsTimeZoneLocaleUUIDAndLog() throws {
+        TestStdlibCache.shared.prepare()
+        let level = try #require(OptimizationLevel(rawValue: 0))
+        try compileAndRunKotlin(
+            """
+            import platform.Foundation.*
+
+            fun main() {
+                // NSDate: unix epoch arithmetic, comparison, description.
+                val epoch = NSDate.dateWithTimeIntervalSince1970(0.0)
+                println("epoch-since1970=${epoch.timeIntervalSince1970 == 0.0}")
+                println("epoch-ref=${epoch.timeIntervalSinceReferenceDate == -978307200.0}")
+                val later = epoch.dateByAddingTimeInterval(60.0)
+                println("add=${later.timeIntervalSince1970 == 60.0}")
+                println("compare=${epoch.compare(later) == NSComparisonResultOrderedAscending}")
+                println("earlier=${epoch.earlierDate(later).timeIntervalSince1970 == 0.0}")
+                println("later-fn=${epoch.laterDate(later).timeIntervalSince1970 == 60.0}")
+                println("interval=${later.timeIntervalSinceDate(epoch) == 60.0}")
+                println("distant=${NSDate.distantPast.compare(NSDate.distantFuture) == NSComparisonResultOrderedAscending}")
+                println("tostring=${epoch.toString().isNotEmpty()}")
+
+                // NSDateFormatter: format/parse round-trip pinned to GMT.
+                val formatter = NSDateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                formatter.timeZone = NSTimeZone.timeZoneForSecondsFromGMT(0)
+                println("format=${formatter.stringFromDate(epoch) == "1970-01-01"}")
+                val parsed = formatter.dateFromString("1970-01-02")
+                println("parsed=${parsed?.timeIntervalSince1970 == 86400.0}")
+                formatter.dateStyle = NSDateFormatterMediumStyle
+                formatter.timeStyle = NSDateFormatterShortStyle
+                println("styles=${formatter.dateStyle == NSDateFormatterMediumStyle && formatter.timeStyle == NSDateFormatterShortStyle}")
+                formatter.isLenient = true
+                println("lenient=${formatter.isLenient}")
+                val localized = NSDateFormatter.localizedStringFromDate(epoch, NSDateFormatterMediumStyle, NSDateFormatterShortStyle)
+                println("localized=${localized.isNotEmpty()}")
+
+                // NSTimeZone: named lookup, offsets, local zone sanity.
+                val tokyo = NSTimeZone.timeZoneWithName("Asia/Tokyo")!!
+                println("tz=${tokyo.secondsFromGMT == 32400L && tokyo.name == "Asia/Tokyo"}")
+                val local = NSTimeZone.localTimeZone
+                println("tz-local=${local.name.isNotEmpty() && local.isEqualToTimeZone(NSTimeZone.systemTimeZone)}")
+                println("tz-date=${NSTimeZone.timeZoneForSecondsFromGMT(0).secondsFromGMTForDate(epoch) == 0L}")
+                println("tz-null=${NSTimeZone.timeZoneWithName("KUU4036/NotAZone") == null}")
+                println("tz-fixed=${NSTimeZone.timeZoneForSecondsFromGMT(3600).secondsFromGMT == 3600L}")
+
+                // NSLocale + NSUUID.
+                val locale = NSLocale.localeWithLocaleIdentifier("en_US")
+                println("locale=${locale.localeIdentifier.startsWith("en") && locale.languageCode == "en"}")
+                println("locale-current=${NSLocale.currentLocale.localeIdentifier.isNotEmpty()}")
+                val uuid = NSUUID.UUID()
+                println("uuid=${uuid.UUIDString.length == 36}")
+
+                // NSUserDefaults suite: scalar/object round-trips, removal,
+                // registered defaults, dictionary representation.
+                val defaults = NSUserDefaults("KSwiftK-Test-" + NSUUID().UUIDString)
+                defaults.setInteger(42L, forKey = "answer")
+                defaults.setBool(true, forKey = "flag")
+                defaults.setDouble(2.5, forKey = "ratio")
+                defaults.setObject("hello", forKey = "greeting")
+                defaults.setObject(listOf("a", 7, true), forKey = "items")
+                println("int=${defaults.integerForKey("answer") == 42L}")
+                println("bool=${defaults.boolForKey("flag")}")
+                println("double=${defaults.doubleForKey("ratio") == 2.5}")
+                println("str=${defaults.stringForKey("greeting") == "hello"}")
+                println("obj=${defaults.objectForKey("greeting") == "hello"}")
+                println("missing=${defaults.objectForKey("absent") == null}")
+                val items = defaults.objectForKey("items")
+                println("items=${items is List<*> && items.size == 3 && items[1] == 7L && items[2] == true}")
+                defaults.setObject(mapOf("inner" to 9), forKey = "lookup")
+                val lookup = defaults.objectForKey("lookup")
+                println("map=${lookup is Map<*, *> && lookup.size == 1 && lookup.values.first() == 9L}")
+                defaults.removeObjectForKey("greeting")
+                println("removed=${defaults.objectForKey("greeting") == null}")
+                defaults.registerDefaults(mapOf<Any?, Any?>("fallback" to "yes"))
+                println("registered=${defaults.stringForKey("fallback") == "yes" && !defaults.objectIsForcedForKey("fallback")}")
+                println("dict=${defaults.dictionaryRepresentation().containsKey("answer")}")
+                println("synchronize-type=${defaults.synchronize() is Boolean}")
+
+                // NSLog + NSThread conveniences must run without trapping.
+                NSLog("KUU4036 probe %d %@", 7, "args")
+                val isMain: Boolean = NSThread.isMainThread()
+                println("thread-stack=${NSThread.callStackSymbols.isNotEmpty()}")
+                NSThread.sleepForTimeInterval(0.001)
+                println("done")
+            }
+            """,
+            expectedOutput: "epoch-since1970=true\n" +
+                "epoch-ref=true\n" +
+                "add=true\n" +
+                "compare=true\n" +
+                "earlier=true\n" +
+                "later-fn=true\n" +
+                "interval=true\n" +
+                "distant=true\n" +
+                "tostring=true\n" +
+                "format=true\n" +
+                "parsed=true\n" +
+                "styles=true\n" +
+                "lenient=true\n" +
+                "localized=true\n" +
+                "tz=true\n" +
+                "tz-local=true\n" +
+                "tz-date=true\n" +
+                "tz-null=true\n" +
+                "tz-fixed=true\n" +
+                "locale=true\n" +
+                "locale-current=true\n" +
+                "uuid=true\n" +
+                "int=true\n" +
+                "bool=true\n" +
+                "double=true\n" +
+                "str=true\n" +
+                "obj=true\n" +
+                "missing=true\n" +
+                "items=true\n" +
+                "map=true\n" +
+                "removed=true\n" +
+                "registered=true\n" +
+                "dict=true\n" +
+                "synchronize-type=true\n" +
+                "thread-stack=true\n" +
+                "done\n",
+            allowDefaultStdlibLibrary: true,
+            optLevel: level
+        )
+    }
 }
 #endif

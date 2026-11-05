@@ -7,6 +7,10 @@ public open class NSObject internal constructor(internal val __handle: Long) {
     override fun equals(other: Any?): Boolean = other is NSObject &&
         __foundation_object_equals(__handle, other.__handle)
     override fun hashCode(): Int = __foundation_object_hash(__handle)
+    /** -description: the Foundation object's own description. */
+    public open val description: String
+        get() = __foundation_object_description(__handle)
+    override fun toString(): String = description
 }
 
 internal fun __wrapFoundation(handle: Long): NSObject = when (__foundation_object_kind(handle)) {
@@ -17,5 +21,11 @@ internal fun __wrapFoundation(handle: Long): NSObject = when (__foundation_objec
     4 -> NSOutputStream(handle)
     5 -> NSRunLoop(handle)
     6 -> NSThread(handle)
+    8 -> NSDate(handle)
+    9 -> NSDateFormatter(handle)
+    10 -> NSTimeZone(handle)
+    11 -> NSLocale(handle)
+    12 -> NSUserDefaults(handle)
+    13 -> NSUUID(handle)
     else -> NSObject(handle)
 }

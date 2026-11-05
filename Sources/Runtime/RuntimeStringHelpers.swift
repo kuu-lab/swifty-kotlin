@@ -124,12 +124,11 @@ func runtimeMakeUTF8StringRaw(_ value: String) -> Int {
 }
 
 func runtimeMakeListRaw(_ values: [Int]) -> Int {
-    let box = RuntimeListBox(elements: values)
-    let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: pointer))
-    }
-    return Int(bitPattern: pointer)
+    // Route through registerRuntimeObject so the box picks up the canonical
+    // `kotlin.collections.List` nominal identity and Iterable/Sequence itables
+    // like every other list factory; the hand-rolled registration left these
+    // lists answering `is List<*>`/`is Iterable<*>` false (KUU-4036).
+    registerRuntimeObject(RuntimeListBox(elements: values))
 }
 
 func runtimeMakeArrayRaw(_ values: [Int]) -> Int {

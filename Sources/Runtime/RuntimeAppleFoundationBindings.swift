@@ -39,6 +39,12 @@ public func __kk_foundation_object_kind(_ handle: Int, _ outThrown: UnsafeMutabl
     case is OutputStream: return 4
     case is RunLoop: return 5
     case is Thread: return 6
+    case is NSDate: return 8
+    case is DateFormatter: return 9
+    case is NSTimeZone: return 10
+    case is NSLocale: return 11
+    case is UserDefaults: return 12
+    case is NSUUID: return 13
     default: return 0
     }
     #else
