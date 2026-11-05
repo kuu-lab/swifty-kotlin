@@ -41,17 +41,17 @@ expr e@18:14 name(range) type=kotlin.ranges.ClosedRange<String> ref=golden.sema.
 expr e@18:5#1 inExpr lhs=e@18:5 rhs=e@18:14 type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[String]
 expr e@21:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam;origin=fixture]
 expr e@21:13#1 memberCall recv=e@21:13 callee=start args=[] type=Int ref=kotlin.ranges.ClosedRange.start[kind=prop;type=T0]
-expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@22:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam;origin=fixture]
 expr e@22:13#1 memberCall recv=e@22:13 callee=endInclusive args=[] type=Int ref=kotlin.ranges.ClosedRange.endInclusive[kind=prop;type=T0]
-expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@23:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam;origin=fixture]
 expr e@23:28 int(3) type=Int
 expr e@23:13#1 memberCall recv=e@23:13 callee=contains args=[_:e@23:28] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>];names=[value]] targs=[Int]
-expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@24:13 name(range) type=kotlin.ranges.ClosedRange<Int> ref=golden.sema.inspectInt.$6.range[kind=vparam;origin=fixture]
 expr e@24:13#1 memberCall recv=e@24:13 callee=isEmpty args=[] type=Boolean call=kotlin.ranges.ClosedRange.isEmpty[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=;ret=Boolean;gen=1;classGen=1;bounds=[kotlin.Comparable<T0>]] targs=[Int]
-expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@28:51 string(b) type=String
 expr e@28:56 string(d) type=String
 expr e@28:38 call callee=e@28:38#1 args=[_:e@28:51,_:e@28:56] type=golden.sema.StringBounds call=golden.sema.StringBounds.<init>[kind=ctor;recv=golden.sema.StringBounds;params=String,String;ret=golden.sema.StringBounds;names=[start,endInclusive];origin=fixture]
@@ -65,14 +65,14 @@ expr e@30:5 call callee=e@30:5#1 args=[_:e@30:13] type=Unit call=kotlin.io.print
 expr e@31:33 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local;type=kotlin.ranges.ClosedRange<String>;origin=fixture]
 expr e@31:40 string(c) type=String
 expr e@31:13 call callee=e@31:13#1 args=[_:e@31:33,_:e@31:40] type=Boolean call=golden.sema.closedRangeContains[kind=fun;params=kotlin.ranges.ClosedRange<String>,String;ret=Boolean;names=[range,value];origin=fixture]
-expr e@31:5 call callee=e@31:5#1 args=[_:e@31:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@31:5 call callee=e@31:5#1 args=[_:e@31:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@32:32 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local;type=kotlin.ranges.ClosedRange<String>;origin=fixture]
 expr e@32:13 call callee=e@32:13#1 args=[_:e@32:32] type=Boolean call=golden.sema.closedRangeIsEmpty[kind=fun;params=kotlin.ranges.ClosedRange<String>;ret=Boolean;names=[range];origin=fixture]
-expr e@32:5 call callee=e@32:5#1 args=[_:e@32:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@32:5 call callee=e@32:5#1 args=[_:e@32:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@33:35 name(range) type=kotlin.ranges.ClosedRange<String> ref=__local_0.range[kind=local;type=kotlin.ranges.ClosedRange<String>;origin=fixture]
 expr e@33:42 string(a) type=String
 expr e@33:13 call callee=e@33:13#1 args=[_:e@33:35,_:e@33:42] type=Boolean call=golden.sema.closedRangeInOperator[kind=fun;params=kotlin.ranges.ClosedRange<String>,String;ret=Boolean;names=[range,value];origin=fixture]
-expr e@33:5 call callee=e@33:5#1 args=[_:e@33:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@33:5 call callee=e@33:5#1 args=[_:e@33:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@34:16 int(1) type=Int
 expr e@34:19 int(5) type=Int
 expr e@34:16#1 binary(rangeTo) lhs=e@34:16 rhs=e@34:19 type=kotlin.ranges.IntRange call=kotlin.ranges.rangeTo[kind=fun;recv=Int;params=Int;ret=kotlin.ranges.IntRange;names=[to]]

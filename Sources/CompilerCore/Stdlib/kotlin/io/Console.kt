@@ -36,6 +36,75 @@ public fun println(message: CharArray) {
     println(message.concatToString())
 }
 
+// KUU-4296: Kotlin/JVM declares scalar print/println overloads, so a Java
+// platform value like `ConcurrentLinkedQueue<Int>.poll()` (`Int!`) resolves
+// to the non-null scalar parameter and an empty result raises NPE through the
+// platform null assertion. Without these overloads the call falls back to
+// `Any?` and a real null prints as "null" instead.
+public fun print(message: Int) {
+    print(message.toString())
+}
+
+public fun print(message: Long) {
+    print(message.toString())
+}
+
+public fun print(message: Byte) {
+    print(message.toString())
+}
+
+public fun print(message: Short) {
+    print(message.toString())
+}
+
+public fun print(message: Char) {
+    print(message.toString())
+}
+
+public fun print(message: Boolean) {
+    print(message.toString())
+}
+
+public fun print(message: Float) {
+    print(message.toString())
+}
+
+public fun print(message: Double) {
+    print(message.toString())
+}
+
+public fun println(message: Int) {
+    println(message.toString())
+}
+
+public fun println(message: Long) {
+    println(message.toString())
+}
+
+public fun println(message: Byte) {
+    println(message.toString())
+}
+
+public fun println(message: Short) {
+    println(message.toString())
+}
+
+public fun println(message: Char) {
+    println(message.toString())
+}
+
+public fun println(message: Boolean) {
+    println(message.toString())
+}
+
+public fun println(message: Float) {
+    println(message.toString())
+}
+
+public fun println(message: Double) {
+    println(message.toString())
+}
+
 public fun print() {
     __printRaw("")
 }

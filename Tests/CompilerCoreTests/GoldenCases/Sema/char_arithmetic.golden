@@ -21,7 +21,7 @@ expr e@3:20 int(1) type=Int
 expr e@3:16#1 binary(add) lhs=e@3:16 rhs=e@3:20 type=Char
 expr e@3:5 localDecl next mutable=0 type=_ init=e@3:16#1 type=Unit ref=__local_1.next[kind=local;type=Char;origin=fixture]
 expr e@4:13 name(next) type=Char ref=__local_1.next[kind=local;type=Char;origin=fixture]
-expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13] type=Unit call=kotlin.io.println[kind=fun;params=Char;ret=Unit;names=[message]]
 expr e@8:19 char(122) type=Char
 expr e@8:5 localDecl c mutable=0 type=Char init=e@8:19 type=Unit ref=__local_2.c[kind=local;type=Char;origin=fixture]
 expr e@9:16 name(c) type=Char ref=__local_2.c[kind=local;type=Char;origin=fixture]
@@ -29,13 +29,13 @@ expr e@9:20 int(1) type=Int
 expr e@9:16#1 binary(subtract) lhs=e@9:16 rhs=e@9:20 type=Char
 expr e@9:5 localDecl prev mutable=0 type=_ init=e@9:16#1 type=Unit ref=__local_3.prev[kind=local;type=Char;origin=fixture]
 expr e@10:13 name(prev) type=Char ref=__local_3.prev[kind=local;type=Char;origin=fixture]
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13] type=Unit call=kotlin.io.println[kind=fun;params=Char;ret=Unit;names=[message]]
 expr e@14:16 char(122) type=Char
 expr e@14:22 char(97) type=Char
 expr e@14:16#1 binary(subtract) lhs=e@14:16 rhs=e@14:22 type=Int
 expr e@14:5 localDecl diff mutable=0 type=_ init=e@14:16#1 type=Unit ref=__local_4.diff[kind=local;type=Int;origin=fixture]
 expr e@15:13 name(diff) type=Int ref=__local_4.diff[kind=local;type=Int;origin=fixture]
-expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@19:14 char(97) type=Char
 expr e@19:20 char(122) type=Char
 expr e@19:14#1 binary(lessThan) lhs=e@19:14 rhs=e@19:20 type=Boolean
@@ -45,6 +45,6 @@ expr e@20:21 char(97) type=Char
 expr e@20:14#1 binary(equal) lhs=e@20:14 rhs=e@20:21 type=Boolean
 expr e@20:5 localDecl eq mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_6.eq[kind=local;type=Boolean;origin=fixture]
 expr e@21:13 name(lt) type=Boolean ref=__local_5.lt[kind=local;type=Boolean;origin=fixture]
-expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@22:13 name(eq) type=Boolean ref=__local_6.eq[kind=local;type=Boolean;origin=fixture]
-expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

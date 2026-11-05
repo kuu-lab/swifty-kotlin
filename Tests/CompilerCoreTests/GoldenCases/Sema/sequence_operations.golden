@@ -15,7 +15,7 @@ expr e@2:13 call callee=e@2:13#1 args=[_:e@2:24,_:e@2:27,_:e@2:30] type=kotlin.s
 expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
 expr e@3:5 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]
 expr e@3:25 name(it) type=Int ref=s-0
-expr e@3:17 call callee=e@3:17#1 args=[_:e@3:25] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:17 call callee=e@3:17#1 args=[_:e@3:25] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@3:15 lambda params=[] body=e@3:17 label=forEach type=(Int) -> Unit
 expr e@3:5#1 memberCall recv=e@3:5 callee=forEach args=[_:e@3:15] type=Unit call=kotlin.sequences.forEach[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=Unit};ret=Unit;gen=1;names=[action]] targs=[Int]
 expr e@4:14 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s[kind=local;type=kotlin.sequences.Sequence<Int>;origin=fixture]

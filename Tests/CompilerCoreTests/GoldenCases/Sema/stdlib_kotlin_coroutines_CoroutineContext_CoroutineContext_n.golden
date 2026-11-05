@@ -51,10 +51,10 @@ expr e@25:33 name(EmptyCoroutineContext) type=kotlin.coroutines.EmptyCoroutineCo
 expr e@25:5 localDecl ctx mutable=0 type=CoroutineContext init=e@25:33 type=Unit ref=__local_0.ctx[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@26:25 name(ctx) type=kotlin.coroutines.CoroutineContext ref=__local_0.ctx[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@26:13 call callee=e@26:13#1 args=[_:e@26:25] type=Int call=golden.sema.contextFold[kind=fun;params=kotlin.coroutines.CoroutineContext;ret=Int;names=[ctx];origin=fixture]
-expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@27:25 name(ctx) type=kotlin.coroutines.CoroutineContext ref=__local_0.ctx[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@27:30 name(ctx) type=kotlin.coroutines.CoroutineContext ref=__local_0.ctx[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@27:13 call callee=e@27:13#1 args=[_:e@27:25,_:e@27:30] type=kotlin.coroutines.CoroutineContext call=golden.sema.contextPlus[kind=fun;params=kotlin.coroutines.CoroutineContext,kotlin.coroutines.CoroutineContext;ret=kotlin.coroutines.CoroutineContext;names=[ctx,other];origin=fixture]
 expr e@27:39 name(ctx) type=kotlin.coroutines.CoroutineContext ref=__local_0.ctx[kind=local;type=kotlin.coroutines.CoroutineContext;origin=fixture]
 expr e@27:13#2 binary(identityEqual) lhs=e@27:13 rhs=e@27:39 type=Boolean
-expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

@@ -11,7 +11,7 @@ expr e@3:13 name(l) type=kotlin.collections.List<Int> ref=__local_0.l[kind=local
 expr e@3:21 name(lastIndex) type=Int call=kotlin.collections.lastIndex[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=Int;gen=1] targs=[Int]
 expr e@3:19 lambda params=[] body=e@3:21 label=run type=kotlin.collections.List<Int>.() -> Int
 expr e@3:13#1 memberCall recv=e@3:13 callee=run args=[_:e@3:19] type=Int call=kotlin.run[kind=fun;recv=T0;params=fn{r=T0;p=;ret=T1};ret=T1;gen=2;names=[block]] targs=[kotlin.collections.List<Int>,Int]
-expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@4:10 name(l) type=kotlin.collections.List<Int> ref=__local_0.l[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
 expr e@4:23 name(indices) type=kotlin.ranges.IntRange call=kotlin.collections.indices[kind=fun;recv=kotlin.collections.List<T0>;params=;ret=kotlin.ranges.IntRange;gen=1] targs=[Int]
 expr e@4:15 call callee=e@4:15#1 args=[_:e@4:23] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

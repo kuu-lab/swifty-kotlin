@@ -11,4 +11,4 @@ expr e@5:17#1 memberCall recv=e@5:17 callee=readLines args=[] type=kotlin.collec
 expr e@5:5 localDecl lines mutable=0 type=_ init=e@5:17#1 type=Unit ref=__local_1.lines[kind=local;type=kotlin.collections.List<String>;origin=fixture]
 expr e@6:13 name(lines) type=kotlin.collections.List<String> ref=__local_1.lines[kind=local;type=kotlin.collections.List<String>;origin=fixture]
 expr e@6:13#1 memberCall recv=e@6:13 callee=size args=[] type=Int ref=kotlin.collections.List.size[kind=prop;type=Int]
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

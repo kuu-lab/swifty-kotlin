@@ -34,7 +34,7 @@ expr e@8:35 name(doubleRaw) type=Long ref=__local_0.doubleRaw[kind=local;type=Lo
 expr e@8:48 name(doubleCanonical) type=Long ref=__local_1.doubleCanonical[kind=local;type=Long;origin=fixture]
 expr e@8:35#1 binary(equal) lhs=e@8:35 rhs=e@8:48 type=Boolean
 expr e@8:13#2 binary(logicalAnd) lhs=e@8:13#1 rhs=e@8:35#1 type=Boolean
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@9:13 name(floatValue) type=Float ref=__local_5.floatValue[kind=local;type=Float;origin=fixture]
 expr e@9:27 float(1.0) type=Float
 expr e@9:13#1 binary(equal) lhs=e@9:13 rhs=e@9:27 type=Boolean
@@ -42,4 +42,4 @@ expr e@9:35 name(floatRaw) type=Int ref=__local_3.floatRaw[kind=local;type=Int;o
 expr e@9:47 name(floatCanonical) type=Int ref=__local_4.floatCanonical[kind=local;type=Int;origin=fixture]
 expr e@9:35#1 binary(equal) lhs=e@9:35 rhs=e@9:47 type=Boolean
 expr e@9:13#2 binary(logicalAnd) lhs=e@9:13#1 rhs=e@9:35#1 type=Boolean
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

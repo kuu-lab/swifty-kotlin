@@ -12,7 +12,7 @@ expr e@5:19 uint(17) type=UInt
 expr e@5:5 localDecl divisor mutable=0 type=_ init=e@5:19 type=Unit ref=__local_1.divisor[kind=local;type=UInt;origin=fixture]
 expr e@6:13 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;type=kotlin.UIntArray;origin=fixture]
 expr e@6:13#1 memberCall recv=e@6:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.UIntArray;params=;ret=Int]
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@7:13 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;type=kotlin.UIntArray;origin=fixture]
 expr e@7:20 int(1) type=Int
 expr e@7:13#1 indexedAccess receiver=e@7:13 indices=[e@7:20] type=UInt call=kotlin.UIntArray.get[kind=fun;recv=kotlin.UIntArray;params=Int;ret=UInt;names=[index]]
@@ -32,12 +32,12 @@ expr e@9:25 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;t
 expr e@9:32 int(0) type=Int
 expr e@9:25#1 indexedAccess receiver=e@9:25 indices=[e@9:32] type=UInt call=kotlin.UIntArray.get[kind=fun;recv=kotlin.UIntArray;params=Int;ret=UInt;names=[index]]
 expr e@9:13#2 binary(greaterThan) lhs=e@9:13#1 rhs=e@9:25#1 type=Boolean
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@10:13 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;type=kotlin.UIntArray;origin=fixture]
 expr e@10:20 int(2) type=Int
 expr e@10:13#1 indexedAccess receiver=e@10:13 indices=[e@10:20] type=UInt call=kotlin.UIntArray.get[kind=fun;recv=kotlin.UIntArray;params=Int;ret=UInt;names=[index]]
 expr e@10:13#2 memberCall recv=e@10:13#1 callee=toLong args=[] type=Long
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Long;ret=Unit;names=[message]]
 expr e@11:13 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;type=kotlin.UIntArray;origin=fixture]
 expr e@11:20 int(2) type=Int
 expr e@11:13#1 indexedAccess receiver=e@11:13 indices=[e@11:20] type=UInt call=kotlin.UIntArray.get[kind=fun;recv=kotlin.UIntArray;params=Int;ret=UInt;names=[index]]
@@ -47,9 +47,9 @@ expr e@12:13 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;
 expr e@12:20 int(2) type=Int
 expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:20] type=UInt call=kotlin.UIntArray.get[kind=fun;recv=kotlin.UIntArray;params=Int;ret=UInt;names=[index]]
 expr e@12:13#2 memberCall recv=e@12:13#1 callee=toFloat args=[] type=Float
-expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Float;ret=Unit;names=[message]]
 expr e@13:13 name(values) type=kotlin.UIntArray ref=__local_0.values[kind=local;type=kotlin.UIntArray;origin=fixture]
 expr e@13:20 int(2) type=Int
 expr e@13:13#1 indexedAccess receiver=e@13:13 indices=[e@13:20] type=UInt call=kotlin.UIntArray.get[kind=fun;recv=kotlin.UIntArray;params=Int;ret=UInt;names=[index]]
 expr e@13:13#2 memberCall recv=e@13:13#1 callee=toDouble args=[] type=Double
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Double;ret=Unit;names=[message]]

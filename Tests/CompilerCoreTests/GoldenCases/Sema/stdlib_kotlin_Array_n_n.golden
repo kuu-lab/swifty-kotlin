@@ -8,7 +8,7 @@ expr e@4:33 call callee=e@4:33#1 args=[_:e@4:39] type=kotlin.Array<String?>
 expr e@4:5 localDecl sized mutable=0 type=Array<String?> init=e@4:33 type=Unit ref=__local_0.sized[kind=local;type=kotlin.Array<String?>;origin=fixture]
 expr e@5:13 name(sized) type=kotlin.Array<String?> ref=__local_0.sized[kind=local;type=kotlin.Array<String?>;origin=fixture]
 expr e@5:13#1 memberCall recv=e@5:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.Array<*>;params=;ret=Int]
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@6:29 int(3) type=Int
 expr e@6:49 name(index) type=Int ref=s-0
 expr e@6:43 stringTemplate[lit(item),expr(e@6:49)] type=String

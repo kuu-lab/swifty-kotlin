@@ -32,10 +32,10 @@ expr e@9:18 call callee=e@9:18#1 args=[_:e@9:32,_:e@9:39,_:e@9:53] type=kotlin.U
 expr e@9:5 localDecl spread mutable=0 type=_ init=e@9:18 type=Unit ref=__local_5.spread[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@10:13 name(empty) type=kotlin.UShortArray ref=__local_0.empty[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@10:13#1 memberCall recv=e@10:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.UShortArray;params=;ret=Int]
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@11:13 name(values) type=kotlin.UShortArray ref=__local_3.values[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@11:13#1 memberCall recv=e@11:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.UShortArray;params=;ret=Int]
-expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@12:13 name(values) type=kotlin.UShortArray ref=__local_3.values[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@12:20 int(0) type=Int
 expr e@12:13#1 indexedAccess receiver=e@12:13 indices=[e@12:20] type=UShort call=kotlin.UShortArray.get[kind=fun;recv=kotlin.UShortArray;params=Int;ret=UShort;names=[index]]
@@ -46,7 +46,7 @@ expr e@13:13#1 indexedAccess receiver=e@13:13 indices=[e@13:20] type=UShort call
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
 expr e@14:13 name(spread) type=kotlin.UShortArray ref=__local_5.spread[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@14:13#1 memberCall recv=e@14:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.UShortArray;params=;ret=Int]
-expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@15:13 name(spread) type=kotlin.UShortArray ref=__local_5.spread[kind=local;type=kotlin.UShortArray;origin=fixture]
 expr e@15:20 int(1) type=Int
 expr e@15:13#1 indexedAccess receiver=e@15:13 indices=[e@15:20] type=UShort call=kotlin.UShortArray.get[kind=fun;recv=kotlin.UShortArray;params=Int;ret=UShort;names=[index]]

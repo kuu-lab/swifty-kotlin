@@ -29,4 +29,4 @@ expr e@9:60#1 memberCall recv=e@9:60 callee=getValue args=[_:e@9:73] type=Int ca
 expr e@12:32 name(map) type=kotlin.collections.Map<in String, Int> ref=golden.sema.mapDelegate.$0.map[kind=vparam;origin=fixture]
 expr e@12:5 localDecl delegatedValue mutable=0 type=Int init=e@12:32 delegated=1 type=Unit ref=__local_0.delegatedValue[kind=local;type=Int;origin=fixture]
 expr e@13:13 name(delegatedValue) type=Int ref=__local_0.delegatedValue[kind=local;type=Int;origin=fixture]
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

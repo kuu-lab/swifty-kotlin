@@ -7,4 +7,4 @@ expr e@7:20 name(v) type=String ref=golden.sema.usePlatformType.$0.v[kind=vparam
 expr e@7:20#1 memberCall recv=e@7:20 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
 expr e@7:5 localDecl len mutable=0 type=Int init=e@7:20#1 type=Unit ref=__local_0.len[kind=local;type=Int;origin=fixture]
 expr e@8:13 name(len) type=Int ref=__local_0.len[kind=local;type=Int;origin=fixture]
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

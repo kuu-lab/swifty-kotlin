@@ -12,8 +12,8 @@ expr e@3:5 localDecl now mutable=0 type=Long init=e@3:21#1 type=Unit ref=__local
 expr e@4:13 name(startNanos) type=Long ref=__local_0.startNanos[kind=local;type=Long;origin=fixture]
 expr e@4:26 int(0) type=Int
 expr e@4:13#1 binary(greaterThan) lhs=e@4:13 rhs=e@4:26 type=Boolean
-expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@5:13 name(now) type=Long ref=__local_1.now[kind=local;type=Long;origin=fixture]
 expr e@5:20 name(startNanos) type=Long ref=__local_0.startNanos[kind=local;type=Long;origin=fixture]
 expr e@5:13#1 binary(greaterOrEqual) lhs=e@5:13 rhs=e@5:20 type=Boolean
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

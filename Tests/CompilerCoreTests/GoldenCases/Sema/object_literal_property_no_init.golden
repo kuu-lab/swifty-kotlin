@@ -11,7 +11,7 @@ expr e@4:15 objectLiteral supers=[] type=__ObjectLiteral_0_48_113
 expr e@4:5 localDecl obj mutable=0 type=_ init=e@4:15 type=Unit ref=__local_0.obj[kind=local;type=__ObjectLiteral_0_48_113;origin=fixture]
 expr e@8:13 name(obj) type=__ObjectLiteral_0_48_113 ref=__local_0.obj[kind=local;type=__ObjectLiteral_0_48_113;origin=fixture]
 expr e@8:13#1 memberCall recv=e@8:13 callee=x args=[] type=Int ref=__ObjectLiteral_0_48_113.x[kind=prop;type=Int;origin=fixture]
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@9:13 name(obj) type=__ObjectLiteral_0_48_113 ref=__local_0.obj[kind=local;type=__ObjectLiteral_0_48_113;origin=fixture]
 expr e@9:13#1 memberCall recv=e@9:13 callee=y args=[] type=String ref=__ObjectLiteral_0_48_113.y[kind=prop;type=String;origin=fixture]
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]

@@ -65,4 +65,4 @@ expr e@27:13 call callee=e@27:13#1 args=[_:e@27:26] type=String call=readPropert
 expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@28:26 name(null) type=Nothing?
 expr e@28:13 call callee=e@28:13#1 args=[_:e@28:26] type=Boolean call=readNullable[kind=fun;params=kotlin.reflect.KCallable<*>?;ret=Boolean;names=[callable];origin=fixture]
-expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

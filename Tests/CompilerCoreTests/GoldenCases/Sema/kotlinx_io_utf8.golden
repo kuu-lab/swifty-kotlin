@@ -19,14 +19,14 @@ expr e@8:30 int(1114111) type=Int
 expr e@8:5#1 memberCall recv=e@8:5 callee=writeCodePointValue args=[_:e@8:30] type=Unit call=kotlinx.io.writeCodePointValue[kind=fun;recv=kotlinx.io.Sink;params=Int;ret=Unit;names=[codePoint]]
 expr e@9:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
 expr e@9:13#1 memberCall recv=e@9:13 callee=readCodePointValue args=[] type=Int call=kotlinx.io.readCodePointValue[kind=fun;recv=kotlinx.io.Source;params=;ret=Int]
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@10:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
 expr e@10:28 int(10) type=Int
 expr e@10:28#1 memberCall recv=e@10:28 callee=toByte args=[] type=Byte
 expr e@10:41 long(0) type=Long
 expr e@10:45 long(10) type=Long
 expr e@10:13#1 memberCall recv=e@10:13 callee=indexOf args=[_:e@10:28#1,_:e@10:41,_:e@10:45] type=Long call=kotlinx.io.indexOf[kind=fun;recv=kotlinx.io.Source;params=Byte,Long,Long;ret=Long;defaults=[0,1,1];names=[byte,startIndex,endIndex]]
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Long;ret=Unit;names=[message]]
 expr e@11:13 name(source) type=kotlinx.io.Source ref=golden.sema.utf8.$0.source[kind=vparam;origin=fixture]
 expr e@11:13#1 memberCall recv=e@11:13 callee=readLine args=[] type=String? call=kotlinx.io.readLine[kind=fun;recv=kotlinx.io.Source;params=;ret=String?]
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

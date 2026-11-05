@@ -8,11 +8,11 @@ expr e@4:20 call callee=e@4:20#1 args=[_:e@4:31] type=kotlin.FloatArray
 expr e@4:5 localDecl sizeOnly mutable=0 type=_ init=e@4:20 type=Unit ref=__local_0.sizeOnly[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@5:13 name(sizeOnly) type=kotlin.FloatArray ref=__local_0.sizeOnly[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@5:13#1 memberCall recv=e@5:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.FloatArray;params=;ret=Int]
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@6:13 name(sizeOnly) type=kotlin.FloatArray ref=__local_0.sizeOnly[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@6:22 int(0) type=Int
 expr e@6:13#1 indexedAccess receiver=e@6:13 indices=[e@6:22] type=Float call=kotlin.FloatArray.get[kind=fun;recv=kotlin.FloatArray;params=Int;ret=Float;names=[index]]
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Float;ret=Unit;names=[message]]
 expr e@8:34 int(4) type=Int
 expr e@9:15 name(index) type=Int ref=s-0
 expr e@10:13 int(0) type=Int
@@ -29,18 +29,18 @@ expr e@8:23 call callee=e@8:23#1 args=[_:e@8:34,_:e@8:37] type=kotlin.FloatArray
 expr e@8:5 localDecl initialized mutable=0 type=_ init=e@8:23 type=Unit ref=__local_1.initialized[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@16:13 name(initialized) type=kotlin.FloatArray ref=__local_1.initialized[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@16:13#1 memberCall recv=e@16:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.FloatArray;params=;ret=Int]
-expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@17:13 name(initialized) type=kotlin.FloatArray ref=__local_1.initialized[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@17:25 int(0) type=Int
 expr e@17:13#1 indexedAccess receiver=e@17:13 indices=[e@17:25] type=Float call=kotlin.FloatArray.get[kind=fun;recv=kotlin.FloatArray;params=Int;ret=Float;names=[index]]
-expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Float;ret=Unit;names=[message]]
 expr e@18:13 name(initialized) type=kotlin.FloatArray ref=__local_1.initialized[kind=local;type=kotlin.FloatArray;origin=fixture]
 expr e@18:25 int(3) type=Int
 expr e@18:13#1 indexedAccess receiver=e@18:13 indices=[e@18:25] type=Float call=kotlin.FloatArray.get[kind=fun;recv=kotlin.FloatArray;params=Int;ret=Float;names=[index]]
-expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Float;ret=Unit;names=[message]]
 expr e@19:24 int(0) type=Int
 expr e@19:29 float(42.0) type=Float
 expr e@19:27 lambda params=[] body=e@19:29 label=FloatArray type=(Int) -> Float
 expr e@19:13 call callee=e@19:13#1 args=[_:e@19:24,_:e@19:27] type=kotlin.FloatArray call=kotlin.FloatArray[kind=fun;params=Int,fn{p=Int;ret=Float};ret=kotlin.FloatArray;names=[size,init]]
 expr e@19:13#2 memberCall recv=e@19:13 callee=size args=[] type=Int call=kotlin.collections.size.$get[kind=fun;recv=kotlin.FloatArray;params=;ret=Int]
-expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

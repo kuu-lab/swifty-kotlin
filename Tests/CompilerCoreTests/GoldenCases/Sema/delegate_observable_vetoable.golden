@@ -27,8 +27,8 @@ expr e@15:5 localAssign name value=e@15:12 type=Unit ref=golden.sema.name[kind=p
 expr e@16:13 name(name) type=String ref=golden.sema.name[kind=prop;type=String;mutable;origin=fixture]
 expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@17:13 name(age) type=Int ref=golden.sema.age[kind=prop;type=Int;mutable;origin=fixture]
-expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@18:11 int(10) type=Int
 expr e@18:5 localAssign age value=e@18:11 type=Unit ref=golden.sema.age[kind=prop;type=Int;mutable;origin=fixture]
 expr e@19:13 name(age) type=Int ref=golden.sema.age[kind=prop;type=Int;mutable;origin=fixture]
-expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
