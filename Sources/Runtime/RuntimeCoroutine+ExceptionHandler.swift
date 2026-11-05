@@ -71,7 +71,8 @@ func runtimeReportUncaughtException(_ exceptionRaw: Int) {
     var lines: [String] = []
     var visitedThrowables = Set<Int>()
     runtimeUncaughtThrowableLines(
-        from: exceptionRaw, prefix: nil, into: &lines, visited: &visitedThrowables
+        from: exceptionRaw, indent: "", caption: nil, enclosingTrace: [],
+        into: &lines, visited: &visitedThrowables
     )
     guard let header = lines.first else {
         FileHandle.standardError.write(
@@ -96,16 +97,58 @@ public func kk_handle_coroutine_exception(_ contextRaw: Int, _ exceptionRaw: Int
     return 0
 }
 
+/// Length of the common SUFFIX shared by `trace` and `enclosingTrace`,
+/// compared from the end — the KSwiftK analog of the JVM
+/// `printEnclosedStackTrace` frame-counting loop. Frames are rendered
+/// `"\tat <symbol>"` strings rather than `StackTraceElement`s, so string
+/// equality is the available identity; throwables created on the same call
+/// path share identical native frame symbols for their common tail.
+private func runtimeThrowableCommonFrameSuffix(_ trace: [String], _ enclosingTrace: [String]) -> Int {
+    var count = 0
+    var i = trace.count - 1
+    var j = enclosingTrace.count - 1
+    while i >= 0, j >= 0, trace[i] == enclosingTrace[j] {
+        count += 1
+        i -= 1
+        j -= 1
+    }
+    return count
+}
+
+/// The `<type>: <message>` header for a throwable whose saved trace is empty
+/// (`writableStackTrace == false` or an empty assigned trace). The JVM still
+/// prints the caption + header line for such throwables — just no `\tat`
+/// frames and no `... N more` — so the uncaught report must not drop the
+/// node entirely. Returns nil for raws that are not throwable boxes.
+private func runtimeUncaughtThrowableHeader(from throwableRaw: Int) -> String? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else { return nil }
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        return runtimeThrowableToString(throwableRaw) ?? throwable.renderedMessage
+    }
+    if tryCast(ptr, to: RuntimeObjectBox.self) != nil {
+        return runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
+    }
+    return nil
+}
+
 /// Append a throwable's header + saved native frames, then its `Suppressed:`
 /// and `Caused by:` chains (same order as the Kotlin-side
 /// `collectThrowableTraceLines` used by `Throwable.stackTraceToString`), to
-/// `lines`. `visited` mirrors the JVM `printEnclosedStackTrace` `dejaVu`
-/// identity set: a throwable already emitted anywhere in this report — a
-/// true cycle or a diamond reachable through two branches — collapses to a
-/// single `[CIRCULAR REFERENCE: ...]` line, so recursion always terminates.
+/// `lines`. Mirrors `java.lang.Throwable#printEnclosedStackTrace`: [indent]
+/// is the JVM `prefix` (suppressed children indent one `"\t"` deeper than
+/// their parent, cause children keep the parent's indent), [caption] is
+/// `"Suppressed: "`/`"Caused by: "` (nil for the outermost throwable), and
+/// [enclosingTrace] is the parent throwable's `"\tat ..."` lines used to fold
+/// the shared tail into a single `"\t... N more"` line. `visited` mirrors the
+/// JVM `dejaVu` identity set: a throwable already emitted anywhere in this
+/// report — a true cycle or a diamond reachable through two branches —
+/// collapses to a single `[CIRCULAR REFERENCE: ...]` line, so recursion
+/// always terminates.
 private func runtimeUncaughtThrowableLines(
     from throwableRaw: Int,
-    prefix: String?,
+    indent: String,
+    caption: String?,
+    enclosingTrace: [String],
     into lines: inout [String],
     visited: inout Set<Int>
 ) {
@@ -113,15 +156,30 @@ private func runtimeUncaughtThrowableLines(
         let name = runtimeThrowableToString(throwableRaw)
             ?? runtimeThrowableStackTraceText(from: throwableRaw)
         let display = name.isEmpty ? "kotlin.Throwable" : name
-        lines.append((prefix ?? "") + "[CIRCULAR REFERENCE: \(display)]")
+        lines.append(indent + (caption ?? "") + "[CIRCULAR REFERENCE: \(display)]")
         return
     }
     visited.insert(throwableRaw)
-    var frames = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
-    if let prefix, !frames.isEmpty {
-        frames[0] = prefix + frames[0]
+    let allLines = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
+    let header: String
+    let trace: [String]
+    if allLines.isEmpty {
+        guard let synthesized = runtimeUncaughtThrowableHeader(from: throwableRaw) else { return }
+        header = synthesized
+        trace = []
+    } else {
+        // allLines[0] is the rendered header; the rest are "\tat ..." lines.
+        header = allLines[0]
+        trace = Array(allLines.dropFirst())
     }
-    lines.append(contentsOf: frames)
+    lines.append(indent + (caption ?? "") + header)
+    let shared = runtimeThrowableCommonFrameSuffix(trace, enclosingTrace)
+    for i in 0 ..< (trace.count - shared) {
+        lines.append(indent + trace[i])
+    }
+    if shared > 0 {
+        lines.append(indent + "\t... \(shared) more")
+    }
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) else { return }
     // Kotlin classes extending Throwable — user-defined ones and the
     // source-backed bundled exceptions alike — arrive as RuntimeObjectBox via
@@ -143,12 +201,14 @@ private func runtimeUncaughtThrowableLines(
     }
     for suppressedThrowable in suppressed {
         runtimeUncaughtThrowableLines(
-            from: suppressedThrowable, prefix: "Suppressed: ", into: &lines, visited: &visited
+            from: suppressedThrowable, indent: indent + "\t", caption: "Suppressed: ",
+            enclosingTrace: trace, into: &lines, visited: &visited
         )
     }
     if cause != 0, cause != runtimeNullSentinelInt {
         runtimeUncaughtThrowableLines(
-            from: cause, prefix: "Caused by: ", into: &lines, visited: &visited
+            from: cause, indent: indent, caption: "Caused by: ",
+            enclosingTrace: trace, into: &lines, visited: &visited
         )
     }
 }

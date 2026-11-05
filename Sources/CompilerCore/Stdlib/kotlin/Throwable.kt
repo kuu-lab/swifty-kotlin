@@ -92,14 +92,44 @@ public fun Throwable.fillInStackTrace(): Throwable = this
 
 public fun Throwable.stackTraceToString(): String {
     val lines = mutableListOf<String>()
-    collectThrowableTraceLines(this, lines, null, mutableListOf())
+    collectThrowableTraceLines(this, lines, "", null, emptyList(), mutableListOf())
     return lines.joinToString("\n")
 }
 
+/**
+ * Length of the common SUFFIX shared by [trace] and [enclosingTrace], compared
+ * from the end — the KSwiftK analog of the JVM `printEnclosedStackTrace`
+ * frame-counting loop. KSwiftK frames are rendered `"\tat <symbol>"` strings
+ * rather than `StackTraceElement`s, so string equality is the available
+ * identity; throwables created on the same call path share identical native
+ * frame symbols for their common tail.
+ */
+private fun throwableCommonFrameSuffix(trace: List<String>, enclosingTrace: List<String>): Int {
+    var count = 0
+    var i = trace.size - 1
+    var j = enclosingTrace.size - 1
+    while (i >= 0 && j >= 0 && trace[i] == enclosingTrace[j]) {
+        count += 1
+        i -= 1
+        j -= 1
+    }
+    return count
+}
+
+/**
+ * Mirrors `java.lang.Throwable#printStackTrace`/`printEnclosedStackTrace`:
+ * [indent] is the JVM `prefix` (suppressed children indent one `"\t"` deeper
+ * than their parent, cause children keep the parent's indent), [caption] is
+ * `"Suppressed: "`/`"Caused by: "` (null for the outermost throwable), and
+ * [enclosingTrace] is the parent throwable's `"\tat ..."` lines used to fold
+ * the shared tail into a single `"\t... N more"` line.
+ */
 private fun collectThrowableTraceLines(
     throwable: Throwable,
     lines: MutableList<String>,
-    prefix: String?,
+    indent: String,
+    caption: String?,
+    enclosingTrace: List<String>,
     visited: MutableList<Throwable>
 ) {
     // Mirrors java.lang.Throwable#printEnclosedStackTrace's `dejaVu` identity
@@ -109,25 +139,37 @@ private fun collectThrowableTraceLines(
     // bound. `===` keeps the check referential so a user-overridden
     // equals() can neither forge nor hide a revisit.
     if (visited.any { it === throwable }) {
-        lines.add((prefix ?: "") + "[CIRCULAR REFERENCE: " + throwable.toString() + "]")
+        lines.add(indent + (caption ?: "") + "[CIRCULAR REFERENCE: " + throwable.toString() + "]")
         return
     }
     visited.add(throwable)
 
     val frames = __kkThrowableRawStackFrames(throwable)
-    for (i in 0 until frames.size) {
-        val line = if (prefix != null && i == 0) prefix + frames[i] else frames[i]
-        lines.add(line)
+    // frames[0] is the rendered header ("<type>: <message>"); the rest are the
+    // "\tat ..." lines — the analog of the JVM's StackTraceElement[] trace.
+    // A throwable with writableStackTrace=false (or an empty assigned trace)
+    // yields no frame lines, but the JVM still prints the caption + header.
+    val header = if (frames.isNotEmpty()) frames[0] else throwable.toString()
+    lines.add(indent + (caption ?: "") + header)
+
+    val trace = frames.drop(1)
+    val shared = throwableCommonFrameSuffix(trace, enclosingTrace)
+    val printed = trace.size - shared
+    for (i in 0 until printed) {
+        lines.add(indent + trace[i])
+    }
+    if (shared > 0) {
+        lines.add(indent + "\t... $shared more")
     }
 
     val suppressed = throwable.getSuppressed()
     for (i in 0 until suppressed.size) {
-        collectThrowableTraceLines(suppressed[i], lines, "Suppressed: ", visited)
+        collectThrowableTraceLines(suppressed[i], lines, indent + "\t", "Suppressed: ", trace, visited)
     }
 
     val cause = throwable.cause
     if (cause != null) {
-        collectThrowableTraceLines(cause, lines, "Caused by: ", visited)
+        collectThrowableTraceLines(cause, lines, indent, "Caused by: ", trace, visited)
     }
 }
 

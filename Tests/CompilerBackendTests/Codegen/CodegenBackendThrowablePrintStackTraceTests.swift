@@ -82,7 +82,10 @@ struct CodegenBackendThrowablePrintStackTraceTests {
             e.initCause(IllegalArgumentException("cause"))
             e.addSuppressed(RuntimeException("suppressed"))
             val chained = e.stackTraceToString()
-            println(chained.contains("Suppressed: java.lang.RuntimeException: suppressed\\n\\tat "))
+            // JVM printEnclosedStackTrace layout (KUU-4322): Suppressed:
+            // captions indent one tab deeper than their parent and their
+            // frames carry the same indent; Caused by: keeps the parent indent.
+            println(chained.contains("\\tSuppressed: java.lang.RuntimeException: suppressed\\n\\t\\tat "))
             println(chained.contains("Caused by: java.lang.IllegalArgumentException: cause\\n\\tat "))
         }
         """
@@ -154,6 +157,84 @@ struct CodegenBackendThrowablePrintStackTraceTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             #expect(result.stdout == String(repeating: "true\n", count: 6))
             #expect(normalizeThrowableStderr(result.stderr).isEmpty)
+        }
+    }
+
+    /// KUU-4322: `stackTraceToString` follows `printEnclosedStackTrace` —
+    /// `Suppressed:` captions indent one tab deeper than their parent
+    /// (accumulating with nesting), `Caused by:` keeps the parent's indent,
+    /// and frame tails shared with the enclosing trace collapse into a
+    /// `\t... N more` line. Assigned `stackTrace` elements make the shared
+    /// suffix deterministic; the expected block is the JVM output verbatim.
+    @Test
+    func testStackTraceToStringUsesJvmEnclosedTraceFormat() throws {
+        let source = """
+        class NoTrace(msg: String) : Exception(msg, null, true, false)
+
+        fun ste(cls: String, m: String, f: String, l: Int) = StackTraceElement(cls, m, f, l)
+
+        fun main() {
+            val deep = IllegalStateException("deep-sup")
+            val mid = RuntimeException("mid", NullPointerException("mid-cause"))
+            mid.addSuppressed(deep)
+            val outer = Exception("outer", IllegalArgumentException("outer-cause"))
+            outer.addSuppressed(mid)
+            outer.addSuppressed(NoTrace("no-trace"))
+            val clone = RuntimeException("clone")
+            outer.addSuppressed(clone)
+
+            val common = arrayOf(ste("s.Bot", "z", "S.kt", 2), ste("r.Root", "m", "R.kt", 1))
+            outer.stackTrace = common
+            mid.stackTrace = arrayOf(ste("m.Top", "z", "M.kt", 5)) + common
+            deep.stackTrace = common
+            mid.cause!!.stackTrace = arrayOf(ste("n.Top", "z", "N.kt", 6)) + common
+            outer.cause!!.stackTrace = arrayOf(ste("i.Top", "z", "I.kt", 7)) + common
+            clone.stackTrace = common
+
+            println("BEGIN")
+            println(outer.stackTraceToString())
+            println("END")
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ThrowableEnclosedStackTraceFormat",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(normalizeThrowableStderr(result.stderr).isEmpty)
+
+            let lines = result.stdout.components(separatedBy: "\n")
+            guard let begin = lines.firstIndex(of: "BEGIN"),
+                  let end = lines.firstIndex(of: "END"), begin + 1 < end
+            else {
+                Issue.record("missing BEGIN/END markers in stdout: \(result.stdout)")
+                return
+            }
+            let trace = Array(lines[(begin + 1) ..< end])
+            #expect(trace == [
+                "java.lang.Exception: outer",
+                "\tat s.Bot.z(S.kt:2)",
+                "\tat r.Root.m(R.kt:1)",
+                "\tSuppressed: java.lang.RuntimeException: mid",
+                "\t\tat m.Top.z(M.kt:5)",
+                "\t\t... 2 more",
+                "\t\tSuppressed: java.lang.IllegalStateException: deep-sup",
+                "\t\t\t... 2 more",
+                "\tCaused by: java.lang.NullPointerException: mid-cause",
+                "\t\tat n.Top.z(N.kt:6)",
+                "\t\t... 2 more",
+                "\tSuppressed: NoTrace: no-trace",
+                "\tSuppressed: java.lang.RuntimeException: clone",
+                "\t\t... 2 more",
+                "Caused by: java.lang.IllegalArgumentException: outer-cause",
+                "\tat i.Top.z(I.kt:7)",
+                "\t... 2 more",
+            ])
         }
     }
 }
