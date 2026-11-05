@@ -13,6 +13,12 @@ public class MessageDigest private constructor(public val algorithm: String) {
             "SHA256", "SHA512/256", "SHA3256" -> 32
             "SHA384", "SHA3384" -> 48
             "SHA512", "SHA3512" -> 64
+            // SHAKE128/SHAKE256 are XOFs, but the JDK's MessageDigest
+            // providers (SHAKE128Hash/SHAKE256Hash) expose a fixed default
+            // digest length; the "-256"/"-512" spellings are the same
+            // providers registered under their internal names.
+            "SHAKE128", "SHAKE128256" -> 32
+            "SHAKE256", "SHAKE256512" -> 64
             else -> 16
         }
 
@@ -25,8 +31,20 @@ public class MessageDigest private constructor(public val algorithm: String) {
     }
 
     public fun update(data: ByteArray, offset: Int, length: Int) {
-        if (offset < 0 || length < 0 || offset > data.size - length) {
-            throw IndexOutOfBoundsException()
+        // Mirrors java.security.MessageDigest.update(byte[], int, int): the
+        // facade rejects ranges past the buffer end with
+        // IllegalArgumentException, while the engine's index check reports
+        // negative offsets/lengths as ArrayIndexOutOfBoundsException. A zero
+        // length is a no-op even for an out-of-range offset (JDK
+        // DigestBase.engineUpdate returns before validating).
+        if (data.size - offset < length) {
+            throw IllegalArgumentException("Input buffer too short")
+        }
+        if (length != 0 && (offset < 0 || length < 0 || offset > data.size - length)) {
+            throw ArrayIndexOutOfBoundsException()
+        }
+        if (length == 0) {
+            return
         }
         val combined = ByteArray(input.size + length)
         input.copyInto(combined)
@@ -49,6 +67,8 @@ public class MessageDigest private constructor(public val algorithm: String) {
             "SHA3256" -> sha3(input, 136, 32)
             "SHA3384" -> sha3(input, 104, 48)
             "SHA3512" -> sha3(input, 72, 64)
+            "SHAKE128", "SHAKE128256" -> shake(input, 168, 32)
+            "SHAKE256", "SHAKE256512" -> shake(input, 136, 64)
             else -> md5(input)
         }
         input = ByteArray(0)
@@ -61,8 +81,20 @@ public class MessageDigest private constructor(public val algorithm: String) {
     }
 
     public fun digest(output: ByteArray, offset: Int, length: Int): Int {
-        if (length < digestLength || offset < 0 || offset > output.size - digestLength) {
-            throw IllegalArgumentException("output buffer is too small")
+        // Mirrors java.security.MessageDigest.digest(byte[], int, int): the
+        // facade bounds-checks offset+length against the buffer with
+        // IllegalArgumentException, then DigestBase.engineDigest rejects a
+        // length below digestLength and out-of-range offsets with
+        // DigestException. digestLength bytes are written at offset and
+        // digestLength is returned regardless of the requested length.
+        if (output.size - offset < length) {
+            throw IllegalArgumentException("Output buffer too small for specified offset and length")
+        }
+        if (length < digestLength) {
+            throw DigestException("Length must be at least $digestLength for $algorithm digests")
+        }
+        if (offset < 0 || length < 0 || offset > output.size - length) {
+            throw DigestException("Buffer too short to store digest")
         }
         val result = digest()
         result.copyInto(output, offset)
@@ -76,7 +108,8 @@ public class MessageDigest private constructor(public val algorithm: String) {
     public companion object {
         public fun getInstance(algorithm: String): MessageDigest {
             val normalized = normalizeAlgorithmName(algorithm)
-            if (!isSupportedAlgorithm(normalized)) {
+            if (!isSupportedAlgorithm(normalized) ||
+                !hasAcceptedAlgorithmSpelling(algorithm, normalized)) {
                 throw NoSuchAlgorithmException("$algorithm MessageDigest not available")
             }
             return MessageDigest(algorithm)
@@ -423,9 +456,24 @@ private fun rotateLeft(value: Long, distance: Int): Long =
 private fun isSupportedAlgorithm(normalized: String): Boolean = when (normalized) {
     "MD2", "MD5", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512",
     "SHA512/224", "SHA512/256",
-    "SHA3224", "SHA3256", "SHA3384", "SHA3512" -> true
+    "SHA3224", "SHA3256", "SHA3384", "SHA3512",
+    "SHAKE128", "SHAKE256", "SHAKE128256", "SHAKE256512" -> true
     else -> false
 }
+
+// The JDK registers SHAKE only under the spellings "SHAKE128", "SHAKE256",
+// "SHAKE128-256" and "SHAKE256-512" (matched case-insensitively).
+// normalizeAlgorithmName folds '-' and case, so lookalikes such as
+// "SHAKE-128" or the undashed "SHAKE128256" would normalize to a supported
+// name; the original spelling is checked here to reject them like the JDK.
+private fun hasAcceptedAlgorithmSpelling(algorithm: String, normalized: String): Boolean =
+    when (normalized) {
+        "SHAKE128" -> algorithm.uppercase() == "SHAKE128"
+        "SHAKE256" -> algorithm.uppercase() == "SHAKE256"
+        "SHAKE128256" -> algorithm.uppercase() == "SHAKE128-256"
+        "SHAKE256512" -> algorithm.uppercase() == "SHAKE256-512"
+        else -> true
+    }
 
 private fun normalizeAlgorithmName(algorithm: String): String {
     val normalized = algorithm.replace("-", "").uppercase()
@@ -791,14 +839,24 @@ private fun keccakF1600(state: LongArray, scratch: LongArray) {
     }
 }
 
-// SHA3 uses the 0x06 delimited suffix with pad10*1 padding at the given
-// rate (in bytes). All SHA-3 output lengths fit inside a single rate
-// block, but the squeeze loop is written generally anyway.
-private fun sha3(input: ByteArray, rate: Int, outputLength: Int): ByteArray {
+// SHA-3 (FIPS 202) uses the 0x06 delimited suffix; SHAKE128/SHAKE256 are
+// extendable-output functions on the same Keccak-f[1600] permutation and
+// pad10*1 padding but use the 0x1F suffix. Through java.security.MessageDigest
+// the JDK exposes SHAKE with a fixed default digest length (32/64 bytes), so
+// no streaming squeeze state is needed: each digest() finalizes and resets
+// exactly like the SHA-3 variants. All SHA-3/SHAKE output lengths fit inside
+// a single rate block, but the squeeze loop is written generally anyway.
+private fun sha3(input: ByteArray, rate: Int, outputLength: Int): ByteArray =
+    keccakDigest(input, rate, outputLength, 0x06)
+
+private fun shake(input: ByteArray, rate: Int, outputLength: Int): ByteArray =
+    keccakDigest(input, rate, outputLength, 0x1F)
+
+private fun keccakDigest(input: ByteArray, rate: Int, outputLength: Int, suffix: Int): ByteArray {
     val paddedLength = (input.size / rate + 1) * rate
     val padded = ByteArray(paddedLength)
     input.copyInto(padded)
-    padded[input.size] = 0x06.toByte()
+    padded[input.size] = suffix.toByte()
     padded[paddedLength - 1] = (padded[paddedLength - 1].toInt() or 0x80).toByte()
 
     val state = LongArray(25)

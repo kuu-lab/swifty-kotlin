@@ -6,8 +6,9 @@ extension BundledStdlibExecutionTests {
     /// MD2 (RFC 1319), and the SHA-3 family (FIPS 202) — JDK canonical vectors,
     /// per-algorithm `digestLength`, incremental `update` buffering, the
     /// `digest(data)` append-then-finalize contract, JDK-accepted aliases, and
-    /// a `NoSuchAlgorithmException` for unsupported names such as SHAKE128
-    /// (deferred: the fixed `digestLength` API cannot model XOF continuation).
+    /// a `NoSuchAlgorithmException` for unsupported names such as SHAKE-128
+    /// (dashed spellings are rejected by the JDK; plain SHAKE128/SHAKE256 are
+    /// covered by the KUU-4306 SHAKE suite).
     /// Regression for KUU-4281: only MD5/SHA-1/SHA-256 were implemented, so
     /// `getInstance("SHA-512")` and friends threw `NoSuchAlgorithmException`.
     @Test
@@ -75,7 +76,7 @@ extension BundledStdlibExecutionTests {
                 println(hex(MessageDigest.getInstance("SHA-1").digest("abc".encodeToByteArray())))
                 println(hex(MessageDigest.getInstance("SHA-256").digest("abc".encodeToByteArray())))
 
-                for (name in listOf("SHAKE128", "SHA3", "FOO", "SHA_512", "SHA-512-256", "SHA512256")) {
+                for (name in listOf("SHA3", "FOO", "SHA_512", "SHA-512-256", "SHA512256", "SHAKE-128", "SHAKE128256")) {
                     try {
                         MessageDigest.getInstance(name)
                         println(name + "|NO-THROW")
@@ -124,12 +125,13 @@ extension BundledStdlibExecutionTests {
             16
             a9993e364706816aba3e25717850c26c9cd0d89d
             ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
-            SHAKE128|SHAKE128 MessageDigest not available
             SHA3|SHA3 MessageDigest not available
             FOO|FOO MessageDigest not available
             SHA_512|SHA_512 MessageDigest not available
             SHA-512-256|SHA-512-256 MessageDigest not available
             SHA512256|SHA512256 MessageDigest not available
+            SHAKE-128|SHAKE-128 MessageDigest not available
+            SHAKE128256|SHAKE128256 MessageDigest not available
 
             """
         )
