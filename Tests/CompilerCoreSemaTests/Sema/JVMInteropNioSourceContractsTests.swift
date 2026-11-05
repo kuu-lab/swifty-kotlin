@@ -42,11 +42,11 @@ struct JVMInteropNioSourceContractsTests {
         try #require(value.functionCount == 28 && value.rows.count == 28 && Set(value.rows.map(\.rowID)).count == 28)
         return value
     }
-    private func context(_ source: String, library: Bool) throws -> (CompilationContext, [String: String]?) {
+    private func context(_ source: String, library: Bool, emit: EmitMode = .kirDump) throws -> (CompilationContext, [String: String]?) {
         if library { TestStdlibCache.shared.prepare() }
         let artifact = library ? try #require(CompilerOptions.defaultStdlibLibraryPath) : nil
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [path], stdlibLibraryPath: artifact, allowDefaultStdlibLibrary: false)
+        let ctx = makeCompilationContext(inputs: [path], emit: emit, stdlibLibraryPath: artifact, allowDefaultStdlibLibrary: false)
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
         try #require(ctx.options.stdlibLibraryPath == artifact && ctx.options.includeStdlib == !library)
         guard let artifact else { return (ctx, nil) }
@@ -341,8 +341,8 @@ struct JVMInteropNioSourceContractsTests {
             nameResolver: ctx.interner.resolve, unboxValueClasses: false)
         #expect(returnToken == "Ljava.nio.charset.Charset;")
         if let path = ctx.options.stdlibLibraryPath {
-            let records = MetadataDecoder().decode(try String(contentsOf: URL(fileURLWithPath: path)
-                .appendingPathComponent("metadata.bin"), encoding: .utf8))
+            let records = MetadataDecoder().decode(try Data(contentsOf: URL(fileURLWithPath: path)
+                .appendingPathComponent("metadata.bin")))
             let matching = records.filter { $0.kind == .function && $0.fqName == name }
             try #require(matching.count == 1)
             #expect(matching[0].typeSignature == encodedSignature(symbol, ctx, sema))
@@ -405,7 +405,7 @@ struct JVMInteropNioSourceContractsTests {
             output.close()
             output.toString()
         }
-        """, library: false)
+        """, library: false, emit: .object)
         defer { unchanged(ctx, initial) }
         try runToKIR(ctx)
         try #require(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
@@ -430,12 +430,38 @@ struct JVMInteropNioSourceContractsTests {
         var seen = Set<String>()
         for body in bodies {
             for instruction in body {
-                guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction,
-                      required.contains(ctx.interner.resolve(callee)) else { continue }
+                let calleeName: String
+                let canThrow: Bool
+                let thrownResult: KIRExprID?
+                let isVirtualCall: Bool
+                switch instruction {
+                case let .call(_, callee, _, _, callCanThrow, callThrown, _, _):
+                    calleeName = ctx.interner.resolve(callee)
+                    canThrow = callCanThrow
+                    thrownResult = callThrown
+                    isVirtualCall = false
+                case let .virtualCall(_, callee, _, _, _, callCanThrow, callThrown, _):
+                    calleeName = ctx.interner.resolve(callee)
+                    canThrow = callCanThrow
+                    thrownResult = callThrown
+                    isVirtualCall = true
+                default:
+                    continue
+                }
+                guard required.contains(calleeName) else { continue }
                 #expect(canThrow)
-                let thrown = try #require(thrownResult)
-                #expect(body.contains { if case let .rethrow(value) = $0 { return value == thrown }; return false })
-                seen.insert(ctx.interner.resolve(callee))
+                if isVirtualCall {
+                    // Virtual dispatch forwards the outThrown channel through
+                    // the function's own thrown edge at codegen; a local
+                    // thrownResult slot only exists inside try regions.
+                    if let thrownResult {
+                        #expect(body.contains { if case let .rethrow(value) = $0 { return value == thrownResult }; return false })
+                    }
+                } else {
+                    let thrown = try #require(thrownResult)
+                    #expect(body.contains { if case let .rethrow(value) = $0 { return value == thrown }; return false })
+                }
+                seen.insert(calleeName)
             }
         }
         #expect(seen == required)

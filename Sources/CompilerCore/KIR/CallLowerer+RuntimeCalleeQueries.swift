@@ -113,6 +113,7 @@ extension CallLowerer {
         "__kk_bytearrayinputstream_new",
         "__kk_any_to_string_throwing",
         "__kk_io_stream_to_string",
+        "__kk_sequence_input_stream_read",
         "__kk_sequence_input_stream_available_throwing",
         "__kk_sequence_input_stream_close_throwing",
         "__kk_native_filechannel_open",
