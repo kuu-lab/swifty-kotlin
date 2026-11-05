@@ -189,6 +189,46 @@ struct EnumEntryImportResolutionTests {
     }
 
     @Test
+    func sourceEnumShadowsImportedLibraryEnumForWildcardEntryImport() throws {
+        // KUU-4273: kotlinx-coroutines declares its own
+        // `kotlinx.coroutines.selects.TrySelectDetailedResult`, shadowing the
+        // bundled stdlib enum of the same FQN. `import ...TrySelectDetailedResult.*`
+        // must contribute only the source enum's entries; importing both
+        // enums' entries made every shared entry name ambiguous
+        // (KSWIFTK-SEMA-0003 at Select.kt:882 upstream).
+        try checkImportSources([
+            """
+            package kotlinx.coroutines.selects
+            import kotlinx.coroutines.selects.TrySelectDetailedResult.*
+            internal enum class TrySelectDetailedResult { SUCCESSFUL, REREGISTER, CANCELLED, ALREADY_SELECTED }
+            private const val TRY_SELECT_SUCCESSFUL = 0
+            fun TrySelectDetailedResult(x: Int): TrySelectDetailedResult = when (x) {
+                TRY_SELECT_SUCCESSFUL -> SUCCESSFUL
+                else -> REREGISTER
+            }
+            """,
+        ]) { ctx in
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let fqName = ["kotlinx", "coroutines", "selects", "TrySelectDetailedResult"]
+                .map(ctx.interner.intern)
+            let sourceEnum = try #require(sema.symbols.lookupAll(fqName: fqName).first { id in
+                sema.symbols.symbol(id)?.kind == .enumClass
+                    && sema.symbols.symbol(id)?.flags.contains(.importedLibrary) != true
+            })
+            let converter = try #require(sema.symbols.lookupAll(fqName: fqName).first { id in
+                sema.symbols.symbol(id)?.kind == .function
+            })
+            let signature = try #require(sema.symbols.functionSignature(for: converter))
+            guard case let .classType(returnNominal) = sema.types.kind(of: signature.returnType) else {
+                Issue.record("Expected class type return, got \(signature.returnType)")
+                return
+            }
+            #expect(returnNominal.classSymbol == sourceEnum)
+        }
+    }
+
+    @Test
     func wildcardImportDoesNotIntroduceInstanceOrCompanionMembers() throws {
         try checkImportSources([
             """

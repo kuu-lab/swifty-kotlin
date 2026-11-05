@@ -159,6 +159,41 @@ struct TypeCheckScopeBuilder {
         }
     }
 
+    /// Enum-class owners contributing entries to a wildcard `Owner.*` import.
+    /// A source enum class shadows a same-FQN imported library enum —
+    /// `SymbolTable.define` orders source declarations ahead of
+    /// `.importedLibrary` ones (`prioritizeOverImported`) — so only the
+    /// source enum's entries may be imported. Importing both enums'
+    /// entries makes every shared entry name ambiguous (KSWIFTK-SEMA-0003).
+    /// The shadowing declaration must be visible from the importing file:
+    /// a file-private top-level enum in another file is not a package member
+    /// there, so the imported enum keeps contributing its entries.
+    private func enumOwnersForWildcardImport(
+        _ resolved: [SymbolID],
+        sema: SemaModule,
+        isAccessibleSymbol: (SymbolID) -> Bool
+    ) -> [SymbolID] {
+        func isAccessibleOwner(_ id: SymbolID) -> Bool {
+            var owner: SymbolID? = id
+            while let current = owner {
+                if !isAccessibleSymbol(current) { return false }
+                owner = sema.symbols.parentSymbol(for: current)
+            }
+            return true
+        }
+        func isSourceOwner(_ id: SymbolID) -> Bool {
+            sema.symbols.symbol(id)?.flags.contains(.importedLibrary) != true
+        }
+        let enumOwners = resolved.filter { sema.symbols.symbol($0)?.kind == .enumClass }
+        let hasAccessibleSourceOwner = enumOwners.contains { id in
+            isSourceOwner(id) && isAccessibleOwner(id)
+        }
+        guard hasAccessibleSourceOwner else { return enumOwners }
+        return enumOwners.filter { id in
+            isSourceOwner(id) && isAccessibleOwner(id)
+        }
+    }
+
     /// Under `--profile minimal`, an import into a package the minimal stdlib
     /// leaves out is reported as such (KUU-3016) rather than as a plain
     /// unresolved import, so the fix — drop `--profile minimal` — is explicit.
@@ -523,12 +558,13 @@ struct TypeCheckScopeBuilder {
             let resolved = importDecl.isWildcard
                 ? sema.symbols.lookupAll(fqName: importDecl.path)
                 : resolveExplicitImport(importDecl.path, sema: sema, interner: interner, sourceManager: sourceManager)
-            if importDecl.isWildcard, resolved.contains(where: {
-                sema.symbols.symbol($0)?.kind == .enumClass
-            }) {
+            let wildcardEnumOwners = importDecl.isWildcard
+                ? enumOwnersForWildcardImport(resolved, sema: sema, isAccessibleSymbol: isAccessibleWildcardSymbol)
+                : []
+            if !wildcardEnumOwners.isEmpty {
                 // Enum entries belong to the enum, not a package. Source entries
                 // are deliberately absent from the package-only symbol index.
-                for enumID in resolved where sema.symbols.symbol(enumID)?.kind == .enumClass {
+                for enumID in wildcardEnumOwners {
                     for entry in sema.symbols.declaredChildren(of: enumID)
                         where sema.symbols.symbol(entry)?.kind == .field && isAccessibleWildcardSymbol(entry) {
                         wildcardImportScope.insert(entry)
@@ -599,7 +635,9 @@ struct TypeCheckScopeBuilder {
             }
 
             if importDecl.isWildcard {
-                let enumOwners = resolved.filter { sema.symbols.symbol($0)?.kind == .enumClass }
+                let enumOwners = enumOwnersForWildcardImport(
+                    resolved, sema: sema, isAccessibleSymbol: isAccessibleWildcardSymbol
+                )
                 if !enumOwners.isEmpty {
                     // Enum star imports introduce entries at wildcard priority,
                     // not the enum type or its instance/companion members.
