@@ -932,7 +932,12 @@ package final class MetadataEncoder {
             {
                 propertyGetterExternalLinkName = propertyLink
             }
+            // KUU-4327: accessors materialized only for property references
+            // and KClass member identity carry a default storage body, not a
+            // declared accessor — exporting their link would make consumers
+            // route plain field reads/writes through a function call.
             if propertyGetterExternalLinkName == nil,
+               !symbols.isDefaultPropertyAccessor(getterSymbol),
                let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
                 propertyGetterExternalLinkName = linkName
@@ -943,7 +948,8 @@ package final class MetadataEncoder {
             // that fails to link (e.g. `atomicInt.value = x`).
             let setterSymbol = symbols.extensionPropertySetterAccessor(for: symbol.id)
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol.id)
-            if let setterLinkName = functionLinkNames[setterSymbol] ?? symbols.externalLinkName(for: setterSymbol),
+            if !symbols.isDefaultPropertyAccessor(setterSymbol),
+               let setterLinkName = functionLinkNames[setterSymbol] ?? symbols.externalLinkName(for: setterSymbol),
                !setterLinkName.isEmpty {
                 propertySetterExternalLinkName = setterLinkName
             }

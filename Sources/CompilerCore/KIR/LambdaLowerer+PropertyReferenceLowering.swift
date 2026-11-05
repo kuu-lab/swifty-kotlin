@@ -825,6 +825,21 @@ extension LambdaLowerer {
             return
         }
 
+        // KUU-4327: everything below synthesizes a default storage accessor —
+        // a stand-in body so property references and KClass member handles
+        // have a callable target. Record synthetic-scheme accessors so
+        // MetadataEncoder does not export their link names: consumers reach
+        // the same storage through field offsets and global slots directly,
+        // and exporting the link would route every read/write through a
+        // function call instead. Defined accessor symbols (extension
+        // receivers, context parameters) are not synthetic-scheme IDs and
+        // stay exportable; delegated properties keep their accessor contract.
+        if SyntheticSymbolScheme.decodedPropertyAccessor(accessorSymbol) != nil,
+           sema.symbols.delegateStorageSymbol(for: propertySymbol) == nil
+        {
+            sema.symbols.markDefaultPropertyAccessor(accessorSymbol)
+        }
+
         let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
         let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
         let fieldOffset = ownerSymbol.flatMap {
