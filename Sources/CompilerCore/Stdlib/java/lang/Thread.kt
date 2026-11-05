@@ -27,7 +27,7 @@ private external fun threadSetCurrent(key: Long, value: Any?): Unit
 @KsSymbolName("__kk_thread_local_remove")
 private external fun threadRemoveCurrent(key: Long): Unit
 
-public class Thread private constructor(
+public open class Thread private constructor(
     private val target: Runnable?,
     initialName: String?,
     currentThread: kotlin.Boolean
@@ -85,7 +85,7 @@ public class Thread private constructor(
     public val id: kotlin.Long
         get() = threadId
 
-    public fun run() {
+    public open fun run() {
         target?.run()
     }
 
