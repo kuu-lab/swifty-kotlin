@@ -19,7 +19,11 @@ import kotlin.random.Random as KotlinRandom
 // this class) is implemented with the JDK's 48-bit LCG so that a seeded
 // Random(seed) produces the same sequence as on the JVM. An instance created by
 // Random.asJavaRandom() instead pulls its bits from the wrapped Kotlin Random.
-public class Random {
+//
+// KUU-3994: the class and setSeed are `open` so java.util.concurrent.
+// ThreadLocalRandom can extend it (the JDK hierarchy) while still routing
+// every bit draw through its per-thread kotlin.random.Random delegate.
+public open class Random {
     private var seed: Long = 0L
     private val source: KotlinRandom?
     private var nextNextGaussian: Double = 0.0
@@ -58,7 +62,7 @@ public class Random {
     public val delegate: KotlinRandom
         get() = source ?: JavaRandomAsKotlinRandom(this)
 
-    public fun setSeed(seed: Long) {
+    public open fun setSeed(seed: Long) {
         this.seed = scrambleSeed(seed)
         haveNextNextGaussian = false
     }
