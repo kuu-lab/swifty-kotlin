@@ -519,7 +519,7 @@ extension DataFlowSemaPhase {
 
         validateMemberOverrides(info.memberFunctions, symbol: ownerSymbol, ctx: ctx)
         validateMemberOverrides(info.memberProperties, symbol: ownerSymbol, ctx: ctx)
-        for nestedDeclID in info.nestedClasses {
+        for nestedDeclID in info.nestedDecls {
             validateBodyNestedDeclOverrides(in: nestedDeclID, ctx: ctx, visited: &visited)
         }
     }
@@ -538,7 +538,7 @@ extension DataFlowSemaPhase {
         let info = extractDeclInfo(decl)
         guard let info else { return }
 
-        for nestedID in info.nestedClasses {
+        for nestedID in info.nestedDecls {
             validateOFODecl(nestedID, ctx: ctx)
         }
 
@@ -573,11 +573,30 @@ extension DataFlowSemaPhase {
         )
 
         if case let .classDecl(classDecl) = decl,
-           ctx.symbols.symbol(symbol)?.kind == .enumClass {
+           let ownerSym = ctx.symbols.symbol(symbol),
+           ownerSym.kind == .enumClass {
             for entry in classDecl.enumEntries {
                 validateEnumEntryMemberFinalityOverrides(
                     entry: entry,
                     ownerSymbol: symbol,
+                    ctx: ctx
+                )
+                // Entry bodies are anonymous subclasses of the enum class:
+                // their members hide or override the enum's own members and
+                // everything the enum inherits, so they need the same member
+                // checks as any other class body (KUU-4161). Member symbols
+                // are parented to the entry's `.field` symbol, which the
+                // inherited-member scans resolve to the enum class.
+                let entryFQName = ownerSym.fqName + [entry.name]
+                guard let entrySymbol = ctx.symbols.lookupAll(fqName: entryFQName).first(where: { candidate in
+                    ctx.symbols.symbol(candidate)?.kind == .field
+                        && ctx.symbols.parentSymbol(for: candidate) == symbol
+                }) else {
+                    continue
+                }
+                validateMemberOverrides(
+                    entry.memberFunctions + entry.memberProperties,
+                    symbol: entrySymbol,
                     ctx: ctx
                 )
             }
@@ -989,7 +1008,7 @@ extension DataFlowSemaPhase {
     private struct OFODeclInfo {
         let memberFunctions: [DeclID]
         let memberProperties: [DeclID]
-        let nestedClasses: [DeclID]
+        let nestedDecls: [DeclID]
         let declRange: SourceRange?
     }
 
@@ -1001,21 +1020,26 @@ extension DataFlowSemaPhase {
             OFODeclInfo(
                 memberFunctions: cls.memberFunctions,
                 memberProperties: cls.memberProperties,
-                nestedClasses: cls.nestedClasses + cls.enumEntries.flatMap(\.nestedClasses),
+                // `nestedObjects` already contains the synthetic companion
+                // block object; `companionObject` is the named companion.
+                nestedDecls: cls.nestedClasses + cls.nestedObjects
+                    + cls.enumEntries.flatMap(\.nestedClasses)
+                    + (cls.companionObject.map { [$0] } ?? []),
                 declRange: cls.range
             )
         case let .objectDecl(obj):
             OFODeclInfo(
                 memberFunctions: obj.memberFunctions,
                 memberProperties: obj.memberProperties,
-                nestedClasses: obj.nestedClasses,
+                nestedDecls: obj.nestedClasses + obj.nestedObjects,
                 declRange: obj.range
             )
         case let .interfaceDecl(iface):
             OFODeclInfo(
                 memberFunctions: iface.memberFunctions,
                 memberProperties: iface.memberProperties,
-                nestedClasses: iface.nestedClasses,
+                nestedDecls: iface.nestedClasses + iface.nestedObjects
+                    + (iface.companionObject.map { [$0] } ?? []),
                 declRange: iface.range
             )
         default:
@@ -1957,13 +1981,32 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Enum entry bodies are anonymous subclasses of the enum class, but
+    /// their member symbols are parented to the entry's `.field` symbol,
+    /// which records no supertypes. Inherited-member scans treat the enum
+    /// class itself as the entry's direct supertype (KUU-4161).
+    private func inheritedScanSupertypes(
+        for symbol: SymbolID,
+        symbols: SymbolTable
+    ) -> [SymbolID] {
+        let direct = symbols.directSupertypes(for: symbol)
+        guard direct.isEmpty,
+              symbols.symbol(symbol)?.kind == .field,
+              let parent = symbols.parentSymbol(for: symbol),
+              symbols.symbol(parent)?.kind == .enumClass
+        else {
+            return direct
+        }
+        return [parent]
+    }
+
     private func hasSourceBackedInheritedFunction(
         named memberName: InternedString,
         for ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) -> Bool {
         var visited: Set<SymbolID> = [ownerSymbol]
-        var queue = ctx.symbols.directSupertypes(for: ownerSymbol)
+        var queue = inheritedScanSupertypes(for: ownerSymbol, symbols: ctx.symbols)
 
         while !queue.isEmpty {
             let current = queue.removeFirst()
@@ -2004,7 +2047,7 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) -> Bool {
         var visited: Set<SymbolID> = [ownerSymbol]
-        var queue = ctx.symbols.directSupertypes(for: ownerSymbol)
+        var queue = inheritedScanSupertypes(for: ownerSymbol, symbols: ctx.symbols)
         while !queue.isEmpty {
             let current = queue.removeFirst()
             guard visited.insert(current).inserted else { continue }
@@ -2708,7 +2751,7 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) -> OFOInheritedMember? {
         var visited: Set<SymbolID> = [childOwner]
-        var queue = ctx.symbols.directSupertypes(for: childOwner)
+        var queue = inheritedScanSupertypes(for: childOwner, symbols: ctx.symbols)
 
         while !queue.isEmpty {
             let current = queue.removeFirst()
@@ -2927,6 +2970,25 @@ extension DataFlowSemaPhase {
         return nil
     }
 
+    /// Owners whose members follow class-style override hiding: classes,
+    /// objects (named, companion, and synthetic companion blocks), enum
+    /// classes, and enum-entry field symbols — an entry body is an anonymous
+    /// subclass of the enum class (KUU-4161).
+    private func isClassLikeOverrideOwner(
+        _ symbol: SemanticSymbol,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        switch symbol.kind {
+        case .class, .object, .enumClass:
+            return true
+        case .field:
+            return ctx.symbols.parentSymbol(for: symbol.id)
+                .flatMap { ctx.symbols.symbol($0) }?.kind == .enumClass
+        default:
+            return false
+        }
+    }
+
     private func validateMissingOverride(
         memberName: InternedString,
         memberRange: SourceRange,
@@ -3024,7 +3086,8 @@ extension DataFlowSemaPhase {
         guard !matchingParents.isEmpty else { return }
 
         // Special handling for interface implementations
-        if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
+        if let ownerSym = ctx.symbols.symbol(ownerSymbol),
+           isClassLikeOverrideOwner(ownerSym, ctx: ctx) {
             // Check if this is implementing an interface method
             let interfaceParents = matchingParents.filter { $0.ownerIsInterface }
             if !interfaceParents.isEmpty {
@@ -3040,7 +3103,8 @@ extension DataFlowSemaPhase {
 
         // For class inheritance, check if this actually overrides a parent member
         // Use improved signature matching to avoid false positives with overloads
-        if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
+        if let ownerSym = ctx.symbols.symbol(ownerSymbol),
+           isClassLikeOverrideOwner(ownerSym, ctx: ctx) {
             let classParents = matchingParents.filter { !$0.ownerIsInterface }
             if !classParents.isEmpty {
                 let parentName = ctx.interner.resolve(classParents.first!.ownerName)
@@ -3184,7 +3248,7 @@ extension DataFlowSemaPhase {
         parameterTypes: [TypeID]? = nil
     ) -> OFOInheritedMember? {
         var visited: Set<SymbolID> = [classSymbol]
-        var queue = symbols.directSupertypes(for: classSymbol)
+        var queue = inheritedScanSupertypes(for: classSymbol, symbols: symbols)
 
         while !queue.isEmpty {
             let current = queue.removeFirst()
@@ -3260,7 +3324,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable
     ) -> [OFOInheritedMember] {
         var visited: Set<SymbolID> = [classSymbol]
-        var queue = symbols.directSupertypes(for: classSymbol)
+        var queue = inheritedScanSupertypes(for: classSymbol, symbols: symbols)
         var results: [OFOInheritedMember] = []
 
         while !queue.isEmpty {
