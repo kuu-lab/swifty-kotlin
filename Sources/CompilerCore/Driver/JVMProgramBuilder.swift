@@ -846,6 +846,22 @@ final class JVMFunctionBuilder {
             if reference.result == .unit {
                 if let returned { _ = try expression(returned) }
                 if !terminated { try emitFinalizers(); if !terminated { instructions.append(.returnValue(nil)) } }
+            } else if returned == nil {
+                // A bare `return`/`return@label` means the Kotlin return type is
+                // Unit, but the physical result may still be a reference: closure
+                // helpers box it as kotlin.Unit, and suspend state machines take
+                // java/lang.Object (rewritten to Unit.INSTANCE by coroutine
+                // lowering, which keys off the nil-return marker).
+                if isSuspendBody || declaration.isSuspend {
+                    try emitFinalizers()
+                    if !terminated { instructions.append(.returnValue(nil)) }
+                } else {
+                    let unit = try value(.reference("kotlin/Unit", nullable: false))
+                    instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit.type, access: 0x19), unit))
+                    let result = try convert(unit, to: reference.result)
+                    try emitFinalizers()
+                    if !terminated { instructions.append(.returnValue(result)) }
+                }
             } else {
                 guard let returned else { throw fail("JVM function must return a value.", id) }
                 let result = try convert(requireValue(returned), to: reference.result)
