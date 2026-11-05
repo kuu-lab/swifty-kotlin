@@ -567,6 +567,30 @@ extension CallTypeChecker {
                 {
                     return nil
                 }
+                // KUU-4271: scope `invoke` candidates that all fail overload
+                // resolution must not hide the implicit receiver's own
+                // `invoke` on a function-typed `this` — e.g. the unqualified
+                // `invoke(element)` inside kotlinx-coroutines'
+                // `OnUndeliveredElement<E>.callUndeliveredElement...`, where
+                // `this` is `(E) -> Unit` and a `CoroutineDispatcher.invoke`
+                // extension shares the name. Function types expose no nominal
+                // members for the recovery paths above, so bind `this.invoke`
+                // directly the way the implicit-receiver fallback does.
+                if let calleeName,
+                   diagnostic.severity == .error,
+                   let recovered = inferImplicitReceiverFunctionTypeInvokeCall(
+                       id,
+                       calleeName: calleeName,
+                       args: args,
+                       range: range,
+                       ctx: ctx,
+                       locals: &locals,
+                       expectedType: expectedType,
+                       explicitTypeArgs: explicitTypeArgs
+                   )
+                {
+                    return recovered
+                }
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
