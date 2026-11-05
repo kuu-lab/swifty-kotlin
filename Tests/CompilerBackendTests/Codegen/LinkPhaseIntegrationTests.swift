@@ -531,6 +531,51 @@ struct LinkPhaseIntegrationTests {
         }
     }
 
+    /// KUU-4320: mutually suppressed throwables must not send the uncaught
+    /// report into unbounded recursion — the walker emits JVM-style
+    /// "[CIRCULAR REFERENCE: ...]" lines and still exits via LINK-0003.
+    @Test
+    func testEntryWrapperReportsUncaughtExceptionCircularSuppressedChain() throws {
+        let source = """
+        class MyException(msg: String) : Exception(msg)
+
+        fun main() {
+            val a = MyException("a")
+            val b = MyException("b")
+            a.addSuppressed(b)
+            b.addSuppressed(a)
+            throw a
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            defer { try? FileManager.default.removeItem(atPath: out) }
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "UncaughtCircular", emit: .executable, outputPath: out)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            assertLinkSucceeds(ctx)
+
+            let result: CommandResult
+            do {
+                result = try CommandRunner.run(executable: out, arguments: [])
+                Issue.record("Expected executable to fail on unhandled top-level exception.")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                result = failed
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+
+            #expect(result.exitCode == 1)
+            #expect(result.stderr.contains("Exception in thread \"main\" MyException: a"))
+            #expect(result.stderr.contains("Suppressed: MyException: b"))
+            #expect(result.stderr.contains("[CIRCULAR REFERENCE: MyException: a]"))
+            #expect(result.stderr.contains("KSWIFTK-LINK-0003"))
+        }
+    }
+
     /// `main`'s own value must never reach the process status.
     ///
     /// kotlinc does not recognise a `main` whose return type is not `Unit` as
