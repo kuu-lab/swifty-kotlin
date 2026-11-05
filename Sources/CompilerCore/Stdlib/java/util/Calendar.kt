@@ -42,6 +42,11 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         get() = getTime()
         set(value) = setTime(value)
 
+    /** JVM synthetic property view of `getTimeZone()`/`setTimeZone(TimeZone)`. */
+    public var timeZone: TimeZone
+        get() = getTimeZone()
+        set(value) = setTimeZone(value)
+
     public companion object {
         public const val ERA: Int = 0
         public const val YEAR: Int = 1
