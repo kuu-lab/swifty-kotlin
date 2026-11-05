@@ -175,7 +175,17 @@ extension JVMProgramBuilder {
         }
     }
     func typeParameters(_ symbols: [SymbolID], declarations: [TypeParamDecl]) throws -> [JVMTypeParameter] {
-        guard symbols.count == declarations.count, declarations.allSatisfy({ $0.annotations.isEmpty }) else { throw JVMFrontendError(message: "Unsupported JVM type parameter annotations.") }
+        // JVMTypeParameter carries no annotation surface, so type-parameter
+        // annotations are never emitted. Only compile-time-only
+        // kotlin.internal.* markers (e.g. OnlyInputTypes, which steers type
+        // inference during Sema) are tolerated; anything else is rejected.
+        guard symbols.count == declarations.count,
+              symbols.allSatisfy({ symbol in
+                  sema.symbols.annotations(for: symbol).allSatisfy {
+                      $0.annotationFQName.hasPrefix("kotlin.internal.")
+                  }
+              })
+        else { throw JVMFrontendError(message: "Unsupported JVM type parameter annotations.") }
         return try zip(symbols, declarations).map { symbol, decl in
             let name = context.interner.resolve(decl.name)
             guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "JVM type parameter needs an ASCII name.") }

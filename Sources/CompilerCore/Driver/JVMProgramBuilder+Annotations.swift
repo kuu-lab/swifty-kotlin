@@ -142,13 +142,7 @@ extension JVMProgramBuilder {
             // carries it (its bundled-stdlib usages live on non-emitted files).
             if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
             let annotationOwner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) })
-            // kotlin.internal.LowPriorityInOverloadResolution only steers
-            // overload resolution. Consumer compiles inject it as a
-            // residual-stdlib declaration that is never emitted, so no
-            // classfile plan exists to attach; stdlib builds still emit it
-            // where the annotation class itself is compiled.
-            if name == "kotlin.internal.LowPriorityInOverloadResolution",
-               annotationOwner.flatMap({ annotationPlan($0) }) == nil { continue }
+            if isPlanlessKotlinInternalAnnotation(name, owner: annotationOwner) { continue }
             guard let owner = annotationOwner, annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
             let retention = annotationRetention(owner)
             if retention == "SOURCE" { continue }
@@ -156,6 +150,16 @@ extension JVMProgramBuilder {
             annotation.visible = retention != "BINARY"; result.append(annotation)
         }
         return try groupedRepeatableAnnotations(result)
+    }
+    /// kotlin.internal.* annotations are compile-time-only markers (inlining
+    /// policy, overload resolution, inference constraints, parameter-name
+    /// stability, runtime symbol naming). Consumer compiles inject them as
+    /// residual-stdlib declarations that are never emitted, so no classfile
+    /// plan exists to attach; stdlib builds still emit them where the
+    /// annotation class itself is compiled.
+    func isPlanlessKotlinInternalAnnotation(_ fqName: String, owner: SymbolID?) -> Bool {
+        guard fqName.hasPrefix("kotlin.internal."), let owner else { return false }
+        return annotationPlan(owner) == nil
     }
     func annotationRetention(_ symbol: SymbolID) -> String {
         guard let retention = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.annotation.Retention" })?.arguments.first else { return "RUNTIME" }
