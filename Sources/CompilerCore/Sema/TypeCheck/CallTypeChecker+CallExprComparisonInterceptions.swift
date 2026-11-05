@@ -118,7 +118,13 @@ extension CallTypeChecker {
                 sema.types.floatType,
                 sema.types.intType,
             ] + (calleeName == knownNames.minOf ? [sema.types.byteType, sema.types.shortType] : [])
-            if let resolvedParamType = supportedNumericTypes.first(where: { firstArgType == $0 }) {
+            if let resolvedParamType = primitiveMinMaxParameterType(
+                args: args,
+                firstArgType: firstArgType,
+                supportedNumericTypes: supportedNumericTypes,
+                ctx: ctx,
+                locals: &locals
+            ) {
                 var shouldUsePrimitiveComparisonFastPath = true
                 if args.count == 3 {
                     var tentativeLocals = locals
@@ -126,13 +132,13 @@ extension CallTypeChecker {
                         args[1].expr,
                         ctx: ctx,
                         locals: &tentativeLocals,
-                        expectedType: nil
+                        expectedType: resolvedParamType
                     )
                     let thirdArgType = driver.inferExpr(
                         args[2].expr,
                         ctx: ctx,
                         locals: &tentativeLocals,
-                        expectedType: nil
+                        expectedType: resolvedParamType
                     )
                     shouldUsePrimitiveComparisonFastPath = secondArgType == resolvedParamType && thirdArgType == resolvedParamType
                 }
@@ -147,8 +153,20 @@ extension CallTypeChecker {
                 ) {
                     let expectedType = resolvedParamType
 
+                    // An unsuffixed literal first argument may adopt a wider
+                    // parameter type selected by a sibling argument (e.g. `1`
+                    // in `maxOf(1, 2L)` binds as Long); re-infer it against the
+                    // resolved type so the constraint and KIR see Long.
+                    let firstArgumentType = firstArgType == expectedType
+                        ? firstArgType
+                        : driver.inferExpr(
+                            args[0].expr,
+                            ctx: ctx,
+                            locals: &locals,
+                            expectedType: expectedType
+                        )
                     driver.emitSubtypeConstraint(
-                        left: firstArgType,
+                        left: firstArgumentType,
                         right: expectedType,
                         range: ast.arena.exprRange(args[0].expr) ?? range,
                         solver: ConstraintSolver(),
@@ -220,6 +238,105 @@ extension CallTypeChecker {
             }
         }
         return nil
+    }
+
+    /// Resolves the primitive parameter type for the minOf/maxOf fast path.
+    ///
+    /// An unsuffixed integer literal keeps Kotlin's integer-literal type
+    /// through overload resolution, so when the first argument is such a
+    /// literal a concrete sibling argument selects the wider primitive
+    /// overload instead of the literal's default Int (`maxOf(1, 2L)` resolves
+    /// to `maxOf(Long, Long)`); when every argument is a literal, a value
+    /// outside Int range selects Long the same way (`maxOf(1, 5000000000)`).
+    /// Returns nil when the arguments cannot share one supported primitive
+    /// type, leaving the call to general overload resolution.
+    private func primitiveMinMaxParameterType(
+        args: [CallArgument],
+        firstArgType: TypeID,
+        supportedNumericTypes: [TypeID],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let ast = ctx.ast
+        guard integerLiteralValues(args[0].expr, ast: ast).signed != nil else {
+            return supportedNumericTypes.first(where: { $0 == firstArgType })
+        }
+
+        var concreteType: TypeID?
+        for index in 1 ..< args.count {
+            guard integerLiteralValues(args[index].expr, ast: ast).signed == nil else {
+                continue
+            }
+            let type = driver.inferExpr(
+                args[index].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: nil
+            )
+            if let concreteType, concreteType != type {
+                return nil
+            }
+            concreteType = type
+        }
+
+        let parameterType: TypeID
+        if let concreteType {
+            parameterType = concreteType
+        } else if args.contains(where: { argument in
+            guard let value = integerLiteralValues(argument.expr, ast: ast).signed else {
+                return false
+            }
+            return value < Int64(Int32.min) || value > Int64(Int32.max)
+        }) {
+            // Every argument is an unsuffixed literal and one cannot be an
+            // Int, so the call resolves to the Long overload like Kotlin's
+            // integer-literal typing (`maxOf(1, 5000000000)`).
+            parameterType = ctx.sema.types.longType
+        } else {
+            parameterType = firstArgType
+        }
+        guard supportedNumericTypes.contains(parameterType),
+              signedIntegerLiteralArgumentsFit(args: args, parameterType: parameterType, ctx: ctx)
+        else {
+            return nil
+        }
+        return parameterType
+    }
+
+    /// Whether every unsuffixed integer literal argument's value fits the
+    /// primitive parameter type, mirroring the literal adoption Kotlin
+    /// applies during overload resolution.
+    private func signedIntegerLiteralArgumentsFit(
+        args: [CallArgument],
+        parameterType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard case let .primitive(primitive, _) = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) else {
+            return false
+        }
+        for argument in args {
+            guard let value = integerLiteralValues(argument.expr, ast: ctx.ast).signed else {
+                continue
+            }
+            let fits: Bool
+            switch primitive {
+            case .byte:
+                fits = (-128 ... 127).contains(value)
+            case .short:
+                fits = (-32768 ... 32767).contains(value)
+            case .int:
+                fits = value >= Int64(Int32.min) && value <= Int64(Int32.max)
+            case .long:
+                fits = true
+            default:
+                fits = false
+            }
+            guard fits else {
+                return false
+            }
+        }
+        return true
     }
 
     func resolveCompareBySelectorArguments(
