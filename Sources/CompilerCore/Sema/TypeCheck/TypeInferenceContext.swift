@@ -819,9 +819,8 @@ struct TypeInferenceContext: CustomStringConvertible {
         matching predicate: (SymbolID) -> Bool
     ) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
         var inheritedInterfaces: Set<SymbolID> = []
-        var current: Scope? = scope
-        while let currentScope = current as? BaseScope {
-            let candidates = currentScope.candidates(for: name).filter { symbolID in
+        func matchingCandidates(in currentScope: BaseScope) -> [SymbolID] {
+            currentScope.candidates(for: name).filter { symbolID in
                 guard let symbol = cachedSymbol(symbolID),
                       !isExpectDeclarationSupersededByActual(symbolID),
                       !isImportedCallableShadowedBySource(symbolID)
@@ -839,10 +838,38 @@ struct TypeInferenceContext: CustomStringConvertible {
                 }
                 return predicate(symbolID)
             }
-            if !candidates.isEmpty { return (candidates, inheritedInterfaces) }
+        }
+        // Kotlin ranks an explicit single-name or alias import above
+        // same-package declarations for values as well as classifiers
+        // (KUU-4192). The physical chain places the package scope above the
+        // explicit-import scope, so once the walk reaches file level the
+        // explicit-import tier is promoted ahead of the file/package tiers —
+        // the same ordering `Scope.lookupClassifier` implements for type
+        // positions. Wildcard and default imports still rank below
+        // same-package declarations, and scopes nested inside the file scope
+        // (locals, member scopes) keep innermost priority.
+        var current: Scope? = scope
+        var reachedFileScope = false
+        var fileLevelMatches: [SymbolID] = []
+        while let currentScope = current as? BaseScope {
+            let candidates = matchingCandidates(in: currentScope)
+            if !reachedFileScope && !(currentScope is FileScope) {
+                if !candidates.isEmpty { return (candidates, inheritedInterfaces) }
+            } else {
+                reachedFileScope = true
+                if currentScope is ExplicitImportScope {
+                    if !candidates.isEmpty { return (candidates, inheritedInterfaces) }
+                    // Past the explicit-import tier only wildcard and default
+                    // imports remain, which can never outrank an already
+                    // collected file/package match.
+                    if !fileLevelMatches.isEmpty { break }
+                } else if fileLevelMatches.isEmpty {
+                    fileLevelMatches = candidates
+                }
+            }
             current = currentScope.parent
         }
-        return ([], inheritedInterfaces)
+        return (fileLevelMatches, inheritedInterfaces)
     }
 
     /// A source callable shadows an imported callable at the same FQ name when

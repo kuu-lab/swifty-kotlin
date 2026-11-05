@@ -1398,7 +1398,11 @@ extension ExprTypeChecker {
                 }
             }
         } else {
-            let propertyCandidates = ctx.cachedScopeLookup(member).filter { symbolID in
+            // `valueScopeLookup` keeps `cachedScopeLookup`'s first-non-empty-scope
+            // semantics while ranking an explicit import above same-package
+            // declarations, matching Kotlin's value-namespace priority
+            // (KUU-4192).
+            let propertyCandidates = ctx.valueScopeLookup(member) { _ in true }.matches.filter { symbolID in
                 guard let symbol = ctx.cachedSymbol(symbolID) else {
                     return false
                 }
