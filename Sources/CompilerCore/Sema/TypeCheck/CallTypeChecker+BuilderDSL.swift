@@ -1370,7 +1370,8 @@ extension CallTypeChecker {
         args: [CallArgument],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?) -> TypeID? {
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID]) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
@@ -1397,7 +1398,7 @@ extension CallTypeChecker {
         // (KUU-4305). The arity check below compares declared parameter
         // counts, so it cannot see that a 3-parameter source overload with
         // defaulted leading parameters still accepts this call.
-        let hasApplicableSourceProduce = nearestCandidates.contains { candidate in
+        let sourceProduceCandidates = nearestCandidates.filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   !symbol.flags.contains(.importedLibrary),
@@ -1407,7 +1408,18 @@ extension CallTypeChecker {
             else { return false }
             return produceCandidateMayAcceptLambda(candidate, call: id, args: args, ctx: ctx)
         }
-        guard !hasApplicableSourceProduce else { return nil }
+        if !sourceProduceCandidates.isEmpty {
+            return tryBindSourceDeclaredProduceCall(
+                id,
+                candidates: sourceProduceCandidates,
+                args: args,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectedType,
+                explicitTypeArgs: explicitTypeArgs,
+                calleeName: calleeName
+            )
+        }
         func isMatchingBundledProduce(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
@@ -1524,6 +1536,245 @@ extension CallTypeChecker {
             in: signature.returnType,
             substitution: [TypeVarID(rawValue: 0): refinedElementType],
             typeVarBySymbol: typeVarBySymbol
+        )
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
+    /// `true` when the expected type already pins the produce element type
+    /// through the `ReceiveChannel<E>`/`Channel<E>` result shape, leaving
+    /// the call to ordinary overload resolution (KUU-4313).
+    private func produceExpectedTypePinsElementType(
+        _ expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let expectedType,
+              let (_, symbol) = resolveClassTypeSymbol(expectedType, sema: sema)
+        else {
+            return false
+        }
+        let package = [
+            interner.intern("kotlinx"),
+            interner.intern("coroutines"),
+            interner.intern("channels"),
+        ]
+        guard symbol.fqName.count == package.count + 1,
+              Array(symbol.fqName.prefix(package.count)) == package
+        else {
+            return false
+        }
+        return symbol.fqName.last == interner.intern("ReceiveChannel")
+            || symbol.fqName.last == interner.intern("Channel")
+    }
+
+    /// The `send`-argument scan reduced to the element type it implies,
+    /// falling back to `Any` exactly like the bundled produce path when no
+    /// send argument type is recoverable.
+    private func produceScannedElementType(
+        lambdaExprID: ExprID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard case let .unary(argumentTypes) = produceBuilderArgumentTypes(
+            lambdaExprID: lambdaExprID,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        ), !argumentTypes.isEmpty else {
+            return sema.types.anyType
+        }
+        return sema.types.lub(argumentTypes)
+    }
+
+    /// KUU-4313: bind a val-position `produce(...) { send(x) }` call to a
+    /// source-declared `kotlinx.coroutines.channels.produce` overload.
+    /// Ordinary resolution cannot infer `E` there — the type parameter
+    /// occurs only in the builder lambda's receiver and the return type —
+    /// so the lambda body is checked against the rigid parameter and
+    /// receiver members such as `channel`/`send` stay unresolved
+    /// (KSWIFTK-SEMA-0473 / SEMA-0022 / TYPE-0001). The `send`-scan supplies
+    /// `E` the same way the bundled twin path does, then overload selection
+    /// among the source declarations is delegated to the real resolver with
+    /// `E` pinned as the explicit type argument. Returns nil — leaving the
+    /// call to ordinary resolution — when `E` cannot be recovered or no
+    /// source overload applies.
+    private func tryBindSourceDeclaredProduceCall(
+        _ id: ExprID,
+        candidates: [SymbolID],
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID],
+        calleeName: InternedString
+    ) -> TypeID? {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+
+        // An expected ReceiveChannel/Channel type already pins E through
+        // the result type — that is an ordinary-resolution case. An
+        // explicit `produce<T>` pins E directly and is handled below by
+        // forwarding the type argument to the resolver.
+        guard !produceExpectedTypePinsElementType(expectedType, sema: sema, interner: interner),
+              let range = ast.arena.exprRange(id),
+              let lastArgumentExprID = args.last?.expr,
+              isLambdaLiteralArg(lastArgumentExprID, ast: ast),
+              let signature = sema.symbols.functionSignature(for: candidates[0]),
+              candidates.allSatisfy({ candidate in
+                  guard let candidateSignature = sema.symbols.functionSignature(for: candidate) else {
+                      return false
+                  }
+                  return candidateSignature.typeParameterSymbols.count == 1
+                      && candidateSignature.classTypeParameterCount == 0
+              }),
+              let mapping = parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx),
+              let blockParamIndex = mapping[args.count - 1],
+              signature.parameterTypes.indices.contains(blockParamIndex)
+        else {
+            return nil
+        }
+
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        guard let elementTypeSymbol = signature.typeParameterSymbols.first,
+              let elementTypeVar = typeVarBySymbol[elementTypeSymbol]
+        else {
+            return nil
+        }
+        let blockParamType = signature.parameterTypes[blockParamIndex]
+
+        func expectedLambdaType(for elementType: TypeID) -> TypeID {
+            sema.types.substituteTypeParameters(
+                in: blockParamType,
+                substitution: [elementTypeVar: elementType],
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+        func builderReceiverType(for elementType: TypeID) -> TypeID {
+            let expected = expectedLambdaType(for: elementType)
+            guard case let .functionType(fnType) = sema.types.kind(of: expected),
+                  let fnReceiver = fnType.receiver
+            else {
+                return produceBuilderReceiverType(
+                    channelType: produceBuilderChannelType(for: elementType, sema: sema, interner: interner),
+                    sema: sema,
+                    interner: interner
+                )
+            }
+            return fnReceiver
+        }
+
+        // An explicit `produce<T>` pins E outright; otherwise the
+        // `send`-scan supplies it (with the bundled path's `Any` fallback).
+        func currentElementType() -> TypeID {
+            explicitTypeArgs.first ?? produceScannedElementType(
+                lambdaExprID: lastArgumentExprID,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+        }
+        var elementType = currentElementType()
+        var lambdaExpectedType = expectedLambdaType(for: elementType)
+        var lambdaReceiverType = builderReceiverType(for: elementType)
+
+        let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+
+        // The non-lambda arguments do not depend on E; infer them once with
+        // the substituted parameter types as contextual hints.
+        var argumentTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
+        for index in args.indices where index != args.count - 1 {
+            let paramExpected: TypeID? = mapping[index].flatMap { parameterIndex in
+                guard signature.parameterTypes.indices.contains(parameterIndex),
+                      let rawParameterType = contextualCallArgumentType(
+                          args[index],
+                          parameterIndex: parameterIndex,
+                          in: signature,
+                          ctx: ctx
+                      )
+                else {
+                    return nil
+                }
+                return sema.types.substituteTypeParameters(
+                    in: rawParameterType,
+                    substitution: [elementTypeVar: elementType],
+                    typeVarBySymbol: typeVarBySymbol
+                )
+            }
+            argumentTypes[index] = driver.inferExpr(
+                args[index].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: paramExpected
+            )
+        }
+
+        // Check the builder lambda against the scanned element type, then
+        // re-scan: send arguments that only became typable inside the
+        // lambda (nested lambda parameters such as `collect { v -> send(v) }`)
+        // now carry real bindings and refine E — the same two-phase shape
+        // the bundled produce path applies.
+        argumentTypes[args.count - 1] = driver.inferExpr(
+            lastArgumentExprID,
+            ctx: ctx.with(implicitReceiverType: lambdaReceiverType),
+            locals: &locals,
+            expectedType: lambdaExpectedType
+        )
+
+        let refinedElementType = currentElementType()
+        if refinedElementType != elementType {
+            sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+            elementType = refinedElementType
+            lambdaExpectedType = expectedLambdaType(for: elementType)
+            lambdaReceiverType = builderReceiverType(for: elementType)
+            argumentTypes[args.count - 1] = driver.inferExpr(
+                lastArgumentExprID,
+                ctx: ctx.with(implicitReceiverType: lambdaReceiverType),
+                locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+        }
+
+        let resolved = ctx.resolver.resolveCall(
+            candidates: candidates,
+            call: CallExpr(
+                range: range,
+                calleeName: calleeName,
+                args: zip(args, argumentTypes).map {
+                    CallArg.source($0.0, type: $0.1, callRange: range, ast: ast)
+                },
+                explicitTypeArgs: explicitTypeArgs.isEmpty ? [elementType] : explicitTypeArgs
+            ),
+            expectedType: expectedType,
+            implicitReceiverType: ctx.implicitReceiverType,
+            resultIsDiscarded: ctx.isCallResultDiscarded,
+            ctx: sema
+        )
+        guard let chosen = resolved.chosenCallee, resolved.diagnostic == nil else {
+            sema.diagnostics.rollback(to: diagnosticsCheckpoint)
+            return nil
+        }
+
+        driver.helpers.checkDeprecation(
+            for: chosen, sema: sema, interner: interner, range: range, diagnostics: sema.diagnostics
+        )
+        driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: sema.diagnostics)
+        markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
+        let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
+        sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+        markCoroutineScopeImplicitReceiverCallIfNeeded(
+            id,
+            chosenCallee: chosen,
+            receiverType: ctx.implicitReceiverType
+                ?? coroutineScopeType(sema: sema, interner: interner)
+                ?? sema.types.anyType,
+            ctx: ctx
         )
         sema.bindings.bindExprType(id, type: resultType)
         return resultType

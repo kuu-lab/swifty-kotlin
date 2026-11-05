@@ -56,19 +56,46 @@ struct BundledStdlibSourceShadowingTests {
     }
     """
 
-    @Test
-    func sourceProduceShadowsBundledStdlibProduce() throws {
-        TestStdlibCache.shared.prepare()
-        let ctx = makeContextFromSources(
-            [declarations, consumer],
-            allowDefaultStdlibLibrary: true
-        )
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-        #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
+    /// KUU-4313: the same source-declared overloads must also win when the
+    /// call sits in val position — `E` is recoverable only from the builder
+    /// lambda's `send` arguments there, which ordinary overload resolution
+    /// cannot see.
+    private let valPositionConsumer = """
+    package kotlinx.coroutines.flow
 
-        // The chosen callee must be one of the source-declared overloads,
-        // not the bundled stdlib `produce(capacity, block)` twin.
+    import kotlinx.coroutines.*
+    import kotlinx.coroutines.channels.*
+
+    internal fun CoroutineScope.valPositionTicker(): ReceiveChannel<Unit> {
+        val values = produce(capacity = 0) {
+            channel.send(Unit)
+        }
+        return values
+    }
+
+    internal fun CoroutineScope.valPositionNoCapacity(): ReceiveChannel<Unit> {
+        val values = produce {
+            send(Unit)
+        }
+        return values
+    }
+
+    internal fun CoroutineScope.valPositionFullOverload(): ReceiveChannel<Unit> {
+        val values = produce(
+            context = EmptyCoroutineContext,
+            capacity = 0,
+            start = CoroutineStart.DEFAULT
+        ) {
+            channel.send(Unit)
+        }
+        return values
+    }
+    """
+
+    private func assertProduceCallsBindSourceDeclared(
+        _ ctx: CompilationContext,
+        expectedCount: Int
+    ) throws {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         var chosenCount = 0
@@ -88,7 +115,41 @@ struct BundledStdlibSourceShadowingTests {
             )
             chosenCount += 1
         }
-        #expect(chosenCount == 1)
+        #expect(chosenCount == expectedCount)
+    }
+
+    @Test
+    func sourceProduceShadowsBundledStdlibProduce() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSources(
+            [declarations, consumer],
+            allowDefaultStdlibLibrary: true
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
+
+        // The chosen callee must be one of the source-declared overloads,
+        // not the bundled stdlib `produce(capacity, block)` twin.
+        try assertProduceCallsBindSourceDeclared(ctx, expectedCount: 1)
+    }
+
+    @Test
+    func sourceProduceBindsInValPosition() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSources(
+            [declarations, valPositionConsumer],
+            allowDefaultStdlibLibrary: true
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
+
+        // All val-position calls must bind a source-declared overload with
+        // the element type recovered from the lambda's `send` arguments —
+        // `return values` against `ReceiveChannel<Unit>` would fail if the
+        // inferred element type were not `Unit`.
+        try assertProduceCallsBindSourceDeclared(ctx, expectedCount: 3)
     }
 }
 #endif
