@@ -36,5 +36,36 @@ struct CodegenBackendMutableMapJava8DefaultMethodsTests {
             allowDefaultStdlibLibrary: true
         )
     }
+
+    @Test
+    func mutableMapComputeMatchesKotlinBehavior() throws {
+        let source = try diffCaseSource("kuu_4040_mutable_map_compute.kt", file: #filePath)
+        try assertKotlinOutput(
+            source,
+            moduleName: "KUU4040MutableMapCompute",
+            expected: """
+            11
+            7
+            null
+            false
+            null
+            0
+            {}
+            99
+            6
+            42
+            null
+            false
+            {nullVal=99, present=6}
+            2
+            true
+            true
+            null
+            null
+
+            """,
+            allowDefaultStdlibLibrary: true
+        )
+    }
 }
 #endif

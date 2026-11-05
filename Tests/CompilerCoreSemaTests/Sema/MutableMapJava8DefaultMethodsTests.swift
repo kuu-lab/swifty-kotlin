@@ -17,4 +17,18 @@ struct MutableMapJava8DefaultMethodsTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         }
     }
+
+    @Test
+    func java8ComputeResolvesFromSource() throws {
+        let source = try diffCaseSource("kuu_4040_mutable_map_compute.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                emit: .kirDump,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
