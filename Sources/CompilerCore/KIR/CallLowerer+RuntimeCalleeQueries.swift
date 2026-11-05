@@ -146,6 +146,10 @@ extension CallLowerer {
         "kk_iterator_next",
         "kk_list_iterator_next",
         "kk_array_of_nulls",
+        // KUU-4321: `Throwable.initCause` surfaces the JVM self-cause /
+        // overwrite guards (IllegalArgumentException / IllegalStateException)
+        // through the outThrown channel.
+        "__kk_throwable_initCause",
     ]
 
     /// Thrown-channel callees whose results must NOT be rethrown: they surface

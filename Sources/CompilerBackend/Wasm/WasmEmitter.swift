@@ -679,7 +679,7 @@ final class WasmModuleContext {
                 case "addSuppressed": return "__kk_throwable_appendSuppressed"
                 case "getSuppressed": return "__kk_throwable_suppressedRaw"
                 case "suppressedExceptions": return "__kk_throwable_suppressed_list"
-                case "initCause": return "__kk_throwable_setCause"
+                case "initCause": return "__kk_throwable_initCause"
                 case "error": return "__kk_wasm_error"
                 case "TODO": return "__kk_wasm_todo"
                 case "runCatching": return "kk_runtime_result_run_catching"

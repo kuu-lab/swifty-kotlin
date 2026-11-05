@@ -854,18 +854,22 @@ public func kk_no_when_branch_matched_exception_new_message(_ messageRaw: Int) -
 
 @_cdecl("__kk_no_when_branch_matched_exception_new_message_cause")
 public func kk_no_when_branch_matched_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateNoWhenBranchMatchedException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateNoWhenBranchMatchedException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_no_when_branch_matched_exception_new_cause")
 public func kk_no_when_branch_matched_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateNoWhenBranchMatchedException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateNoWhenBranchMatchedException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -892,18 +896,22 @@ public func kk_invalid_mutability_exception_new_message(_ messageRaw: Int) -> In
 
 @_cdecl("__kk_concurrent_modification_exception_new_message_cause")
 public func kk_concurrent_modification_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateConcurrentModificationException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateConcurrentModificationException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_concurrent_modification_exception_new_cause")
 public func kk_concurrent_modification_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateConcurrentModificationException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateConcurrentModificationException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -991,20 +999,22 @@ public func kk_illegal_state_exception_new_message(_ messageRaw: Int) -> Int {
 
 @_cdecl("__kk_illegal_state_exception_new_message_cause")
 public func kk_illegal_state_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateIllegalStateException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateIllegalStateException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_illegal_state_exception_new_cause")
 public func kk_illegal_state_exception_new_cause(_ causeRaw: Int) -> Int {
     let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    return runtimeAllocateIllegalStateException(
+    return runtimeMarkThrowableCauseInitialized(runtimeAllocateIllegalStateException(
         message: runtimeCauseToString(from: cause),
         cause: cause
-    )
+    ))
 }
 
 @_cdecl("__kk_cancellation_exception_new")
@@ -1023,20 +1033,20 @@ public func kk_cancellation_exception_new_message(_ messageRaw: Int) -> Int {
 @_cdecl("__kk_cancellation_exception_new_message_cause")
 public func kk_cancellation_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    return runtimeAllocateCancellationException(
+    return runtimeMarkThrowableCauseInitialized(runtimeAllocateCancellationException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
         cause: cause,
         messageRaw: messageRaw
-    )
+    ))
 }
 
 @_cdecl("__kk_cancellation_exception_new_cause")
 public func kk_cancellation_exception_new_cause(_ causeRaw: Int) -> Int {
     let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    return runtimeAllocateCancellationException(
+    return runtimeMarkThrowableCauseInitialized(runtimeAllocateCancellationException(
         message: runtimeCauseToString(from: cause),
         cause: cause
-    )
+    ))
 }
 
 @_cdecl("__kk_illegal_argument_exception_new")
@@ -1051,18 +1061,22 @@ public func kk_illegal_argument_exception_new_message(_ messageRaw: Int) -> Int 
 
 @_cdecl("__kk_illegal_argument_exception_new_message_cause")
 public func kk_illegal_argument_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateIllegalArgumentException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateIllegalArgumentException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_illegal_argument_exception_new_cause")
 public func kk_illegal_argument_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateIllegalArgumentException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateIllegalArgumentException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1078,20 +1092,22 @@ public func kk_invalid_parameter_exception_new_message(_ messageRaw: Int) -> Int
 
 @_cdecl("__kk_invalid_parameter_exception_new_message_cause")
 public func kk_invalid_parameter_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateInvalidParameterException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateInvalidParameterException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_invalid_parameter_exception_new_cause")
 public func kk_invalid_parameter_exception_new_cause(_ causeRaw: Int) -> Int {
     let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    return runtimeAllocateInvalidParameterException(
+    return runtimeMarkThrowableCauseInitialized(runtimeAllocateInvalidParameterException(
         message: runtimeCauseToString(from: cause),
         cause: cause
-    )
+    ))
 }
 
 @_cdecl("__kk_arithmetic_exception_new")
@@ -1121,10 +1137,12 @@ public func kk_assertion_error_new_message(_ messageRaw: Int) -> Int {
 
 @_cdecl("__kk_assertion_error_new_message_cause")
 public func kk_assertion_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateAssertionError(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateAssertionError(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
@@ -1143,18 +1161,22 @@ public func kk_uninitialized_property_access_exception_new_message(_ messageRaw:
 
 @_cdecl("__kk_uninitialized_property_access_exception_new_message_cause")
 public func kk_uninitialized_property_access_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateUninitializedPropertyAccessException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateUninitializedPropertyAccessException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_uninitialized_property_access_exception_new_cause")
 public func kk_uninitialized_property_access_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateUninitializedPropertyAccessException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateUninitializedPropertyAccessException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1170,18 +1192,22 @@ public func kk_exception_new_message(_ messageRaw: Int) -> Int {
 
 @_cdecl("__kk_exception_new_message_cause")
 public func kk_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_exception_new_cause")
 public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1210,18 +1236,22 @@ public func kk_kotlin_nothing_value_exception_new_message(_ messageRaw: Int) -> 
 
 @_cdecl("__kk_kotlin_nothing_value_exception_new_message_cause")
 public func kk_kotlin_nothing_value_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateKotlinNothingValueException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateKotlinNothingValueException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_kotlin_nothing_value_exception_new_cause")
 public func kk_kotlin_nothing_value_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateKotlinNothingValueException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateKotlinNothingValueException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1237,18 +1267,22 @@ public func kk_error_new_message(_ messageRaw: Int) -> Int {
 
 @_cdecl("__kk_error_new_message_cause")
 public func kk_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateError(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateError(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_error_new_cause")
 public func kk_error_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateError(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateError(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1267,9 +1301,11 @@ public func kk_exception_in_initializer_error_new_message(_ messageRaw: Int) -> 
 
 @_cdecl("__kk_exception_in_initializer_error_new_cause")
 public func kk_exception_in_initializer_error_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateExceptionInInitializerError(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateExceptionInInitializerError(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1288,18 +1324,22 @@ public func kk_kotlin_reflection_not_supported_error_new_message(_ messageRaw: I
 
 @_cdecl("__kk_kotlin_reflection_not_supported_error_new_message_cause")
 public func kk_kotlin_reflection_not_supported_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateKotlinReflectionNotSupportedError(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateKotlinReflectionNotSupportedError(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_kotlin_reflection_not_supported_error_new_cause")
 public func kk_kotlin_reflection_not_supported_error_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateKotlinReflectionNotSupportedError(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateKotlinReflectionNotSupportedError(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1325,18 +1365,22 @@ public func kk_stack_overflow_error_new_message(_ messageRaw: Int) -> Int {
 
 @_cdecl("__kk_stack_overflow_error_new_message_cause")
 public func kk_stack_overflow_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateStackOverflowError(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateStackOverflowError(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_stack_overflow_error_new_cause")
 public func kk_stack_overflow_error_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateStackOverflowError(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateStackOverflowError(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 
@@ -1369,18 +1413,22 @@ public func kk_unsupported_operation_exception_new_message(_ messageRaw: Int) ->
 
 @_cdecl("__kk_unsupported_operation_exception_new_message_cause")
 public func kk_unsupported_operation_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateUnsupportedOperationException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
-        messageRaw: messageRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateUnsupportedOperationException(
+            message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw,
+            messageRaw: messageRaw
+        )
     )
 }
 
 @_cdecl("__kk_unsupported_operation_exception_new_cause")
 public func kk_unsupported_operation_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateUnsupportedOperationException(
-        message: runtimeCauseToString(from: causeRaw),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    runtimeMarkThrowableCauseInitialized(
+        runtimeAllocateUnsupportedOperationException(
+            message: runtimeCauseToString(from: causeRaw),
+            cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+        )
     )
 }
 

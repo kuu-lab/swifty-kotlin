@@ -52,10 +52,8 @@ public open class Throwable {
     public override fun toString(): String = __kkThrowableToString(this)
 }
 
-public fun Throwable.initCause(cause: Throwable?): Throwable {
-    __kkThrowableSetCause(this, cause)
-    return this
-}
+public fun Throwable.initCause(cause: Throwable?): Throwable =
+    __kkThrowableInitCause(this, cause)
 
 public fun Throwable.addSuppressed(exception: Throwable) {
     if (exception !== this) {
@@ -133,6 +131,12 @@ internal external fun __kkThrowableCause(throwable: Throwable): Throwable?
 
 @KsSymbolName("__kk_throwable_setCause")
 internal external fun __kkThrowableSetCause(throwable: Throwable, cause: Throwable?)
+
+@KsSymbolName("__kk_throwable_initCause")
+internal external fun __kkThrowableInitCause(throwable: Throwable, cause: Throwable?): Throwable
+
+@KsSymbolName("__kk_throwable_adoptCause")
+internal external fun __kkThrowableAdoptCause(throwable: Throwable, source: Throwable)
 
 @KsSymbolName("__kk_throwable_set_options")
 internal external fun __kkThrowableSetOptions(

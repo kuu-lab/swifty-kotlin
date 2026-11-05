@@ -206,5 +206,131 @@ extension RuntimeStringArrayTests {
 
         #expect(output == "print me")
     }
+
+    // MARK: - __kk_throwable_initCause (KUU-4321 JVM guards)
+
+    /// `java.lang.Throwable.initCause` returns the receiver and stores the
+    /// cause on the first call for an uninitialized throwable.
+    @Test
+    func testThrowableInitCauseStoresCauseAndReturnsReceiver() {
+        let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("e")))
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("c")))
+        var thrown = 0
+
+        let result = __kk_throwable_initCause(throwable, cause, &thrown)
+
+        #expect(thrown == 0)
+        #expect(result == throwable)
+        #expect(__kk_throwable_cause(throwable) == cause)
+    }
+
+    /// Self-causation throws IllegalArgumentException("Self-causation not
+    /// permitted") whose own cause is the receiver, like the JDK.
+    @Test
+    func testThrowableInitCauseRejectsSelfCausation() throws {
+        let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("e")))
+        var thrown = 0
+
+        _ = __kk_throwable_initCause(throwable, throwable, &thrown)
+
+        #expect(thrown != 0)
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let guardBox = try #require(tryCast(ptr, to: RuntimeThrowableBox.self))
+        #expect(runtimeThrowableBoxHasExactType(guardBox, RuntimeIllegalArgumentExceptionBox.self))
+        #expect(runtimeTestStringValue(__kk_throwable_message(thrown)) == "Self-causation not permitted")
+        #expect(__kk_throwable_cause(thrown) == throwable)
+        // The failed call must not have stored the self-cause.
+        #expect(__kk_throwable_cause(throwable) == runtimeNullSentinelInt)
+    }
+
+    /// `initCause(null)` succeeds once but still initializes the slot, so a
+    /// second `initCause` fails with IllegalStateException ("...with a null").
+    @Test
+    func testThrowableInitCauseNullCountsAsInitialized() throws {
+        let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("e")))
+        var thrown = 0
+
+        let first = __kk_throwable_initCause(throwable, runtimeNullSentinelInt, &thrown)
+        #expect(thrown == 0)
+        #expect(first == throwable)
+        #expect(__kk_throwable_cause(throwable) == runtimeNullSentinelInt)
+
+        // A second `initCause(null)` hits the overwrite guard; `Objects.toString`
+        // renders the null argument as "a null".
+        _ = __kk_throwable_initCause(throwable, runtimeNullSentinelInt, &thrown)
+
+        #expect(thrown != 0)
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let guardBox = try #require(tryCast(ptr, to: RuntimeThrowableBox.self))
+        #expect(runtimeThrowableBoxHasExactType(guardBox, RuntimeIllegalStateExceptionBox.self))
+        #expect(
+            runtimeTestStringValue(__kk_throwable_message(thrown))
+                == "Can't overwrite cause with a null"
+        )
+        #expect(__kk_throwable_cause(thrown) == throwable)
+        #expect(__kk_throwable_cause(throwable) == runtimeNullSentinelInt)
+    }
+
+    /// A cause-taking constructor marks the slot initialized even when the
+    /// cause argument is null, so `initCause` must fail immediately.
+    @Test
+    func testThrowableInitCauseAfterConstructorWithNullCause() throws {
+        let throwable = Int(bitPattern: __kk_throwable_new_with_cause(nil, runtimeNullSentinelInt))
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("c")))
+        var thrown = 0
+
+        _ = __kk_throwable_initCause(throwable, cause, &thrown)
+
+        #expect(thrown != 0)
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let guardBox = try #require(tryCast(ptr, to: RuntimeThrowableBox.self))
+        #expect(runtimeThrowableBoxHasExactType(guardBox, RuntimeIllegalStateExceptionBox.self))
+        #expect(
+            runtimeTestStringValue(__kk_throwable_message(thrown))
+                == "Can't overwrite cause with java.lang.Throwable: c"
+        )
+    }
+
+    /// Overwriting an initialized cause reports the *argument's* toString in
+    /// the IllegalStateException message, matching `Objects.toString(cause, "a null")`.
+    @Test
+    func testThrowableInitCauseOverwriteMessageUsesArgumentToString() throws {
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("root")))
+        let throwable = Int(bitPattern: __kk_throwable_new_with_cause(makeRuntimeString("e"), cause))
+        let second = Int(bitPattern: __kk_throwable_new(makeRuntimeString("second")))
+        var thrown = 0
+
+        _ = __kk_throwable_initCause(throwable, second, &thrown)
+
+        #expect(thrown != 0)
+        #expect(
+            runtimeTestStringValue(__kk_throwable_message(thrown))
+                == "Can't overwrite cause with java.lang.Throwable: second"
+        )
+        // The original constructor cause is preserved.
+        #expect(__kk_throwable_cause(throwable) == cause)
+    }
+
+    /// `initCause(this)` on an already-initialized throwable hits the
+    /// overwrite guard first, like the JDK's check order.
+    @Test
+    func testThrowableInitCauseSelfAfterInitThrowsIllegalState() throws {
+        let throwable = Int(bitPattern: __kk_throwable_new(makeRuntimeString("e")))
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("c")))
+        var thrown = 0
+        _ = __kk_throwable_initCause(throwable, cause, &thrown)
+        #expect(thrown == 0)
+
+        _ = __kk_throwable_initCause(throwable, throwable, &thrown)
+
+        #expect(thrown != 0)
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: thrown))
+        let guardBox = try #require(tryCast(ptr, to: RuntimeThrowableBox.self))
+        #expect(runtimeThrowableBoxHasExactType(guardBox, RuntimeIllegalStateExceptionBox.self))
+        #expect(
+            runtimeTestStringValue(__kk_throwable_message(thrown))
+                == "Can't overwrite cause with java.lang.Throwable: e"
+        )
+    }
 }
 #endif
