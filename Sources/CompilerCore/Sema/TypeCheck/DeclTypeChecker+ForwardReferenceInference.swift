@@ -1471,6 +1471,28 @@ extension DeclTypeChecker {
         }
     }
 
+    /// One overload that survived positional-argument fitting during a safe
+    /// precheck, with everything `isMoreSpecificPrecheckCallCandidate` needs
+    /// to compare it against its siblings without re-running resolution.
+    private struct PrecheckApplicableCallCandidate {
+        let symbol: SymbolID
+        let signature: FunctionSignature
+        let boundArguments: PrecheckArgumentBindings
+        /// Declared parameter types with the owner's type parameters already
+        /// substituted for the call-site receiver (identity for top-level
+        /// functions). Function type parameters remain as `.typeParam`.
+        let declaredParameterTypes: [TypeID]
+        /// The declared parameter type bound to each call argument, in call
+        /// argument order, with function type parameters substituted by the
+        /// argument-derived bindings.
+        let argumentParameterTypes: [TypeID]
+        /// The candidate's substituted return type.
+        let returnType: TypeID
+        /// Whether the call routes at least one argument through a `vararg`
+        /// parameter.
+        let usesVararg: Bool
+    }
+
     private func safePrecheckCallResultType(
         _ candidates: [SymbolID],
         receiverType: TypeID? = nil,
@@ -1478,6 +1500,8 @@ extension DeclTypeChecker {
         in ctx: TypeInferenceContext
     ) -> TypeID? {
         var resultType: TypeID?
+        var sawReturnTypeDisagreement = false
+        var applicableCandidates: [PrecheckApplicableCallCandidate] = []
         for candidate in Set(candidates) {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
                 return nil
@@ -1543,13 +1567,310 @@ extension DeclTypeChecker {
                 return nil
             }
             if let resultType, resultType != candidateReturnType {
-                // Without resolving an overload, only accept a result type that
-                // is the same for every applicable candidate.
+                // Applicable overloads can disagree on the result type —
+                // `atomic(0)` is both `atomic(Int): AtomicInt` and
+                // `atomic<T>(T): AtomicRef<Int>`. Keep the candidates so a
+                // most-specific winner can still pin the published type
+                // (KUU-4270); only a unique winner resolves the call.
+                sawReturnTypeDisagreement = true
+            } else {
+                resultType = candidateReturnType
+            }
+            applicableCandidates.append(
+                makePrecheckApplicableCallCandidate(
+                    candidate,
+                    signature: signature,
+                    boundArguments: boundArguments,
+                    returnType: candidateReturnType,
+                    argumentTypes: argumentTypes,
+                    receiverType: receiverType,
+                    in: ctx
+                )
+            )
+        }
+        guard sawReturnTypeDisagreement else {
+            return resultType
+        }
+        // Receiver-sensitive disambiguation (member overrides, extension
+        // receivers) stays on the conservative path: only plain top-level
+        // calls compare candidates here.
+        guard receiverType == nil else {
+            return nil
+        }
+        return mostSpecificPrecheckCallResult(
+            applicableCandidates,
+            in: ctx
+        )
+    }
+
+    /// Builds the comparison record for one applicable candidate: declared
+    /// parameter types with owner type parameters specialized for the
+    /// call-site receiver, and the per-argument bound parameter types with
+    /// function type parameters substituted by the fitted bindings.
+    private func makePrecheckApplicableCallCandidate(
+        _ candidate: SymbolID,
+        signature: FunctionSignature,
+        boundArguments: PrecheckArgumentBindings,
+        returnType: TypeID,
+        argumentTypes: [TypeID]?,
+        receiverType: TypeID?,
+        in ctx: TypeInferenceContext
+    ) -> PrecheckApplicableCallCandidate {
+        let declaredParameterTypes = signature.parameterTypes.map {
+            specializedPrecheckMemberReturnType(
+                $0,
+                candidate: candidate,
+                receiverType: receiverType,
+                in: ctx
+            )
+        }
+        var argumentParameterTypes: [TypeID] = []
+        if let argumentTypes {
+            argumentParameterTypes.reserveCapacity(argumentTypes.count)
+            for (index, _) in argumentTypes.enumerated() {
+                let parameterIndex = index < declaredParameterTypes.count
+                    ? index
+                    : declaredParameterTypes.count - 1
+                guard parameterIndex >= 0 else { continue }
+                var parameterType = declaredParameterTypes[parameterIndex]
+                parameterType = ctx.sema.types.substituteTypeParameters(
+                    in: parameterType,
+                    substitution: boundArguments.substitution,
+                    typeVarBySymbol: boundArguments.typeVarBySymbol
+                )
+                argumentParameterTypes.append(parameterType)
+            }
+        }
+        let parameterCount = signature.parameterTypes.count
+        let lastIsVararg = parameterCount > 0
+            && signature.valueParameterIsVararg.indices.contains(parameterCount - 1)
+            && signature.valueParameterIsVararg[parameterCount - 1]
+        let usesVararg = lastIsVararg
+            && (argumentTypes?.count ?? 0) > parameterCount - 1
+        return PrecheckApplicableCallCandidate(
+            symbol: candidate,
+            signature: signature,
+            boundArguments: boundArguments,
+            declaredParameterTypes: declaredParameterTypes,
+            argumentParameterTypes: argumentParameterTypes,
+            returnType: returnType,
+            usesVararg: usesVararg
+        )
+    }
+
+    /// Picks the return type when exactly one applicable candidate is more
+    /// specific than every sibling — the same shape `pickMostSpecific` uses in
+    /// the real resolver, restricted to the criteria a side-effect-free
+    /// precheck can verify. Anything unverifiable leaves the expression on
+    /// the normal source-order pass.
+    private func mostSpecificPrecheckCallResult(
+        _ candidates: [PrecheckApplicableCallCandidate],
+        in ctx: TypeInferenceContext
+    ) -> TypeID? {
+        var winner: PrecheckApplicableCallCandidate?
+        for candidate in candidates {
+            var beatsAll = true
+            for other in candidates where other.symbol != candidate.symbol {
+                if !isMoreSpecificPrecheckCallCandidate(candidate, than: other, in: ctx) {
+                    beatsAll = false
+                    break
+                }
+            }
+            guard beatsAll else { continue }
+            if winner != nil {
+                // Two candidates each more specific than all others cannot
+                // happen for a strict order, but stay conservative anyway.
                 return nil
             }
-            resultType = candidateReturnType
+            winner = candidate
         }
-        return resultType
+        return winner?.returnType
+    }
+
+    /// Mirrors `Resolution.isMoreSpecificCandidate` for the subset a safe
+    /// precheck can decide without constraint solving or call bindings:
+    /// declared-shape-over-bare-type-parameter vetoes, instantiated parameter
+    /// specificity, the optional-parameter arity tiebreak, then the
+    /// signature-level tiebreaks (genericness, own type-parameter count,
+    /// vararg use). Type-parameter-bound specificity is not modeled, so a
+    /// pair that only differs there stays unresolved.
+    private func isMoreSpecificPrecheckCallCandidate(
+        _ lhs: PrecheckApplicableCallCandidate,
+        than rhs: PrecheckApplicableCallCandidate,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        let types = ctx.sema.types
+        // A declared-shape parameter beats a bare type parameter on the other
+        // side; when rhs already wins that comparison lhs cannot be more
+        // specific (KUU-3960).
+        if precheckDeclaredShapePreferred(rhs, over: lhs, in: ctx) {
+            return false
+        }
+        if precheckParameterListMoreSpecific(
+            lhs.argumentParameterTypes,
+            than: rhs.argumentParameterTypes,
+            in: ctx
+        ) {
+            return true
+        }
+        // When every argument-position parameter of lhs is at least as
+        // specific as rhs's, the candidate binding the same arguments to
+        // fewer parameters wins if the larger one's extra parameters are all
+        // unbound and optional (default or vararg).
+        if lhs.argumentParameterTypes.count == rhs.argumentParameterTypes.count,
+           zip(lhs.argumentParameterTypes, rhs.argumentParameterTypes).allSatisfy({
+               types.isSubtype($0, $1)
+           })
+        {
+            let lhsCount = lhs.signature.parameterTypes.count
+            let rhsCount = rhs.signature.parameterTypes.count
+            if lhsCount < rhsCount {
+                let boundParameters = precheckBoundParameterIndices(
+                    for: rhs,
+                    argumentCount: lhs.argumentParameterTypes.count
+                )
+                var sawUnbound = false
+                var extrasOptional = true
+                for index in 0..<rhsCount {
+                    if boundParameters.contains(index) { continue }
+                    sawUnbound = true
+                    let isVararg = rhs.signature.valueParameterIsVararg.indices.contains(index)
+                        && rhs.signature.valueParameterIsVararg[index]
+                    let isDefaulted = rhs.signature.valueParameterHasDefaultValues.indices.contains(index)
+                        && rhs.signature.valueParameterHasDefaultValues[index]
+                    if !isVararg && !isDefaulted {
+                        extrasOptional = false
+                        break
+                    }
+                }
+                if sawUnbound && extrasOptional {
+                    return true
+                }
+            }
+        }
+        if precheckDeclaredShapePreferred(lhs, over: rhs, in: ctx) {
+            return true
+        }
+        // From here on only pairwise-equivalent instantiated parameter lists
+        // can still order the candidates.
+        guard lhs.argumentParameterTypes.count == rhs.argumentParameterTypes.count,
+              zip(lhs.argumentParameterTypes, rhs.argumentParameterTypes).allSatisfy({
+                  types.isSubtype($0, $1) && types.isSubtype($1, $0)
+              })
+        else {
+            return false
+        }
+        let lhsHasTypeParameter = precheckSignatureContainsTypeParameter(lhs.signature, in: ctx)
+        let rhsHasTypeParameter = precheckSignatureContainsTypeParameter(rhs.signature, in: ctx)
+        if lhsHasTypeParameter != rhsHasTypeParameter {
+            return !lhsHasTypeParameter
+        }
+        let lhsOwnTypeParameterCount = lhs.signature.typeParameterSymbols.count
+            - lhs.signature.classTypeParameterCount
+        let rhsOwnTypeParameterCount = rhs.signature.typeParameterSymbols.count
+            - rhs.signature.classTypeParameterCount
+        if lhsOwnTypeParameterCount != rhsOwnTypeParameterCount {
+            return lhsOwnTypeParameterCount < rhsOwnTypeParameterCount
+        }
+        if lhs.usesVararg != rhs.usesVararg {
+            return !lhs.usesVararg && rhs.usesVararg
+        }
+        return false
+    }
+
+    /// Parameter indices a positional call binds on `candidate`: argument
+    /// `i` maps to parameter `min(i, count - 1)` so a vararg tail absorbs the
+    /// overflow, matching `precheckArgumentFitsSignature`.
+    private func precheckBoundParameterIndices(
+        for candidate: PrecheckApplicableCallCandidate,
+        argumentCount: Int
+    ) -> Set<Int> {
+        let parameterCount = candidate.signature.parameterTypes.count
+        guard parameterCount > 0 else { return [] }
+        var indices: Set<Int> = []
+        indices.reserveCapacity(min(argumentCount, parameterCount))
+        for index in 0..<argumentCount {
+            indices.insert(min(index, parameterCount - 1))
+        }
+        return indices
+    }
+
+    /// `isMoreSpecific` from the real resolver minus the literal-widening
+    /// arms: every pair must be a strict-or-equal subtype in the lhs-to-rhs
+    /// direction with at least one strict step.
+    private func precheckParameterListMoreSpecific(
+        _ lhs: [TypeID],
+        than rhs: [TypeID],
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        let types = ctx.sema.types
+        guard lhs.count == rhs.count else { return false }
+        var sawStrict = false
+        for (lhsParam, rhsParam) in zip(lhs, rhs) {
+            guard types.isSubtype(lhsParam, rhsParam) else { return false }
+            if !types.isSubtype(rhsParam, lhsParam) {
+                sawStrict = true
+            }
+        }
+        return sawStrict
+    }
+
+    /// `prefersDeclaredShapeOverBareTypeParameter`: lhs is preferred over rhs
+    /// when their declared parameter lists have equal length, every position
+    /// is either identical concrete types or a bare-type-parameter-vs-shape
+    /// pair, and at least one position is strictly shape-over-parameter.
+    private func precheckDeclaredShapePreferred(
+        _ lhs: PrecheckApplicableCallCandidate,
+        over rhs: PrecheckApplicableCallCandidate,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        let types = ctx.sema.types
+        let lhsDeclared = lhs.declaredParameterTypes
+        let rhsDeclared = rhs.declaredParameterTypes
+        guard lhsDeclared.count == rhsDeclared.count, !lhsDeclared.isEmpty else {
+            return false
+        }
+        func isBareTypeParameter(_ type: TypeID) -> Bool {
+            if case .typeParam = types.kind(of: types.makeNonNullable(type)) {
+                return true
+            }
+            return false
+        }
+        var sawStrict = false
+        for (l, r) in zip(lhsDeclared, rhsDeclared) {
+            let lBare = isBareTypeParameter(l)
+            let rBare = isBareTypeParameter(r)
+            if rBare, !lBare {
+                sawStrict = true
+            } else if lBare != rBare {
+                return false
+            } else if !lBare, l != r {
+                return false
+            }
+        }
+        return sawStrict
+    }
+
+    /// `signatureContainsTypeParameter`: any `.typeParam` occurring in the
+    /// declared parameter or receiver types marks the signature generic.
+    private func precheckSignatureContainsTypeParameter(
+        _ signature: FunctionSignature,
+        in ctx: TypeInferenceContext
+    ) -> Bool {
+        let symbols = Set(signature.typeParameterSymbols)
+        guard !symbols.isEmpty else { return false }
+        let types = ctx.sema.types
+        for parameterType in signature.parameterTypes {
+            if typeUsesAnyParameter(in: parameterType, symbols: symbols, types: types) {
+                return true
+            }
+        }
+        if let receiverType = signature.receiverType,
+           typeUsesAnyParameter(in: receiverType, symbols: symbols, types: types)
+        {
+            return true
+        }
+        return false
     }
 
     /// Substitution bindings collected while checking that positional

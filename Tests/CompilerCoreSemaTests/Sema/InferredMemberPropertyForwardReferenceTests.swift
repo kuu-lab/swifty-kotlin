@@ -89,6 +89,43 @@ struct InferredMemberPropertyForwardReferenceTests {
     }
 
     @Test
+    func overloadedCallInitializerGetterPropertyReadsFromEarlierBody() throws {
+        // KUU-4270: `cleanedAndPointers` has no declared type, and its
+        // initializer `atomicBox(0)` is applicable to two overloads with
+        // different result types (`atomicBox(Int)` vs `atomicBox<T>(T)`).
+        // The precheck must still publish `AtomicIntBox` — the
+        // declared-shape-over-bare-type-parameter winner — so the inferred
+        // `isRemoved` getter resolves to `Boolean` for the earlier
+        // `findIt` body instead of degrading to a condition-type error.
+        let ctx = makeContextFromSource("""
+        class AtomicIntBox { val value: Int = 0 }
+        class AtomicRefBox<T>(val v: T)
+        fun atomicBox(i: Int): AtomicIntBox = AtomicIntBox()
+        fun <T> atomicBox(t: T): AtomicRefBox<T> = AtomicRefBox(t)
+
+        internal fun <S : Segment2<S>> S.findIt(id: Long): S {
+            var cur: S = this
+            while (cur.isRemoved) {
+                cur = cur
+            }
+            return cur
+        }
+
+        internal abstract class Node2<N : Node2<N>>(prev: N?) {
+            abstract val isRemoved: Boolean
+        }
+
+        internal abstract class Segment2<S : Segment2<S>>(prev: S?, pointers: Int) : Node2<S>(prev) {
+            abstract val numberOfSlots: Int
+            private val cleanedAndPointers = atomicBox(0)
+            override val isRemoved get() = cleanedAndPointers.value == numberOfSlots
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func unresolvedGetterBodyStaysOnNormalPass() throws {
         // The intrinsic array fallback must not invent a type for a body that
         // genuinely does not resolve — `size` here has no receiver and no
