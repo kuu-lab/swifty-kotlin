@@ -1389,6 +1389,25 @@ extension CallTypeChecker {
         // genuinely synthetic launcher (kk_produce) from a source-backed
         // decl that merely arrived via .kklib metadata.
         let nearestCandidates = ctx.cachedScopeLookup(calleeName)
+        // A source-declared `produce` overload at the same FQ name takes
+        // precedence over the bundled stdlib twin: when the module vendors
+        // upstream kotlinx-coroutines sources, their overloads must win
+        // ordinary overload resolution instead of this interception pinning
+        // the bundled `produce(capacity, block)` by raw parameter count
+        // (KUU-4305). The arity check below compares declared parameter
+        // counts, so it cannot see that a 3-parameter source overload with
+        // defaulted leading parameters still accepts this call.
+        let hasApplicableSourceProduce = nearestCandidates.contains { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .function,
+                  !symbol.flags.contains(.importedLibrary),
+                  !symbol.flags.contains(.synthetic),
+                  symbol.fqName == knownNames.kotlinxCoroutinesProduceFQName,
+                  sema.symbols.functionSignature(for: candidate)?.receiverType != nil
+            else { return false }
+            return produceCandidateMayAcceptLambda(candidate, call: id, args: args, ctx: ctx)
+        }
+        guard !hasApplicableSourceProduce else { return nil }
         func isMatchingBundledProduce(_ candidate: SymbolID) -> Bool {
             guard let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
