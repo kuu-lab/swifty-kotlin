@@ -10,11 +10,11 @@ expr e@2:5 localDecl regex mutable=0 type=_ init=e@2:17 type=Unit ref=__local_0.
 expr e@3:13 string(hello) type=String
 expr e@3:29 name(regex) type=kotlin.text.Regex ref=__local_0.regex[kind=local;type=kotlin.text.Regex;origin=fixture]
 expr e@3:13#1 memberCall recv=e@3:13 callee=matches args=[_:e@3:29] type=Boolean call=kotlin.text.matches[kind=fun;recv=String;params=kotlin.text.Regex;ret=Boolean;names=[regex]]
-expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@4:13 string(hello) type=String
 expr e@4:30 name(regex) type=kotlin.text.Regex ref=__local_0.regex[kind=local;type=kotlin.text.Regex;origin=fixture]
 expr e@4:13#1 memberCall recv=e@4:13 callee=contains args=[_:e@4:30] type=Boolean call=kotlin.text.contains[kind=fun;recv=String;params=kotlin.text.Regex;ret=Boolean;names=[regex]]
-expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@5:17 name(regex) type=kotlin.text.Regex ref=__local_0.regex[kind=local;type=kotlin.text.Regex;origin=fixture]
 expr e@5:28 string(abc123) type=String
 expr e@5:17#1 memberCall recv=e@5:17 callee=find args=[_:e@5:28] type=kotlin.text.MatchResult? call=kotlin.text.Regex.find[kind=fun;recv=kotlin.text.Regex;params=kotlin.CharSequence;ret=kotlin.text.MatchResult?;names=[input]]

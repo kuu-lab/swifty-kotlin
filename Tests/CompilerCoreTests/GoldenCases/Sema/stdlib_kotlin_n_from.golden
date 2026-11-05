@@ -13,9 +13,9 @@ expr e@6:13 name(doubleValue) type=Double ref=__local_0.doubleValue[kind=local;t
 expr e@6:13#1 memberCall recv=e@6:13 callee=toRawBits args=[] type=Long call=kotlin.toRawBits[kind=fun;recv=Double;params=;ret=Long]
 expr e@6:40 long(4607182418800017408) type=Long
 expr e@6:13#2 binary(equal) lhs=e@6:13#1 rhs=e@6:40 type=Boolean
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@7:13 name(floatValue) type=Float ref=__local_1.floatValue[kind=local;type=Float;origin=fixture]
 expr e@7:13#1 memberCall recv=e@7:13 callee=toRawBits args=[] type=Int call=kotlin.toRawBits[kind=fun;recv=Float;params=;ret=Int]
 expr e@7:39 int(1065353216) type=Int
 expr e@7:13#2 binary(equal) lhs=e@7:13#1 rhs=e@7:39 type=Boolean
-expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

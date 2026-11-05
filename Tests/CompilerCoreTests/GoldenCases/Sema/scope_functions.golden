@@ -30,7 +30,7 @@ expr e@5:29#1 memberCall recv=e@5:29 callee=run args=[_:e@5:41] type=Int call=ko
 expr e@6:26 string(hello) type=String
 expr e@6:50 this type=String ref=s-2
 expr e@6:50#1 memberCall recv=e@6:50 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@6:42 call callee=e@6:42#1 args=[_:e@6:50#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:42 call callee=e@6:42#1 args=[_:e@6:50#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@6:40 lambda params=[] body=e@6:42 label=apply type=String.() -> Unit
 expr e@6:26#1 memberCall recv=e@6:26 callee=apply args=[_:e@6:40] type=String call=kotlin.apply[kind=fun;recv=T0;params=fn{r=T0;p=;ret=Unit};ret=T0;gen=1;names=[block]] targs=[String]
 expr e@7:25 string(hello) type=String

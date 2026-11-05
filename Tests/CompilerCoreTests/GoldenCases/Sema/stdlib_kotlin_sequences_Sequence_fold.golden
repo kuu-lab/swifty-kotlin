@@ -28,6 +28,6 @@ expr e@4:41 lambda params=[index,acc,value] body=e@4:64#1 label=foldIndexed type
 expr e@4:19#1 memberCall recv=e@4:19 callee=foldIndexed args=[_:e@4:38,_:e@4:41] type=Int call=kotlin.sequences.foldIndexed[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=T1,fn{p=Int,T1,T0;ret=T1};ret=T1;gen=2;names=[initial,operation]] targs=[Int,Int]
 expr e@4:5 localDecl indexed mutable=0 type=_ init=e@4:19#1 type=Unit ref=__local_2.indexed[kind=local;type=Int;origin=fixture]
 expr e@5:13 name(folded) type=Int ref=__local_1.folded[kind=local;type=Int;origin=fixture]
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@6:13 name(indexed) type=Int ref=__local_2.indexed[kind=local;type=Int;origin=fixture]
-expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

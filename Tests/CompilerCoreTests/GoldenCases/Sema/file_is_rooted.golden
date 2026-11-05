@@ -7,4 +7,4 @@ expr e@4:13 call callee=e@4:13#1 args=[_:e@4:18] type=java.io.File call=java.io.
 expr e@4:5 localDecl f mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.f[kind=local;type=java.io.File;origin=fixture]
 expr e@5:13 name(f) type=java.io.File ref=__local_0.f[kind=local;type=java.io.File;origin=fixture]
 expr e@5:13#1 memberCall recv=e@5:13 callee=isRooted args=[] type=Boolean call=kotlin.io.isRooted.$get[kind=fun;recv=java.io.File;params=;ret=Boolean]
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

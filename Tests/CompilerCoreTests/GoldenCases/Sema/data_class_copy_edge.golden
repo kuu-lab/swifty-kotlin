@@ -37,10 +37,10 @@ expr e@7:14#1 memberCall recv=e@7:14 callee=copy args=[] type=Point call=Point.c
 expr e@7:5 localDecl p2 mutable=0 type=_ init=e@7:14#1 type=Unit ref=__local_1.p2[kind=local;type=Point;origin=fixture]
 expr e@8:13 name(p2) type=Point ref=__local_1.p2[kind=local;type=Point;origin=fixture]
 expr e@8:13#1 memberCall recv=e@8:13 callee=x args=[] type=Int ref=Point.x[kind=prop;type=Int;origin=fixture]
-expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@9:13 name(p2) type=Point ref=__local_1.p2[kind=local;type=Point;origin=fixture]
 expr e@9:13#1 memberCall recv=e@9:13 callee=y args=[] type=Int ref=Point.y[kind=prop;type=Int;origin=fixture]
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@13:19 int(1) type=Int
 expr e@13:22 int(2) type=Int
 expr e@13:13 call callee=e@13:13#1 args=[_:e@13:19,_:e@13:22] type=Point call=Point.<init>[kind=ctor;recv=Point;params=Int,Int;ret=Point;names=[x,y];origin=fixture]
@@ -51,7 +51,7 @@ expr e@14:14#1 memberCall recv=e@14:14 callee=copy args=[x:e@14:25] type=Point c
 expr e@14:5 localDecl p3 mutable=0 type=_ init=e@14:14#1 type=Unit ref=__local_3.p3[kind=local;type=Point;origin=fixture]
 expr e@15:13 name(p3) type=Point ref=__local_3.p3[kind=local;type=Point;origin=fixture]
 expr e@15:13#1 memberCall recv=e@15:13 callee=x args=[] type=Int ref=Point.x[kind=prop;type=Int;origin=fixture]
-expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@19:18 string(hello) type=String
 expr e@19:13 call callee=e@19:13#1 args=[_:e@19:18] type=Name call=Name.<init>[kind=ctor;recv=Name;params=String;ret=Name;names=[value];origin=fixture]
 expr e@19:5 localDecl n mutable=0 type=_ init=e@19:13 type=Unit ref=__local_4.n[kind=local;type=Name;origin=fixture]

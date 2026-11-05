@@ -60,7 +60,7 @@ expr e@27:13#1 memberCall recv=e@27:13 callee=key args=[] type=String ref=kotlin
 expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@28:13 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=show.$4.entry[kind=vparam;origin=fixture]
 expr e@28:13#1 memberCall recv=e@28:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
-expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@32:21 string(source) type=String
 expr e@32:31 int(7) type=Int
 expr e@32:10 call callee=e@32:10#1 args=[_:e@32:21,_:e@32:31] type=EntryValue<String, Int> call=EntryValue.<init>[kind=ctor;recv=EntryValue<T0,T1>;params=T0,T1;ret=EntryValue<T0,T1>;gen=2;classGen=2;names=[key,value];origin=fixture] targs=[String,Int]
@@ -116,7 +116,7 @@ expr e@45:13#1 memberCall recv=e@45:13 callee=key args=[] type=String ref=kotlin
 expr e@45:5 call callee=e@45:5#1 args=[_:e@45:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@46:13 name(live) type=kotlin.collections.Map.Entry<String, Int> ref=__local_4.live[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
 expr e@46:13#1 memberCall recv=e@46:13 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
-expr e@46:5 call callee=e@46:5#1 args=[_:e@46:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@46:5 call callee=e@46:5#1 args=[_:e@46:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@47:44 call callee=e@47:44#1 args=[] type=ThrowingEntry call=ThrowingEntry.<init>[kind=ctor;recv=ThrowingEntry;params=;ret=ThrowingEntry;origin=fixture]
 expr e@47:5 localDecl throwing mutable=0 type=Map.Entry<String,Int> init=e@47:44 type=Unit ref=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
 expr e@48:19 name(throwing) type=kotlin.collections.Map.Entry<String, Int> ref=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
@@ -130,7 +130,7 @@ expr e@48:68 blockExpr stmts=[] trailing=e@48:70 type=Unit ref=__try_0_catch_0.e
 expr e@48:5 try body=e@48:9 catches=[e@48:68] finally=_ type=Unit
 expr e@49:19 name(throwing) type=kotlin.collections.Map.Entry<String, Int> ref=__local_5.throwing[kind=local;type=kotlin.collections.Map.Entry<String,Int>;origin=fixture]
 expr e@49:19#1 memberCall recv=e@49:19 callee=value args=[] type=Int ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
-expr e@49:11 call callee=e@49:11#1 args=[_:e@49:19#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@49:11 call callee=e@49:11#1 args=[_:e@49:19#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@49:9 blockExpr stmts=[] trailing=e@49:11 type=Unit
 expr e@49:80 name(e) type=kotlin.IllegalStateException ref=__try_1_catch_0.e[kind=local;type=kotlin.IllegalStateException;origin=fixture]
 expr e@49:80#1 memberCall recv=e@49:80 callee=message args=[] type=String? ref=kotlin.Throwable.message[kind=prop;type=String?]
@@ -146,7 +146,7 @@ expr e@51:13#1 memberCall recv=e@51:13 callee=key args=[] type=String ref=kotlin
 expr e@51:5 call callee=e@51:5#1 args=[_:e@51:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@52:13 name(concrete) type=kotlin.collections.Map.Entry<String, Double> ref=__local_6.concrete[kind=local;type=kotlin.collections.Map.Entry<String,Double>;origin=fixture]
 expr e@52:13#1 memberCall recv=e@52:13 callee=value args=[] type=Double ref=kotlin.collections.Map.Entry.value[kind=prop;type=T1]
-expr e@52:5 call callee=e@52:5#1 args=[_:e@52:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@52:5 call callee=e@52:5#1 args=[_:e@52:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Double;ret=Unit;names=[message]]
 expr e@53:23 name(Label) type=Label ref=Label[kind=enum;origin=fixture]
 expr e@53:23#1 memberCall recv=e@53:23 callee=VALUE args=[] type=Label ref=Label.VALUE[kind=field;type=Label;origin=fixture]
 expr e@53:13 call callee=e@53:13#1 args=[_:e@53:23#1] type=String call=readValue[kind=fun;params=Container.Value<T0>;ret=T0;gen=1;names=[value];origin=fixture] targs=[String]

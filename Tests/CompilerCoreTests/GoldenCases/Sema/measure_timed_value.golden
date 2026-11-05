@@ -16,7 +16,7 @@ expr e@9:13#1 memberCall recv=e@9:13 callee=duration args=[] type=kotlin.time.Du
 expr e@9:13#2 memberCall recv=e@9:13#1 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=;ret=Long]
 expr e@9:52 int(0) type=Int
 expr e@9:13#3 binary(greaterOrEqual) lhs=e@9:13#2 rhs=e@9:52 type=Boolean
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#3] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#3] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@13:9 int(3) type=Int
 expr e@13:13 int(4) type=Int
 expr e@13:9#1 binary(add) lhs=e@13:9 rhs=e@13:13 type=Int
@@ -31,7 +31,7 @@ expr e@16:13#1 memberCall recv=e@16:13 callee=duration args=[] type=kotlin.time.
 expr e@16:13#2 memberCall recv=e@16:13#1 callee=inWholeMilliseconds args=[] type=Long call=kotlin.time.inWholeMilliseconds.$get[kind=fun;recv=kotlin.time.Duration;params=;ret=Long]
 expr e@16:53 int(0) type=Int
 expr e@16:13#3 binary(greaterOrEqual) lhs=e@16:13#2 rhs=e@16:53 type=Boolean
-expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#3] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#3] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@23:13 int(3) type=Int
 expr e@23:17 int(4) type=Int
 expr e@23:13#1 binary(add) lhs=e@23:13 rhs=e@23:17 type=Int

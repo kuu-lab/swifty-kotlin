@@ -118,14 +118,14 @@ expr e@23:31#1 memberCall recv=e@23:31 callee=onEmpty args=[_:e@23:46] type=kotl
 expr e@23:5 localDecl fallback mutable=0 type=Flow<Int> init=e@23:31#1 type=Unit ref=__local_16.fallback[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@27:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
 expr e@27:45 name(value) type=Int ref=s-11
-expr e@27:37 call callee=e@27:37#1 args=[_:e@27:45] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@27:37 call callee=e@27:37#1 args=[_:e@27:45] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@27:26 lambda params=[value] body=e@27:37 label=collectLatest type=suspend (Int) -> Unit
 expr e@27:5#1 memberCall recv=e@27:5 callee=collectLatest args=[_:e@27:26] type=Unit call=kotlinx.coroutines.flow.collectLatest[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Unit};ret=Unit;susp;gen=1;names=[action]] targs=[Int]
 expr e@28:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=collectors.$1.source[kind=vparam;origin=fixture]
 expr e@28:53 name(index) type=Int ref=s-12
 expr e@28:61 name(value) type=Int ref=s-13
 expr e@28:53#1 binary(add) lhs=e@28:53 rhs=e@28:61 type=Int
-expr e@28:45 call callee=e@28:45#1 args=[_:e@28:53#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@28:45 call callee=e@28:45#1 args=[_:e@28:53#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@28:27 lambda params=[index,value] body=e@28:45 label=collectIndexed type=suspend (Int, Int) -> Unit
 expr e@28:5#1 memberCall recv=e@28:5 callee=collectIndexed args=[_:e@28:27] type=Unit call=kotlinx.coroutines.flow.collectIndexed[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=Int,T0;ret=Unit};ret=Unit;susp;gen=1;names=[action]] targs=[Int]
 expr e@29:5 name(collector) type=kotlinx.coroutines.flow.FlowCollector<Int> ref=collectors.$1.collector[kind=vparam;origin=fixture]

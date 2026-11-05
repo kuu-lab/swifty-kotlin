@@ -13,4 +13,4 @@ expr e@12:39 call callee=e@12:39#1 args=[_:e@12:56] type=kotlin.coroutines.SafeC
 expr e@12:5 localDecl safe mutable=0 type=SafeContinuation<Int> init=e@12:39 type=Unit ref=__local_1.safe[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
 expr e@13:13 name(safe) type=kotlin.coroutines.SafeContinuation<Int> ref=__local_1.safe[kind=local;type=kotlin.coroutines.SafeContinuation<Int>;origin=fixture]
 expr e@13:13#1 isCheck expr=e@13:13 type=kotlin.coroutines.SafeContinuation<*> type=Boolean
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]

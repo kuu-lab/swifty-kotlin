@@ -50,7 +50,7 @@ expr e@20:20 call callee=e@20:20#1 args=[] type=IntCollector call=IntCollector.<
 expr e@20:5#1 memberCall recv=e@20:5 callee=collect args=[_:e@20:20] type=Unit call=kotlinx.coroutines.flow.collect[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=kotlinx.coroutines.flow.FlowCollector<T0>;ret=Unit;susp;gen=1;names=[collector]] targs=[Int]
 expr e@21:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.source[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]
 expr e@21:30 name(it) type=Int ref=s-0
-expr e@21:22 call callee=e@21:22#1 args=[_:e@21:30] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@21:22 call callee=e@21:22#1 args=[_:e@21:30] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@21:20 lambda params=[] body=e@21:22 label=collect type=suspend (Int) -> Unit
 expr e@21:5#1 memberCall recv=e@21:5 callee=collect args=[_:e@21:20] type=Unit call=kotlinx.coroutines.flow.collect[kind=fun;recv=kotlinx.coroutines.flow.Flow<T0>;params=fn{su;p=T0;ret=Unit};ret=Unit;susp;gen=1;names=[collector]] targs=[Int]
 expr e@22:5 name(source) type=kotlinx.coroutines.flow.Flow<Int> ref=__local_1.source[kind=local;type=kotlinx.coroutines.flow.Flow<Int>;origin=fixture]

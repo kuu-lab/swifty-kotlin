@@ -96,19 +96,19 @@ expr e@50:20 name(x) type=String? ref=__local_0.x[kind=local;type=String?;origin
 expr e@50:5 call callee=e@50:5#1 args=[_:e@50:20] type=Any call=requireNonNull[kind=fun;params=Any?;ret=Any;names=[value];origin=fixture]
 expr e@51:13 name(x) type=String ref=__local_0.x[kind=local;type=String?;origin=fixture]
 expr e@51:13#1 memberCall recv=e@51:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@51:5 call callee=e@51:5#1 args=[_:e@51:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@51:5 call callee=e@51:5#1 args=[_:e@51:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@53:17 int(42) type=Int
 expr e@53:5 call callee=e@53:5#1 args=[_:e@53:17] type=Unit call=bareReturns[kind=fun;params=Int;ret=Unit;names=[x];origin=fixture]
 expr e@55:28 bool(true) type=Boolean
 expr e@55:16 call callee=e@55:16#1 args=[_:e@55:28] type=Boolean call=returnsTrue[kind=fun;params=Boolean;ret=Boolean;names=[condition];origin=fixture]
 expr e@55:5 localDecl flag mutable=0 type=_ init=e@55:16 type=Unit ref=__local_1.flag[kind=local;type=Boolean;origin=fixture]
 expr e@56:13 name(flag) type=Boolean ref=__local_1.flag[kind=local;type=Boolean;origin=fixture]
-expr e@56:5 call callee=e@56:5#1 args=[_:e@56:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@56:5 call callee=e@56:5#1 args=[_:e@56:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@58:30 bool(false) type=Boolean
 expr e@58:17 call callee=e@58:17#1 args=[_:e@58:30] type=Boolean call=returnsFalse[kind=fun;params=Boolean;ret=Boolean;names=[condition];origin=fixture]
 expr e@58:5 localDecl flag2 mutable=0 type=_ init=e@58:17 type=Unit ref=__local_2.flag2[kind=local;type=Boolean;origin=fixture]
 expr e@59:13 name(flag2) type=Boolean ref=__local_2.flag2[kind=local;type=Boolean;origin=fixture]
-expr e@59:5 call callee=e@59:5#1 args=[_:e@59:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@59:5 call callee=e@59:5#1 args=[_:e@59:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@61:22 string(world) type=String
 expr e@61:5 localDecl y mutable=0 type=String? init=e@61:22 type=Unit ref=__local_3.y[kind=local;type=String?;origin=fixture]
 expr e@62:30 name(y) type=String? ref=__local_3.y[kind=local;type=String?;origin=fixture]
@@ -116,7 +116,7 @@ expr e@62:33 bool(true) type=Boolean
 expr e@62:18 call callee=e@62:18#1 args=[_:e@62:30,_:e@62:33] type=Boolean call=multiEffect[kind=fun;params=Any?,Boolean;ret=Boolean;names=[value,condition];origin=fixture]
 expr e@62:5 localDecl result mutable=0 type=_ init=e@62:18 type=Unit ref=__local_4.result[kind=local;type=Boolean;origin=fixture]
 expr e@63:13 name(result) type=Boolean ref=__local_4.result[kind=local;type=Boolean;origin=fixture]
-expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@3:8 name(ExperimentalContracts) type=Any ref=kotlin.contracts.ExperimentalContracts[kind=anno]
 expr e@3:8#1 callableRef recv=e@3:8 member=class type=KClass<kotlin.contracts.ExperimentalContracts>
 expr e@3:2 call callee=e@3:2#1 args=[_:e@3:8#1] type=kotlin.OptIn call=kotlin.OptIn.<init>[kind=ctor;recv=kotlin.OptIn;params=*kotlin.reflect.KClass<out kotlin.Annotation>;ret=kotlin.OptIn;vararg=[1];names=[markerClass]]

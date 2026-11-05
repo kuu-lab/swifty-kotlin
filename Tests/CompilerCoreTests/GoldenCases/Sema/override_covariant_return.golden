@@ -26,7 +26,7 @@ expr e@24:13 call callee=e@24:13#1 args=[] type=golden.sema.IntContainer call=go
 expr e@24:5 localDecl c mutable=0 type=_ init=e@24:13 type=Unit ref=__local_0.c[kind=local;type=golden.sema.IntContainer;origin=fixture]
 expr e@25:13 name(c) type=golden.sema.IntContainer ref=__local_0.c[kind=local;type=golden.sema.IntContainer;origin=fixture]
 expr e@25:13#1 memberCall recv=e@25:13 callee=getValue args=[] type=Int call=golden.sema.IntContainer.getValue[kind=fun;recv=golden.sema.IntContainer;params=;ret=Int;origin=fixture]
-expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@26:13 name(c) type=golden.sema.IntContainer ref=__local_0.c[kind=local;type=golden.sema.IntContainer;origin=fixture]
 expr e@26:13#1 memberCall recv=e@26:13 callee=getInternal args=[] type=String call=golden.sema.IntContainer.getInternal[kind=fun;recv=golden.sema.IntContainer;params=;ret=String;origin=fixture]
 expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13#1] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]

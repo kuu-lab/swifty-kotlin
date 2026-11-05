@@ -11,4 +11,4 @@ expr e@3:5 localDecl by2 mutable=1 type=_ init=e@3:15 type=Unit ref=__local_1.by
 expr e@4:20 int(5) type=Int
 expr e@4:5 localDecl by3 mutable=0 type=Int init=e@4:20 type=Unit ref=__local_2.by3[kind=local;type=Int;origin=fixture]
 expr e@5:13 name(by) type=Int ref=__local_0.by[kind=local;type=Int;origin=fixture]
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

@@ -50,6 +50,6 @@ expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.print
 expr e@16:13 name(returned) type=kotlin.collections.MutableMap<Any?, Any?> ref=__local_3.returned[kind=local;type=kotlin.collections.MutableMap<Any?,Any?>;origin=fixture]
 expr e@16:26 name(destination) type=kotlin.collections.MutableMap<Any?, Any?> ref=__local_2.destination[kind=local;type=kotlin.collections.MutableMap<Any?,Any?>;origin=fixture]
 expr e@16:13#1 binary(identityEqual) lhs=e@16:13 rhs=e@16:26 type=Boolean
-expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@17:13 name(destination) type=kotlin.collections.MutableMap<Any?, Any?> ref=__local_2.destination[kind=local;type=kotlin.collections.MutableMap<Any?,Any?>;origin=fixture]
 expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]

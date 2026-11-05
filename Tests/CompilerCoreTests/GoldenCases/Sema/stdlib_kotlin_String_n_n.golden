@@ -22,10 +22,10 @@ expr e@9:5 localDecl typed mutable=0 type=_ init=e@9:17 type=Unit ref=__local_1.
 expr e@10:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
 expr e@10:22 string() type=String
 expr e@10:13#1 binary(equal) lhs=e@10:13 rhs=e@10:22 type=Boolean
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Boolean;ret=Unit;names=[message]]
 expr e@11:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
 expr e@11:13#1 memberCall recv=e@11:13 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=;ret=Int]
-expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@12:13 name(typed) type=String ref=__local_1.typed[kind=local;type=String;origin=fixture]
 expr e@12:21 string(x) type=String
 expr e@12:13#1 binary(add) lhs=e@12:13 rhs=e@12:21 type=String

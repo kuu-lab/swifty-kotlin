@@ -30,4 +30,4 @@ expr e@14:13 call callee=e@14:13#1 args=[] type=kotlin.KotlinVersion call=golden
 expr e@14:13#2 memberCall recv=e@14:13 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString[kind=fun;recv=kotlin.KotlinVersion;params=;ret=String]
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#2] type=Unit call=kotlin.io.println[kind=fun;params=String;ret=Unit;names=[message]]
 expr e@15:13 call callee=e@15:13#1 args=[] type=Int call=golden.sema.maxComponent[kind=fun;params=;ret=Int;origin=fixture]
-expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println[kind=fun;params=Int;ret=Unit;names=[message]]

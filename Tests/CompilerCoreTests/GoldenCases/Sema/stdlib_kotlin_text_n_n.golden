@@ -82,17 +82,17 @@ expr e@28:71 lambda params=[] body=e@28:73 label=ifEmpty type=() -> kotlin.CharS
 expr e@28:57#1 memberCall recv=e@28:57 callee=ifEmpty args=[_:e@28:71] type=kotlin.CharSequence call=kotlin.text.ifEmpty[kind=fun;recv=T0;params=fn{p=;ret=T1};ret=T1;gen=2;bounds=[kotlin.CharSequence&T1,_];names=[defaultValue]] targs=[kotlin.CharSequence,kotlin.CharSequence]
 expr e@30:43 name(value) type=String ref=golden.sema.stringOnEach.$11.value[kind=vparam;origin=fixture]
 expr e@30:64 name(it) type=Char ref=s-0
-expr e@30:58 call callee=e@30:58#1 args=[_:e@30:64] type=Unit call=kotlin.io.print[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@30:58 call callee=e@30:58#1 args=[_:e@30:64] type=Unit call=kotlin.io.print[kind=fun;params=Char;ret=Unit;names=[message]]
 expr e@30:56 lambda params=[] body=e@30:58 label=onEach type=(Char) -> Unit
 expr e@30:43#1 memberCall recv=e@30:43 callee=onEach args=[_:e@30:56] type=String call=kotlin.text.onEach[kind=fun;recv=T0;params=fn{p=Char;ret=Unit};ret=T0;gen=1;bounds=[kotlin.CharSequence];names=[action]] targs=[String]
 expr e@32:59 name(target) type=kotlin.text.StringBuilder ref=golden.sema.builderOnEach.$3.target[kind=vparam;origin=fixture]
 expr e@32:81 name(it) type=Char ref=s-1
-expr e@32:75 call callee=e@32:75#1 args=[_:e@32:81] type=Unit call=kotlin.io.print[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@32:75 call callee=e@32:75#1 args=[_:e@32:81] type=Unit call=kotlin.io.print[kind=fun;params=Char;ret=Unit;names=[message]]
 expr e@32:73 lambda params=[] body=e@32:75 label=onEach type=(Char) -> Unit
 expr e@32:59#1 memberCall recv=e@32:59 callee=onEach args=[_:e@32:73] type=kotlin.text.StringBuilder call=kotlin.text.onEach[kind=fun;recv=T0;params=fn{p=Char;ret=Unit};ret=T0;gen=1;bounds=[kotlin.CharSequence];names=[action]] targs=[kotlin.text.StringBuilder]
 expr e@34:50 name(value) type=String ref=golden.sema.stringOnEachIndexed.$12.value[kind=vparam;origin=fixture]
 expr e@34:93 name(index) type=Int ref=s-2
-expr e@34:87 call callee=e@34:87#1 args=[_:e@34:93] type=Unit call=kotlin.io.print[kind=fun;params=Any?;ret=Unit;names=[message]]
+expr e@34:87 call callee=e@34:87#1 args=[_:e@34:93] type=Unit call=kotlin.io.print[kind=fun;params=Int;ret=Unit;names=[message]]
 expr e@34:70 lambda params=[index,char] body=e@34:87 label=onEachIndexed type=(Int, Char) -> Unit
 expr e@34:50#1 memberCall recv=e@34:50 callee=onEachIndexed args=[_:e@34:70] type=String call=kotlin.text.onEachIndexed[kind=fun;recv=T0;params=fn{p=Int,Char;ret=Unit};ret=T0;gen=1;bounds=[kotlin.CharSequence];names=[action]] targs=[String]
 expr e@36:38 name(value) type=Int ref=golden.sema.intToRadix.$7.value[kind=vparam;origin=fixture]
