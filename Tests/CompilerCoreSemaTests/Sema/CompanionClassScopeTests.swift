@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 @testable import CompilerTestSupport
 
@@ -304,6 +305,35 @@ struct CompanionClassScopeTests {
         }
         """)
         try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-3971: classifiers nested in a companion object resolve by simple
+    /// name inside the enclosing class body, like companion functions and
+    /// properties already do.
+    @Test func companionNestedClassifierResolvesUnqualifiedInClassBody() throws {
+        let path = "/virtual/companion-nested-classifier.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        class D {
+            companion object { internal enum class Part { X, Y } }
+            internal fun f() = Part.X
+        }
+        """.utf8))
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func companionNestedClassConstructorResolvesUnqualifiedInClassBody() throws {
+        let path = "/virtual/companion-nested-class-ctor.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        class D {
+            companion object { class Nested(val v: Int) }
+            fun f() = Nested(1)
+        }
+        """.utf8))
+        try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 }
