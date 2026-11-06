@@ -150,6 +150,27 @@ struct ForLoopReceiverValidationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    /// KUU-4299 follow-up: the bundled-extension package-visibility gate must
+    /// not filter class members surfaced through extension-candidate
+    /// collection. `IntIterator.next` hides `Iterator.next` from member
+    /// lookup, so `for` over a bundled range resolves `next` through that
+    /// path — gating it reported SEMA-0432 on every primitive range loop.
+    @Test
+    func acceptsBundledPrimitiveRangeIteration() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        fun test() {
+            for (i in 1..5) {}
+            val r = 1..5
+            for (i in r) {}
+            for (i in 1L..5L) {}
+            for (i in 'a'..'e') {}
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func acceptsTreeMapDirectIterationAndEntryDestructuring() throws {
         let ctx = makeContextFromSource("""

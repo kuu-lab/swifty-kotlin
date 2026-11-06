@@ -197,7 +197,28 @@ extension CallTypeChecker {
                 // package (KUU-4299). The lenient short-name recovery stays
                 // for bundled-stdlib call sites, which rely on it for
                 // cross-package helpers such as kotlinx.io.unsafe.
+                // Member functions surfaced through this path (for example an
+                // interface's `operator fun next` reached via an implementing
+                // receiver whose own override hides it from member lookup)
+                // are governed by member visibility, not package imports, so
+                // the gate only applies to symbols that are not true class
+                // members. KSP-INF-011 reparents top-level extensions under
+                // their receiver nominal, so a class-like parent alone does
+                // not make a symbol a member — true members keep an FQ name
+                // nested inside the parent's (e.g.
+                // kotlin.collections.Iterator.next).
+                let isClassMember = sema.symbols.parentSymbol(for: candidate)
+                    .flatMap { sema.symbols.symbol($0) }
+                    .map { parent in
+                        switch parent.kind {
+                        case .class, .interface, .enumClass, .object, .annotationClass:
+                            return Array(symbol.fqName.dropLast()) == parent.fqName
+                        default:
+                            return false
+                        }
+                    } ?? false
                 if isSourceBackedExtension, !scopedCandidates.contains(candidate),
+                   !isClassMember,
                    let file = ctx.currentASTFile,
                    driver.sourceManager?.origin(of: ctx.currentFileID) == .user
                 {
