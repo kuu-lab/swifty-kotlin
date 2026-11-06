@@ -65,5 +65,39 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0468", in: ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
     }
+
+    /// KUU-4249: the same vendored-source scenario leaves an imported
+    /// `kotlinx.coroutines` extension twin next to the source declaration.
+    /// `EmptyCoroutineContext.ensureActive()` collects both through raw
+    /// scope lookup, which bypasses the shadowing filter applied by
+    /// `cachedScopeLookup`, so overload resolution reports
+    /// KSWIFTK-SEMA-0003. A source extension whose erased signature differs
+    /// must keep coexisting with the imported twin as a normal overload.
+    @Test func testCoroutinesSourceExtensionShadowsImportedStdlibTwin() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        package kotlinx.coroutines
+
+        import kotlin.coroutines.CoroutineContext
+        import kotlin.coroutines.EmptyCoroutineContext
+
+        fun CoroutineContext.ensureActive() {
+        }
+
+        fun CoroutineContext.ensureActive(reason: String) {
+        }
+
+        class Probe {
+            fun run() {
+                EmptyCoroutineContext.ensureActive()
+                EmptyCoroutineContext.ensureActive("cancelled")
+            }
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+    }
 }
 #endif
