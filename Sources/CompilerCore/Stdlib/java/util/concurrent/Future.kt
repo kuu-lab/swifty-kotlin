@@ -9,5 +9,5 @@ public interface Future<V> {
     public val isCancelled: Boolean
     public val isDone: Boolean
     public fun get(): V
-    public fun get(timeout: Long, unit: TimeUnit): V
+    public operator fun get(timeout: Long, unit: TimeUnit): V
 }

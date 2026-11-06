@@ -92,7 +92,7 @@ public open class FutureTask<V> : RunnableFuture<V> {
 
     override fun get(): V = getNanos(-1L)
 
-    override fun get(timeout: Long, unit: TimeUnit): V =
+    override operator fun get(timeout: Long, unit: TimeUnit): V =
         getNanos(unit.toNanos(timeout))
 
     private fun getNanos(nanos: Long): V {

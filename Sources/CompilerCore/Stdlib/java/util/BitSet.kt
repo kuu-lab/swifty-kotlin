@@ -15,15 +15,15 @@ public class BitSet private constructor(private val storage: kotlin.native.BitSe
         storage.set(index)
     }
 
-    public fun set(index: Int, value: Boolean) {
+    public operator fun set(index: Int, value: Boolean) {
         storage.set(index, value)
     }
 
-    public fun set(fromIndex: Int, toIndex: Int) {
+    public operator fun set(fromIndex: Int, toIndex: Int) {
         storage.set(fromIndex, toIndex)
     }
 
-    public fun set(fromIndex: Int, toIndex: Int, value: Boolean) {
+    public operator fun set(fromIndex: Int, toIndex: Int, value: Boolean) {
         storage.set(fromIndex, toIndex, value)
     }
 
@@ -49,7 +49,7 @@ public class BitSet private constructor(private val storage: kotlin.native.BitSe
 
     public operator fun get(index: Int): Boolean = storage[index]
 
-    public fun get(fromIndex: Int, toIndex: Int): BitSet {
+    public operator fun get(fromIndex: Int, toIndex: Int): BitSet {
         if (fromIndex < 0 || toIndex < fromIndex) throw IndexOutOfBoundsException()
         val result = BitSet(toIndex - fromIndex)
         var index = storage.nextSetBit(fromIndex)

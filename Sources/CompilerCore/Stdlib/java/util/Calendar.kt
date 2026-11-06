@@ -18,9 +18,9 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         setTimeInMillis(value.getTime())
     }
 
-    public fun get(field: Int): Int = calendarGetField(rawHandle, field)
+    public operator fun get(field: Int): Int = calendarGetField(rawHandle, field)
 
-    public fun set(field: Int, value: Int) {
+    public operator fun set(field: Int, value: Int) {
         calendarSetField(rawHandle, field, value)
     }
 
