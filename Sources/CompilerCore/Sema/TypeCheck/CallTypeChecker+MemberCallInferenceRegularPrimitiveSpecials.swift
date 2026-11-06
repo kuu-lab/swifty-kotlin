@@ -121,6 +121,19 @@ extension CallTypeChecker {
             let isFloating = { (t: TypeID) -> Bool in
                 t == floatType || t == doubleType
             }
+            // KUU-4015: a non-null `Nothing` operand is a subtype of every
+            // parameter type, so kotlinc applies its overload most-specific
+            // rules (integer/float widening priority) and accepts calls whose
+            // winner is unique — `x.mod(TODO())`, `u.floorDiv(TODO())`,
+            // `c.plus(TODO())`, `x.and(TODO())`. Ambiguous winners such as
+            // `x.plus(TODO())` or `c.minus(TODO())` still fall through to
+            // normal resolution and are rejected there, matching kotlinc.
+            let isNonNullNothingOperand = {
+                if case .nothing(.nonNull) = sema.types.kind(of: rawRhsType) {
+                    return true
+                }
+                return false
+            }()
             // KUU-3954: Kotlin's primitive arithmetic members take only
             // non-null numeric operands — `x.plus(xn)` where xn: Int? is
             // rejected by kotlinc — but the fast path used to strip operand
@@ -188,6 +201,10 @@ extension CallTypeChecker {
                 let resultType: TypeID? = if !isNumericReceiver {
                     nil
                 } else if receiverForCheck == charType && rawRhsType == intType {
+                    charType
+                } else if receiverForCheck == charType && isNonNullNothingOperand {
+                    // Char.plus(Int) is the only member overload and beats the
+                    // Char.plus(String) extension, so a Nothing operand resolves.
                     charType
                 } else if receiverForCheck == charType && sema.types.isString(rawRhsType) {
                     driver.exprChecker.collectScopedOperatorExtensionCandidates(
@@ -291,7 +308,18 @@ extension CallTypeChecker {
                         locals: &locals
                     )
                 }
-                let resultType: TypeID? = if isSignedInteger(receiverForCheck), isSignedInteger(rawRhsType) {
+                let resultType: TypeID? = if isNonNullNothingOperand {
+                    // KUU-4015: same most-specific winner as mod — the
+                    // Int/UInt-parameter overload — except Long/ULong
+                    // receivers keep their wider floorDiv result type.
+                    if isSignedInteger(receiverForCheck) {
+                        receiverForCheck == longType ? longType : intType
+                    } else if isUnsignedInteger(receiverForCheck) {
+                        receiverForCheck == ulongType ? ulongType : uintType
+                    } else {
+                        nil
+                    }
+                } else if isSignedInteger(receiverForCheck), isSignedInteger(rawRhsType) {
                     receiverForCheck == longType || rawRhsType == longType ? longType : intType
                 } else if isUnsignedInteger(receiverForCheck), isUnsignedInteger(rawRhsType) {
                     receiverForCheck == ulongType || rawRhsType == ulongType ? ulongType : uintType
@@ -306,7 +334,22 @@ extension CallTypeChecker {
             case "mod":
                 // mod overloads return the divisor type for integer overloads and
                 // use normal Float/Double widening for floating operands.
-                let resultType: TypeID? = if isFloating(receiverForCheck), isFloating(rawRhsType) {
+                let resultType: TypeID? = if isNonNullNothingOperand {
+                    // KUU-4015: every mod overload is applicable; the
+                    // most-specific winner is the Int-parameter overload for
+                    // signed receivers (Int result), the UInt-parameter
+                    // overload for unsigned receivers (UInt result), and the
+                    // Double-parameter overload for floating receivers.
+                    if isSignedInteger(receiverForCheck) {
+                        intType
+                    } else if isUnsignedInteger(receiverForCheck) {
+                        uintType
+                    } else if isFloating(receiverForCheck) {
+                        doubleType
+                    } else {
+                        nil
+                    }
+                } else if isFloating(receiverForCheck), isFloating(rawRhsType) {
                     receiverForCheck == doubleType || rawRhsType == doubleType ? doubleType : floatType
                 } else if isSignedInteger(receiverForCheck), isSignedInteger(rawRhsType) {
                     rawRhsType == longType ? longType : intType
@@ -321,8 +364,10 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "and", "or", "xor":
+                // KUU-4015: each bitwise op has a single receiver-typed
+                // overload, so a Nothing operand resolves to the receiver type.
                 if isBitwiseReceiver,
-                   rawRhsType == receiverForCheck
+                   rawRhsType == receiverForCheck || isNonNullNothingOperand
                 {
                     let resultType = receiverForCheck
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -330,8 +375,10 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "shl", "shr":
+                // KUU-4015: shifts take a single Int bitCount parameter, so a
+                // Nothing operand resolves to the receiver type.
                 if isShiftReceiver,
-                   rawRhsType == intType
+                   rawRhsType == intType || isNonNullNothingOperand
                 {
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
@@ -339,8 +386,10 @@ extension CallTypeChecker {
                 }
             case "ushr":
                 // Unsigned integers only expose shl/shr; ushr is signed-only.
+                // KUU-4015: the single Int bitCount parameter also accepts a
+                // Nothing operand.
                 if (receiverForCheck == intType || receiverForCheck == longType),
-                   rawRhsType == intType
+                   rawRhsType == intType || isNonNullNothingOperand
                 {
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
