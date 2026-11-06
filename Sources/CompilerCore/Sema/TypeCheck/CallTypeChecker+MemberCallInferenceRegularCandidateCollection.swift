@@ -670,10 +670,67 @@ extension CallTypeChecker {
                     && (!ast.arena.isExplicitCall(id) || !isSyntheticCharPropertyFacadeFunction($0, ctx: ctx))
                     && (!ast.arena.isInfixCall(id) || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true)
             }
-            if !memberCandidates.isEmpty {
+            // KUU-4345: for primitive receivers the member probe also surfaces
+            // kotlin/kotlin.ranges/kotlin.text package extensions as
+            // pseudo-members. Those are really default-import-tier extensions,
+            // so a scope-visible extension (same package, explicit or wildcard
+            // import) must outrank them. When every member candidate is such a
+            // package-parented pseudo-member, resolve through the ordinary
+            // extension path instead; it yields the same candidates when
+            // nothing nearer applies.
+            let effectiveMemberCandidates: [SymbolID] = {
+                let primitiveProbePackages: [[InternedString]] = [
+                    [knownNames.kotlin],
+                    knownNames.kotlinRangesPackage,
+                    knownNames.kotlinTextPackage,
+                ]
+                func isPrimitiveProbePseudoMember(_ candidate: SymbolID) -> Bool {
+                    guard let parent = sema.symbols.parentSymbol(for: candidate),
+                          let parentSymbol = sema.symbols.symbol(parent),
+                          parentSymbol.kind == .package,
+                          sema.symbols.functionSignature(for: candidate)?.receiverType != nil
+                    else {
+                        return false
+                    }
+                    return primitiveProbePackages.contains(parentSymbol.fqName)
+                }
+                guard !memberCandidates.isEmpty,
+                      !isSuperCall,
+                      memberCandidates.allSatisfy(isPrimitiveProbePseudoMember)
+                else {
+                    return memberCandidates
+                }
+                let scopedExtensionCandidates = collectExtensionCallCandidates(
+                    named: calleeName,
+                    memberLookupType: memberLookupType,
+                    isSuperCall: isSuperCall,
+                    supertypeSymbols: supertypeSymbols,
+                    ctx: ctx,
+                    locals: locals,
+                    sema: sema,
+                    interner: interner,
+                    callShapeMatches: {
+                        self.extensionCandidateMatchesCallShape(
+                            $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
+                        )
+                    },
+                    requiresInfix: ast.arena.isInfixCall(id)
+                )
+                // A nearer-scope extension only shadows the pseudo-members
+                // when it can actually apply to this call; an inapplicable
+                // same-named declaration must not hide the bundled overload
+                // (matches kotlinc, which keeps resolving lower tiers).
+                let applicableScopedCandidates = scopedExtensionCandidates.filter {
+                    self.extensionCandidateMatchesCallShape(
+                        $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
+                    )
+                }
+                return applicableScopedCandidates.isEmpty ? memberCandidates : applicableScopedCandidates
+            }()
+            if !effectiveMemberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
-                if let first = memberCandidates.first,
+                if let first = effectiveMemberCandidates.first,
                    let parentSymbol = sema.symbols.parentSymbol(for: first),
                    let ownerNominal = driver.helpers.nominalSymbol(of: memberLookupType, types: sema.types),
                    parentSymbol != ownerNominal,
@@ -681,7 +738,7 @@ extension CallTypeChecker {
                 {
                     companionReceiverType = sema.types.make(.classType(ClassType(classSymbol: parentSymbol, args: [], nullability: .nonNull)))
                 }
-                allCandidates = memberCandidates
+                allCandidates = effectiveMemberCandidates
             } else {
                 let innerCtorCandidates = driver.helpers.collectInnerClassConstructorCandidates(
                     named: calleeName,
