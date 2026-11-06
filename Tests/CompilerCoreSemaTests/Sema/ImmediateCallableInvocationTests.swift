@@ -233,8 +233,23 @@ struct ImmediateCallableInvocationTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
-        let callableReferenceBindings = Array(sema.bindings.callableReferenceBindings.values)
-        #expect(callableReferenceBindings.count == 2)
+        let ast = try #require(ctx.ast)
+        // The bundled stdlib is compiled alongside the input, so its own
+        // callable references also populate the binding table. Scope the
+        // assertions to this file's two references.
+        let references = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, member, _) = ast.arena.expr(exprID),
+                  ["parseIntValue", "parseBooleanValue"].contains(ctx.interner.resolve(member))
+            else {
+                return nil
+            }
+            return exprID
+        }
+        try #require(references.count == 2)
+        let callableReferenceBindings = try references.map {
+            try #require(sema.bindings.callableReferenceBindings[$0])
+        }
         let allReferencesAdapted = callableReferenceBindings.allSatisfy { $0.isCallableReferenceAdapter }
         #expect(allReferencesAdapted)
     }

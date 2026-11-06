@@ -85,8 +85,22 @@ struct GenericCallableReferenceInferenceTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors: \(errors)")
         let sema = try #require(ctx.sema)
-        #expect(sema.bindings.callableReferenceBindings.count == 2)
-        for (reference, binding) in sema.bindings.callableReferenceBindings {
+        let ast = try #require(ctx.ast)
+        // The bundled stdlib is compiled alongside the input, so its own
+        // callable references also populate the binding table. Scope the
+        // assertions to this file's two references.
+        let references = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .callableRef(_, member, _) = ast.arena.expr(exprID),
+                  ["collect", "collectBounded"].contains(ctx.interner.resolve(member))
+            else {
+                return nil
+            }
+            return exprID
+        }
+        try #require(references.count == 2)
+        for reference in references {
+            let binding = try #require(sema.bindings.callableReferenceBindings[reference])
             let type = try #require(sema.bindings.exprType(for: reference))
             #expect(!sema.types.typeContainsAnyTypeParam(type))
             let argument = try #require(binding.substitutedTypeArguments.first)
