@@ -75,7 +75,7 @@ private let runtimeCallableReferenceOtherTarget: KKFunctionEntryPoint1 = { _, ou
     return 0
 }
 
-@Suite
+@Suite(.runtimeIsolation(.all))
 struct RuntimeAnyEqualityTests {
     private func boolValue(_ raw: Int) -> Bool {
         guard let pointer = UnsafeMutableRawPointer(bitPattern: raw),
