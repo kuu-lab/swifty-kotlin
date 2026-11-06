@@ -256,9 +256,22 @@ final class ControlFlowTypeChecker {
         ctx: TypeInferenceContext
     ) -> ResolvedLoopOperator? {
         let sema = ctx.sema
+        func isOperatorConventionCandidate(_ candidate: SymbolID) -> Bool {
+            guard let symbol = sema.symbols.symbol(candidate) else { return false }
+            if symbol.flags.contains(.operatorFunction) { return true }
+            // Kotlin inherits `operator` through overrides. Bundled stdlib
+            // sources spell overrides without the keyword (for example
+            // `IntIterator.next`) and the data-flow inheritance pass
+            // deliberately skips bundled declarations, so resolve the flag
+            // through the override chain here (KUU-4349).
+            guard symbol.flags.contains(.overrideMember) else { return false }
+            return DataFlowSemaPhase().nearestOverriddenFunctionCandidates(
+                of: candidate, symbols: sema.symbols, types: sema.types
+            ).contains { sema.symbols.symbol($0)?.flags.contains(.operatorFunction) == true }
+        }
         func isZeroArgumentOperator(_ candidate: SymbolID) -> Bool {
             guard let symbol = sema.symbols.symbol(candidate),
-                  symbol.flags.contains(.operatorFunction),
+                  isOperatorConventionCandidate(candidate),
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty,
                   !symbol.flags.contains(.synthetic)
