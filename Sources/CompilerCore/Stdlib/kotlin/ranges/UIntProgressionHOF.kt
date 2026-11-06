@@ -37,7 +37,7 @@ public fun UIntProgression.last(): UInt {
 @SinceKotlin("1.7")
 public fun UIntProgression.lastOrNull(): UInt? = if (isEmpty()) null else this.last
 
-public fun UIntProgression.forEach(action: (UInt) -> Unit) {
+public inline fun UIntProgression.forEach(action: (UInt) -> Unit) {
     for (element in this) { action(element) }
 }
 

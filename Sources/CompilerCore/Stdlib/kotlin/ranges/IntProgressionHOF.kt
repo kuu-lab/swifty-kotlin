@@ -8,7 +8,7 @@ import kotlin.random.Random
 
 // MIGRATION-RANGE-002: IntProgression higher-order functions, moved verbatim from RangeHOF.kt.
 
-public fun IntProgression.forEach(action: (Int) -> Unit) {
+public inline fun IntProgression.forEach(action: (Int) -> Unit) {
     for (element in this) { action(element) }
 }
 

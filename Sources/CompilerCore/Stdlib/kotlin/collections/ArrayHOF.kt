@@ -58,7 +58,7 @@ public fun <T, R> Array<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
     return result
 }
 
-public fun <T> Array<T>.forEach(action: (T) -> Unit) {
+public inline fun <T> Array<T>.forEach(action: (T) -> Unit) {
     var i = 0
     val sz = this.size
     while (i < sz) {

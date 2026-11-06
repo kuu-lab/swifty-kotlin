@@ -145,12 +145,7 @@ public fun <R> {{T}}Array.flatMap(transform: ({{T}}) -> Iterable<R>): List<R> {
     return result
 }
 
-//@ note Only IntArray.forEach is inline.
-//@ only Int
 public inline fun {{T}}Array.forEach(action: ({{T}}) -> Unit) {
-//@ else
-public fun {{T}}Array.forEach(action: ({{T}}) -> Unit) {
-//@ end
     var i = 0
     while (i < this.size) {
         action(this[i])

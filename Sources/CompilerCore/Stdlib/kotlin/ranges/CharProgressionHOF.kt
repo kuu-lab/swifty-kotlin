@@ -35,7 +35,7 @@ public fun CharProgression.last(): Char {
 @SinceKotlin("1.7")
 public fun CharProgression.lastOrNull(): Char? = if (isEmpty()) null else this.last
 
-public fun CharProgression.forEach(action: (Char) -> Unit) {
+public inline fun CharProgression.forEach(action: (Char) -> Unit) {
     for (element in this) { action(element) }
 }
 

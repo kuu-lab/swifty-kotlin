@@ -20,7 +20,7 @@ public operator fun UIntRange.contains(value: ULong): Boolean =
 public operator fun UIntRange.contains(value: UShort): Boolean =
     contains(value.toUInt())
 
-public fun UIntRange.forEach(action: (UInt) -> Unit) {
+public inline fun UIntRange.forEach(action: (UInt) -> Unit) {
     for (element in this) { action(element) }
 }
 

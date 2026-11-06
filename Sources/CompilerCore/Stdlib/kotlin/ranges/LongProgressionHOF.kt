@@ -37,7 +37,7 @@ public fun LongProgression.last(): Long {
 @SinceKotlin("1.7")
 public fun LongProgression.lastOrNull(): Long? = if (isEmpty()) null else this.last
 
-public fun LongProgression.forEach(action: (Long) -> Unit) {
+public inline fun LongProgression.forEach(action: (Long) -> Unit) {
     for (element in this) { action(element) }
 }
 
