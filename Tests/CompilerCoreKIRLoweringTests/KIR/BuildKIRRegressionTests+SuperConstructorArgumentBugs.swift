@@ -123,7 +123,7 @@ extension BuildKIRRegressionTests {
             .filter { $0.name == ctx.interner.intern("E") }
             .flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
         #expect(ctorCallees.contains(runtimeCallee(.exceptionNewCause)), "Got: \(ctorCallees)")
-        #expect(ctorCallees.contains(runtimeCallee(.throwableSetCause)), "Got: \(ctorCallees)")
+        #expect(ctorCallees.contains(runtimeCallee(.throwableAdoptCause)), "Got: \(ctorCallees)")
         #expect(ctorCallees.contains(runtimeCallee(.throwableSetMessage)), "Got: \(ctorCallees)")
     }
 }
