@@ -39,7 +39,13 @@ final class RuntimeRegexBox {
         cacheLock.lock()
         defer { cacheLock.unlock() }
         if let cached = cachedAnchoredRegex { return cached }
-        let effectivePattern = "\\A(?:\(regex.pattern))\\z"
+        // `regex.pattern` is ICU-domain and may hold unpaired surrogates;
+        // string interpolation would repair them to U+FFFD, so the wrapper is
+        // assembled at the UTF-16 level instead.
+        var wrappedUnits = runtimeKotlinStringUTF16CodeUnits("\\A(?:")
+        wrappedUnits.append(contentsOf: regexUTF16Units(ofICUString: regex.pattern))
+        wrappedUnits.append(contentsOf: runtimeKotlinStringUTF16CodeUnits(")\\z"))
+        let effectivePattern = regexICUString(wrappedUnits)
         let anchoredOptions = regex.options.subtracting([.anchorsMatchLines, .ignoreMetacharacters])
         let compiled = try? NSRegularExpression(pattern: effectivePattern, options: anchoredOptions)
         cachedAnchoredRegex = .some(compiled)
@@ -153,10 +159,13 @@ private enum RegexNeverMatch {
     }()
 }
 
+/// Returns the Kotlin marker-encoded string unchanged: regex matching decodes
+/// surrogate markers itself so isolated surrogates reach ICU as real UTF-16
+/// code units instead of being repaired to U+FFFD up front (KUU-4319).
 private func regexStringFromRaw(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt { return nil }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return extractString(from: pointer).map(KotlinStringSurrogateEncoding.unicodeString)
+    return extractString(from: pointer)
 }
 
 private func regexStringFromFlat(
@@ -165,7 +174,48 @@ private func regexStringFromFlat(
     byteCount: Int,
     hash: Int
 ) -> String {
-    KotlinStringSurrogateEncoding.unicodeString(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash))
+    _ = (length, hash)
+    return runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+}
+
+/// NSString-backed string that keeps isolated surrogates as real UTF-16 code
+/// units for ICU — `String(decoding:as:)` would repair them to U+FFFD, which
+/// is why property matches like `\p{Cs}` used to miss them (KUU-4319). Its
+/// UTF-16 layout is identical to the `units` it was built from.
+private func regexICUString(_ units: [UInt16]) -> String {
+    guard !units.isEmpty else { return "" }
+    return units.withUnsafeBufferPointer { buffer in
+        NSString(characters: buffer.baseAddress!, length: buffer.count) as String
+    }
+}
+
+/// UTF-16 code units of an ICU-domain string. `String.utf16` reports U+FFFD
+/// for unpaired surrogates, so the units are recovered through NSString,
+/// which preserves them.
+private func regexUTF16Units(ofICUString value: String) -> [UInt16] {
+    let nsString = value as NSString
+    var units = [unichar](repeating: 0, count: nsString.length)
+    nsString.getCharacters(&units, range: NSRange(location: 0, length: nsString.length))
+    return units
+}
+
+/// A regex match subject: `icu` is the string handed to
+/// `NSRegularExpression` (surrogate-preserving), and `units` holds the Kotlin
+/// UTF-16 code units that ICU match ranges index into 1:1.
+private struct RegexSubject {
+    let icu: String
+    let units: [UInt16]
+
+    init(encoded: String) {
+        let units = runtimeKotlinStringUTF16CodeUnits(encoded)
+        self.units = units
+        icu = regexICUString(units)
+    }
+
+    init(icu: String, units: [UInt16]) {
+        self.icu = icu
+        self.units = units
+    }
 }
 
 private func regexMakeListRaw(_ values: [Int]) -> Int {
@@ -174,7 +224,7 @@ private func regexMakeListRaw(_ values: [Int]) -> Int {
 }
 
 private func regexMakeStringListRaw(_ values: [String]) -> Int {
-    regexMakeListRaw(values.map(runtimeMakeUTF8StringRaw))
+    regexMakeListRaw(values.map(runtimeMakeStringRaw))
 }
 
 private func regexBoxFromRaw(_ raw: Int) -> RuntimeRegexBox? {
@@ -214,7 +264,10 @@ private func compileRegexPattern(_ pattern: String, options: NSRegularExpression
         throw RuntimeRegexCompileError.invalidPattern(propertyError)
     }
     let translated = translateJavaPatternForICU(source)
-    return try NSRegularExpression(pattern: translated.isEmpty ? "(?:)" : translated, options: options)
+    let effective = translated.isEmpty ? "(?:)" : translated
+    // The translated pattern is still Kotlin marker-encoded; hand ICU the
+    // UTF-16 form so literal surrogate characters in the pattern survive.
+    return try NSRegularExpression(pattern: regexICUString(runtimeKotlinStringUTF16CodeUnits(effective)), options: options)
 }
 
 /// `\b` / `\B` spelled out as lookarounds over a word class `W`. ICU's `\b`
@@ -671,7 +724,7 @@ private func namedCaptureGroupIndexMap(
 ) -> [String: Int] {
     var namedGroups: [String: Int] = [:]
     for name in regexBox.namedGroupNames {
-        let namedRange = result.range(withName: name)
+        let namedRange = result.range(withName: regexICUString(runtimeKotlinStringUTF16CodeUnits(name)))
         guard namedRange.location != NSNotFound else { continue }
         for groupIndex in 1 ..< result.numberOfRanges where result.range(at: groupIndex) == namedRange {
             namedGroups[name] = groupIndex
@@ -724,38 +777,48 @@ private func replacementGroupIndex(_ name: String, namedGroups: [String: Int]) -
     return namedGroups[name]
 }
 
+/// `template` is the Kotlin-encoded replacement text; the result is the
+/// ICU-domain string `NSRegularExpression` produces (recover its UTF-16 units
+/// with `regexUTF16Units(ofICUString:)` before storing or returning it).
 private func applyRegexReplacementTemplate(
     _ regex: NSRegularExpression,
     match: NSTextCheckingResult,
-    in str: String,
+    in subject: RegexSubject,
     template: String,
     regexBox: RuntimeRegexBox
 ) -> String {
     let namedGroups = namedCaptureGroupIndexMap(from: match, regexBox: regexBox)
     let expanded = expandNamedGroupReferences(in: template, namedGroups: namedGroups)
-    return regex.replacementString(for: match, in: str, offset: 0, template: expanded)
+    let icuTemplate = regexICUString(runtimeKotlinStringUTF16CodeUnits(expanded))
+    return regex.replacementString(for: match, in: subject.icu, offset: 0, template: icuTemplate)
 }
 
 /// `inputUTF16Count` may carry the caller's already-computed UTF-16 length of
-/// `str`; omitting it recomputes it once here.
-private func makeMatchResult(from result: NSTextCheckingResult, in str: String, regexBox: RuntimeRegexBox? = nil, inputUTF16Count: Int? = nil) -> RuntimeMatchResultBox {
+/// the subject; omitting it recomputes it once here.
+private func makeMatchResult(from result: NSTextCheckingResult, in subject: RegexSubject, regexBox: RuntimeRegexBox? = nil, inputUTF16Count: Int? = nil) -> RuntimeMatchResultBox {
     // NSRegularExpression only returns matches whose ranges are within the matched string,
     // so this conversion should never fail in practice.
-    guard let matchRange = Range(result.range, in: str) else {
+    func groupString(_ range: NSRange) -> String? {
+        guard range.location != NSNotFound, range.length >= 0,
+              range.location >= 0, range.location + range.length <= subject.units.count
+        else { return nil }
+        return runtimeKotlinStringFromUTF16CodeUnits(
+            Array(subject.units[range.location ..< range.location + range.length])
+        )
+    }
+    guard let value = groupString(result.range) else {
         return RuntimeMatchResultBox(value: "", groupValues: [])
     }
-    let value = String(str[matchRange])
-    let utf16Count = inputUTF16Count ?? str.utf16.count
+    let utf16Count = inputUTF16Count ?? subject.units.count
 
     var groupValues: [String] = []
     var groups: [RuntimeMatchGroupBox?] = []
     for i in 0 ..< result.numberOfRanges {
         let groupRange = result.range(at: i)
-        if groupRange.location != NSNotFound, let range = Range(groupRange, in: str) {
-            let groupValue = String(str[range])
+        if let groupValue = groupString(groupRange) {
             groupValues.append(groupValue)
-            // NSTextCheckingResult locations/lengths are already UTF-16 offsets
-            // matching Kotlin's String indexing.
+            // NSTextCheckingResult locations/lengths are UTF-16 offsets into
+            // the subject, matching Kotlin's String indexing.
             let startIndex = groupRange.location
             let endIndex = groupRange.location + groupRange.length - 1
             groups.append(RuntimeMatchGroupBox(value: groupValue, rangeStart: startIndex, rangeEnd: endIndex))
@@ -780,7 +843,7 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
         groups: groups,
         namedGroups: namedGroups,
         namedGroupNames: namedGroupNames,
-        inputString: str,
+        inputString: subject.icu,
         inputUTF16Count: utf16Count,
         matchEndOffset: matchEnd,
         regexBox: regexBox
@@ -895,12 +958,12 @@ public func kk_string_matches_regex_flat(
 
 private func runtimeStringMatchesRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawStr))
     guard let anchoredRegex = regexBox.anchoredRegex else {
         return kk_box_bool(0)
     }
-    let range = NSRange(str.startIndex..., in: str)
-    let match = boundedFirstMatch(anchoredRegex, in: str, options: [], range: range)
+    let range = NSRange(location: 0, length: subject.units.count)
+    let match = boundedFirstMatch(anchoredRegex, in: subject.icu, options: [], range: range)
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
@@ -920,9 +983,9 @@ public func kk_string_contains_regex_flat(
 
 private func runtimeStringContainsRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    let match = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range)
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawStr))
+    let range = NSRange(location: 0, length: subject.units.count)
+    let match = boundedFirstMatch(regexBox.regex, in: subject.icu, options: [], range: range)
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
@@ -944,12 +1007,12 @@ public func kk_regex_find_flat(
 
 private func runtimeRegexFind(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    guard let result = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range) else {
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawStr))
+    let range = NSRange(location: 0, length: subject.units.count)
+    guard let result = boundedFirstMatch(regexBox.regex, in: subject.icu, options: [], range: range) else {
         return runtimeNullSentinelInt
     }
-    let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
+    let matchResult = makeMatchResult(from: result, in: subject, regexBox: regexBox)
     return registerRuntimeMatchResult(matchResult)
 }
 
@@ -969,13 +1032,13 @@ public func kk_regex_findAll_flat(
 
 private func runtimeRegexFindAll(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeListRaw([]) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    let results = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawStr))
+    let range = NSRange(location: 0, length: subject.units.count)
+    let results = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
     guard let results else { return regexMakeListRaw([]) }
-    let utf16Count = str.utf16.count
+    let utf16Count = subject.units.count
     let matchResults = results.map { result -> Int in
-        let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox, inputUTF16Count: utf16Count)
+        let matchResult = makeMatchResult(from: result, in: subject, regexBox: regexBox, inputUTF16Count: utf16Count)
         return registerRuntimeMatchResult(matchResult)
     }
     return regexMakeListRaw(matchResults)
@@ -992,15 +1055,16 @@ public func kk_string_replace_regex(
     outThrown?.pointee = 0
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     let replacement = regexStringFromRaw(replacementRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw(rawStr) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeStringRaw(rawStr) }
+    let normalized = regexBox.normalizeIfNeeded(rawStr)
+    let subject = RegexSubject(encoded: normalized)
+    let range = NSRange(location: 0, length: subject.units.count)
+    let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
     guard let matches else {
-        return runtimeMakeUTF8StringRaw(rawStr)
+        return runtimeMakeStringRaw(rawStr)
     }
     if matches.isEmpty {
-        return runtimeMakeUTF8StringRaw(str)
+        return runtimeMakeStringRaw(normalized)
     }
     do {
         try validateRegexReplacementTemplate(
@@ -1016,23 +1080,27 @@ public func kk_string_replace_regex(
             outThrown: outThrown
         )
     }
-    var result = ""
-    var lastEnd = str.startIndex
+    var resultUnits: [UInt16] = []
+    resultUnits.reserveCapacity(subject.units.count)
+    var cursor = 0
     for match in matches {
-        guard let matchRange = Range(match.range, in: str) else { continue }
-        result.append(String(str[lastEnd ..< matchRange.lowerBound]))
+        let location = match.range.location
+        let length = match.range.length
+        guard location >= cursor, location >= 0, length >= 0,
+              location + length <= subject.units.count else { continue }
+        resultUnits.append(contentsOf: subject.units[cursor ..< location])
         let templateResult = applyRegexReplacementTemplate(
             regexBox.regex,
             match: match,
-            in: str,
+            in: subject,
             template: replacement,
             regexBox: regexBox
         )
-        result.append(templateResult)
-        lastEnd = matchRange.upperBound
+        resultUnits.append(contentsOf: regexUTF16Units(ofICUString: templateResult))
+        cursor = location + length
     }
-    result.append(String(str[lastEnd...]))
-    return runtimeMakeUTF8StringRaw(result)
+    resultUnits.append(contentsOf: subject.units[cursor...])
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
 }
 
 @_cdecl("__kk_string_split_regex_flat")
@@ -1052,23 +1120,27 @@ public func kk_string_split_regex_flat(
 
 private func runtimeStringSplitRegex(_ rawStr: String, _ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringListRaw([rawStr]) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    let normalized = regexBox.normalizeIfNeeded(rawStr)
+    let subject = RegexSubject(encoded: normalized)
+    let range = NSRange(location: 0, length: subject.units.count)
+    let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
     guard let matches else {
         return regexMakeStringListRaw([rawStr])
     }
     if matches.isEmpty {
-        return regexMakeStringListRaw([str])
+        return regexMakeStringListRaw([normalized])
     }
     var parts: [String] = []
-    var lastEnd = str.startIndex
+    var cursor = 0
     for match in matches {
-        guard let matchRange = Range(match.range, in: str) else { continue }
-        parts.append(String(str[lastEnd ..< matchRange.lowerBound]))
-        lastEnd = matchRange.upperBound
+        let location = match.range.location
+        let length = match.range.length
+        guard location >= cursor, location >= 0, length >= 0,
+              location + length <= subject.units.count else { continue }
+        parts.append(runtimeKotlinStringFromUTF16CodeUnits(Array(subject.units[cursor ..< location])))
+        cursor = location + length
     }
-    parts.append(String(str[lastEnd...]))
+    parts.append(runtimeKotlinStringFromUTF16CodeUnits(Array(subject.units[cursor...])))
     return regexMakeStringListRaw(parts)
 }
 
@@ -1083,18 +1155,23 @@ public func kk_regex_replace_lambda(
 ) -> Int {
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return strRaw }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    let matches = boundedMatches(regexBox.regex, in: str, options: [], range: range)
+    let normalized = regexBox.normalizeIfNeeded(rawStr)
+    let subject = RegexSubject(encoded: normalized)
+    let range = NSRange(location: 0, length: subject.units.count)
+    let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
     guard let matches else { return strRaw }
     if matches.isEmpty { return strRaw }
-    var result = ""
-    var lastEnd = str.startIndex
-    let utf16Count = str.utf16.count
+    var resultUnits: [UInt16] = []
+    resultUnits.reserveCapacity(subject.units.count)
+    var cursor = 0
+    let utf16Count = subject.units.count
     for match in matches {
-        guard let matchRange = Range(match.range, in: str) else { continue }
-        result.append(String(str[lastEnd ..< matchRange.lowerBound]))
-        let matchResult = makeMatchResult(from: match, in: str, regexBox: regexBox, inputUTF16Count: utf16Count)
+        let location = match.range.location
+        let length = match.range.length
+        guard location >= cursor, location >= 0, length >= 0,
+              location + length <= subject.units.count else { continue }
+        resultUnits.append(contentsOf: subject.units[cursor ..< location])
+        let matchResult = makeMatchResult(from: match, in: subject, regexBox: regexBox, inputUTF16Count: utf16Count)
         let matchResultRaw = registerRuntimeMatchResult(matchResult)
         var thrown = 0
         let replacementRaw = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: matchResultRaw, outThrown: &thrown)
@@ -1103,11 +1180,11 @@ public func kk_regex_replace_lambda(
             return runtimeMakeUTF8StringRaw("")
         }
         let replacement = regexStringFromRaw(replacementRaw) ?? ""
-        result.append(replacement)
-        lastEnd = matchRange.upperBound
+        resultUnits.append(contentsOf: runtimeKotlinStringUTF16CodeUnits(replacement))
+        cursor = location + length
     }
-    result.append(String(str[lastEnd...]))
-    return runtimeMakeUTF8StringRaw(result)
+    resultUnits.append(contentsOf: subject.units[cursor...])
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
 }
 
 
@@ -1128,21 +1205,18 @@ public func kk_regex_matchEntire_flat(
 
 private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeNullSentinelInt }
-    let str = regexBox.normalizeIfNeeded(rawStr)
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawStr))
     guard let anchoredRegex = regexBox.anchoredRegex else {
         return runtimeNullSentinelInt
     }
-    let range = NSRange(str.startIndex..., in: str)
-    guard let result = boundedFirstMatch(anchoredRegex, in: str, options: [], range: range) else {
+    let range = NSRange(location: 0, length: subject.units.count)
+    guard let result = boundedFirstMatch(anchoredRegex, in: subject.icu, options: [], range: range) else {
         return runtimeNullSentinelInt
     }
-    guard let matchRange = Range(result.range, in: str) else {
+    guard result.range.location == 0, result.range.length == subject.units.count else {
         return runtimeNullSentinelInt
     }
-    guard matchRange.lowerBound == str.startIndex && matchRange.upperBound == str.endIndex else {
-        return runtimeNullSentinelInt
-    }
-    let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
+    let matchResult = makeMatchResult(from: result, in: subject, regexBox: regexBox)
     return registerRuntimeMatchResult(matchResult)
 }
 
@@ -1316,9 +1390,9 @@ public func kk_regex_containsMatchIn_flat(
 
 private func runtimeRegexContainsMatchIn(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
-    let input = regexBox.normalizeIfNeeded(rawInput)
-    let range = NSRange(input.startIndex..., in: input)
-    let match = boundedFirstMatch(regexBox.regex, in: input, options: [], range: range)
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawInput))
+    let range = NSRange(location: 0, length: subject.units.count)
+    let match = boundedFirstMatch(regexBox.regex, in: subject.icu, options: [], range: range)
     return kk_box_bool(match != nil ? 1 : 0)
 }
 
@@ -1344,7 +1418,7 @@ public func kk_string_toRegex_flat(
 @_cdecl("__kk_regex_pattern")
 public func __kk_regex_pattern(_ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw("") }
-    return runtimeMakeUTF8StringRaw(regexBox.pattern)
+    return runtimeMakeStringRaw(regexBox.pattern)
 }
 
 /// Bit mask of the Kotlin `RegexOption` ordinals this regex was created with
@@ -1374,7 +1448,7 @@ public func __kk_match_result_group_value(_ matchRaw: Int, _ index: Int) -> Int 
           index >= 0, index < matchResult.groupValues.count else {
         return runtimeMakeUTF8StringRaw("")
     }
-    return runtimeMakeUTF8StringRaw(matchResult.groupValues[index])
+    return runtimeMakeStringRaw(matchResult.groupValues[index])
 }
 
 /// UTF-16 start offset of group [index], or -1 when the group did not participate.
@@ -1458,7 +1532,13 @@ public func __kk_match_result_next(_ matchRaw: Int) -> Int {
     ) else {
         return runtimeNullSentinelInt
     }
-    return registerRuntimeMatchResult(makeMatchResult(from: result, in: inputString, regexBox: regexBox, inputUTF16Count: utf16Count))
+    // `inputString` is the ICU-domain subject; recover the Kotlin UTF-16
+    // units its match ranges index into.
+    let subject = RegexSubject(
+        icu: inputString,
+        units: regexUTF16Units(ofICUString: inputString)
+    )
+    return registerRuntimeMatchResult(makeMatchResult(from: result, in: subject, regexBox: regexBox, inputUTF16Count: utf16Count))
 }
 
 
@@ -1506,12 +1586,14 @@ public func kk_string_replaceFirst_regex(
     outThrown?.pointee = 0
     let rawStr = regexStringFromRaw(strRaw) ?? ""
     let replacement = regexStringFromRaw(replacementRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeUTF8StringRaw(rawStr) }
-    let str = regexBox.normalizeIfNeeded(rawStr)
-    let range = NSRange(str.startIndex..., in: str)
-    guard let match = boundedFirstMatch(regexBox.regex, in: str, options: [], range: range),
-          let matchRange = Range(match.range, in: str) else {
-        return runtimeMakeUTF8StringRaw(str)
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeStringRaw(rawStr) }
+    let normalized = regexBox.normalizeIfNeeded(rawStr)
+    let subject = RegexSubject(encoded: normalized)
+    let range = NSRange(location: 0, length: subject.units.count)
+    guard let match = boundedFirstMatch(regexBox.regex, in: subject.icu, options: [], range: range),
+          match.range.location >= 0, match.range.length >= 0,
+          match.range.location + match.range.length <= subject.units.count else {
+        return runtimeMakeStringRaw(normalized)
     }
     do {
         try validateRegexReplacementTemplate(
@@ -1530,13 +1612,15 @@ public func kk_string_replaceFirst_regex(
     let templateResult = applyRegexReplacementTemplate(
         regexBox.regex,
         match: match,
-        in: str,
+        in: subject,
         template: replacement,
         regexBox: regexBox
     )
-    var result = str
-    result.replaceSubrange(matchRange, with: templateResult)
-    return runtimeMakeUTF8StringRaw(result)
+    let location = match.range.location
+    let length = match.range.length
+    var resultUnits = subject.units
+    resultUnits.replaceSubrange(location ..< location + length, with: regexUTF16Units(ofICUString: templateResult))
+    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
 }
 
 
@@ -1573,10 +1657,10 @@ public func kk_regex_matches_flat(
 
 private func runtimeRegexMatches(_ regexRaw: Int, input rawInput: String) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
-    let input = regexBox.normalizeIfNeeded(rawInput)
+    let subject = RegexSubject(encoded: regexBox.normalizeIfNeeded(rawInput))
     guard let anchoredRegex = regexBox.anchoredRegex else { return kk_box_bool(0) }
-    let range = NSRange(input.startIndex..., in: input)
-    let matched = boundedFirstMatch(anchoredRegex, in: input, options: [], range: range) != nil
+    let range = NSRange(location: 0, length: subject.units.count)
+    let matched = boundedFirstMatch(anchoredRegex, in: subject.icu, options: [], range: range) != nil
     return kk_box_bool(matched ? 1 : 0)
 }
 
