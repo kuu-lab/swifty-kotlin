@@ -214,5 +214,22 @@ struct ObjectLiteralOverrideValidationTests {
         """)
         assertHasDiagnostic("KSWIFTK-SEMA-0001", in: diagnostics)
     }
+
+    // KUU-4336: the same trap triggered by same-kind *property* redeclarations
+    // (`val Symbol` twice binds two decls to one symbol) with the anonymous
+    // object literal in a top-level property initializer instead of a function
+    // body. kswiftc --emit library used to trap with
+    // `Duplicate values for key: 'SymbolID(...)'` instead of reporting
+    // SEMA-0001.
+    @Test
+    func reportsRedeclarationInsteadOfTrappingOnDedupPropertySymbol() throws {
+        let diagnostics = try diagnosticsFor("""
+        val Symbol = 1
+        val Symbol = 2
+        interface I { fun f() }
+        val o = object : I { override fun f() {} }
+        """)
+        assertHasDiagnostic("KSWIFTK-SEMA-0001", in: diagnostics)
+    }
 }
 #endif
