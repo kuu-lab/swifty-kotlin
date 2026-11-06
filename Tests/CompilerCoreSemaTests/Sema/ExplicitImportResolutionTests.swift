@@ -533,6 +533,82 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    /// KUU-4216: kotlinx-coroutines Builders.kt declares a same-package
+    /// `flow` builder next to `import ... unsafeFlow as flow`. The builder
+    /// interception used to resolve the lambda call against the package-tier
+    /// candidate alone, so the import never joined the overload set.
+    @Test(arguments: [false, true])
+    func aliasedImportWinsOverSamePackageBuilderForLambdaCall(useArtifact: Bool) throws {
+        let sources = [
+            """
+            package lib
+            class Flow<T>(val origin: String)
+            class Collector<T>
+            fun <T> unsafeFlow(block: suspend Collector<T>.() -> Unit): Flow<T> = Flow("unsafe")
+            """,
+            """
+            package repro
+            import lib.Flow
+            import lib.unsafeFlow as flow
+            fun <T> flow(block: suspend lib.Collector<T>.() -> Unit): Flow<T> = Flow("safe")
+            fun call(): Flow<Int> = flow { }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let lambdaCall = try #require(selectedCall(
+                named: "flow", inFunction: "call", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            #expect(lambdaCall.fqName == "lib.unsafeFlow")
+        }
+    }
+
+    /// KUU-4216: with a competing same-package overload the merged set must
+    /// still prefer the explicit import when both candidates accept the
+    /// lambda, while ordinary arguments keep resolving to the same-package
+    /// overload.
+    @Test(arguments: [false, true])
+    func aliasedImportKeepsSamePackageScalarOverloadReachable(useArtifact: Bool) throws {
+        let sources = [
+            """
+            package lib
+            class Flow<T>(val origin: String)
+            class Collector<T>
+            fun <T> unsafeFlow(block: suspend Collector<T>.() -> Unit): Flow<T> = Flow("unsafe")
+            """,
+            """
+            package repro
+            import lib.Flow
+            import lib.unsafeFlow as flow
+            fun <T> flow(block: suspend lib.Collector<T>.() -> Unit): Flow<T> = Flow("safe")
+            fun flow(tag: Int): Flow<String> = Flow("int-$tag")
+            fun lambdaCall(): Flow<Int> = flow { }
+            fun scalarCall(): Flow<String> = flow(42)
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let lambdaCall = try #require(selectedCall(
+                named: "flow", inFunction: "lambdaCall", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let scalarCall = try #require(selectedCall(
+                named: "flow", inFunction: "scalarCall", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            #expect(lambdaCall.fqName == "lib.unsafeFlow")
+            #expect(scalarCall.fqName == "repro.flow")
+        }
+    }
+
     @Test
     func samePackageFunctionStillRequiresAnExplicitImport() throws {
         let source = """
