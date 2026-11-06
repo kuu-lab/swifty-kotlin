@@ -19,6 +19,9 @@ extension CallTypeChecker {
     /// imported extension before its arguments can be contextualized.
     func scopeCallCandidatesConsideringImplicitReceivers(
         named name: InternedString,
+        args: [CallArgument],
+        callRange: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         // Same-package properties do not occupy the callable namespace, so
@@ -57,6 +60,9 @@ extension CallTypeChecker {
         let candidates = scopeCallCandidatesWithExplicitImportOverloads(
             named: name,
             candidates: callableCandidates,
+            args: args,
+            callRange: callRange,
+            locals: locals,
             ctx: ctx
         )
         guard !candidates.isEmpty else { return candidates }
@@ -102,13 +108,20 @@ extension CallTypeChecker {
     }
 
     /// Same-package top-level non-extension functions and explicitly imported
-    /// top-level non-extension functions with the same name participate in one
-    /// overload set. Ordinary scope lookup stops at the package declaration,
-    /// so restore the explicit imports before overload resolution can reject
-    /// them by arity.
+    /// top-level non-extension functions with the same name form Kotlin's
+    /// import-over-package tier: an applicable imported candidate shadows the
+    /// package overloads outright (even a more specific one — `import
+    /// unsafeFlow as flow` in kotlinx-coroutines' Zip.kt resolves `flow {}` to
+    /// the internal builder, KUU-4263), while the package candidates
+    /// participate only when every imported candidate is inapplicable.
+    /// Ordinary scope lookup stops at the package declaration, so the import
+    /// tier is restored here before overload resolution runs.
     private func scopeCallCandidatesWithExplicitImportOverloads(
         named name: InternedString,
         candidates: [SymbolID],
+        args: [CallArgument],
+        callRange: SourceRange,
+        locals: LocalBindings,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
@@ -134,7 +147,7 @@ extension CallTypeChecker {
             return candidates
         }
 
-        var result = candidates
+        var importCandidates: [SymbolID] = []
         var seen = Set(candidates)
         for importDecl in matchingImports {
             for imported in sema.symbols.lookupAll(fqName: importDecl.path) {
@@ -147,10 +160,130 @@ extension CallTypeChecker {
                 else {
                     continue
                 }
-                result.append(imported)
+                importCandidates.append(imported)
             }
         }
-        return result
+        guard !importCandidates.isEmpty else {
+            return candidates
+        }
+        if importCandidates.contains(where: {
+            explicitImportCandidatePotentiallyApplicable(
+                $0, args: args, callRange: callRange, locals: locals, ctx: ctx
+            )
+        }) {
+            return importCandidates
+        }
+        return candidates
+    }
+
+    /// Cheap applicability probe for the import-over-package tier: arity and
+    /// parameter mapping must line up, and arguments with a closed literal or
+    /// already-inferred type must fit the mapped parameter. Function literals,
+    /// callable references and not-yet-inferred expressions defer to normal
+    /// overload resolution, so the import keeps its priority for them.
+    private func explicitImportCandidatePotentiallyApplicable(
+        _ candidate: SymbolID,
+        args: [CallArgument],
+        callRange: SourceRange,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let ast = ctx.ast
+        guard let signature = sema.symbols.functionSignature(for: candidate),
+              isCallableArityCompatible(signature: signature, argCount: args.count),
+              let mapping = parameterMappingForCallArguments(
+                  args, in: signature, callRange: callRange, ctx: ctx
+              )
+        else {
+            return false
+        }
+        for (argIndex, argument) in args.enumerated() {
+            guard !argument.isSpread,
+                  let parameterIndex = mapping[argIndex],
+                  signature.parameterTypes.indices.contains(parameterIndex)
+            else {
+                continue
+            }
+            if signature.valueParameterIsVararg.indices.contains(parameterIndex),
+               signature.valueParameterIsVararg[parameterIndex] {
+                continue
+            }
+            let parameterType = signature.parameterTypes[parameterIndex]
+            if sema.types.typeContainsAnyTypeParam(parameterType) {
+                continue
+            }
+            // A function literal with a declared parameter list that cannot
+            // match the parameter's function type rules the import out; an
+            // implicit-`it` or parameterless lambda stays potentially
+            // applicable and defers arity details to overload resolution.
+            if case let .lambdaLiteral(parameters, _, _, _) = ast.arena.expr(argument.expr) {
+                let expected = sema.types.makeNonNullable(parameterType)
+                if case let .functionType(function) = sema.types.kind(of: expected) {
+                    if parameters.isEmpty {
+                        if function.params.count > 1 { return false }
+                    } else if function.params.count != parameters.count {
+                        return false
+                    }
+                }
+                continue
+            }
+            if case .callableRef = ast.arena.expr(argument.expr) {
+                continue
+            }
+            guard let argumentType = closedCallArgumentProbeType(
+                argument, locals: locals, ctx: ctx
+            ) else {
+                continue
+            }
+            guard sema.types.isSubtype(
+                sema.types.makeNonNullable(argumentType),
+                sema.types.makeNonNullable(parameterType)
+            ) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// The argument type when it is already decided without inference:
+    /// literals map to their default type and references reuse a bound type.
+    /// Anything else returns nil so the caller treats the argument as
+    /// potentially applicable.
+    private func closedCallArgumentProbeType(
+        _ argument: CallArgument,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let ast = ctx.ast
+        switch ast.arena.expr(argument.expr) {
+        case .intLiteral:
+            return sema.types.intType
+        case .longLiteral:
+            return sema.types.longType
+        case .uintLiteral:
+            return sema.types.uintType
+        case .ulongLiteral:
+            return sema.types.ulongType
+        case .floatLiteral:
+            return sema.types.floatType
+        case .doubleLiteral:
+            return sema.types.doubleType
+        case .charLiteral:
+            return sema.types.charType
+        case .stringLiteral:
+            return sema.types.stringType
+        case .boolLiteral:
+            return sema.types.booleanType
+        case .nullLiteral:
+            return nil
+        case let .nameRef(name, _):
+            return locals[name]?.type
+                ?? sema.bindings.exprType(for: argument.expr)
+        default:
+            return sema.bindings.exprType(for: argument.expr)
+        }
     }
 
     func isScopeExtensionCandidate(_ candidate: SymbolID, ctx: TypeInferenceContext) -> Bool {

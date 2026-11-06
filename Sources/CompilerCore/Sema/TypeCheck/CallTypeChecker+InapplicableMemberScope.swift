@@ -17,7 +17,9 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext,
         locals: LocalBindings
     ) -> (candidates: [SymbolID], excludedMembers: Set<SymbolID>, knownApplicableMembers: Set<SymbolID>) {
-        let original = scopeCallCandidatesConsideringImplicitReceivers(named: name, ctx: ctx)
+        let original = scopeCallCandidatesConsideringImplicitReceivers(
+            named: name, args: args, callRange: range, locals: locals, ctx: ctx
+        )
         guard locals[name] == nil,
               let activeReceiver = ctx.implicitReceiverType ?? ctx.implicitReceiverMemberLookupEntries().first?.type
         else {

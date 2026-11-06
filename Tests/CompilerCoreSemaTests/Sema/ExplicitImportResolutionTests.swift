@@ -609,6 +609,64 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    /// KUU-4263: an explicitly imported (aliased) function forms an
+    /// import-over-package tier for call syntax — kotlinx-coroutines'
+    /// `import unsafeFlow as flow` must resolve `flow {}` to the internal
+    /// builder instead of reporting KSWIFTK-SEMA-0003 against the same-package
+    /// `flow` overloads, and an applicable import shadows even a more
+    /// specific same-package overload. Inapplicable imports still yield to
+    /// the package tier.
+    @Test(arguments: [false, true])
+    func aliasedImportShadowsSamePackageCallOverloads(useArtifact: Bool) throws {
+        let sources = [
+            """
+            package probe.lib
+            fun unsafeFlow(block: () -> Int): String = "unsafe"
+            fun unsafeFlow(value: String): Int = 0
+            fun unsafeAny(value: Any): Int = 7
+            """,
+            """
+            package probe.app
+            import probe.lib.unsafeFlow as flow
+            import probe.lib.unsafeAny as anyFlow
+
+            fun flow(block: () -> Int): Int = 1
+            fun flow(value: Int): String = "pkg-int"
+            fun anyFlow(value: Int): String = "pkg-any"
+
+            fun probeLambda(): String = flow { 2 }
+            fun probeLiteral(): Int = flow("s")
+            fun probeFallback(): String = flow(1)
+            fun probeAnyTier(): Int = anyFlow(1)
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let lambdaCall = try #require(selectedCall(
+                named: "flow", inFunction: "probeLambda", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let literalCall = try #require(selectedCall(
+                named: "flow", inFunction: "probeLiteral", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let fallbackCall = try #require(selectedCall(
+                named: "flow", inFunction: "probeFallback", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let anyTierCall = try #require(selectedCall(
+                named: "anyFlow", inFunction: "probeAnyTier", ast: ast, sema: sema, interner: ctx.interner
+            ))
+
+            #expect(lambdaCall.fqName == "probe.lib.unsafeFlow")
+            #expect(literalCall.fqName == "probe.lib.unsafeFlow")
+            #expect(fallbackCall.fqName == "probe.app.flow")
+            #expect(anyTierCall.fqName == "probe.lib.unsafeAny")
+        }
+    }
+
     @Test
     func samePackageFunctionStillRequiresAnExplicitImport() throws {
         let source = """
