@@ -366,6 +366,20 @@ extension CallTypeChecker {
             return nil
         }
 
+        // KUU-4330: Map key/value members bind synthetically below without
+        // consulting their real K/V-parameter signatures; decline arguments
+        // that provably cannot conform so regular overload resolution
+        // reports the mismatch like kotlinc.
+        if isMapReceiver, !collectionFallbackMapCallArgumentsAreAdmissible(
+            memberName: calleeName,
+            args: args,
+            receiverElementType: receiverElementType,
+            ctx: ctx,
+            locals: &locals
+        ) {
+            return nil
+        }
+
         // flatten() is only valid on List<List<T>>. Reject when the element type
         // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
         // cannot be sure — it may be List<Any> wrapping real lists at runtime,
