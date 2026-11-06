@@ -277,6 +277,21 @@ package struct BundledDeclarationIndex: Sendable {
             ) {
                 continue
             }
+            // KUU-4028: `CPointer` keeps source-backed ByteVar/UByteVar
+            // `plus`/`get` overloads in `AppleBytePointers.kt` while the
+            // synthetic layer registers the same operators for every other
+            // pointee kind. Both sides key to (CPointer, name, arity), so the
+            // per-kind stubs look like missed KSP-002 skips even though the
+            // overlap is intentional.
+            if Self.isSyntheticCInteropPointerOperatorOverlap(
+                symbol,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                continue
+            }
             guard contains(key) else { continue }
             if Self.isSyntheticMutableListCollectionOverload(
                 symbol.id,
@@ -419,6 +434,55 @@ package struct BundledDeclarationIndex: Sendable {
                 return false
             }
             return receiverOwner == mutableCollection
+        }
+    }
+
+    /// KUU-4028: the synthetic per-kind `CPointer.plus`/`get`/`set` operators
+    /// intentionally coexist with the source-backed ByteVar/UByteVar overloads
+    /// declared in `kotlinx/cinterop/AppleBytePointers.kt`. Confirm both sides
+    /// are `CPointer`-receiver operators in `kotlinx.cinterop` before treating
+    /// the arity-only key collision as intentional.
+    private static func isSyntheticCInteropPointerOperatorOverlap(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let cinteropPackage = [interner.intern("kotlinx"), interner.intern("cinterop")]
+        let cPointerFQName = cinteropPackage + [interner.intern("CPointer")]
+        guard key.ownerFQName == cPointerFQName,
+              ["plus", "get", "set"].contains(interner.resolve(key.name)),
+              let signature = symbols.functionSignature(for: symbol.id),
+              let receiverType = signature.receiverType,
+              receiverOwnerFQName(
+                  for: receiverType,
+                  symbols: symbols,
+                  types: types,
+                  interner: interner
+              ) == cPointerFQName
+        else {
+            return false
+        }
+
+        let sourceFunctionFQName = cinteropPackage + [key.name]
+        return symbols.lookupAll(fqName: sourceFunctionFQName).contains { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.kind == .function,
+                  !candidate.flags.contains(.synthetic),
+                  candidate.fqName == sourceFunctionFQName,
+                  let candidateSignature = symbols.functionSignature(for: candidateID),
+                  let candidateReceiver = candidateSignature.receiverType,
+                  receiverOwnerFQName(
+                      for: candidateReceiver,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  ) == cPointerFQName
+            else {
+                return false
+            }
+            return true
         }
     }
 
