@@ -1212,10 +1212,11 @@ extension CompilerCoreTests {
         #expect(functionType.returnType == sema.types.stringType)
     }
 
-    /// `Int::toString` has no zero-argument member symbol (only
-    /// `toString(radix)` is declared); with a one-parameter expected function
-    /// type it resolves to a synthesized `(Int) -> String`, while a two-parameter
-    /// expected type still picks the real `toString(radix)` overload.
+    /// `Int::toString` has no zero-argument member of its own (only
+    /// `toString(radix)` is declared on the primitive); with a one-parameter
+    /// expected function type it resolves to the inherited `Any.toString()`
+    /// member as an unbound reference, while a two-parameter expected type
+    /// still picks the real `toString(radix)` overload.
     @Test func testOverloadedToStringReferenceIsChosenByExpectedFunctionArity() throws {
         let source = """
         fun one(): (Int) -> String = Int::toString
@@ -1228,6 +1229,7 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let intType = sema.types.make(.primitive(.int, .nonNull))
         let sourceFile = try #require(ctx.sourceManager.fileIDs().first {
             String(decoding: ctx.sourceManager.contents(of: $0), as: UTF8.self) == source
         })
@@ -1238,9 +1240,48 @@ extension CompilerCoreTests {
             return exprID
         }
         #expect(callableRefExprIDs.count == 2)
-        #expect(sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[0]))
+
+        // `(Int) -> String` selects the inherited `Any.toString()` member;
+        // as an unbound reference its receiver becomes the single parameter.
+        let firstTarget = try #require(sema.bindings.callableTarget(for: callableRefExprIDs[0]))
+        guard case let .symbol(firstTargetSymbol) = firstTarget,
+              let firstSymbol = sema.symbols.symbol(firstTargetSymbol)
+        else {
+            Issue.record("Expected Int::toString as (Int) -> String to bind a member target.")
+            return
+        }
+        #expect(firstSymbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "Any", "toString"])
+        #expect(!sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[0]))
+        #expect(sema.bindings.isUnboundCallableRef(callableRefExprIDs[0]))
+        let firstType = try #require(sema.bindings.exprType(for: callableRefExprIDs[0]))
+        guard case let .functionType(firstFunction) = sema.types.kind(of: firstType) else {
+            Issue.record("Expected a function type for Int::toString as (Int) -> String.")
+            return
+        }
+        #expect(firstFunction.params == [intType])
+        #expect(firstFunction.returnType == sema.types.stringType)
+
+        // `(Int, Int) -> String` still picks the real `toString(radix)`
+        // overload: the receiver plus radix become the two parameters.
+        let secondTarget = try #require(sema.bindings.callableTarget(for: callableRefExprIDs[1]))
+        guard case let .symbol(secondTargetSymbol) = secondTarget,
+              let secondSymbol = sema.symbols.symbol(secondTargetSymbol),
+              let secondSignature = sema.symbols.functionSignature(for: secondTargetSymbol)
+        else {
+            Issue.record("Expected Int::toString as (Int, Int) -> String to bind the toString(radix) member.")
+            return
+        }
+        #expect(ctx.interner.resolve(secondSymbol.name) == "toString")
+        #expect(secondSignature.parameterTypes.count == 1)
         #expect(!sema.bindings.isAnyToStringCallableRef(callableRefExprIDs[1]))
-        #expect(sema.bindings.callableTarget(for: callableRefExprIDs[1]) != nil)
+        #expect(sema.bindings.isUnboundCallableRef(callableRefExprIDs[1]))
+        let secondType = try #require(sema.bindings.exprType(for: callableRefExprIDs[1]))
+        guard case let .functionType(secondFunction) = sema.types.kind(of: secondType) else {
+            Issue.record("Expected a function type for Int::toString as (Int, Int) -> String.")
+            return
+        }
+        #expect(secondFunction.params == [intType, intType])
+        #expect(secondFunction.returnType == sema.types.stringType)
     }
 }
 #endif
