@@ -447,6 +447,11 @@ extension DeclTypeChecker {
         locals: inout LocalBindings
     ) {
         let sema = ctx.sema
+        // Expect objects never run a supertype constructor themselves —
+        // initialization belongs to the matching actual declaration, so a
+        // bare `Base` supertype must not be resolved as a `Base()` call
+        // (KUU-4337).
+        guard sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) != true else { return }
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
               let superclassInfo = sema.symbols.symbol(superclassSymbol)
         else {
