@@ -449,10 +449,30 @@ extension CallTypeChecker {
                         return resultType
                     }
                 }
+                // An applicable implicit-receiver callable property sits on
+                // the same call tower the extension recoveries below probe;
+                // a member `invoke` on a nearer-or-equal level must not lose
+                // to an extension's diagnostic (KUU-4347).
+                let callablePropertyEntryIndex = calleeName.flatMap { name in
+                    applicableImplicitReceiverCallablePropertyEntryIndex(
+                        named: name,
+                        argCount: args.count,
+                        arityPolicy: ast.arena.isReceiverExpressionArgsCall(id)
+                            ? .receiverMustBePresent : .receiverOptionallyExplicit,
+                        locals: locals,
+                        ctx: ctx
+                    )
+                }
+                let firstSymbolReceiverEntryIndex = ctx.implicitReceiverMemberLookupEntries()
+                    .firstIndex { $0.symbol != nil }
+                let outerExtensionBlockedByCallableProperty = callablePropertyEntryIndex.map { propertyIndex in
+                    firstSymbolReceiverEntryIndex.map { propertyIndex <= $0 } ?? true
+                } ?? false
                 if resolved.diagnostic?.code == "KSWIFTK-SEMA-0002"
                        || resolved.diagnostic?.code == "KSWIFTK-SEMA-0473"
                        || resolved.diagnostic?.code == "KSWIFTK-SEMA-0480",
                    let calleeName,
+                   !outerExtensionBlockedByCallableProperty,
                    let recovered = resolveOuterImplicitReceiverExtensionCall(
                        candidates: resolvedCandidates,
                        args: args,
@@ -477,6 +497,7 @@ extension CallTypeChecker {
                 if resolved.diagnostic != nil,
                    let calleeName,
                    let receiverType = ctx.implicitReceiverType,
+                   callablePropertyEntryIndex != 0,
                    let recovered = tryBindImplicitReceiverSyntheticExtensionCall(
                        id,
                        calleeName: calleeName,

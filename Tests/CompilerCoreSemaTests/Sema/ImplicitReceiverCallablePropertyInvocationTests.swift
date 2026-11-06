@@ -102,5 +102,94 @@ struct ImplicitReceiverCallablePropertyInvocationTests {
             interner: ctx.interner
         ) == override)
     }
+
+    // KUU-4347: an implicit receiver's member callable property sits on a
+    // nearer call-tower level than package/import scope functions, so
+    // `apply()` binds the property — not `kotlin.apply`-style extensions —
+    // even when the scope candidate resolves.
+    @Test func implicitReceiverCallablePropertyBeatsScopeFunction() throws {
+        let ctx = makeIsolatedContext("""
+        class Outer {
+            val apply: () -> Int = { 7 }
+            fun test(): Int = apply()
+        }
+        fun <T> T.apply(block: T.() -> Unit): T = this
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let call = try #require(nameRefCallExprID(named: "apply", in: ast, interner: ctx.interner))
+        let property = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("Outer"), ctx.interner.intern("apply"),
+        ]))
+        let binding = try #require(sema.bindings.callableValueCallBinding(for: call))
+        #expect(binding.target == .localValue(property))
+    }
+
+    @Test func implicitReceiverCallablePropertyBeatsScopeFunctionInLambda() throws {
+        let ctx = makeIsolatedContext("""
+        class Outer { val apply: () -> Int = { 7 } }
+        fun <T> T.apply(block: T.() -> Unit): T = this
+        fun <T, R> with(receiver: T, block: T.() -> R): R = receiver.block()
+        fun main() {
+            val r = with(Outer()) { apply() }
+            val check: Int = r
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        // Lambda arguments can leave an unbound probe copy of the call in the
+        // arena; pick the instance that was actually checked.
+        let applyCallIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case let .call(calleeExprID, _, _, _) = ast.arena.exprs[index],
+                  case let .nameRef(calleeName, _)? = ast.arena.expr(calleeExprID),
+                  ctx.interner.resolve(calleeName) == "apply",
+                  sema.bindings.exprType(for: id) != nil
+            else { return nil }
+            return id
+        }
+        let call = try #require(applyCallIDs.first)
+        let property = try #require(sema.symbols.lookup(fqName: [
+            ctx.interner.intern("Outer"), ctx.interner.intern("apply"),
+        ]))
+        let binding = try #require(sema.bindings.callableValueCallBinding(for: call))
+        #expect(binding.target == .localValue(property))
+    }
+
+    @Test func nearerLocalFunctionStillBeatsImplicitReceiverCallableProperty() throws {
+        let ctx = makeIsolatedContext("""
+        class Outer { val apply: () -> Int = { 7 } }
+        fun <T> T.apply(block: T.() -> Unit): T = this
+        fun <T, R> with(receiver: T, block: T.() -> R): R = receiver.block()
+        fun main() {
+            fun apply(): String = "local"
+            val r = with(Outer()) { apply() }
+            val check: String = r
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let applyCallIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case let .call(calleeExprID, _, _, _) = ast.arena.exprs[index],
+                  case let .nameRef(calleeName, _)? = ast.arena.expr(calleeExprID),
+                  ctx.interner.resolve(calleeName) == "apply",
+                  sema.bindings.exprType(for: id) != nil
+            else { return nil }
+            return id
+        }
+        let call = try #require(applyCallIDs.first)
+        #expect(sema.bindings.callableValueCallBinding(for: call) == nil)
+        #expect(sema.bindings.callBinding(for: call) != nil)
+    }
 }
 #endif

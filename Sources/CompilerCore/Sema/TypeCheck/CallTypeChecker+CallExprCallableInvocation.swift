@@ -146,7 +146,71 @@ extension CallTypeChecker {
                     guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                     return symbol.kind == .function && symbol.flags.contains(.localFunction)
                 }
-            if !scopeCandidates.isEmpty, !scopeContainsOnlyLocalFunctionsOrImplicitProperty {
+            // An implicit receiver's callable property sits on a nearer
+            // call-tower level than every package/import scope candidate, so
+            // when it can consume the arguments it wins even though the scope
+            // functions resolved — they only reach this fallback after
+            // failing (`with(Outer()) { apply() }` binding `val apply:
+            // () -> Int` instead of `kotlin.apply`, KUU-4347). An
+            // arity-inapplicable property keeps the scope path so its
+            // diagnostics still surface.
+            let preferImplicitProperty = implicitProperty.map {
+                implicitReceiverCallablePropertyCanAcceptArguments(
+                    (symbol: $0.symbol, type: $0.type),
+                    argCount: args.count,
+                    arityPolicy: ast.arena.isReceiverExpressionArgsCall(id)
+                        ? .receiverMustBePresent : .receiverOptionallyExplicit,
+                    locals: calleeLocals,
+                    ctx: ctx
+                )
+            } ?? false
+            if preferImplicitProperty, let property = implicitProperty {
+                guard let propertySymbol = sema.symbols.symbol(property.symbol) else {
+                    return nil
+                }
+                guard ctx.visibilityChecker.isAccessible(
+                    propertySymbol,
+                    fromFile: ctx.currentFileID,
+                    enclosingClass: ctx.enclosingClassSymbol
+                ) else {
+                    driver.helpers.emitVisibilityError(
+                        for: propertySymbol,
+                        name: interner.resolve(calleeName),
+                        range: range,
+                        diagnostics: sema.diagnostics
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+                // `inferExpr` would bind the scope function that shadowed the
+                // property during candidate collection, so bind the callee
+                // to the property the way the implicit-member identifier
+                // path does (KUU-4347).
+                let calleeRange = ast.arena.exprRange(calleeID)
+                sema.bindings.bindIdentifier(calleeID, symbol: property.symbol)
+                sema.bindings.markImplicitReceiverMember(
+                    calleeID, name: calleeName, receiverType: property.receiver.type
+                )
+                if let receiverSymbol = property.receiver.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(calleeID, symbol: receiverSymbol)
+                }
+                driver.helpers.checkDeprecation(
+                    for: property.symbol,
+                    sema: sema,
+                    interner: interner,
+                    range: calleeRange,
+                    diagnostics: sema.diagnostics
+                )
+                driver.helpers.checkOptIn(
+                    for: property.symbol,
+                    ctx: ctx,
+                    range: calleeRange,
+                    diagnostics: sema.diagnostics
+                )
+                sema.bindings.bindExprType(calleeID, type: property.type)
+                callableCalleeType = property.type
+                callableTarget = driver.helpers.callableTargetForCalleeExpr(calleeID, sema: sema)
+            } else if !scopeCandidates.isEmpty, !scopeContainsOnlyLocalFunctionsOrImplicitProperty {
                 callableCalleeType = driver.inferExpr(
                     calleeID,
                     ctx: ctx,
@@ -405,11 +469,14 @@ extension CallTypeChecker {
     }
 
     /// The caller only uses the result after ordinary call candidates and
-    /// scoped values have had their existing resolution priority.
+    /// scoped values have had their existing resolution priority. The
+    /// `receiver` element is the implicit-receiver tower entry the property
+    /// was found on, so callers binding the property directly can mark the
+    /// same receiver KIR lowering materializes for the `inferExpr` path.
     func implicitReceiverFunctionProperty(
         named name: InternedString,
         ctx: TypeInferenceContext
-    ) -> (symbol: SymbolID, type: TypeID)? {
+    ) -> (symbol: SymbolID, type: TypeID, receiver: (type: TypeID, symbol: SymbolID?))? {
         let sema = ctx.sema
         for receiver in ctx.implicitReceiverMemberLookupEntries() {
             guard let property = driver.helpers.lookupMemberProperty(
@@ -445,9 +512,95 @@ extension CallTypeChecker {
             guard isFunctionType || isNonNullableCallableObject else {
                 return nil
             }
-            return property
+            return (symbol: property.symbol, type: property.type, receiver: receiver)
         }
         return nil
+    }
+
+    /// Cheap arity probe deciding whether an implicit receiver's callable
+    /// property can consume this call's arguments. Mirrors the feasible
+    /// layout count check inside `inferCallableValueInvocation` without
+    /// diagnosing: an inapplicable property must not steal the scope
+    /// candidates' resolution or its error (KUU-4347).
+    func implicitReceiverCallablePropertyCanAcceptArguments(
+        _ property: (symbol: SymbolID, type: TypeID),
+        argCount: Int,
+        arityPolicy: CallableValueArityPolicy,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        let nonNullType = sema.types.makeNonNullable(property.type)
+        guard let function = sema.types.uniqueStructuralFunctionType(for: nonNullType),
+              function.nullability == .nonNull,
+              function.contextReceivers.isEmpty
+        else {
+            // A callable object property goes through `invoke` overloads;
+            // keep the existing scope-first behavior for those.
+            return false
+        }
+        func hasImplicitReceiverValue() -> Bool {
+            guard let requiredReceiver = function.receiver else { return true }
+            if let thisLocal = locals[ctx.interner.intern("this")],
+               sema.types.isSubtype(thisLocal.type, requiredReceiver)
+            {
+                return true
+            }
+            if let activeReceiver = ctx.implicitReceiverType,
+               sema.types.isSubtype(activeReceiver, requiredReceiver)
+            {
+                return true
+            }
+            if ctx.implicitReceiverStack.contains(where: {
+                sema.types.isSubtype($0.type, requiredReceiver)
+            }) {
+                return true
+            }
+            return ctx.outerReceiverTypes.reversed().first(where: {
+                sema.types.isSubtype($0.type, requiredReceiver)
+            })?.symbol != nil
+        }
+        switch arityPolicy {
+        case .receiverOptionallyExplicit:
+            if function.receiver == nil { return function.params.count == argCount }
+            if argCount == function.params.count + 1 { return true }
+            if argCount == function.params.count { return hasImplicitReceiverValue() }
+            return false
+        case .receiverMustBePresent:
+            return function.receiver != nil && argCount == function.params.count + 1
+        default:
+            return false
+        }
+    }
+
+    /// Index into `implicitReceiverMemberLookupEntries()` of the innermost
+    /// implicit-receiver callable property that can consume this call, or nil.
+    /// Extension-recovery paths consult it so a member `invoke` on a nearer
+    /// tower level is not hidden by an inapplicable or lower-priority
+    /// extension's diagnostic (KUU-4347).
+    func applicableImplicitReceiverCallablePropertyEntryIndex(
+        named calleeName: InternedString,
+        argCount: Int,
+        arityPolicy: CallableValueArityPolicy,
+        locals: LocalBindings,
+        ctx: TypeInferenceContext
+    ) -> Int? {
+        guard let property = implicitReceiverFunctionProperty(named: calleeName, ctx: ctx),
+              implicitReceiverCallablePropertyCanAcceptArguments(
+                  (symbol: property.symbol, type: property.type),
+                  argCount: argCount,
+                  arityPolicy: arityPolicy,
+                  locals: locals,
+                  ctx: ctx
+              )
+        else {
+            return nil
+        }
+        let sema = ctx.sema
+        let target = sema.types.makeNonNullable(property.receiver.type)
+        return ctx.implicitReceiverMemberLookupEntries().firstIndex {
+            sema.types.makeNonNullable($0.type) == target
+        }
     }
 
     /// Kotlin resolves `name(...)` against a single candidate set that also
