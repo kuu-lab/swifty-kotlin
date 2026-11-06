@@ -518,4 +518,30 @@ struct SuspendCallContextTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    /// KUU-4215/4218/4219: upstream kotlinx-coroutines `asFlow` builders call
+    /// the suspend `emit` inside an `inline` `forEach` lambda nested in the
+    /// `flow { }` block. The bundled `forEach` overloads on `Array`, non-Int
+    /// primitive arrays and ranges are `inline` like upstream Kotlin, so the
+    /// lambda inherits the enclosing suspension context.
+    @Test
+    func suspendCallInsideInlinedForEachLambdaIsAccepted() throws {
+        let result = try diagnostics("""
+        interface Sink<T> { suspend fun emit(value: T) }
+        class Box<T>
+        fun <T> boxOf(block: suspend Sink<T>.() -> Unit): Box<T> = Box()
+
+        fun <T> Array<T>.asFlow(): Box<T> = boxOf {
+            forEach { emit(it) }
+        }
+        fun LongArray.asFlowLong(): Box<Long> = boxOf {
+            forEach { emit(it) }
+        }
+        fun IntRange.asFlowRange(): Box<Int> = boxOf {
+            forEach { emit(it) }
+        }
+        fun main() {}
+        """, includeStdlib: true)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
 }
