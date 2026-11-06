@@ -87,4 +87,37 @@ extension BundledStdlibExecutionTests {
             allowDefaultStdlibLibrary: fromArtifact
         )
     }
+
+    /// A `KType.classifier` KClass is interned during module init by the
+    /// per-nominal reflection initializer. When no `T::class` literal ever
+    /// registers metadata for that type, `qualifiedName` must still resolve
+    /// the qualified name from the interned box's hint rather than the
+    /// simple name the initializer used to pass.
+    @Test(arguments: [false, true])
+    func supertypeClassifierQualifiedName(fromArtifact: Bool) throws {
+        try compileAndRunKotlin(
+            """
+            package reflectsupertypes
+            import kotlin.reflect.KClass
+            open class Base
+            class Child : Base()
+            fun main() {
+                val stdlib = Number::class.supertypes[1].classifier as KClass<*>
+                println(stdlib.qualifiedName)
+                println(stdlib.simpleName)
+                val user = Child::class.supertypes[0].classifier as KClass<*>
+                println(user.qualifiedName)
+                println(user.simpleName)
+            }
+            """,
+            expectedOutput: """
+            java.io.Serializable
+            Serializable
+            reflectsupertypes.Base
+            Base
+            """ + "\n",
+            moduleName: "SupertypeClassifierQualifiedName",
+            allowDefaultStdlibLibrary: fromArtifact
+        )
+    }
 }
