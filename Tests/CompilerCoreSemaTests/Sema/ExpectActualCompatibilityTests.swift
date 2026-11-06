@@ -459,6 +459,36 @@ struct ExpectActualCompatibilityTests {
         }
     }
 
+    /// KUU-3934: a companion member's default argument inside an `expect`
+    /// class must see sibling nested declarations. The expect/actual dedup
+    /// filter used to drop the expect-side `Formats` object even though its
+    /// actual counterpart lives under the actual class and is unreachable
+    /// from the expect class's scope chain.
+    @Test func testExpectClassCompanionDefaultArgSeesNestedObject() throws {
+        let ctx = makeContextFromSources([
+            """
+            expect class LocalDateTime {
+                companion object {
+                    fun parse(input: String, format: Int = Formats.ISO): Int
+                }
+                object Formats { val ISO: Int }
+            }
+            """,
+            """
+            actual class LocalDateTime {
+                actual companion object {
+                    actual fun parse(input: String, format: Int): Int = format
+                }
+                actual object Formats { actual val ISO: Int = 1 }
+            }
+            """,
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+    }
+
     /// KUU-3887: an override targeting a member of an expect/actual paired
     /// class must be judged against the actual declaration — the expect side
     /// carries no `open`/`abstract` information. This runs at header time,

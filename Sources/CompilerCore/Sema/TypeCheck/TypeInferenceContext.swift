@@ -776,6 +776,12 @@ struct TypeInferenceContext: CustomStringConvertible {
     /// see two candidates with an identical shape: call resolution reports a
     /// false ambiguous-overload, and name resolution binds arbitrarily to
     /// whichever declaration happens to come first.
+    ///
+    /// An expect declaration is only superseded by an actual that the same
+    /// lookup can see: members of an expect class resolve inside the expect
+    /// class's scope, where the actual member lives under the actual class and
+    /// never appears among the candidates — dropping the expect symbol there
+    /// leaves no candidates at all (KUU-3934).
     func cachedScopeLookup(_ name: InternedString) -> [SymbolID] {
         let results: [SymbolID] = if let cache = semaCacheContext {
             cache.lookupInScope(name, scope: scope)
@@ -783,7 +789,7 @@ struct TypeInferenceContext: CustomStringConvertible {
             scope.lookup(name)
         }
         return results.filter {
-            !isExpectDeclarationSupersededByActual($0)
+            !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
         }
     }
@@ -794,8 +800,9 @@ struct TypeInferenceContext: CustomStringConvertible {
         _ name: InternedString,
         matching predicate: (SymbolID) -> Bool
     ) -> [SymbolID] {
-        scope.lookup(name, matching: predicate).filter {
-            !isExpectDeclarationSupersededByActual($0)
+        let results = scope.lookup(name, matching: predicate)
+        return results.filter {
+            !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
         }
     }
@@ -820,9 +827,10 @@ struct TypeInferenceContext: CustomStringConvertible {
     ) -> (matches: [SymbolID], inheritedInterfaces: Set<SymbolID>) {
         var inheritedInterfaces: Set<SymbolID> = []
         func matchingCandidates(in currentScope: BaseScope) -> [SymbolID] {
-            currentScope.candidates(for: name).filter { symbolID in
+            let bound = currentScope.candidates(for: name)
+            return bound.filter { symbolID in
                 guard let symbol = cachedSymbol(symbolID),
-                      !isExpectDeclarationSupersededByActual(symbolID),
+                      !isExpectDeclarationSupersededByActual(symbolID, among: bound),
                       !isImportedSymbolShadowedBySource(symbolID)
                 else { return false }
                 let isClassifier = switch symbol.kind {
@@ -1001,6 +1009,21 @@ struct TypeInferenceContext: CustomStringConvertible {
             return false
         }
         return sema.symbols.actualSymbol(for: id) != nil
+    }
+
+    /// `expect`/`actual` dedup is only valid when the actual counterpart is
+    /// part of the same candidate set. Nested members of an `expect` class
+    /// resolve inside the expect class's scope chain, where the actual member
+    /// — bound under the `actual` class — never appears; treating the expect
+    /// member as superseded there erases the only candidate and produces a
+    /// spurious unresolved-reference error (KUU-3934).
+    func isExpectDeclarationSupersededByActual(_ id: SymbolID, among candidates: [SymbolID]) -> Bool {
+        guard isExpectDeclarationSupersededByActual(id),
+              let actual = sema.symbols.actualSymbol(for: id)
+        else {
+            return false
+        }
+        return candidates.contains(actual)
     }
 
     /// A type carries a DslMarker if it is a class/interface annotated with an
