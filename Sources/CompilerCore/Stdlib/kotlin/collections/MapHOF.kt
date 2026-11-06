@@ -748,7 +748,7 @@ public inline fun <K, V> Map<out K, V>.minWithOrNull(
 }
 
 @Suppress("UNCHECKED_CAST")
-public inline operator fun <K, V> Map<K, V>.plus(pair: Pair<K, V>): Map<K, V> {
+public inline operator fun <K, V> Map<out K, V>.plus(pair: Pair<K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
     for (entry in this.entries) {
         result[entry.key] = entry.value
@@ -758,7 +758,7 @@ public inline operator fun <K, V> Map<K, V>.plus(pair: Pair<K, V>): Map<K, V> {
 }
 
 @Suppress("UNCHECKED_CAST")
-public inline operator fun <K, V> Map<K, V>.plus(map: Map<K, V>): Map<K, V> {
+public inline operator fun <K, V> Map<out K, V>.plus(map: Map<out K, V>): Map<K, V> {
     val result = mutableMapOf<K, V>()
     for (entry in this.entries) {
         result[entry.key] = entry.value
@@ -806,7 +806,7 @@ public operator fun <K, V> Map<out K, V>.plus(pairs: Array<out Pair<K, V>>): Map
 }
 
 @Suppress("UNCHECKED_CAST")
-public inline operator fun <K, V> Map<K, V>.minus(key: K): Map<K, V> {
+public inline operator fun <K, V> Map<out K, V>.minus(key: K): Map<K, V> {
     val result = mutableMapOf<K, V>()
     for (entry in this.entries) {
         if (entry.key != key) result[entry.key] = entry.value
@@ -815,7 +815,7 @@ public inline operator fun <K, V> Map<K, V>.minus(key: K): Map<K, V> {
 }
 
 @Suppress("UNCHECKED_CAST")
-public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> {
+public inline operator fun <K, V> Map<out K, V>.minus(keys: Iterable<K>): Map<K, V> {
     val keySet = mutableSetOf<K>()
     for (k in keys) keySet.add(k)
     val result = mutableMapOf<K, V>()
