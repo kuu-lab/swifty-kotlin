@@ -90,6 +90,17 @@ extension ControlFlowLowerer {
         let nextSymbol: SymbolID
     }
 
+    /// A bundled operator extension that matched the iterable receiver, plus
+    /// the type-variable substitution its receiver constraint produced. The
+    /// substitution specializes the extension's return type (`Channel<E>`
+    /// iterator() yields `ChannelIterator<E>`; `E` must become the receiver's
+    /// element type or the iterator handle keeps a foreign type parameter).
+    struct BundledOperatorExtensionMatch {
+        let symbol: SymbolID
+        let substitution: [TypeVarID: TypeID]
+        let typeVarBySymbol: [SymbolID: TypeVarID]
+    }
+
     /// Returns true when the class symbol is one of the built-in Range / Progression
     /// classes in `kotlin.ranges` that now provide bundled Kotlin `iterator()`
     /// operators. These synthetic classes are allowed to resolve a custom iterator
@@ -109,7 +120,7 @@ extension ControlFlowLowerer {
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
-    ) -> SymbolID? {
+    ) -> BundledOperatorExtensionMatch? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let classSymbol = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)?.1
         let isCharSequenceLike = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
@@ -143,9 +154,48 @@ extension ControlFlowLowerer {
                 else {
                     continue
                 }
-                if sema.types.isSubtype(receiverType, candidateReceiverType) {
-                    return candidate
+                // A generic extension receiver (`Channel<E>.iterator()`) does
+                // not satisfy a plain subtype check: `E` is a declaration type
+                // parameter, not a wildcard. Solve `receiverType <: receiver`
+                // as a constraint system instead so the receiver's element
+                // type binds `E` (KUU-4348). The same solve also supplies the
+                // substitution that specializes the extension's return type
+                // when the plain subtype check already matched.
+                var substitution: [TypeVarID: TypeID] = [:]
+                var typeVarBySymbol: [SymbolID: TypeVarID] = [:]
+                if !signature.typeParameterSymbols.isEmpty {
+                    typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                    let resolver = OverloadResolver()
+                    let constraints = resolver.decomposeSubtypeConstraint(
+                        subtype: receiverType,
+                        supertype: candidateReceiverType,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: sema.types,
+                        blameRange: nil
+                    )
+                    let variables = resolver.usedTypeVariables(from: constraints)
+                    if !variables.isEmpty {
+                        let solution = ConstraintSolver().solve(
+                            vars: variables,
+                            constraints: constraints,
+                            typeSystem: sema.types
+                        )
+                        if solution.isSuccess {
+                            substitution = solution.substitution
+                        } else if !sema.types.isSubtype(receiverType, candidateReceiverType) {
+                            continue
+                        }
+                    } else if !sema.types.isSubtype(receiverType, candidateReceiverType) {
+                        continue
+                    }
+                } else if !sema.types.isSubtype(receiverType, candidateReceiverType) {
+                    continue
                 }
+                return BundledOperatorExtensionMatch(
+                    symbol: candidate,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
             }
         }
         return nil
@@ -266,15 +316,17 @@ extension ControlFlowLowerer {
         // as a bundled Kotlin extension rather than as a class member, so
         // `collectMemberFunctionCandidates` will not find it through
         // class-hierarchy lookup.
+        var bundledIteratorMatch: BundledOperatorExtensionMatch?
         if iteratorCandidates.isEmpty,
-           let bundledIterator = resolveBundledOperatorExtension(
+           let match = resolveBundledOperatorExtension(
                named: iteratorName,
                receiverType: nonNullType,
                sema: sema,
                interner: interner
            )
         {
-            iteratorCandidates = [bundledIterator]
+            bundledIteratorMatch = match
+            iteratorCandidates = [match.symbol]
         }
 
         guard let iteratorSymbol = iteratorCandidates.first,
@@ -283,7 +335,11 @@ extension ControlFlowLowerer {
             return nil
         }
 
-        let iteratorReturnType = iteratorSignature.returnType
+        let iteratorReturnType = sema.types.substituteTypeParameters(
+            in: iteratorSignature.returnType,
+            substitution: bundledIteratorMatch?.substitution ?? [:],
+            typeVarBySymbol: bundledIteratorMatch?.typeVarBySymbol ?? [:]
+        )
 
         // Resolve hasNext() and next() on the iterator type. These may be real
         // members (e.g. kotlin.collections.Iterator) or bundled Kotlin extension
@@ -311,7 +367,7 @@ extension ControlFlowLowerer {
                interner: interner
            )
         {
-            hasNextCandidates = [bundledHasNext]
+            hasNextCandidates = [bundledHasNext.symbol]
         }
 
         let nextName = interner.intern("next")
@@ -337,7 +393,7 @@ extension ControlFlowLowerer {
                interner: interner
            )
         {
-            nextCandidates = [bundledNext]
+            nextCandidates = [bundledNext.symbol]
         }
 
         guard let hasNextSymbol = hasNextCandidates.first,
