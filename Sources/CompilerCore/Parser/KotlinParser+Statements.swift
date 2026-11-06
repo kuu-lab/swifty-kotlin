@@ -1169,6 +1169,7 @@ extension KotlinParser {
         allowsWhereClauseContinuation: Bool = false,
         allowsFunctionWhereClause: Bool = false,
         allowsPropertyDelegation: Bool = false,
+        allowsDeclaredTypeColon: Bool = false,
         stopsAtFunctionDelegation: Bool = false,
         isClassBody: Bool = false
     ) {
@@ -1390,6 +1391,10 @@ extension KotlinParser {
                     || (allowsFunctionWhereClause && !sawAssignment
                         && stream.peek().kind == .softKeyword(.where))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
+                    // A function return type or property type annotation may
+                    // also begin on the next line (`fun R.f()\n    : R`).
+                    || (allowsDeclaredTypeColon && !sawAssignment
+                        && stream.peek().kind == .symbol(.colon))
                     || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
                     || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))
                     || endsWithPendingInfixOperator(children)
