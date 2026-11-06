@@ -1203,6 +1203,16 @@ extension CallLowerer {
         ) {
             return result
         }
+        if emitRuntimeKClassMemberPropertyFastPath(
+            propertyInfo: propertyInfo,
+            ownerInfo: ownerInfo,
+            loweredReceiverID: loweredReceiverID,
+            result: result,
+            interner: interner,
+            instructions: &instructions
+        ) {
+            return result
+        }
         let runtimeKTypeParameterNameEndLabel = emitRuntimeKTypeParameterNameFastPath(
             propertyInfo: propertyInfo,
             ownerInfo: ownerInfo,
@@ -1383,6 +1393,56 @@ extension CallLowerer {
 
         emitNonThrowingCall(
             callee: interner.intern("__kk_kclass_constructors"),
+            arg: loweredReceiverID,
+            result: result,
+            into: &instructions
+        )
+        return true
+    }
+
+    /// KClass/KDeclarationContainer member properties (simpleName,
+    /// qualifiedName, the class-kind flags, members/nestedClasses/
+    /// typeParameters/supertypes/visibility) are source-declared interface
+    /// members, but KClass handles are runtime boxes with no compiler-emitted
+    /// interface tables. Route their reads through the same runtime registry
+    /// bridges the former kotlin.reflect extensions used.
+    private func emitRuntimeKClassMemberPropertyFastPath(
+        propertyInfo: SemanticSymbol,
+        ownerInfo: SemanticSymbol,
+        loweredReceiverID: KIRExprID,
+        result: KIRExprID,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        let owner = ownerInfo.fqName.map(interner.resolve)
+        guard owner == ["kotlin", "reflect", "KClass"]
+            || owner == ["kotlin", "reflect", "KDeclarationContainer"]
+        else {
+            return false
+        }
+        let member = interner.resolve(propertyInfo.name)
+        let callee: String
+        switch member {
+        case "simpleName": callee = "__kk_kclass_simple_name"
+        case "qualifiedName": callee = "__kk_kclass_qualified_name"
+        case "isFinal": callee = "__kk_kclass_is_final"
+        case "isOpen": callee = "__kk_kclass_is_open"
+        case "isAbstract": callee = "__kk_kclass_is_abstract"
+        case "isSealed": callee = "__kk_kclass_is_sealed"
+        case "isData": callee = "__kk_kclass_is_data"
+        case "isInner": callee = "__kk_kclass_is_inner"
+        case "isCompanion": callee = "__kk_kclass_is_companion"
+        case "isFun": callee = "__kk_kclass_is_fun"
+        case "isValue": callee = "__kk_kclass_is_value"
+        case "members": callee = "__kk_kclass_members"
+        case "nestedClasses": callee = "__kk_kclass_nested_classes"
+        case "typeParameters": callee = "__kk_kclass_type_parameters"
+        case "supertypes": callee = "__kk_kclass_supertypes"
+        case "visibility": callee = "__kk_kclass_visibility"
+        default: return false
+        }
+        emitNonThrowingCall(
+            callee: interner.intern(callee),
             arg: loweredReceiverID,
             result: result,
             into: &instructions

@@ -166,6 +166,38 @@ extension CallLowerer {
         }
         let calleeStr = interner.resolve(effectiveCalleeName)
 
+        // KClass handles are runtime boxes with no source itable, so member
+        // calls reached through `?.` must use the same runtime registry
+        // bridges as the non-safe-call path in `lowerMemberCallExpr`.
+        if CallLowerer.kclassMembers.contains(calleeStr),
+           isKClassReceiverType(nonNullSafeReceiverType, sema: sema, interner: interner)
+        {
+            let callLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
+            let nullValue = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
+            instructions.append(.constValue(result: nullValue, value: .null))
+            instructions.append(.copy(from: nullValue, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(callLabel))
+            let valueArgs: [KIRExprID] = calleeStr == "isInstance"
+                ? args.map { driver.lowerExpr($0.expr, shared: shared, emit: &instructions) }
+                : []
+            let memberResult = lowerKClassRuntimeMemberCall(
+                exprID,
+                kclassExpr: loweredReceiverID,
+                memberName: calleeStr,
+                valueArgs: valueArgs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions
+            )
+            instructions.append(.copy(from: memberResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if calleeStr == "cancel",
            isCoroutineContextReceiverType(nonNullSafeReceiverType, sema: sema, interner: interner)
         {

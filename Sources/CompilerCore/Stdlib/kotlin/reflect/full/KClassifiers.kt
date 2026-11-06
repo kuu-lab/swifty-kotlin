@@ -12,7 +12,6 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
 import kotlin.reflect.KType
 import kotlin.reflect.KTypeProjection
-import kotlin.reflect.typeParameters
 
 @KsSymbolName("__kk_ktype_create")
 private external fun __kk_ktype_create(
