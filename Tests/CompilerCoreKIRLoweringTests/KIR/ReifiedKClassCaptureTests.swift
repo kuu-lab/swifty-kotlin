@@ -33,9 +33,12 @@ struct ReifiedKClassCaptureTests {
             expression,
             classRefTargetType: classType,
             memberName: "simpleName",
+            args: [],
+            ast: fixture.ast,
             sema: fixture.sema,
             arena: fixture.kirArena,
             interner: fixture.interner,
+            propertyConstantInitializers: [:],
             instructions: &instructions
         )
 

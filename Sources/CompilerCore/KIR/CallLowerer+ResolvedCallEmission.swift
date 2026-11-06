@@ -901,6 +901,11 @@ extension CallLowerer {
                     chosenCallee: chosen,
                     sema: sema,
                     interner: interner
+                ) ?? runtimeBackedKClassMemberCallee(
+                    memberName: interner.resolve(sourceCalleeName),
+                    receiverType: implicitReceiverType,
+                    sema: sema,
+                    interner: interner
                 )
             }
             // KUU-3892: an unqualified `f()` inside an enum member body is

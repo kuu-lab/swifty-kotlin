@@ -7,6 +7,14 @@
 
 package kotlin.reflect
 
+import kotlin.internal.KsSymbolName
+
+// `isInstance` carries a default body so that call sites which bypass the
+// KClass member-call lowering (implicit receivers, direct symbol calls)
+// still reach the runtime bridge instead of the empty abstract stub.
+@KsSymbolName("__kk_kclass_isInstance")
+private external fun __kk_kclass_isInstance(kclass: KClass<*>, value: Any?): Boolean
+
 /**
  * The KClass identity contract is supplied by the platform runtime.
  *
@@ -18,6 +26,11 @@ public interface KClass<T : Any> : KAnnotatedElement, KClassifier, KDeclarationC
     public val objectInstance: T?
     public val sealedSubclasses: List<KClass<out T>>
     public val constructors: Collection<KFunction<T>>
+
+    public val simpleName: String?
+    public val qualifiedName: String?
+
+    public fun isInstance(value: Any?): Boolean = __kk_kclass_isInstance(this, value)
 
     public override fun equals(other: Any?): Boolean
     public override fun hashCode(): Int

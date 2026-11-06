@@ -12,8 +12,6 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KProperty2
 import kotlin.reflect.KType
-import kotlin.reflect.isInstance
-import kotlin.reflect.qualifiedName
 
 @SinceKotlin("1.1")
 @Suppress("UNCHECKED_CAST")

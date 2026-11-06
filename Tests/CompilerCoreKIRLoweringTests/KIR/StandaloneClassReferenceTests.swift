@@ -148,8 +148,8 @@ struct StandaloneClassReferenceTests {
     /// KSP-496 moved `simpleName` to an ordinary Kotlin extension property
     /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so
     /// `T::class` now always creates the KClass box before dispatching to the
-    /// `simpleName` getter — there is no longer a "direct path" that skips
-    /// box creation for this member. KUU-4018 routes reified `T::class`
+    /// `simpleName` member bridge — there is no longer a "direct path" that
+    /// skips box creation for this member. KUU-4018 routes reified `T::class`
     /// through `__kk_kclass_create_array` (the element descriptor is 0 for
     /// non-array T, so `classOf<Int>` still interns the `Int` box).
     @Test func testChainedClassRefSimpleNameUsesDirectPath() throws {
@@ -163,14 +163,15 @@ struct StandaloneClassReferenceTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let calls = kirCalls(in: body)
-        let getter = try kClassExtensionGetter(named: "simpleName", in: ctx)
+        // simpleName is a KClass member, so the read emits the runtime bridge
+        // directly once the KClass box has been materialized.
         #expect(
-            calls.contains { $0.symbol == getter },
-            "Chained T::class.simpleName should resolve to the Kotlin simpleName getter, got: \(calls)"
+            calls.contains { $0.callee == ctx.interner.intern("__kk_kclass_simple_name") },
+            "Chained T::class.simpleName should emit __kk_kclass_simple_name, got: \(calls)"
         )
         #expect(
             calls.contains { $0.callee == KIRRuntimeFunction.kClassCreateArray.name(in: ctx.interner) },
-            "Chained T::class.simpleName should emit __kk_kclass_create_array (box creation, then dispatch to the simpleName getter), got: \(calls)"
+            "Chained T::class.simpleName should emit __kk_kclass_create_array (box creation, then dispatch to the simpleName bridge), got: \(calls)"
         )
     }
 
@@ -397,6 +398,7 @@ struct StandaloneClassReferenceTests {
         try expectBundledReflectDelegation(
             source: """
             import kotlin.reflect.cast
+
             fun castString(value: Any?): String = String::class.cast(value)
             """,
             functions: ["castString"],
@@ -428,6 +430,7 @@ struct StandaloneClassReferenceTests {
         try expectBundledReflectDelegation(
             source: """
             import kotlin.reflect.safeCast
+
             fun safeCastString(value: Any?): String? = String::class.safeCast(value)
             """,
             functions: ["safeCastString"],

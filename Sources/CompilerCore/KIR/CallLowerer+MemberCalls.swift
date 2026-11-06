@@ -1,22 +1,29 @@
 
 extension CallLowerer {
-    // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the boolean
-    // flags/visibility/annotations/members/constructors/primaryConstructor/
-    // memberProperties/declaredMemberProperties/functions/memberFunctions/
-    // declaredMemberFunctions/nestedClasses/supertypes moved to ordinary
-    // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
+    // KSP-496: the kotlin.reflect.full collection accessors (memberProperties/
+    // declaredMemberProperties/functions/memberFunctions/declaredMemberFunctions/
+    // companionObject/isEnum/isInterface/isObject) and cast/safeCast remain
+    // ordinary Kotlin extension declarations
+    // (Sources/CompilerCore/Stdlib/kotlin/reflect/) resolved through the normal
+    // member-call path below this block.
     //
-    // objectInstance/sealedSubclasses are source-declared KClass properties
-    // whose native boxes use the runtime registry instead of source itables.
-    // The remaining names stay here:
+    // objectInstance/sealedSubclasses/constructors/simpleName/qualifiedName/
+    // isInstance/the class-kind flags/members/nestedClasses/typeParameters/
+    // supertypes/visibility are source-declared KClass/KDeclarationContainer
+    // members whose native boxes use the runtime registry instead of source
+    // itables. The remaining names stay here:
     // - findAssociatedObject takes a reified type argument,
     //   which this compiler only supports via a small special-cased
     //   allowlist (like typeOf<T>()).
     // - properties is not a real kotlin-stdlib name (only the `member`/
     //   `declaredMember`-prefixed variants exist upstream); diff cases rely
     //   on freely shadowing it with a real user-declared extension.
-    private static let kclassMembers: Set<String> = [
+    static let kclassMembers: Set<String> = [
         "findAssociatedObject", "properties", "objectInstance", "sealedSubclasses", "constructors",
+        "simpleName", "qualifiedName", "isInstance",
+        "isFinal", "isOpen", "isAbstract", "isSealed", "isData",
+        "isInner", "isCompanion", "isFun", "isValue",
+        "members", "nestedClasses", "typeParameters", "supertypes", "visibility",
     ]
 
     func lowerMemberCallExpr(
@@ -454,6 +461,7 @@ extension CallLowerer {
            isKClassReceiverType(receiverType, sema: sema, interner: interner) {
             return lowerKClassVarReflectMemberCall(
                 exprID, receiverExpr: receiverExpr, memberName: "findAnnotation",
+                args: args,
                 ast: ast, sema: sema, arena: arena, interner: interner,
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions.instructions
@@ -477,9 +485,12 @@ extension CallLowerer {
                     exprID,
                     classRefTargetType: classRefTargetType,
                     memberName: callee,
+                    args: args,
+                    ast: ast,
                     sema: sema,
                     arena: arena,
                     interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
                     instructions: &instructions.instructions
                 )
             }
@@ -494,6 +505,7 @@ extension CallLowerer {
                     exprID,
                     receiverExpr: receiverExpr,
                     memberName: callee,
+                    args: args,
                     ast: ast,
                     sema: sema,
                     arena: arena,

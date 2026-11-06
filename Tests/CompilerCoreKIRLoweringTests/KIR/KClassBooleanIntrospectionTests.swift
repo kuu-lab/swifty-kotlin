@@ -3,13 +3,16 @@
 import Testing
 @testable import CompilerTestSupport
 
-/// KSP-496 moved these to ordinary Kotlin extension properties
+/// KSP-496 moved the type-kind members (isEnum/isInterface/isObject) to
+/// ordinary Kotlin extension properties
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt), so `main`'s
-/// KIR body now calls the Kotlin getter (e.g. `isData`) directly — the
-/// `__kk_kclass_is_*` runtime call happens one level deeper, inside that
-/// getter's own KIR function body. These tests assert that `main` resolves
-/// to the getter (i.e. does not fall through to an undefined symbol) for
-/// both receiver forms:
+/// KIR body calls the Kotlin getter directly — the `__kk_kclass_is_*` runtime
+/// call happens one level deeper, inside that getter's own KIR function body.
+/// The class-kind flags (isData/isSealed/isValue/isFun/…) and collection
+/// members are declared on KClass/KDeclarationContainer themselves, so their
+/// reads emit the `__kk_kclass_*` runtime call directly in `main` — KClass
+/// handles are runtime boxes with no source itable. These tests assert both
+/// receiver forms (`T::class.x` and `val k: KClass<T>`).
 @Suite
 struct KClassBooleanIntrospectionTests {
 
@@ -25,6 +28,11 @@ struct KClassBooleanIntrospectionTests {
         return (ctx, kirCalls(in: body))
     }
 
+    private func runtimeCall(named callee: String, in ctx: CompilationContext, calls: [KIRCallSite]) -> KIRCallSite? {
+        let interned = ctx.interner.intern(callee)
+        return calls.first { $0.callee == interned }
+    }
+
     @Test func testClassLiteralIsDataEmitsRuntimeCallAndMetadata() throws {
         let (ctx, calls) = try callsForMain("""
         data class Point(val x: Int)
@@ -32,8 +40,10 @@ struct KClassBooleanIntrospectionTests {
             println(Point::class.isData)
         }
         """)
-        let getter = try kClassExtensionGetter(named: "isData", in: ctx)
-        let getterCall = try #require(calls.first { $0.symbol == getter })
+        let flagCall = try #require(
+            runtimeCall(named: "__kk_kclass_is_data", in: ctx, calls: calls),
+            "Point::class.isData should emit __kk_kclass_is_data, got: \(calls)"
+        )
         let creation = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassCreate.name(in: ctx.interner) })
         let classValue = try #require(creation.result)
         let typeToken = try #require(creation.arguments.first)
@@ -41,8 +51,8 @@ struct KClassBooleanIntrospectionTests {
         // query must also register the metadata (keyed by the same type token).
         let metadata = try #require(calls.first { $0.callee == KIRRuntimeFunction.kClassMetadata.name(in: ctx.interner) })
         #expect(metadata.arguments.first == typeToken)
-        #expect(getterCall.arguments.first == classValue)
-        #expect(metadata.index < getterCall.index)
+        #expect(flagCall.arguments.first == classValue)
+        #expect(metadata.index < flagCall.index)
     }
 
     @Test func testClassLiteralIsSealedEmitsRuntimeCall() throws {
@@ -52,10 +62,9 @@ struct KClassBooleanIntrospectionTests {
             println(Shape::class.isSealed)
         }
         """)
-        let getter = try kClassExtensionGetter(named: "isSealed", in: ctx)
         #expect(
-            calls.contains { $0.symbol == getter },
-            "Shape::class.isSealed should resolve to the Kotlin isSealed getter, got: \(calls)"
+            runtimeCall(named: "__kk_kclass_is_sealed", in: ctx, calls: calls) != nil,
+            "Shape::class.isSealed should emit __kk_kclass_is_sealed, got: \(calls)"
         )
     }
 
@@ -67,36 +76,45 @@ struct KClassBooleanIntrospectionTests {
             println(Wrapped::class.isValue)
         }
         """)
-        let getter = try kClassExtensionGetter(named: "isValue", in: ctx)
         #expect(
-            calls.contains { $0.symbol == getter },
-            "Wrapped::class.isValue should resolve to the Kotlin isValue getter, got: \(calls)"
+            runtimeCall(named: "__kk_kclass_is_value", in: ctx, calls: calls) != nil,
+            "Wrapped::class.isValue should emit __kk_kclass_is_value, got: \(calls)"
         )
     }
 
-    /// The type-kind members (isEnum/isInterface/isObject/isFun) must also
-    /// resolve to their Kotlin getters — without that they would fall
-    /// through to a regular call and link-fail with an undefined symbol.
+    /// The type-kind members that remain kotlin.reflect extensions
+    /// (isEnum/isInterface/isObject) resolve to their Kotlin getters; isFun is
+    /// a KDeclarationContainer member and emits the runtime call directly.
     @Test func testClassLiteralTypeKindMembersEmitRuntimeCalls() throws {
-        let cases: [(decl: String, ref: String, member: String)] = [
+        let extensionCases: [(decl: String, reference: String, member: String)] = [
             ("enum class Color { RED }", "Color", "isEnum"),
             ("interface Iface", "Iface", "isInterface"),
             ("object Singleton", "Singleton", "isObject"),
-            ("fun interface F { fun run() }", "F", "isFun"),
         ]
-        for testCase in cases {
+        for testCase in extensionCases {
             let (ctx, calls) = try callsForMain("""
             \(testCase.decl)
             fun main() {
-                println(\(testCase.ref)::class.\(testCase.member))
+                println(\(testCase.reference)::class.\(testCase.member))
             }
             """)
             let getter = try kClassExtensionGetter(named: testCase.member, in: ctx)
             #expect(
                 calls.contains { $0.symbol == getter },
-                "\(testCase.ref)::class.\(testCase.member) should resolve to the Kotlin \(testCase.member) getter, got: \(calls)"
+                "\(testCase.reference)::class.\(testCase.member) should resolve to the Kotlin \(testCase.member) getter, got: \(calls)"
             )
         }
+
+        let (ctx, calls) = try callsForMain("""
+        fun interface F { fun run() }
+        fun main() {
+            println(F::class.isFun)
+        }
+        """)
+        #expect(
+            runtimeCall(named: "__kk_kclass_is_fun", in: ctx, calls: calls) != nil,
+            "F::class.isFun should emit __kk_kclass_is_fun, got: \(calls)"
+        )
     }
 
     @Test func testVariableReceiverIsDataEmitsRuntimeCall() throws {
@@ -108,10 +126,9 @@ struct KClassBooleanIntrospectionTests {
             println(k.isData)
         }
         """)
-        let getter = try kClassExtensionGetter(named: "isData", in: ctx)
         #expect(
-            calls.contains { $0.symbol == getter },
-            Comment(rawValue: "k.isData on a KClass<Point> variable should resolve to the Kotlin isData getter "
+            runtimeCall(named: "__kk_kclass_is_data", in: ctx, calls: calls) != nil,
+            Comment(rawValue: "k.isData on a KClass<Point> variable should emit __kk_kclass_is_data "
                 + "(not fall through to an undefined _isData symbol), got: \(calls)")
         )
     }

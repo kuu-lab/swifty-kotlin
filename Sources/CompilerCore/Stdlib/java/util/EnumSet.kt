@@ -3,7 +3,6 @@ package java.util
 import java.lang.Class
 import kotlin.internal.KsSymbolName
 import kotlin.reflect.KClass
-import kotlin.reflect.isInstance
 
 // Class handles use either a reflected classifier or the Any.javaClass box.
 // Only this metadata conversion is native; collection policy stays in Kotlin.

@@ -199,6 +199,27 @@ extension CallLowerer {
                 ? freezeEvaluationOrderOperand(rawArgID, arena: arena, instructions: &instructions)
                 : rawArgID
         }
+        // KClass member calls resolved through an implicit receiver (e.g.
+        // `with(k) { isInstance(v) }`) bypass `lowerMemberCallExpr`'s
+        // kclassMembers intercept. KClass handles are runtime boxes with no
+        // source itable, so emit the same runtime registry bridges here.
+        let memberReceiverType = sema.bindings.exprTypes[receiverExpr]
+            ?? arena.exprType(loweredReceiverID)
+        if let memberReceiverType,
+           CallLowerer.kclassMembers.contains(calleeNameStr),
+           isKClassReceiverType(memberReceiverType, sema: sema, interner: interner)
+        {
+            return lowerKClassRuntimeMemberCall(
+                exprID,
+                kclassExpr: loweredReceiverID,
+                memberName: calleeNameStr,
+                valueArgs: calleeNameStr == "isInstance" ? loweredArgIDs : [],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
         let isSourceBackedMemberCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,

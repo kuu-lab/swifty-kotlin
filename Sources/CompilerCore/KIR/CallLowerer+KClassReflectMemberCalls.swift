@@ -111,9 +111,12 @@ extension CallLowerer {
         _ exprID: ExprID,
         classRefTargetType: TypeID,
         memberName: String,
+        args: [CallArgument],
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -173,10 +176,24 @@ extension CallLowerer {
             instructions: &instructions
         )
 
+        // isInstance is the only member-call-shaped KClass member; lower its
+        // value argument after the receiver box has been materialized.
+        let valueArgs: [KIRExprID] = memberName == "isInstance"
+            ? args.map {
+                driver.lowerExpr(
+                    $0.expr,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
+            : []
+
         return lowerKClassRuntimeMemberCall(
             exprID,
             kclassExpr: kclassExpr,
             memberName: memberName,
+            valueArgs: valueArgs,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -184,10 +201,11 @@ extension CallLowerer {
         )
     }
 
-    private func lowerKClassRuntimeMemberCall(
+    func lowerKClassRuntimeMemberCall(
         _ exprID: ExprID,
         kclassExpr: KIRExprID,
         memberName: String,
+        valueArgs: [KIRExprID],
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
@@ -221,6 +239,54 @@ extension CallLowerer {
         case "constructors":
             return emitRuntimeCall(
                 callee: "__kk_kclass_constructors", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+        case "simpleName":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_simple_name", arguments: [kclassExpr],
+                fallbackType: sema.types.makeNullable(sema.types.stringType)
+            )
+        case "qualifiedName":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_qualified_name", arguments: [kclassExpr],
+                fallbackType: sema.types.makeNullable(sema.types.stringType)
+            )
+        case "isInstance":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_isInstance", arguments: [kclassExpr] + valueArgs,
+                fallbackType: sema.types.booleanType
+            )
+        case "isFinal", "isOpen", "isAbstract", "isSealed", "isData",
+             "isInner", "isCompanion", "isFun", "isValue":
+            // isFinal -> __kk_kclass_is_final, etc.
+            return emitRuntimeCall(
+                callee: "__kk_kclass_is_" + memberName.dropFirst(2).lowercased(),
+                arguments: [kclassExpr],
+                fallbackType: sema.types.booleanType
+            )
+        case "members":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_members", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+        case "nestedClasses":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_nested_classes", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+        case "typeParameters":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_type_parameters", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+        case "supertypes":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_supertypes", arguments: [kclassExpr],
+                fallbackType: sema.types.anyType
+            )
+        case "visibility":
+            return emitRuntimeCall(
+                callee: "__kk_kclass_visibility", arguments: [kclassExpr],
                 fallbackType: sema.types.anyType
             )
         case "findAnnotation":
@@ -284,6 +350,7 @@ extension CallLowerer {
         _ exprID: ExprID,
         receiverExpr: ExprID,
         memberName: String,
+        args: [CallArgument],
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -298,10 +365,24 @@ extension CallLowerer {
             instructions: &instructions
         )
 
+        // isInstance is the only member-call-shaped KClass member; lower its
+        // value argument after the receiver box has been materialized.
+        let valueArgs: [KIRExprID] = memberName == "isInstance"
+            ? args.map {
+                driver.lowerExpr(
+                    $0.expr,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
+            : []
+
         return lowerKClassRuntimeMemberCall(
             exprID,
             kclassExpr: kclassExpr,
             memberName: memberName,
+            valueArgs: valueArgs,
             sema: sema,
             arena: arena,
             interner: interner,
@@ -1081,5 +1162,23 @@ extension CallLowerer {
         let kClassName = interner.intern("KClass")
         return symbol.fqName == kClassFQName
             || (symbol.name == kClassName && symbol.fqName.isEmpty)
+    }
+
+    /// Runtime KClass boxes carry no Kotlin itable, so implicit-receiver
+    /// member calls on them (e.g. `with(k) { isInstance(v) }`) must reach the
+    /// runtime bridges directly. Without this remap the call binds to the
+    /// abstract member stub and silently returns the default value.
+    func runtimeBackedKClassMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard memberName == "isInstance",
+              isKClassReceiverType(receiverType, sema: sema, interner: interner)
+        else {
+            return nil
+        }
+        return interner.intern("__kk_kclass_isInstance")
     }
 }
