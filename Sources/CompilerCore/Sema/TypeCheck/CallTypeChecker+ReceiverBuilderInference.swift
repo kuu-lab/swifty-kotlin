@@ -410,11 +410,28 @@ extension CallTypeChecker {
         var argumentTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         var knownArguments: [Int: TypeID] = [:]
         for index in args.indices where index != lambdaIndex {
+            // Variables pinned by arguments already checked in this loop are
+            // just as fixed as the receiver/explicit-argument seed: leaving
+            // them inside the contextual type would drop the expected type
+            // entirely (`mentionsVariable` below), and a nested generic call
+            // in a non-builder lambda — `combineInternal`'s
+            // `{ arrayOfNulls(flows.size) }` — then has no expected type to
+            // infer its own type argument from.
+            var iterationSubstitution = initialSolution.substitution
+            if !knownArguments.isEmpty {
+                let argumentSubstitution = ctx.resolver.probeArgumentTypeSubstitution(
+                    signature: signature,
+                    typeVarBySymbol: variables,
+                    knownArgumentTypes: knownArguments,
+                    typeSystem: sema.types
+                )
+                iterationSubstitution.merge(argumentSubstitution) { current, _ in current }
+            }
             let contextualType = mapping[index].flatMap {
                 contextualCallArgumentType(args[index], parameterIndex: $0, in: signature, ctx: ctx)
             }.map {
                 sema.types.substituteTypeParameters(
-                    in: $0, substitution: initialSolution.substitution, typeVarBySymbol: variables
+                    in: $0, substitution: iterationSubstitution, typeVarBySymbol: variables
                 )
             }
             let type = driver.inferExpr(
