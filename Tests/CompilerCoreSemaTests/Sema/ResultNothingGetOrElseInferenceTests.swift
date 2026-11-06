@@ -50,5 +50,58 @@ struct ResultNothingGetOrElseInferenceTests {
             assertHasDiagnostic("KSWIFTK-SEMA-0469", in: ctx)
         }
     }
+
+    /// KUU-4180: `getOrElse` is `<R, T : R>` — the fallback may return any
+    /// supertype of the element, so `Result<T>.toState()` must accept a
+    /// fallback that is not a `T`. The bundled member signature pins the
+    /// lambda to `T`, so the member-call special inference owns the real
+    /// semantics; the implicit-receiver form must reach it too.
+    @Test func testImplicitReceiverGetOrElseAllowsSupertypeFallback() throws {
+        let source = """
+        class CompletedExceptionally(val cause: Throwable)
+
+        fun <T> Result<T>.toState(): Any? = getOrElse { CompletedExceptionally(it) }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-4180: `getOrDefault(defaultValue: R)` is `<R, T : R>` too — an
+    /// unqualified call on an implicit `Result<T>` receiver must infer the
+    /// join of the element and default types rather than pinning to `T`.
+    @Test func testImplicitReceiverGetOrDefaultAllowsSupertypeDefault() throws {
+        let source = """
+        fun <T> Result<T>.describe(): Any? = getOrDefault("empty")
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-4180: same `<R, T : R>` shape through an explicit `this`
+    /// receiver, which takes the member-call path directly.
+    @Test func testExplicitReceiverGetOrElseAllowsSupertypeFallback() throws {
+        let source = """
+        class CompletedExceptionally(val cause: Throwable)
+
+        fun <T> Result<T>.toState(): Any? = this.getOrElse { CompletedExceptionally(it) }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif

@@ -49,6 +49,62 @@ extension CallTypeChecker {
         return returnType
     }
 
+    /// KUU-4180: an unqualified `getOrElse`/`getOrDefault` on an implicit
+    /// `Result<T>` receiver must use the same inference as the explicit
+    /// `this.member(...)` form — the bundled member signatures cannot
+    /// express Kotlin's `<R, T : R>` shape, so the member-call special
+    /// cases own the real semantics. Without this, `fun <T> Result<T>.f()
+    /// = getOrElse { Other() }` pins the fallback to `T` and fails with
+    /// KSWIFTK-TYPE-0001.
+    func inferImplicitReceiverResultMemberCall(
+        _ id: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID]
+    ) -> TypeID? {
+        let sema = ctx.sema
+        let name = ctx.interner.resolve(calleeName)
+        // `getOrDefault(defaultValue: R)` is `<R, T : R>`: the member accepts
+        // any single argument (R = lub(T, arg)), so it always outranks a
+        // same-named extension and every one-argument call is intercepted.
+        // `getOrElse` takes `(Throwable) -> R`, so only a single-parameter
+        // (or implicit-`it`) lambda literal is intercepted — the shape the
+        // member always accepts. A non-literal or multi-parameter argument
+        // could belong to a same-named user extension instead.
+        let isInterceptableArgument: Bool = {
+            guard args.count == 1 else { return false }
+            if name == "getOrDefault" { return true }
+            guard case let .lambdaLiteral(params, _, _, _) = ctx.ast.arena.expr(args[0].expr)
+            else {
+                return false
+            }
+            return params.count <= 1
+        }()
+        guard name == "getOrElse" || name == "getOrDefault",
+              isInterceptableArgument,
+              explicitTypeArgs.isEmpty,
+              locals[calleeName] == nil,
+              let receiverType = ctx.implicitReceiverType,
+              extractResultElementType(
+                  sema.types.makeNonNullable(receiverType),
+                  sema: sema,
+                  interner: ctx.interner
+              ) != nil
+        else {
+            return nil
+        }
+        let thisExpr = ctx.ast.arena.appendExpr(.thisRef(label: nil, range))
+        return inferMemberCallExpr(
+            id, receiverID: thisExpr, calleeName: calleeName,
+            args: args, range: range, ctx: ctx, locals: &locals,
+            expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
+        )
+    }
+
     /// KUU-4310: probe whether `this.invoke(args)` on a function-typed
     /// implicit receiver is applicable *before* ordinary scope candidates
     /// commit. Kotlin's call tower resolves implicit-receiver members ahead

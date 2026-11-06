@@ -116,6 +116,15 @@ extension CallTypeChecker {
         ) {
             return memberType
         }
+        if let calleeName,
+           let resultMemberType = inferImplicitReceiverResultMemberCall(
+               id, calleeName: calleeName, args: args, range: range,
+               ctx: ctx, locals: &locals, expectedType: expectedType,
+               explicitTypeArgs: explicitTypeArgs
+           )
+        {
+            return resultMemberType
+        }
         if let customBuilderType = inferExperimentalBuilderCallExpr(
             id,
             calleeName: calleeName,
