@@ -11,8 +11,6 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.cancel
-import kotlinx.coroutines.channels.close
 import kotlinx.coroutines.channels.iterator
 import kotlinx.coroutines.channels.hasNext
 import kotlinx.coroutines.channels.next

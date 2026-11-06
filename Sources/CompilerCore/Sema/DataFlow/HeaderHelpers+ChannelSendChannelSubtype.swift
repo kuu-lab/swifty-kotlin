@@ -7,8 +7,13 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let package = ["kotlinx", "coroutines", "channels"].map(interner.intern)
+        // KUU-4072: `Channel` is an interface upstream; accept the synthetic
+        // shell in either nominal kind so the no-stdlib path still gets the
+        // SendChannel edge (the bundled source declaration carries it
+        // directly when stdlib source is present).
         guard let channel = symbols.lookupAll(fqName: package + [interner.intern("Channel")]).first(where: {
-            symbols.symbol($0)?.kind == .class && symbols.symbol($0)?.flags.contains(.synthetic) == true
+            let kind = symbols.symbol($0)?.kind
+            return (kind == .class || kind == .interface) && symbols.symbol($0)?.flags.contains(.synthetic) == true
         }),
         let sendChannel = symbols.lookupAll(fqName: package + [interner.intern("SendChannel")]).first(where: {
             symbols.symbol($0)?.kind == .interface

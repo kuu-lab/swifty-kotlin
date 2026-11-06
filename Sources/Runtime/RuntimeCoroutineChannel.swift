@@ -822,11 +822,17 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
         closed = true
         cancelled = true
-        closeCause = cause == runtimeNullSentinelInt ? 0 : cause
+        // Upstream `cancel(cause)` installs the cause as the channel's close
+        // cause, so receive-side results and close handlers observe it. A
+        // default `cancel()` retains `CancellationException("Channel was
+        // cancelled")` — share one instance between closeCause and
+        // cancelCauseRaw instead of leaving closeCause at 0.
+        let effectiveCause = cause == runtimeNullSentinelInt
+            ? runtimeAllocateCancellationException(message: "Channel was cancelled")
+            : cause
+        closeCause = effectiveCause
         if cancelCauseRaw == 0 {
-            cancelCauseRaw = closeCause != 0
-                ? closeCause
-                : runtimeAllocateCancellationException(message: "Channel was cancelled")
+            cancelCauseRaw = effectiveCause
         }
         buffer.drain()
         let pendingSenders = senderQueue.drain()
@@ -1820,10 +1826,16 @@ private func channelResultSendCause(channel: RuntimeChannelHandle, status: Chann
 
 /// Close cause for a receive-side operation result box: the channel's retained
 /// close cause verbatim (0 when the channel closed normally) — upstream
-/// `tryReceive`/`receiveCatching` report `closed(closeCause)`.
+/// `tryReceive`/`receiveCatching` report `closed(closeCause)`. A cancelled
+/// channel instead reports its cancellation cause (upstream
+/// `cancelled(cancelCause)`), matching `channelStatusThrowable`; the close
+/// cause stays 0 for a default `cancel()`.
 private func channelResultReceiveCause(channel: RuntimeChannelHandle, status: ChannelOperationStatus) -> Int {
     guard status == .closed || status == .cancelled else {
         return 0
+    }
+    if status == .cancelled {
+        return channel.cancellationThrowable()
     }
     return channel.closeCauseSnapshot()
 }
