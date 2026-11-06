@@ -99,5 +99,39 @@ struct ImplicitReceiverInapplicableExtensionScopeTests {
             #expect(sema.bindings.exprType(for: call) == sema.types.unitType)
         }
     }
+
+    /// KUU-4093: inside an extension body, a receiver lambda's own members
+    /// must win over a same-named scope extension that only matches an outer
+    /// tower entry. `callImplicitReceiverType` was picked from the scope
+    /// candidates (the `Recv.indexOf` extension matching the `Recv`
+    /// extension receiver), so the lambda body's `Idx.indexOf` member was
+    /// checked against `Recv` and rejected with SEMA-0002.
+    @Test
+    func lambdaReceiverMemberBeatsOuterReceiverScopeExtension() throws {
+        let source = """
+        class Recv
+        class Idx { fun indexOf(s: String): Int = 0 }
+        fun <R> withIdx(block: Idx.() -> R): R = Idx().block()
+        fun Recv.indexOf(s: String): String = "outer"
+        fun Recv.probe(): Int = withIdx { indexOf("x") }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            try runToKIR(ctx)
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let callees = findAllKIRFunctions(in: module).flatMap(\.body).compactMap { instruction -> SymbolID? in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "indexOf"
+                else { return nil }
+                return symbol
+            }
+            let chosen = try #require(callees.first)
+            let chosenSymbol = try #require(sema.symbols.symbol(chosen))
+            #expect(chosenSymbol.fqName == [ctx.interner.intern("Idx"), ctx.interner.intern("indexOf")])
+        }
+    }
 }
 #endif
