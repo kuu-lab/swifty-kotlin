@@ -53,6 +53,7 @@ public open class NSUserDefaults internal constructor(handle: Long) : NSObject(h
     public fun dictionaryRepresentation(): Map<Any?, Any?> =
         __foundation_plist_map_unwrap(__foundation_defaults_dictionary_representation(__handle))
 
+    @Suppress("UNCHECKED_CAST")
     public fun persistentDomainForName(domainName: String): Map<Any?, Any?>? =
         (__foundation_defaults_persistent_domain_for_name(__handle, domainName) as? Map<Any?, Any?>)
             ?.let(::__foundation_plist_map_unwrap)
