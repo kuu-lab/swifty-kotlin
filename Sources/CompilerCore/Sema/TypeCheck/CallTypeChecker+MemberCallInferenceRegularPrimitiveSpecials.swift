@@ -92,6 +92,25 @@ extension CallTypeChecker {
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
+            // kotlinc exposes six compareTo overloads on each signed primitive
+            // receiver, so `i.compareTo(TODO())` is ambiguous there. KSwiftK
+            // binds the single Comparable<T> member instead and must report the
+            // ambiguity itself (KUU-4351). Unsigned primitives keep their
+            // unique resolution, matching kotlinc.
+            if interner.resolve(calleeName) == "compareTo",
+               case .nothing(.nonNull) = sema.types.kind(of: argTypes[0]),
+               receiverForCheck == byteType || receiverForCheck == shortType
+                   || receiverForCheck == intType || receiverForCheck == longType
+                   || receiverForCheck == floatType || receiverForCheck == doubleType
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0003",
+                    "Ambiguous overload resolution.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // Range expressions use their scalar element type as the lowering
             // type. Keep them out of the numeric fast path so range extensions
             // such as Iterable.plus/minus can be resolved from the source-level
