@@ -114,6 +114,7 @@ extension TypeCheckHelpers {
         interner: StringInterner,
         scope: Scope? = nil,
         diagnostics: DiagnosticEngine? = nil,
+        inferenceContext: TypeInferenceContext? = nil,
         usageRange: SourceRange? = nil
     ) -> [TypeID] {
         guard !typeArgRefs.isEmpty else { return [] }
@@ -122,7 +123,7 @@ extension TypeCheckHelpers {
                 // Keep the argument's position while leaving its type variable to normal call inference.
                 return TypeID.invalid
             }
-            return resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, usageRange: usageRange)
+            return resolveTypeRef(typeRefID, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics, inferenceContext: inferenceContext, usageRange: usageRange)
         }
     }
 

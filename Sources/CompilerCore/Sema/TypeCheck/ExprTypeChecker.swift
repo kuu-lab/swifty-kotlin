@@ -461,7 +461,7 @@ final class ExprTypeChecker {
             )
 
         case let .call(calleeID, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, inferenceContext: ctx, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             callCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
@@ -471,7 +471,7 @@ final class ExprTypeChecker {
             return driver.callChecker.inferCallExpr(id, calleeID: calleeID, args: args, range: range, ctx: callCtx, locals: &locals, expectedType: expectedType, explicitTypeArgs: explicitTypeArgs)
 
         case let .memberCall(receiverID, calleeName, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, inferenceContext: ctx, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             callCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
@@ -839,7 +839,7 @@ final class ExprTypeChecker {
             return type
 
         case let .safeMemberCall(receiverID, calleeName, typeArgRefs, args, range):
-            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, usageRange: range)
+            let explicitTypeArgs = driver.helpers.resolveExplicitTypeArgs(typeArgRefs, ast: ast, sema: sema, interner: interner, scope: ctx.scope, diagnostics: ctx.sema.diagnostics, inferenceContext: ctx, usageRange: range)
             var callCtx = ctx
             callCtx.isCallResultDiscarded = isStatementContext && expectedType == nil
             callCtx.receiverConditionallyEvaluated = ctx.isConditionallyEvaluated
