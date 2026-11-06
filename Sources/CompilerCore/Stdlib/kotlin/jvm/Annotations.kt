@@ -70,6 +70,19 @@ public annotation class JvmSuppressWildcards(val suppress: Boolean = true)
 @MustBeDocumented
 public annotation class JvmWildcard
 
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+@SinceKotlin("2.2")
+@ExperimentalStdlibApi
+@Target(
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.CONSTRUCTOR,
+    AnnotationTarget.PROPERTY_GETTER,
+    AnnotationTarget.PROPERTY_SETTER,
+    AnnotationTarget.CLASS
+)
+public annotation class JvmExposeBoxed(val jvmName: String = "")
+
 // Generic extension properties are not yet supported by the parser. Keep the
 // Annotation upper bound, as with the source-backed KClass extension properties.
 public val Annotation.annotationClass: KClass<out Annotation>
