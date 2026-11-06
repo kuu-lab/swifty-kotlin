@@ -785,6 +785,29 @@ extension ExprTypeChecker {
             }
         }
         if !operatorCandidates.isEmpty {
+            // KUU-4351: a `Nothing` receiver has no member operators, so every
+            // "applicable" candidate is a generic extension whose inference
+            // collapses to errorType silently. kotlinc rejects arithmetic and
+            // comparison operators with a Nothing lhs outright.
+            let isNothingReceiverOperator: Bool = switch op {
+            case .add, .subtract, .multiply, .divide, .modulo,
+                 .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+            if isNothingReceiverOperator,
+               lhs != sema.types.errorType, rhs != sema.types.errorType,
+               case .nothing(.nonNull) = sema.types.kind(of: lhs)
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             let isComparisonOperator: Bool = switch op {
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 true
@@ -960,6 +983,59 @@ extension ExprTypeChecker {
             }
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
+        }
+        // KUU-4351: a non-null `Nothing` operand is a subtype of every operator
+        // parameter type, so kotlinc keeps only uniquely-resolvable overloads —
+        // the unsigned receivers and Char's plus/compareTo accept it, signed
+        // and floating-point receivers are ambiguous, and a `Nothing` receiver
+        // has no member operators (the remaining extension set is ambiguous as
+        // well). Range operators keep the Nothing-peer handling above; equality
+        // never reaches this path.
+        let isNonNullNothingType: (TypeID) -> Bool = { candidate in
+            if case .nothing(.nonNull) = sema.types.kind(of: candidate) {
+                return true
+            }
+            return false
+        }
+        let isNothingOperandOperator: Bool = switch op {
+        case .add, .subtract, .multiply, .divide, .modulo,
+             .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            true
+        default:
+            false
+        }
+        if isNothingOperandOperator,
+           lhs != sema.types.errorType, rhs != sema.types.errorType,
+           isNonNullNothingType(lhs) || isNonNullNothingType(rhs)
+        {
+            let isNothingOperandComparison: Bool = switch op {
+            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+            let resultType: TypeID? = if isNonNullNothingType(lhs) {
+                nil
+            } else if sema.types.isUnsigned(lhs) {
+                isNothingOperandComparison ? boolType : (lhs == ulongType ? ulongType : uintType)
+            } else if lhs == charType, op == .add {
+                charType
+            } else if lhs == charType, isNothingOperandComparison {
+                boolType
+            } else {
+                nil
+            }
+            if let resultType {
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            }
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
         }
         let isRelationalComparison: Bool = switch op {
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:

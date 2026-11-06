@@ -134,6 +134,24 @@ extension CallTypeChecker {
                 }
                 return false
             }()
+            // KUU-4351: operator `compareTo` calls take the member-call path
+            // too, but a non-null `Nothing` argument makes every primitive
+            // overload applicable and kotlinc reports the signed and
+            // floating-point sets as ambiguous. Char and the unsigned types
+            // keep a unique winner and fall through to normal resolution.
+            if interner.resolve(calleeName) == "compareTo",
+               isNonNullNothingOperand,
+               receiverForCheck == byteType || receiverForCheck == shortType
+                   || receiverForCheck == intType || receiverForCheck == longType
+                   || receiverForCheck == floatType || receiverForCheck == doubleType
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0003",
+                    "Ambiguous overload resolution.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             // KUU-3954: Kotlin's primitive arithmetic members take only
             // non-null numeric operands — `x.plus(xn)` where xn: Int? is
             // rejected by kotlinc — but the fast path used to strip operand
