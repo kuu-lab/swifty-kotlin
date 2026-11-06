@@ -489,6 +489,18 @@ extension BuildASTPhase.ExpressionParser {
             }
         }
 
+        // A line-leading token that cannot begin a branch condition —
+        // `?:`/`&&`/`||`/comparisons/`.`/`?.`/`as` and the other binary or
+        // postfix operators — continues the previous branch's body
+        // expression rather than opening a new entry, so it must not be
+        // scanned for a `->` (KUU-4186).
+        let firstKind = tokens[startIndex].kind
+        guard firstKind == .keyword(.is) || firstKind == .keyword(.in)
+            || firstKind == .symbol(.at) || canStartExpression(tokens[startIndex])
+        else {
+            return false
+        }
+
         var scan = startIndex
         var parenDepth = 0
         var bracketDepth = 0

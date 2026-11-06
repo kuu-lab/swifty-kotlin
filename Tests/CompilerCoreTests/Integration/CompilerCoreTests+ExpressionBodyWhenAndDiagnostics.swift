@@ -616,6 +616,48 @@ extension CompilerCoreTests {
         }
     }
 
+    /// KUU-4186: a newline-leading binary operator (`?:`, `&&`, comparisons,
+    /// …) inside a when-branch body continues that body's expression — it can
+    /// never open a new entry, so the body-end scan must not mistake it for a
+    /// branch header just because a later `->` exists. Previously the scan
+    /// accepted `?:` as a header candidate, truncated the body to its
+    /// nullable prefix, and the resulting `when` type failed the declared
+    /// return-type check (KSWIFTK-SEMA-0469), as in kotlinx-coroutines'
+    /// `JobSupport.getCancellationException`.
+    @Test func testWhenBranchBodyOperatorContinuationIsNotABranchHeader() throws {
+        let source = """
+        sealed class State {
+            class Finishing(val rootCause: Int?) : State()
+            class Done : State()
+        }
+        fun describe(state: State): Int =
+            when (state) {
+                is State.Finishing -> state.rootCause
+                    ?: 0
+                is State.Done -> 1
+            }
+        fun unwrap(state: State): Int =
+            when (state) {
+                is State.Finishing -> state.rootCause
+                    ?.let { it + 1 }
+                    ?: 0
+                is State.Done -> 1
+            }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            assertNoDiagnostic("KSWIFTK-PARSE-0010", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-PARSE-0011", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0469", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0004", in: diagnostics)
+            assertNoDiagnostic("KSWIFTK-SEMA-0071", in: diagnostics)
+        }
+    }
+
     /// KUU-4096: the multiline-continuation fix must not make genuinely
     /// non-exhaustive when expressions pass — a sealed branch that is only
     /// named inside a dropped/broken entry still has to be reported.

@@ -601,7 +601,7 @@ extension BuildASTPhase {
             return true
         }
 
-        private func canStartExpression(_ token: Token) -> Bool {
+        func canStartExpression(_ token: Token) -> Bool {
             switch token.kind {
             case .identifier, .backtickedIdentifier,
                  .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral, .charLiteral,
