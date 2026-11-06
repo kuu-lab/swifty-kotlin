@@ -336,5 +336,82 @@ struct CompanionClassScopeTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    /// KUU-4388: named objects and non-inner nested classes are static — they
+    /// must not resolve the enclosing class's instance members, which have no
+    /// valid receiver there.
+    @Test(arguments: [
+        """
+        class E {
+            val x = 7
+            companion object { val c = x }
+        }
+        """,
+        """
+        class E {
+            val x = 7
+            object Nested { val c = x }
+        }
+        """,
+        """
+        class E {
+            val x = 7
+            class Nested { val c = x }
+        }
+        """,
+        """
+        class E {
+            fun l(): Int = 1
+            companion object { fun g() = l() }
+        }
+        """,
+        """
+        class E {
+            fun l(): Int = 1
+            object Nested { fun g() = l() }
+        }
+        """,
+    ])
+    func staticNestedScopeCannotReadOuterInstanceMembers(source: String) throws {
+        let path = "/virtual/static-nested-scope.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-4388: the same scopes must keep resolving members that do have a
+    /// valid receiver — inner-class outer instances, enclosing singleton
+    /// objects, the companion's own members, and enum entries.
+    @Test func staticNestedScopeKeepsValidReceiverMembers() throws {
+        let path = "/virtual/static-nested-scope-ok.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        open class B { val bx = 11 }
+        interface I { val ix: Int }
+        class E : B(), I {
+            override val ix = 3
+            val x = 7
+            fun f() = x + bx + ix
+            inner class Inner { fun g() = x + bx }
+            class Nested { fun h() = 1 }
+            companion object {
+                val cv = 5
+                fun cf() = cv
+                fun make(): Nested? = null
+            }
+        }
+        enum class En { A, B;
+            companion object { fun pick() = A }
+        }
+        object O {
+            val ox = 13
+            class Inner2 { fun f() = ox }
+            object Nested2 { val c = ox }
+        }
+        """.utf8))
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
