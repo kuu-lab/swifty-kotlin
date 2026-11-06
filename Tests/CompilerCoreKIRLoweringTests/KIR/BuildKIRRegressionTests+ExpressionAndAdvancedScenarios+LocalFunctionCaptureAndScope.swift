@@ -490,5 +490,96 @@ extension BuildKIRRegressionTests {
             "outer must transitively capture `x` to forward it into bar"
         )
     }
+
+    @Test
+    func testLocalFunctionCapturingBoxedFunctionValue() throws {
+        // KUU-4334: a local `fun` capturing a `kk_function_create_N` boxed
+        // function value must not try to remap the box's packed-environment
+        // capture argument — it is an opaque object temp with no body-side
+        // expression. The capture stays unregistered so invokes inside the
+        // body lower to the generic `kk_function_invoke*` ABI.
+        let sources: [String] = [
+            """
+            package sampleBoxAlias
+            fun mainBoxAlias(): Int {
+                val unrelated: () -> Int = { 30 }
+                fun localAlias(): Int {
+                    val x = unrelated
+                    return x()
+                }
+                return localAlias()
+            }
+            """,
+            """
+            package sampleBoxDirect
+            fun topBox(): Int = 7
+            fun mainBoxDirect(): Int {
+                val unrelated: (Int) -> Int = { it + topBox() }
+                fun localDirect(): Int = unrelated(3)
+                return localDirect()
+            }
+            """,
+            """
+            package sampleBoxReceiver
+            class WrongArity(val seed: Int)
+            fun mainBoxReceiver(): Int {
+                val unrelated: WrongArity.() -> Int = { 30 }
+                fun localReceiver(): Int {
+                    val apply = unrelated
+                    return WrongArity(6).seed
+                }
+                return localReceiver()
+            }
+            """,
+            """
+            package sampleBoxNested
+            fun mainBoxNested(): Int {
+                val unrelated: () -> Int = { 11 }
+                fun outerBox(): Int {
+                    fun innerBox(): Int = unrelated()
+                    return innerBox()
+                }
+                return outerBox()
+            }
+            """,
+            """
+            package sampleBoxAnon
+            fun mainBoxAnon(): Int {
+                val unrelated: () -> Int = fun(): Int { return 5 }
+                fun localAnon(): Int = unrelated()
+                return localAnon()
+            }
+            """,
+            """
+            package sampleBoxRef
+            fun mainBoxRef(): Int {
+                val seed = 4
+                fun helper(): Int = seed + 1
+                val unrelated: () -> Int = ::helper
+                fun localRef(): Int = unrelated()
+                return localRef()
+            }
+            """
+        ]
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Local functions capturing boxed function values should compile: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+        let module = try #require(ctx.kir)
+        let runtime = try RuntimeNames()
+
+        let aliasBody = try findKIRFunctionBody(named: "localAlias", in: module, interner: ctx.interner)
+        #expect(
+            extractCallees(from: aliasBody, interner: ctx.interner).contains(try runtime.functionInvoke(arity: 0)),
+            "Expected the captured box invoke to lower to kk_function_invoke_0"
+        )
+        let directBody = try findKIRFunctionBody(named: "localDirect", in: module, interner: ctx.interner)
+        #expect(
+            extractCallees(from: directBody, interner: ctx.interner).contains(runtime[.functionInvoke]),
+            "Expected the captured box invoke to lower to kk_function_invoke"
+        )
+    }
 }
 #endif
