@@ -280,7 +280,7 @@ extension CallTypeChecker {
     /// is a facade only for those exact modeled properties — user,
     /// member, or other bundled functions keep Kotlin's
     /// invocation-syntax requirement.
-    private func isBundledPropertyStyleFacadeFunction(
+    func isBundledPropertyStyleFacadeFunction(
         _ candidate: SymbolID,
         ctx: TypeInferenceContext
     ) -> Bool {
