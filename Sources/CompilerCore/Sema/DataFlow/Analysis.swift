@@ -415,6 +415,74 @@ final class DataFlowAnalyzer {
         return variables
     }
 
+    /// `(x as? T)?.f(args)` evaluates the call's arguments only when the
+    /// safe cast produced a non-null value — i.e. the cast succeeded — so a
+    /// stable cast operand narrows to the non-null target type while they
+    /// are checked (`(plus as? String)?.let { plus.length }`, KUU-4344).
+    /// Like the `?.` receiver narrowing this is scoped to the arguments: the
+    /// cast may still have failed, so the narrowed local must be restored.
+    func narrowSafeCastOperand(
+        _ receiverID: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        guard case let .asCast(operandID, _, isSafe, _) = ast.arena.expr(receiverID),
+              isSafe,
+              let castTarget = sema.bindings.castTargetType(for: receiverID),
+              let (symbol, currentType, _) = resolveStableReference(
+                  operandID,
+                  locals: locals,
+                  ast: ast,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return base
+        }
+        let nonNullTarget = makeTypeNonNullable(castTarget, types: sema.types)
+        let effectiveType: TypeID = if let baseState = base[symbol],
+                                       baseState.possibleTypes.count == 1,
+                                       let baseType = baseState.possibleTypes.first
+        {
+            baseType
+        } else {
+            currentType
+        }
+        // Mirror the `as` cast refinement: keep an already-narrower type,
+        // take the target when it is more specific, otherwise intersect.
+        let refinedType: TypeID
+        if sema.types.isSubtype(effectiveType, nonNullTarget) {
+            refinedType = effectiveType
+        } else if sema.types.isSubtype(nonNullTarget, effectiveType) {
+            refinedType = nonNullTarget
+        } else {
+            refinedType = sema.types.make(.intersection([effectiveType, nonNullTarget]))
+        }
+        // Re-resolve with the final type so the closure-write check proves
+        // preservation against the narrowed type, not just the cast target.
+        guard let (_, _, isStable) = resolveStableReference(
+            operandID,
+            locals: locals,
+            ast: ast,
+            sema: sema,
+            interner: interner,
+            narrowingType: refinedType
+        ), isStable else {
+            return base
+        }
+        var variables = base
+        variables[symbol] = VariableFlowState(
+            possibleTypes: [refinedType],
+            nullability: .nonNull,
+            isStable: true,
+            valueFacts: base[symbol]?.valueFacts ?? DataFlowValueFacts()
+        )
+        return variables
+    }
+
     /// Narrows each stable side of an equality comparison to the other side's
     /// type when that type is strictly more precise (Kotlin smart cast on
     /// `x === y` / `x == y`).

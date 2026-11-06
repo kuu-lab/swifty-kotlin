@@ -100,9 +100,19 @@ extension CallTypeChecker {
         // still be null afterwards, so the narrowed local must be restored.
         if safeCall {
             let baseState = ctx.flowState.includingMembers(from: locals)
-            let narrowedState = ctx.dataFlow.narrowNonNull(
+            var narrowedState = ctx.dataFlow.narrowNonNull(
                 receiverID,
                 base: baseState,
+                locals: locals,
+                ast: ctx.ast,
+                sema: ctx.sema,
+                interner: ctx.interner
+            )
+            // `(x as? T)?.f(...)` narrows the cast operand to T inside the
+            // arguments the same way a stable receiver narrows to non-null.
+            narrowedState = ctx.dataFlow.narrowSafeCastOperand(
+                receiverID,
+                base: narrowedState,
                 locals: locals,
                 ast: ctx.ast,
                 sema: ctx.sema,
