@@ -28,6 +28,11 @@ struct FunctionReturnTypeNewlineTests {
         // Extension property declared types share the same tail position.
         "class R\nval R.x\n    : Int\n    get() = 1",
         "class R\nval R.x\n    : Int = 1",
+        // KUU-4333: a declared type may also precede a delegation `by`, and an
+        // `object` literal delegate keeps its own supertype colon on the next
+        // line (`val x by object\n    : D { }`).
+        "val x\n    : Int\n    by lazy { 1 }",
+        "val x by object\n    : D { }",
     ])
     func newlineTypeColonParses(source: String) {
         let parsed = parse(source)
@@ -83,6 +88,25 @@ struct FunctionReturnTypeNewlineTests {
 
         #expect(parsed.arena.node(parsed.root).kind == .script)
         #expect(parsed.arena.nodes.count { $0.kind == .funDecl } == 1)
+        #expect(parsed.arena.nodes.contains { $0.kind == .statement })
+    }
+
+    @Test
+    func colonAfterDelegationByIsNotAbsorbed() {
+        // KUU-4333: once `by` starts a delegate expression the signature
+        // region is over. A `:` on the next line cannot be a declared type —
+        // kotlinc rejects `val x by foo()\n    : Int` with "Expecting a top
+        // level declaration" — so the colon must stay a stray top-level
+        // statement (which the driver later rejects with KSWIFTK-PARSE-0025)
+        // instead of being absorbed into the delegate expression where it
+        // would be silently dropped.
+        let parsed = parse("""
+        val x by foo()
+            : Int
+        """)
+
+        #expect(parsed.arena.node(parsed.root).kind == .script)
+        #expect(parsed.arena.nodes.contains { $0.kind == .propertyDecl })
         #expect(parsed.arena.nodes.contains { $0.kind == .statement })
     }
 
