@@ -149,6 +149,16 @@ public final class ImportedInlineFunctionStore {
         )
     }
 
+    /// Drops a materialized body from the expansion tables. The wasm
+    /// backend emits such bodies as ordinary module functions and calls
+    /// them directly, so the symbol must stop counting as a bodyless
+    /// callee that every call site has to expand.
+    func removeMaterializedFunction(for symbol: SymbolID) {
+        functions.removeValue(forKey: symbol)
+        descriptors.removeValue(forKey: symbol)
+        pendingBodySymbols.remove(symbol)
+    }
+
     /// The expansion-ready body for `symbol`, resolving its descriptor on
     /// first access: read + parse the artifact, then rebind its expression
     /// IDs into `arena`. Returns `nil` when no body is available — an unknown
