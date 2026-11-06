@@ -430,4 +430,244 @@ extension CallTypeChecker {
             return sema.types.isSubtype(argumentType, expectedType)
         }
     }
+
+    /// KUU-4330: Map members admitted by the synthetic fallback
+    /// (`contains`/`containsKey`/`containsValue`/`getValue`/`getOrDefault`/
+    /// `getOrElse`/`getOrPut`/`putAll`/`plus`/`minus`) are not in
+    /// `sourceBackedCollectionMemberNames`, so they bind here before regular
+    /// overload resolution without consulting their real `K`/`V` parameter
+    /// signatures — `map.containsValue(2..4)` compiled even though kotlinc
+    /// rejects it. Validate each non-lambda argument against the key/value
+    /// types carried by the receiver's `Map.Entry<K, V>` element type and
+    /// return false when an argument provably cannot conform, so the call
+    /// falls through to regular resolution which reports the mismatch.
+    func collectionFallbackMapCallArgumentsAreAdmissible(
+        memberName: InternedString,
+        args: [CallArgument],
+        receiverElementType: TypeID,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
+        let resolvedName = interner.resolve(memberName)
+
+        // Only members whose parameters are the map's key/value types (or
+        // collections of keys/pairs derived from them) need checking. The
+        // rest take no value arguments or only destination/lambda parameters
+        // the fallback already models. `contains` never reaches this fallback
+        // (tryCollectionMemberFallback rejects the name up front).
+        guard [
+            "containsKey", "containsValue", "getValue",
+            "getOrDefault", "getOrElse", "getOrPut",
+            "putAll", "plus", "minus",
+        ].contains(resolvedName) else {
+            return true
+        }
+
+        // K/V are recovered from the receiver's Map.Entry<K, V> element type.
+        // Star projections or non-map element shapes leave nothing reliable
+        // to check against, so they stay admissible like before.
+        guard case let .classType(entryType) = sema.types.kind(
+            of: sema.types.makeNonNullable(receiverElementType)
+        ), entryType.args.count >= 2 else {
+            return true
+        }
+        func projectedArgument(_ typeArg: TypeArg) -> TypeID {
+            switch typeArg {
+            case let .invariant(type), let .out(type), let .in(type): type
+            case .star: sema.types.anyType
+            }
+        }
+        let keyType = projectedArgument(entryType.args[0])
+        let valueType = projectedArgument(entryType.args[1])
+
+        func nominalArgumentType(
+            _ fqName: [InternedString],
+            arguments: [TypeArg]
+        ) -> TypeID? {
+            guard let symbol = sema.symbols.lookup(fqName: fqName) else {
+                return nil
+            }
+            return sema.types.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: arguments,
+                nullability: .nonNull
+            )))
+        }
+
+        let mapArgumentType = nominalArgumentType(
+            knownNames.kotlinCollectionsMapFQName,
+            arguments: [.out(keyType), .out(valueType)]
+        )
+        let pairArgumentType: TypeID? = {
+            guard let pairSymbol = sema.symbols.lookup(
+                fqName: [interner.intern("kotlin"), knownNames.pair]
+            ) ?? sema.symbols.lookupByShortName(knownNames.pair).first else {
+                return nil
+            }
+            return sema.types.make(.classType(ClassType(
+                classSymbol: pairSymbol,
+                args: [.out(keyType), .out(valueType)],
+                nullability: .nonNull
+            )))
+        }()
+        let defaultValueFunctionType = sema.types.make(.functionType(FunctionType(
+            params: [],
+            returnType: valueType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        // `minus(key:)` / `minus(keys:)` and the `plus` overloads share one
+        // call shape, so an unlabeled argument may conform to any of their
+        // parameter types. Labeled arguments resolve to the matching
+        // overload's parameter instead.
+        var minusKeyCollectionShapes: [TypeID] = []
+        for fqName in [
+            knownNames.kotlinCollectionsIterableFQName,
+            knownNames.kotlinArrayFQName,
+            knownNames.kotlinSequenceFQName,
+        ] {
+            if let shape = nominalArgumentType(fqName, arguments: [.out(keyType)]) {
+                minusKeyCollectionShapes.append(shape)
+            }
+        }
+        var plusPairCollectionShapes: [TypeID] = []
+        if let pairArgumentType {
+            for fqName in [
+                knownNames.kotlinCollectionsIterableFQName,
+                knownNames.kotlinSequenceFQName,
+                knownNames.kotlinArrayFQName,
+            ] {
+                if let shape = nominalArgumentType(fqName, arguments: [.out(pairArgumentType)]) {
+                    plusPairCollectionShapes.append(shape)
+                }
+            }
+        }
+        var plusUnlabeledShapes: [TypeID] = []
+        if let pairArgumentType { plusUnlabeledShapes.append(pairArgumentType) }
+        if let mapArgumentType { plusUnlabeledShapes.append(mapArgumentType) }
+        plusUnlabeledShapes.append(contentsOf: plusPairCollectionShapes)
+
+        func expectationShapes(for argument: CallArgument, position: Int) -> [TypeID] {
+            if let label = argument.label {
+                switch interner.resolve(label) {
+                case "key": return [keyType]
+                case "value" where resolvedName == "containsValue": return [valueType]
+                case "defaultValue":
+                    switch resolvedName {
+                    case "getOrDefault": return [valueType]
+                    case "getOrElse", "getOrPut": return [defaultValueFunctionType]
+                    default: return []
+                    }
+                case "from" where resolvedName == "putAll":
+                    return mapArgumentType.map { [$0] } ?? []
+                case "keys" where resolvedName == "minus": return minusKeyCollectionShapes
+                case "pair" where resolvedName == "plus":
+                    return pairArgumentType.map { [$0] } ?? []
+                case "map" where resolvedName == "plus":
+                    return mapArgumentType.map { [$0] } ?? []
+                case "pairs" where resolvedName == "plus": return plusPairCollectionShapes
+                default: return []
+                }
+            }
+            switch (resolvedName, position) {
+            case ("containsKey", 0), ("getValue", 0):
+                return [keyType]
+            case ("containsValue", 0):
+                return [valueType]
+            case ("getOrDefault", 0):
+                return [keyType]
+            case ("getOrDefault", 1):
+                return [valueType]
+            case ("getOrElse", 0), ("getOrPut", 0):
+                return [keyType]
+            case ("getOrElse", 1), ("getOrPut", 1):
+                return [defaultValueFunctionType]
+            case ("putAll", 0):
+                return mapArgumentType.map { [$0] } ?? []
+            case ("minus", 0):
+                return [keyType] + minusKeyCollectionShapes
+            case ("plus", 0):
+                return plusUnlabeledShapes
+            default:
+                return []
+            }
+        }
+
+        for (index, argument) in args.enumerated() {
+            guard !argument.isSpread else { continue }
+            // Lambda and callable-reference arguments are typed by the
+            // fallback's lambda expectation paths, not by this check.
+            if ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                continue
+            }
+            let shapes = expectationShapes(for: argument, position: index)
+            guard !shapes.isEmpty else { continue }
+            let argumentExpr = argument.expr
+            // Infer without an expected type: a mismatched literal binds the
+            // error type under a foreign expected type and would be skipped
+            // below (`getOrDefault(1, 2)` on a `Map<Int, String>`), while
+            // plain inference keeps the real argument type for the subtype
+            // check. Unsuffixed integer literals adapt through
+            // `integerLiteralFitsParameter` instead, like kotlinc's literal
+            // typing against the substituted parameter type.
+            let inferredArgumentType: TypeID
+            if let boundType = sema.bindings.exprTypes[argumentExpr] {
+                inferredArgumentType = boundType
+            } else {
+                var argumentCtx = ctx
+                argumentCtx.callArgumentExprBeingInferred = argumentExpr
+                inferredArgumentType = driver.inferExpr(
+                    argumentExpr,
+                    ctx: argumentCtx,
+                    locals: &locals
+                )
+            }
+            // KUU-569: restore the nominal range type for scalar-marked range
+            // expressions so `IntRange`/`ClosedFloatingPointRange` conformance
+            // is checked against the source-level type rather than the runtime
+            // handle — `map.getValue(2..4)` must see `IntRange`, not Int.
+            let argumentType = sourceLevelRangeArgumentType(
+                argumentExpr,
+                inferredType: inferredArgumentType,
+                ctx: ctx
+            )
+            let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
+            guard nonNullArgumentType != sema.types.anyType,
+                  !typeContainsErrorType(nonNullArgumentType, sema: sema)
+            else {
+                continue
+            }
+            var widenedLiteralType: TypeID?
+            let conforms = shapes.contains { expectedType in
+                if sema.types.isSubtype(argumentType, expectedType) {
+                    return true
+                }
+                // Unsuffixed integer literals keep their Int inference; accept
+                // them when they fit an integer primitive shape like kotlinc's
+                // literal typing, and rebind the literal to that shape so
+                // downstream lowering sees the parameter type (`1` for a `Long`
+                // key).
+                if integerLiteralFitsParameter(
+                    argumentExpr,
+                    parameterType: expectedType,
+                    ctx: ctx
+                ) {
+                    widenedLiteralType = sema.types.makeNonNullable(expectedType)
+                    return true
+                }
+                return false
+            }
+            if !conforms {
+                return false
+            }
+            if let widenedLiteralType {
+                sema.bindings.bindExprType(argumentExpr, type: widenedLiteralType)
+            }
+        }
+        return true
+    }
 }
