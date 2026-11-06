@@ -119,6 +119,7 @@ enum BuildKIRRuntimeOperation: String {
     case systemGetTimeNanos = "system_getTimeNanos"
     case systemNanoTime = "system_nanoTime"
     case systemProcessStartNanos = "system_process_start_nanos"
+    case throwableAdoptCause = "throwable_adoptCause"
     case throwableCaptureStackTrace = "throwable_captureStackTrace"
     case throwableSetCause = "throwable_setCause"
     case throwableSetMessage = "throwable_setMessage"
