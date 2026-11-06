@@ -396,6 +396,7 @@ struct StandaloneClassReferenceTests {
     @Test func testDirectKClassCastDelegatesToBundledExtension() throws {
         try expectBundledReflectDelegation(
             source: """
+            import kotlin.reflect.cast
             fun castString(value: Any?): String = String::class.cast(value)
             """,
             functions: ["castString"],
@@ -408,6 +409,7 @@ struct StandaloneClassReferenceTests {
         try expectBundledReflectDelegation(
             source: """
             import kotlin.reflect.KClass
+            import kotlin.reflect.cast
 
             fun castViaLocal(value: Any?): String {
                 val klass = String::class
@@ -425,6 +427,7 @@ struct StandaloneClassReferenceTests {
     @Test func testDirectKClassSafeCastDelegatesToBundledExtension() throws {
         try expectBundledReflectDelegation(
             source: """
+            import kotlin.reflect.safeCast
             fun safeCastString(value: Any?): String? = String::class.safeCast(value)
             """,
             functions: ["safeCastString"],
@@ -437,6 +440,7 @@ struct StandaloneClassReferenceTests {
         try expectBundledReflectDelegation(
             source: """
             import kotlin.reflect.KClass
+            import kotlin.reflect.safeCast
 
             fun safeCastViaLocal(value: Any?): String? {
                 val klass = String::class
