@@ -314,13 +314,16 @@ import Testing
         #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" })
     }
 
+    /// KUU-4331: excluding the other-file file-private `pick(Boolean)` must
+    /// not let the argument-inapplicable implicit member `S.pick(Long)` bind
+    /// silently — the call stays unresolved like kotlinc's no-viable-overload.
     @Test func filePrivateTopLevelFunctionRemainsUnavailable() throws {
         let ctx = makeIsolatedContext([
             "package lib; interface S { fun pick(value: Long): Int }; private fun pick(value: Boolean): Int = 7",
             "package lib; fun S.read() { pick(true) }",
         ])
         try runSema(ctx)
-        #expect(ctx.diagnostics.hasError)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0023" })
     }
 }
 #endif

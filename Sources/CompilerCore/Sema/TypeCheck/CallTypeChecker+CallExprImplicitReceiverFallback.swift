@@ -303,6 +303,7 @@ extension CallTypeChecker {
                         ($0.symbols, $0.receiverType, $0.symbol)
                     }
                 )
+                var regularMemberGroupResolution: ResolvedCall?
                 // Eagerly infer argument types for overload resolution.
                 // Integer literals still see the candidates' parameter type
                 // so calls like `onTimeout(30)` can narrow `30` to `Long`.
@@ -368,6 +369,9 @@ extension CallTypeChecker {
                         implicitReceiverType: group.receiverType,
                         ctx: ctx.sema
                     )
+                    if group.symbols == regularMemberCandidates {
+                        regularMemberGroupResolution = resolved
+                    }
                     if let chosen = resolved.chosenCallee {
                         let importedDispatchReceiver = importedObjectDispatchReceiverOwners(
                             named: calleeName,
@@ -411,7 +415,7 @@ extension CallTypeChecker {
                         ) {
                             return result
                         }
-                    } else {
+                    } else if !implicitReceiverFallbackResolutionIsInapplicable(regularMemberGroupResolution) {
                         let mapping = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
                         sema.bindings.bindCall(id, binding: CallBinding(
                             chosenCallee: bestCandidate, substitutedTypeArguments: [], parameterMapping: mapping
@@ -559,7 +563,9 @@ extension CallTypeChecker {
                 }
                 if outerCandidates.count == 1,
                    let bestCandidate = outerCandidates.first,
-                   let sig = sema.symbols.functionSignature(for: bestCandidate)
+                   let sig = sema.symbols.functionSignature(for: bestCandidate),
+                   !(outerRegularCandidates.contains(bestCandidate)
+                       && implicitReceiverFallbackResolutionIsInapplicable(resolvedOuter))
                 {
                     var mapping: [Int: Int] = [:]
                     for i in args.indices { mapping[i] = i }
@@ -589,5 +595,23 @@ extension CallTypeChecker {
             ) { return fallbackType }
         }
         return nil
+    }
+
+    /// Argument-list verdicts that make a single implicit-receiver member
+    /// inapplicable no matter how lenient the fallback is: overload
+    /// rejection, argument type mismatch, or a missing required value — the
+    /// same set `closedMemberInputApplicability` treats as `.inapplicable`.
+    /// The identity parameter mapping the single-candidate binding installs
+    /// cannot express any of them, so the call must stay unresolved and let
+    /// the diagnostic path report it (KUU-4331).
+    private func implicitReceiverFallbackResolutionIsInapplicable(
+        _ resolved: ResolvedCall?
+    ) -> Bool {
+        switch resolved?.diagnostic?.code {
+        case "KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0473", "KSWIFTK-SEMA-0480":
+            return true
+        default:
+            return false
+        }
     }
 }
