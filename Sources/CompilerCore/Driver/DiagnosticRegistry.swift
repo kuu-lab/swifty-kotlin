@@ -1448,6 +1448,30 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "No value passed for a required parameter."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0474",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "supertype initialization is impossible without a primary constructor."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0475",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "'expect' classes cannot initialize supertypes."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0481",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "this type does not have a constructor."
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0482",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "interfaces cannot initialize supertypes."
+        ),
     ]
 
 

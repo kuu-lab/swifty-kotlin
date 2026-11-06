@@ -424,6 +424,23 @@ extension ExprTypeChecker {
         var directSuperTypeArgs: [SymbolID: [TypeArg]] = [:]
         var directSuperTypes: [TypeID] = []
         for entry in classDecl.superTypeEntries {
+            // A local class without a primary constructor cannot initialize
+            // supertypes in its header either — its secondary constructors
+            // delegate via `super(...)` (kotlinc: "supertype initialization
+            // is impossible without a primary constructor"). The check is
+            // syntactic, so it fires even when the supertype is unresolved
+            // (KUU-4132).
+            if entry.hasConstructorCallSyntax,
+               !classDecl.hasPrimaryConstructorSyntax,
+               !classDecl.secondaryConstructors.isEmpty,
+               !declIsBundledStdlib
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0474",
+                    "supertype initialization is impossible without a primary constructor.",
+                    range: entry.range ?? classDecl.range
+                )
+            }
             let resolved = driver.helpers.resolveTypeRef(
                 entry.typeRef,
                 ast: ast,
@@ -462,6 +479,17 @@ extension ExprTypeChecker {
                     ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0436",
                         "this type has a constructor, so it must be initialized here.",
+                        range: entry.range ?? classDecl.range
+                    )
+                }
+                // Interfaces have no constructor to invoke (KUU-4132).
+                if entry.hasConstructorCallSyntax,
+                   !declIsBundledStdlib,
+                   sema.symbols.symbol(classType.classSymbol)?.kind == .interface
+                {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0481",
+                        "this type does not have a constructor.",
                         range: entry.range ?? classDecl.range
                     )
                 }
