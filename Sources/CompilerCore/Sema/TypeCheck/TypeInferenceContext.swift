@@ -954,6 +954,33 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
+    /// True when `expectSymbol` is an `expect` class and a typealias declared
+    /// at the same FQName expands to `otherClassSymbol` — the shape an
+    /// imported signature takes when the alias stands in for the expect's
+    /// actual declaration.
+    private func expectClassMatchesTypeAliasTarget(
+        expectSymbol: SemanticSymbol?,
+        otherClassSymbol: SymbolID
+    ) -> Bool {
+        guard let expectSymbol,
+              expectSymbol.flags.contains(.expectDeclaration),
+              expectSymbol.kind == .class || expectSymbol.kind == .interface
+        else {
+            return false
+        }
+        return sema.symbols.lookupAll(fqName: expectSymbol.fqName).contains { candidate in
+            guard sema.symbols.symbol(candidate)?.kind == .typeAlias,
+                  let underlying = sema.symbols.typeAliasUnderlyingType(for: candidate),
+                  case let .classType(underlyingType) = sema.types.kind(
+                      of: sema.types.makeNonNullable(underlying)
+                  )
+            else {
+                return false
+            }
+            return underlyingType.classSymbol == otherClassSymbol
+        }
+    }
+
     /// Erased type equality across the source/imported boundary: nominal types
     /// compare by FQ name (the shadowing pair has different symbols), type
     /// parameters by position within each signature.
@@ -966,8 +993,21 @@ struct TypeInferenceContext: CustomStringConvertible {
         switch (sema.types.kind(of: sema.types.makeNonNullable(lhs)),
                 sema.types.kind(of: sema.types.makeNonNullable(rhs))) {
         case let (.classType(lhsType), .classType(rhsType)):
-            return sema.symbols.symbol(lhsType.classSymbol)?.fqName
-                == sema.symbols.symbol(rhsType.classSymbol)?.fqName
+            let lhsSymbol = sema.symbols.symbol(lhsType.classSymbol)
+            let rhsSymbol = sema.symbols.symbol(rhsType.classSymbol)
+            if lhsSymbol?.fqName == rhsSymbol?.fqName {
+                return true
+            }
+            // An `expect` class and the bundled typealias standing in for its
+            // actual share the expect's FQName while their expanded class
+            // symbols differ: a vendored-source signature names the expect
+            // decl, the imported twin's serialized signature names the
+            // alias target (KUU-4185).
+            return expectClassMatchesTypeAliasTarget(
+                expectSymbol: lhsSymbol, otherClassSymbol: rhsType.classSymbol
+            ) || expectClassMatchesTypeAliasTarget(
+                expectSymbol: rhsSymbol, otherClassSymbol: lhsType.classSymbol
+            )
         case let (.typeParam(lhsParam), .typeParam(rhsParam)):
             guard let lhsIndex = lhsSignature.typeParameterSymbols.firstIndex(of: lhsParam.symbol),
                   let rhsIndex = rhsSignature.typeParameterSymbols.firstIndex(of: rhsParam.symbol)
