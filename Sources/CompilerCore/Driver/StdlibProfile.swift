@@ -25,8 +25,10 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
     /// `kotlin.concurrent` (atomics behind coroutines and `kotlin.native.concurrent`),
     /// `kotlin.experimental` (`@OptIn` on collection sources), `kotlin.io.encoding`
     /// (`kotlinx.io.bytestring`), `kotlin.js`, `java.net` (`java.nio.file.Path`),
-    /// `java.nio`/`java.math`, `kotlin.uuid` (`java.util.UUID`), and
-    /// `kotlinx.atomicfu.locks` (the retained `java.util.concurrent` implementations).
+    /// `java.nio`/`java.math`, `kotlin.uuid` (`java.util.UUID`),
+    /// `java.security` (`java.util.UUID.nameUUIDFromBytes` digests through
+    /// `MessageDigest`), and `kotlinx.atomicfu.locks` (the retained
+    /// `java.util.concurrent` implementations).
     /// When a kept source starts depending on an excluded package the
     /// stdlib-only build fails, which is the signal to update the exclusion
     /// rule so that dependency remains in the profile.
@@ -42,7 +44,6 @@ public enum StdlibProfile: String, CaseIterable, Sendable {
         "kotlin.test",
         "kotlin.io.path",
         "java.sql",
-        "java.security",
         "java.text",
     ]
 
