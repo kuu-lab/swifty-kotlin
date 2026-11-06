@@ -244,18 +244,36 @@ extension ExprTypeChecker {
         // a nearer receiver's extension shadows same-named extensions on
         // outer entries.
         var extensionPropertyMatchedEntries: [SymbolID: (index: Int, type: TypeID, symbol: SymbolID?)] = [:]
+        var extensionPropertyReceiverSubstitutions: [SymbolID: (typeVarBySymbol: [SymbolID: TypeVarID], substitution: [TypeVarID: TypeID])] = [:]
         for candidate in candidates {
             guard let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: candidate.id) else {
                 continue
             }
             for (index, entry) in implicitReceiverLookupEntries.enumerated() {
-                if sema.types.isSubtype(
-                    sema.types.makeNonNullable(entry.type),
-                    sema.types.makeNonNullable(declaredReceiver)
-                ) {
-                    extensionPropertyMatchedEntries[candidate.id] = (index, entry.type, entry.symbol)
-                    break
+                // The receiver predicate is the same lenient one extension
+                // *function* candidates get: it keeps generic receivers such
+                // as `Atomic<V>` viable for a declared `Atomic<T>` receiver.
+                // The substitution solve below is what proves the match —
+                // it instantiates the property's own type parameters and
+                // rejects arguments that violate their upper bounds.
+                guard driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: entry.type,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                ),
+                let receiverSubstitution = extensionPropertyReceiverTypeSubstitution(
+                    for: candidate.id,
+                    declaredReceiver: declaredReceiver,
+                    receiverType: entry.type,
+                    ctx: ctx,
+                    blameRange: nameRange
+                )
+                else {
+                    continue
                 }
+                extensionPropertyMatchedEntries[candidate.id] = (index, entry.type, entry.symbol)
+                extensionPropertyReceiverSubstitutions[candidate.id] = receiverSubstitution
+                break
             }
         }
         let earliestExtensionMatchIndex = extensionPropertyMatchedEntries.values.map(\.index).min()
@@ -449,6 +467,7 @@ extension ExprTypeChecker {
         if !isQualifier, preferredCandidate?.kind == .function {
             return rejectBareFunctionValue(id, name: name, nameRange: nameRange, ctx: ctx)
         }
+        var implicitReceiverPropertySubstitution: (typeVarBySymbol: [SymbolID: TypeVarID], substitution: [TypeVarID: TypeID])?
         if let preferredCandidate {
             sema.bindings.bindIdentifier(id, symbol: preferredCandidate.id)
             if let declaredReceiver = sema.symbols.extensionPropertyReceiverType(for: preferredCandidate.id) {
@@ -461,6 +480,13 @@ extension ExprTypeChecker {
                    )
                 {
                     sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: receiverType)
+                    implicitReceiverPropertySubstitution = extensionPropertyReceiverTypeSubstitution(
+                        for: preferredCandidate.id,
+                        declaredReceiver: declaredReceiver,
+                        receiverType: receiverType,
+                        ctx: ctx,
+                        blameRange: nameRange
+                    )
                 } else if let match = extensionPropertyMatchedEntries[preferredCandidate.id],
                           match.index == earliestExtensionMatchIndex
                 {
@@ -475,6 +501,7 @@ extension ExprTypeChecker {
                     if let receiverSymbol = match.symbol {
                         sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
                     }
+                    implicitReceiverPropertySubstitution = extensionPropertyReceiverSubstitutions[preferredCandidate.id]
                 }
             }
             driver.helpers.checkDeprecation(
@@ -524,9 +551,23 @@ extension ExprTypeChecker {
                 )
             }
         }
-        let declaredResolvedType = preferredCandidate.flatMap {
+        var declaredResolvedType = preferredCandidate.flatMap {
             resolveTypeForCandidate($0, sema: sema)
         } ?? sema.types.anyType
+        // An extension property read through the implicit-receiver tower
+        // keeps its declared type (`T`) unless the receiver-driven
+        // instantiation is applied — `val <T> Atomic<T>.v` on an
+        // `Atomic<V>` receiver must read as `V`, the same type the
+        // explicit `this.v` getter call produces (KUU-4340).
+        if let receiverSubstitution = implicitReceiverPropertySubstitution,
+           !receiverSubstitution.substitution.isEmpty
+        {
+            declaredResolvedType = sema.types.substituteTypeParameters(
+                in: declaredResolvedType,
+                substitution: receiverSubstitution.substitution,
+                typeVarBySymbol: receiverSubstitution.typeVarBySymbol
+            )
+        }
         // Bind the declaration type before consulting flow facts. A top-level
         // stable property is not represented in `locals`, but its stable
         // reference still has a narrowed type inside the current branch.
@@ -885,6 +926,82 @@ extension ExprTypeChecker {
             }
         }
         return nil
+    }
+
+    /// Instantiate an extension property's own type parameters from the
+    /// implicit-receiver tower entry supplying it: `val <T> Atomic<T>.v`
+    /// read unqualified on an `Atomic<V>` receiver binds `T := V`, matching
+    /// the explicit `this.v` getter result (KUU-4340). The caller's receiver
+    /// predicate is deliberately lenient for generic receivers — the same
+    /// escape hatch extension *function* candidates get — so this solve is
+    /// what actually proves the match: every type parameter the property
+    /// declares must be determined by the receiver, and each solved argument
+    /// must satisfy its declared upper bound. Returns nil when the property
+    /// cannot be read through `receiverType` at all.
+    private func extensionPropertyReceiverTypeSubstitution(
+        for property: SymbolID,
+        declaredReceiver: TypeID,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext,
+        blameRange: SourceRange?
+    ) -> (typeVarBySymbol: [SymbolID: TypeVarID], substitution: [TypeVarID: TypeID])? {
+        let sema = ctx.sema
+        guard let getter = sema.symbols.extensionPropertyGetterAccessor(for: property),
+              let signature = sema.symbols.functionSignature(for: getter)
+        else {
+            return ([:], [:])
+        }
+        // Class-owned type parameters stay rigid: they are bound by the
+        // dispatch receiver, not by the extension receiver, and remain
+        // meaningful type variables inside the owning class body.
+        let ownTypeParameterSymbols = Array(
+            signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+        )
+        guard !ownTypeParameterSymbols.isEmpty else {
+            return ([:], [:])
+        }
+        let variables = sema.types.makeTypeVarBySymbol(ownTypeParameterSymbols)
+        let constraints = ctx.resolver.decomposeSubtypeConstraint(
+            subtype: sema.types.makeNonNullable(receiverType),
+            supertype: sema.types.makeNonNullable(declaredReceiver),
+            typeVarBySymbol: variables,
+            typeSystem: sema.types,
+            blameRange: blameRange
+        )
+        let solution = ConstraintSolver().solve(
+            vars: ctx.resolver.usedTypeVariables(from: constraints),
+            constraints: constraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else {
+            return nil
+        }
+        // Every property-owned type parameter must be determined by the
+        // receiver: an unsolved one would leak the declaration's type
+        // parameter into the read type. Solved arguments must also satisfy
+        // their declared upper bounds — the lenient receiver predicate
+        // admits same-class receivers whose arguments only unify through
+        // this inference (`Atomic<String>` vs `Atomic<T : Number>`).
+        for (index, symbol) in ownTypeParameterSymbols.enumerated() {
+            let signatureIndex = signature.classTypeParameterCount + index
+            guard signatureIndex < signature.typeParameterUpperBoundsList.count,
+                  let variable = variables[symbol],
+                  let solved = solution.substitution[variable]
+            else {
+                return nil
+            }
+            for bound in signature.typeParameterUpperBoundsList[signatureIndex] {
+                let substitutedBound = sema.types.substituteTypeParameters(
+                    in: bound,
+                    substitution: solution.substitution,
+                    typeVarBySymbol: variables
+                )
+                guard sema.types.isSubtype(solved, substitutedBound) else {
+                    return nil
+                }
+            }
+        }
+        return (variables, solution.substitution)
     }
 
     func resolveTypeForCandidate(_ symbol: SemanticSymbol, sema: SemaModule) -> TypeID? {

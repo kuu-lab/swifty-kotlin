@@ -1356,12 +1356,19 @@ extension ExprLowerer {
         sema: SemaModule,
         arena: KIRArena
     ) -> KIRExprID? {
+        // Sema records the tower entry type that actually supplies the
+        // extension (`Atomic<V>`), while `extensionReceiverType` is the
+        // declaration's own (`Atomic<T>`): the strict subtype check cannot
+        // relate the two type parameters, so compare against the bound
+        // receiver type when one was recorded (KUU-4340).
+        let boundReceiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID)
+            ?? extensionReceiverType
         if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
            let capturedReceiver = driver.ctx.localValue(for: receiverSymbol),
            let capturedType = arena.exprType(capturedReceiver),
            sema.types.isSubtype(
                sema.types.makeNonNullable(capturedType),
-               sema.types.makeNonNullable(extensionReceiverType)
+               sema.types.makeNonNullable(boundReceiverType)
            )
         {
             return capturedReceiver
@@ -1370,7 +1377,7 @@ extension ExprLowerer {
               let activeReceiverType = arena.exprType(activeReceiver),
               sema.types.isSubtype(
                   sema.types.makeNonNullable(activeReceiverType),
-                  sema.types.makeNonNullable(extensionReceiverType)
+                  sema.types.makeNonNullable(boundReceiverType)
               )
         else {
             return nil
