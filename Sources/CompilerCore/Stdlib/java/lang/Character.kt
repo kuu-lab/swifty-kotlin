@@ -12,6 +12,23 @@ import kotlin.text.__charUppercaseCode
 
 /** Java-compatible Unicode operations for UTF-16 chars and Unicode code points. */
 public object Character {
+    // JDK scalar limits (KUU-3987).
+    public const val MIN_VALUE: Char = '\u0000'
+    public const val MAX_VALUE: Char = '\uFFFF'
+    public const val MIN_HIGH_SURROGATE: Char = '\uD800'
+    public const val MAX_HIGH_SURROGATE: Char = '\uDBFF'
+    public const val MIN_LOW_SURROGATE: Char = '\uDC00'
+    public const val MAX_LOW_SURROGATE: Char = '\uDFFF'
+    public const val MIN_SURROGATE: Char = '\uD800'
+    public const val MAX_SURROGATE: Char = '\uDFFF'
+    public const val MIN_RADIX: Int = 2
+    public const val MAX_RADIX: Int = 36
+    public const val MIN_SUPPLEMENTARY_CODE_POINT: Int = 0x10000
+    public const val MIN_CODE_POINT: Int = 0
+    public const val MAX_CODE_POINT: Int = 0x10FFFF
+    public const val SIZE: Int = 16
+    public const val BYTES: Int = 2
+
     public const val NON_SPACING_MARK: kotlin.Byte = 6
     public const val ENCLOSING_MARK: kotlin.Byte = 7
     public const val FORMAT: kotlin.Byte = 16

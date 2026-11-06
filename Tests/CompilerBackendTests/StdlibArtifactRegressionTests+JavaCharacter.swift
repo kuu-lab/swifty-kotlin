@@ -20,6 +20,11 @@ extension StdlibArtifactRegressionTests {
                 "true", "true", "true", "A", "a", "65", "97", "A", "65",
                 "9", "9", "-1", "-1", "9", "z", "true", "9", "10", "50",
                 "-2", "-1", "true", "true", "false", "true", "true", "true",
+                // KUU-3987: JDK scalar limits.
+                "2", "16", "6", "0", "65535",
+                "55296", "56319", "56320", "57343", "55296", "57343",
+                "true", "true", "true", "true",
+                "2", "36", "65536", "0", "1114111",
             ])
             .joined(separator: "\n") + "\n"
         let artifactPath = try Self.buildStdlibArtifact()
