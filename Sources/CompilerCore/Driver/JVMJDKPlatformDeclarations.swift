@@ -22,6 +22,8 @@ extension JVMClasspathIndex {
             method("java/util/Arrays", "deepToString", [nullableObjectArray], .string, staticMember: true),
             method("java/util/Arrays", "sort", [objectArray], .unit, staticMember: true),
             method("java/util/Arrays", "sort", [objectArray, .int, .int], .unit, staticMember: true),
+            method("java/util/Arrays", "sort", [objectArray, .reference("java/util/Comparator", nullable: true)], .unit, staticMember: true),
+            method("java/util/Arrays", "sort", [objectArray, .int, .int, .reference("java/util/Comparator", nullable: true)], .unit, staticMember: true),
             method("java/util/Arrays", "binarySearch", [objectArray, .int, .int, .reference("java/lang/Object", nullable: true)], .int, staticMember: true),
         ]
         var arraysSource = """
@@ -37,6 +39,8 @@ extension JVMClasspathIndex {
                     external fun deepToString(a: Array<out Any?>?): String
                     external fun sort(a: Array<out Any?>): Unit
                     external fun sort(a: Array<out Any?>, fromIndex: Int, toIndex: Int): Unit
+                    external fun <T> sort(a: Array<out T>, comparator: java.util.Comparator<in T>?): Unit
+                    external fun <T> sort(a: Array<out T>, fromIndex: Int, toIndex: Int, comparator: java.util.Comparator<in T>?): Unit
                     external fun binarySearch(a: Array<out Any?>, fromIndex: Int, toIndex: Int, key: Any?): Int
             """
         let primitiveArraySpecs: [(name: String, type: String, descriptor: String, element: JVMValueType, canSort: Bool, canSearch: Bool)] = [

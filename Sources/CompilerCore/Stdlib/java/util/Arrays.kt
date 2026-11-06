@@ -12,6 +12,7 @@ import kotlin.collections.copyOf
 import kotlin.collections.copyOfRange
 import kotlin.collections.fill
 import kotlin.collections.sort
+import kotlin.collections.sortWith
 import kotlin.collections.stableSortImpl
 import kotlin.internal.__valuesEqual
 import java.util.stream.DoubleStream
@@ -262,6 +263,18 @@ public object Arrays {
         (array ?: throw NullPointerException()).sort(fromIndex, toIndex)
     }
 
+    public fun <T> sort(array: Array<T>?, comparator: Comparator<in T>?) {
+        val nonNullArray = array ?: throw NullPointerException()
+        if (comparator == null) nonNullArray.sort()
+        else nonNullArray.sortWith(comparator)
+    }
+
+    public fun <T> sort(array: Array<T>?, fromIndex: Int, toIndex: Int, comparator: Comparator<in T>?) {
+        val nonNullArray = array ?: throw NullPointerException()
+        if (comparator == null) nonNullArray.sort(fromIndex, toIndex)
+        else nonNullArray.sortWith(comparator, fromIndex, toIndex)
+    }
+
     public fun sort(array: ByteArray?) { sortByteArray(array ?: throw NullPointerException(), 0, array.size) }
     public fun sort(array: ByteArray?, fromIndex: Int, toIndex: Int) { sortByteArray(array ?: throw NullPointerException(), fromIndex, toIndex) }
     public fun sort(array: ShortArray?) { sortShortArray(array ?: throw NullPointerException(), 0, array.size) }
@@ -279,6 +292,9 @@ public object Arrays {
 
     public fun <T> parallelSort(array: Array<T>?) = sort(array)
     public fun <T> parallelSort(array: Array<T>?, fromIndex: Int, toIndex: Int) = sort(array, fromIndex, toIndex)
+    public fun <T> parallelSort(array: Array<T>?, comparator: Comparator<in T>?) = sort(array, comparator)
+    public fun <T> parallelSort(array: Array<T>?, fromIndex: Int, toIndex: Int, comparator: Comparator<in T>?) =
+        sort(array, fromIndex, toIndex, comparator)
     public fun parallelSort(array: ByteArray?) = sort(array)
     public fun parallelSort(array: ByteArray?, fromIndex: Int, toIndex: Int) = sort(array, fromIndex, toIndex)
     public fun parallelSort(array: ShortArray?) = sort(array)
