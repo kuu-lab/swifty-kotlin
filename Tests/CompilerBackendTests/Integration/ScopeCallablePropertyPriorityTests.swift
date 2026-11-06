@@ -265,6 +265,36 @@ struct ScopeCallablePropertyPriorityTests {
     }
 
     @Test
+    func unqualifiedImplicitReceiverCallablePropertyPrecedesExtension() throws {
+        // KUU-4347: `apply()` inside `with(Outer())` must bind the implicit
+        // receiver's function-typed property through its implicit `invoke`,
+        // not the inapplicable `block` parameter of `kotlin.apply`/`Outer.apply`.
+        let source = """
+        class Outer(val seed: Int) { val apply: () -> Int = { 7 } }
+        class Scope { val apply: () -> Int = { 42 } }
+        fun Outer.apply(block: Outer.() -> Unit): Outer = this
+        fun main() {
+            with(Outer(9)) { println(apply()) }
+            with(Scope()) { println(apply()) }
+            with(Outer(9)) { println(apply { }.seed) }
+        }
+        """
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "UnqualifiedApply", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "7\n42\n9\n")
+    }
+
+    @Test
     func localFunctionCapturingBoxedFunctionValueInvokesThroughBox() throws {
         // Regression: a local function capturing a `kk_function_create_N`
         // boxed function value used to trap in BuildKIRPhase while remapping
