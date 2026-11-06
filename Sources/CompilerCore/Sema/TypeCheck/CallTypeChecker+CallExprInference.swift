@@ -629,6 +629,13 @@ extension CallTypeChecker {
                 sema.diagnostics.rollback(to: calleeCheckpoint)
                 branchCalleeContextType = branchContextType
             } else {
+                // The callee type is already known here. Keep it for the
+                // callable-value fallback below even when no nominal `invoke`
+                // candidate exists — function types expose none for ordinary
+                // candidate collection — so `inferCallableValueCall` does not
+                // re-infer, and re-pay for, the whole callee chain at every
+                // call-spine level (KUU-4342).
+                preInferredCallableCalleeType = calleeType
                 let argumentLabels = args.map(\.label)
                 let invokeCandidates = contextApplicableCallCandidates(
                     implicitInvokeOperatorCandidates(
@@ -642,7 +649,6 @@ extension CallTypeChecker {
                 if !invokeCandidates.isEmpty {
                     argumentContextCandidates = invokeCandidates
                     argumentContextReceiverType = calleeType
-                    preInferredCallableCalleeType = calleeType
                 }
             }
         }

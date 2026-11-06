@@ -45,7 +45,8 @@ extension BuildASTPhase.ExpressionParser {
                 diagnostics?.rollback(to: diagnosticsCheckpoint)
             }
         }
-        var statements = parseLambdaBodyStatements(ranges: ranges, tokens: bodyTokens)
+        let parsedStatements = parseLambdaBodyStatements(ranges: ranges, tokens: bodyTokens)
+        var statements = parsedStatements.statements
         guard !statements.isEmpty else {
             rollbackSpeculativeDiagnostics()
             return nil
@@ -71,6 +72,16 @@ extension BuildASTPhase.ExpressionParser {
         // A leading empty statement is omitted from `ranges`, so a single
         // expression after it must stay a block body with a trailing value.
         if ranges.count == 1, !hasStatementOnlyBody, ranges[0].0 == 0 {
+            // The statement probe already ran the same ExpressionParser the
+            // expression fallback in `parseLambdaBody` would run on these
+            // tokens. Reuse that parse: reparsing the body doubled the work
+            // at every lambda nesting level, so deeply nested lambda bodies
+            // (e.g. arity-N `curried()` chains) compiled in exponential time.
+            if let statement = statements.first,
+               parsedStatements.plainExpressionParses.contains(statement)
+            {
+                return statement
+            }
             rollbackSpeculativeDiagnostics()
             return nil
         }
@@ -83,11 +94,17 @@ extension BuildASTPhase.ExpressionParser {
         ))
     }
 
+    /// Parses each statement range. `plainExpressionParses` collects the
+    /// statements that came from the plain `ExpressionParser.parse()`
+    /// fallback inside `parseLambdaBodyStatement` — the same parse
+    /// `parseLambdaBody` would run on the whole body when it is a single
+    /// expression — so the caller can reuse them instead of reparsing.
     private func parseLambdaBodyStatements(
         ranges: [(Int, Int)],
         tokens: [Token]
-    ) -> [ExprID] {
+    ) -> (statements: [ExprID], plainExpressionParses: Set<ExprID>) {
         var statements: [ExprID] = []
+        var plainExpressionParses: Set<ExprID> = []
         for (rangeIndex, (start, end)) in ranges.enumerated() {
             let group = ArraySlice(tokens[start ..< end])
             guard !group.isEmpty else {
@@ -103,17 +120,26 @@ extension BuildASTPhase.ExpressionParser {
                let postfixExpr = parseTrailingPostfixMutation(group)
             {
                 statements.append(postfixExpr)
-            } else if let statementExpr = parseLambdaBodyStatement(from: group) {
+            } else if let statement = parseLambdaBodyStatement(from: group) {
                 BuildASTPhase(diagnostics: diagnostics).validateLocalFunctionSeparator(
-                    after: statementExpr, in: tokens, astArena: astArena
+                    after: statement.expr, in: tokens, astArena: astArena
                 )
-                statements.append(statementExpr)
+                statements.append(statement.expr)
+                if statement.isPlainExpressionParse {
+                    plainExpressionParses.insert(statement.expr)
+                }
             }
         }
-        return statements
+        return (statements, plainExpressionParses)
     }
 
-    private func parseLambdaBodyStatement(from group: ArraySlice<Token>) -> ExprID? {
+    /// `isPlainExpressionParse` is true only when the statement came from the
+    /// trailing `ExpressionParser.parse()` fallback — declaration and
+    /// mutation probes return shaped results the expression fallback would
+    /// not reproduce, so they must keep the reparse path.
+    private func parseLambdaBodyStatement(
+        from group: ArraySlice<Token>
+    ) -> (expr: ExprID, isPlainExpressionParse: Bool)? {
         let phase = BuildASTPhase(diagnostics: diagnostics)
         // Every probe is speculative, matching parseStatementGroup and
         // parseBlockExpression: a failing attempt can emit diagnostics for a
@@ -131,11 +157,11 @@ extension BuildASTPhase.ExpressionParser {
             from: Array(group),
             interner: interner, astArena: astArena
         ) {
-            return localFun
+            return (localFun, false)
         }
         undoFailedSpeculation()
         if let localDecl = parseLocalDeclFromSlice(group) {
-            return localDecl
+            return (localDecl, false)
         }
         if let first = group.first,
            first.kind == .keyword(.val) || first.kind == .keyword(.var),
@@ -152,7 +178,7 @@ extension BuildASTPhase.ExpressionParser {
                 undoFailedSpeculation()
                 return nil
             }
-            return astArena.appendExpr(.localDecl(
+            return (astArena.appendExpr(.localDecl(
                 name: name,
                 isMutable: first.kind == .keyword(.var),
                 typeAnnotation: nil,
@@ -160,25 +186,28 @@ extension BuildASTPhase.ExpressionParser {
                 isDelegated: false,
                 isLateinit: false,
                 range: SourceRange(start: first.range.start, end: group.last?.range.end ?? first.range.end)
-            ))
+            )), false)
         }
         undoFailedSpeculation()
         if let localAssign = parseLocalAssignFromSlice(group) {
-            return localAssign
+            return (localAssign, false)
         }
         undoFailedSpeculation()
         if let nominalDecl = BuildASTPhase.parseLocalNominalDeclExpr(
             from: Array(group), interner: interner, astArena: astArena, diagnostics: diagnostics
         ) {
-            return nominalDecl
+            return (nominalDecl, false)
         }
         undoFailedSpeculation()
-        return BuildASTPhase.ExpressionParser(
+        guard let expression = BuildASTPhase.ExpressionParser(
             tokens: group,
             interner: interner,
             astArena: astArena,
             diagnostics: diagnostics
-        ).parse()
+        ).parse() else {
+            return nil
+        }
+        return (expression, true)
     }
 
     private func parseTrailingPrefixMutation(_ tokens: ArraySlice<Token>) -> ExprID? {
