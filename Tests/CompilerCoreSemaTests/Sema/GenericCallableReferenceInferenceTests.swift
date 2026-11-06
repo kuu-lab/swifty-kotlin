@@ -249,6 +249,25 @@ struct GenericCallableReferenceInferenceTests {
     }
 
     @Test
+    func specializesGenericReferenceAgainstLexicalExpectedTypeParameters() throws {
+        // KUU-4204: an expected type that only mentions the enclosing
+        // declaration's own (rigid) type parameters still specializes the
+        // reference, matching `createSegmentFunction` in kotlinx-coroutines.
+        let ctx = makeContextFromSource("""
+        class Box<T>(val value: T)
+        fun <E> mk(value: E): Box<E> = Box(value)
+        fun <T> make(): (T) -> Box<T> = ::mk
+        fun <T> makeLocal(): (T) -> Box<T> {
+            val ref: (T) -> Box<T> = ::mk
+            return ref
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected generic reference to specialize against rigid type parameters, got: \(errors)")
+    }
+
+    @Test
     func resolvesOverloadedReferencesFromGenericCallResultType() throws {
         let ctx = makeContextFromSource("""
         fun foo(x: Int?) {}
