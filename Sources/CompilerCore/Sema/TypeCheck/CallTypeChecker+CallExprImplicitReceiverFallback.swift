@@ -261,6 +261,16 @@ extension CallTypeChecker {
                     interner: interner
                 )
             }
+            // Inaccessible members are skipped by the implicit-receiver
+            // tower rather than treated as candidates (KUU-4335).
+            memberCandidates = memberCandidates.filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate) else { return false }
+                return ctx.visibilityChecker.isAccessible(
+                    symbol,
+                    fromFile: ctx.currentFileID,
+                    enclosingClass: ctx.enclosingClassSymbol
+                )
+            }
             if !memberCandidates.isEmpty {
                 // Member extensions surface under the dispatch receiver type
                 // but resolve against the implicit receiver tower entry picked
@@ -441,12 +451,20 @@ extension CallTypeChecker {
                 else {
                     continue
                 }
-                let outerCandidates = driver.helpers.collectMemberFunctionCandidates(
+                var outerCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
                     receiverType: outerNonNullReceiver,
                     sema: sema,
                     interner: interner
                 )
+                outerCandidates = outerCandidates.filter { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate) else { return false }
+                    return ctx.visibilityChecker.isAccessible(
+                        symbol,
+                        fromFile: ctx.currentFileID,
+                        enclosingClass: ctx.enclosingClassSymbol
+                    )
+                }
                 guard !outerCandidates.isEmpty else {
                     continue
                 }

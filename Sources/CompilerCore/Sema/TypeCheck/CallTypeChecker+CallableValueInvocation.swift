@@ -919,6 +919,15 @@ extension CallTypeChecker {
                       named: name,
                       receiverType: sema.types.makeNonNullable(implicitReceiver),
                       sema: sema
+                  ),
+                  // Inaccessible members do not participate in
+                  // implicit-receiver resolution from outside their
+                  // declaring scope (KUU-4335).
+                  let propertySymbol = sema.symbols.symbol(property.symbol),
+                  ctx.visibilityChecker.isAccessible(
+                      propertySymbol,
+                      fromFile: ctx.currentFileID,
+                      enclosingClass: ctx.enclosingClassSymbol
                   ) {
             // A member extension function reachable through the same implicit
             // receiver shares the property's tier, where the declaration wins;
