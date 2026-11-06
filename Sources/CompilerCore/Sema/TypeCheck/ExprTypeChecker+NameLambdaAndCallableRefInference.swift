@@ -309,17 +309,24 @@ extension ExprTypeChecker {
         if candidates.isEmpty {
             var implicitMemberResult: (symbol: SymbolID, type: TypeID, receiverType: TypeID)?
             for receiver in implicitReceiverLookupEntries {
-                if let result = driver.helpers.lookupMemberProperty(
+                guard let result = driver.helpers.lookupMemberProperty(
                     named: name,
                     receiverType: sema.types.makeNonNullable(receiver.type),
                     sema: sema
-                ) {
-                    if let receiverSymbol = receiver.symbol {
-                        sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
-                    }
-                    implicitMemberResult = (result.symbol, result.type, receiver.type)
-                    break
+                ), let resultSymbol = sema.symbols.symbol(result.symbol),
+                  ctx.visibilityChecker.isAccessible(
+                      resultSymbol,
+                      fromFile: ctx.currentFileID,
+                      enclosingClass: ctx.enclosingClassSymbol
+                  )
+                else {
+                    continue
                 }
+                if let receiverSymbol = receiver.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
+                }
+                implicitMemberResult = (result.symbol, result.type, receiver.type)
+                break
             }
             if let result = implicitMemberResult {
                 sema.bindings.markImplicitReceiverMember(
@@ -592,7 +599,15 @@ extension ExprTypeChecker {
                 : sema.types.make(.primitive(.boolean, .nonNull))
         }
         if implicitMemberType == nil,
-           var result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema)
+           var result = driver.helpers.lookupMemberProperty(named: name, receiverType: nonNullReceiver, sema: sema),
+           // An inaccessible member does not shadow an outer receiver's
+           // accessible same-named member: implicit-receiver towers skip it
+           // and keep walking outward (KUU-4335).
+           sema.symbols.symbol(result.symbol).map({
+               ctx.visibilityChecker.isAccessible(
+                   $0, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+               )
+           }) == true
         {
             // An expression-bodied function inferred ahead of source order
             // can still see a member property's header `Any?` placeholder.

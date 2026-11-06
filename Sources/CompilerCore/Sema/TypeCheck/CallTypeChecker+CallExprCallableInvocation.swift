@@ -419,6 +419,18 @@ extension CallTypeChecker {
             ) else {
                 continue
             }
+            // Private members do not participate in implicit-receiver
+            // resolution from outside their declaring scope; the tower keeps
+            // walking outward instead (KUU-4335).
+            guard let propertySymbol = sema.symbols.symbol(property.symbol),
+                  ctx.visibilityChecker.isAccessible(
+                      propertySymbol,
+                      fromFile: ctx.currentFileID,
+                      enclosingClass: ctx.enclosingClassSymbol
+                  )
+            else {
+                continue
+            }
             let isFunctionType: Bool = {
                 guard let function = sema.types.uniqueStructuralFunctionType(for: property.type) else {
                     return false
