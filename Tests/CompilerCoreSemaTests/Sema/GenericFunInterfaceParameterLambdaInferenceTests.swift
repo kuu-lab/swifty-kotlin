@@ -260,5 +260,29 @@ struct GenericFunInterfaceParameterLambdaInferenceTests {
 
         #expect(ctx.diagnostics.hasError, "Int must not satisfy the Marker bound")
     }
+
+    @Test
+    func explicitSamTypeArgumentsSkipLambdaReturnProbe() throws {
+        // KUU-4332: when every interface type argument is explicit, the SAM
+        // constructor must not run the speculative lambda-return probe. The
+        // probe binds parameters to unresolved type parameters, and the
+        // `error` types it caches for compound argument expressions leaked
+        // into the real pass, failing `Box.of`'s type-variable inference.
+        let ctx = context("""
+        class Box<T : Any>(val v: T) {
+            companion object {
+                fun <T : Any> of(v: T): Box<T> = Box(v)
+            }
+        }
+        fun interface Fn<T, R> { fun apply(x: T): R }
+        fun main() {
+            val a = Fn<Int, Box<Int>> { x -> Box.of(x + 10) }
+        }
+        """)
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Explicit SAM type arguments must not leak probe errors: \(errors)")
+    }
 }
 #endif
