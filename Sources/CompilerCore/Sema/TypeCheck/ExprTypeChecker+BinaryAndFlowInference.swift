@@ -1332,8 +1332,17 @@ extension ExprTypeChecker {
         else { return false }
         switch op {
         case .add:
+            // KUU-4015: `Char.plus(Int)` is the only member overload, so a
+            // non-null Nothing operand resolves to Char just like an Int one.
+            let rhsIsNonNullNothing: Bool = {
+                if case .nothing(.nonNull) = sema.types.kind(of: rhs) {
+                    return true
+                }
+                return false
+            }()
             return !(lhs == sema.types.charType
-                && (rhs == sema.types.intType || (sema.types.isString(rhs) && sema.types.isDefinitelyNonNull(rhs))))
+                && (rhs == sema.types.intType || rhsIsNonNullNothing
+                    || (sema.types.isString(rhs) && sema.types.isDefinitelyNonNull(rhs))))
                 && !sema.types.isString(lhs)
         case .subtract:
             return !(lhs == sema.types.charType && (rhs == sema.types.intType || rhs == sema.types.charType))
