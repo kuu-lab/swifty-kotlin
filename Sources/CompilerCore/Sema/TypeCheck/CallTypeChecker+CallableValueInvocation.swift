@@ -715,9 +715,15 @@ extension CallTypeChecker {
             )
         }
         if let expectedType {
+            // An elvis branch only needs its non-null view to fit the
+            // expected type, so the call result may stay nullable:
+            // `f() ?: d` accepts `f: () -> T?` under expected `T` (KUU-4354).
+            let branchExpectedType = ctx.isElvisBranchExpectedTypeHint
+                ? sema.types.makeNullable(expectedType)
+                : expectedType
             driver.emitSubtypeConstraint(
                 left: functionType.returnType,
-                right: expectedType,
+                right: branchExpectedType,
                 range: range,
                 solver: ConstraintSolver(),
                 sema: sema,

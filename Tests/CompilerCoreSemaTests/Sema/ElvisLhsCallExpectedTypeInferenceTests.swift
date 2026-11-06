@@ -157,6 +157,41 @@ struct ElvisLhsCallExpectedTypeInferenceTests {
         }
     }
 
+    /// KUU-4354: invoking a function-typed parameter on the Elvis LHS must
+    /// accept its nullable result under the non-null expected type —
+    /// `f() ?: d` is `T`, not a `T? <: T` constraint failure. A genuinely
+    /// incompatible result is still rejected.
+    @Test
+    func functionValueInvokeOnElvisLeftAcceptsNullableResult() throws {
+        let source = """
+            package elvisLhsFunctionValue
+            fun <T> fallback(f: () -> T?, d: T): T = f() ?: d
+            fun concrete(f: () -> Int?, d: Int): Int = f() ?: d
+            fun <T> bothNullable(f: () -> T?, d: T?): T? = f() ?: d
+            fun <T> nonNullResult(f: () -> T, d: T): T = f() ?: d
+            """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(errors.isEmpty, "got: \(errors.map { "\($0.code): \($0.message)" })")
+        }
+    }
+
+    @Test
+    func functionValueInvokeOnElvisLeftStillRejectsIncompatibleResult() throws {
+        let source = """
+            package elvisLhsFunctionValueReject
+            fun bad(f: () -> Int?, d: String): String = f() ?: d
+            """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            #expect(!errors.isEmpty)
+        }
+    }
+
     @Test
     func genericCallWithoutExpectedTypeStillRejectsUnresolvedTypeArgument() throws {
         let source = """
