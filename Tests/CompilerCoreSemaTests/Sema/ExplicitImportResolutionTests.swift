@@ -544,7 +544,7 @@ struct ExplicitImportResolutionTests {
             let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runSema(ctx)
             let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
-            #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0002" }, "Expected the missing-import call to remain inapplicable: \(errors)")
+            #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0480" }, "Expected the missing-import call to remain inapplicable: \(errors)")
         }
     }
 
@@ -682,6 +682,72 @@ struct ExplicitImportResolutionTests {
         let source = """
         import kotlin.ranges.*
         fun isEmpty(range: IntRange): Boolean = range.isEmpty()
+        """
+        let ctx = try context(source: source, useArtifact: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-3977: `kotlin.math` is not a default-import package, so bare
+    /// `min`/`max` calls must stay unresolved without an explicit import.
+    /// The bundled `Long.Companion.min`/`max` wrapper extensions must not
+    /// leak into unqualified call resolution either.
+    @Test(
+        arguments: [
+            "min(1, 2)", "max(1, 2)",
+            "min(1L, 2L)", "max(1L, 2L)",
+            "min(1.0, 2.0)", "max(1.0, 2.0)",
+            "min(1f, 2f)", "max(1f, 2f)",
+            "min('a', 'b')", "max('a', 'b')",
+        ].flatMap { call in
+            [false, true].map { (call: call, useArtifact: $0) }
+        }
+    )
+    func kotlinMathMinMaxRejectWithoutImport(call: String, useArtifact: Bool) throws {
+        let source = """
+        fun probe() {
+            _ = \(call)
+        }
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected '\(call)' to stay unresolved without an import")
+    }
+
+    /// KUU-3977: explicit imports, qualified access, the `Long` companion
+    /// facade, `java.lang.Math`, and member `min`/`max` APIs must keep
+    /// resolving once the companion leak is closed.
+    @Test(arguments: [false, true])
+    func kotlinMathMinMaxStayReachableThroughImportsAndFacades(useArtifact: Bool) throws {
+        let source = """
+        import kotlin.math.min
+        import kotlin.math.max as max2
+        import kotlin.math.*
+
+        fun imported(i: Int, l: Long, d: Double, f: Float): Int {
+            val a = min(i, i) + max2(l, l).toInt() + min(d, d).toInt() + max2(f, f).toInt()
+            val b = min(1.0, 2.0) + max(3.0, 4.0)
+            return a + b.toInt()
+        }
+        fun qualified() = kotlin.math.min(1, 2) + kotlin.math.max(1L, 2L).toInt()
+        fun javaFacade() = java.lang.Math.min(1, 2) + java.lang.Math.max(1.0, 2.0).toInt()
+        fun members() = listOf(3, 1, 2).min() + sequenceOf(3, 1, 2).max() + minOf(1, 2) + maxOf(1L, 2L).toInt()
+        """
+        let ctx = try context(source: source, useArtifact: useArtifact)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-3977: the `Long` companion facade keeps resolving next to
+    /// kotlin.math imports. Source-injection mode currently fails this
+    /// combination for an unrelated reason (KUU-4341), so it stays
+    /// artifact-only until that is fixed.
+    @Test
+    func longCompanionMinMaxFacadeResolvesWithKotlinMathImport() throws {
+        let source = """
+        import kotlin.math.*
+
+        fun companionFacade() = Long.min(1L, 2L) + Long.max(1L, 2L)
         """
         let ctx = try context(source: source, useArtifact: true)
         try runSema(ctx)

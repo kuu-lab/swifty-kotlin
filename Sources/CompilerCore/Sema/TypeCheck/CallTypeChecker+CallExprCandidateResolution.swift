@@ -1,6 +1,33 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Whether a companion member declared inside `containingClass` reached
+    /// the current file through an explicit import — `import Foo.answer`,
+    /// `import Foo.Companion.answer`, `import Foo.Companion.*`, or an alias
+    /// of either. The companion name may be elided in the import path, so
+    /// both spellings are matched against the candidate's fully qualified
+    /// name.
+    private func isExplicitlyImportedCompanionMember(
+        candidateFQName: [InternedString],
+        candidateName: InternedString,
+        containingFQName: [InternedString],
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        guard let file = ctx.currentASTFile else {
+            return false
+        }
+        let elidedCompanionPath = containingFQName + [candidateName]
+        return file.imports.contains { importDecl in
+            if importDecl.isWildcard {
+                // `import Foo.Companion.*` brings companion members into
+                // scope under their own names.
+                return importDecl.path + [candidateName] == candidateFQName
+            }
+            return importDecl.path == candidateFQName
+                || importDecl.path == elidedCompanionPath
+        }
+    }
+
     func contextApplicableCallCandidates(
         _ candidates: [SymbolID],
         ctx: TypeInferenceContext,
@@ -167,11 +194,39 @@ extension CallTypeChecker {
                       let containingClass = sema.symbols.parentSymbol(for: owner),
                       sema.symbols.companionObjectSymbol(for: containingClass) == owner,
                       let receiverType = sema.symbols.functionSignature(for: candidate)?.receiverType,
-                      resolveClassType(receiverType, sema: sema)?.classSymbol == owner
+                      resolveClassType(receiverType, sema: sema)?.classSymbol == owner,
+                      let candidateSymbol = sema.symbols.symbol(candidate),
+                      let containingSymbol = sema.symbols.symbol(containingClass)
                 else {
                     return nil
                 }
-                return receiverType
+                // Companion members are implicitly receivable only from
+                // inside the companion's owner class or — for members
+                // declared inside the class — through an explicit import
+                // such as `import Foo.answer`. A top-level `X.Companion`
+                // extension must not fabricate that receiver in unrelated
+                // scopes, or `Long.Companion.min` would resolve a bare
+                // `min(1, 2)` with no import (KUU-3977); importing the
+                // extension cannot substitute for the missing receiver.
+                if candidateSymbol.fqName.starts(with: containingSymbol.fqName),
+                   self.isExplicitlyImportedCompanionMember(
+                       candidateFQName: candidateSymbol.fqName,
+                       candidateName: candidateSymbol.name,
+                       containingFQName: containingSymbol.fqName,
+                       ctx: ctx
+                   )
+                {
+                    return receiverType
+                }
+                var ancestor = ctx.enclosingClassSymbol
+                var seenAncestors: Set<SymbolID> = []
+                while let current = ancestor, seenAncestors.insert(current).inserted {
+                    if current == containingClass {
+                        return receiverType
+                    }
+                    ancestor = sema.symbols.parentSymbol(for: current)
+                }
+                return nil
             }.first ?? callImplicitReceiverType
             let candidateSpecificNestedCallTypes = candidateSpecificNestedCallArgumentTypes(
                 candidates: resolvedCandidates,

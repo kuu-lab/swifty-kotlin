@@ -276,6 +276,23 @@ struct CompanionClassScopeTests {
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
 
+    /// KUU-3977: top-level `X.Companion` extensions stay callable without a
+    /// receiver only from inside the companion's owner class — the same
+    /// lexical scope that exposes companion members unqualified.
+    @Test func companionExtensionsResolveInsideOwnerClassScope() throws {
+        let ctx = makeContextFromSource("""
+        class Foo {
+            companion object
+            fun pick(a: Int, b: Int) = min(a, b)
+            fun pickMax(a: Int, b: Int) = max(a, b)
+        }
+        fun Foo.Companion.min(a: Int, b: Int) = if (a < b) a else b
+        fun Foo.Companion.max(a: Int, b: Int) = if (a > b) a else b
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func interfaceBodiesResolveNamedCompanionMembers() throws {
         let ctx = makeContextFromSource("""
         interface Named {
