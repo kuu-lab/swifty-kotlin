@@ -80,7 +80,7 @@ struct StdlibProfileArtifactTests {
     @Test
     func minimalProfileImportDiagnostics() throws {
         let excluded = """
-        import kotlin.uuid.Uuid
+        import java.text.SimpleDateFormat
         import kotlinx.coroutines.runBlocking
         import kotlinx.coroutines.flow.*
 
@@ -111,7 +111,7 @@ struct StdlibProfileArtifactTests {
         )
         let messages = found.filter { $0.code == "KSWIFTK-LIB-0036" }.map(\.message)
         #expect(messages.count == 3, "\(found)")
-        #expect(messages.contains { $0.contains("'kotlin.uuid.Uuid'") })
+        #expect(messages.contains { $0.contains("'java.text.SimpleDateFormat'") })
         // Resolves through a Swift-side synthetic stub, so it must be reported
         // by profile membership rather than by failing to resolve.
         #expect(messages.contains { $0.contains("'kotlinx.coroutines.runBlocking'") })
