@@ -360,6 +360,7 @@ extension KotlinParser {
                 range: &range,
                 allowsDeclarationAssignment: true,
                 allowsFunctionWhereClause: hasTypeParameters,
+                allowsDeclaredTypeColon: true,
                 stopsAtFunctionDelegation: true
             )
             // A block on the next line still belongs to a function whose
@@ -456,7 +457,8 @@ extension KotlinParser {
                 into: &children,
                 range: &range,
                 allowsDeclarationAssignment: true,
-                allowsPropertyDelegation: true
+                allowsPropertyDelegation: true,
+                allowsDeclaredTypeColon: true
             )
             // In Kotlin, `get()`/`set()` accessors and explicit backing field
             // declarations on the next line are part of the property declaration.
