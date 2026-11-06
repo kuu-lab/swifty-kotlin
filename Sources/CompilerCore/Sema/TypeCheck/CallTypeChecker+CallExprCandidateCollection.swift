@@ -179,6 +179,13 @@ extension CallTypeChecker {
                     }
                     if !regularMembers.isEmpty {
                         candidates = regularMembers
+                        // The scope-derived receiver pick belongs to whichever
+                        // tower entry supplied the scope candidates; once the
+                        // innermost receiver's own members win, the dispatch
+                        // receiver is that receiver — not an outer entry whose
+                        // same-named extension merely survived scope lookup
+                        // (KUU-4093).
+                        callImplicitReceiverType = receiverType
                         if scopeProvidedNoCandidates {
                             mergedImplicitReceiverMembers = regularMembers
                         }
