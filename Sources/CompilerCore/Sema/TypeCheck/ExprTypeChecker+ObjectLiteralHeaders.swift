@@ -85,6 +85,17 @@ extension ExprTypeChecker {
             {
                 if index < objectDecl.superTypeEntries.count {
                     let entry = objectDecl.superTypeEntries[index]
+                    // Interfaces have no constructor to invoke (KUU-4132).
+                    if entry.hasConstructorCallSyntax,
+                       !declIsBundledStdlib,
+                       sema.symbols.symbol(classType.classSymbol)?.kind == .interface
+                    {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0481",
+                            "this type does not have a constructor.",
+                            range: entry.range ?? objectDecl.range
+                        )
+                    }
                     if !entry.hasConstructorCallSyntax,
                        entry.delegateExpression == nil,
                        sema.symbols.symbol(classType.classSymbol)?.kind == .class,

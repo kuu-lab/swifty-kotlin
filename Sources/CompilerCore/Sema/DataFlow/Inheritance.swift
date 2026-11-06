@@ -66,6 +66,14 @@ extension DataFlowSemaPhase {
         // primary constructor.
         let isExpectDeclaration = symbols.symbol(symbol)?.flags.contains(.expectDeclaration) == true
         let requiresClassSupertypeConstructorInvocation: Bool
+        // A `()` supertype entry is impossible when the declaration has no
+        // primary constructor to run it through. Expect classes and objects
+        // never have an implicit constructor, so the bare-`()` forms are
+        // impossible there; a non-expect class only loses its implicit
+        // default constructor once it declares secondary constructors.
+        // Interfaces never reach this diagnostic — kotlinc reports their
+        // `()` entries as "interfaces cannot initialize supertypes".
+        let supertypeInitImpossibleWithoutPrimaryConstructor: Bool
         switch decl {
         case let .classDecl(classDecl):
             superTypeRefs = classDecl.superTypeEntries.map(\.typeRef)
@@ -75,17 +83,21 @@ extension DataFlowSemaPhase {
                 + (classDecl.companionObject.map { [$0] } ?? [])
             requiresClassSupertypeConstructorInvocation = !isExpectDeclaration
                 && (classDecl.hasPrimaryConstructorSyntax || classDecl.secondaryConstructors.isEmpty)
+            supertypeInitImpossibleWithoutPrimaryConstructor = !classDecl.hasPrimaryConstructorSyntax
+                && (isExpectDeclaration || !classDecl.secondaryConstructors.isEmpty)
         case let .interfaceDecl(interfaceDecl):
             superTypeRefs = interfaceDecl.superTypes
             superTypeEntries = interfaceDecl.superTypeEntries
             nestedDecls = interfaceDecl.nestedClasses + interfaceDecl.nestedObjects
                 + (interfaceDecl.companionObject.map { [$0] } ?? [])
             requiresClassSupertypeConstructorInvocation = false
+            supertypeInitImpossibleWithoutPrimaryConstructor = false
         case let .objectDecl(objectDecl):
             superTypeRefs = objectDecl.superTypes
             superTypeEntries = objectDecl.superTypeEntries
             nestedDecls = objectDecl.nestedClasses + objectDecl.nestedObjects
             requiresClassSupertypeConstructorInvocation = !isExpectDeclaration
+            supertypeInitImpossibleWithoutPrimaryConstructor = isExpectDeclaration
         default:
             return
         }
@@ -132,36 +144,45 @@ extension DataFlowSemaPhase {
         let isBundledStdlibDecl = declFileID
             .flatMap { sourceManager?.origin(of: $0)?.isBundledStdlib } == true
         for (index, superTypeRef) in superTypeRefs.enumerated() {
+            let entry = index < superTypeEntries.count ? superTypeEntries[index] : nil
+            let hasConstructorCall = entry?.hasConstructorCallSyntax == true
+            let entryRange = entry?.range ?? symbols.symbol(symbol)?.declSite
+            // Interfaces cannot initialize supertypes: kotlinc rejects every
+            // `()` entry on an interface — "interfaces cannot initialize
+            // supertypes" — purely syntactically, even when the supertype
+            // name does not resolve (KUU-4132).
+            if hasConstructorCall, case .interfaceDecl = decl, !isBundledStdlibDecl {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0482",
+                    "interfaces cannot initialize supertypes.",
+                    range: entryRange
+                )
+            }
+            // A supertype constructor invocation is impossible when the
+            // declaration itself has no primary constructor to run it
+            // through — the same rule covers expect declarations, where the
+            // matching actual performs the initialization, and non-expect
+            // classes whose secondary constructors delegate via `super(...)`
+            // instead (KUU-4122, KUU-4132). The check is purely syntactic,
+            // so it also applies when the supertype fails to resolve.
+            if hasConstructorCall,
+               !isBundledStdlibDecl,
+               supertypeInitImpossibleWithoutPrimaryConstructor
+            {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-0474",
+                    "supertype initialization is impossible without a primary constructor.",
+                    range: entryRange
+                )
+            }
             // Expect declarations cannot invoke supertype constructors:
             // initialization belongs to the matching actual declaration
             // (kotlinc: "'expect' classes cannot initialize supertypes").
-            // An expect object — like an expect class without `()` — has no
-            // primary constructor at all, so kotlinc additionally reports
-            // the invocation as impossible without one. The check is purely
-            // syntactic, so it also applies when the supertype fails to
-            // resolve (KUU-4122).
-            if index < superTypeEntries.count,
-               isExpectDeclaration,
-               !isBundledStdlibDecl,
-               superTypeEntries[index].hasConstructorCallSyntax
-            {
-                let hasPrimaryConstructor: Bool
-                if case let .classDecl(classDecl) = decl {
-                    hasPrimaryConstructor = classDecl.hasPrimaryConstructorSyntax
-                } else {
-                    hasPrimaryConstructor = false
-                }
-                if !hasPrimaryConstructor {
-                    diagnostics.error(
-                        "KSWIFTK-SEMA-0474",
-                        "supertype initialization is impossible without a primary constructor.",
-                        range: superTypeEntries[index].range ?? symbols.symbol(symbol)?.declSite
-                    )
-                }
+            if hasConstructorCall, isExpectDeclaration, !isBundledStdlibDecl {
                 diagnostics.error(
                     "KSWIFTK-SEMA-0475",
                     "'expect' classes cannot initialize supertypes.",
-                    range: superTypeEntries[index].range ?? symbols.symbol(symbol)?.declSite
+                    range: entryRange
                 )
             }
             if let resolved = resolveNominalSymbolAndTypeArgs(
@@ -201,6 +222,19 @@ extension DataFlowSemaPhase {
                         diagnostics.error(
                             "KSWIFTK-SEMA-0436",
                             "this type has a constructor, so it must be initialized here.",
+                            range: entry.range ?? symbols.symbol(symbol)?.declSite
+                        )
+                    }
+                    // Interfaces have no constructor to invoke: kotlinc
+                    // rejects `I()` on any nominal with "this type does not
+                    // have a constructor" (KUU-4132).
+                    if entry.hasConstructorCallSyntax,
+                       !isBundledStdlibDecl,
+                       symbols.symbol(resolved.symbol)?.kind == .interface
+                    {
+                        diagnostics.error(
+                            "KSWIFTK-SEMA-0481",
+                            "this type does not have a constructor.",
                             range: entry.range ?? symbols.symbol(symbol)?.declSite
                         )
                     }
