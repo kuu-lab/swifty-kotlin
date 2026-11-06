@@ -2,6 +2,7 @@
 @testable import CompilerCore
 import Foundation
 import Testing
+import TestStdlibCache
 @testable import CompilerTestSupport
 
 @Suite(.serialized)
@@ -454,6 +455,46 @@ struct FlowSemaTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0023", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
         assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+    }
+
+    @Test func testIsCheckResolvesSourceInternalChannelFlowOverBundledStdlibClass() throws {
+        // KUU-4256: the bundled stdlib used to declare `internal class
+        // ChannelFlow` in `kotlinx.coroutines.flow`. An unqualified
+        // `ChannelFlow` inside `package kotlinx.coroutines.flow` then bound
+        // to that inaccessible bundled class instead of the source-declared
+        // `kotlinx.coroutines.flow.internal.ChannelFlow` reached through a
+        // star import, so `this is ChannelFlow` produced no usable smart
+        // cast (kotlinx-coroutines Share.kt `configureSharing`).
+        TestStdlibCache.shared.prepare()
+        let artifact = try #require(CompilerOptions.defaultStdlibLibraryPath)
+        let sources = [
+            """
+            package kotlinx.coroutines.flow.internal
+            import kotlinx.coroutines.flow.Flow
+            class ChannelFlow<T> : Flow<T> {
+                fun dropChannelOperators(): Flow<T>? = null
+            }
+            """,
+            """
+            package kotlinx.coroutines.flow
+            import kotlinx.coroutines.flow.internal.*
+            fun <T> Flow<T>.probeSharing(): Flow<T>? {
+                if (this is ChannelFlow) {
+                    return dropChannelOperators()
+                }
+                return null
+            }
+            """
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                stdlibLibraryPath: artifact,
+                allowDefaultStdlibLibrary: false
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
     }
 }
 #endif

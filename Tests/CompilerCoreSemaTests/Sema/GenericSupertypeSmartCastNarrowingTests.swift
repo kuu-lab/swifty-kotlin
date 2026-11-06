@@ -115,6 +115,56 @@ struct GenericSupertypeSmartCastNarrowingTests {
         #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func testSmartCastToChannelFlowKeepsFunctionTypeParameter() throws {
+        // Mirrors kotlinx-coroutines Share.kt `configureSharing`: `this is
+        // ChannelFlow` on `Flow<T>` must narrow through the invariant
+        // `FusibleFlow` hop to `ChannelFlow<T>` so `dropChannelOperators()`
+        // returns `Flow<T>?` and the `SharingConfig` call type-checks
+        // (KUU-4256).
+        let ctx = makeContextFromSources([
+            """
+            package sample3
+            interface Flow<out T>
+            interface FusibleFlow<T> : Flow<T>
+            abstract class ChannelFlow<T>(
+                val context: Any,
+                val capacity: Int,
+                val onBufferOverflow: Int
+            ) : FusibleFlow<T> {
+                open fun dropChannelOperators(): Flow<T>? = null
+            }
+            class SharingConfig<T>(
+                val upstream: Flow<T>,
+                val extraBufferCapacity: Int,
+                val onBufferOverflow: Int,
+                val context: Any
+            )
+            fun <T> Flow<T>.configureSharing(): SharingConfig<T> {
+                if (this is ChannelFlow) {
+                    val upstream = dropChannelOperators()
+                    if (upstream != null) {
+                        return SharingConfig(
+                            upstream = upstream,
+                            extraBufferCapacity = when (capacity) {
+                                -2, -1, 0 -> when {
+                                    onBufferOverflow == 0 -> if (capacity == 0) 0 else 1
+                                    else -> 0
+                                }
+                                else -> capacity
+                            },
+                            onBufferOverflow = onBufferOverflow,
+                            context = context
+                        )
+                    }
+                }
+                return SharingConfig(this, 0, 0, Any())
+            }
+            """
+        ])
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "got: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testOrdinaryUnrelatedIsCheckStillNarrowsWithoutTypeArgs() throws {
         // A non-generic `is` check (no shared type parameter to recover)
         // must keep behaving exactly as before: narrow to the plain target

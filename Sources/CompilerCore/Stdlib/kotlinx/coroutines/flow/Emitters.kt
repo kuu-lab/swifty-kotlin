@@ -81,11 +81,11 @@ internal class ThrowingCollector<T>(private val failure: Throwable) : FlowCollec
 }
 
 // OPTIONAL_CHANNEL means flowOn introduced a channel without specifying its
-// capacity. ChannelFlow resolves it to the default buffered capacity when
+// capacity. ChannelFlowImpl resolves it to the default buffered capacity when
 // collection starts.
 internal const val OPTIONAL_CHANNEL_CAPACITY: Int = -3
 
-internal class ChannelFlow<T>(
+internal class ChannelFlowImpl<T>(
     internal val upstream: Flow<T>,
     internal val upstreamContext: CoroutineContext,
     internal val capacity: Int,
@@ -141,14 +141,14 @@ internal fun <T> Flow<T>.fuse(
         return this
     }
 
-    val previous = if (this is ChannelFlow<*>) {
+    val previous = if (this is ChannelFlowImpl<*>) {
         @Suppress("UNCHECKED_CAST")
-        this as ChannelFlow<T>
+        this as ChannelFlowImpl<T>
     } else {
         null
     }
     if (previous == null) {
-        return ChannelFlow(this, context, capacity, onBufferOverflow)
+        return ChannelFlowImpl(this, context, capacity, onBufferOverflow)
     }
 
     // The earlier (upstream) context wins when both contexts contain the same key.
@@ -172,7 +172,7 @@ internal fun <T> Flow<T>.fuse(
         }
         mergedOverflow = previous.onBufferOverflow
     }
-    return ChannelFlow(
+    return ChannelFlowImpl(
         previous.upstream,
         mergedContext,
         mergedCapacity,
