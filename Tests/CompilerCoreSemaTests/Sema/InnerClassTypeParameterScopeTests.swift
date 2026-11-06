@@ -410,4 +410,52 @@ struct InnerClassTypeParameterScopeTests {
         let sSignature = try #require(sema.symbols.functionSignature(for: sIteratorSymbol))
         #expect(sSignature.returnType == sExpected)
     }
+
+    @Test
+    func explicitCallTypeArgumentsKeepInnerClassEnclosingArguments() throws {
+        // KUU-4175: `Box<Handler?>` in an inner class body must spell
+        // `Outer<T>.Handler?`, matching the declared `Handler?` types that
+        // header resolution already captures. Call-site explicit type
+        // arguments resolved without the inference context dropped the
+        // enclosing arguments, so `_box.v` mismatched every declared
+        // `Handler?` (kotlinx.coroutines AwaitAllNode.disposer).
+        try withTemporaryFile(contents: """
+        class Box<V>(var v: V)
+        class Outer<T> {
+            inner class Handler
+            inner class Node {
+                private val _box = Box<Handler?>(null)
+                var disposer: Handler?
+                    get() = _box.v
+                    set(value) { _box.v = value }
+                fun read(): Handler? = _box.v
+            }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let outer = try #require(sema.symbols.lookup(fqName: ["Outer"].map(ctx.interner.intern)))
+            let handler = try #require(sema.symbols.lookup(fqName: ["Outer", "Handler"].map(ctx.interner.intern)))
+            let outerParameter = try #require(sema.types.nominalTypeParameterSymbols(for: outer).first)
+            let handlerType = sema.types.make(.classType(sema.types.classType(
+                for: handler,
+                arguments: [.invariant(sema.types.make(.typeParam(TypeParamType(symbol: outerParameter))))]
+            )))
+            let expected = sema.types.makeNullable(handlerType)
+            let box = try #require(sema.symbols.lookup(fqName: ["Box"].map(ctx.interner.intern)))
+            let boxType = sema.types.make(.classType(sema.types.classType(
+                for: box,
+                arguments: [.invariant(expected)]
+            )))
+            let backing = try #require(sema.symbols.lookup(fqName: ["Outer", "Node", "_box"].map(ctx.interner.intern)))
+            #expect(sema.symbols.propertyType(for: backing) == boxType)
+            let disposer = try #require(sema.symbols.lookup(fqName: ["Outer", "Node", "disposer"].map(ctx.interner.intern)))
+            #expect(sema.symbols.propertyType(for: disposer) == expected)
+            let readSymbol = try #require(sema.symbols.lookup(fqName: ["Outer", "Node", "read"].map(ctx.interner.intern)))
+            let read = try #require(sema.symbols.functionSignature(for: readSymbol))
+            #expect(read.returnType == expected)
+        }
+    }
 }
