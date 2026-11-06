@@ -16,7 +16,6 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         guard !hasApplicableImplicitMembers,
-              !args.contains(where: { ctx.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }),
               let calleeName,
               let file = ctx.currentASTFile
         else {

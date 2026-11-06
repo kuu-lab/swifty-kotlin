@@ -548,6 +548,51 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    /// KUU-4260: an explicit import still outranks a same-package declaration
+    /// when the call passes a lambda — upstream `flow/operators/Zip.kt` calls
+    /// `unsafeFlow` through `import ...unsafeFlow as flow` inside package
+    /// `kotlinx.coroutines.flow`, which also declares `flow`.
+    @Test(arguments: [false, true])
+    func aliasedImportShadowsSamePackageFunctionForLambdaCall(useArtifact: Bool) throws {
+        let sources = [
+            """
+            package builders
+            fun <T> flow(block: () -> T): T = block()
+            fun <T> pick(block: (Int) -> T): T = block(0)
+            """,
+            """
+            package imported
+            fun <T> unsafeFlow(block: () -> T): T = block()
+            fun <T> unsafePick(g: (Int, Int) -> T): T = g(0, 0)
+            """,
+            """
+            package builders
+            import imported.unsafeFlow as flow
+            import imported.unsafePick as pick
+            fun viaAlias(): Int = flow { 42 }
+            fun viaSamePackage(): String = pick { value -> "v" + value }
+            """,
+        ]
+
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let aliasedCall = try #require(selectedCall(
+                named: "flow", inFunction: "viaAlias", ast: ast, sema: sema, interner: ctx.interner
+            ))
+            let fallbackCall = try #require(selectedCall(
+                named: "pick", inFunction: "viaSamePackage", ast: ast, sema: sema, interner: ctx.interner
+            ))
+
+            #expect(aliasedCall.fqName == "imported.unsafeFlow")
+            #expect(fallbackCall.fqName == "builders.pick")
+        }
+    }
+
     private func selectedCall(
         named calleeName: String,
         inFunction functionName: String,
