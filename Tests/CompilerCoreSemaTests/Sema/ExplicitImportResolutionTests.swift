@@ -609,6 +609,40 @@ struct ExplicitImportResolutionTests {
         }
     }
 
+    /// KUU-4214: kotlinx-coroutines Builders.kt hits the same
+    /// import-alias/same-package collision inside `Sequence<T>.asFlow()`,
+    /// where the extension receiver adds a second implicit receiver to the
+    /// `flow { }` call.
+    @Test(arguments: [false, true])
+    func aliasedImportWinsInsideExtensionFunctionBuilder(useArtifact: Bool) throws {
+        let sources = [
+            """
+            package lib
+            class Flow<T>(val origin: String)
+            class Collector<T>
+            fun <T> unsafeFlow(block: suspend Collector<T>.() -> Unit): Flow<T> = Flow("unsafe")
+            """,
+            """
+            package repro
+            import lib.Flow
+            import lib.unsafeFlow as flow
+            fun <T> flow(block: suspend lib.Collector<T>.() -> Unit): Flow<T> = Flow("safe")
+            fun <T> Sequence<T>.asFlow(): Flow<T> = flow { }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = try context(inputs: paths, useArtifact: useArtifact)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let sema = try #require(ctx.sema)
+            let unsafeFlow = try #require(sema.symbols.lookup(fqName: [
+                ctx.interner.intern("lib"), ctx.interner.intern("unsafeFlow"),
+            ]))
+            #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == unsafeFlow })
+        }
+    }
+
     @Test
     func samePackageFunctionStillRequiresAnExplicitImport() throws {
         let source = """
