@@ -360,6 +360,59 @@ struct LinkedExpectActualSuperConstructorTests {
         #expect(expectInit.count == 2, "Both implicit-expect inners cannot initialize supertypes: \(errors)")
     }
 
+    // KUU-4337: a bare supertype on an expect declaration must not be
+    // resolved as a `Base()` constructor call — initialization belongs to
+    // the actual declaration, so a supertype whose constructor takes
+    // parameters cannot produce SEMA-0480 here.
+    @Test
+    func expectClassSupertypeOmitsConstructorResolution() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            expect open class ByteString internal constructor(data: Int)
+            internal expect class SegmentedByteString internal constructor(
+                segments: Int,
+            ) : ByteString {
+                internal val segments: Int
+            }
+            internal actual open class ByteString actual constructor(data: Int)
+            internal actual class SegmentedByteString actual constructor(
+                segments: Int,
+            ) : ByteString(0) {
+                internal actual val segments: Int = segments
+            }
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0480" },
+            "Expect subclass must not resolve the bare supertype as a call: \(errors)"
+        )
+        #expect(errors.isEmpty, "Expect/actual pair should link cleanly: \(errors)")
+    }
+
+    @Test
+    func expectObjectSupertypeOmitsConstructorResolution() throws {
+        let ctx = try makeContext([
+            """
+            package x
+            open class Sup(val data: Int)
+            expect object E : Sup
+            actual object E : Sup(0)
+            """
+        ])
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            !errors.contains { $0.code == "KSWIFTK-SEMA-0480" },
+            "Expect object must not resolve the bare supertype as a call: \(errors)"
+        )
+        #expect(errors.isEmpty, "Expect/actual object pair should link cleanly: \(errors)")
+    }
+
     // Bare supertypes on expect declarations and constructor invocations on
     // non-expect declarations stay legal.
     @Test

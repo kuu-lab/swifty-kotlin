@@ -158,6 +158,13 @@ extension DeclTypeChecker {
         let sema = ctx.sema
         // Enum's name/ordinal superclass arguments are synthesized during lowering.
         guard sema.symbols.symbol(symbol)?.kind != .enumClass else { return }
+        // Expect declarations never run a supertype constructor themselves —
+        // initialization belongs to the matching actual declaration, so a
+        // bare `Base` supertype must not be resolved as a `Base()` call
+        // (KUU-4337). `Inheritance.swift` already rejects explicit `()`
+        // entries on expect classes, so no constructor arguments can reach
+        // this point for them anyway.
+        guard sema.symbols.symbol(symbol)?.flags.contains(.expectDeclaration) != true else { return }
         guard let superclassSymbol = superclassSymbol(of: symbol, sema: sema),
               let superclassInfo = sema.symbols.symbol(superclassSymbol),
               let primaryCtorSymbol = sema.symbols.symbols(atDeclSite: classDecl.range)
