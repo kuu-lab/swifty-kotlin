@@ -26,9 +26,9 @@ internal external suspend fun <T> Flow<T>.collectCold(collector: suspend (T) -> 
 
 @Suppress("UNCHECKED_CAST")
 public suspend fun <T> Flow<T>.collect(collector: suspend (T) -> Unit) {
-    if (this is ChannelFlow<*>) {
+    if (this is ChannelFlowImpl<*>) {
         @Suppress("UNCHECKED_CAST")
-        (this as ChannelFlow<T>).collectTo(collector)
+        (this as ChannelFlowImpl<T>).collectTo(collector)
     } else if (this is SharedFlow<*>) {
         (this as SharedFlow<T>).collect(collector)
     } else {
@@ -404,7 +404,7 @@ public fun <T> Flow<T>.debounce(timeoutMillis: Long): Flow<T> {
 }
 
 // Buffering and context operators use a per-collection channel. Their fused
-// configuration lives in ChannelFlow so adjacent operators share one producer
+// configuration lives in ChannelFlowImpl so adjacent operators share one producer
 // and one channel.
 
 public fun <T> Flow<T>.buffer(
