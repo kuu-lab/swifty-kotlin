@@ -324,6 +324,15 @@ extension CallTypeChecker {
               calleeName != launcherNames.sequenceFn
         else { return nil }
         let candidates = candidateOverride ?? ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
+        if candidateOverride == nil {
+            // Kotlin merges explicit top-level imports with same-package
+            // declarations into one overload set, but scope lookup stops at
+            // the package scope. Defer to normal resolution when an import
+            // contributes a same-name function the scope candidates cannot
+            // see, so the import tier can win ties (KUU-4216).
+            let importCandidates = explicitImportTopLevelFunctions(named: calleeName, ctx: ctx)
+            guard importCandidates.allSatisfy({ candidates.contains($0) }) else { return nil }
+        }
         guard candidates.count == 1,
               let candidate = candidates.first,
               let signature = ctx.sema.symbols.functionSignature(for: candidate),
@@ -744,5 +753,33 @@ extension CallTypeChecker {
             return resultType
         }
         return nil
+    }
+
+    /// Top-level non-extension functions reachable through the file's explicit
+    /// (non-wildcard) imports under `name`, including import aliases. Ordinary
+    /// scope lookup stops at the package scope, so these candidates are
+    /// invisible until the merged-overload path restores them.
+    private func explicitImportTopLevelFunctions(
+        named name: InternedString,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        guard let file = ctx.currentASTFile else { return [] }
+        var result: [SymbolID] = []
+        var seen = Set<SymbolID>()
+        for importDecl in file.imports where !importDecl.isWildcard {
+            guard (importDecl.alias ?? importDecl.path.last) == name else { continue }
+            for imported in ctx.sema.symbols.lookupAll(fqName: importDecl.path)
+            where seen.insert(imported).inserted {
+                guard let symbol = ctx.cachedSymbol(imported),
+                      symbol.kind == .function,
+                      !symbol.flags.contains(.localFunction),
+                      !ctx.isExpectDeclarationSupersededByActual(imported),
+                      let signature = ctx.sema.symbols.functionSignature(for: imported),
+                      signature.receiverType == nil
+                else { continue }
+                result.append(imported)
+            }
+        }
+        return result
     }
 }

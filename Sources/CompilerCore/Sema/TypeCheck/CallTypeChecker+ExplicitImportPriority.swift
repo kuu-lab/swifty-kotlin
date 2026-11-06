@@ -71,6 +71,23 @@ extension CallTypeChecker {
             return candidates
         }
 
+        // A lambda or callable reference can only satisfy a function-shaped
+        // parameter, but its provisional argument type cannot prove that
+        // during the probe. Keep only imported candidates whose mapped
+        // parameters can accept the functional arguments; overload
+        // resolution still performs the authoritative check afterwards.
+        let hasFunctionalLiteralArgs = args.contains {
+            ctx.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true
+        }
+        let probedImportedCandidates = hasFunctionalLiteralArgs
+            ? importedCandidates.filter { candidate in
+                functionalLiteralArgumentsFitParameters(
+                    candidate, args: args, callRange: range, ctx: ctx
+                )
+            }
+            : importedCandidates
+        guard !probedImportedCandidates.isEmpty else { return candidates }
+
         let callArgs = zip(args, argTypes).map { argument, type in
             let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
             return CallArg.source(
@@ -90,7 +107,7 @@ extension CallTypeChecker {
             dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
         )
         let probe = ctx.resolver.probeCall(
-            candidates: importedCandidates,
+            candidates: probedImportedCandidates,
             call: call,
             expectedType: overloadResolutionExpectedType(from: expectedType, sema: ctx.sema),
             implicitReceiverType: implicitReceiverType,
@@ -98,6 +115,43 @@ extension CallTypeChecker {
             ctx: ctx.sema
         )
         guard !probe.viableCandidates.isEmpty else { return candidates }
-        return importedCandidates
+        return probedImportedCandidates
+    }
+
+    /// Whether every lambda or callable-reference argument maps to a
+    /// parameter that can accept a function value: a function type, an
+    /// unresolved type parameter, or a SAM-convertible interface.
+    private func functionalLiteralArgumentsFitParameters(
+        _ candidate: SymbolID,
+        args: [CallArgument],
+        callRange: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> Bool {
+        let sema = ctx.sema
+        guard let signature = sema.symbols.functionSignature(for: candidate),
+              let mapping = parameterMappingForCallArguments(
+                  args, in: signature, callRange: callRange, ctx: ctx
+              )
+        else {
+            return false
+        }
+        for (index, argument) in args.enumerated() {
+            guard ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true,
+                  let parameterIndex = mapping[index]
+            else {
+                continue
+            }
+            let parameterType = signature.parameterTypes[parameterIndex]
+            switch sema.types.kind(of: parameterType) {
+            case .functionType, .typeParam:
+                continue
+            default:
+                if driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil {
+                    continue
+                }
+                return false
+            }
+        }
+        return true
     }
 }
