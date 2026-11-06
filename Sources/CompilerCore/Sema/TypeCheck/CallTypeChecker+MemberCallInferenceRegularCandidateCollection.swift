@@ -248,7 +248,7 @@ extension CallTypeChecker {
                     // written as Kotlin source at package scope. These are resolved
                     // via scope lookup (like ordinary extension functions), not the
                     // companion member lookup above.
-                    companionCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
+                    companionCandidates = ctx.cachedScopeLookup(calleeName, matching: { candidate in
                         guard let symbol = ctx.cachedSymbol(candidate),
                               symbol.kind == .function,
                               let signature = sema.symbols.functionSignature(for: candidate),
@@ -259,7 +259,7 @@ extension CallTypeChecker {
                             declaredReceiver: recv,
                             sema: sema
                         )
-                    }
+                    })
                     if !companionCandidates.isEmpty {
                         // A scoped supertype-receiver extension (e.g.
                         // `fun Base64.encode` resolved through companion
