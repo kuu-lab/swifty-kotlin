@@ -1384,11 +1384,17 @@ extension KotlinParser {
                 // implicit constructor on the next line. A delegation `by` may
                 // begin a line while scanning that supertype list or a property
                 // declaration that has not already introduced an initializer.
+                // A `:` starting a line inside a function signature introduces
+                // the return type (`fun R.f()\n    : R`), which kotlinc allows
+                // before the `=`/body; nothing else can begin a declaration or
+                // statement with `:`.
                 if ParserBoundaryPolicy.continuesExpressionBeforeNewline(stream.peek().kind)
                     || (allowsDeclarationAssignment && !sawAssignment && stream.peek().kind == .symbol(.assign))
                     || (allowsPropertyDelegation && !sawAssignment && stream.peek().kind == .softKeyword(.by))
                     || (allowsFunctionWhereClause && !sawAssignment
                         && stream.peek().kind == .softKeyword(.where))
+                    || (stopsAtFunctionDelegation && !sawAssignment
+                        && stream.peek().kind == .symbol(.colon))
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
                     || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
                     || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))
