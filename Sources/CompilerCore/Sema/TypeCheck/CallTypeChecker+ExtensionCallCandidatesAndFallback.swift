@@ -348,7 +348,51 @@ extension CallTypeChecker {
         {
             ctx.builderInference?.constraints.append(contentsOf: constraints)
         }
-        return scopeCandidates
+        return shadowFilteredExtensionCandidates(scopeCandidates, ctx: ctx, sema: sema)
+    }
+
+    /// A user-source declaration shadows a bundled-stdlib declaration with
+    /// an identical signature: compiling e.g. kotlinx-coroutines sources
+    /// against the bundled stdlib must not see each extension twice.
+    private func shadowFilteredExtensionCandidates(
+        _ candidates: [SymbolID],
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        func sameCallableSignature(_ lhs: SymbolID, _ rhs: SymbolID) -> Bool {
+            guard let lhsSymbol = sema.symbols.symbol(lhs),
+                  let rhsSymbol = sema.symbols.symbol(rhs),
+                  lhsSymbol.fqName == rhsSymbol.fqName,
+                  let lhsSignature = sema.symbols.functionSignature(for: lhs),
+                  let rhsSignature = sema.symbols.functionSignature(for: rhs)
+            else {
+                return false
+            }
+            return lhsSignature.receiverType == rhsSignature.receiverType
+                && lhsSignature.parameterTypes == rhsSignature.parameterTypes
+                && lhsSignature.returnType == rhsSignature.returnType
+                && lhsSignature.typeParameterSymbols.count == rhsSignature.typeParameterSymbols.count
+                && lhsSignature.isSuspend == rhsSignature.isSuspend
+        }
+        func isBundledStdlibDecl(_ symbol: SymbolID) -> Bool {
+            if sema.symbols.isImportedStdlibSymbol(symbol) {
+                return true
+            }
+            guard let file = sema.symbols.symbol(symbol)?.declSite?.start.file else {
+                return false
+            }
+            return driver.sourceManager?.origin(of: file)?.isBundledStdlib == true
+        }
+        return candidates.filter { candidate in
+            guard isBundledStdlibDecl(candidate) else {
+                return true
+            }
+            return !candidates.contains { other in
+                other != candidate
+                    && !isBundledStdlibDecl(other)
+                    && sameCallableSignature(candidate, other)
+            }
+        }
     }
 
     /// KUU-946: Kotlin admits extension functions as call candidates whenever

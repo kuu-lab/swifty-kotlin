@@ -134,6 +134,61 @@ struct BundledStdlibSourceShadowingTests {
         try assertProduceCallsBindSourceDeclared(ctx, expectedCount: 1)
     }
 
+    /// KUU-4177: a source-declared extension with a signature identical to
+    /// the bundled stdlib artifact's must shadow it outright — upstream
+    /// kotlinx-coroutines `Builders.common.kt` calls
+    /// `newContext.ensureActive()` where both decls are viable and used to
+    /// collide as SEMA-0003.
+    private let ensureActiveDeclarations = """
+    package kotlinx.coroutines
+
+    import kotlin.coroutines.CoroutineContext
+
+    public fun CoroutineContext.ensureActive() {}
+    """
+
+    private let ensureActiveConsumer = """
+    package kotlinx.coroutines
+
+    import kotlin.coroutines.CoroutineContext
+
+    fun check(newContext: CoroutineContext) {
+        newContext.ensureActive()
+    }
+    """
+
+    @Test
+    func sourceEnsureActiveShadowsBundledStdlibEnsureActive() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSources(
+            [ensureActiveDeclarations, ensureActiveConsumer],
+            allowDefaultStdlibLibrary: true
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        var chosenCount = 0
+        for index in ast.arena.exprs.indices {
+            let call = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(call),
+                  ctx.interner.resolve(callee) == "ensureActive"
+            else {
+                continue
+            }
+            let chosen = try #require(sema.bindings.callBinding(for: call)?.chosenCallee)
+            let symbol = try #require(sema.symbols.symbol(chosen))
+            #expect(
+                !symbol.flags.contains(.importedLibrary),
+                "ensureActive resolved to imported symbol \(symbol.fqName)"
+            )
+            chosenCount += 1
+        }
+        #expect(chosenCount == 1)
+    }
+
     @Test
     func sourceProduceBindsInValPosition() throws {
         TestStdlibCache.shared.prepare()
