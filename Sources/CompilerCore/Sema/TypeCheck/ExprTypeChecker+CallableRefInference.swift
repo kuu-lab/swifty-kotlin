@@ -2419,6 +2419,34 @@ extension ExprTypeChecker {
                     {
                         inferredType = specialization.functionType
                         contextualSpecialization = specialization
+                    } else if !signature.typeParameterSymbols.isEmpty,
+                              !driver.helpers.callableReferenceExpectedTypeHasInferenceParameters(
+                                  expectedFunctionType,
+                                  inferenceParameters: ctx.callableReferenceInferenceParameters,
+                                  sema: sema
+                              ),
+                              let specialization = driver.helpers.contextualCallableReferenceBinding(
+                                  for: signature,
+                                  targetSymbol: chosen,
+                                  bindReceiver: isBoundReceiver,
+                                  boundReceiver: boundReceiverType.map { (chosen, $0) },
+                                  unboundReceiverType: unboundCallableReceiverType,
+                                  expectedFunctionType: expectedFunctionType,
+                                  postponedReturnTypeParameter: postponedReturnParameter,
+                                  interner: interner,
+                                  availableContextReceiverTypes: availableContextReceiverTypes,
+                                  sema: sema
+                              )
+                    {
+                        // An expected type that only mentions rigid lexical
+                        // type parameters can still specialize the reference:
+                        // `fun <T> f(): (T) -> Box<T> = ::mk` binds mk's E to
+                        // the caller's T (KUU-4204). Expected types mentioning
+                        // the enclosing call's own inference parameters keep
+                        // the reference's concrete type so the call solver
+                        // can bind them instead.
+                        inferredType = specialization.functionType
+                        contextualSpecialization = specialization
                     }
                     resultType = inferredType
                 }
