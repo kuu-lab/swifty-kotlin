@@ -99,5 +99,35 @@ extension CompilerCoreTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
     }
+
+    /// KUU-4185: vendored `kotlinx.coroutines` sources declare
+    /// `expect class CancellationException` while the bundled artifact
+    /// exports a typealias at the same FQName. A source extension whose
+    /// parameter names the expect decl must still shadow the imported twin
+    /// whose serialized signature went through the alias target, otherwise
+    /// `cancel(null)` inside `CoroutineContext.cancel()` reports
+    /// KSWIFTK-SEMA-0003 (Job.kt:570).
+    @Test func testCoroutinesExpectClassShadowsAliasedStdlibTwin() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        package kotlinx.coroutines
+
+        import kotlin.coroutines.CoroutineContext
+
+        expect class CancellationException(message: String?) : IllegalStateException {
+            constructor(message: String?, cause: Throwable?) : this(message)
+        }
+
+        actual typealias CancellationException = kotlin.coroutines.cancellation.CancellationException
+
+        fun CoroutineContext.cancel(cause: CancellationException? = null) {
+        }
+
+        fun CoroutineContext.cancel(): Unit = cancel(null)
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+    }
 }
 #endif
