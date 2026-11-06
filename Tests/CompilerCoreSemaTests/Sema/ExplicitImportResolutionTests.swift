@@ -738,18 +738,20 @@ struct ExplicitImportResolutionTests {
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
-    /// KUU-3977: the `Long` companion facade keeps resolving next to
-    /// kotlin.math imports. Source-injection mode currently fails this
-    /// combination for an unrelated reason (KUU-4341), so it stays
-    /// artifact-only until that is fixed.
-    @Test
-    func longCompanionMinMaxFacadeResolvesWithKotlinMathImport() throws {
+    /// KUU-3977/KUU-4341: the `Long` companion facade keeps resolving next
+    /// to kotlin.math imports — same-named top-level imports must not
+    /// shadow the companion-receiver extensions during scope fallback.
+    @Test(arguments: [false, true])
+    func longCompanionMinMaxFacadeResolvesWithKotlinMathImport(useArtifact: Bool) throws {
         let source = """
+        import kotlin.math.min
+        import kotlin.math.max as max2
         import kotlin.math.*
 
         fun companionFacade() = Long.min(1L, 2L) + Long.max(1L, 2L)
+        fun importedStillWork() = min(1, 2) + max2(1.0, 2.0) + max(3, 4)
         """
-        let ctx = try context(source: source, useArtifact: true)
+        let ctx = try context(source: source, useArtifact: useArtifact)
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
     }
