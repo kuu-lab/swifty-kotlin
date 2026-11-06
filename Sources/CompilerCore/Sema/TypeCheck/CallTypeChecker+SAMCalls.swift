@@ -610,8 +610,21 @@ extension CallTypeChecker {
             }
             interfaceType = aliasType
         } else {
+            // Explicit type arguments that resolve for every interface type
+            // parameter leave nothing for lambda-derived inference to fill.
+            // Skipping it also keeps the speculative body check inside
+            // `inferInterfaceArgsFromLambdaReturnType` from caching error
+            // bindings that the real inference pass would then reuse
+            // (KUU-4332).
+            let explicitArgsFullyDetermineInterface = !explicitTypeArgs.isEmpty
+                && explicitTypeArgs.count == interfaceTypeParameters.count
+                && interfaceTypeParameters.indices.allSatisfy {
+                    resolvedExplicitTypeArgument(at: $0, in: explicitTypeArgs) != nil
+                }
             let inferredInterfaceArgs: [TypeArg]
-            if let expectedType,
+            if explicitArgsFullyDetermineInterface {
+                inferredInterfaceArgs = []
+            } else if let expectedType,
                let expectedClassType = resolveClassType(expectedType, sema: sema),
                expectedClassType.classSymbol == interfaceSymID
             {
