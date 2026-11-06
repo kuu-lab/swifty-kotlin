@@ -268,20 +268,15 @@ extension CallTypeChecker {
                     return finalType
 
                 case "getOrElse" where args.count == 1:
-                    // A Result<Nothing> has no successful value to constrain T.
-                    // Infer the fallback naturally in that case, matching the
-                    // bottom-type behavior of Kotlin's generic getOrElse API.
-                    let isBottomResult = if case .nothing(.nonNull) = sema.types.kind(of: resultElementType) {
-                        true
-                    } else {
-                        false
-                    }
-                    let fallbackExpectedType = isBottomResult
-                        ? (expectedType ?? sema.types.nullableAnyType)
-                        : resultElementType
+                    // Kotlin's getOrElse is `<R, T : R>`: the fallback may
+                    // return any supertype of the Result element, so the
+                    // lambda must not be pinned to T — `Result<T>.getOrElse
+                    // { Other() }` is legal and yields R = lub(T, Other).
+                    // A Result<Nothing> has no successful value to constrain
+                    // the join at all.
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [throwableType],
-                        returnType: fallbackExpectedType
+                        returnType: expectedType ?? sema.types.nullableAnyType
                     )))
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -292,10 +287,9 @@ extension CallTypeChecker {
                             parameterMapping: [0: 0]
                         ))
                     }
-                    let inferredFallbackType = isBottomResult
-                        ? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
-                        : resultElementType
-                    let finalType = safeCall ? sema.types.makeNullable(inferredFallbackType) : inferredFallbackType
+                    let inferredFallbackType = inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                    let returnType = sema.types.lub([resultElementType, inferredFallbackType])
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
