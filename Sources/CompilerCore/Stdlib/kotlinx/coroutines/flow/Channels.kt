@@ -8,7 +8,6 @@
 package kotlinx.coroutines.flow
 
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.channels.close
 import kotlinx.coroutines.channels.iterator
 import kotlinx.coroutines.channels.hasNext
 import kotlinx.coroutines.channels.next

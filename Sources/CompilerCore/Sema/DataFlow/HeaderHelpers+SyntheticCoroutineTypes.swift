@@ -289,12 +289,28 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         symbols.insertFlags([.openType, .abstractType], for: dispatcherSymbol)
-        let channelSymbol = ensureClassSymbol(
-            named: "Channel",
-            in: channelsPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KUU-4072: upstream declares `Channel` as
+        // `interface Channel<E> : SendChannel<E>, ReceiveChannel<E>`. The
+        // synthetic registration provides only the nominal shell (type
+        // parameter, Factory companion, `receive` member); the bundled Kotlin
+        // declaration in Stdlib/kotlinx/coroutines/channels/Channel.kt
+        // supplies the rest. The lookup must be kind-filtered because the
+        // bundled `Channel()` factory functions share this FQName.
+        let channelFQName = channelsPkg + [interner.intern("Channel")]
+        let channelSymbol: SymbolID = if let existing = symbols.lookupAll(fqName: channelFQName).first(where: { id in
+            symbols.symbol(id)?.kind == .interface
+        }) {
+            existing
+        } else {
+            symbols.define(
+                kind: .interface,
+                name: interner.intern("Channel"),
+                fqName: channelFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
         let channelTypeParameterSymbols = types.nominalTypeParameterSymbols(for: channelSymbol)
         let channelElementTypeParameterSymbol = channelTypeParameterSymbols.first
             ?? ensureSyntheticTypeParameterSymbol(

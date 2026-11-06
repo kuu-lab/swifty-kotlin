@@ -31,50 +31,48 @@ public interface SendChannel<in E> {
 
     @KsSymbolName("__kk_channel_close_cause")
     public external fun close(cause: Throwable?): Boolean
+
+    @KsSymbolName("kk_channel_is_closed_for_send")
+    public val isClosedForSend: Boolean
 }
 
-// The synthetic `Channel` class does not declare the `SendChannel` supertype
-// here, so the `Channel`-receiver surface is provided through extensions
-// below.
+// KUU-4072: upstream declares `public interface Channel<E> : SendChannel<E>,
+// ReceiveChannel<E>`. `ReceiveChannel` remains a type alias to `Channel` in
+// this runtime, so the source supertype list names `SendChannel` only; the
+// members below carry the upstream `ReceiveChannel` surface. Every member
+// bridges to the same `kk_channel_*` entry point the former top-level
+// extensions used — raw channel handles have no Kotlin itable, so member
+// calls must keep resolving to direct external calls — while user
+// implementations and `by`-delegation can now override them.
+public interface Channel<E> : SendChannel<E> {
+    @KsSymbolName("__kk_channel_try_receive")
+    public fun tryReceive(): ChannelResult<E>
 
-@KsSymbolName("__kk_channel_try_send")
-private external fun Channel<*>.__kkChannelTrySend(element: Any?): ChannelResult<Unit>
+    @KsSymbolName("__kk_channel_receive_catching")
+    public suspend fun receiveCatching(): ChannelResult<E>
 
-@KsSymbolName("__kk_channel_close_cause")
-private external fun Channel<*>.__kkChannelCloseCause(cause: Throwable?): Int
+    @KsSymbolName("kk_channel_cancel")
+    public fun cancel()
 
-@KsSymbolName("__kk_channel_cancel")
-private external fun Channel<*>.__kkChannelCancel(cause: Throwable?): Int
+    @KsSymbolName("__kk_channel_cancel")
+    public fun cancel(cause: CancellationException?)
 
-@KsSymbolName("kk_channel_is_closed_for_send")
-private external fun SendChannel<*>.__kkSendChannelIsClosedForSend(): Int
+    @KsSymbolName("kk_channel_is_closed_for_receive")
+    public val isClosedForReceive: Boolean
 
-@KsSymbolName("kk_channel_is_empty")
-private external fun Channel<*>.__kkChannelIsEmpty(): Int
+    @KsSymbolName("kk_channel_is_empty")
+    public val isEmpty: Boolean
+}
 
-public fun <E> Channel<E>.trySend(element: E): ChannelResult<Unit> =
-    this.__kkChannelTrySend(element)
+@KsSymbolName("__kk_channel_invoke_on_close")
+private external fun __kkChannelInvokeOnClose(channel: Any, handler: (cause: Throwable?) -> Unit): Int
 
-public fun Channel<*>.close(cause: Throwable?): Boolean =
-    this.__kkChannelCloseCause(cause) != 0
+public fun SendChannel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
+    __kkChannelInvokeOnClose(this, handler)
+}
 
-public val SendChannel<*>.isClosedForSend: Boolean
-    get() = this.__kkSendChannelIsClosedForSend() != 0
-
-/**
- * Whether the channel currently has no receivable element (empty buffer and
- * no suspended sender). The `Channel<*>` receiver covers `ReceiveChannel`
- * through its type alias.
- */
-public val Channel<*>.isEmpty: Boolean
-    get() = this.__kkChannelIsEmpty() != 0
-
-/**
- * Closes the channel for new elements, discards buffered elements, and
- * substitutes a default `CancellationException` when no cause is given.
- */
-public fun Channel<*>.cancel(cause: CancellationException? = null): Unit {
-    this.__kkChannelCancel(cause ?: CancellationException("Channel was cancelled"))
+public fun Channel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
+    __kkChannelInvokeOnClose(this, handler)
 }
 
 public fun <E, R> Channel<E>.consume(block: Channel<E>.() -> R): R {
@@ -142,36 +140,8 @@ public val Channel.Factory.BUFFERED: Int
 internal val Channel.Factory.OPTIONAL_CHANNEL: Int
     get() = -3
 
-// `invokeOnClose` registers `handler` to run exactly once when the channel
-// transitions to closed. The handler's Kotlin type `(Throwable?) -> Unit`
-// crosses the external boundary as an (fnPtr, closureRaw) pair, the same
-// function-value convention Job.invokeOnCompletion already uses.
-@KsSymbolName("__kk_channel_invoke_on_close")
-private external fun __kkChannelInvokeOnClose(channel: Any, handler: (cause: Throwable?) -> Unit): Int
-
-public fun SendChannel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
-    __kkChannelInvokeOnClose(this, handler)
-}
-
-public fun Channel<*>.invokeOnClose(handler: (cause: Throwable?) -> Unit) {
-    __kkChannelInvokeOnClose(this, handler)
-}
-
-// `__kk_channel_receive_catching` performs the same blocking receive as
-// `receive()` so `receiveCatching`/`receiveOrNull` keep proper suspend
-// semantics instead of polling `tryReceive`.
-
-@KsSymbolName("__kk_channel_try_receive")
-private external fun <E> __kkChannelTryReceive(channel: Channel<E>): ChannelResult<E>
-
-@KsSymbolName("__kk_channel_receive_catching")
-private external fun <E> __kkChannelReceiveCatching(channel: Channel<E>): ChannelResult<E>
-
-public fun <E> ReceiveChannel<E>.tryReceive(): ChannelResult<E> =
-    __kkChannelTryReceive(this)
-
-public suspend fun <E> ReceiveChannel<E>.receiveCatching(): ChannelResult<E> =
-    __kkChannelReceiveCatching(this)
-
+// `receiveOrNull` stays an extension (upstream shape): it is a convenience
+// wrapper over the `receiveCatching` member and is not part of the
+// overridable surface Turbine-style wrappers rely on.
 public suspend fun <E> ReceiveChannel<E>.receiveOrNull(): E? =
     receiveCatching().getOrNull()
