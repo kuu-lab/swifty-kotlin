@@ -1,4 +1,58 @@
 extension LocalDeclTypeChecker {
+    /// Member `get`/`set` candidates for `receiver[indices]`, plus the
+    /// receiver type the resolved operator dispatches on.
+    ///
+    /// A class-name receiver (`K[i]`, `Outer.K[i]`) denotes the companion
+    /// scope — the same target `K.member` reads resolve through — so
+    /// candidates come from the companion-block object then the source
+    /// `companion object`, in that order, and the class's instance members
+    /// are never candidates (KUU-4012). The selected companion scope type is
+    /// bound back onto `receiverExpr` so lowering dispatches on the
+    /// companion singleton. `allMembers` keeps every probed scope's members
+    /// (not only the selected scope's) for the non-`operator` convention
+    /// diagnostic.
+    func indexedOperatorMemberCandidates(
+        named name: InternedString,
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> (receiverType: TypeID, candidates: [SymbolID], allMembers: [SymbolID]) {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        func visibleOperators(_ members: [SymbolID]) -> [SymbolID] {
+            ctx.filterByVisibility(members).visible.filter {
+                ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
+            }
+        }
+        guard let ownerNominal = driver.helpers.classNameReceiverNominalSymbol(
+            forReceiverExpr: receiverExpr, ctx: ctx
+        ) else {
+            let members = driver.helpers.collectMemberFunctionCandidates(
+                named: name, receiverType: receiverType, sema: sema, interner: interner
+            )
+            return (receiverType, visibleOperators(members), members)
+        }
+        var allMembers: [SymbolID] = []
+        var candidates: [SymbolID] = []
+        var selectedScopeType: TypeID?
+        for scopeType in driver.helpers.companionScopeProbeTypes(for: ownerNominal, ctx: ctx) {
+            let scopeMembers = driver.helpers.collectMemberFunctionCandidates(
+                named: name, receiverType: scopeType, sema: sema, interner: interner
+            )
+            allMembers.append(contentsOf: scopeMembers)
+            let operators = visibleOperators(scopeMembers)
+            if selectedScopeType == nil, !operators.isEmpty {
+                selectedScopeType = scopeType
+                candidates = operators
+            }
+        }
+        guard let selectedScopeType else {
+            return (receiverType, [], allMembers)
+        }
+        sema.bindings.bindExprType(receiverExpr, type: selectedScopeType)
+        return (selectedScopeType, candidates, allMembers)
+    }
+
     /// Keep lexical priority among applicable operators. A nearer declaration
     /// that cannot accept the receiver or indices must not hide an outer one.
     func collectIndexedOperatorExtensionCandidates(
