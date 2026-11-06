@@ -1176,6 +1176,7 @@ extension KotlinParser {
         var progress = false
         var sawAssignment = false
         var sawSupertypeColon = false
+        var sawByKeyword = false
         var sawTryKeyword = false
         var sawIfKeyword = false
         var functionTypeNameAfterAnnotation = false
@@ -1241,6 +1242,7 @@ extension KotlinParser {
             }
             if atTopLevel, token.kind == .symbol(.assign) { sawAssignment = true }
             if atTopLevel, token.kind == .symbol(.colon) { sawSupertypeColon = true }
+            if atTopLevel, token.kind == .softKeyword(.by) { sawByKeyword = true }
             if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
                isGenuineDeclarationBoundary(token)
             {
@@ -1393,7 +1395,15 @@ extension KotlinParser {
                     || (allowsClassHeaderColon && stream.peek().kind == .symbol(.colon))
                     // A function return type or property type annotation may
                     // also begin on the next line (`fun R.f()\n    : R`).
+                    // Once a delegation `by` has been consumed the signature
+                    // region is over: a following `:` cannot be a declared
+                    // type (`val x by foo()\n    : Int` is rejected by
+                    // kotlinc, not absorbed into the delegate expression).
+                    // The exception is an `object` literal delegate, whose
+                    // own supertype colon may still start on the next line
+                    // (`val x by object\n    : D { }`).
                     || (allowsDeclaredTypeColon && !sawAssignment
+                        && (!sawByKeyword || lastConsumedToken?.kind == .keyword(.object))
                         && stream.peek().kind == .symbol(.colon))
                     || (allowsClassDelegation && sawSupertypeColon && stream.peek().kind == .softKeyword(.by))
                     || (allowsWhereClauseContinuation && stream.peek().kind == .softKeyword(.where))
