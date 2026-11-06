@@ -992,4 +992,101 @@ struct RuntimeRegexTests {
             #expect(raw != 0, "expected regex object: \(pattern)")
         }
     }
+
+    /// KUU-4319: isolated surrogates are marker-encoded inside Kotlin strings.
+    /// ICU must see them as real UTF-16 code units or `\p{Cs}`/`\p{C}` and the
+    /// explicit surrogate range can never match, while script/general-category
+    /// properties resolve against the wrong character (U+FFFD).
+    @Test
+    func isolatedSurrogatesMatchJavaUtilRegexProperties() {
+        let loneHigh = runtimeKotlinStringFromUTF16CodeUnits([0xD800])
+        let loneLow = runtimeKotlinStringFromUTF16CodeUnits([0xDC00])
+        let mixed = runtimeKotlinStringFromUTF16CodeUnits([0x61, 0xD800, 0x62])
+
+        func containsMatch(_ pattern: String, _ input: String) -> Bool {
+            let regexRaw = withFlatString(pattern) { data, length, byteCount, hash in
+                kk_regex_create_flat(data, length, byteCount, hash, nil)
+            }
+            return withFlatString(input) { data, length, byteCount, hash in
+                kk_unbox_bool(kk_regex_containsMatchIn_flat(regexRaw, data, length, byteCount, hash)) == 1
+            }
+        }
+
+        // java.util.regex matches isolated surrogates for these.
+        for pattern in ["\\p{Cs}", "\\p{C}", "[\\uD800-\\uDFFF]", "\\p{IsUNKNOWN}"] {
+            #expect(containsMatch(pattern, loneHigh), "\(pattern) vs U+D800")
+            #expect(containsMatch(pattern, loneLow), "\(pattern) vs U+DC00")
+        }
+        // Block properties split the surrogate halves.
+        #expect(containsMatch("\\p{InHigh Surrogates}", loneHigh))
+        #expect(!containsMatch("\\p{InHigh Surrogates}", loneLow))
+        #expect(containsMatch("\\p{InLow Surrogates}", loneLow))
+        #expect(!containsMatch("\\p{InLow Surrogates}", loneHigh))
+        // JVM assigns surrogates to script Unknown / not Common, Graph or Specials.
+        for pattern in ["\\p{IsCOMMON}", "\\p{sc=Common}", "\\p{script=Common}", "\\p{IsGRAPH}", "\\p{InSPECIALS}"] {
+            #expect(!containsMatch(pattern, loneHigh), "\(pattern) vs U+D800")
+            #expect(!containsMatch(pattern, loneLow), "\(pattern) vs U+DC00")
+        }
+        #expect(containsMatch("\\p{Cs}", mixed), "surrogate inside longer input")
+        // A well-formed surrogate pair is a single supplementary scalar, not Cs.
+        let paired = "\u{1F600}"
+        #expect(!containsMatch("\\p{Cs}", paired), "paired surrogate must not match Cs")
+        #expect(containsMatch("\\p{Cs}", loneHigh), "sanity")
+    }
+
+    /// KUU-4319: match results and replacements must carry the surrogate
+    /// back out in the Kotlin marker representation, not U+FFFD.
+    @Test
+    func isolatedSurrogateMatchValuesRoundTrip() {
+        let loneHigh = runtimeKotlinStringFromUTF16CodeUnits([0xD800])
+        let loneLow = runtimeKotlinStringFromUTF16CodeUnits([0xDC00])
+
+        let regexRaw = withFlatString("(a)?(\\p{Cs})") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        // "xa<isolated high surrogate>b": the match is "a<surrogate>".
+        let input = runtimeKotlinStringFromUTF16CodeUnits([0x78, 0x61, 0xD800, 0x62])
+        let matchRaw = regexFind(regexRaw, input: input)
+        #expect(matchRaw != 0)
+        #expect(runtimeKotlinStringUTF16CodeUnits(matchValue(matchRaw)) == [0x61, 0xD800])
+        #expect(runtimeString(__kk_match_result_group_value(matchRaw, 1)) == "a")
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(matchRaw, 2))) == [0xD800])
+        #expect(__kk_match_result_group_start(matchRaw, 0) == 1)
+        #expect(__kk_match_result_group_end(matchRaw, 0) == 2)
+
+        // findAll over two isolated surrogates of different halves; a 'a'
+        // separator keeps them unpaired (adjacent D800+DC00 would form one
+        // supplementary scalar, which is not Cs).
+        let csRegex = withFlatString("\\p{Cs}") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash, nil)
+        }
+        let allInput = runtimeKotlinStringFromUTF16CodeUnits([0xD800, 0x61, 0xDC00])
+        let allRaw = withFlatString(allInput) { data, length, byteCount, hash in
+            kk_regex_findAll_flat(csRegex, data, length, byteCount, hash)
+        }
+        let elements = runtimeListElements(allRaw)
+        #expect(elements.count == 2)
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(elements[0], 0))) == [0xD800])
+        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(elements[1], 0))) == [0xDC00])
+
+        // split on the surrogate keeps the surrounding text intact.
+        let splitInput = runtimeKotlinStringFromUTF16CodeUnits([0x61, 0xD800, 0x62])
+        let splitRaw = withFlatString(splitInput) { data, length, byteCount, hash in
+            kk_string_split_regex_flat(data, length, byteCount, hash, csRegex)
+        }
+        #expect(runtimeListStrings(splitRaw) == ["a", "b"])
+
+        // replace swaps the surrogate for literal text.
+        let replaced = kk_string_replace_regex(
+            runtimeMakeStringRaw(loneHigh), regexRaw, runtimeString("X"), nil
+        )
+        #expect(runtimeString(replaced) == "X")
+
+        // matchEntire and next() keep working on surrogate input.
+        let entireMatch = withFlatString(loneLow) { data, length, byteCount, hash in
+            kk_regex_matchEntire_flat(csRegex, data, length, byteCount, hash)
+        }
+        #expect(entireMatch != 0)
+        #expect(__kk_match_result_next(entireMatch) == runtimeNullSentinelInt)
+    }
 }
