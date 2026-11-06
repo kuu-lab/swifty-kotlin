@@ -327,10 +327,26 @@ extension CallTypeChecker {
         guard candidates.count == 1,
               let candidate = candidates.first,
               let signature = ctx.sema.symbols.functionSignature(for: candidate),
-              (signature.receiverType == nil) == (receiverType == nil),
               signature.classTypeParameterCount == 0,
               !signature.typeParameterSymbols.isEmpty,
-              explicitTypeArgs.isEmpty || explicitTypeArgs.count == signature.typeParameterSymbols.count,
+              explicitTypeArgs.isEmpty || explicitTypeArgs.count == signature.typeParameterSymbols.count
+        else { return nil }
+        // An unqualified extension call borrows the innermost implicit
+        // receiver that satisfies its declared receiver before the builder
+        // session starts (KUU-4317).
+        var implicitReceiverEntry: (type: TypeID, symbol: SymbolID?)?
+        let resolvedReceiverType: TypeID?
+        if let receiverType {
+            resolvedReceiverType = receiverType
+        } else if signature.receiverType != nil, isScopeExtensionCandidate(candidate, ctx: ctx) {
+            implicitReceiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+                callCandidateDeclaredReceiver(candidate, matchesTowerEntryType: entry.type, ctx: ctx)
+            })
+            resolvedReceiverType = implicitReceiverEntry?.type
+        } else {
+            resolvedReceiverType = nil
+        }
+        guard (signature.receiverType == nil) == (resolvedReceiverType == nil),
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
                   callArgs: args.map { CallArg.source($0, type: ctx.sema.types.anyType, callRange: range, ast: ctx.ast) },
@@ -349,9 +365,9 @@ extension CallTypeChecker {
                 kind: .equal, left: .variable(variable), right: .type(argument), blameRange: range
             ))
         }
-        if let receiverType, let declaredReceiver = signature.receiverType {
+        if let resolvedReceiverType, let declaredReceiver = signature.receiverType {
             session.constraints.append(contentsOf: ctx.resolver.decomposeSubtypeConstraint(
-                subtype: receiverType, supertype: declaredReceiver,
+                subtype: resolvedReceiverType, supertype: declaredReceiver,
                 typeVarBySymbol: variables, typeSystem: sema.types, blameRange: range
             ))
         }
@@ -424,7 +440,7 @@ extension CallTypeChecker {
             signature: signature, typeVarBySymbol: variables,
             knownArgumentTypes: knownArguments, typeSystem: sema.types
         )
-        if receiverType != nil || expectedType != nil || !explicitTypeArgs.isEmpty {
+        if resolvedReceiverType != nil || expectedType != nil || !explicitTypeArgs.isEmpty {
             let receiverSolution = ConstraintSolver().solve(
                 vars: ctx.resolver.usedTypeVariables(from: session.constraints),
                 constraints: session.constraints, typeSystem: sema.types
@@ -486,7 +502,7 @@ extension CallTypeChecker {
             }, explicitTypeArgs: signature.typeParameterSymbols.compactMap { symbol in
                 variables[symbol].flatMap { solution.substitution[$0] }
             }),
-            expectedType: expectedType, implicitReceiverType: receiverType ?? ctx.implicitReceiverType, ctx: sema
+            expectedType: expectedType, implicitReceiverType: resolvedReceiverType ?? ctx.implicitReceiverType, ctx: sema
         )
         if let diagnostic = resolved.diagnostic {
             ctx.sema.diagnostics.emit(diagnostic)
@@ -500,6 +516,12 @@ extension CallTypeChecker {
         driver.helpers.checkOptIn(for: chosen, ctx: ctx, range: range, diagnostics: ctx.sema.diagnostics)
         markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
         let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+        if let implicitReceiverEntry {
+            sema.bindings.markImplicitReceiverMember(id, name: calleeName, receiverType: implicitReceiverEntry.type)
+            if let symbol = implicitReceiverEntry.symbol {
+                sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: symbol)
+            }
+        }
         applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
         sema.bindings.bindExprType(id, type: resultType)
         return resultType

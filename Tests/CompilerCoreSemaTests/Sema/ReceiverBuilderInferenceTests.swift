@@ -284,6 +284,21 @@ struct ReceiverBuilderInferenceTests {
         """, callee: "choose")
     }
 
+    @Test func implicitReceiverExtensionBuilderInfersTypeFromLambdaBody() throws {
+        try expectBuilderTypeArgument("""
+        class Buildee<T>
+        interface SendChannel<in E> { suspend fun send(e: E) }
+        interface Scope<E> : SendChannel<E>
+        class UserKlass
+        interface CoroutineScope
+        fun <E> CoroutineScope.build(block: suspend Scope<E>.() -> Unit): Buildee<E> = null as Buildee<E>
+        fun CoroutineScope.box(): Buildee<UserKlass> {
+            val c = build { send(UserKlass()) }
+            return c
+        }
+        """)
+    }
+
     @Test func localClassInitializerInfersOuterReceiverBuilderType() throws {
         try expectBuilderResultType("""
         class Buildee<T> {
