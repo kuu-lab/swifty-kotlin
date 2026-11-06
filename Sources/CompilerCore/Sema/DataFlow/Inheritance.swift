@@ -143,6 +143,40 @@ extension DataFlowSemaPhase {
             ?? symbols.symbol(symbol)?.declSite?.start.file
         let isBundledStdlibDecl = declFileID
             .flatMap { sourceManager?.origin(of: $0)?.isBundledStdlib } == true
+        // Kotlin `internal` visibility is module-scoped: the bundled stdlib
+        // and user sources are separate modules, so an internal declaration
+        // from the other module is not a resolution candidate and must not
+        // win a same-package tier over a visible alternative (KUU-4232).
+        // Symbols whose declaring file or origin cannot be determined stay
+        // visible. Files suppressing invisible-access diagnostics keep the
+        // unfiltered candidates so the suppressed use site still resolves.
+        let candidateIsVisible: (SymbolID) -> Bool = { candidateID in
+            guard let candidate = symbols.symbol(candidateID),
+                  candidate.visibility == .internal
+            else { return true }
+            // Internal declarations imported from a library artifact belong
+            // to that artifact's module and are invisible to this one.
+            if candidate.flags.contains(.importedLibrary) {
+                return false
+            }
+            guard let sourceManager,
+                  let candidateFileID = symbols.sourceFileID(for: candidateID)
+                      ?? candidate.declSite?.start.file,
+                  let origin = sourceManager.origin(of: candidateFileID)
+            else { return true }
+            return origin.isBundledStdlib == isBundledStdlibDecl
+        }
+        let suppressesInvisibleAccess = declFileID
+            .flatMap { ast.file(for: $0) }
+            .map { file in
+                file.annotations.contains { annotation in
+                    KnownCompilerAnnotation.suppress.matches(annotation.name)
+                        && annotation.arguments.contains { argument in
+                            let code = argument.filter { $0 != "\"" && $0 != "'" }
+                            return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                        }
+                }
+            } == true
         for (index, superTypeRef) in superTypeRefs.enumerated() {
             let entry = index < superTypeEntries.count ? superTypeEntries[index] : nil
             let hasConstructorCall = entry?.hasConstructorCallSyntax == true
@@ -196,6 +230,7 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 reportUnresolved: reportUnresolved,
+                candidateIsVisible: suppressesInvisibleAccess ? nil : candidateIsVisible,
                 validateProjections: { nominal, arguments in
                     TypeProjectionValidator(symbols: symbols, types: types, interner: interner,
                                             diagnostics: diagnostics, range: symbols.symbol(symbol)?.declSite)
@@ -239,10 +274,21 @@ extension DataFlowSemaPhase {
                         )
                     }
                 }
-                if let imported = symbols.symbol(resolved.symbol),
-                   imported.flags.contains(.importedLibrary),
-                   let fileID = symbols.sourceFileID(for: symbol)
-                       ?? symbols.symbol(symbol)?.declSite?.start.file {
+                if let imported = symbols.symbol(resolved.symbol) {
+                    let accessFileID = symbols.sourceFileID(for: symbol)
+                        ?? symbols.symbol(symbol)?.declSite?.start.file
+                    let importedDeclFileID = symbols.sourceFileID(for: resolved.symbol)
+                        ?? imported.declSite?.start.file
+                    // Bundled-stdlib `internal` declarations are module-scoped
+                    // like imported-library ones: a user source inheriting
+                    // one must get the access diagnostic rather than silently
+                    // resolving it (KUU-4232).
+                    let crossesBundledModuleBoundary = imported.visibility == .internal
+                        && !imported.flags.contains(.importedLibrary)
+                        && accessFileID.map({ sourceManager?.origin(of: $0)?.isBundledStdlib == false }) == true
+                        && importedDeclFileID.map({ sourceManager?.origin(of: $0)?.isBundledStdlib == true }) == true
+                    if imported.flags.contains(.importedLibrary) || crossesBundledModuleBoundary,
+                       let fileID = accessFileID {
                     let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
                         KnownCompilerAnnotation.suppress.matches(annotation.name)
                             && annotation.arguments.contains { argument in
@@ -252,6 +298,7 @@ extension DataFlowSemaPhase {
                     } == true
                     let checker = VisibilityChecker(
                         symbols: symbols,
+                        sourceManager: sourceManager,
                         diagnostics: diagnostics,
                         interner: interner,
                         invisibleAccessFiles: suppressed ? [fileID.rawValue] : []
@@ -269,6 +316,7 @@ extension DataFlowSemaPhase {
                             range: symbols.symbol(symbol)?.declSite
                         )
                         continue
+                    }
                     }
                 }
                 TypeCheckHelpers().checkDeprecation(
@@ -706,6 +754,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         reportUnresolved: ((InternedString) -> Void)? = nil,
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil,
         validateProjections: ((SymbolID, [TypeArg]) -> Void)? = nil
     ) -> ResolvedSupertype? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
@@ -736,7 +785,8 @@ extension DataFlowSemaPhase {
                     enclosingTypeParameters: enclosingTypeParameters,
                     enclosingClassScopes: enclosingClassScopes,
                     ast: ast,
-                    symbols: symbols, types: types, interner: interner
+                    symbols: symbols, types: types, interner: interner,
+                    candidateIsVisible: candidateIsVisible
                 ) else { return nil }
                 paramTypes.append(receiverType)
             }
@@ -747,7 +797,8 @@ extension DataFlowSemaPhase {
                     enclosingTypeParameters: enclosingTypeParameters,
                     enclosingClassScopes: enclosingClassScopes,
                     ast: ast,
-                    symbols: symbols, types: types, interner: interner
+                    symbols: symbols, types: types, interner: interner,
+                    candidateIsVisible: candidateIsVisible
                 ) else { return nil }
                 paramTypes.append(paramType)
             }
@@ -757,7 +808,8 @@ extension DataFlowSemaPhase {
                 enclosingTypeParameters: enclosingTypeParameters,
                 enclosingClassScopes: enclosingClassScopes,
                 ast: ast,
-                symbols: symbols, types: types, interner: interner
+                symbols: symbols, types: types, interner: interner,
+                candidateIsVisible: candidateIsVisible
             ) else { return nil }
             let functionSymbol: SymbolID?
             if isSuspend {
@@ -800,6 +852,7 @@ extension DataFlowSemaPhase {
                 types: types,
                 interner: interner,
                 reportUnresolved: reportUnresolved,
+                candidateIsVisible: candidateIsVisible,
                 validateProjections: validateProjections
             )
         }
@@ -818,7 +871,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                reportUnresolved: reportUnresolved
+                reportUnresolved: reportUnresolved,
+                candidateIsVisible: candidateIsVisible
             )
             validateProjections?(symbol, resolvedArgs)
             let nominal = self.resolveTypeAliasSupertype(symbol, symbols: symbols, types: types) ?? symbol
@@ -829,6 +883,26 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // Kotlin resolves an inaccessible classifier when no visible
+        // alternative exists and reports the access error at the use site,
+        // so the first nominal candidate failing `candidateIsVisible` is
+        // remembered as a fallback: visible candidates in later tiers still
+        // win, but an all-invisible resolution keeps the visibility
+        // diagnostic instead of degrading to unresolved (KUU-4232).
+        var invisibleFallback: SymbolID?
+        func firstVisibleNominal(at fqName: [InternedString]) -> SymbolID? {
+            let matches = symbols.lookupAll(fqName: fqName)
+                .compactMap({ symbols.symbol($0) })
+                .filter({ isNominalTypeSymbol($0.kind) })
+            if let hit = matches.first(where: { candidateIsVisible?($0.id) ?? true }) {
+                return hit.id
+            }
+            if invisibleFallback == nil {
+                invisibleFallback = matches.first?.id
+            }
+            return nil
+        }
+
         // Enclosing class scopes also contribute member classifiers
         // inherited through their supertypes: `I` inside `Sub.M` names
         // `Outer.I`, which no `scope + path` child lookup can express
@@ -836,14 +910,10 @@ extension DataFlowSemaPhase {
         // order below.
         let scopeCandidatePaths = Set(enclosingClassScopes.map { $0 + path })
         for scope in enclosingClassScopes.reversed() {
-            if let symbol = symbols.lookupAll(fqName: scope + path)
-                .compactMap({ symbols.symbol($0) })
-                .first(where: { isNominalTypeSymbol($0.kind) })?.id {
+            if let symbol = firstVisibleNominal(at: scope + path) {
                 return resolvedSupertype(symbol)
             }
-            if let scopeSymbol = symbols.lookupAll(fqName: scope)
-                .compactMap({ symbols.symbol($0) })
-                .first(where: { isNominalTypeSymbol($0.kind) })?.id,
+            if let scopeSymbol = firstVisibleNominal(at: scope),
                let member = inheritedMemberClassifierSymbol(
                    path: path,
                    owner: scopeSymbol,
@@ -862,10 +932,7 @@ extension DataFlowSemaPhase {
         )
 
         for candidatePath in candidatePaths where !scopeCandidatePaths.contains(candidatePath) {
-            if let symbol = symbols.lookupAll(fqName: candidatePath)
-                .compactMap({ symbols.symbol($0) })
-                .first(where: { isNominalTypeSymbol($0.kind) })?.id
-            {
+            if let symbol = firstVisibleNominal(at: candidatePath) {
                 return resolvedSupertype(symbol)
             }
         }
@@ -875,11 +942,7 @@ extension DataFlowSemaPhase {
         // representation, so they can use the default-import packages here.
         do {
             for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
-                let candidatePath = defaultPackage + path
-                if let symbol = symbols.lookupAll(fqName: candidatePath)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { isNominalTypeSymbol($0.kind) })?.id
-                {
+                if let symbol = firstVisibleNominal(at: defaultPackage + path) {
                     return resolvedSupertype(symbol)
                 }
             }
@@ -890,9 +953,7 @@ extension DataFlowSemaPhase {
         // (KUU-4304). Root-package files already tried it as their
         // same-package tier inside inheritanceCandidatePaths.
         if !currentPackage.isEmpty,
-           let symbol = symbols.lookupAll(fqName: path)
-               .compactMap({ symbols.symbol($0) })
-               .first(where: { isNominalTypeSymbol($0.kind) })?.id
+           let symbol = firstVisibleNominal(at: path)
         {
             return resolvedSupertype(symbol)
         }
@@ -908,6 +969,12 @@ extension DataFlowSemaPhase {
            )
         {
             return resolvedSupertype(functionN)
+        }
+        // No visible candidate resolved: fall back to the first invisible
+        // nominal so the use site reports the visibility diagnostic rather
+        // than an unresolved name (KUU-4232).
+        if let invisibleFallback {
+            return resolvedSupertype(invisibleFallback)
         }
         // A lone type parameter as the supertype head (`class C<T> : T()`)
         // resolves to the parameter — kotlinc rejects it as "supertype is
@@ -1124,7 +1191,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        reportUnresolved: ((InternedString) -> Void)? = nil
+        reportUnresolved: ((InternedString) -> Void)? = nil,
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil
     ) -> [TypeArg] {
         // Use all-or-nothing semantics: if any type arg fails to resolve,
         // return an empty array to preserve positional integrity.
@@ -1143,7 +1211,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    reportUnresolved: reportUnresolved
+                    reportUnresolved: reportUnresolved,
+                    candidateIsVisible: candidateIsVisible
                 ) else {
                     return []
                 }
@@ -1159,7 +1228,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    reportUnresolved: reportUnresolved
+                    reportUnresolved: reportUnresolved,
+                    candidateIsVisible: candidateIsVisible
                 ) else {
                     return []
                 }
@@ -1175,7 +1245,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    reportUnresolved: reportUnresolved
+                    reportUnresolved: reportUnresolved,
+                    candidateIsVisible: candidateIsVisible
                 ) else {
                     return []
                 }
@@ -1197,7 +1268,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        reportUnresolved: ((InternedString) -> Void)? = nil
+        reportUnresolved: ((InternedString) -> Void)? = nil,
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil
     ) -> TypeID? {
         guard let typeRef = ast.arena.typeRef(typeRefID) else {
             return nil
@@ -1238,7 +1310,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    reportUnresolved: reportUnresolved
+                    reportUnresolved: reportUnresolved,
+                    candidateIsVisible: candidateIsVisible
                 )
                 // A bare inner-class name supplies no enclosing arguments, so
                 // the implicit enclosing instance fills those slots (`KeySet`
@@ -1283,17 +1356,30 @@ extension DataFlowSemaPhase {
             // Enclosing class scopes also contribute member classifiers
             // inherited through their supertypes (e.g. `I` -> `Outer.I`
             // inside `Sub.M`); see resolveNominalSymbolAndTypeArgs (KUU-3250).
+            // Invisible candidates are skipped so a visible alternative in a
+            // lower tier can win; the first invisible nominal is remembered
+            // as a fallback so an all-invisible resolution still reports the
+            // visibility diagnostic rather than degrading to unresolved
+            // (KUU-4232).
+            var invisibleFallback: SymbolID?
+            func firstVisibleNominal(at fqName: [InternedString]) -> SymbolID? {
+                let matches = symbols.lookupAll(fqName: fqName)
+                    .compactMap({ symbols.symbol($0) })
+                    .filter({ isNominalTypeSymbol($0.kind) })
+                if let hit = matches.first(where: { candidateIsVisible?($0.id) ?? true }) {
+                    return hit.id
+                }
+                if invisibleFallback == nil {
+                    invisibleFallback = matches.first?.id
+                }
+                return nil
+            }
             let scopeCandidatePaths = Set(enclosingClassScopes.map { $0 + path })
             for scope in enclosingClassScopes.reversed() {
-                if let nominalSymbol = symbols.lookupAll(fqName: scope + path)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { isNominalTypeSymbol($0.kind) })
-                {
-                    return resolvedType(nominalSymbol.id)
+                if let nominalSymbol = firstVisibleNominal(at: scope + path) {
+                    return resolvedType(nominalSymbol)
                 }
-                if let scopeSymbol = symbols.lookupAll(fqName: scope)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { isNominalTypeSymbol($0.kind) })?.id,
+                if let scopeSymbol = firstVisibleNominal(at: scope),
                    let member = inheritedMemberClassifierSymbol(
                        path: path,
                        owner: scopeSymbol,
@@ -1310,11 +1396,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols
             )
             for candidatePath in candidatePaths where !scopeCandidatePaths.contains(candidatePath) {
-                if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
-                    .compactMap({ symbols.symbol($0) })
-                    .first(where: { isNominalTypeSymbol($0.kind) })
-                {
-                    return resolvedType(nominalSymbol.id)
+                if let nominalSymbol = firstVisibleNominal(at: candidatePath) {
+                    return resolvedType(nominalSymbol)
                 }
             }
             // Resolve built-in/primitive type names first so they take precedence
@@ -1333,23 +1416,23 @@ extension DataFlowSemaPhase {
             // class X : Comparable<Int>), so search the standard default-import packages.
             do {
                 for defaultPackage in TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner) {
-                    let candidatePath = defaultPackage + path
-                    if let nominalSymbol = symbols.lookupAll(fqName: candidatePath)
-                        .compactMap({ symbols.symbol($0) })
-                        .first(where: { isNominalTypeSymbol($0.kind) })
-                    {
-                        return resolvedType(nominalSymbol.id)
+                    if let nominalSymbol = firstVisibleNominal(at: defaultPackage + path) {
+                        return resolvedType(nominalSymbol)
                     }
                 }
             }
             // Root-package/absolute fallback for named packages, below the
             // default imports (KUU-4304).
             if !currentPackage.isEmpty,
-               let nominalSymbol = symbols.lookupAll(fqName: path)
-                   .compactMap({ symbols.symbol($0) })
-                   .first(where: { isNominalTypeSymbol($0.kind) })
+               let nominalSymbol = firstVisibleNominal(at: path)
             {
-                return resolvedType(nominalSymbol.id)
+                return resolvedType(nominalSymbol)
+            }
+            // No visible candidate resolved: fall back to the first invisible
+            // nominal so the use site reports the visibility diagnostic
+            // rather than an unresolved name (KUU-4232).
+            if let invisibleFallback {
+                return resolvedType(invisibleFallback)
             }
             reportUnresolved?(unresolvedSupertypeSegment(
                 path: path,
@@ -1372,7 +1455,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                candidateIsVisible: candidateIsVisible
             )
         case let .intersection(partRefs):
             let partTypes = partRefs.compactMap {
@@ -1386,7 +1470,8 @@ extension DataFlowSemaPhase {
                     symbols: symbols,
                     types: types,
                     interner: interner,
-                    reportUnresolved: reportUnresolved
+                    reportUnresolved: reportUnresolved,
+                    candidateIsVisible: candidateIsVisible
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -1402,7 +1487,8 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                reportUnresolved: reportUnresolved
+                reportUnresolved: reportUnresolved,
+                candidateIsVisible: candidateIsVisible
             ) else {
                 return nil
             }
@@ -1431,7 +1517,8 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        candidateIsVisible: ((SymbolID) -> Bool)? = nil
     ) -> TypeID? {
         let nullability: Nullability = nullable ? .nullable : .nonNull
         var contextReceiverTypes: [TypeID] = []
@@ -1445,7 +1532,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                candidateIsVisible: candidateIsVisible
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
@@ -1460,7 +1548,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                candidateIsVisible: candidateIsVisible
             ) else { return nil }
             receiverType = resolved
         }
@@ -1475,7 +1564,8 @@ extension DataFlowSemaPhase {
                 ast: ast,
                 symbols: symbols,
                 types: types,
-                interner: interner
+                interner: interner,
+                candidateIsVisible: candidateIsVisible
             ) else { return nil }
             paramTypes.append(paramType)
         }
@@ -1488,7 +1578,8 @@ extension DataFlowSemaPhase {
             ast: ast,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            candidateIsVisible: candidateIsVisible
         ) else { return nil }
         return types.make(.functionType(FunctionType(
             contextReceivers: contextReceiverTypes,
