@@ -59,7 +59,7 @@ struct ByteStringBuilderContractTests {
         """, allowDefaultStdlibLibrary: allowDefaultStdlibLibrary)
         try runSema(ctx)
         try checkContractProvenance(ctx, library: allowDefaultStdlibLibrary)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.code == "KSWIFTK-SEMA-0473" })
     }
 
     @Test(arguments: [true, false])
