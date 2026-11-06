@@ -841,7 +841,10 @@ extension DeclTypeChecker {
                     for memberSymbol in sema.symbols.declaredChildren(of: owner) {
                         guard let member = sema.symbols.symbol(memberSymbol),
                               member.kind == .function
-                                || !functionsOnly && (member.kind == .property || member.kind == .field),
+                                || !functionsOnly && (member.kind == .property || member.kind == .field
+                                    || member.kind == .class || member.kind == .interface
+                                    || member.kind == .object || member.kind == .enumClass
+                                    || member.kind == .annotationClass || member.kind == .typeAlias),
                               !inherited || member.visibility != .private
                         else {
                             continue
