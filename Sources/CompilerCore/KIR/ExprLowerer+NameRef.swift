@@ -1361,8 +1361,8 @@ extension ExprLowerer {
         // declaration's own (`Atomic<T>`): the strict subtype check cannot
         // relate the two type parameters, so compare against the bound
         // receiver type when one was recorded (KUU-4340).
-        let boundReceiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID)
-            ?? extensionReceiverType
+        let recordedReceiverType = sema.bindings.implicitReceiverMemberReceiverType(for: exprID)
+        let boundReceiverType = recordedReceiverType ?? extensionReceiverType
         if let receiverSymbol = sema.bindings.implicitReceiverOuterReceiver(for: exprID),
            let capturedReceiver = driver.ctx.localValue(for: receiverSymbol),
            let capturedType = arena.exprType(capturedReceiver),
@@ -1374,15 +1374,28 @@ extension ExprLowerer {
             return capturedReceiver
         }
         guard let activeReceiver = driver.ctx.activeImplicitReceiverExprID(),
-              let activeReceiverType = arena.exprType(activeReceiver),
-              sema.types.isSubtype(
-                  sema.types.makeNonNullable(activeReceiverType),
-                  sema.types.makeNonNullable(boundReceiverType)
-              )
+              let activeReceiverType = arena.exprType(activeReceiver)
         else {
             return nil
         }
-        return activeReceiver
+        let nonNullActive = sema.types.makeNonNullable(activeReceiverType)
+        let nonNullBound = sema.types.makeNonNullable(boundReceiverType)
+        if sema.types.isSubtype(nonNullActive, nonNullBound) {
+            return activeReceiver
+        }
+        // A smart-cast of `this` (e.g. `this is KFooQux` inside `KFoo.foo`)
+        // narrows the receiver Sema selected to the refined type while the
+        // KIR receiver value keeps its declared type, so the strict subtype
+        // check cannot see the cast. When Sema recorded a receiver type for
+        // this expression and did not bind an outer receiver, the selection
+        // was the active receiver itself — the flow refinement already
+        // proves the runtime value satisfies the extension receiver.
+        if recordedReceiverType != nil,
+           sema.bindings.implicitReceiverOuterReceiver(for: exprID) == nil
+        {
+            return activeReceiver
+        }
+        return nil
     }
 
     private func materializeSmartcastedPrimitiveGlobal(
