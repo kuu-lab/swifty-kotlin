@@ -298,6 +298,13 @@ extension ExprLowerer {
                 if let outerCallableInfo = driver.ctx.callableValueInfo(for: capture.valueExpr),
                    let bodyCallableExpr = driver.ctx.localValue(for: capture.capturedSymbol)
                 {
+                    // A boxed function value (`kk_function_create_N` result)
+                    // packs its environment object inside the box, so its
+                    // capture argument has no body-side expr to remap to.
+                    // Leave callable info unregistered: invokes inside the
+                    // body then take the generic kk_function_invoke path,
+                    // which unpacks the environment from the box itself.
+                    if outerCallableInfo.isFunctionValueBox { continue }
                     var remappedArgs: [KIRExprID] = []
                     var mappingFailed = false
                     for argExpr in outerCallableInfo.captureArguments {
