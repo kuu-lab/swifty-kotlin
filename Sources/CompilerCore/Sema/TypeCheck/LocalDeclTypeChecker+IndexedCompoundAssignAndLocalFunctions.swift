@@ -13,14 +13,14 @@ extension LocalDeclTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
 
-        let receiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
+        let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: ctx, locals: &locals, expectedType: nil)
         let getName = interner.intern("get")
-        let allGetMembers = driver.helpers.collectMemberFunctionCandidates(
-            named: getName, receiverType: receiverType, sema: sema, interner: interner
+        let receiverInfo = indexedOperatorMemberCandidates(
+            named: getName, receiverExpr: receiverExpr, receiverType: inferredReceiverType, ctx: ctx
         )
-        var getCandidates = ctx.filterByVisibility(allGetMembers).visible.filter {
-            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
-        }
+        let receiverType = receiverInfo.receiverType
+        let allGetMembers = receiverInfo.allMembers
+        var getCandidates = receiverInfo.candidates
         if getCandidates.isEmpty {
             getCandidates = collectIndexedOperatorExtensionCandidates(
                 named: getName, receiverType: receiverType, locals: locals, ctx: ctx

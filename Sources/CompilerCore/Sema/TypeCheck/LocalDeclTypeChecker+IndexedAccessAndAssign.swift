@@ -115,18 +115,15 @@ extension LocalDeclTypeChecker {
         // raised flag that gates the index expressions (KUU-3966).
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
-        let receiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
 
         let getName = interner.intern("get")
-        let allGetMembers = driver.helpers.collectMemberFunctionCandidates(
-            named: getName,
-            receiverType: receiverType,
-            sema: sema,
-            interner: interner
+        let receiverInfo = indexedOperatorMemberCandidates(
+            named: getName, receiverExpr: receiverExpr, receiverType: inferredReceiverType, ctx: ctx
         )
-        var getCandidates = ctx.filterByVisibility(allGetMembers).visible.filter {
-            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
-        }
+        let receiverType = receiverInfo.receiverType
+        let allGetMembers = receiverInfo.allMembers
+        var getCandidates = receiverInfo.candidates
         if getCandidates.isEmpty {
             getCandidates = collectIndexedOperatorExtensionCandidates(
                 named: getName, receiverType: receiverType, locals: locals, ctx: ctx
@@ -347,18 +344,15 @@ extension LocalDeclTypeChecker {
         // with, not the raised flag that gates indices and value (KUU-3966).
         var receiverCtx = ctx
         receiverCtx.isConditionallyEvaluated = ctx.receiverConditionallyEvaluated
-        let receiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
+        let inferredReceiverType = driver.inferExpr(receiverExpr, ctx: receiverCtx, locals: &locals, expectedType: nil)
 
         let setName = interner.intern("set")
-        let allSetMembers = driver.helpers.collectMemberFunctionCandidates(
-            named: setName,
-            receiverType: receiverType,
-            sema: sema,
-            interner: interner
+        let receiverInfo = indexedOperatorMemberCandidates(
+            named: setName, receiverExpr: receiverExpr, receiverType: inferredReceiverType, ctx: ctx
         )
-        var setCandidates = ctx.filterByVisibility(allSetMembers).visible.filter {
-            ctx.cachedSymbol($0)?.flags.contains(.operatorFunction) == true
-        }
+        let receiverType = receiverInfo.receiverType
+        let allSetMembers = receiverInfo.allMembers
+        var setCandidates = receiverInfo.candidates
         if setCandidates.isEmpty {
             setCandidates = collectIndexedOperatorMemberExtensionCandidates(
                 named: setName, receiverType: receiverType, ctx: ctx
