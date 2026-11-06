@@ -151,5 +151,86 @@ struct SafeCallLambdaSmartCastTests {
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0026", in: ctx)
     }
+
+    // KUU-4344: `(x as? T)?.call { ... }` evaluates its arguments only when
+    // the safe cast produced a non-null value, so a stable cast operand
+    // narrows to the non-null target type while they are checked — the same
+    // scoping as the `?.` receiver narrowing above.
+    @Test(arguments: [
+        "(x as? String)?.let { x.length }",
+        "(x as? String)?.also { x.length }",
+        "(x as? String)?.let { run { x.length } }",
+        "(x as? Int)?.let { x + 1 }",
+        "(x as? List<String>)?.let { x.size }"
+    ])
+    func narrowsSafeCastOperandInsideArguments(body: String) throws {
+        let ctx = makeContextFromSource("""
+        fun test(x: Any?) {
+            \(body)
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func narrowsSafeCastOperandOnMemberChain() throws {
+        let ctx = makeContextFromSource("""
+        class Wrap(val v: Any?)
+        fun test(w: Wrap) {
+            (w.v as? String)?.let { w.v.length }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test func narrowsSafeCastOperandOnLocalVal() throws {
+        let ctx = makeContextFromSource("""
+        fun test(flag: Boolean) {
+            val x: Any? = if (flag) "yes" else 1
+            (x as? String)?.let { x.length }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test(arguments: [
+        // The narrowing is scoped to the call: the cast may have failed, so
+        // the operand keeps its declared type afterwards.
+        ("""
+        fun test(x: Any?) {
+            (x as? String)?.let { x.length }
+            x.length
+        }
+        """, "KSWIFTK-SEMA-0024"),
+        // A write inside the same argument invalidates the narrowing.
+        ("""
+        fun test() {
+            var x: Any? = "x"
+            (x as? String)?.let { x = null; x.length }
+        }
+        """, "KSWIFTK-SEMA-0026"),
+        // A deferred write that can restore null makes the var unstable.
+        ("""
+        fun test() {
+            var x: Any? = "x"
+            val write = { x = null }
+            (x as? String)?.let { x.length }
+        }
+        """, "KSWIFTK-SEMA-0024"),
+        // Mutable member properties are never stable.
+        ("""
+        class Wrap(var v: Any?)
+        fun test(w: Wrap) {
+            (w.v as? String)?.let { w.v.length }
+        }
+        """, "KSWIFTK-SEMA-0024")
+    ])
+    func rejectsEscapedOrUnstableSafeCastOperandNarrowing(source: String, code: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        assertHasDiagnostic(code, in: ctx)
+    }
 }
 #endif

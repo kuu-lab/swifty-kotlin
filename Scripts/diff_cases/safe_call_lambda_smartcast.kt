@@ -33,6 +33,21 @@ fun indexed(name: String?, m: Map<String, Int>) = name?.let { m[name] }
 
 fun nonInlineCallee(box: Box?) = box?.apply2 { box.v.length }
 
+// KUU-4344: `(x as? T)?.call { ... }` narrows the stable cast operand to T
+// inside the arguments — the lambda only runs when the cast succeeded.
+fun asCastLet(x: Any?): Int = (x as? String)?.let { x.length } ?: -1
+
+fun asCastRun(x: Any?): Int = (x as? String)?.run { x.length + length } ?: -1
+
+fun asCastAlso(x: Any?): Int {
+    var seen = 0
+    (x as? String)?.also { seen = x.length + it.length }
+    return seen
+}
+
+class AnyBox(val v: Any?)
+fun asCastMember(box: AnyBox): Int = (box.v as? String)?.let { box.v.length } ?: -1
+
 fun main() {
     println(param("abc"))
     println(param(null))
@@ -45,4 +60,11 @@ fun main() {
     println(NameBox(null).size())
     println(nonInlineCallee(Box("box")))
     println(nonInlineCallee(null))
+    println(asCastLet("hello"))
+    println(asCastLet(42))
+    println(asCastLet(null))
+    println(asCastRun("hey"))
+    println(asCastAlso("abcde"))
+    println(asCastMember(AnyBox("wxyz")))
+    println(asCastMember(AnyBox(null)))
 }
