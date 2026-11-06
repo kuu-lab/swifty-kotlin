@@ -263,4 +263,36 @@ struct ScopeCallablePropertyPriorityTests {
         #expect(result.exitCode == 0, "\(result.stderr)")
         #expect(result.stdout == "1\n")
     }
+
+    @Test
+    func localFunctionCapturingBoxedFunctionValueInvokesThroughBox() throws {
+        // Regression: a local function capturing a `kk_function_create_N`
+        // boxed function value used to trap in BuildKIRPhase while remapping
+        // the box's packed environment object, which has no body-side expr.
+        // The captured box must instead invoke through kk_function_invoke.
+        let source = """
+        fun main() {
+            var count = 5
+            val unrelated: () -> Int = { count }
+            fun local() {
+                println(unrelated())
+            }
+            count = 10
+            local()
+        }
+        """
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let input = directory.appendingPathComponent("consumer.kt").path
+        let output = directory.appendingPathComponent("consumer").path
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "BoxedCapture", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), stdlibLibraryPath: try testStdlibArtifactPath()
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == "10\n")
+    }
 }
