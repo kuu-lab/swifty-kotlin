@@ -89,6 +89,7 @@ extension BuildKIRRegressionTests {
         import kotlin.uuid.Uuid
         import kotlin.uuid.getUuid
         import kotlin.uuid.putUuid
+        import kotlin.uuid.toKotlinUuid
         import java.nio.ByteBuffer
 
         fun main(buf: ByteBuffer, javaUuid: java.util.UUID) {
