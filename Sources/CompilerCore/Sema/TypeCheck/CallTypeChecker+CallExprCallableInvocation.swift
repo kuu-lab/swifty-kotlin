@@ -629,8 +629,18 @@ extension CallTypeChecker {
             }
             return !implicitInvokeOperatorCandidates(for: nonNull, ctx: ctx).isEmpty
         }
-        if let local = locals[calleeName], isCallableType(local.type) {
-            return true
+        // A local *function* declaration is not a callable value — its own
+        // candidates already went through overload resolution, and deferring
+        // to the invoke path cannot bind it (`inferCallableValueCall` skips
+        // function/classifier kinds the same way).
+        if let local = locals[calleeName] {
+            let localKind = ctx.cachedSymbol(local.symbol)?.kind
+            let isFunctionOrClassifier = localKind == .function || localKind == .class
+                || localKind == .interface || localKind == .enumClass
+                || localKind == .annotationClass
+            if !isFunctionOrClassifier, isCallableType(local.type) {
+                return true
+            }
         }
         if implicitReceiverFunctionProperty(named: calleeName, ctx: ctx) != nil {
             return true
