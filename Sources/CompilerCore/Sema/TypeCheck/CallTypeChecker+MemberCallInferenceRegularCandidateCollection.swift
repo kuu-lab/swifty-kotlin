@@ -528,11 +528,11 @@ extension CallTypeChecker {
                 }
             }
             let standardMemberCandidates: [SymbolID]
-            let workerExecuteCandidates = collectWorkerExecuteMemberCandidates(
+            let workerMemberCandidates = collectWorkerMemberCandidates(
                 named: calleeName, receiverType: memberLookupType, sema: sema, interner: interner
             )
-            if !workerExecuteCandidates.isEmpty {
-                standardMemberCandidates = workerExecuteCandidates
+            if !workerMemberCandidates.isEmpty {
+                standardMemberCandidates = workerMemberCandidates
             } else if !arrayConversionSourceCandidates.isEmpty {
                 standardMemberCandidates = arrayConversionSourceCandidates
             } else if !mutableMapPutAllSourceCandidates.isEmpty {
