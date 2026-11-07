@@ -6,7 +6,17 @@ import kotlin.collections.MutableMap
 import kotlin.collections.MutableSet
 
 /** A map whose keys are restricted to one enum type and iterated by ordinal. */
-public class EnumMap<K : Enum<K>, V>(private val keyType: Class<K>) : AbstractMutableMap<K, V>() {
+public class EnumMap<K : Enum<K>, V> private constructor() : AbstractMutableMap<K, V>() {
+    private var keyType: Class<K>? = null
+
+    public constructor(keyType: Class<K>) : this() {
+        this.keyType = keyType
+    }
+
+    public constructor(source: Map<out K, V>) : this() {
+        for ((key, value) in source) put(key, value)
+    }
+
     private val backing = TreeMap<K, V>()
 
     override val size: Int
@@ -42,6 +52,7 @@ public class EnumMap<K : Enum<K>, V>(private val keyType: Class<K>) : AbstractMu
     }
 
     private fun checkKey(key: K) {
-        if (!keyType.isInstance(key)) throw ClassCastException()
+        val type = keyType
+        if (type != null && !type.isInstance(key)) throw ClassCastException()
     }
 }
