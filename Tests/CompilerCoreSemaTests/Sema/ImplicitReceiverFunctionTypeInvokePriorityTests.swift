@@ -161,5 +161,82 @@ struct ImplicitReceiverFunctionTypeInvokePriorityTests {
             #expect(sema.bindings.exprType(for: call) == sema.types.stringType)
         }
     }
+
+    /// KUU-4209: inside a nested lambda that supplies its own receiver, an
+    /// unqualified `invoke(...)` still reaches the *outer* function-typed
+    /// receiver — the `flow { emit(invoke()) }` shape of kotlinx-coroutines'
+    /// `(() -> T).asFlow()`. The binding must record a labeled `this` so KIR
+    /// captures the outer receiver instead of reading the innermost `this`.
+    @Test
+    func invokeResolvesOnOuterFunctionTypedReceiverInsideNestedLambda() throws {
+        let source = """
+        package b
+        class Box
+        fun (() -> Int).callInLambda(block: Box.() -> Unit): Int {
+            var result = -1
+            val l: Box.() -> Unit = { result = invoke() }
+            l(Box())
+            return result
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let call = try #require(nameRefCallExprID(named: "invoke", in: ast, interner: ctx.interner))
+            #expect(sema.bindings.exprType(for: call) == sema.types.intType)
+            let binding = try #require(sema.bindings.callableValueCallBinding(for: call))
+            let receiverExpr = try #require(binding.implicitInvokeReceiverExpr)
+            guard case let .thisRef(label, _) = ast.arena.expr(receiverExpr) else {
+                Issue.record("expected synthesized thisRef, got \(String(describing: ast.arena.expr(receiverExpr)))")
+                return
+            }
+            #expect(label != nil)
+        }
+    }
+
+    /// The innermost function-typed receiver still wins when the tower
+    /// holds function-typed receivers at several levels.
+    @Test
+    func innermostFunctionTypedReceiverInvokeWins() throws {
+        let source = """
+        package b
+        class Box
+        fun (() -> Int).outer(block: (() -> Int).() -> Unit): Int {
+            var result = -1
+            val l: (() -> Int).() -> Unit = { result = invoke() + invoke() }
+            l({ 20 })
+            return result
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      let calleeExpr = ast.arena.expr(callee),
+                      case let .nameRef(name, _) = calleeExpr
+                else { return false }
+                return ctx.interner.resolve(name) == "invoke"
+            }
+            #expect(calls.count == 2)
+            for call in calls {
+                let binding = try #require(sema.bindings.callableValueCallBinding(for: call))
+                let receiverExpr = try #require(binding.implicitInvokeReceiverExpr)
+                // Both invokes target the lambda's own `() -> Int` receiver,
+                // so the synthesized this must be unlabeled.
+                guard case let .thisRef(label, _) = ast.arena.expr(receiverExpr) else {
+                    Issue.record("expected synthesized thisRef")
+                    return
+                }
+                #expect(label == nil)
+            }
+        }
+    }
 }
 #endif
