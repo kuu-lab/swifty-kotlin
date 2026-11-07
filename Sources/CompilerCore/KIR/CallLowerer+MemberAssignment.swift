@@ -734,6 +734,27 @@ extension CallLowerer {
             )
         }
 
+        // KUU-4454: a bare-name compound assignment (`count++`) delegated
+        // here with an implicit receiver may name a property declared on
+        // an *enclosing* class of an inner class. Every accessor and
+        // field access below must then run on the `$outer` instance, not
+        // the inner `this` — the same hop the plain read/write paths
+        // perform. Explicit receivers already denote the declaring
+        // instance, so only the implicit (`receiverExpr == nil`) form
+        // needs the resolution.
+        let receiverID = receiverExpr == nil
+            ? propertySymbol.map {
+                resolvePropertyOwnerReceiver(
+                    receiverID,
+                    ownerOf: $0,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            } ?? receiverID
+            : receiverID
+
         // KUU-3857: object-owned member slots are initialized by the
         // object's lazy clinit-equivalent (see `lowerMemberAssignExpr`).
         // Emit the guard before the load half so a compound write that is
@@ -1282,6 +1303,16 @@ extension CallLowerer {
         else {
             return nil
         }
+        // KUU-4454: see the getter-side counterpart — resolve the `$outer`
+        // receiver only after the itable write is known to apply.
+        let loweredReceiverID = resolvePropertyOwnerReceiver(
+            loweredReceiverID,
+            ownerOf: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: ownerSymbol, sema: sema, interner: interner
         )

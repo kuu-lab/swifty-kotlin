@@ -380,8 +380,16 @@ extension ExprLowerer {
                    interner: interner
                )
             {
+                let accessorReceiverExprID = resolvePropertyOwnerReceiver(
+                    receiverExprID,
+                    ownerOf: propertySymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
-                    for: accessorSymbol, arguments: [receiverExprID], callExprID: exprID,
+                    for: accessorSymbol, arguments: [accessorReceiverExprID], callExprID: exprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -538,10 +546,18 @@ extension ExprLowerer {
                let externalLinkName = sema.symbols.externalLinkName(for: symbol),
                !externalLinkName.isEmpty
             {
+                let externalReceiverExprID = resolvePropertyOwnerReceiver(
+                    receiverExprID,
+                    ownerOf: symbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 instructions.append(.call(
                     symbol: symbol,
                     callee: interner.intern(externalLinkName),
-                    arguments: [receiverExprID],
+                    arguments: [externalReceiverExprID],
                     result: result,
                     canThrow: false
                 ))
@@ -581,7 +597,16 @@ extension ExprLowerer {
                 let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
                     ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
                 let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
-                    for: getterSymbol, arguments: [receiverExprID], callExprID: exprID,
+                    for: getterSymbol,
+                    arguments: [resolvePropertyOwnerReceiver(
+                        receiverExprID,
+                        ownerOf: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )],
+                    callExprID: exprID,
                     sema: sema, arena: arena, interner: interner, instructions: &instructions
                 )
                 instructions.append(.virtualCall(
@@ -610,7 +635,14 @@ extension ExprLowerer {
                     ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
                 driver.callLowerer.appendPropertyGetterCall(
                     getterSymbol: getterSymbol,
-                    receiver: receiverExprID,
+                    receiver: resolvePropertyOwnerReceiver(
+                        receiverExprID,
+                        ownerOf: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    ),
                     callExprID: exprID,
                     result: result,
                     sema: sema,

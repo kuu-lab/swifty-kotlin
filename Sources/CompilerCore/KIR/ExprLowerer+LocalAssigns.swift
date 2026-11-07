@@ -340,9 +340,17 @@ extension ExprLowerer {
                         sema: sema, arena: arena, interner: interner,
                         instructions: &instructions
                     )
+                    let virtualSetterReceiverID = resolvePropertyOwnerReceiver(
+                        receiverExprID,
+                        ownerOf: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
                         for: virtualSetterDispatch.accessorSymbol,
-                        arguments: [receiverExprID, setterValueID],
+                        arguments: [virtualSetterReceiverID, setterValueID],
                         callExprID: exprID,
                         sema: sema, arena: arena, interner: interner,
                         instructions: &instructions
@@ -359,8 +367,16 @@ extension ExprLowerer {
                 } else if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
                     let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
+                    let setterReceiverExprID = resolvePropertyOwnerReceiver(
+                        receiverExprID,
+                        ownerOf: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     let setterArguments = driver.callLowerer.propertyAccessorArguments(
-                        for: setterSymbol, arguments: [receiverExprID, valueID], callExprID: exprID,
+                        for: setterSymbol, arguments: [setterReceiverExprID, valueID], callExprID: exprID,
                         sema: sema, arena: arena, interner: interner, instructions: &instructions
                     )
                     instructions.append(.call(
