@@ -83,4 +83,31 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4393: a statement-position call records a Unit consumer so the
+    /// erased result is popped without a claim checkcast. A platform-typed
+    /// expression bound must not resurrect that checkcast — `ConcurrentMap`'s
+    /// `putIfAbsent`/`replace` return a flexible `V!`, which kept `bound`
+    /// non-Unit and emitted a bogus `kk_op_cast` to Unit that panicked on
+    /// any non-null discarded result.
+    @Test(arguments: [false, true], [0, 2])
+    func erasedGenericDiscardedStatementResult(fromArtifact: Bool, optimization: Int) throws {
+        let source = try diffCaseSource(
+            "kuu_4393_concurrent_map_discarded_erased_result.kt",
+            file: #filePath
+        )
+        try compileAndRunKotlin(
+            source,
+            expectedOutput: """
+            9
+            3
+            9
+            1
+
+            """,
+            moduleName: "ErasedGenericDiscardedStatementResult",
+            allowDefaultStdlibLibrary: fromArtifact,
+            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+        )
+    }
+
 }
