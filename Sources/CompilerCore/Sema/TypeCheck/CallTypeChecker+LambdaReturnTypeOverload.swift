@@ -1,4 +1,3 @@
-
 extension CallTypeChecker {
     /// A qualified member import binds the named singleton, whereas lookup
     /// through a nullable implicit receiver must still check that receiver.
@@ -374,6 +373,7 @@ extension CallTypeChecker {
         var blockedLambdaRefinement = false
         var hasUnresolvableImplicitLambdaParameter = false
         var contextualArgExpectedTypes = [TypeID?](repeating: nil, count: args.count)
+        var contextualArgExpectedTypeCandidates = [Int: [TypeID]]()
         var discardedExpectedTypeHintIndices: Set<Int> = []
         var argumentCtx = ctx
 
@@ -703,6 +703,35 @@ extension CallTypeChecker {
                             to: contextualLambdaType, signature: signature, candidate: candidate, ctx: ctx
                         )
                     }
+                    let perCandidateResultType = ctx.isElvisBranchExpectedTypeHint
+                        ? contextualCallResultType.map { sema.types.makeNullable($0) }
+                        : contextualCallResultType
+                    if expectedTypeCandidates.count > 1,
+                       let perCandidateResultType
+                    {
+                        var candidateExpectedTypes: [TypeID] = []
+                        for candidate in expectedTypeCandidates {
+                            guard let signature = sema.symbols.functionSignature(for: candidate),
+                                  let specialized = contextualLambdaExpectedTypeForCandidate(
+                                      signature: signature,
+                                      argumentIndex: index,
+                                      argumentLabel: argument.label,
+                                      args: args,
+                                      inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                                      callResultType: perCandidateResultType,
+                                      receiverType: receiverType ?? ctx.implicitReceiverType,
+                                      ctx: ctx
+                                  ),
+                                  !candidateExpectedTypes.contains(specialized)
+                            else {
+                                continue
+                            }
+                            candidateExpectedTypes.append(specialized)
+                        }
+                        if !candidateExpectedTypes.isEmpty {
+                            contextualArgExpectedTypeCandidates[index] = candidateExpectedTypes
+                        }
+                    }
                     if declaresConcreteLambdaParameterTypes(
                         at: index,
                         args: args,
@@ -735,7 +764,55 @@ extension CallTypeChecker {
                 }
             }
 
-            if let contextualExpectedType = contextualArgExpectedTypes[index] {
+            let perCandidateExpectedTypes = contextualArgExpectedTypeCandidates[index] ?? []
+            if !perCandidateExpectedTypes.isEmpty {
+                var perCandidateContext = lambdaContextOverrides[index] ?? ctx
+                perCandidateContext.callArgumentExprBeingInferred = argument.expr
+                if expectedTypeHintIndices.contains(index) {
+                    perCandidateContext.validatesLiftedHintCollectionArguments = true
+                }
+                var committedType: TypeID?
+                var committedExpectedType: TypeID?
+                var committedLocals: LocalBindings?
+                for candidateExpectedType in perCandidateExpectedTypes {
+                    let checkpoint = sema.diagnostics.checkpoint()
+                    var candidateLocals = locals
+                    let candidateType = driver.inferExpr(
+                        argument.expr,
+                        ctx: perCandidateContext,
+                        locals: &candidateLocals,
+                        expectedType: candidateExpectedType
+                    )
+                    let emittedError = sema.diagnostics.diagnostics
+                        .dropFirst(checkpoint)
+                        .contains { $0.severity == .error }
+                    if candidateType != sema.types.errorType, !emittedError {
+                        committedType = candidateType
+                        committedExpectedType = candidateExpectedType
+                        committedLocals = candidateLocals
+                        break
+                    }
+                    sema.diagnostics.rollback(to: checkpoint)
+                }
+                if let committedType, let committedExpectedType, let committedLocals {
+                    locals = committedLocals
+                    argTypes[index] = inputOnlyLambdaIndices.contains(index)
+                        ? rebuildLambdaLiteralType(
+                            exprID: argument.expr,
+                            inferredType: committedType,
+                            contextualExpectedType: committedExpectedType,
+                            sema: sema
+                        )
+                        : committedType
+                } else {
+                    argTypes[index] = driver.inferExpr(
+                        argument.expr,
+                        ctx: argumentCtx,
+                        locals: &locals,
+                        expectedType: contextualArgExpectedTypes[index]
+                    )
+                }
+            } else if let contextualExpectedType = contextualArgExpectedTypes[index] {
                 var inferenceContext = lambdaContextOverrides[index] ?? ctx
                 inferenceContext.callArgumentExprBeingInferred = argument.expr
                 let isCallableReferenceArgument: Bool = {
@@ -1688,7 +1765,14 @@ extension CallTypeChecker {
               !(function.params + function.contextReceivers + (function.receiver.map { [$0] } ?? [])).contains(where: {
                   sema.types.typeContainsTypeParam($0, symbol: resultParameter.symbol)
               })
-        else { return expectation }
+        else {
+            return contextualNestedResultLambdaType(
+                expectation,
+                callResultType: callResultType,
+                candidates: candidates,
+                sema: sema
+            ) ?? expectation
+        }
         // The discarded call result can guide a generic lambda result only
         // when the type parameter is not already constrained by another
         // argument. For example, `minOfWith(Comparator<Int>()) { ... }` must
@@ -1738,6 +1822,172 @@ extension CallTypeChecker {
             returnType: returnParameter.nullability == .nullable ? sema.types.makeNullable(contextualResult) : contextualResult,
             isSuspend: function.isSuspend, nullability: function.nullability, throws: function.throws
         )))
+    }
+
+    /// Collection HOFs return the lambda's result through a class type
+    /// (`Iterable<R>.flatMap` -> `List<R>`) instead of a bare type parameter.
+    /// When the expected call result determines the corresponding type
+    /// argument, substitute it into the lambda's expected return type so a
+    /// nested generic call in the body can infer its own type arguments
+    /// (KUU-4464).
+    private func contextualNestedResultLambdaType(
+        _ expectation: TypeID?,
+        callResultType: TypeID?,
+        candidates: [SymbolID],
+        sema: SemaModule
+    ) -> TypeID? {
+        guard let callResultType,
+              sema.types.makeNonNullable(callResultType) == callResultType,
+              candidates.count == 1,
+              let signature = sema.symbols.functionSignature(for: candidates[0]),
+              sema.types.makeNonNullable(signature.returnType) == signature.returnType,
+              let expectation,
+              case let .functionType(function) = sema.types.kind(of: expectation),
+              case let .classType(resultClass) = sema.types.kind(of: sema.types.makeNonNullable(signature.returnType)),
+              case let .classType(expectedClass) = sema.types.kind(of: callResultType)
+        else { return nil }
+
+        let projectedArgs: [TypeArg]
+        if resultClass.classSymbol == expectedClass.classSymbol {
+            projectedArgs = resultClass.args
+        } else {
+            guard let liftedArgs = sema.types.liftedNominalSupertypeArgs(
+                from: resultClass, to: expectedClass.classSymbol
+            ), liftedArgs.count == expectedClass.args.count else {
+                return nil
+            }
+            projectedArgs = liftedArgs
+        }
+
+        let inputTypes = function.contextReceivers + function.params
+            + (function.receiver.map { [$0] } ?? [])
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (resultArg, expectedArg) in zip(projectedArgs, expectedClass.args) {
+            let resultInner: TypeID
+            switch resultArg {
+            case let .invariant(inner), let .out(inner):
+                resultInner = inner
+            case .in, .star:
+                continue
+            }
+            guard case let .typeParam(resultParam) = sema.types.kind(
+                of: sema.types.makeNonNullable(resultInner)
+            ), resultParam.capture == nil,
+                signature.typeParameterSymbols.contains(resultParam.symbol),
+                sema.types.typeContainsTypeParam(function.returnType, symbol: resultParam.symbol),
+                !inputTypes.contains(where: {
+                    sema.types.typeContainsTypeParam($0, symbol: resultParam.symbol)
+                }),
+                let variable = typeVarBySymbol[resultParam.symbol]
+            else { continue }
+            let expectedInner: TypeID
+            switch expectedArg {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                expectedInner = inner
+            case .star:
+                continue
+            }
+            substitution[variable] = expectedInner
+        }
+        guard !substitution.isEmpty else { return nil }
+        let newReturnType = sema.types.substituteTypeParameters(
+            in: function.returnType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        guard newReturnType != function.returnType else { return nil }
+        return sema.types.make(.functionType(FunctionType(
+            contextReceivers: function.contextReceivers,
+            receiver: function.receiver,
+            params: function.params,
+            returnType: newReturnType,
+            isSuspend: function.isSuspend,
+            isCallableReference: function.isCallableReference,
+            nullability: function.nullability,
+            throws: function.throws
+        )))
+    }
+
+    /// Per-candidate contextual type for a lambda argument when the call's
+    /// surviving candidates disagree on the lambda's function type. The
+    /// expected call result constrains the candidate's return type parameters
+    /// (e.g. `Iterable<T>.flatMap`'s `R` through `List<R> <: Iterable<T>`),
+    /// which then specializes the lambda's expected parameter type so a
+    /// nested generic call in the body can infer its own type arguments
+    /// (KUU-4464).
+    private func contextualLambdaExpectedTypeForCandidate(
+        signature: FunctionSignature,
+        argumentIndex: Int,
+        argumentLabel: InternedString?,
+        args: [CallArgument],
+        inferredNonLambdaArgTypes: [Int: TypeID],
+        callResultType: TypeID,
+        receiverType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> TypeID? {
+        let sema = ctx.sema
+        guard sema.types.makeNonNullable(callResultType) == callResultType,
+              sema.types.makeNonNullable(signature.returnType) == signature.returnType,
+              let parameterIndex = parameterIndexForCallArgument(
+                  at: argumentIndex, label: argumentLabel, in: signature, sema: sema
+              ),
+              signature.parameterTypes.indices.contains(parameterIndex),
+              case .functionType = sema.types.kind(of: signature.parameterTypes[parameterIndex])
+        else {
+            return nil
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var knownArgumentTypes: [Int: TypeID] = [:]
+        for (otherIndex, inferredType) in inferredNonLambdaArgTypes
+        where otherIndex != argumentIndex && inferredType != sema.types.errorType {
+            guard args.indices.contains(otherIndex),
+                  let otherParameterIndex = parameterIndexForCallArgument(
+                      at: otherIndex, label: args[otherIndex].label, in: signature, sema: sema
+                  )
+            else {
+                continue
+            }
+            knownArgumentTypes[otherParameterIndex] = inferredType
+        }
+        var substitution = ctx.resolver.probeArgumentTypeSubstitution(
+            signature: signature,
+            typeVarBySymbol: typeVarBySymbol,
+            knownArgumentTypes: knownArgumentTypes,
+            typeSystem: sema.types,
+            implicitReceiverType: receiverType
+        )
+        let resultConstraints = ctx.resolver.decomposeSubtypeConstraint(
+            subtype: signature.returnType,
+            supertype: callResultType,
+            typeVarBySymbol: typeVarBySymbol,
+            typeSystem: sema.types,
+            blameRange: nil
+        )
+        if !resultConstraints.isEmpty {
+            let resultSolution = ConstraintSolver().solve(
+                vars: ctx.resolver.usedTypeVariables(from: resultConstraints),
+                constraints: resultConstraints,
+                typeSystem: sema.types
+            )
+            if resultSolution.isSuccess {
+                for (variable, type) in resultSolution.substitution where substitution[variable] == nil {
+                    substitution[variable] = type
+                }
+            }
+        }
+        guard !substitution.isEmpty else { return nil }
+        let specialized = sema.types.substituteTypeParameters(
+            in: signature.parameterTypes[parameterIndex],
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        guard specialized != signature.parameterTypes[parameterIndex],
+              case .functionType = sema.types.kind(of: specialized)
+        else {
+            return nil
+        }
+        return specialized
     }
 
 }
