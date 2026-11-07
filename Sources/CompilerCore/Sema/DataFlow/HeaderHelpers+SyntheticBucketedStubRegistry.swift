@@ -48,7 +48,7 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 bundledIndex: context.bundledIndex
             )
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Collections") { phase, symbols, types, interner, context in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Collections") { phase, symbols, types, interner, context in
             phase.registerSyntheticCollectionStubs(
                 symbols: symbols,
                 types: types,
