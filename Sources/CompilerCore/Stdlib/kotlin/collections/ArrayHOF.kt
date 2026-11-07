@@ -112,9 +112,9 @@ public fun <T> Array<T>.joinToString(
 ): String = this.asList().joinToString(separator, prefix, postfix, limit, truncated)
 
 public fun <T> Array<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = "",
     transform: (T) -> Any
 ): String = this.asList().joinToString(separator, prefix, postfix) { transform(it).toString() }
 
@@ -128,11 +128,11 @@ public fun <T> Array<T>.joinToString(separator: String, prefix: String, transfor
     this.asList().joinToString(separator, prefix) { transform(it).toString() }
 
 public fun <T> Array<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = "",
+    limit: Int = -1,
+    truncated: String = "...",
     transform: (T) -> Any
 ): String = this.asList().joinToString(separator, prefix, postfix, limit, truncated) { transform(it).toString() }
 
