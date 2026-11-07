@@ -90,46 +90,6 @@ extension CallTypeChecker {
         }
     }
 
-    private static let primitiveArraySourceMemberNames: Set<String> = [
-        "map", "mapIndexed", "mapNotNull", "flatMap", "forEach",
-        "filter", "filterIndexed", "filterNot",
-        "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
-        "find", "findLast", "first", "firstOrNull", "last", "lastOrNull",
-        "any", "all", "none", "count", "joinToString",
-        "contentEquals", "contentHashCode", "contentToString",
-        "copyOf", "copyOfRange", "copyInto",
-        "indices", "lastIndex", "iterator", "withIndex", "sort",
-        "average", "min", "max", "minOrNull", "maxOrNull",
-        "slice", "zip", "drop", "dropLast", "take", "takeLast",
-        "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
-        "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
-        "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedByDescending", "sortedWith",
-        "partition", "groupBy", "associate", "associateBy",
-        "elementAt", "elementAtOrElse", "getOrNull", "single", "singleOrNull",
-        "indexOfFirst", "indexOfLast", "toSet",
-        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
-        "reduceIndexedOrNull", "takeWhile", "dropWhile", "intersect", "union", "subtract",
-        "maxOf", "minByOrNull", "joinTo",
-    ]
-
-    private static let arraySourceBackedNames: Set<String> = [
-        "sliceArray", "reversedArray", "asList", "toTypedArray",
-        "asIterable", "sumOf", "joinToString",
-        "take", "takeLast", "takeWhile", "drop", "dropLast", "dropWhile", "slice",
-        "elementAt", "elementAtOrNull", "elementAtOrElse", "getOrElse",
-        "single", "singleOrNull", "random",
-        "sum", "average", "min", "max", "minOrNull", "maxOrNull",
-        "foldRight", "reduceRight", "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
-        "runningReduce", "runningReduceIndexed", "reduceIndexedOrNull",
-        "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
-        "mapIndexedNotNull", "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
-        "associate", "associateBy", "associateWith",
-        "associateTo", "associateByTo", "associateWithTo",
-        "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
-        "sortedBy", "sortedByDescending", "sortedWith", "sortWith", "joinTo",
-        "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
-    ]
-
     /// Finds the exact primitive-array source overload before the default-import
     /// scope fallback can select a same-named Sequence extension. Primitive
     /// arrays are compiler-provided nominal classes, while their bundled source
@@ -140,21 +100,21 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let memberName = interner.resolve(calleeName)
-        guard Self.primitiveArraySourceMemberNames.contains(memberName),
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.primitiveArraySourceMemberNames.contains(calleeName),
               let receiverClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
               let receiverSymbol = sema.symbols.symbol(receiverClass),
               receiverSymbol.fqName.count == 2,
-              receiverSymbol.fqName[0] == interner.intern("kotlin"),
-              receiverSymbol.name != interner.intern("Array"),
-              KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name)
+              receiverSymbol.fqName[0] == knownNames.kotlin,
+              receiverSymbol.name != knownNames.array,
+              knownNames.isArrayLikeName(receiverSymbol.name)
         else {
             return []
         }
 
         let sourceFQName = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
+            knownNames.kotlin,
+            knownNames.collections,
             calleeName,
         ]
         return sema.symbols.lookupAll(fqName: sourceFQName).filter { candidate in
@@ -183,13 +143,13 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
-        let memberName = interner.resolve(calleeName)
-        guard Self.arraySourceBackedNames.contains(memberName),
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.arraySourceBackedNames.contains(calleeName),
               let receiverClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
               let receiverSymbol = sema.symbols.symbol(receiverClass),
               receiverSymbol.fqName.count == 2,
-              receiverSymbol.fqName[0] == interner.intern("kotlin"),
-              KnownCompilerNames(interner: interner).isArrayLikeName(receiverSymbol.name)
+              receiverSymbol.fqName[0] == knownNames.kotlin,
+              knownNames.isArrayLikeName(receiverSymbol.name)
         else {
             return []
         }
@@ -234,8 +194,8 @@ extension CallTypeChecker {
             else {
                 return false
             }
-            guard memberName == "sumOf",
-                  receiverSymbol.name == interner.intern("CharArray"),
+            guard calleeName == knownNames.sumOf,
+                  receiverSymbol.name == knownNames.charArray,
                   sourceSignature.parameterTypes.count == 1,
                   let arguments, arguments.count == 1,
                   !arguments[0].isSpread

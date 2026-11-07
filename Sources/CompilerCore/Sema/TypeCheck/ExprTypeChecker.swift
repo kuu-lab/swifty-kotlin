@@ -2013,7 +2013,7 @@ final class ExprTypeChecker {
         // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
         // (e.g. equals, compareTo). Overrides of these inherit operator status
         // even without the explicit `operator` keyword.
-        let inheritedOperatorNames: Set<String> = ["equals", "compareTo"]
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
 
         var candidates: [SymbolID] = []
         var seen: Set<SymbolID> = []
@@ -2035,8 +2035,7 @@ final class ExprTypeChecker {
         }
 
         for name in names {
-            let nameStr = ctx.interner.resolve(name)
-            let isInheritedOperator = inheritedOperatorNames.contains(nameStr)
+            let isInheritedOperator = knownNames.inheritedOperatorNames.contains(name)
             for candidate in driver.helpers.collectMemberFunctionCandidates(
                 named: name,
                 receiverType: receiverType,

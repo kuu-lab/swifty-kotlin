@@ -438,6 +438,14 @@ package struct KnownCompilerNames {
     let yield: InternedString
     let yieldAll: InternedString
     let comparisons: InternedString
+    let collect: InternedString
+    let catchName: InternedString
+    let retryWhen: InternedString
+    let mapMember: InternedString
+    let retry: InternedString
+    let cancel: InternedString
+    let join: InternedString
+    let awaitName: InternedString
 
     // Package prefixes and FQ names for the same hot paths.
     let kotlinCollectionsPackage: [InternedString]
@@ -495,6 +503,28 @@ package struct KnownCompilerNames {
     let rangeMigrationMemberNames: Set<InternedString>
     let progressionFirstLastMemberNames: Set<InternedString>
     let instantValueSemanticsMemberNames: Set<InternedString>
+    let collectionHOFNames: Set<InternedString>
+    let flowHOFNames: Set<InternedString>
+    let mapCollectionHOFNames: Set<InternedString>
+    let mapFilterFamilyHOFNames: Set<InternedString>
+    let mutableListOnlyCollectionHOFNames: Set<InternedString>
+    let sequenceExcludedCollectionHOFNames: Set<InternedString>
+    let iterableMaxFamilyNames: Set<InternedString>
+    let destinationCollectionHOFs: Set<InternedString>
+    let sourceBackedListFilterNames: Set<InternedString>
+    let iterableSourceHOFNames: Set<InternedString>
+    let primitiveArraySourceMemberNames: Set<InternedString>
+    let arraySourceBackedNames: Set<InternedString>
+    let intRangeSourceBackedHOFNames: Set<InternedString>
+    let unsignedRangeSourceBackedHOFNames: Set<InternedString>
+    let supportedRangeMemberNames: Set<InternedString>
+    let jvmSourceCollectionCalls: Set<InternedString>
+    let sourceBackedCollectionMemberNames: Set<InternedString>
+    let sourceBackedTrailingLambdaMemberNames: Set<InternedString>
+    let coroutineBuilderNames: Set<InternedString>
+    let knownJvmPropertyNames: Set<InternedString>
+    let inheritedOperatorNames: Set<InternedString>
+    let coroutineHandleBoolProperties: Set<InternedString>
 
     let kotlinRegexFQName: [InternedString]
     let kotlinStringBuilderFQName: [InternedString]
@@ -941,6 +971,14 @@ package struct KnownCompilerNames {
         yield = interner.intern("yield")
         yieldAll = interner.intern("yieldAll")
         comparisons = interner.intern("comparisons")
+        collect = interner.intern("collect")
+        catchName = interner.intern("catch")
+        retryWhen = interner.intern("retryWhen")
+        mapMember = interner.intern("map")
+        retry = interner.intern("retry")
+        cancel = interner.intern("cancel")
+        join = interner.intern("join")
+        awaitName = interner.intern("await")
 
         let kotlinRanges = interner.intern("ranges")
         let kotlinTime = interner.intern("time")
@@ -1010,6 +1048,168 @@ package struct KnownCompilerNames {
         rangeMigrationMemberNames = Set(["iterator", "step", "take", "drop", "chunked", "windowed"].map { interner.intern($0) })
         progressionFirstLastMemberNames = Set(["first", "firstOrNull", "last", "lastOrNull"].map { interner.intern($0) })
         instantValueSemanticsMemberNames = Set(["equals", "hashCode", "toString"].map { interner.intern($0) })
+        collectionHOFNames = Set([
+            "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
+            "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
+            "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
+            "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
+            "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
+            "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
+            "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
+            "mapKeysTo", "mapValuesTo",
+            "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
+            "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
+            "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
+            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
+            "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
+            "maxOf", "minOf",
+            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+            "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
+            "max",
+            "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
+            "sort", "sortBy", "sortByDescending", "sortWith",
+        ].map { interner.intern($0) })
+        flowHOFNames = Set(["map", "filter", "collect"].map { interner.intern($0) })
+        mapCollectionHOFNames = Set([
+            "map", "mapNotNull", "mapKeys", "mapValues", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo",
+            "filter", "filterNot", "filterKeys", "filterValues", "filterTo", "filterNotTo",
+            "flatMap", "any", "none", "all", "count", "contains", "asSequence",
+            "onEach", "onEachIndexed",
+            "maxBy", "minBy", "maxByOrNull", "minByOrNull",
+            "maxOf", "minOf", "maxOfOrNull", "minOfOrNull",
+            "maxWith", "minWith", "maxWithOrNull", "minWithOrNull",
+            "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
+        ].map { interner.intern($0) })
+        mapFilterFamilyHOFNames = Set(["filter", "filterNot", "filterTo", "filterNotTo"].map { interner.intern($0) })
+        mutableListOnlyCollectionHOFNames = Set(["sort", "sortBy", "sortByDescending", "sortWith"].map { interner.intern($0) })
+        sequenceExcludedCollectionHOFNames = Set([
+            "mapIndexedNotNull", "dropLastWhile", "intersect", "union", "subtract",
+            "takeLastWhile", "reversed",
+            "reduceRight", "reduceRightIndexed", "reduceRightOrNull", "reduceRightIndexedOrNull",
+            "flatMapTo", "flatMapIndexedTo",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+        ].map { interner.intern($0) })
+        iterableMaxFamilyNames = Set([
+            "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
+            "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+        ].map { interner.intern($0) })
+        destinationCollectionHOFs = Set([
+            "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
+            "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
+            "filterIndexedTo", "mapKeysTo", "mapValuesTo",
+        ].map { interner.intern($0) })
+        sourceBackedListFilterNames = Set(["filter", "filterNot", "filterIndexed"].map { interner.intern($0) })
+        iterableSourceHOFNames = Set([
+            "filter",
+            "partition",
+            "single",
+            "singleOrNull",
+            "reduce",
+            "reduceIndexed",
+            "reduceRight",
+            "reduceRightIndexed",
+            "reduceRightOrNull",
+            "reduceRightIndexedOrNull",
+            "sumBy",
+            "sumByDouble",
+        ].map { interner.intern($0) })
+        primitiveArraySourceMemberNames = Set([
+            "map", "mapIndexed", "mapNotNull", "flatMap", "forEach",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
+            "find", "findLast", "first", "firstOrNull", "last", "lastOrNull",
+            "any", "all", "none", "count", "joinToString",
+            "contentEquals", "contentHashCode", "contentToString",
+            "copyOf", "copyOfRange", "copyInto",
+            "indices", "lastIndex", "iterator", "withIndex", "sort",
+            "average", "min", "max", "minOrNull", "maxOrNull",
+            "slice", "zip", "drop", "dropLast", "take", "takeLast",
+            "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
+            "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
+            "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedByDescending", "sortedWith",
+            "partition", "groupBy", "associate", "associateBy",
+            "elementAt", "elementAtOrElse", "getOrNull", "single", "singleOrNull",
+            "indexOfFirst", "indexOfLast", "toSet",
+            "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
+            "reduceIndexedOrNull", "takeWhile", "dropWhile", "intersect", "union", "subtract",
+            "maxOf", "minByOrNull", "joinTo",
+        ].map { interner.intern($0) })
+        arraySourceBackedNames = Set([
+            "sliceArray", "reversedArray", "asList", "toTypedArray",
+            "asIterable", "sumOf", "joinToString",
+            "take", "takeLast", "takeWhile", "drop", "dropLast", "dropWhile", "slice",
+            "elementAt", "elementAtOrNull", "elementAtOrElse", "getOrElse",
+            "single", "singleOrNull", "random",
+            "sum", "average", "min", "max", "minOrNull", "maxOrNull",
+            "foldRight", "reduceRight", "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
+            "runningReduce", "runningReduceIndexed", "reduceIndexedOrNull",
+            "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
+            "mapIndexedNotNull", "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
+            "associate", "associateBy", "associateWith",
+            "associateTo", "associateByTo", "associateWithTo",
+            "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
+            "sortedBy", "sortedByDescending", "sortedWith", "sortWith", "joinTo",
+            "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
+        ].map { interner.intern($0) })
+        intRangeSourceBackedHOFNames = Set([
+            "toList", "average", "sorted",
+            "forEach", "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+            "chunked", "windowed",
+            "take", "drop",
+            "random", "randomOrNull",
+        ].map { interner.intern($0) })
+        unsignedRangeSourceBackedHOFNames = Set([
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "forEach",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+            "chunked", "windowed", "take", "drop",
+            "isEmpty", "toList", "count", "sum", "reversed",
+            "sorted",
+        ].map { interner.intern($0) })
+        supportedRangeMemberNames = Set([
+            "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
+            "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
+            "any", "all", "none",
+            "chunked", "windowed",
+            "reversed", "step", "sum",
+            "random",
+            "take", "drop", "sorted",
+        ].map { interner.intern($0) })
+        jvmSourceCollectionCalls = Set([
+            "groupBy", "associate", "associateBy", "associateWith", "partition", "zip", "zipWithNext", "joinToString",
+            "map", "mapIndexed", "mapNotNull", "mapIndexedNotNull", "filter", "filterNot", "filterIndexed", "filterNotNull",
+            "flatMap", "flatten", "forEach", "fold", "any", "all", "none", "count", "first", "firstOrNull",
+            "asSequence", "asIterable", "constrainOnce", "onEach", "onEachIndexed", "take", "takeLast", "takeWhile",
+            "drop", "dropWhile", "dropLastWhile",
+            "distinct", "distinctBy", "sorted", "sortedDescending", "sortedBy", "sortedByDescending", "toMap",
+            "toList", "toMutableList", "toSet", "toMutableSet", "chunked", "windowed", "reversed",
+            "elementAt", "elementAtOrNull", "minOrNull", "maxOrNull", "last", "lastOrNull", "single", "singleOrNull",
+        ].map { interner.intern($0) })
+        sourceBackedCollectionMemberNames = Set([
+            "take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toSortedMap", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear", "containsKey", "indexOf", "lastIndexOf",
+        ].map { interner.intern($0) })
+        sourceBackedTrailingLambdaMemberNames = Set([
+            "map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach", "count",
+        ].map { interner.intern($0) })
+        coroutineBuilderNames = Set(["runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull"].map { interner.intern($0) })
+        knownJvmPropertyNames = Set(["java", "javaObjectType", "javaPrimitiveType", "kotlin", "declaringJavaClass"].map { interner.intern($0) })
+        inheritedOperatorNames = Set(["equals", "compareTo"].map { interner.intern($0) })
+        coroutineHandleBoolProperties = Set([
+            "isActive", "isCompleted", "isCancelled", "isClosedForReceive", "isClosedForSend",
+        ].map { interner.intern($0) })
     }
 
 

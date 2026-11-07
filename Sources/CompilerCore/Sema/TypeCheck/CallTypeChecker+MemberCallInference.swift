@@ -551,7 +551,7 @@ extension CallTypeChecker {
             return result
         }
 
-        if request.ctx.sema.requiresResolvedLibraryCalls, Self.jvmSourceCollectionCalls.contains(request.ctx.interner.resolve(request.calleeName)) {
+        if request.ctx.sema.requiresResolvedLibraryCalls, KnownCompilerNames(interner: request.ctx.interner).jvmSourceCollectionCalls.contains(request.calleeName) {
             return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
         }
 

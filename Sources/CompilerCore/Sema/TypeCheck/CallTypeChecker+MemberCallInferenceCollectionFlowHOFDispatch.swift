@@ -38,7 +38,8 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.types.anyType
             }
 
-            if CallTypeChecker.destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
+            let knownNames = KnownCompilerNames(interner: interner)
+            if knownNames.destinationCollectionHOFs.contains(calleeName), args.count == 2 {
                 if let inferredType = inferDestinationCollectionHOFSpecial(locals: &locals) {
                     return inferredType
                 }
@@ -63,7 +64,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 resultType = sema.types.anyType
             }
 
-            let didBindListFilterSource = CallTypeChecker.sourceBackedListFilterNames.contains(calleeStr) && args.count == 1
+            let didBindListFilterSource = knownNames.sourceBackedListFilterNames.contains(calleeName) && args.count == 1
                 ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 : false
             if didBindListFilterSource {
@@ -80,11 +81,11 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
             }
 
-            let didBindIterableFilterSource = CallTypeChecker.sourceBackedListFilterNames.contains(calleeStr)
+            let didBindIterableFilterSource = knownNames.sourceBackedListFilterNames.contains(calleeName)
                 && args.count == 1
                 && !didBindListFilterSource
-                && (isIterableReceiver || (calleeStr == "filterIndexed" && isCollectionReceiver))
-                && (!isSetReceiver || calleeStr == "filterIndexed")
+                && (isIterableReceiver || (calleeName == knownNames.filterIndexed && isCollectionReceiver))
+                && (!isSetReceiver || calleeName == knownNames.filterIndexed)
                 && bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             if didBindIterableFilterSource,
                let lambdaExpr = ast.arena.expr(args[0].expr),
@@ -96,10 +97,9 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             if !didBindListFilterSource,
                !didBindIterableFilterSource,
                sema.bindings.callBindings[id] == nil,
-               calleeStr == "filterIndexed",
+               calleeName == knownNames.filterIndexed,
                isCollectionReceiver
             {
-                let knownNames = KnownCompilerNames(interner: interner)
                 let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
                 if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
                     sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count == args.count
@@ -254,7 +254,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
             if sema.bindings.callBindings[id] == nil,
                !isSequenceReceiver,
                isCollectionReceiver,
-               CallTypeChecker.iterableSourceHOFNames.contains(calleeStr),
+               knownNames.iterableSourceHOFNames.contains(calleeName),
                bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
             {
                 for argument in args

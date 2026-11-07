@@ -52,12 +52,20 @@ public final class StringInterner: @unchecked Sendable {
     /// The caller must remap any worker-created strings before publishing
     /// them into the module namespace.
     func makeWorkerInterner() -> StringInterner {
+        compilerNamesLock.lock()
+        let existingCompilerNames = compilerNames
+        compilerNamesLock.unlock()
+        builtinTypeNamesLock.lock()
+        let existingBuiltinTypeNames = builtinTypeNames
+        builtinTypeNamesLock.unlock()
         lock.lock()
         defer { lock.unlock() }
         let worker = StringInterner()
         worker.nextID = nextID
         worker.map = map
         worker.values = values
+        worker.compilerNames = existingCompilerNames
+        worker.builtinTypeNames = existingBuiltinTypeNames
         return worker
     }
 

@@ -16,7 +16,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferDestinationCollectionHOFSpecial(locals: inout LocalBindings) -> TypeID? {
-        if CallTypeChecker.destinationCollectionHOFs.contains(calleeStr), args.count == 2 {
+        if KnownCompilerNames(interner: interner).destinationCollectionHOFs.contains(calleeName), args.count == 2 {
             // A destination factory such as `mutableListOf()` has no
             // argument from which to infer its element type.  When the
             // enclosing destination HOF is itself target-typed, propagate

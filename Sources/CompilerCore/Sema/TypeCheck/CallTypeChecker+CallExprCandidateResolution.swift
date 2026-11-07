@@ -157,9 +157,6 @@ extension CallTypeChecker {
         if !resolvedCandidates.isEmpty {
             // Coroutine builders erase their result type. Resolve arguments first,
             // then recover the actual block result instead of constraining Any.
-            let coroutineBuilderNames: Set<String> = [
-                "runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull",
-            ]
             let isCoroutineBuilderCandidate: (SymbolID) -> Bool = { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate) else { return false }
                 let externalLinkName = sema.symbols.externalLinkName(for: candidate)
@@ -171,7 +168,7 @@ extension CallTypeChecker {
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
                     || symbol.flags.contains(.synthetic)
                     && symbol.fqName.dropLast() == [interner.intern("kotlinx"), interner.intern("coroutines")][...]
-                    && coroutineBuilderNames.contains(interner.resolve(symbol.name))
+                    && knownNames.coroutineBuilderNames.contains(symbol.name)
             }
             // Nested class member scopes are chained lexically, so a bare
             // member call can arrive here with a candidate owned by an outer
