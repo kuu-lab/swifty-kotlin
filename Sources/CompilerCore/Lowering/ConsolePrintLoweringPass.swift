@@ -479,9 +479,13 @@ final class ConsolePrintLoweringPass: LoweringPass {
             return nil
         }
 
-        // Objects without an own toString() keep the simple-name fallback. An
-        // explicitly declared (or synthesized) object toString() must still
-        // be called, just like it is for an ordinary class.
+        // Objects without an own toString() fall back to the generic
+        // `println(Any?)` path: since BUG-222 every source-backed object owns a
+        // heap singleton with runtime class metadata, so `kk_any_to_string`
+        // renders the JVM `Name@hash` identity (and any inherited/registered
+        // toString override) instead of the bare simple name. An explicitly
+        // declared (or synthesized, e.g. data object) toString() must still be
+        // called directly, just like it is for an ordinary class.
         if classSymbol.kind == .object {
             let toStringName = interner.intern("toString")
             let toStringFQName = classSymbol.fqName + [toStringName]
@@ -517,11 +521,7 @@ final class ConsolePrintLoweringPass: LoweringPass {
                 return KIRExprWithInstructions(value: toStringResult, instructions: instructions)
             }
 
-            let objectName = interner.resolve(classSymbol.name)
-            let interned = interner.intern(objectName)
-            let expr = arena.appendExpr(.stringLiteral(interned), type: stringType)
-            instructions.append(.constValue(result: expr, value: .stringLiteral(interned)))
-            return KIRExprWithInstructions(value: expr, instructions: instructions)
+            return nil
         }
 
         // Enum classes default to the synthesized $enumOrdinalToName$ helper,
