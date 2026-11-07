@@ -129,6 +129,20 @@ private func runtimeCalendarSetField(_ field: Int, value: Int, box: RuntimeCalen
     default:
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Calendar.set received unsupported field \(field)")
     }
+    // dateComponents(in:from:) also reports week-derived fields
+    // (weekOfYear/yearForWeekOfYear/weekday...). When they stay populated,
+    // Calendar.date(from:) resolves the date from the week fields and
+    // silently ignores year/month/day writes — e.g. set(YEAR) was a no-op.
+    // Week-field writes (3, 4, 7, 8) keep them; every other field drops them.
+    if field != 3 && field != 4 && field != 7 && field != 8 {
+        components.weekday = nil
+        components.weekdayOrdinal = nil
+        components.weekOfYear = nil
+        components.weekOfMonth = nil
+        components.yearForWeekOfYear = nil
+        components.quarter = nil
+        components.isLeapMonth = nil
+    }
     if let updatedDate = box.calendar.date(from: components) {
         box.date = updatedDate
     }
