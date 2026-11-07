@@ -70,6 +70,22 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
         )
         return 0
     }
+    // JVM arrays are reified: a store outside the allocation component throws
+    // ArrayStoreException. Untagged arrays and the primitive-specialized
+    // arrays carry no component metadata and keep the unchecked path; only
+    // boxed values have a knowable runtime type (KUU-4439).
+    if let component = array.componentType,
+       let pointer = UnsafeMutableRawPointer(bitPattern: value),
+       runtimeIsObjectPointer(pointer),
+       !runtimeArrayElementIsAssignable(
+           RuntimeValue(raw: value),
+           sourceComponent: nil,
+           to: component
+       )
+    {
+        outThrown?.pointee = runtimeAllocateArrayStoreException(message: nil)
+        return 0
+    }
     array[index] = value
     return value
 }
