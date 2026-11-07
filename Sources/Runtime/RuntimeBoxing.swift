@@ -80,6 +80,39 @@ private func runtimeBoxPrimitive<T: AnyObject>(
     }
 }
 
+/// Object types that legitimately occupy a primitive ABI slot as an
+/// already-boxed value: tagged primitive-box handles, the runtime's own
+/// primitive/range box carriers, and coroutine continuation state. The
+/// nullable `kk_box_{long,ulong,double}` callees accept a raw scalar that may
+/// genuinely be null (sentinel) yet still needs the already-boxed pass-through
+/// for those carriers — but a 64-bit scalar can also coincide bit-for-bit with
+/// an unrelated registered object's address (KUU-857, KUU-3725). Passing every
+/// registered pointer through made such a scalar surface as the foreign object
+/// (e.g. a `foldl` accumulator whose triangular sum equalled a live `KClass`
+/// box address and then failed `kk_op_cast` to `Long` — KUU-3686, KUU-2463).
+/// Restricting pass-through to known carriers boxes the colliding scalar as
+/// its own `Long`/`ULong`/`Double` value while preserving the documented
+/// range/coroutine flows.
+private func runtimeIsPrimitiveSlotCarrier(_ objectPointer: UnsafeMutableRawPointer) -> Bool {
+    if runtimePrimitiveBoxBasePointer(from: Int(bitPattern: objectPointer)) != nil {
+        return true
+    }
+    return tryCast(objectPointer, to: RuntimeIntBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeBoolBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeLongBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeULongBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeFloatBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeDoubleBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeCharBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeUnitBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeRangeBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeRangeIteratorBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeSignedRangeForInIteratorBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeDoubleRangeBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeFloatRangeBox.self) != nil
+        || tryCast(objectPointer, to: RuntimeContinuationState.self) != nil
+}
+
 private func runtimeBoxInt(
     _ value: Int,
     anyFallbackTag: Int32,
@@ -104,6 +137,7 @@ private func runtimeStaticBox<T: AnyObject>(
     _ value: Int,
     preservesNullSentinel: Bool,
     identityCacheKey: Int64? = nil,
+    registeredPassThrough: (UnsafeMutableRawPointer) -> Bool = { _ in true },
     makeBox: () -> T
 ) -> Int {
     if preservesNullSentinel, value == runtimeNullSentinelInt {
@@ -123,7 +157,8 @@ private func runtimeStaticBox<T: AnyObject>(
         // primitive-box handle check below and box it as its own value.
         if preservesNullSentinel,
            let objectPointer = UnsafeMutableRawPointer(bitPattern: value),
-           state.objectPointers.contains(UInt(bitPattern: objectPointer))
+           state.objectPointers.contains(UInt(bitPattern: objectPointer)),
+           registeredPassThrough(objectPointer)
         {
             return value
         }
@@ -319,10 +354,14 @@ public func kk_box_long(_ value: Int) -> Int {
     // If the value is already a registered runtime object (e.g. RuntimeRangeBox
     // produced by __kk_op_rangeTo for LongRange), pass it through without
     // double-boxing so that __kk_print_raw / runtimeElementToString can
-    // recognise the original object type.
+    // recognise the original object type. Pass-through is restricted to known
+    // primitive-slot carriers: a raw Long scalar can coincide with an
+    // unrelated object's address, and handing that object to the paired
+    // unbox/cast corrupts the value (KUU-3686, KUU-2463).
     return runtimeBoxPrimitive(
         value,
-        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value)
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value),
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
     ) {
         RuntimeLongBox(value)
     }
@@ -370,8 +409,10 @@ public func kk_unbox_long(_ obj: Int) -> Int {
 public func kk_box_ulong(_ value: Int) -> Int {
     // See kk_box_long: callers whose source may genuinely be null rely on
     // the sentinel pass-through. kk_box_ulong_nonnull is the counterpart used
-    // when the source's static type is provably non-null.
-    return runtimeBoxPrimitive(value) {
+    // when the source's static type is provably non-null. Pass-through is
+    // restricted to known primitive-slot carriers — a raw ULong scalar can
+    // coincide with an unrelated object's address (KUU-3686).
+    return runtimeBoxPrimitive(value, registeredPassThrough: runtimeIsPrimitiveSlotCarrier) {
         RuntimeULongBox(value)
     }
 }
@@ -443,9 +484,11 @@ public func kk_box_double(_ value: Int) -> Int {
     // when the source's static type is provably non-null.
     // A nullable Double? read out of a generic container is already a
     // RuntimeDoubleBox pointer; re-boxing it would reinterpret the pointer
-    // as an IEEE754 payload (mirrors kk_box_int / kk_box_long).
+    // as an IEEE754 payload (mirrors kk_box_int / kk_box_long). Pass-through
+    // is restricted to known primitive-slot carriers — a raw Double bit
+    // pattern can coincide with an unrelated object's address (KUU-3686).
     let doubleBits = Double(bitPattern: UInt64(bitPattern: Int64(value)))
-    return runtimeBoxPrimitive(value) {
+    return runtimeBoxPrimitive(value, registeredPassThrough: runtimeIsPrimitiveSlotCarrier) {
         RuntimeDoubleBox(doubleBits)
     }
 }
@@ -592,7 +635,8 @@ public func kk_box_bool_static(_ value: Int) -> Int {
 public func kk_box_long_static(_ value: Int) -> Int {
     runtimeStaticBox(
         value, preservesNullSentinel: true,
-        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value)
+        identityCacheKey: runtimeSignedBoxCacheKey(domain: RuntimeTypeTokenEncoding.longBase, value: value),
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
     ) {
         RuntimeLongBox(value)
     }
@@ -610,7 +654,10 @@ public func kk_box_long_nonnull_static(_ value: Int) -> Int {
 
 @_cdecl("kk_box_ulong_static")
 public func kk_box_ulong_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
+    ) {
         RuntimeULongBox(value)
     }
 }
@@ -631,7 +678,10 @@ public func kk_box_float_static(_ value: Int) -> Int {
 
 @_cdecl("kk_box_double_static")
 public func kk_box_double_static(_ value: Int) -> Int {
-    runtimeStaticBox(value, preservesNullSentinel: true) {
+    runtimeStaticBox(
+        value, preservesNullSentinel: true,
+        registeredPassThrough: runtimeIsPrimitiveSlotCarrier
+    ) {
         RuntimeDoubleBox(Double(bitPattern: UInt64(bitPattern: Int64(value))))
     }
 }
