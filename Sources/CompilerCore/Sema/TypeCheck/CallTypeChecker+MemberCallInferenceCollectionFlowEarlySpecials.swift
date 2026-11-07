@@ -711,7 +711,33 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
-            let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            // The destination receives the receiver's non-null element type
+            // (`Iterable<T?>.filterNotNullTo` adds `T`), so an argument-less
+            // destination factory must see `MutableCollection<in T>` as its
+            // expected type — the same `C` bound role as `toCollection`
+            // (KUU-4100), with the element made non-null first.
+            let destinationExpectedType = mutableCollectionDestinationExpectedType(
+                argumentExpr: args[0].expr,
+                elementType: sema.types.makeNonNullable(
+                    resolvedCollectionElementType(
+                        receiverID: receiverID,
+                        receiverType: receiverType,
+                        sema: sema,
+                        interner: interner,
+                        ctx: ctx
+                    )
+                ),
+                expectedType: expectedType,
+                sema: sema,
+                interner: interner,
+                ast: ast
+            )
+            let destinationType = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: destinationExpectedType
+            )
             let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
             let destinationElementType: TypeID = if case let .classType(destinationClassType) = sema.types.kind(of: nonNullableDestinationType),
                                                     let firstArg = destinationClassType.args.first

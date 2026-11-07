@@ -385,6 +385,12 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                     } else {
                         nil
                     }
+                case "filterTo" where isMapReceiver, "filterNotTo" where isMapReceiver:
+                    // Map.filterTo/filterNotTo keep the receiver's own
+                    // key/value types in the destination bound
+                    // (`M : MutableMap<in K, in V>`), not a collection
+                    // element type.
+                    mutableMapExpectedType(key: collectionMapTypes.key, value: collectionMapTypes.value)
                 default:
                     if let mutableCollectionSymbol = lookupStdlibSymbol("MutableCollection", symbols: sema.symbols, interner: interner) {
                         sema.types.make(.classType(ClassType(
