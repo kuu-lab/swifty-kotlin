@@ -318,6 +318,7 @@ extension CallTypeChecker {
         fixesReceiverBoundInputs: Bool = false,
         inferredNonLambdaArgTypes: [Int: TypeID],
         inferredLambdaInputAnnotations: [Int: [TypeID?]] = [:],
+        nonLambdaArgumentTypes: [Int: TypeID] = [:],
         resolver: OverloadResolver?,
         sema: SemaModule
     ) -> TypeID {
@@ -360,7 +361,26 @@ extension CallTypeChecker {
                 }) {
                     inputVariables.insert(variable)
                 }
-                substitution = substitution.filter { inputVariables.contains($0.key) }
+                // A return-only variable is still fixed when a plain (non
+                // lambda/callable-reference) argument already determines it:
+                // `combineInternal`'s `{ arrayOfNulls(flows.size) }` must see
+                // `Array<T>` with T bound from `flows`, or the body's own
+                // generic call has no expected type to infer its type
+                // argument from.
+                var returnOnlySafeVariables = Set<TypeVarID>()
+                if !nonLambdaArgumentTypes.isEmpty {
+                    let nonLambdaSubstitution = resolver.probeArgumentTypeSubstitution(
+                        signature: signature,
+                        typeVarBySymbol: typeVarBySymbol,
+                        knownArgumentTypes: nonLambdaArgumentTypes,
+                        typeSystem: sema.types
+                    )
+                    returnOnlySafeVariables = Set(nonLambdaSubstitution.keys)
+                        .subtracting(inputVariables)
+                }
+                substitution = substitution.filter {
+                    inputVariables.contains($0.key) || returnOnlySafeVariables.contains($0.key)
+                }
             }
             if !substitution.isEmpty {
                 result = sema.types.substituteTypeParameters(
@@ -427,6 +447,7 @@ extension CallTypeChecker {
         fixesReceiverBoundInputs: Bool = false,
         inferredNonLambdaArgTypes: [Int: TypeID] = [:],
         inferredLambdaInputAnnotations: [Int: [TypeID?]] = [:],
+        nonLambdaArgumentTypes: [Int: TypeID] = [:],
         resolver: OverloadResolver? = nil,
         sema: SemaModule
     ) -> TypeID {
@@ -457,6 +478,7 @@ extension CallTypeChecker {
             fixesReceiverBoundInputs: fixesReceiverBoundInputs,
             inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
             inferredLambdaInputAnnotations: inferredLambdaInputAnnotations,
+            nonLambdaArgumentTypes: nonLambdaArgumentTypes,
             resolver: resolver,
             sema: sema
         )
@@ -472,11 +494,11 @@ extension CallTypeChecker {
         inferredNonLambdaArgTypes: [Int: TypeID],
         lambdaInputAnnotations: [TypeID?]?,
         ctx: TypeInferenceContext
-    ) -> (argumentTypes: [Int: TypeID], lambdaInputAnnotations: [Int: [TypeID?]]) {
+    ) -> (argumentTypes: [Int: TypeID], lambdaInputAnnotations: [Int: [TypeID?]], nonLambdaArgumentTypes: [Int: TypeID]) {
         guard let mapping = parameterMappingForCallArguments(
             args, in: signature, callRange: callRange, ctx: ctx
         ) else {
-            return ([:], [:])
+            return ([:], [:], [:])
         }
 
         let lambdaParameterIndex = mapping[lambdaArgumentIndex]
@@ -507,6 +529,7 @@ extension CallTypeChecker {
         })
 
         var argumentTypes: [Int: TypeID] = [:]
+        var nonLambdaArgumentTypes: [Int: TypeID] = [:]
         for (argumentIndex, type) in inferredNonLambdaArgTypes {
             guard args.indices.contains(argumentIndex),
                   let parameterIndex = mapping[argumentIndex],
@@ -522,6 +545,9 @@ extension CallTypeChecker {
                 continue
             }
             argumentTypes[parameterIndex] = type
+            if !isLambdaShapedArgument(args[argumentIndex].expr, ctx: ctx) {
+                nonLambdaArgumentTypes[parameterIndex] = type
+            }
         }
 
         let lambdaAnnotationsByParameter: [Int: [TypeID?]]
@@ -530,7 +556,21 @@ extension CallTypeChecker {
         } else {
             lambdaAnnotationsByParameter = [:]
         }
-        return (argumentTypes, lambdaAnnotationsByParameter)
+        return (argumentTypes, lambdaAnnotationsByParameter, nonLambdaArgumentTypes)
+    }
+
+    /// Lambda literals, callable references and anonymous functions get their
+    /// type from this call's own inference, so they must not pin down a
+    /// return-only type variable for a sibling lambda's expected type.
+    private func isLambdaShapedArgument(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        switch ctx.ast.arena.expr(expr) {
+        case .lambdaLiteral, .callableRef:
+            return true
+        case .blockExpr:
+            return ctx.ast.arena.isAnonymousFunction(expr)
+        default:
+            return false
+        }
     }
 
     private func isFlexibleLambdaInferenceArgument(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
@@ -731,6 +771,7 @@ extension CallTypeChecker {
                 ),
                 inferredNonLambdaArgTypes: inferenceInputs.argumentTypes,
                 inferredLambdaInputAnnotations: inferenceInputs.lambdaInputAnnotations,
+                nonLambdaArgumentTypes: inferenceInputs.nonLambdaArgumentTypes,
                 resolver: resolver,
                 sema: sema
             )
@@ -899,6 +940,7 @@ extension CallTypeChecker {
                 fixesReceiverBoundInputs: fixesReceiverBoundInputs,
                 inferredNonLambdaArgTypes: inferenceInputs.argumentTypes,
                 inferredLambdaInputAnnotations: inferenceInputs.lambdaInputAnnotations,
+                nonLambdaArgumentTypes: inferenceInputs.nonLambdaArgumentTypes,
                 resolver: resolver,
                 sema: sema
             )
