@@ -11,129 +11,144 @@ import kotlin.text.__charUnicodeCategory
 import kotlin.text.__charUppercaseCode
 
 /** Java-compatible Unicode operations for UTF-16 chars and Unicode code points. */
-public object Character {
-    // JDK scalar limits (KUU-3987).
-    public const val MIN_VALUE: Char = '\u0000'
-    public const val MAX_VALUE: Char = '\uFFFF'
-    public const val MIN_HIGH_SURROGATE: Char = '\uD800'
-    public const val MAX_HIGH_SURROGATE: Char = '\uDBFF'
-    public const val MIN_LOW_SURROGATE: Char = '\uDC00'
-    public const val MAX_LOW_SURROGATE: Char = '\uDFFF'
-    public const val MIN_SURROGATE: Char = '\uD800'
-    public const val MAX_SURROGATE: Char = '\uDFFF'
-    public const val MIN_RADIX: Int = 2
-    public const val MAX_RADIX: Int = 36
-    public const val MIN_SUPPLEMENTARY_CODE_POINT: Int = 0x10000
-    public const val MIN_CODE_POINT: Int = 0
-    public const val MAX_CODE_POINT: Int = 0x10FFFF
-    public const val SIZE: Int = 16
-    public const val BYTES: Int = 2
+public class Character(private val value: Char) {
+    override fun toString(): String = value.toString()
 
-    public const val NON_SPACING_MARK: kotlin.Byte = 6
-    public const val ENCLOSING_MARK: kotlin.Byte = 7
-    public const val FORMAT: kotlin.Byte = 16
+    public fun charValue(): Char = value
 
-    private const val UPPERCASE_LETTER: Int = 1
-    private const val OTHER_LETTER: Int = 5
-    private const val DECIMAL_DIGIT_NUMBER: Int = 9
-    private const val SPACE_SEPARATOR: Int = 12
-    private const val LINE_SEPARATOR: Int = 13
-    private const val PARAGRAPH_SEPARATOR: Int = 14
-
-    // Java deliberately does not validate code points for this operation.
-    public fun charCount(codePoint: Int): Int = if (codePoint >= 0x10000) 2 else 1
-
-    public fun isDigit(ch: Char): kotlin.Boolean = ch.isDigit()
-
-    public fun isDigit(codePoint: Int): kotlin.Boolean = getType(codePoint) == DECIMAL_DIGIT_NUMBER
-
-    public fun isLetter(ch: Char): kotlin.Boolean = ch.isLetter()
-
-    public fun isLetter(codePoint: Int): kotlin.Boolean {
-        val type = getType(codePoint)
-        return type in UPPERCASE_LETTER..OTHER_LETTER
+    override fun equals(other: Any?): kotlin.Boolean {
+        val o = other as? Character ?: return false
+        return o.value == value
     }
 
-    public fun isLetterOrDigit(ch: Char): kotlin.Boolean = isLetter(ch) || isDigit(ch)
+    override fun hashCode(): Int = value.code
 
-    public fun isLetterOrDigit(codePoint: Int): kotlin.Boolean = isLetter(codePoint) || isDigit(codePoint)
+    public companion object {
+        // JDK scalar limits (KUU-3987).
+        public const val MIN_VALUE: Char = '\u0000'
+        public const val MAX_VALUE: Char = '\uFFFF'
+        public const val MIN_HIGH_SURROGATE: Char = '\uD800'
+        public const val MAX_HIGH_SURROGATE: Char = '\uDBFF'
+        public const val MIN_LOW_SURROGATE: Char = '\uDC00'
+        public const val MAX_LOW_SURROGATE: Char = '\uDFFF'
+        public const val MIN_SURROGATE: Char = '\uD800'
+        public const val MAX_SURROGATE: Char = '\uDFFF'
+        public const val MIN_RADIX: Int = 2
+        public const val MAX_RADIX: Int = 36
+        public const val MIN_SUPPLEMENTARY_CODE_POINT: Int = 0x10000
+        public const val MIN_CODE_POINT: Int = 0
+        public const val MAX_CODE_POINT: Int = 0x10FFFF
+        public const val SIZE: Int = 16
+        public const val BYTES: Int = 2
 
-    public fun isUpperCase(ch: Char): kotlin.Boolean = ch.isUpperCase()
+        public const val NON_SPACING_MARK: kotlin.Byte = 6
+        public const val ENCLOSING_MARK: kotlin.Byte = 7
+        public const val FORMAT: kotlin.Byte = 16
 
-    public fun isUpperCase(codePoint: Int): kotlin.Boolean = __charIsUpperCase(codePoint)
+        private const val UPPERCASE_LETTER: Int = 1
+        private const val OTHER_LETTER: Int = 5
+        private const val DECIMAL_DIGIT_NUMBER: Int = 9
+        private const val SPACE_SEPARATOR: Int = 12
+        private const val LINE_SEPARATOR: Int = 13
+        private const val PARAGRAPH_SEPARATOR: Int = 14
 
-    public fun isLowerCase(ch: Char): kotlin.Boolean = ch.isLowerCase()
+        // Java deliberately does not validate code points for this operation.
+        public fun charCount(codePoint: Int): Int = if (codePoint >= 0x10000) 2 else 1
 
-    public fun isLowerCase(codePoint: Int): kotlin.Boolean = __charIsLowerCase(codePoint)
+        public fun isDigit(ch: Char): kotlin.Boolean = ch.isDigit()
 
-    public fun isTitleCase(ch: Char): kotlin.Boolean = ch.isTitleCase()
+        public fun isDigit(codePoint: Int): kotlin.Boolean = getType(codePoint) == DECIMAL_DIGIT_NUMBER
 
-    public fun isTitleCase(codePoint: Int): kotlin.Boolean = getType(codePoint) == 3
+        public fun isLetter(ch: Char): kotlin.Boolean = ch.isLetter()
 
-    public fun isSpaceChar(codePoint: Int): kotlin.Boolean {
-        val category = getType(codePoint)
-        return category in SPACE_SEPARATOR..PARAGRAPH_SEPARATOR
-    }
-
-    public fun isSpaceChar(ch: Char): kotlin.Boolean = isSpaceChar(ch.code)
-
-    public fun isWhitespace(ch: Char): kotlin.Boolean = isWhitespace(ch.code)
-
-    public fun isWhitespace(codePoint: Int): kotlin.Boolean {
-        return when (getType(codePoint)) {
-            SPACE_SEPARATOR -> codePoint != 0x00A0 && codePoint != 0x2007 && codePoint != 0x202F
-            LINE_SEPARATOR, PARAGRAPH_SEPARATOR -> true
-            else -> codePoint in 0x09..0x0D || codePoint in 0x1C..0x1F
+        public fun isLetter(codePoint: Int): kotlin.Boolean {
+            val type = getType(codePoint)
+            return type in UPPERCASE_LETTER..OTHER_LETTER
         }
-    }
 
-    public fun isISOControl(ch: Char): kotlin.Boolean = isISOControl(ch.code)
+        public fun isLetterOrDigit(ch: Char): kotlin.Boolean = isLetter(ch) || isDigit(ch)
 
-    public fun isISOControl(codePoint: Int): kotlin.Boolean = codePoint in 0x00..0x1F || codePoint in 0x7F..0x9F
+        public fun isLetterOrDigit(codePoint: Int): kotlin.Boolean = isLetter(codePoint) || isDigit(codePoint)
 
-    public fun toUpperCase(ch: Char): Char = ch.uppercaseChar()
+        public fun isUpperCase(ch: Char): kotlin.Boolean = ch.isUpperCase()
 
-    public fun toUpperCase(codePoint: Int): Int = __charUppercaseCode(codePoint).let {
-        if (it < 0) codePoint else it
-    }
+        public fun isUpperCase(codePoint: Int): kotlin.Boolean = __charIsUpperCase(codePoint)
 
-    public fun toLowerCase(ch: Char): Char = ch.lowercaseChar()
+        public fun isLowerCase(ch: Char): kotlin.Boolean = ch.isLowerCase()
 
-    public fun toLowerCase(codePoint: Int): Int = __charLowercaseCode(codePoint).let {
-        if (it < 0) codePoint else it
-    }
+        public fun isLowerCase(codePoint: Int): kotlin.Boolean = __charIsLowerCase(codePoint)
 
-    public fun toTitleCase(ch: Char): Char = ch.titlecaseChar()
+        public fun isTitleCase(ch: Char): kotlin.Boolean = ch.isTitleCase()
 
-    public fun toTitleCase(codePoint: Int): Int = __charTitlecaseCode(codePoint).let {
-        if (it < 0) toUpperCase(codePoint) else it
-    }
+        public fun isTitleCase(codePoint: Int): kotlin.Boolean = getType(codePoint) == 3
 
-    public fun digit(ch: Char, radix: Int): Int = digit(ch.code, radix)
+        public fun isSpaceChar(codePoint: Int): kotlin.Boolean {
+            val category = getType(codePoint)
+            return category in SPACE_SEPARATOR..PARAGRAPH_SEPARATOR
+        }
 
-    public fun digit(codePoint: Int, radix: Int): Int {
-        if (radix !in 2..36) return -1
-        val value = __charDigitValue(codePoint)
-        return if (value in 0 until radix) value else -1
-    }
+        public fun isSpaceChar(ch: Char): kotlin.Boolean = isSpaceChar(ch.code)
 
-    public fun forDigit(digit: Int, radix: Int): Char {
-        if (radix !in 2..36 || digit !in 0 until radix) return __charFromCode(0)
-        return if (digit < 10) __charFromCode('0'.code + digit)
-        else __charFromCode('a'.code + digit - 10)
-    }
+        public fun isWhitespace(ch: Char): kotlin.Boolean = isWhitespace(ch.code)
 
-    public fun getNumericValue(ch: Char): Int = getNumericValue(ch.code)
+        public fun isWhitespace(codePoint: Int): kotlin.Boolean {
+            return when (getType(codePoint)) {
+                SPACE_SEPARATOR -> codePoint != 0x00A0 && codePoint != 0x2007 && codePoint != 0x202F
+                LINE_SEPARATOR, PARAGRAPH_SEPARATOR -> true
+                else -> codePoint in 0x09..0x0D || codePoint in 0x1C..0x1F
+            }
+        }
 
-    public fun getNumericValue(codePoint: Int): Int {
-        val digitValue = digit(codePoint, 36)
-        return if (digitValue >= 0) digitValue else __charNumericValue(codePoint)
-    }
+        public fun isISOControl(ch: Char): kotlin.Boolean = isISOControl(ch.code)
 
-    public fun getType(codePoint: Int): Int {
-        // The shared Unicode bridge returns Kotlin CharCategory ordinals.
-        // Java leaves value 17 unused, so PRIVATE_USE and later categories shift by one.
-        val ordinal = __charUnicodeCategory(codePoint)
-        return if (ordinal >= 17) ordinal + 1 else ordinal
+        public fun isISOControl(codePoint: Int): kotlin.Boolean = codePoint in 0x00..0x1F || codePoint in 0x7F..0x9F
+
+        public fun toUpperCase(ch: Char): Char = ch.uppercaseChar()
+
+        public fun toUpperCase(codePoint: Int): Int = __charUppercaseCode(codePoint).let {
+            if (it < 0) codePoint else it
+        }
+
+        public fun toLowerCase(ch: Char): Char = ch.lowercaseChar()
+
+        public fun toLowerCase(codePoint: Int): Int = __charLowercaseCode(codePoint).let {
+            if (it < 0) codePoint else it
+        }
+
+        public fun toTitleCase(ch: Char): Char = ch.titlecaseChar()
+
+        public fun toTitleCase(codePoint: Int): Int = __charTitlecaseCode(codePoint).let {
+            if (it < 0) toUpperCase(codePoint) else it
+        }
+
+        public fun digit(ch: Char, radix: Int): Int = digit(ch.code, radix)
+
+        public fun digit(codePoint: Int, radix: Int): Int {
+            if (radix !in 2..36) return -1
+            val value = __charDigitValue(codePoint)
+            return if (value in 0 until radix) value else -1
+        }
+
+        public fun forDigit(digit: Int, radix: Int): Char {
+            if (radix !in 2..36 || digit !in 0 until radix) return __charFromCode(0)
+            return if (digit < 10) __charFromCode('0'.code + digit)
+            else __charFromCode('a'.code + digit - 10)
+        }
+
+        public fun getNumericValue(ch: Char): Int = getNumericValue(ch.code)
+
+        public fun getNumericValue(codePoint: Int): Int {
+            val digitValue = digit(codePoint, 36)
+            return if (digitValue >= 0) digitValue else __charNumericValue(codePoint)
+        }
+
+        public fun valueOf(value: Char): Character = Character(value)
+
+        public fun getType(codePoint: Int): Int {
+            // The shared Unicode bridge returns Kotlin CharCategory ordinals.
+            // Java leaves value 17 unused, so PRIVATE_USE and later categories shift by one.
+            val ordinal = __charUnicodeCategory(codePoint)
+            return if (ordinal >= 17) ordinal + 1 else ordinal
+        }
     }
 }
