@@ -30,6 +30,18 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
         )
         let failed = sema.diagnostics.diagnostics.dropFirst(checkpoint).contains { $0.severity == .error }
         if !failed, sema.types.isSubtype(contextualInitialType, accumulatorType) {
+            // The caller's first `inferExpr` ran without an expected type, so
+            // a bare factory initial (`emptyList()`) already reported
+            // KSWIFTK-SEMA-INFER eagerly before the checkpoint above. The
+            // expected-typed re-inference discharged it, so drop that
+            // argument's own stale diagnostic the way
+            // discardRescuedNestedCallArgumentDiagnostics does (KUU-4483).
+            if let argumentRange = ast.arena.exprRange(args[0].expr) {
+                for diagnostic in sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange)
+                where diagnostic.code != "KSWIFTK-SEMA-INFER" || diagnostic.primaryRange != argumentRange {
+                    sema.diagnostics.emit(diagnostic)
+                }
+            }
             return accumulatorType
         }
         sema.diagnostics.rollback(to: checkpoint)
