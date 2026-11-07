@@ -212,7 +212,6 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         return runtimeUnsignedArrayToString(value, box: arrayBox)
-            ?? runtimeFloatingPointArrayToString(value, box: arrayBox)
             ?? runtimeArrayIdentityToString(value)
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {

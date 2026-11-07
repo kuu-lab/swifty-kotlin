@@ -86,19 +86,6 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
 }
 
 
-func runtimeFloatingPointArrayToString(
-    _ raw: Int,
-    box: RuntimeArrayBox
-) -> String? {
-    guard let kind = runtimePrimitiveArrayElementKind(rawValue: raw),
-          kind == .double || kind == .float
-    else {
-        return nil
-    }
-    let parts = box.elements.map { runtimePrimitiveArrayElementToString($0, kind: kind) }
-    return "[\(parts.joined(separator: ", "))]"
-}
-
 func runtimeUnsignedArrayToString(
     _ raw: Int,
     box: RuntimeArrayBox
