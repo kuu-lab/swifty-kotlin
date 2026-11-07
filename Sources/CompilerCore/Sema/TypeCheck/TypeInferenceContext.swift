@@ -851,6 +851,21 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
+    /// Merging-chain variant of `cachedScopeLookup`: collects candidates from
+    /// every lexical scope instead of stopping at the first scope that binds
+    /// the name. Callers must only consult it after the nearest scope's
+    /// candidates all proved inapplicable — Kotlin shadows an outer
+    /// declaration only while the inner one remains a viable candidate
+    /// (KUU-4462).
+    func cachedScopeLookupMergingChain(_ name: InternedString) -> [SymbolID] {
+        let results = scope.lookupMergingChain(name)
+        return results.filter {
+            !isExpectDeclarationSupersededByActual($0, among: results)
+                && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
+        }
+    }
+
     /// Expression names cannot inherit nested classifiers from an
     /// interface, but an outer declaration or explicit import can still bind
     /// the same name. Return the rejected symbols for the global fallback too.
