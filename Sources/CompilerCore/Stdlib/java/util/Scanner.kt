@@ -3,6 +3,7 @@ package java.util
 import java.io.File
 import java.nio.charset.Charset
 import java.nio.file.Path
+import java.util.regex.Pattern
 
 /** Scanner over a string or character input. Delimiters are Kotlin regular
  * expressions. Stream-backed scanners read lazily like the JDK — they only
@@ -16,6 +17,9 @@ public class Scanner : AutoCloseable {
     private val pendingBytes = mutableListOf<Byte>()
 
     private var delimiter: Regex = Regex("\\s+")
+    // JVM reports the delimiter's source pattern; the default is spelled
+    // \p{javaWhitespace}+ even though the matcher uses the equivalent \s+.
+    private var delimiterText: String = "\\p{javaWhitespace}+"
     private var position = 0
     private var radix = 10
     private var closed = false
@@ -71,8 +75,12 @@ public class Scanner : AutoCloseable {
     public fun useDelimiter(pattern: String): Scanner {
         ensureOpen()
         delimiter = Regex(pattern)
+        delimiterText = pattern
         return this
     }
+
+    /** JVM `delimiter()`: the Pattern this scanner currently delimits on. */
+    public fun delimiter(): Pattern = Pattern(delimiter, delimiterText, 0)
 
     public fun useRadix(radix: Int): Scanner {
         ensureOpen()
