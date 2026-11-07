@@ -1434,7 +1434,12 @@ extension OverloadResolver {
         switch solveResult {
         case .success:
             break
-        case .constraintFailure, .rejected:
+        case .constraintFailure:
+            // `.rejected` is left alone: it is the silent "candidate does
+            // not apply" signal that lets nested-call reinference retry the
+            // argument with concrete parameter types, so turning it into a
+            // solved-but-unbound result would surface SEMA-INFER where the
+            // fallback used to recover.
             if constraints.count > constraintsBeforeExpectedTypeHint.count {
                 // The expected-type decomposition is an inference hint, not
                 // a veto: kotlinc feeds the expected type into a call's
@@ -1452,6 +1457,8 @@ extension OverloadResolver {
                     typeSystem: ctx.types
                 )
             }
+        case .rejected:
+            break
         }
         // Infer dependent parameters from concrete upper-bound projections, e.g.
         // R = IntRange and R : ClosedRange<T> imply T = Int, even for a null argument.
