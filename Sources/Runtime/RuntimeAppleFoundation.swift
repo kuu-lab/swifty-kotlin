@@ -11,6 +11,11 @@ func foundationFailure(_ message: String, _ thrown: UnsafeMutablePointer<Int>?) 
     return runtimeNullSentinelInt
 }
 
+@inline(__always)
+func throwFoundationFailure(_ message: String) throws -> Never {
+    throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: message))
+}
+
 /// A materialized function value, never guessed as a raw fn/env pair. Kotlin
 /// declares the private argument Any, so ABI lowering preserves one word.
 final class RuntimeFoundationCallback: @unchecked Sendable {
