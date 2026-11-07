@@ -177,6 +177,59 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
+        // Bundled property-style facades (the synthetic Char stubs and the
+        // lastIndex/indices/javaClass/java source facades) model upstream
+        // properties as zero-argument extension functions. Under property
+        // syntax they occupy the property namespace, so a nearer-scope user
+        // function of the same name must not shadow them (KUU-4389).
+        if !isClassNameReceiver,
+           !isSuperCall,
+           args.isEmpty,
+           !ast.arena.isExplicitCall(id),
+           let facade = sema.symbols.lookupByShortName(calleeName).first(where: { candidate in
+               guard isBundledPropertyStyleFacadeFunction(candidate, ctx: ctx),
+                     let signature = sema.symbols.functionSignature(for: candidate),
+                     signature.typeParameterSymbols.isEmpty,
+                     let facadeReceiver = signature.receiverType,
+                     extensionSyntheticFallbackReceiverMatches(
+                         callSiteReceiver: extensionPropertyReceiverType,
+                         declaredReceiver: facadeReceiver,
+                         sema: sema
+                     ),
+                     let facadeSymbol = sema.symbols.symbol(candidate),
+                     ctx.visibilityChecker.isAccessible(
+                         facadeSymbol,
+                         fromFile: ctx.currentFileID,
+                         enclosingClass: ctx.enclosingClassSymbol
+                     )
+               else { return false }
+               return true
+           })
+        {
+            driver.helpers.checkDeprecation(
+                for: facade,
+                sema: sema,
+                interner: interner,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: facade,
+                ctx: ctx,
+                range: range,
+                diagnostics: sema.diagnostics
+            )
+            let resolved = ResolvedCall(
+                chosenCallee: facade,
+                substitutedTypeArguments: [:],
+                parameterMapping: [:],
+                diagnostic: nil
+            )
+            let resultType = bindCallAndResolveReturnType(id, chosen: facade, resolved: resolved, sema: sema)
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
 
         return nil
     }
