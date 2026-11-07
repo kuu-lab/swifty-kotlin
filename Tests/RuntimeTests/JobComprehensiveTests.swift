@@ -197,6 +197,25 @@ struct JobComprehensiveTests {
         #expect(job.join() == 456)
     }
 
+    /// KUU-4477: joining a job whose body burst is an ancestor frame on the
+    /// calling thread can never be satisfied by waiting — the job only
+    /// completes when this stack unwinds past the join. `join()` must return
+    /// the current terminal snapshot instead of parking/draining forever.
+    /// Without the ancestor check this test deadlocks.
+    @Test func jobJoinReturnsEarlyWhenJobBurstIsAncestorOnThisThread() {
+        let job = RuntimeJobHandle()
+        job.markStarted()
+        let unrelated = RuntimeJobHandle()
+        unrelated.markStarted()
+
+        RuntimeBurstJobStack.current.push(job)
+        defer { RuntimeBurstJobStack.current.pop() }
+
+        #expect(RuntimeBurstJobStack.isBurstingOnCurrentThread(job))
+        #expect(!RuntimeBurstJobStack.isBurstingOnCurrentThread(unrelated))
+        #expect(job.join() == 0)
+    }
+
     // MARK: - ABI Function Tests
 
     @Test func abiJobStateQueries() {
