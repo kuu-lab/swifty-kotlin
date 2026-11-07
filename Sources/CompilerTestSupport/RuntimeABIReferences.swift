@@ -26,6 +26,7 @@ enum SemaRuntimeFunction: String {
     case coroutineNameGet = "coroutine_name_get"
     case coroutineNameKey = "coroutine_name_key"
     case coroutineNameKeyGet = "coroutine_name_key_get"
+    case exceptionHandlerKey = "exception_handler_key"
     case fileAlreadyExistsExceptionNewFile = "file_already_exists_exception_new_file"
     case fileAlreadyExistsExceptionNewFileOther = "file_already_exists_exception_new_file_other"
     case fileAlreadyExistsExceptionNewFileOtherReason = "file_already_exists_exception_new_file_other_reason"
