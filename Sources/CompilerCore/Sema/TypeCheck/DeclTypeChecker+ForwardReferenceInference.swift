@@ -181,7 +181,11 @@ extension DeclTypeChecker {
             ctx: ctx
         )
         let objectLabel = sema.symbols.symbol(symbol)?.name ?? ctx.interner.intern("")
+        // Named objects are static: they never capture an enclosing class
+        // instance, so only enclosing singleton-object receivers survive —
+        // the same rule `nestedClassContext(isInner: false)` applies (KUU-4388).
         return ctx.withoutSuspensionContext()
+            .copying(outerReceiverTypes: ctx.singletonObjectOuterReceivers)
             .withOuterReceiver(label: objectLabel, type: objectType)
             .copying(
                 scope: objectScope,

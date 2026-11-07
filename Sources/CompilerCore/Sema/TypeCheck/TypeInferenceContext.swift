@@ -769,6 +769,48 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.symbol(id)
     }
 
+    /// Instance members of a nominal owner are only meaningful when that
+    /// owner is reachable through the implicit receiver tower. Scope lookup
+    /// can still surface them through an enclosing class's member scope after
+    /// the tower dropped the instance — e.g. inside a companion object or a
+    /// non-inner nested class (KUU-4388). Singleton-object owners stay visible
+    /// unconditionally: their members behave like top-level declarations, and
+    /// enum entries are static members of their enum class.
+    func isScopeMemberVisibleFromReceivers(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = cachedSymbol(symbolID) else { return true }
+        switch symbol.kind {
+        case .property, .field, .backingField:
+            break
+        default:
+            return true
+        }
+        guard let ownerID = sema.symbols.parentSymbol(for: symbolID),
+              let owner = sema.symbols.symbol(ownerID)
+        else {
+            return true
+        }
+        switch owner.kind {
+        case .object, .package:
+            return true
+        case .class, .interface, .enumClass, .annotationClass:
+            break
+        default:
+            return true
+        }
+        if sema.symbols.enumOwnerSymbol(for: symbol) != nil {
+            return true
+        }
+        for entry in implicitReceiverMemberLookupEntries() {
+            guard case let .classType(classType) = sema.types.kind(of: entry.type) else {
+                continue
+            }
+            if sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerID) {
+                return true
+            }
+        }
+        return false
+    }
+
     /// `expect`/`actual` pairs are intentionally allowed to coexist in the same
     /// scope (KSwiftK has no separate common/platform module compilation), so a
     /// linked `expect` declaration is filtered out here once its `actual` is
@@ -791,6 +833,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
         }
     }
 
@@ -804,6 +847,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
         }
     }
 
@@ -831,7 +875,8 @@ struct TypeInferenceContext: CustomStringConvertible {
             return bound.filter { symbolID in
                 guard let symbol = cachedSymbol(symbolID),
                       !isExpectDeclarationSupersededByActual(symbolID, among: bound),
-                      !isImportedSymbolShadowedBySource(symbolID)
+                      !isImportedSymbolShadowedBySource(symbolID),
+                      isScopeMemberVisibleFromReceivers(symbolID)
                 else { return false }
                 let isClassifier = switch symbol.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias: true
