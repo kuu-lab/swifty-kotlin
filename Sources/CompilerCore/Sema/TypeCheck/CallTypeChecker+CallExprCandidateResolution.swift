@@ -221,7 +221,11 @@ extension CallTypeChecker {
                 var ancestor = ctx.enclosingClassSymbol
                 var seenAncestors: Set<SymbolID> = []
                 while let current = ancestor, seenAncestors.insert(current).inserted {
-                    if current == containingClass {
+                    // Companion members behave like inherited statics: a
+                    // subclass receives them through its superclass's
+                    // companion even though the owner is not a lexical
+                    // ancestor (KUU-4471).
+                    if sema.types.isNominalSubtypeSymbol(current, of: containingClass) {
                         return receiverType
                     }
                     ancestor = sema.symbols.parentSymbol(for: current)
