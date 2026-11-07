@@ -13,9 +13,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> [SymbolID] {
         let package = ["kotlin", "native", "concurrent"].map(interner.intern)
-        let memberNames = Set(["asCPointer", "execute", "executeAfter", "park",
-                               "processQueue", "requestTermination"].map(interner.intern))
-        guard memberNames.contains(name),
+        guard KnownCompilerNames(interner: interner).workerExtensionMemberNames.contains(name),
               let owner = driver.helpers.nominalSymbol(
                   of: sema.types.makeNonNullable(receiverType), types: sema.types
               ),

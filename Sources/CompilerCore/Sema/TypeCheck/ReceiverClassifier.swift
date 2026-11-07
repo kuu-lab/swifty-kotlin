@@ -192,12 +192,7 @@ struct ReceiverClassifier {
             interner.intern("kotlin"),
             interner.intern("ranges"),
         ]
-        let rangeTypeNames: Set = Set([
-            "OpenEndRange", "IntRange", "IntProgression", "LongRange", "LongProgression",
-            "UIntRange", "UIntProgression", "ULongRange", "ULongProgression",
-            "CharRange", "CharProgression",
-        ].map(interner.intern))
-        if rangeTypeNames.contains(symbol.name),
+        if KnownCompilerNames(interner: interner).rangeTypeNames.contains(symbol.name),
            symbol.fqName.isEmpty || (
                symbol.fqName.count == 3
                    && Array(symbol.fqName.prefix(2)) == kotlinRangesFQName

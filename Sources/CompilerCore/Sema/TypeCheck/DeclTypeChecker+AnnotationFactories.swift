@@ -210,7 +210,7 @@ extension DeclTypeChecker {
                   let callee = ctx.sema.symbols.symbol(binding.chosenCallee) else { return false }
             let isArrayFactory = callee.fqName.count == 2
                 && ctx.interner.resolve(callee.fqName[0]) == "kotlin"
-                && KnownCompilerNames.arrayFactoryFunctionNames.contains(ctx.interner.resolve(callee.name))
+                && KnownCompilerNames(interner: ctx.interner).arrayFactoryFunctionNames.contains(callee.name)
             let isAnnotationConstructor = callee.kind == .constructor
                 && ctx.sema.symbols.lookup(fqName: Array(callee.fqName.dropLast())).flatMap {
                     ctx.sema.symbols.symbol($0)?.kind

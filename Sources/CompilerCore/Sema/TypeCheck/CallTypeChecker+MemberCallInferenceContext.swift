@@ -10,14 +10,21 @@ extension CallTypeChecker {
         let expectedType: TypeID?
         let explicitTypeArgs: [TypeID]
         let safeCall: Bool
+
+        var ast: ASTModule { ctx.ast }
+        var sema: SemaModule { ctx.sema }
+        var interner: StringInterner { ctx.interner }
+        var knownNames: KnownCompilerNames { KnownCompilerNames(interner: ctx.interner) }
+        var isExplicitCall: Bool { ctx.ast.arena.isExplicitCall(id) }
+        var isInfixCall: Bool { ctx.ast.arena.isInfixCall(id) }
+        /// `recv.name` without parentheses is property-access syntax, not an
+        /// invocation of a same-named function.
+        var isPropertyAccessShape: Bool { args.isEmpty && !isExplicitCall }
     }
 
     func markDeferredCollectionHOFLambdaIfNeeded(_ request: MemberCallInferenceRequest) {
-        let ast = request.ctx.ast
-        let sema = request.ctx.sema
-        let interner = request.ctx.interner
-        let calleeName = request.calleeName
-        let args = request.args
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let calleeName = request.calleeName, args = request.args
 
         if ["firstNotNullOf", "firstNotNullOfOrNull", "takeLastWhile"]
             .contains(interner.resolve(calleeName)),
@@ -51,12 +58,8 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
         let explicitTypeArgs = request.explicitTypeArgs
 
         if let result = tryInferLateinitIsInitializedCall(
@@ -91,10 +94,7 @@ extension CallTypeChecker {
         locals: LocalBindings
     ) -> TypeID? {
         let id = request.id
-        let ctx = request.ctx
-        let sema = ctx.sema
-        let ast = ctx.ast
-        let interner = ctx.interner
+        let ctx = request.ctx, sema = request.sema, ast = request.ast, interner = request.interner
 
         guard request.args.isEmpty,
               request.explicitTypeArgs.isEmpty,
@@ -266,16 +266,10 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
         let explicitTypeArgs = request.explicitTypeArgs
-        let sema = ctx.sema
-        let ast = ctx.ast
-        let interner = ctx.interner
+        let sema = request.sema, ast = request.ast, interner = request.interner
 
         guard let receiverPath = qualifiedCalleePath(for: receiverID, ast: ast),
               !receiverPath.isEmpty,

@@ -6,18 +6,10 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
         // Range forEach/map need lambda inference with expectedType so the
         // implicit `it` parameter gets bound correctly.
         // Must run before argument pre-inference below to avoid resolving

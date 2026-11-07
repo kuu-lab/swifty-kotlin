@@ -10,17 +10,10 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         maximumPropertyPriority: Int? = nil
     ) -> TypeID? {
-        let id = request.id
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let id = request.id, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
         let calleeStr = interner.resolve(calleeName)
         let invocationLocals = locals
         let isSuperReceiver = if case .superRef = ast.arena.expr(request.receiverID) { true } else { false }
@@ -280,8 +273,7 @@ extension CallTypeChecker {
         classNameReceiverNominalSymbol: SymbolID?,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let ctx = request.ctx
-        let sema = ctx.sema
+        let ctx = request.ctx, sema = request.sema
         guard !request.safeCall,
               let ownerSymbol = classNameReceiverNominalSymbol,
               let owner = sema.symbols.symbol(ownerSymbol),
@@ -429,18 +421,10 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         locals: inout LocalBindings
     ) -> TypeID {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
         let calleeStr = interner.resolve(calleeName)
         if isClassNameReceiver,
            args.isEmpty,
@@ -1605,8 +1589,7 @@ extension CallTypeChecker {
         // Allow flow chain calls only when receiver provenance is known as Flow.
         if !isClassNameReceiver, isFlowReceiver {
             let memberName = calleeStr
-            let flowMembers: Set = ["map", "filter", "take", "collect", "single", "catch", "retry", "retryWhen"]
-            if flowMembers.contains(memberName) {
+            if KnownCompilerNames(interner: interner).flowChainMemberNames.contains(calleeName) {
                 let acceptsArity = memberName == "single" ? args.isEmpty : args.count == 1
                 if memberName == "single", acceptsArity {
                     let resultType = safeCall ? sema.types.makeNullable(flowElementType) : flowElementType

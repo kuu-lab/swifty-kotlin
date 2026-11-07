@@ -1,98 +1,16 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    private static let collectionHOFNames: Set<String> = [
-        "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
-        "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
-        "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
-        "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
-        "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
-        "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
-        "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
-        "mapKeysTo", "mapValuesTo",
-        "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
-        "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
-        "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
-        "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
-        "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
-        "maxOf", "minOf",
-        "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
-        "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-        "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
-        "max",
-        "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
-        "sort", "sortBy", "sortByDescending", "sortWith",
-    ]
-
-    private static let flowHOFNames: Set<String> = ["map", "filter", "collect"]
-
-    /// `Map<K, V>` is not an `Iterable` in Kotlin, so Iterable/Collection-only
-    /// members (filterNotNull, fold, first, groupBy, ...) must not be claimed:
-    /// they fall through to regular overload resolution which reports
-    /// SEMA-0024, instead of binding a result type with no callee that lowers
-    /// to an undefined symbol (LINK-0001). `forEach` and the destination
-    /// overloads (`flatMapTo`) stay on regular resolution for lambda arity
-    /// and Iterable/Sequence-return overload selection.
-    private static let mapCollectionHOFNames: Set<String> = [
-        "map", "mapNotNull", "mapKeys", "mapValues", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo",
-        "filter", "filterNot", "filterKeys", "filterValues", "filterTo", "filterNotTo",
-        "flatMap", "any", "none", "all", "count", "contains", "asSequence",
-        "onEach", "onEachIndexed",
-        "maxBy", "minBy", "maxByOrNull", "minByOrNull",
-        "maxOf", "minOf", "maxOfOrNull", "minOfOrNull",
-        "maxWith", "minWith", "maxWithOrNull", "minWithOrNull",
-        "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
-    ]
-
-    private static let mapFilterFamilyHOFNames: Set<String> = ["filter", "filterNot", "filterTo", "filterNotTo"]
-    private static let mutableListOnlyCollectionHOFNames: Set<String> = ["sort", "sortBy", "sortByDescending", "sortWith"]
-
-    private static let iterableMaxFamilyNames: Set<String> = [
-        "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
-        "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
-    ]
-
-    static let destinationCollectionHOFs: Set<String> = [
-        "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
-        "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
-        "filterIndexedTo", "mapKeysTo", "mapValuesTo",
-    ]
-
-    static let sourceBackedListFilterNames: Set<String> = ["filter", "filterNot", "filterIndexed"]
-
-    static let iterableSourceHOFNames: Set<String> = [
-        "filter",
-        "partition",
-        "single",
-        "singleOrNull",
-        "reduce",
-        "reduceIndexed",
-        "reduceRight",
-        "reduceRightIndexed",
-        "reduceRightOrNull",
-        "reduceRightIndexedOrNull",
-        "sumBy",
-        "sumByDouble",
-    ]
-
     func tryInferMemberCallCollectionFlowSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
         // `recv.name` without parentheses is property-access syntax: it can
         // only bind a property (or accessor), never one of the collection
         // functions this fast path models. A same-named extension property
@@ -182,7 +100,7 @@ extension CallTypeChecker {
         } else {
             sema.types.anyType
         }
-        let isFlowHOF = isFlowReceiver && Self.flowHOFNames.contains(interner.resolve(calleeName))
+        let isFlowHOF = isFlowReceiver && knownNames.flowHOFNames.contains(calleeName)
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
         let receiverClassification = receiverClassifier.classify(
             receiverID: receiverID,
@@ -235,12 +153,12 @@ extension CallTypeChecker {
         ) == .ulongProgression
             && args.isEmpty
             && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
-        var activeCollectionHOFNames = Self.collectionHOFNames
+        var activeCollectionHOFNames = knownNames.collectionHOFNames
         // zip is source-backed. Regular overload resolution must validate the
         // other collection/Sequence argument and respect user extensions.
-        activeCollectionHOFNames.remove("zip")
+        activeCollectionHOFNames.remove(knownNames.zip)
         if !isMutableListReceiver {
-            activeCollectionHOFNames.subtract(Self.mutableListOnlyCollectionHOFNames)
+            activeCollectionHOFNames.subtract(knownNames.mutableListOnlyCollectionHOFNames)
         }
         if !isSequenceReceiver {
             if !isIterableReceiver
@@ -248,32 +166,32 @@ extension CallTypeChecker {
                 || receiverClassification.isSetReceiver
                 || receiverClassification.isMapReceiver
             {
-                activeCollectionHOFNames.remove("flatMapIndexed")
+                activeCollectionHOFNames.remove(knownNames.flatMapIndexed)
             }
         } else {
-            activeCollectionHOFNames.remove("mapIndexedNotNull")
-            activeCollectionHOFNames.remove("dropLastWhile")
+            activeCollectionHOFNames.remove(knownNames.mapIndexedNotNull)
+            activeCollectionHOFNames.remove(knownNames.dropLastWhile)
             // KUU-1846: union/intersect/subtract are Iterable/Set operations,
             // not Sequence members. Let regular resolution report an
             // unresolved member instead of binding a phantom collection call.
-            activeCollectionHOFNames.subtract(["intersect", "union", "subtract"])
+            activeCollectionHOFNames.subtract(knownNames.setReturningCollectionBinaryMembers)
             // These eager operations are unavailable on Kotlin Sequence.
-            activeCollectionHOFNames.remove("takeLastWhile")
-            activeCollectionHOFNames.remove("reversed")
+            activeCollectionHOFNames.remove(knownNames.takeLastWhile)
+            activeCollectionHOFNames.remove(knownNames.reversed)
             // KUU-1413: kotlin.sequences has no reduceRight family — a
             // one-pass Sequence cannot fold from the right. Skip the fast
             // path so regular overload resolution reports SEMA-0024 like
             // kotlinc's unresolved reference.
-            activeCollectionHOFNames.remove("reduceRight")
-            activeCollectionHOFNames.remove("reduceRightIndexed")
-            activeCollectionHOFNames.remove("reduceRightOrNull")
-            activeCollectionHOFNames.remove("reduceRightIndexedOrNull")
+            activeCollectionHOFNames.remove(knownNames.reduceRight)
+            activeCollectionHOFNames.remove(knownNames.reduceRightIndexed)
+            activeCollectionHOFNames.remove(knownNames.reduceRightOrNull)
+            activeCollectionHOFNames.remove(knownNames.reduceRightIndexedOrNull)
             // Sequence.flatMapTo/flatMapIndexedTo have Iterable- and
             // Sequence-return overloads. Let regular overload resolution use
             // the lambda return type instead of the single-shape destination
             // fast path below, which otherwise binds the first declaration.
-            activeCollectionHOFNames.remove("flatMapTo")
-            activeCollectionHOFNames.remove("flatMapIndexedTo")
+            activeCollectionHOFNames.remove(knownNames.flatMapTo)
+            activeCollectionHOFNames.remove(knownNames.flatMapIndexedTo)
             // KSP-1353/1354: Sequence.maxOfWith/minOfWith/maxOfWithOrNull/
             // minOfWithOrNull are now bundled Kotlin source. The fast path
             // below (case "maxOfWith", "minOfWith", ...) has no Sequence
@@ -286,10 +204,10 @@ extension CallTypeChecker {
             // the fast path entirely and regular overload resolution picks
             // the source-backed declarations instead, the same way KSP-1345
             // did for flatMapTo/flatMapIndexedTo above.
-            activeCollectionHOFNames.remove("maxOfWith")
-            activeCollectionHOFNames.remove("maxOfWithOrNull")
-            activeCollectionHOFNames.remove("minOfWith")
-            activeCollectionHOFNames.remove("minOfWithOrNull")
+            activeCollectionHOFNames.remove(knownNames.maxOfWith)
+            activeCollectionHOFNames.remove(knownNames.maxOfWithOrNull)
+            activeCollectionHOFNames.remove(knownNames.minOfWith)
+            activeCollectionHOFNames.remove(knownNames.minOfWithOrNull)
         }
         if isMapReceiver {
             // KUU-1362: Map<K, V> is not an Iterable in Kotlin. Only names on
@@ -297,7 +215,7 @@ extension CallTypeChecker {
             // anything else (filterNotNull, fold, first, groupBy, ...) falls
             // through to regular overload resolution and reports SEMA-0024
             // instead of lowering to a phantom callee (LINK-0001).
-            activeCollectionHOFNames.formIntersection(Self.mapCollectionHOFNames)
+            activeCollectionHOFNames.formIntersection(knownNames.mapCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
         if calleeStr == "flatten", !isSequenceReceiver {
@@ -408,7 +326,7 @@ extension CallTypeChecker {
         // Iterable max-family declarations. Let regular overload resolution
         // select the Comparable/Float/Double and lambda-return overloads;
         // concrete List/Set/Map/Sequence paths remain under their own owners.
-        if Self.iterableMaxFamilyNames.contains(calleeStr),
+        if knownNames.iterableMaxFamilyNames.contains(calleeName),
            (isCollectionReceiver || isIterableReceiver),
            !isSequenceReceiver,
            !isSetReceiver,
@@ -422,8 +340,8 @@ extension CallTypeChecker {
             "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance", "filterIsInstanceTo",
             "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         ].contains(calleeStr)
-            && (!isMapReceiver || Self.mapFilterFamilyHOFNames.contains(calleeStr))
-        let isCollectionHOF = (activeCollectionHOFNames.contains(calleeStr) || isIterableFilterFamilyHOF)
+            && (!isMapReceiver || knownNames.mapFilterFamilyHOFNames.contains(calleeName))
+        let isCollectionHOF = (activeCollectionHOFNames.contains(calleeName) || isIterableFilterFamilyHOF)
             && (isCollectionReceiver
                 || isSequenceReceiver
                 || (isIterableIndexFamilyHOF && isIterableIndexReceiver)
@@ -447,7 +365,7 @@ extension CallTypeChecker {
             // so regular overload resolution reports the missing argument
             // (SEMA-0002/SEMA-0024), matching kotlinc's "no value passed for
             // parameter" rejection.
-            && !(Self.destinationCollectionHOFs.contains(calleeStr) && args.count != 2)
+            && !(knownNames.destinationCollectionHOFs.contains(calleeName) && args.count != 2)
 
         // KSP-957: the generic Iterable/Map on-family declarations are real
         // source-backed overloads. Let regular overload resolution select

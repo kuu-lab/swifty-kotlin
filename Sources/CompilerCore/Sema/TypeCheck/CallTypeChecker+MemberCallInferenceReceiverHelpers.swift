@@ -671,14 +671,7 @@ extension CallTypeChecker {
         // surface; `onErrorReturn`/`onErrorResume`/`delayEach` are not kotlinx
         // Flow operators, so admitting them here would accept code that kotlinc
         // rejects as unresolved.
-        let flowMembers: Set = [
-            "map", "filter", "take", "collect", "collectLatest", "toList", "first",
-            "single",
-            "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-            "buffer", "conflate", "flowOn", "debounce",
-            "catch", "retry", "retryWhen",
-        ]
-        guard flowMembers.contains(memberName) else {
+        guard KnownCompilerNames(interner: ctx.interner).builtinFlowMemberNames.contains(calleeName) else {
             return nil
         }
 

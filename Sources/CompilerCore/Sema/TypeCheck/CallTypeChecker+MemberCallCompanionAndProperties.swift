@@ -349,9 +349,8 @@ extension CallTypeChecker {
         }
         // Short-name fallback, restricted to known JVM property names to avoid
         // accidentally resolving unrelated experimental APIs.
-        let knownJvmPropertyNames: Set<String> = ["java", "javaObjectType", "javaPrimitiveType", "kotlin", "declaringJavaClass"]
         if getterCandidates.isEmpty,
-           knownJvmPropertyNames.contains(ctx.interner.resolve(calleeName))
+           KnownCompilerNames(interner: ctx.interner).knownJvmPropertyNames.contains(calleeName)
         {
             for candidate in sema.symbols.lookupByShortName(calleeName) {
                 collectGetterCandidate(from: candidate, requireSynthetic: true)

@@ -3,30 +3,20 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Names of stdlib collection members backed by bundled Kotlin sources.
-    /// Shared by member-call resolution paths that compare the resolved callee
-    /// text; interned-String comparisons live on `KnownCompilerNames`.
-    static let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toSortedMap", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear", "containsKey", "indexOf", "lastIndexOf"]
-    static let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach", "count"]
+    /// `sourceBackedCollectionMemberNames` and
+    /// `sourceBackedTrailingLambdaMemberNames` live on `KnownCompilerNames`
+    /// as per-interner `Set<InternedString>` tables.
 
     func inferRegularMemberCall(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
         if calleeName == knownNames.async,
            isCoroutineScopeType(receiverType, sema: sema, interner: interner)
         {

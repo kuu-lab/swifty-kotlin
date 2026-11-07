@@ -178,7 +178,7 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         result: TypeID
     ) -> TypeID {
-        let sema = request.ctx.sema
+        let sema = request.sema
         // This check protects dotted property syntax (`recv.name`). A
         // nominal callable value written as `f()` is routed through member
         // inference for its generated `invoke`, but the source expression
@@ -551,7 +551,9 @@ extension CallTypeChecker {
             return result
         }
 
-        if request.ctx.sema.requiresResolvedLibraryCalls, Self.jvmSourceCollectionCalls.contains(request.ctx.interner.resolve(request.calleeName)) {
+        if request.ctx.sema.requiresResolvedLibraryCalls,
+           KnownCompilerNames(interner: request.ctx.interner).jvmSourceCollectionCalls.contains(request.calleeName)
+        {
             return inferRegularMemberCall(request, receiverType: receiverType, locals: &locals)
         }
 

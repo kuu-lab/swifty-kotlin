@@ -6,15 +6,10 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let calleeName = request.calleeName
-        let args = request.args
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let id = request.id, calleeName = request.calleeName
+        let args = request.args, ctx = request.ctx
+        let expectedType = request.expectedType, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
         // use, usePinned and useContents must intercept BEFORE eager arg
         // inference so the lambda argument is inferred with the correct
         // expected type (it vs. receiver this).
@@ -208,9 +203,7 @@ extension CallTypeChecker {
         // and used to construct the expected lambda parameter types.
         if args.count >= 1, args.count <= 2 {
             let calleeStr = interner.resolve(calleeName)
-            let resultMemberNames: Set = [
-                "onSuccess", "onFailure", "getOrElse", "getOrDefault", "map", "fold", "recover",
-            ]
+            let resultMemberNames = KnownCompilerNames(interner: interner).resultMemberNames
             let explicitTypeArgumentsMatchResultMember: Bool = {
                 guard !request.explicitTypeArgs.isEmpty else { return true }
                 guard let resultMember = lookupResultMember(calleeStr, sema: sema, interner: interner),
@@ -223,7 +216,7 @@ extension CallTypeChecker {
                     - signature.classTypeParameterCount
                 return request.explicitTypeArgs.count == memberTypeParameterCount
             }()
-            if resultMemberNames.contains(calleeStr),
+            if resultMemberNames.contains(calleeName),
                explicitTypeArgumentsMatchResultMember,
                let resultElementType = extractResultElementType(receiverType, sema: sema, interner: interner)
             {

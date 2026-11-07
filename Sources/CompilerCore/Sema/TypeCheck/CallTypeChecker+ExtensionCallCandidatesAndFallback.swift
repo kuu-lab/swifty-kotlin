@@ -430,19 +430,11 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
 
         // A `super.` call can never bind an extension, and a class-name
         // receiver only sees static members.
@@ -756,13 +748,13 @@ extension CallTypeChecker {
             ).isEmpty
         let isSourceBackedMemberName = (calleeName == knownNames.zip
             && isSequenceLikeType(lookupReceiverType, sema: sema, interner: interner))
-            || Self.sourceBackedCollectionMemberNames.contains(memberNameText)
-            || (Self.sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+            || knownNames.sourceBackedCollectionMemberNames.contains(calleeName)
+            || (knownNames.sourceBackedTrailingLambdaMemberNames.contains(calleeName) && !isArrayJoinToString)
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (isArraySourceBackedMember || !knownNames.sourceBackedCollectionMemberNames.contains(calleeName) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }

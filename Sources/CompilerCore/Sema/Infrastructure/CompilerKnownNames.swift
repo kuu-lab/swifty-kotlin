@@ -299,6 +299,7 @@ package struct KnownCompilerNames {
     let coerceAtLeast: InternedString
     let coerceAtMost: InternedString
     let coerceIn: InternedString
+    let collect: InternedString
     let compareTo: InternedString
     let contains: InternedString
     let containsAll: InternedString
@@ -307,6 +308,8 @@ package struct KnownCompilerNames {
     let distinct: InternedString
     let distinctBy: InternedString
     let drop: InternedString
+    let dropLastWhile: InternedString
+    let dropWhile: InternedString
     let eachCount: InternedString
     let elementAt: InternedString
     let elementAtOrElse: InternedString
@@ -323,6 +326,8 @@ package struct KnownCompilerNames {
     let firstNotNullOfOrNull: InternedString
     let firstOrNull: InternedString
     let flatMapIndexed: InternedString
+    let flatMapIndexedTo: InternedString
+    let flatMapTo: InternedString
     let flatten: InternedString
     let fold: InternedString
     let foldIndexed: InternedString
@@ -340,6 +345,7 @@ package struct KnownCompilerNames {
     let last: InternedString
     let lastIndexOf: InternedString
     let lastOrNull: InternedString
+    let mapIndexedNotNull: InternedString
     let maxBy: InternedString
     let maxByOrNull: InternedString
     let maxOf: InternedString
@@ -402,6 +408,7 @@ package struct KnownCompilerNames {
     let sumByDouble: InternedString
     let sumOf: InternedString
     let take: InternedString
+    let takeLastWhile: InternedString
     let toBooleanArray: InternedString
     let toByteArray: InternedString
     let toCharArray: InternedString
@@ -495,6 +502,45 @@ package struct KnownCompilerNames {
     let rangeMigrationMemberNames: Set<InternedString>
     let progressionFirstLastMemberNames: Set<InternedString>
     let instantValueSemanticsMemberNames: Set<InternedString>
+
+    // Name tables migrated from per-file `Set<String>` literals so call sites
+    // compare interned IDs instead of resolving back to `String`.
+    let collectionHOFNames: Set<InternedString>
+    let flowHOFNames: Set<InternedString>
+    let mapCollectionHOFNames: Set<InternedString>
+    let mapFilterFamilyHOFNames: Set<InternedString>
+    let mutableListOnlyCollectionHOFNames: Set<InternedString>
+    let iterableMaxFamilyNames: Set<InternedString>
+    let destinationCollectionHOFs: Set<InternedString>
+    let sourceBackedListFilterNames: Set<InternedString>
+    let iterableSourceHOFNames: Set<InternedString>
+    let primitiveArraySourceMemberNames: Set<InternedString>
+    let arraySourceBackedNames: Set<InternedString>
+    let intRangeSourceBackedHOFNames: Set<InternedString>
+    let unsignedRangeSourceBackedHOFNames: Set<InternedString>
+    let supportedRangeMemberNames: Set<InternedString>
+    let jvmSourceCollectionCalls: Set<InternedString>
+    let sourceBackedCollectionMemberNames: Set<InternedString>
+    let sourceBackedTrailingLambdaMemberNames: Set<InternedString>
+    let coroutineBuilderNames: Set<InternedString>
+    let builtinFlowMemberNames: Set<InternedString>
+    let flowChainMemberNames: Set<InternedString>
+    let resultMemberNames: Set<InternedString>
+    let arrayFallbackMemberNames: Set<InternedString>
+    let knownJvmPropertyNames: Set<InternedString>
+    let inheritedOperatorNames: Set<InternedString>
+    let workerExtensionMemberNames: Set<InternedString>
+    let rangeTypeNames: Set<InternedString>
+    /// Stdlib collection factory function names used for marking collection
+    /// literal expressions.
+    let stdlibCollectionFactoryNames: Set<InternedString>
+    /// The subset of `stdlibCollectionFactoryNames` that produce
+    /// `Array`/primitive-array literals rather than `List`/`Set`/`Map`/
+    /// `Sequence` ones. Excluded from `markCollectionExpr` call sites: an
+    /// `Array` receiver's runtime representation (RuntimeArrayBox) is not
+    /// interchangeable with the List/Sequence-shaped box that collection
+    /// member-call fallback resolution assumes.
+    let arrayFactoryFunctionNames: Set<InternedString>
 
     let kotlinRegexFQName: [InternedString]
     let kotlinStringBuilderFQName: [InternedString]
@@ -799,6 +845,7 @@ package struct KnownCompilerNames {
         coerceAtLeast = interner.intern("coerceAtLeast")
         coerceAtMost = interner.intern("coerceAtMost")
         coerceIn = interner.intern("coerceIn")
+        collect = interner.intern("collect")
         compareTo = interner.intern("compareTo")
         contains = interner.intern("contains")
         containsAll = interner.intern("containsAll")
@@ -807,6 +854,8 @@ package struct KnownCompilerNames {
         distinct = interner.intern("distinct")
         distinctBy = interner.intern("distinctBy")
         drop = interner.intern("drop")
+        dropLastWhile = interner.intern("dropLastWhile")
+        dropWhile = interner.intern("dropWhile")
         eachCount = interner.intern("eachCount")
         elementAt = interner.intern("elementAt")
         elementAtOrElse = interner.intern("elementAtOrElse")
@@ -823,6 +872,8 @@ package struct KnownCompilerNames {
         firstNotNullOfOrNull = interner.intern("firstNotNullOfOrNull")
         firstOrNull = interner.intern("firstOrNull")
         flatMapIndexed = interner.intern("flatMapIndexed")
+        flatMapIndexedTo = interner.intern("flatMapIndexedTo")
+        flatMapTo = interner.intern("flatMapTo")
         flatten = interner.intern("flatten")
         fold = interner.intern("fold")
         foldIndexed = interner.intern("foldIndexed")
@@ -840,6 +891,7 @@ package struct KnownCompilerNames {
         last = interner.intern("last")
         lastIndexOf = interner.intern("lastIndexOf")
         lastOrNull = interner.intern("lastOrNull")
+        mapIndexedNotNull = interner.intern("mapIndexedNotNull")
         maxBy = interner.intern("maxBy")
         maxByOrNull = interner.intern("maxByOrNull")
         maxOf = interner.intern("maxOf")
@@ -902,6 +954,7 @@ package struct KnownCompilerNames {
         sumByDouble = interner.intern("sumByDouble")
         sumOf = interner.intern("sumOf")
         take = interner.intern("take")
+        takeLastWhile = interner.intern("takeLastWhile")
         toBooleanArray = interner.intern("toBooleanArray")
         toByteArray = interner.intern("toByteArray")
         toCharArray = interner.intern("toCharArray")
@@ -1010,6 +1063,193 @@ package struct KnownCompilerNames {
         rangeMigrationMemberNames = Set(["iterator", "step", "take", "drop", "chunked", "windowed"].map { interner.intern($0) })
         progressionFirstLastMemberNames = Set(["first", "firstOrNull", "last", "lastOrNull"].map { interner.intern($0) })
         instantValueSemanticsMemberNames = Set(["equals", "hashCode", "toString"].map { interner.intern($0) })
+        collectionHOFNames = Set([
+            "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
+            "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
+            "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
+            "groupBy", "sortedBy", "count", "first", "last", "single", "singleOrNull", "find", "findLast", "indexOf", "lastIndexOf", "contains", "containsAll", "firstOrNull", "lastOrNull",
+            "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
+            "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo", "mapIndexedTo", "flatMapIndexedTo",
+            "mapIndexedNotNullTo", "filterIndexedTo", "filterNotNullTo",
+            "mapKeysTo", "mapValuesTo",
+            "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed",
+            "onEach", "onEachIndexed", "withIndex", "filterNotNull", "requireNoNulls",
+            "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
+            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
+            "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
+            "maxOf", "minOf",
+            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+            "sorted", "sortedDescending", "sortedByDescending", "sortedWith", "sortedArrayWith", "partition", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "distinctBy", "zip", "zipWithNext",
+            "max",
+            "flatten", "asSequence", "sum", "average", "reversed", "asReversed", "intersect", "union", "subtract",
+            "sort", "sortBy", "sortByDescending", "sortWith",
+        ].map { interner.intern($0) })
+        flowHOFNames = Set(["map", "filter", "collect"].map { interner.intern($0) })
+        mapCollectionHOFNames = Set([
+            "map", "mapNotNull", "mapKeys", "mapValues", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo",
+            "filter", "filterNot", "filterKeys", "filterValues", "filterTo", "filterNotTo",
+            "flatMap", "any", "none", "all", "count", "contains", "asSequence",
+            "onEach", "onEachIndexed",
+            "maxBy", "minBy", "maxByOrNull", "minByOrNull",
+            "maxOf", "minOf", "maxOfOrNull", "minOfOrNull",
+            "maxWith", "minWith", "maxWithOrNull", "minWithOrNull",
+            "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull",
+        ].map { interner.intern($0) })
+        mapFilterFamilyHOFNames = Set(["filter", "filterNot", "filterTo", "filterNotTo"].map { interner.intern($0) })
+        mutableListOnlyCollectionHOFNames = Set(["sort", "sortBy", "sortByDescending", "sortWith"].map { interner.intern($0) })
+        iterableMaxFamilyNames = Set([
+            "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
+            "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+        ].map { interner.intern($0) })
+        destinationCollectionHOFs = Set([
+            "filterTo", "filterNotTo", "mapTo", "flatMapTo", "mapNotNullTo",
+            "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo", "associateTo",
+            "filterIndexedTo", "mapKeysTo", "mapValuesTo",
+        ].map { interner.intern($0) })
+        sourceBackedListFilterNames = Set(["filter", "filterNot", "filterIndexed"].map { interner.intern($0) })
+        iterableSourceHOFNames = Set([
+            "filter",
+            "partition",
+            "single",
+            "singleOrNull",
+            "reduce",
+            "reduceIndexed",
+            "reduceRight",
+            "reduceRightIndexed",
+            "reduceRightOrNull",
+            "reduceRightIndexedOrNull",
+            "sumBy",
+            "sumByDouble",
+        ].map { interner.intern($0) })
+        primitiveArraySourceMemberNames = Set([
+            "map", "mapIndexed", "mapNotNull", "flatMap", "forEach",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
+            "find", "findLast", "first", "firstOrNull", "last", "lastOrNull",
+            "any", "all", "none", "count", "joinToString",
+            "contentEquals", "contentHashCode", "contentToString",
+            "copyOf", "copyOfRange", "copyInto",
+            "indices", "lastIndex", "iterator", "withIndex", "sort",
+            "average", "min", "max", "minOrNull", "maxOrNull",
+            "slice", "zip", "drop", "dropLast", "take", "takeLast",
+            "elementAtOrNull", "getOrElse", "indexOf", "lastIndexOf", "fill",
+            "foldRight", "reduceRight", "forEachIndexed", "mapTo", "filterTo",
+            "toCollection", "toHashSet", "toMutableSet", "sortedBy", "sortedByDescending", "sortedWith",
+            "partition", "groupBy", "associate", "associateBy",
+            "elementAt", "elementAtOrElse", "getOrNull", "single", "singleOrNull",
+            "indexOfFirst", "indexOfLast", "toSet",
+            "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed",
+            "reduceIndexedOrNull", "takeWhile", "dropWhile", "intersect", "union", "subtract",
+            "maxOf", "minByOrNull", "joinTo",
+        ].map { interner.intern($0) })
+        arraySourceBackedNames = Set([
+            "sliceArray", "reversedArray", "asList", "toTypedArray",
+            "asIterable", "sumOf", "joinToString",
+            "take", "takeLast", "takeWhile", "drop", "dropLast", "dropWhile", "slice",
+            "elementAt", "elementAtOrNull", "elementAtOrElse", "getOrElse",
+            "single", "singleOrNull", "random",
+            "sum", "average", "min", "max", "minOrNull", "maxOrNull",
+            "foldRight", "reduceRight", "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
+            "runningReduce", "runningReduceIndexed", "reduceIndexedOrNull",
+            "distinct", "toSet", "toHashSet", "toMutableSet", "toCollection",
+            "mapIndexedNotNull", "mapTo", "filterTo", "flatMapTo", "partition", "groupBy", "forEachIndexed", "zip",
+            "associate", "associateBy", "associateWith",
+            "associateTo", "associateByTo", "associateWithTo",
+            "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
+            "sortedBy", "sortedByDescending", "sortedWith", "sortWith", "joinTo",
+            "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
+        ].map { interner.intern($0) })
+        intRangeSourceBackedHOFNames = Set([
+            "toList", "average", "sorted",
+            "forEach", "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+            "chunked", "windowed",
+            "take", "drop",
+            "random", "randomOrNull",
+        ].map { interner.intern($0) })
+        unsignedRangeSourceBackedHOFNames = Set([
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "forEach",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+            "chunked", "windowed", "take", "drop",
+            "isEmpty", "toList", "count", "sum", "reversed",
+            "sorted",
+        ].map { interner.intern($0) })
+        supportedRangeMemberNames = Set([
+            "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
+            "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
+            "any", "all", "none",
+            "chunked", "windowed",
+            "reversed", "step", "sum",
+            "random",
+            "take", "drop", "sorted",
+        ].map { interner.intern($0) })
+        jvmSourceCollectionCalls = Set([
+            "groupBy", "associate", "associateBy", "associateWith", "partition", "zip", "zipWithNext", "joinToString",
+            "map", "mapIndexed", "mapNotNull", "mapIndexedNotNull", "filter", "filterNot", "filterIndexed", "filterNotNull",
+            "flatMap", "flatten", "forEach", "fold", "any", "all", "none", "count", "first", "firstOrNull",
+            "asSequence", "asIterable", "constrainOnce", "onEach", "onEachIndexed", "take", "takeLast", "takeWhile",
+            "drop", "dropWhile", "dropLastWhile",
+            "distinct", "distinctBy", "sorted", "sortedDescending", "sortedBy", "sortedByDescending", "toMap",
+            "toList", "toMutableList", "toSet", "toMutableSet", "chunked", "windowed", "reversed",
+            "elementAt", "elementAtOrNull", "minOrNull", "maxOrNull", "last", "lastOrNull", "single", "singleOrNull",
+        ].map { interner.intern($0) })
+        sourceBackedCollectionMemberNames = Set(["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toSortedMap", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear", "containsKey", "indexOf", "lastIndexOf"].map { interner.intern($0) })
+        sourceBackedTrailingLambdaMemberNames = Set(["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach", "count"].map { interner.intern($0) })
+        coroutineBuilderNames = Set(["runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull"].map { interner.intern($0) })
+        builtinFlowMemberNames = Set([
+            "map", "filter", "take", "collect", "collectLatest", "toList", "first",
+            "single",
+            "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
+            "buffer", "conflate", "flowOn", "debounce",
+            "catch", "retry", "retryWhen",
+        ].map { interner.intern($0) })
+        flowChainMemberNames = Set(["map", "filter", "take", "collect", "single", "catch", "retry", "retryWhen"].map { interner.intern($0) })
+        resultMemberNames = Set(["onSuccess", "onFailure", "getOrElse", "getOrDefault", "map", "fold", "recover"].map { interner.intern($0) })
+        arrayFallbackMemberNames = Set([
+            "toList", "toMutableList",
+            "copyOf", "copyOfRange", "copyInto", "fill",
+            "size", "get", "contains", "isEmpty",
+            "concatToString",
+        ].map { interner.intern($0) })
+        knownJvmPropertyNames = Set(["java", "javaObjectType", "javaPrimitiveType", "kotlin", "declaringJavaClass"].map { interner.intern($0) })
+        inheritedOperatorNames = Set(["equals", "compareTo"].map { interner.intern($0) })
+        workerExtensionMemberNames = Set(["asCPointer", "execute", "executeAfter", "park", "processQueue", "requestTermination"].map { interner.intern($0) })
+        rangeTypeNames = Set([
+            "OpenEndRange", "IntRange", "IntProgression", "LongRange", "LongProgression",
+            "UIntRange", "UIntProgression", "ULongRange", "ULongProgression",
+            "CharRange", "CharProgression",
+        ].map { interner.intern($0) })
+        stdlibCollectionFactoryNames = Set([
+            "listOf", "mutableListOf", "arrayListOf", "emptyList",
+            "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
+            "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
+            "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+            "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf", "emptyMap",
+            "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf", "emptySet",
+            "listOfNotNull",
+            "sequenceOf", "generateSequence",
+            "ArrayList",
+            "HashMap", "LinkedHashMap",
+            "HashSet", "LinkedHashSet",
+        ].map { interner.intern($0) })
+        arrayFactoryFunctionNames = Set([
+            "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
+            "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
+            "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+        ].map { interner.intern($0) })
     }
 
 
@@ -1102,37 +1342,6 @@ package struct KnownCompilerNames {
             || name == uintArray
     }
 
-
-    /// The set of stdlib collection factory function names used for marking
-    /// collection literal expressions. Shared across call type-checking sites
-    /// to avoid duplication.
-    static let stdlibCollectionFactoryNames: Set<String> = [
-        "listOf", "mutableListOf", "arrayListOf", "emptyList",
-        "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
-        "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
-        "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
-        "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf", "emptyMap",
-        "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf", "emptySet",
-        "listOfNotNull",
-        "sequenceOf", "generateSequence",
-        "ArrayList",
-        "HashMap", "LinkedHashMap",
-        "HashSet", "LinkedHashSet",
-    ]
-
-    /// The subset of `stdlibCollectionFactoryNames` that produce `Array`/primitive-array
-    /// literals rather than `List`/`Set`/`Map`/`Sequence` ones. Excluded from
-    /// `markCollectionExpr` call sites: an `Array` receiver's runtime representation
-    /// (RuntimeArrayBox) is not interchangeable with the List/Sequence-shaped box that
-    /// collection member-call fallback resolution assumes, so flagging arrays as
-    /// "collection expr" causes List/Sequence-only extension functions (e.g.
-    /// `filterIsInstance`, `sortedBy`) to be resolved and lowered against the wrong
-    /// runtime representation, corrupting memory or crashing.
-    static let arrayFactoryFunctionNames: Set<String> = [
-        "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
-        "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
-        "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
-    ]
 
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         // Fall back to simple names only for synthetic symbols (no FQN).

@@ -11,18 +11,11 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
 
         // KUU-3237: a typealias qualifier cannot reach nested classifiers
         // (`A2.Nested`, `A2.Inner`, `A2.Companion` are all unresolved in
