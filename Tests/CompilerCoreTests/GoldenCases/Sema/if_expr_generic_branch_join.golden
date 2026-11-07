@@ -1,0 +1,59 @@
+symbol fq=__local_0.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<golden.sema.W>
+symbol fq=__local_1.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<golden.sema.W>
+symbol fq=__local_2.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.MutableList<golden.sema.W>
+symbol fq=golden.sema.TB.g.$0.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.g.$0.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.h.$1.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.h.$1.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.mk.$2.children[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.mk.$2.top[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.mk[kind=fun;recv=golden.sema.TB;params=kotlin.collections.List<golden.sema.W>,Boolean;ret=golden.sema.W;names=[children,top];origin=fixture] kind=function vis=protected flags=abstractType sig=recv=golden.sema.TB params=[kotlin.collections.List<golden.sema.W>,Boolean] ret=golden.sema.W
+symbol fq=golden.sema.TB.w.$3.b[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB.w.$3.m[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.TB[kind=class;origin=fixture] kind=class vis=public flags=abstractType|openType
+symbol fq=golden.sema.W.<init>.$4.x[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.W.<init>[kind=ctor;recv=golden.sema.W;params=Int;ret=golden.sema.W;names=[x];origin=fixture] kind=constructor vis=public flags=_ sig=recv=golden.sema.W params=[Int] ret=golden.sema.W
+symbol fq=golden.sema.W[kind=class;origin=fixture] kind=class vis=public flags=_
+file fif_expr_generic_branch_join package=golden.sema
+  decl golden.sema.W[kind=class;origin=fixture] class W sym=golden.sema.W[kind=class;origin=fixture]
+  decl golden.sema.TB[kind=class;origin=fixture] class TB sym=golden.sema.TB[kind=class;origin=fixture]
+expr e@12:28 name(b) type=Boolean ref=golden.sema.TB.g.$0.b[kind=vparam;origin=fixture]
+expr e@12:31 call callee=e@12:31#1 args=[] type=kotlin.collections.ArrayList<golden.sema.W>
+expr e@12:48 name(m) type=kotlin.collections.MutableList<golden.sema.W> ref=golden.sema.TB.g.$0.m[kind=vparam;origin=fixture]
+expr e@12:24 if cond=e@12:28 then=e@12:31 else=e@12:48 type=kotlin.collections.MutableList<golden.sema.W>
+expr e@12:9 localDecl children mutable=0 type=_ init=e@12:24 type=Unit ref=__local_0.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@13:9 name(children) type=kotlin.collections.MutableList<golden.sema.W> ref=__local_0.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@13:24 int(1) type=Int
+expr e@13:22 call callee=e@13:22#1 args=[_:e@13:24] type=golden.sema.W call=golden.sema.W.<init>[kind=ctor;recv=golden.sema.W;params=Int;ret=golden.sema.W;names=[x];origin=fixture]
+expr e@13:9#1 memberCall recv=e@13:9 callee=add args=[_:e@13:22] type=Boolean call=kotlin.collections.MutableList.add[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@14:19 name(children) type=kotlin.collections.MutableList<golden.sema.W> ref=__local_0.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@14:29 name(b) type=Boolean ref=golden.sema.TB.g.$0.b[kind=vparam;origin=fixture]
+expr e@14:16 call callee=e@14:16#1 args=[_:e@14:19,_:e@14:29] type=golden.sema.W call=golden.sema.TB.mk[kind=fun;recv=golden.sema.TB;params=kotlin.collections.List<golden.sema.W>,Boolean;ret=golden.sema.W;names=[children,top];origin=fixture]
+expr e@14:9 return value=e@14:16 type=Nothing
+expr e@18:28 name(b) type=Boolean ref=golden.sema.TB.h.$1.b[kind=vparam;origin=fixture]
+expr e@18:31 name(m) type=kotlin.collections.MutableList<golden.sema.W> ref=golden.sema.TB.h.$1.m[kind=vparam;origin=fixture]
+expr e@18:38 call callee=e@18:38#1 args=[] type=kotlin.collections.ArrayList<golden.sema.W>
+expr e@18:24 if cond=e@18:28 then=e@18:31 else=e@18:38 type=kotlin.collections.MutableList<golden.sema.W>
+expr e@18:9 localDecl children mutable=0 type=_ init=e@18:24 type=Unit ref=__local_1.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@19:9 name(children) type=kotlin.collections.MutableList<golden.sema.W> ref=__local_1.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@19:24 int(2) type=Int
+expr e@19:22 call callee=e@19:22#1 args=[_:e@19:24] type=golden.sema.W call=golden.sema.W.<init>[kind=ctor;recv=golden.sema.W;params=Int;ret=golden.sema.W;names=[x];origin=fixture]
+expr e@19:9#1 memberCall recv=e@19:9 callee=add args=[_:e@19:22] type=Boolean call=kotlin.collections.MutableList.add[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@20:19 name(children) type=kotlin.collections.MutableList<golden.sema.W> ref=__local_1.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@20:29 name(b) type=Boolean ref=golden.sema.TB.h.$1.b[kind=vparam;origin=fixture]
+expr e@20:16 call callee=e@20:16#1 args=[_:e@20:19,_:e@20:29] type=golden.sema.W call=golden.sema.TB.mk[kind=fun;recv=golden.sema.TB;params=kotlin.collections.List<golden.sema.W>,Boolean;ret=golden.sema.W;names=[children,top];origin=fixture]
+expr e@20:9 return value=e@20:16 type=Nothing
+expr e@24:30 name(b) type=Boolean ref=golden.sema.TB.w.$3.b[kind=vparam;origin=fixture]
+expr e@25:13 bool(true) type=Boolean
+expr e@25:21 call callee=e@25:21#1 args=[] type=kotlin.collections.ArrayList<golden.sema.W>
+expr e@26:21 name(m) type=kotlin.collections.MutableList<golden.sema.W> ref=golden.sema.TB.w.$3.m[kind=vparam;origin=fixture]
+expr e@24:24 when subject=e@24:30 branches=[e@25:13->e@25:21] else=e@26:21 type=kotlin.collections.MutableList<golden.sema.W>
+expr e@24:9 localDecl children mutable=0 type=_ init=e@24:24 type=Unit ref=__local_2.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@28:9 name(children) type=kotlin.collections.MutableList<golden.sema.W> ref=__local_2.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@28:24 int(3) type=Int
+expr e@28:22 call callee=e@28:22#1 args=[_:e@28:24] type=golden.sema.W call=golden.sema.W.<init>[kind=ctor;recv=golden.sema.W;params=Int;ret=golden.sema.W;names=[x];origin=fixture]
+expr e@28:9#1 memberCall recv=e@28:9 callee=add args=[_:e@28:22] type=Boolean call=kotlin.collections.MutableList.add[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;ret=Boolean;gen=1;classGen=1;names=[element]]
+expr e@29:19 name(children) type=kotlin.collections.MutableList<golden.sema.W> ref=__local_2.children[kind=local;type=kotlin.collections.MutableList<golden.sema.W>;origin=fixture]
+expr e@29:29 name(b) type=Boolean ref=golden.sema.TB.w.$3.b[kind=vparam;origin=fixture]
+expr e@29:16 call callee=e@29:16#1 args=[_:e@29:19,_:e@29:29] type=golden.sema.W call=golden.sema.TB.mk[kind=fun;recv=golden.sema.TB;params=kotlin.collections.List<golden.sema.W>,Boolean;ret=golden.sema.W;names=[children,top];origin=fixture]
+expr e@29:9 return value=e@29:16 type=Nothing

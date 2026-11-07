@@ -53,9 +53,38 @@ extension ControlFlowTypeChecker {
             guard !siblingTypes.isEmpty else { return }
             let siblingExpected = sema.types.lub(siblingTypes)
             guard siblingExpected != sema.types.errorType else { return }
-            for retry in retries
-            where branchTypes[retry.index] == sema.types.errorType && retriableBranchBody(retry.body)
-            {
+            for retry in retries where retriableBranchBody(retry.body) {
+                let original = branchTypes[retry.index]
+                let wasError = original == sema.types.errorType
+                // The retry target is the join of the *other* branches'
+                // types: identical to `siblingExpected` for a failed branch
+                // (error types were already filtered out), but different for
+                // the under-constrained case below, where the branch's own
+                // unspecialized type must not contaminate the target.
+                let retryExpected = {
+                    let others = branchTypes.indices.compactMap { index -> TypeID? in
+                        guard index != retry.index else { return nil }
+                        let type = branchTypes[index]
+                        guard type != sema.types.errorType, type != sema.types.nothingType else {
+                            return nil
+                        }
+                        return type
+                    }
+                    return others.isEmpty ? siblingExpected : sema.types.lub(others)
+                }()
+                guard retryExpected != sema.types.errorType else { continue }
+                // A successfully inferred call branch can still leave its
+                // type arguments at the unconstrained default (`ArrayList()`
+                // → `ArrayList<Any>`) when nothing pinned them — under
+                // kotlinc's single constraint system the sibling types would
+                // have. The unspecialized result then forces the join into a
+                // use-site `out` projection (`MutableList<out W>`) whose
+                // `in`-position members become unusable (KUU-4472). Such a
+                // branch retries against the sibling join too, but is only
+                // adopted when the retried type actually conforms to it.
+                guard wasError || !sema.types.isSubtype(original, retryExpected) else {
+                    continue
+                }
                 // Drop the first pass's error diagnostics inside the branch
                 // range up front: re-inference re-emits the ones that stay
                 // genuine (e.g. an unrelated bad statement inside a block
@@ -74,7 +103,7 @@ extension ControlFlowTypeChecker {
                     retry.body,
                     ctx: retry.ctx,
                     locals: &retryLocals,
-                    expectedType: siblingExpected,
+                    expectedType: retryExpected,
                     isStatementContext: isStatementContext
                 )
                 if let companionType = driver.helpers.retypeBranchClassObjectValue(
@@ -82,7 +111,10 @@ extension ControlFlowTypeChecker {
                 ) {
                     retried = companionType
                 }
-                guard retried != sema.types.errorType else {
+                let adopt = retried != sema.types.errorType
+                    && (wasError
+                        || (retried != original && sema.types.isSubtype(retried, retryExpected)))
+                guard adopt else {
                     ctx.sema.diagnostics.rollback(to: retryCheckpoint)
                     for diagnostic in removedDiagnostics {
                         ctx.sema.diagnostics.emit(diagnostic)

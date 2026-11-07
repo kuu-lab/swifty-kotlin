@@ -1150,6 +1150,67 @@ final class ControlFlowTypeChecker {
             ) {
                 elseType = companionType
             }
+            // A call-like branch can also infer *successfully* yet leave its
+            // type arguments at the unconstrained default (`ArrayList()`
+            // becomes `ArrayList<Any>`): under kotlinc's single constraint
+            // system the sibling's type would have pinned them. The
+            // unspecialized result then forces the join into a use-site `out`
+            // projection (`MutableList<out W>`) whose `in`-position members
+            // such as `add` become unusable (KUU-4472). Retry the branch
+            // against the sibling's type; a retried result that is a subtype
+            // of the sibling replaces the branch type, so the join resolves
+            // to the sibling's own instantiation.
+            func retryUnderConstrainedBranch(
+                _ branchExpr: ExprID,
+                type: inout TypeID,
+                branchLocals: inout LocalBindings,
+                branchCtx: TypeInferenceContext,
+                flowState: DataFlowState,
+                siblingType: TypeID
+            ) {
+                guard expectedType == nil,
+                      retriableBranchExpr(branchExpr),
+                      type != sema.types.errorType,
+                      type != sema.types.nothingType,
+                      siblingType != sema.types.errorType,
+                      siblingType != sema.types.nothingType,
+                      !sema.types.isSubtype(type, siblingType)
+                else { return }
+                var removedDiagnostics: [Diagnostic] = []
+                if let branchRange = ast.arena.exprRange(branchExpr) {
+                    removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: branchRange)
+                }
+                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
+                var retryLocals = locals
+                driver.exprChecker.applyFlowStateToLocals(flowState, locals: &retryLocals, sema: sema)
+                let retried = driver.inferExpr(
+                    branchExpr,
+                    ctx: branchCtx,
+                    locals: &retryLocals,
+                    expectedType: siblingType,
+                    isStatementContext: isStatementContext
+                )
+                guard retried != sema.types.errorType,
+                      retried != type,
+                      sema.types.isSubtype(retried, siblingType)
+                else {
+                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                    for diagnostic in removedDiagnostics {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
+                    return
+                }
+                type = retried
+                branchLocals = retryLocals
+            }
+            retryUnderConstrainedBranch(
+                thenExpr, type: &thenType, branchLocals: &thenLocals,
+                branchCtx: thenCtx, flowState: branch.trueState, siblingType: elseType
+            )
+            retryUnderConstrainedBranch(
+                elseExpr, type: &elseType, branchLocals: &elseLocals,
+                branchCtx: elseCtx, flowState: branch.falseState, siblingType: thenType
+            )
             let joinedRangeType = bindJoinedRangeExpressionMetadata(
                 id,
                 thenExpr: thenExpr,
