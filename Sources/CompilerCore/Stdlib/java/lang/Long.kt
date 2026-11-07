@@ -20,6 +20,13 @@ public class Long(private val value: kotlin.Long) {
         public val SIZE: Int get() = 64
         public val BYTES: Int get() = 8
 
+        public fun valueOf(value: String): kotlin.Long = parseLong(value)
+
+        public fun valueOf(value: String, radix: Int): kotlin.Long =
+            parseLong(value, radix)
+
+        public fun valueOf(value: kotlin.Long): kotlin.Long = value
+
         public fun parseLong(value: String): kotlin.Long = value.toLong()
 
         public fun parseLong(value: String, radix: Int): kotlin.Long =
