@@ -243,6 +243,16 @@ extension ExprLowerer {
                           sema.symbols.symbol(symbol)?.kind == .property
                               && driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema)
                       ),
+                      // KUU-4437: an open/override member property must write
+                      // through its setter's vtable slot — the field offset
+                      // below is only this declaration's own storage, which a
+                      // subclass override shadows (mirrors the explicit-
+                      // receiver BUG-227 ordering in lowerMemberAssignExpr).
+                      driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+                          propertySymbol: symbol,
+                          accessorKind: .setter,
+                          sema: sema
+                      ) == nil,
                       let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
                           sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
                       ]
@@ -311,6 +321,41 @@ extension ExprLowerer {
                     // A bare property name in a nested lambda still refers to
                     // the captured dispatch receiver, so write through its
                     // runtime itable setter just like an explicit receiver.
+                } else if let virtualSetterDispatch = driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+                    propertySymbol: symbol,
+                    accessorKind: .setter,
+                    sema: sema
+                ) {
+                    // KUU-4437: an abstract/open class `var` has no backing
+                    // field or field offset of its own; the write must
+                    // dispatch through the setter's vtable slot to the
+                    // concrete override instead of falling through to the
+                    // local-value cache below (which silently dropped it).
+                    // Checked before the custom-setter/backing-field paths so
+                    // an overridable property always dispatches virtually,
+                    // matching lowerMemberAssignExpr's BUG-227 ordering.
+                    let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                    let setterValueID = driver.callLowerer.erasedVirtualSetterValue(
+                        valueID, propertySymbol: symbol,
+                        sema: sema, arena: arena, interner: interner,
+                        instructions: &instructions
+                    )
+                    let virtualAccessorArguments = driver.callLowerer.propertyAccessorArguments(
+                        for: virtualSetterDispatch.accessorSymbol,
+                        arguments: [receiverExprID, setterValueID],
+                        callExprID: exprID,
+                        sema: sema, arena: arena, interner: interner,
+                        instructions: &instructions
+                    )
+                    instructions.append(.virtualCall(
+                        symbol: virtualSetterDispatch.accessorSymbol,
+                        callee: interner.intern("set"),
+                        receiver: virtualAccessorArguments[0],
+                        arguments: Array(virtualAccessorArguments.dropFirst()),
+                        result: setterResult,
+                        canThrow: false,
+                        dispatch: virtualSetterDispatch.dispatch
+                    ))
                 } else if driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema) {
                     let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: symbol)
                         ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: symbol)
