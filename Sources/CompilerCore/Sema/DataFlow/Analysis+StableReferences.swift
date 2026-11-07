@@ -34,8 +34,17 @@ extension DataFlowAnalyzer {
                 else { return nil }
                 return (DataFlowReference(root: receiver.symbol, properties: [property]), type, true)
             }
-        case let .thisRef(label, _) where label == nil:
+        case let .thisRef(label, _):
             guard let resolved = locals[interner.intern("this")] else { return nil }
+            if label != nil, sema.bindings.identifierSymbols[id] != resolved.symbol {
+                // A labeled `this@…` shares the unqualified receiver's flow
+                // slot only when it denotes that same receiver — e.g.
+                // `this@func` inside the extension function `func`, which
+                // binds the same synthetic receiver parameter symbol. Labels
+                // for outer receivers or singleton objects bind different
+                // symbols and keep their own flow identity.
+                return nil
+            }
             local = resolved
         case let .memberCall(receiver, _, _, args, _):
             guard args.isEmpty, !ast.arena.isExplicitCall(id),
