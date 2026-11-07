@@ -107,6 +107,9 @@ extension ExprLowerer {
         if let targetType = sema.bindings.platformNullAssertionTypes[exprID] {
             let checked = arena.appendTemporary(type: targetType)
             instructions.append(.nullAssert(operand: value, result: checked))
+            if let message = platformNullAssertionMessage(for: exprID, ast: ast, interner: interner) {
+                arena.bindPlatformNullAssertMessage(checked, message: message)
+            }
             let sourceType = arena.exprType(value)
             let sourceIsUnit: Bool = if let sourceType {
                 switch sema.types.kind(of: sourceType) {
@@ -1044,4 +1047,32 @@ extension ExprLowerer {
         }
     }
 
+}
+
+extension ExprLowerer {
+    /// JVM `checkNotNullExpressionValue` attaches `"<call>(...) must not be
+    /// null"` only when the asserted expression is a direct call; platform
+    /// values arriving through locals or other expressions raise the plain
+    /// message-less NPE, matching kotlinc (KUU-4452).
+    private func platformNullAssertionMessage(
+        for exprID: ExprID,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let callee: InternedString?
+        switch ast.arena.expr(exprID) {
+        case let .memberCall(_, name, _, _, _), let .safeMemberCall(_, name, _, _, _):
+            callee = name
+        case let .call(calleeExpr, _, _, _):
+            if case let .nameRef(name, _)? = ast.arena.expr(calleeExpr) {
+                callee = name
+            } else {
+                callee = nil
+            }
+        default:
+            callee = nil
+        }
+        guard let callee else { return nil }
+        return interner.intern("\(interner.resolve(callee))(...) must not be null")
+    }
 }
