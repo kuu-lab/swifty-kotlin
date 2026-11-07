@@ -167,6 +167,17 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
+        // KUU-4440: `File.separator`/`pathSeparator`/`separatorChar`/
+        // `pathSeparatorChar` are exposed as Kotlin-source extension
+        // properties on `File.Companion` in `Stdlib/java/io/File.kt`; the
+        // companion object must exist for them to resolve (same pattern as
+        // the synthetic Instant companion).
+        _ = ensureSyntheticCompanionSymbol(
+            ownerSymbol: fileSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // KSP-483: `path` reads File's internal state, so it stays a direct
         // synthetic member (not migrated to Kotlin source). A Kotlin-source
         // extension property named `path` would collide with the
