@@ -2496,6 +2496,44 @@ extension ExprTypeChecker {
                         )
                     }
                 }
+                // KUU-4408: without a contextual function type the callee's
+                // type parameters must be inferable from the receiver —
+                // kotlinc rejects `val r = ::gen` with "cannot infer type for
+                // type parameter 'T'" instead of binding `(T) -> T` and
+                // failing later at the call site. A successful contextual
+                // binding above already solved every type parameter, and a
+                // failed one already reported an error.
+                if contextualSpecialization == nil && signature.reifiedTypeParameterIndices.isEmpty {
+                    let declaredReceiver = signature.receiverType
+                    let receiverSuppliesParameters = boundReceiverType != nil && declaredReceiver != nil
+                    for (index, typeParameter) in signature.typeParameterSymbols.enumerated() {
+                        // Constructor references have no receiver that could
+                        // supply class type arguments, so any type parameter
+                        // still present in the built function type is
+                        // uninferrable. For other references only the callee's
+                        // own type parameters need receiver evidence — class
+                        // type parameters are bound through the receiver's
+                        // class type arguments.
+                        let requiresReceiverEvidence = !isConstructorReference
+                            && index >= signature.classTypeParameterCount
+                        let solvedByReceiver = requiresReceiverEvidence && receiverSuppliesParameters
+                            && declaredReceiver.map {
+                                sema.types.typeContainsTypeParam($0, symbol: typeParameter)
+                            } == true
+                        guard sema.types.typeContainsTypeParam(inferredType, symbol: typeParameter)
+                            || (requiresReceiverEvidence && !solvedByReceiver)
+                        else {
+                            continue
+                        }
+                        let parameterName = (sema.symbols.symbol(typeParameter)?.name)
+                            .map(interner.resolve) ?? "?"
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-INFER",
+                            "Cannot infer type for type parameter '\(parameterName)'. Specify it explicitly.",
+                            range: range
+                        )
+                    }
+                }
                 resultType = inferredType
             }
             // BUG-164: A callable reference passed to a fun-interface parameter
