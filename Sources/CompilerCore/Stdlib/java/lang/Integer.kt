@@ -7,6 +7,12 @@ public class Integer private constructor() {
         public val SIZE: Int get() = 32
         public val BYTES: Int get() = 4
 
+        public fun valueOf(value: String): Int = parseInt(value)
+
+        public fun valueOf(value: String, radix: Int): Int = parseInt(value, radix)
+
+        public fun valueOf(value: Int): Int = value
+
         public fun parseInt(value: String): Int = value.toInt()
 
         public fun parseInt(value: String, radix: Int): Int = value.toInt(radix)
