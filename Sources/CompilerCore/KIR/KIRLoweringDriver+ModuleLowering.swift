@@ -300,7 +300,7 @@ extension KIRLoweringDriver {
         switch compilationCtx.options.emit {
         case .kirDump:
             return true
-        case .executable, .object, .llvmIR, .library, .jvmClass, .jvmJar:
+        case .executable, .object, .llvmIR, .library, .jvmClass, .jvmJar, .dex, .apk:
             // Source-backed library calls need the same bundled definitions as
             // executables. Without bodies or imported link names, codegen falls
             // back to bare declaration names that no consumer can resolve.

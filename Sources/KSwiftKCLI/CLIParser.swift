@@ -18,14 +18,17 @@ enum CLIParseError: Error, Equatable {
     case stdlibOnlyRequiresLibraryEmit
     case unsupportedStdlibProfile(String)
     case runRequiresExecutableEmit
+    case androidOptionsRequireDEXOrAPK(String)
+    case androidPackagingRequiresAPK(String)
 }
 
 enum CLIParser {
     static let usageText = """
     Usage: kswiftc [options] <input files>
       -o <path>              Output path
-      --emit <mode>          executable|object|llvm|kir|library|class|jar
+      --emit <mode>          executable|object|llvm|kir|library|class|jar|dex|apk
                              class: JVM output directory; jar: JVM archive (library or executable)
+                             dex: Android DEX archive via d8; apk: signed Android APK
       -O0|-O1|-O2|-O3        Optimization level
       -m <name>              Module name
       --entry-point <fqname> Select the file-level executable entry function
@@ -35,6 +38,24 @@ enum CLIParser {
       --target <triple>      Target triple (arch-vendor-os[-version])
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
       -jvm-target <version>  JVM bytecode target (1.8, 9–26; default 1.8)
+      --android-sdk <path>   Android SDK root (default: ANDROID_HOME, ANDROID_SDK_ROOT,
+                             or the platform install location)
+      --android-build-tools <version>
+                             Android build-tools version (default: newest installed)
+      --android-compile-sdk <api>
+                             Android platform for android.jar (default: newest installed)
+      --android-min-api <n>  Minimum Android API level for d8/aapt2
+      --manifest <path>      AndroidManifest.xml for --emit apk (default: searched in
+                             ./AndroidManifest.xml, app/src/main, src/main)
+      --android-res <dir>    Android resource directory compiled by aapt2 (apk only)
+      --android-assets <dir> Android assets directory packaged into the APK (apk only)
+      --android-keystore <path>
+                             Signing keystore (default: ~/.android/debug.keystore,
+                             generated via keytool when missing)
+      --android-key-alias <name>
+                             Key alias (default: androiddebugkey)
+      --android-store-pass <pass>  Keystore password (default: android)
+      --android-key-pass <pass>    Key password (default: store password)
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
                              common-module)
       --incremental         Enable incremental compilation (default: on for native
@@ -108,6 +129,8 @@ enum CLIParser {
         var jvmClasspath: [String] = []
         var jvmTarget = JVMTarget.java8
         var explicitJVMTarget = false
+        var android = AndroidOptions()
+        var explicitAndroidOptions: Set<String> = []
         var runImmediately = false
 
         if args.isEmpty {
@@ -132,6 +155,56 @@ enum CLIParser {
                 let paths = try requireValue(option: arg, args: args, index: &index)
                 guard !paths.isEmpty, !paths.hasPrefix("-") else { throw CLIParseError.missingValue(arg) }
                 jvmClasspath += paths.split(separator: ":", omittingEmptySubsequences: false).map { $0.isEmpty ? "." : String($0) }
+            case "--android-sdk", "--android-build-tools",
+                 "--android-compile-sdk", "--android-min-api", "--manifest",
+                 "--android-res", "--android-assets", "--android-keystore",
+                 "--android-key-alias", "--android-store-pass", "--android-key-pass":
+                let value = try requireValue(option: arg, args: args, index: &index)
+                switch arg {
+                case "--android-sdk": android.sdkPath = value
+                case "--android-build-tools": android.buildToolsVersion = value
+                case "--android-compile-sdk": android.compileSdk = value
+                case "--android-min-api":
+                    guard let api = Int(value), api > 0 else {
+                        throw CLIParseError.missingValue("\(arg) requires a positive API level")
+                    }
+                    android.minAPI = api
+                case "--manifest": android.manifestPath = value
+                case "--android-res": android.resourcePath = value
+                case "--android-assets": android.assetPath = value
+                case "--android-keystore": android.keystorePath = value
+                case "--android-key-alias": android.keyAlias = value
+                case "--android-store-pass": android.storePassword = value
+                case "--android-key-pass": android.keyPassword = value
+                default: break
+                }
+                explicitAndroidOptions.insert(arg)
+            case _ where arg.hasPrefix("--android-sdk="):
+                android.sdkPath = String(arg.dropFirst("--android-sdk=".count)); explicitAndroidOptions.insert("--android-sdk")
+            case _ where arg.hasPrefix("--android-build-tools="):
+                android.buildToolsVersion = String(arg.dropFirst("--android-build-tools=".count)); explicitAndroidOptions.insert("--android-build-tools")
+            case _ where arg.hasPrefix("--android-compile-sdk="):
+                android.compileSdk = String(arg.dropFirst("--android-compile-sdk=".count)); explicitAndroidOptions.insert("--android-compile-sdk")
+            case _ where arg.hasPrefix("--android-min-api="):
+                let value = String(arg.dropFirst("--android-min-api=".count))
+                guard let api = Int(value), api > 0 else {
+                    throw CLIParseError.missingValue("--android-min-api requires a positive API level")
+                }
+                android.minAPI = api; explicitAndroidOptions.insert("--android-min-api")
+            case _ where arg.hasPrefix("--manifest="):
+                android.manifestPath = String(arg.dropFirst("--manifest=".count)); explicitAndroidOptions.insert("--manifest")
+            case _ where arg.hasPrefix("--android-res="):
+                android.resourcePath = String(arg.dropFirst("--android-res=".count)); explicitAndroidOptions.insert("--android-res")
+            case _ where arg.hasPrefix("--android-assets="):
+                android.assetPath = String(arg.dropFirst("--android-assets=".count)); explicitAndroidOptions.insert("--android-assets")
+            case _ where arg.hasPrefix("--android-keystore="):
+                android.keystorePath = String(arg.dropFirst("--android-keystore=".count)); explicitAndroidOptions.insert("--android-keystore")
+            case _ where arg.hasPrefix("--android-key-alias="):
+                android.keyAlias = String(arg.dropFirst("--android-key-alias=".count)); explicitAndroidOptions.insert("--android-key-alias")
+            case _ where arg.hasPrefix("--android-store-pass="):
+                android.storePassword = String(arg.dropFirst("--android-store-pass=".count)); explicitAndroidOptions.insert("--android-store-pass")
+            case _ where arg.hasPrefix("--android-key-pass="):
+                android.keyPassword = String(arg.dropFirst("--android-key-pass=".count)); explicitAndroidOptions.insert("--android-key-pass")
             case "-jvm-target":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard !value.hasPrefix("-") else { throw CLIParseError.missingValue(arg) }
@@ -294,7 +367,7 @@ enum CLIParser {
 
         if stdlibProfile != .full, emitMode.isJVM {
             throw CLIParseError.incompatibleStdlibOptions(
-                "--profile \(stdlibProfile.rawValue) is not supported with --emit class or jar"
+                "--profile \(stdlibProfile.rawValue) is not supported with --emit class, jar, dex or apk"
             )
         }
 
@@ -316,13 +389,33 @@ enum CLIParser {
             }
         }
         if emitMode.isJVM, !explicitOutputPath {
-            outputPath = emitMode == .jvmClass ? "./classes" : (stdlibOnly ? "./kswiftk-stdlib.jar" : "./main.jar")
+            switch emitMode {
+            case .jvmClass: outputPath = "./classes"
+            case .dex: outputPath = "./classes.dex.jar"
+            case .apk: outputPath = "./app.apk"
+            default: outputPath = stdlibOnly ? "./kswiftk-stdlib.jar" : "./main.jar"
+            }
         }
         if !emitMode.isJVM, !jvmClasspath.isEmpty {
-            throw CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class or jar")
+            throw CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class, jar, dex or apk")
         }
         if explicitJVMTarget, !emitMode.isJVM {
-            throw CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class or jar")
+            throw CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class, jar, dex or apk")
+        }
+        let isAndroidEmit = emitMode == .dex || emitMode == .apk
+        if emitMode != .apk {
+            let apkOnly = explicitAndroidOptions.filter {
+                ["--manifest", "--android-res", "--android-assets",
+                 "--android-keystore", "--android-key-alias",
+                 "--android-store-pass", "--android-key-pass"].contains($0)
+            }
+            if let flag = apkOnly.sorted().first {
+                throw CLIParseError.androidPackagingRequiresAPK("\(flag) requires --emit apk")
+            }
+        }
+        if !isAndroidEmit, !explicitAndroidOptions.isEmpty {
+            let flag = explicitAndroidOptions.sorted().first ?? "--android-*"
+            throw CLIParseError.androidOptionsRequireDEXOrAPK("\(flag) requires --emit dex or apk")
         }
 
         return CompilerOptions(
@@ -349,7 +442,8 @@ enum CLIParser {
             entryPointFQName: entryPointFQName,
             jvmClasspath: jvmClasspath,
             jvmTarget: jvmTarget,
-            stdlibProfile: stdlibProfile
+            stdlibProfile: stdlibProfile,
+            android: android
         )
     }
 
@@ -377,6 +471,10 @@ enum CLIParser {
             .jvmClass
         case "jar":
             .jvmJar
+        case "dex":
+            .dex
+        case "apk":
+            .apk
         default:
             nil
         }

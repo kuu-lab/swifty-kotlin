@@ -215,13 +215,14 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            if access & 1 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
+            if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
                     parameters: signature.0, result: methodName == "<init>" ? .reference(name, nullable: false) : signature.1,
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
+                method.isProtected = access & 0x0004 != 0
                 if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }

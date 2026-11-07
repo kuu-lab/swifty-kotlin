@@ -101,7 +101,7 @@ public final class CodegenPhase: CompilerPhase {
                     functionLinkInfo: functionLinkInfo
                 )
 
-            case .kirDump, .jvmClass, .jvmJar:
+            case .kirDump, .jvmClass, .jvmJar, .dex, .apk:
                 return
             }
         } catch {

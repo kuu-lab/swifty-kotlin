@@ -21,8 +21,33 @@ final class JVMPreparationPhase: CompilerPhase {
             return
         }
         do {
-            let imports = try JVMClasspathIndex.load(o.jvmClasspath)
+            var classpath = o.jvmClasspath
+            var lazyPaths: Set<String> = []
+            if o.emit == .dex || o.emit == .apk {
+                // The Android framework resolves like any other classpath
+                // dependency so `android.*` types are visible to Sema. The
+                // same jar later serves as the d8 --lib bootclasspath. Its
+                // classes are injected lazily: only the subset reachable
+                // from user sources gets a Kotlin stub, since eagerly
+                // importing thousands of framework classes exhausts the
+                // symbol table.
+                let androidJar = try AndroidSDKLocator.androidJarPath(
+                    sdkPath: o.android.sdkPath,
+                    compileSdk: o.android.compileSdk
+                )
+                let standardized = URL(fileURLWithPath: androidJar).standardizedFileURL.path
+                lazyPaths.insert(standardized)
+                if !classpath.contains(where: {
+                    URL(fileURLWithPath: $0).standardizedFileURL.path == standardized
+                }) {
+                    classpath.append(androidJar)
+                }
+            }
+            let imports = try JVMClasspathIndex.load(classpath, lazilyInjecting: lazyPaths)
             ctx.jvmImports = imports
+        } catch let error as AndroidSDKError {
+            ctx.diagnostics.error("KSWIFTK-ANDROID-0001", error.description, range: nil)
+            return
         } catch {
             ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot read JVM classpath: \(error)", range: nil)
             return

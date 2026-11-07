@@ -101,8 +101,81 @@ public enum EmitMode: String, Sendable {
     case library
     case jvmClass
     case jvmJar
+    /// JVM bytecode packaged as DEX by the Android SDK `d8` tool. The output
+    /// is a ZIP archive containing `classes*.dex` entries.
+    case dex
+    /// Signed Android APK: DEX plus a manifest/resources packaged by `aapt2`,
+    /// aligned with `zipalign` and signed with `apksigner`.
+    case apk
 
-    public var isJVM: Bool { self == .jvmClass || self == .jvmJar }
+    /// Emit modes that run the JVM bytecode pipeline. `dex`/`apk` share the
+    /// JVM frontend and classfile emission, then post-process with the
+    /// Android SDK build-tools.
+    public var isJVM: Bool {
+        self == .jvmClass || self == .jvmJar || self == .dex || self == .apk
+    }
+}
+
+/// Android SDK toolchain and packaging options, used by `--emit dex` and
+/// `--emit apk`. All fields are optional; unset values fall back to SDK
+/// auto-detection and the tools' own defaults.
+public struct AndroidOptions: Equatable, Sendable {
+    /// Explicit Android SDK root (`--android-sdk`). When nil, `ANDROID_HOME`,
+    /// `ANDROID_SDK_ROOT`, and the platform default install location are tried.
+    public var sdkPath: String?
+    /// Build-tools version to use (`--android-build-tools`, e.g. "36.0.0").
+    /// When nil, the newest installed version is selected.
+    public var buildToolsVersion: String?
+    /// Android platform API directory to take `android.jar` from
+    /// (`--android-compile-sdk`, e.g. "36" or "37.0"). When nil, the newest
+    /// installed platform is selected.
+    public var compileSdk: String?
+    /// Minimum Android API level passed to `d8 --min-api` and `aapt2
+    /// --min-sdk-version` (`--android-min-api`).
+    public var minAPI: Int?
+    /// Path to `AndroidManifest.xml` (`--manifest`). Required for `apk`
+    /// unless one is found at a conventional location.
+    public var manifestPath: String?
+    /// Resource directory compiled by `aapt2 compile` (`--android-res`).
+    public var resourcePath: String?
+    /// Assets directory packaged by `aapt2 link -A` (`--android-assets`).
+    public var assetPath: String?
+    /// Signing keystore (`--android-keystore`). Defaults to the debug
+    /// keystore at `~/.android/debug.keystore`, which is generated with
+    /// `keytool` when missing.
+    public var keystorePath: String?
+    /// Key alias inside the keystore (`--android-key-alias`).
+    public var keyAlias: String?
+    /// Keystore password (`--android-store-pass`).
+    public var storePassword: String?
+    /// Key password (`--android-key-pass`). Falls back to `storePassword`.
+    public var keyPassword: String?
+
+    public init(
+        sdkPath: String? = nil,
+        buildToolsVersion: String? = nil,
+        compileSdk: String? = nil,
+        minAPI: Int? = nil,
+        manifestPath: String? = nil,
+        resourcePath: String? = nil,
+        assetPath: String? = nil,
+        keystorePath: String? = nil,
+        keyAlias: String? = nil,
+        storePassword: String? = nil,
+        keyPassword: String? = nil
+    ) {
+        self.sdkPath = sdkPath
+        self.buildToolsVersion = buildToolsVersion
+        self.compileSdk = compileSdk
+        self.minAPI = minAPI
+        self.manifestPath = manifestPath
+        self.resourcePath = resourcePath
+        self.assetPath = assetPath
+        self.keystorePath = keystorePath
+        self.keyAlias = keyAlias
+        self.storePassword = storePassword
+        self.keyPassword = keyPassword
+    }
 }
 
 public enum NameBasedDestructuringMode: String, Equatable {
@@ -170,6 +243,8 @@ public struct CompilerOptions: Equatable {
     public var jvmClasspath: [String]
     /// Target Java release for generated JVM classfiles.
     public var jvmTarget: JVMTarget
+    /// Android SDK toolchain options for `dex`/`apk` emission.
+    public var android: AndroidOptions
 
     /// `kswiftc --run`: execute the program right after compiling it, using the
     /// KIR interpreter when it covers the program (see `KIRInterpreter`).
@@ -274,7 +349,8 @@ public struct CompilerOptions: Equatable {
         entryPointFQName: String? = nil,
         jvmClasspath: [String] = [],
         jvmTarget: JVMTarget = .java8,
-        stdlibProfile: StdlibProfile = .full
+        stdlibProfile: StdlibProfile = .full,
+        android: AndroidOptions = AndroidOptions()
     ) {
         self.moduleName = moduleName
         self.inputs = inputs
@@ -310,6 +386,7 @@ public struct CompilerOptions: Equatable {
         self.jvmClasspath = jvmClasspath
         self.jvmTarget = jvmTarget
         self.stdlibProfile = stdlibProfile
+        self.android = android
     }
 
     /// Default search paths for locating Kotlin stdlib sources.

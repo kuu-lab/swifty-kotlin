@@ -37,6 +37,10 @@ func printCLIError(_ error: CLIParseError) {
         print("Unsupported stdlib profile: \(value) (expected full or minimal)")
     case .runRequiresExecutableEmit:
         print("--run cannot be combined with --emit other than executable")
+    case let .androidOptionsRequireDEXOrAPK(message):
+        print(message)
+    case let .androidPackagingRequiresAPK(message):
+        print(message)
     }
 }
 
