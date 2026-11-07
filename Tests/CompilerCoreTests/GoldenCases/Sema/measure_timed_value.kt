@@ -15,10 +15,10 @@ fun main() {
     println(result2.value)
     println(result2.duration.inWholeMilliseconds >= 0)
 
-    // KSP-1475 regression: a nullable-returning lambda must still see the
-    // top-level overload's declared `() -> Any?` parameter type. A same-named
-    // extension elsewhere (TimeSource.measureTimedValue<T>) must not narrow
-    // this unqualified call's expected type to non-null Any.
+    // KSP-1475 regression: a nullable-returning lambda must still infer the
+    // top-level overload's generic `() -> T` parameter type as T = String?.
+    // A same-named extension elsewhere (TimeSource.measureTimedValue<T>) must
+    // not narrow this unqualified call's expected type to non-null Any.
     val result3 = measureTimedValue {
         if (3 + 4 >= 0) "present" else null
     }
