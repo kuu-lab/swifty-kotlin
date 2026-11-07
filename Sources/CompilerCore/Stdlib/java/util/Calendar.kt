@@ -24,6 +24,33 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         calendarSetField(rawHandle, field, value)
     }
 
+    /** JDK `set(year, month, date)`: sets YEAR, MONTH and DAY_OF_MONTH. */
+    public fun set(year: Int, month: Int, dayOfMonth: Int) {
+        set(YEAR, year)
+        set(MONTH, month)
+        set(DATE, dayOfMonth)
+    }
+
+    /** JDK `set(year, month, date, hourOfDay, minute)`. */
+    public fun set(year: Int, month: Int, dayOfMonth: Int, hourOfDay: Int, minute: Int) {
+        set(year, month, dayOfMonth)
+        set(HOUR_OF_DAY, hourOfDay)
+        set(MINUTE, minute)
+    }
+
+    /** JDK `set(year, month, date, hourOfDay, minute, second)`. */
+    public fun set(
+        year: Int,
+        month: Int,
+        dayOfMonth: Int,
+        hourOfDay: Int,
+        minute: Int,
+        second: Int
+    ) {
+        set(year, month, dayOfMonth, hourOfDay, minute)
+        set(SECOND, second)
+    }
+
     public fun add(field: Int, amount: Int) {
         calendarAddField(rawHandle, field, amount)
     }
