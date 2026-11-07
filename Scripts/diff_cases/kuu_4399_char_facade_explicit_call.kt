@@ -8,4 +8,8 @@ fun main() {
     println(value?.code())
     println('a'.category())
     println('a'.directionality())
+    println('a'.code)
+    println(value?.code)
+    println('a'.category)
+    println(value?.directionality)
 }
