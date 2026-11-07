@@ -1173,35 +1173,79 @@ final class ControlFlowTypeChecker {
                       type != sema.types.errorType,
                       type != sema.types.nothingType,
                       siblingType != sema.types.errorType,
-                      siblingType != sema.types.nothingType,
-                      !sema.types.isSubtype(type, siblingType)
+                      siblingType != sema.types.nothingType
                 else { return }
                 var removedDiagnostics: [Diagnostic] = []
                 if let branchRange = ast.arena.exprRange(branchExpr) {
                     removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: branchRange)
                 }
-                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
-                var retryLocals = locals
-                driver.exprChecker.applyFlowStateToLocals(flowState, locals: &retryLocals, sema: sema)
-                let retried = driver.inferExpr(
-                    branchExpr,
-                    ctx: branchCtx,
-                    locals: &retryLocals,
-                    expectedType: siblingType,
-                    isStatementContext: isStatementContext
-                )
-                guard retried != sema.types.errorType,
-                      retried != type,
-                      sema.types.isSubtype(retried, siblingType)
-                else {
-                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                // A conforming branch can still carry inference errors:
+                // `listOf()` stays `List<out Nothing>` with SEMA-INFER when
+                // nothing pins its type argument, and that stuck type happens
+                // to be a subtype of a nullable sibling like `List<Int>?`.
+                // Retry whenever the branch does not conform to the sibling
+                // or it reported errors on the first pass (KUU-4481).
+                let conforms = sema.types.isSubtype(type, siblingType)
+                guard !conforms || !removedDiagnostics.isEmpty else { return }
+                // The sibling type itself can be unsatisfiable for the
+                // call's declared return nominal — `listOf()` can never
+                // produce a `MutableList<Int>`. The join of the branch's
+                // own first-pass type with the sibling type is the common
+                // nominal both can reach (`List<Int>`), matching the
+                // shared-constraint result kotlinc reports.
+                var expectedCandidates = [siblingType]
+                if !conforms {
+                    let bridged = sema.types.lub([type, siblingType])
+                    if bridged != sema.types.errorType, bridged != siblingType {
+                        expectedCandidates.append(bridged)
+                    }
+                }
+                var adopted = false
+                for expectedCandidate in expectedCandidates {
+                    let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
+                    var retryLocals = locals
+                    driver.exprChecker.applyFlowStateToLocals(flowState, locals: &retryLocals, sema: sema)
+                    let retried = driver.inferExpr(
+                        branchExpr,
+                        ctx: branchCtx,
+                        locals: &retryLocals,
+                        expectedType: expectedCandidate,
+                        isStatementContext: isStatementContext
+                    )
+                    // An expected type outside the call's own nominal can
+                    // coerce the retried result into an unrelated nominal
+                    // (`emptyList()` against `Set<Int>` yields `Set<out
+                    // Int>` with a residual SEMA-INFER): it conforms on
+                    // paper but keeps the call broken. Legitimate adoptions
+                    // either keep the first-pass nominal (`ArrayList<Any>`
+                    // → `ArrayList<W>`) or only widen to a supertype of the
+                    // first-pass type (`List<out Nothing>` → `Collection
+                    // <Int>`), so both must be rejected.
+                    let keepsOrWidensFirstPass: Bool = {
+                        if sema.types.isSubtype(type, retried) { return true }
+                        guard case let .classType(retriedClass) = sema.types.kind(of: retried),
+                              case let .classType(originalClass) = sema.types.kind(of: type)
+                        else { return true }
+                        return retriedClass.classSymbol == originalClass.classSymbol
+                    }()
+                    guard retried != sema.types.errorType,
+                          retried != type,
+                          keepsOrWidensFirstPass,
+                          sema.types.isSubtype(retried, expectedCandidate)
+                    else {
+                        ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                        continue
+                    }
+                    type = retried
+                    branchLocals = retryLocals
+                    adopted = true
+                    break
+                }
+                if !adopted {
                     for diagnostic in removedDiagnostics {
                         ctx.sema.diagnostics.emit(diagnostic)
                     }
-                    return
                 }
-                type = retried
-                branchLocals = retryLocals
             }
             retryUnderConstrainedBranch(
                 thenExpr, type: &thenType, branchLocals: &thenLocals,

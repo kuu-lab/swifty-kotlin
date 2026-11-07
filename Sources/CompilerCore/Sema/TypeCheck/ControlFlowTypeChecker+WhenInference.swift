@@ -73,18 +73,6 @@ extension ControlFlowTypeChecker {
                     return others.isEmpty ? siblingExpected : sema.types.lub(others)
                 }()
                 guard retryExpected != sema.types.errorType else { continue }
-                // A successfully inferred call branch can still leave its
-                // type arguments at the unconstrained default (`ArrayList()`
-                // → `ArrayList<Any>`) when nothing pinned them — under
-                // kotlinc's single constraint system the sibling types would
-                // have. The unspecialized result then forces the join into a
-                // use-site `out` projection (`MutableList<out W>`) whose
-                // `in`-position members become unusable (KUU-4472). Such a
-                // branch retries against the sibling join too, but is only
-                // adopted when the retried type actually conforms to it.
-                guard wasError || !sema.types.isSubtype(original, retryExpected) else {
-                    continue
-                }
                 // Drop the first pass's error diagnostics inside the branch
                 // range up front: re-inference re-emits the ones that stay
                 // genuine (e.g. an unrelated bad statement inside a block
@@ -92,37 +80,91 @@ extension ControlFlowTypeChecker {
                 // retry succeeds. Removing first also defeats the duplicate
                 // suppression that would otherwise hide the re-emission —
                 // the same restore pattern call-site reinference uses
-                // (KUU-3750).
+                // (KUU-3750). The removed set also marks branches whose
+                // inference reported errors even though their stuck type
+                // conforms — `listOf()` stays `List<out Nothing>` with
+                // SEMA-INFER when nothing pins its type argument (KUU-4481).
                 var removedDiagnostics: [Diagnostic] = []
                 if let bodyRange = ast.arena.exprRange(retry.body) {
                     removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: bodyRange)
                 }
-                let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
-                var retryLocals = retry.locals
-                var retried = driver.inferExpr(
-                    retry.body,
-                    ctx: retry.ctx,
-                    locals: &retryLocals,
-                    expectedType: retryExpected,
-                    isStatementContext: isStatementContext
-                )
-                if let companionType = driver.helpers.retypeBranchClassObjectValue(
-                    retry.body, currentType: retried, ast: ast, sema: sema
-                ) {
-                    retried = companionType
+                let conforms = !wasError && sema.types.isSubtype(original, retryExpected)
+                // A successfully inferred call branch can still leave its
+                // type arguments at the unconstrained default (`ArrayList()`
+                // → `ArrayList<Any>`) when nothing pinned them — under
+                // kotlinc's single constraint system the sibling types would
+                // have. The unspecialized result then forces the join into a
+                // use-site `out` projection (`MutableList<out W>`) whose
+                // `in`-position members become unusable (KUU-4472). Retry
+                // whenever the branch does not conform to the sibling join
+                // or it reported errors on the first pass; a retried result
+                // is adopted only when it actually conforms.
+                guard wasError || !conforms || !removedDiagnostics.isEmpty else {
+                    continue
                 }
-                let adopt = retried != sema.types.errorType
-                    && (wasError
-                        || (retried != original && sema.types.isSubtype(retried, retryExpected)))
-                guard adopt else {
-                    ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                // The sibling join itself can be unsatisfiable for the
+                // call's declared return nominal — `listOf()` can never
+                // produce a `MutableList<Int>`. Joining the branch's own
+                // first-pass type with the sibling join yields the common
+                // nominal both can reach (`List<Int>`), matching the
+                // shared-constraint result kotlinc reports.
+                var expectedCandidates = [retryExpected]
+                if !wasError, !conforms {
+                    let bridged = sema.types.lub([original, retryExpected])
+                    if bridged != sema.types.errorType, bridged != retryExpected {
+                        expectedCandidates.append(bridged)
+                    }
+                }
+                var adopted = false
+                for expectedCandidate in expectedCandidates {
+                    let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
+                    var retryLocals = retry.locals
+                    var retried = driver.inferExpr(
+                        retry.body,
+                        ctx: retry.ctx,
+                        locals: &retryLocals,
+                        expectedType: expectedCandidate,
+                        isStatementContext: isStatementContext
+                    )
+                    if let companionType = driver.helpers.retypeBranchClassObjectValue(
+                        retry.body, currentType: retried, ast: ast, sema: sema
+                    ) {
+                        retried = companionType
+                    }
+                    // An expected type outside the call's own nominal can
+                    // coerce the retried result into an unrelated nominal
+                    // (`emptyList()` against `Set<Int>` yields `Set<out
+                    // Int>` with a residual SEMA-INFER): it conforms on
+                    // paper but keeps the call broken. Legitimate adoptions
+                    // either keep the first-pass nominal (`ArrayList<Any>`
+                    // → `ArrayList<W>`) or only widen to a supertype of the
+                    // first-pass type (`List<out Nothing>` → `Collection
+                    // <Int>`), so both must be rejected.
+                    let keepsOrWidensFirstPass: Bool = {
+                        if sema.types.isSubtype(original, retried) { return true }
+                        guard case let .classType(retriedClass) = sema.types.kind(of: retried),
+                              case let .classType(originalClass) = sema.types.kind(of: original)
+                        else { return true }
+                        return retriedClass.classSymbol == originalClass.classSymbol
+                    }()
+                    let adopt = retried != sema.types.errorType
+                        && (wasError
+                            || (retried != original && keepsOrWidensFirstPass
+                                && sema.types.isSubtype(retried, expectedCandidate)))
+                    guard adopt else {
+                        ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                        continue
+                    }
+                    branchTypes[retry.index] = retried
+                    allBranchLocals[retry.index] = retryLocals
+                    adopted = true
+                    break
+                }
+                if !adopted {
                     for diagnostic in removedDiagnostics {
                         ctx.sema.diagnostics.emit(diagnostic)
                     }
-                    continue
                 }
-                branchTypes[retry.index] = retried
-                allBranchLocals[retry.index] = retryLocals
             }
         }
 
