@@ -483,7 +483,9 @@ extension KotlinParser {
             return true
         }
         switch keyword {
-        case .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import, .companion:
+        // `import` is only a directive at compilation-unit level; inside
+        // blocks it is an ordinary identifier (KUU-4363).
+        case .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .companion:
             return true
         default:
             return false
