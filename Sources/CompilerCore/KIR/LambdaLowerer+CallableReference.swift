@@ -896,6 +896,30 @@ extension LambdaLowerer {
             // reference: its wrapper forwards the captured extension receiver
             // before the explicit arguments.
             captureArguments.append(implicitReceiver)
+        } else if !isUnbound,
+                  let dispatchReceiverSymbol = callableReferenceBinding?.dispatchReceiverSymbol,
+                  sema.symbols.symbol(dispatchReceiverSymbol)?.kind == .object
+        {
+            // `import Owner.f` / `import Owner.Companion.f` binds the named
+            // singleton as the callable reference's receiver (KUU-4364). The
+            // reference has no syntax receiver to lower, so materialize the
+            // object instance here — without it the generated thunk calls the
+            // member with a missing receiver argument.
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: dispatchReceiverSymbol,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let receiverType = sema.types.make(.classType(ClassType(
+                classSymbol: dispatchReceiverSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: receiverType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(dispatchReceiverSymbol)))
+            captureArguments.append(receiver)
         }
 
         // BUG-B: a bare `::name` reference to a LOCAL function that itself

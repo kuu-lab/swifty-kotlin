@@ -130,6 +130,55 @@ extension ExprTypeChecker {
         return (companionType, candidates)
     }
 
+    /// A top-level extension on a companion object becomes a bare `::name`
+    /// target only through an explicit `import Owner.Companion.name` (or a
+    /// named companion's `import Owner.Factory.name`): kotlinc binds the
+    /// singleton companion as the receiver, so `::failure` has type
+    /// `(Throwable) -> Result<T>` rather than the unbound
+    /// `Result.Companion.(Throwable) -> Result<T>` form (KUU-4364). Wildcard
+    /// and class-elided imports do not qualify — kotlinc rejects both.
+    /// Returns the companion object symbol to bind as the dispatch receiver.
+    private func importedCompanionExtensionReceiverSymbol(
+        for candidate: SymbolID,
+        member: InternedString,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let file = ctx.currentASTFile,
+              let signature = sema.symbols.functionSignature(for: candidate),
+              let declaredReceiver = signature.receiverType,
+              driver.helpers.declaresExtensionReceiver(
+                  candidate, sema: sema, interner: interner
+              ),
+              let receiverSymbol = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(declaredReceiver),
+                  types: sema.types
+              )
+        else {
+            return nil
+        }
+        let companionSymbol = sema.symbols.actualSymbol(for: receiverSymbol) ?? receiverSymbol
+        guard let receiverInfo = ctx.cachedSymbol(companionSymbol),
+              receiverInfo.kind == .object,
+              let ownerClass = sema.symbols.parentSymbol(for: companionSymbol),
+              sema.symbols.companionObjectSymbol(for: ownerClass) == companionSymbol
+        else {
+            return nil
+        }
+        return file.imports.contains { importDecl in
+            guard !importDecl.isWildcard,
+                  (importDecl.alias ?? importDecl.path.last) == member,
+                  importDecl.path.count > 1,
+                  sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+                      .contains(companionSymbol)
+            else {
+                return false
+            }
+            return true
+        } ? companionSymbol : nil
+    }
+
     /// In value position a bare class name denotes its companion object, so
     /// `A::member` also carries a bound interpretation on the `A.Companion`
     /// singleton — the same candidate space `A.Companion::member` resolves.
@@ -1503,15 +1552,22 @@ extension ExprTypeChecker {
                     }
                     // A bare `::name` cannot reference an extension function —
                     // kotlinc reports `unresolved reference`; only `Type::ext`,
-                    // `obj::ext`, and the implicit-receiver bound form (handled
-                    // via `implicitMemberCandidates`) reach extensions.
+                    // `obj::ext`, the implicit-receiver bound form (handled
+                    // via `implicitMemberCandidates`), and a companion
+                    // extension reached through `import Owner.Companion.name`
+                    // (bound to the companion singleton, KUU-4364) qualify.
                     return symbol.kind == .constructor
                         || (symbol.kind == .function
-                            && !driver.helpers.declaresExtensionReceiver(
+                            && (!driver.helpers.declaresExtensionReceiver(
                                 symbolID,
                                 sema: sema,
                                 interner: interner
-                            ))
+                            )
+                                || importedCompanionExtensionReceiverSymbol(
+                                    for: symbolID,
+                                    member: member,
+                                    ctx: ctx
+                                ) != nil))
                 }
                 : localFunctionCandidates
             if candidates.isEmpty,
@@ -1751,11 +1807,24 @@ extension ExprTypeChecker {
         // lookup, which already selected its own receiver above.
         var importedObjectCallableReferenceReceiver: (symbol: SymbolID, type: TypeID)?
         if receiver == nil, !isImplicitlyBoundMember, !candidates.isEmpty {
-            let importedObjectReceivers = driver.callChecker.importedObjectDispatchReceiverOwners(
+            var importedObjectReceivers = driver.callChecker.importedObjectDispatchReceiverOwners(
                 named: member,
                 candidates: candidates,
                 ctx: ctx
             )
+            // Companion extensions imported via `Owner.Companion.name` bind
+            // the companion singleton the same way object-member imports do;
+            // their package-level parent keeps them out of the dispatch-owner
+            // lookup above (KUU-4364).
+            for candidate in candidates where importedObjectReceivers[candidate] == nil {
+                if let companion = importedCompanionExtensionReceiverSymbol(
+                    for: candidate,
+                    member: member,
+                    ctx: ctx
+                ) {
+                    importedObjectReceivers[candidate] = companion
+                }
+            }
             let receiverSymbols = Set(candidates.compactMap { importedObjectReceivers[$0] })
             if importedObjectReceivers.count == candidates.count,
                receiverSymbols.count == 1,
@@ -2527,6 +2596,20 @@ extension ExprTypeChecker {
                     requiresFunctionConversion: requiresFunctionConversion,
                     dispatchReceiverSymbol: importedObjectCallableReferenceReceiver?.symbol
                 )
+            }
+            // An imported singleton receiver must reach KIR lowering even
+            // when the reference needs no signature adaptation — otherwise
+            // the generated thunk calls the member without its receiver
+            // (KUU-4364).
+            if importedObjectCallableReferenceReceiver != nil,
+               sema.bindings.callableReferenceBinding(for: id) == nil
+            {
+                sema.bindings.bindCallableReference(id, binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: [],
+                    parameterMapping: [:],
+                    dispatchReceiverSymbol: importedObjectCallableReferenceReceiver?.symbol
+                ))
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
