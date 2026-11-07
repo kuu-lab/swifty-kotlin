@@ -354,5 +354,37 @@ struct GenericCallableReferenceInferenceTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors: \(errors)")
     }
+
+    @Test
+    func boundMemberReferenceInsideGenericClassKeepsOwnerTypeArguments() throws {
+        // KUU-4468: a bound reference to a member whose signature mentions the
+        // owner's type parameters substituted errorType for them when the
+        // receiver was the generic self type (`this: Outer<T>`), because the
+        // receiver constraint degenerated to `T <: T` with no concrete bound.
+        let ctx = makeContextFromSource("""
+        interface Observer<in T>
+        class Ser<E>(val cb: (E) -> Unit) {
+            fun onNext(e: E) = cb(e)
+        }
+        class Outer<T> {
+            private val ser = Ser(::onEvent)
+            fun subscribe(observer: Observer<T>, d: Int) {
+                ser.onNext(Ev.Sub(observer, d))
+            }
+            private fun onEvent(e: Ev<T>) {}
+            private sealed class Ev<out T> {
+                class Sub<T>(val observer: Observer<T>, val d: Int) : Ev<T>()
+            }
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors)")
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let ser = try #require(sema.symbols.lookup(fqName: ["Outer", "ser"].map(interner.intern)))
+        let serType = try #require(sema.symbols.propertyType(for: ser))
+        #expect(!sema.types.renderType(serType).contains("<error>"))
+    }
 }
 #endif

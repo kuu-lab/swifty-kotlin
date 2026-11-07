@@ -92,9 +92,15 @@ extension TypeCheckHelpers {
         {
             let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             let resolver = OverloadResolver()
+            // The receiver may itself be the generic self type (`this:
+            // Outer<T>`), so its arguments can mention the very symbols being
+            // solved. Keep them rigid: `T <: T` would otherwise collapse to a
+            // variable-variable constraint with no concrete bound and the
+            // solver would substitute errorType (KUU-4468).
             let constraints = resolver.decomposeSubtypeConstraint(
                 subtype: boundReceiver.receiverType, supertype: declaredReceiver,
-                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: nil
+                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: nil,
+                rigidSubtypeTypeParameters: Set(signature.typeParameterSymbols)
             )
             let solution = ConstraintSolver().solve(
                 vars: resolver.usedTypeVariables(from: constraints), constraints: constraints,
