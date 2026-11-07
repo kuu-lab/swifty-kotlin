@@ -400,7 +400,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticComparisonStubs.swift` | 157 | (b) | **完了・ファイル削除済み**（KSP-684）。トップレベル `maxWith`/`minWith` は `Stdlib/kotlin/comparisons/Comparisons.kt` へ移行し、残る比較ヘルパーは source-backed Comparator member と共有比較コアで管理する。 |
 | `HeaderHelpers+SyntheticCoroutineRegistry.swift` | 3552 | (c) | RF-STUB-005 consolidated coroutine package, ABI, and helper registry. |
 | `HeaderHelpers+SyntheticDeepRecursiveStubs.swift` | 324 | (b) | ~~Public stdlib surface; source migration before removal.~~ **完了・ファイル削除済み**（KSP-612, `Stdlib/kotlin/DeepRecursive.kt`）。 |
-| `HeaderHelpers+SyntheticDurationStubs.swift` | 1390 | (b) | M8 duration source migration; bridge-only `__kk_*` declarations may remain private. |
+| `HeaderHelpers+SyntheticDurationStubs.swift` | 93 | (c) | **KSP-1542 で (c) 昇格（2026-11-07）**: パースブリッジ（`__kk_duration_parse*`）4件を `Duration.kt` の `@KsSymbolName` 宣言へ移行し、Sema の合成トップレベル関数スタブを完全削除。残る `DurationUnit` enum / `Duration` class / Companion の nominal shell は `--no-stdlib` / metadata fallback 用の (c) アンカーとして残置。 |
 | `HeaderHelpers+SyntheticDynamicStubs.swift` | 101 | (a) | ~~Kotlin/JS `dynamic`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-106). |
 | `HeaderHelpers+SyntheticEnumStubs.swift` | 474 | (c) | Enum compiler surface. |
 | `HeaderHelpers+SyntheticExceptionStubs.swift` | 787 | (c) | Core exception shells required by diagnostics/lowering; RF-STUB-003 declarative residual registration started here. |

@@ -3,6 +3,7 @@ package kotlin.time
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.internal.KsSymbolName
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -478,6 +479,18 @@ public fun Double.toDuration(unit: DurationUnit): Duration =
 public val Duration.Companion.ZERO: Duration get() = Duration(0L)
 
 public val Duration.Companion.INFINITE: Duration get() = Duration(Long.MAX_VALUE)
+
+@KsSymbolName("kk_duration_parse")
+private external fun __kk_duration_parse(value: String): Long
+
+@KsSymbolName("kk_duration_parseOrNull")
+private external fun __kk_duration_parseOrNull(value: String): Long?
+
+@KsSymbolName("kk_duration_parseIsoString")
+private external fun __kk_duration_parseIsoString(value: String): Long
+
+@KsSymbolName("kk_duration_parseIsoStringOrNull")
+private external fun __kk_duration_parseIsoStringOrNull(value: String): Long?
 
 public fun Duration.Companion.parse(value: String): Duration = Duration(__kk_duration_parse(value))
 
