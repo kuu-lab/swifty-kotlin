@@ -53,6 +53,16 @@ internal external fun __kkSemaphoreTryAcquire(semaphore: Semaphore): Boolean
 
 public fun Semaphore(permits: Int): Semaphore = __kkSemaphoreCreate(permits)
 
+public fun Semaphore(permits: Int, acquiredPermits: Int): Semaphore {
+    require(permits > 0) { "Semaphore should have at least 1 permit, but had $permits" }
+    require(acquiredPermits >= 0 && acquiredPermits <= permits) {
+        "The number of acquired permits should be in 0..$permits"
+    }
+    val semaphore = __kkSemaphoreCreate(permits)
+    repeat(acquiredPermits) { semaphore.tryAcquire() }
+    return semaphore
+}
+
 public val Semaphore.availablePermits: Int
     get() = __kkSemaphoreAvailablePermits(this)
 
