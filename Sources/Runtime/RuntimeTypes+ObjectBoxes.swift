@@ -280,6 +280,11 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var throwableSuppressed: [Int]
     var throwableSuppressionEnabled: Bool
     var throwableWritableStackTrace: Bool
+    /// Set when an annotation instance is materialized through reflection
+    /// (`KClass.annotations` / `findAnnotation`); JVM renders such instances
+    /// with proxy-style quoted String/Char members while directly constructed
+    /// instances keep the bare kotlinc-style rendering.
+    var annotationReflectionMaterialized = false
 
     init(length: Int, classID: Int64) {
         self.classID = classID

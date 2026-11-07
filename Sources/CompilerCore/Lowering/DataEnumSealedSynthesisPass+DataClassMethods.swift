@@ -908,6 +908,28 @@ extension DataEnumSealedSynthesisPass {
             canThrow: false
         ))
 
+        // Annotation instances materialized through reflection
+        // (`KClass.annotations`, `findAnnotation`) carry a runtime flag set by
+        // their factory; the JVM renders String/Char members of such instances
+        // quoted while directly constructed instances stay bare. Query it once.
+        var annotationMaterializedFlag: KIRExprID?
+        var annotationMaterializedZero: KIRExprID?
+        if owner.kind == .annotationClass {
+            let selfRef = module.arena.appendExpr(.symbolRef(parameterSymbol), type: receiverType)
+            body.append(.constValue(result: selfRef, value: .symbolRef(parameterSymbol)))
+            let flag = module.arena.appendTemporary(type: intType)
+            body.append(.call(
+                callee: interner.intern("__kk_annotation_reflection_materialized"),
+                arguments: [selfRef],
+                result: flag,
+                canThrow: false
+            ))
+            let zero = module.arena.appendExpr(.intLiteral(0), type: intType)
+            body.append(.constValue(result: zero, value: .intLiteral(0)))
+            annotationMaterializedFlag = flag
+            annotationMaterializedZero = zero
+        }
+
         for (index, property) in properties.enumerated() {
             let propName = interner.resolve(property.name)
             let labelStr: String = index == 0 ? "\(propName)=" : ", \(propName)="
@@ -1183,12 +1205,68 @@ extension DataEnumSealedSynthesisPass {
                 }
             }
 
-            body.append(.call(
-                callee: interner.intern("__kk_string_builder_append_obj"),
-                arguments: [builderExpr, propStr],
-                result: builderExpr,
-                canThrow: false
-            ))
+            // JVM quotes String/Char-valued members of reflection-materialized
+            // annotation instances (`@A(v="x")`, `c='q'`); directly constructed
+            // instances and data classes keep the bare value.
+            let proxyQuote: InternedString? = {
+                guard owner.kind == .annotationClass,
+                      !propIsNullable,
+                      annotationMaterializedFlag != nil,
+                      annotationMaterializedZero != nil
+                else { return nil }
+                switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
+                case .stringStruct:
+                    return interner.intern("\"")
+                case .primitive(.char, _):
+                    return interner.intern("'")
+                default:
+                    return nil
+                }
+            }()
+            if let proxyQuote,
+               let materializedFlag = annotationMaterializedFlag,
+               let materializedZero = annotationMaterializedZero
+            {
+                let skipQuoteLabel = allocateLabel()
+                let endQuoteLabel = allocateLabel()
+                let quoteExpr = module.arena.appendTemporary(type: stringType)
+                body.append(.constValue(result: quoteExpr, value: .stringLiteral(proxyQuote)))
+                body.append(.jumpIfEqual(lhs: materializedFlag, rhs: materializedZero, target: skipQuoteLabel))
+                body.append(.call(
+                    callee: interner.intern("__kk_string_builder_append_obj"),
+                    arguments: [builderExpr, quoteExpr],
+                    result: builderExpr,
+                    canThrow: false
+                ))
+                body.append(.call(
+                    callee: interner.intern("__kk_string_builder_append_obj"),
+                    arguments: [builderExpr, propStr],
+                    result: builderExpr,
+                    canThrow: false
+                ))
+                body.append(.call(
+                    callee: interner.intern("__kk_string_builder_append_obj"),
+                    arguments: [builderExpr, quoteExpr],
+                    result: builderExpr,
+                    canThrow: false
+                ))
+                body.append(.jump(endQuoteLabel))
+                body.append(.label(skipQuoteLabel))
+                body.append(.call(
+                    callee: interner.intern("__kk_string_builder_append_obj"),
+                    arguments: [builderExpr, propStr],
+                    result: builderExpr,
+                    canThrow: false
+                ))
+                body.append(.label(endQuoteLabel))
+            } else {
+                body.append(.call(
+                    callee: interner.intern("__kk_string_builder_append_obj"),
+                    arguments: [builderExpr, propStr],
+                    result: builderExpr,
+                    canThrow: false
+                ))
+            }
         }
 
         let suffixStr = interner.intern(")")
