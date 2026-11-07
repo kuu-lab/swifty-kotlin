@@ -39,6 +39,26 @@ struct ASTContextFunctionTypeTests {
         #expect(rendered == "context(A, B) suspend (C, D) -> E")
     }
 
+    /// KUU-4365: Kotlin orders the modifiers `suspend context(R) () -> A`;
+    /// the canonical rendered form keeps context receivers first.
+    @Test
+    func testBuildASTParsesSuspendBeforeContextFunctionTypeAlias() throws {
+        let rendered = try renderedHandlerType(from: """
+        package demo
+        typealias Handler = suspend context(A, B) (C, D) -> E
+        """)
+        #expect(rendered == "context(A, B) suspend (C, D) -> E")
+    }
+
+    @Test
+    func testSuspendContextFunctionTypeParameterParses() throws {
+        let (_, ctx) = try buildASTModule(from: """
+        interface R
+        fun <A> f(block: suspend context(R) () -> A): A = TODO()
+        """, includeStdlib: false)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test
     func testBuildASTParsesContextReceiverFunctionTypeAlias() throws {
         let rendered = try renderedHandlerType(from: """
