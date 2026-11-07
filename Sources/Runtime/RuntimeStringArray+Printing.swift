@@ -133,6 +133,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
        let name = dispatcher.displayName {
         return name
     }
+    // KUU-4402: CoroutineName's Kotlin toString() is "CoroutineName(name)";
+    // the runtime box has no itable, so render it here.
+    if let nameBox = tryCast(raw, to: RuntimeCoroutineNameBox.self) {
+        return "CoroutineName(\(nameBox.name))"
+    }
     if runtimeIsUnitBox(value) {
         return "kotlin.Unit"
     }
@@ -241,6 +246,11 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let rendered = runtimeJobWrapperDebugString(value) {
         return rendered
+    }
+    // KUU-4402: composite coroutine contexts render like kotlinx's
+    // CombinedContext — `[elem, elem]` with the interceptor last.
+    if let context = tryCast(raw, to: RuntimeCoroutineContext.self) {
+        return runtimeCoroutineContextToString(context)
     }
     if let rendered = runtimeDefaultObjectIdentityToString(value) {
         return rendered

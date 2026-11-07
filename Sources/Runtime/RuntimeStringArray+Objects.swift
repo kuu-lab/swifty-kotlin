@@ -18,6 +18,7 @@ public func kk_object_new(_ length: Int, _ classId: Int) -> Int {
     runtimeStorage.withMetadataLock { state in
         state.objectTypeByPointer[key] = Int64(classId)
     }
+    runtimeNoteEmptyCoroutineContextClassID(classId, raw: Int(bitPattern: opaque))
     return Int(bitPattern: opaque)
 }
 
