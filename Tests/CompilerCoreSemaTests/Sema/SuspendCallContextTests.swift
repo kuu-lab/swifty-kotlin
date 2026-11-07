@@ -544,4 +544,41 @@ struct SuspendCallContextTests {
         #expect(!result.hasError, "\(result.diagnostics)")
     }
 
+    /// KUU-4475: `suspend { x: Int -> ... }` is a suspend function literal —
+    /// the declared parameter list shapes the `suspend (T) -> R` type, so it
+    /// must not be rejected for arity mismatch against the bundled arity-0
+    /// `kotlin.suspend` signature.
+    @Test
+    func suspendLiteralWithDeclaredParametersIsAccepted() throws {
+        let result = try diagnostics("""
+        fun takeS(f: suspend (Int) -> Int) {}
+        fun takeS2(f: suspend (Int, Int) -> Int) {}
+        fun main() {
+            val h = suspend { x: Int -> x + 1 }
+            val g: suspend (Int) -> Int = suspend { y: Int -> y * 3 }
+            val g3: suspend (Int, Int) -> Int = suspend { a: Int, b: Int -> a + b }
+            val implicit: suspend (Int) -> Int = suspend { it + 7 }
+            val z0 = suspend { 42 }
+            takeS(suspend { v: Int -> v + 2 })
+            takeS2(suspend { a: Int, b: Int -> a - b })
+            println(h)
+        }
+        """, includeStdlib: true)
+        #expect(!result.hasError, "\(result.diagnostics)")
+    }
+
+    /// KUU-4475: like kotlinc ("an explicit type is required on a value
+    /// parameter"), a suspend literal whose parameters lack type annotations
+    /// is rejected when no expected suspend function type supplies them.
+    @Test
+    func suspendLiteralWithUndeclaredParameterIsRejected() throws {
+        let result = try diagnostics("""
+        fun main() {
+            val bad = suspend { x -> x + 1 }
+            println(bad)
+        }
+        """, includeStdlib: true)
+        #expect(result.hasError, "\(result.diagnostics)")
+    }
+
 }

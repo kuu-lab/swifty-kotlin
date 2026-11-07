@@ -205,6 +205,19 @@ extension CallLowerer {
             return loweredSuspendIntrinsic
         }
 
+        if let loweredSuspendLiteral = lowerSuspendLambdaLiteralCallExpr(
+            exprID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return loweredSuspendLiteral
+        }
+
         if let loweredRepeat = lowerRepeatCallExpr(
             exprID,
             args: args,
