@@ -375,7 +375,15 @@ extension CallTypeChecker {
                 interner.intern("kotlin"), interner.intern("jvm"), interner.intern("java"),
             ] else { return false }
         case "code", "category", "directionality":
-            guard signature.receiverType == sema.types.charType else {
+            // The signature key alone cannot tell the facade apart from a
+            // user extension with the same name and receiver: both produce
+            // the same (owner, name, arity) member key. Pin the declaration
+            // to the `kotlin.text` package the stubs are registered under.
+            guard signature.receiverType == sema.types.charType,
+                  symbol.fqName == [
+                      interner.intern("kotlin"), interner.intern("text"), symbol.name,
+                  ]
+            else {
                 return false
             }
             allowsSyntheticStub = true

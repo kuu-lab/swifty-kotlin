@@ -698,6 +698,7 @@ extension CallLowerer {
             interner: interner,
             loweredReceiverID: loweredReceiverID,
             result: result,
+            chosenCallee: chosenCalleeForArgumentAdaptation,
             instructions: &instructions
         ) {
             return lowered

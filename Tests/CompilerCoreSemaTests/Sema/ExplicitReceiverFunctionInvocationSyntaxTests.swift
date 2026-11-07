@@ -222,6 +222,27 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func sameNamedCharExtensionCallBypassesCharCodeBridge() throws {
+        try withTemporaryFile(contents: """
+        fun Char.code(): Int = this.code + 10
+        fun main() {
+            println('a'.code())
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = body.compactMap { instruction -> String? in
+                if case let .call(_, callee, _, _, _, _, _, _) = instruction { return ctx.interner.resolve(callee) }
+                return nil
+            }
+            #expect(calls.filter { $0 == "kk_char_code" }.isEmpty)
+        }
+    }
+
+    @Test
     func localExtensionFunctionOnInterfaceReceiverIsInvocable() throws {
         // KUU-3023: a local extension declared inside a body resolves through
         // the lexical function-value path when invoked on an interface-typed
