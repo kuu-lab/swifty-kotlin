@@ -64,6 +64,38 @@ struct ExpectActualPlatformSupertypeCompatibilityTests {
         #expect(sema.symbols.actualSymbol(for: expectMissingImpl.id) == nil)
     }
 
+    // KUU-4178 / KUU-4373: an expect class may omit the supertype constructor
+    // arguments because the actual declaration provides the delegation —
+    // kotlinx's `UndispatchedCoroutine<in T> : ScopeCoroutine<T>` relies on it.
+    @Test
+    func testExpectClassMayOmitSupertypeConstructorArguments() throws {
+        let ctx = makeContextFromSourcesWithoutStdlib([
+            """
+            package test
+            internal abstract class ScopeCoroutine<in T>(val context: Int, val uCont: Int)
+            internal expect class UndispatchedCoroutine<in T>(
+                context: Int,
+                uCont: Int
+            ) : ScopeCoroutine<T>
+            """,
+            """
+            package test
+            internal actual class UndispatchedCoroutine<in T> actual constructor(
+                context: Int,
+                uCont: Int
+            ) : ScopeCoroutine<T>(context, uCont)
+            """,
+        ])
+
+        try runSema(ctx)
+
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expect class supertype constructor omission should be accepted: \(errors)"
+        )
+    }
+
     private func makeContextFromSourcesWithoutStdlib(_ sources: [String]) -> CompilationContext {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
