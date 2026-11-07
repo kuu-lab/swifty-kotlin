@@ -233,7 +233,11 @@ extension BuildASTPhase {
             var index = statementTokens.startIndex
             while index < statementTokens.endIndex {
                 let token = statementTokens[index]
-                if token.kind == .symbol(.assign), depth.isAtTopLevel {
+                // Angle depth cannot gate this scan: a `<` comparison nested in
+                // the LHS (e.g. `a[if (i < 0) 0 else i]`) has no matching `>`,
+                // so `isAtTopLevel` stays false through the real `=` and the
+                // assignment is never found (KUU-4458).
+                if token.kind == .symbol(.assign), depth.isBracketBraceParenTopLevel {
                     assignIndex = index
                     break
                 }
@@ -369,7 +373,7 @@ extension BuildASTPhase {
             // (which parse the real right-hand side) handle the statement.
             var assignScanDepth = BuildASTPhase.BracketDepth()
             for token in lhsTokens {
-                if assignScanDepth.isAtTopLevel {
+                if assignScanDepth.isBracketBraceParenTopLevel {
                     switch token.kind {
                     case .symbol(.assign),
                          .symbol(.plusAssign),
@@ -531,7 +535,9 @@ extension BuildASTPhase {
             var index = statementTokens.startIndex
             while index < statementTokens.endIndex {
                 let token = statementTokens[index]
-                for (kind, op) in compoundOps where token.kind == kind && depth.isAtTopLevel {
+                // See the plain-assignment scan above: a `<` comparison in the
+                // LHS must not hide a top-level compound-assign operator.
+                for (kind, op) in compoundOps where token.kind == kind && depth.isBracketBraceParenTopLevel {
                     foundIndex = index
                     foundOp = op
                     break
