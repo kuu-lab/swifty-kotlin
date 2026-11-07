@@ -337,6 +337,34 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func extensionPropertyNamedLikeCollectionFunctionIsAccepted() throws {
+        // KUU-4387: `var MutableList<Int>.last` shares its name with the
+        // bundled `last()` collection function. Property-access syntax must
+        // bind the property — the collection member-call fast path only
+        // models invocations and must not claim `recv.name` first.
+        let diagnostics = try compileAndCollectDiagnostics("""
+        var MutableList<Int>.last: Int
+            get() = this[size - 1]
+            set(v) { this[size - 1] = v }
+
+        val List<Int>.first: Int
+            get() = this[0]
+
+        fun main() {
+            val l = mutableListOf(1, 2, 3)
+            println(l.last)
+            l.last = 9
+            println(l)
+            println(l.first)
+            println(l.last())
+        }
+        """)
+
+        let errors = diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors for colliding extension property: \(errors)")
+    }
+
+    @Test
     func declaredPropertiesAreAccepted() throws {
         let diagnostics = try compileAndCollectDiagnostics("""
         class C { val p: Int = 3 }
