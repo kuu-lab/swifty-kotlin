@@ -45,6 +45,46 @@ extension ExprTypeChecker {
         ))
     }
 
+    /// A callable reference keeps its own function type, but an expected
+    /// function type can demand a different return ABI: `(P) -> Int` used as
+    /// `(P) -> Comparable<*>?` must box the primitive result for the erased
+    /// reference return (mirrors `functionValueBoxedReturnType` on the KIR
+    /// side). Returns true when the reference's value-type result needs
+    /// boxing for the expected return type.
+    private func callableReferenceReturnRequiresBoxing(
+        resultType: TypeID,
+        expectedFunctionType: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard case let .functionType(result) = sema.types.kind(of: resultType),
+              case let .functionType(expected) = sema.types.kind(of: expectedFunctionType),
+              result.isSuspend == expected.isSuspend
+        else {
+            return false
+        }
+        let isValueRepresentation = switch sema.types.kind(of: result.returnType) {
+        case .unit, .primitive(_, .nonNull), .stringStruct(.nonNull):
+            true
+        default:
+            false
+        }
+        guard isValueRepresentation else {
+            return false
+        }
+        let expectedKind = sema.types.kind(of: expected.returnType)
+        if case .typeParam = expectedKind {
+            return true
+        }
+        if sema.types.makeNonNullable(expected.returnType) == sema.types.anyType {
+            return true
+        }
+        guard case let .classType(classType) = expectedKind else {
+            return false
+        }
+        return !(classType.nullability == .nonNull
+            && sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass)
+    }
+
     /// Enum `valueOf` is exposed through the enum class name even though its
     /// synthetic declaration is owned by the companion object. Kotlin binds
     /// that singleton receiver implicitly for `EnumType::valueOf`.
@@ -2625,6 +2665,21 @@ extension ExprTypeChecker {
                 return function.isSuspend != signature.isSuspend
                     || (function.returnType == sema.types.unitType && signature.returnType != sema.types.unitType)
             }()
+            // KUU-1209: an expected function type can demand a boxed return
+            // ABI that the reference's own type does not provide
+            // (`(P) -> Int` used as `(P) -> Comparable<*>?`). Record the
+            // expected type so KIR materializes the value with the expected
+            // signature instead of the reference's narrower one.
+            if let expectedFunctionType,
+               expectedSamInterfaceType == nil,
+               callableReferenceReturnRequiresBoxing(
+                   resultType: resultType,
+                   expectedFunctionType: expectedFunctionType,
+                   sema: sema
+               )
+            {
+                sema.bindings.bindFunctionValueExpectedType(id, type: expectedFunctionType)
+            }
             if let contextualSpecialization,
                contextualSpecialization.requiresAdapter || !contextualSpecialization.typeArguments.isEmpty
                    || requiresFunctionConversion

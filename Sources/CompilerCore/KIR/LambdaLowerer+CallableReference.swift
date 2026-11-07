@@ -1652,6 +1652,13 @@ extension LambdaLowerer {
         // `FunctionN.invoke` (e.g. `call(f: Any)` / `f as Function1`) reaches
         // kk_function_invoke's flat-entry path and calls the synthetic lambda
         // with the wrong signature (KUU-3674).
+        let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)
+            .flatMap { typeID -> FunctionType? in
+                guard case let .functionType(expectedType) = sema.types.kind(of: typeID) else {
+                    return nil
+                }
+                return expectedType
+            }
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
            let materialized = materializeEscapingCallableValue(
@@ -1659,7 +1666,7 @@ extension LambdaLowerer {
                lambdaSymbol: callableSymbol,
                lambdaName: callableName,
                lambdaReturnType: functionType.returnType,
-               functionType: functionType,
+               functionType: functionValueType ?? functionType,
                captureArguments: captureArguments,
                sema: sema,
                arena: arena,
