@@ -70,8 +70,6 @@ public extension RuntimeABISpec {
         abi.th("kk_sequence_ifEmpty", "seqRaw fnPtr closureRaw outThrown"),
         abi.th("kk_sequence_first", "seqRaw outThrown"),
         abi.th("kk_sequence_firstOrNull", "seqRaw outThrown"),
-        abi.th("kk_sequence_random", "seqRaw outThrown"),
-        abi.th("kk_sequence_randomOrNull", "seqRaw outThrown"),
         abi.th("kk_sequence_last", "seqRaw outThrown"),
         abi.th("kk_sequence_lastOrNull", "seqRaw outThrown"),
         abi.th("kk_sequence_single", "seqRaw outThrown"),
