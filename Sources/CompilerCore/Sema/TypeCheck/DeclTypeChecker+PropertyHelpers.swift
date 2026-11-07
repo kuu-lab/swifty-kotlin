@@ -563,11 +563,24 @@ extension DeclTypeChecker {
                 implicitReceiverType: callReceiverType,
                 ctx: ctx.sema
             )
-            return PropertyDelegateFunctionResolution(
+            let resolution = PropertyDelegateFunctionResolution(
                 symbol: resolved.chosenCallee,
                 substitutedTypeArguments: resolved.substitutedTypeArguments,
                 diagnostic: resolved.diagnostic
             )
+            // `expectedType` doubles as the delegate-convention signature
+            // check: overload resolution treats it as a soft inference hint,
+            // so re-validate the chosen return type explicitly to keep
+            // rejecting getValue/setValue/provideDelegate candidates whose
+            // signature does not satisfy the property type.
+            if resolution.diagnostic == nil,
+               let expectedType,
+               let signature = self.resolvedDelegateCallSignature(for: resolution, sema: sema),
+               !sema.types.isSubtype(signature.returnType, expectedType)
+            {
+                return nil
+            }
+            return resolution
         }
 
         if let memberResolution = resolve(memberCandidates) {
