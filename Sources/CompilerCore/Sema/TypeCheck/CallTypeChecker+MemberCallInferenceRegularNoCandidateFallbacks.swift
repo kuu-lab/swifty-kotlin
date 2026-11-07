@@ -538,12 +538,6 @@ extension CallTypeChecker {
                             sema: sema
                         )
                     }
-                    switch calleeStr {
-                    case "toList", "toCharArray", "lines", "lineSequence":
-                        sema.bindings.markCollectionExpr(id)
-                    default:
-                        break
-                    }
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
@@ -681,715 +675,29 @@ extension CallTypeChecker {
                 }
             }
         }
-        let listCharType = makeSyntheticListType(
-            symbols: sema.symbols,
-            types: sema.types,
-            interner: interner,
-            elementType: sema.types.make(.primitive(.char, .nonNull))
-        )
-        let charArrayType = makeSyntheticNominalType(
-            symbols: sema.symbols,
-            types: sema.types,
-            interner: interner,
-            fqName: [interner.intern("kotlin"), interner.intern("CharArray")]
-        )
-        if args.isEmpty {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
-                let resultType: TypeID? = switch calleeStr {
-                case "trim":
-                    sema.types.stringType
-                case "trimIndent", "trimMargin":
-                    sema.types.stringType
-                case "lowercase", "uppercase":
-                    sema.types.stringType
-                case "isEmpty", "isNotEmpty", "isBlank", "isNotBlank":
-                    sema.types.booleanType
-                case "toInt":
-                    sema.types.intType
-                case "toIntOrNull":
-                    sema.types.make(.primitive(.int, .nullable))
-                case "toFloat":
-                    sema.types.make(.primitive(.float, .nonNull))
-                case "toFloatOrNull":
-                    sema.types.make(.primitive(.float, .nullable))
-                case "toDouble":
-                    sema.types.make(.primitive(.double, .nonNull))
-                case "toDoubleOrNull":
-                    sema.types.make(.primitive(.double, .nullable))
-                case "toBigDecimal":
-                    makeSyntheticNominalType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
-                    )
-                case "toBigDecimalOrNull":
-                    sema.types.makeNullable(makeSyntheticNominalType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
-                    ))
-                case "reversed", "trimStart", "trimEnd":
-                    sema.types.stringType
-                case "prependIndent", "replaceIndent", "replaceIndentByMargin":
-                    sema.types.stringType
-                case "toList":
-                    listCharType
-                case "toCharArray":
-                    charArrayType
-                case "toBoolean", "toBooleanStrict":
-                    sema.types.make(.primitive(.boolean, .nonNull))
-                case "toBooleanStrictOrNull":
-                    sema.types.make(.primitive(.boolean, .nullable))
-                case "toByte":
-                    sema.types.byteType
-                case "toShort":
-                    sema.types.shortType
-                case "toByteOrNull":
-                    sema.types.makeNullable(sema.types.byteType)
-                case "toShortOrNull":
-                    sema.types.makeNullable(sema.types.shortType)
-                case "first", "last", "single":
-                    sema.types.make(.primitive(.char, .nonNull))
-                case "firstOrNull", "lastOrNull", "singleOrNull":
-                    sema.types.make(.primitive(.char, .nullable))
-                case "lines":
-                    makeSyntheticListType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: sema.types.stringType
-                    )
-                case "lineSequence":
-                    makeSyntheticSequenceType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: sema.types.stringType
-                    )
-                case "asSequence":
-                    makeSyntheticSequenceType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: sema.types.make(.primitive(.char, .nonNull))
-                    )
-                default:
-                    nil
-                }
-                if let resultType {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-        // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled Kotlin source.
-        if args.count == 1 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(arg0Type, sema.types.stringType)
-            {
-                let resultType: TypeID? = switch calleeStr {
-                case "compareTo":
-                    sema.types.make(.primitive(.int, .nonNull))
-                case "substringBefore", "substringAfter", "substringBeforeLast", "substringAfterLast":
-                    sema.types.stringType
-                case "replaceAfter", "replaceAfterLast", "replaceBefore", "replaceBeforeLast":
-                    sema.types.stringType
-                case "prependIndent", "replaceIndent", "replaceIndentByMargin":
-                    sema.types.stringType
-                default:
-                    nil
-                }
-                if let resultType {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-        if args.count == 1 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               isJavaUtilLocaleType(arg0Type, sema: sema, interner: interner)
-            {
-                let resultType: TypeID? = switch calleeStr {
-                case "lowercase", "uppercase":
-                    sema.types.stringType
-                default:
-                    nil
-                }
-                if let resultType {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
-                let resultType: TypeID? = switch calleeStr {
-                case "normalize":
-                    sema.types.stringType
-                case "isNormalized":
-                    sema.types.booleanType
-                default:
-                    nil
-                }
-                if let resultType {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-        // KSP-404: 2-arg removeSurrounding(prefix, suffix) is bundled Kotlin source.
-        if args.count == 2 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            let arg1Type = sema.types.makeNonNullable(argTypes[1])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(arg0Type, sema.types.stringType),
-               sema.types.isSubtype(arg1Type, sema.types.stringType),
-               calleeStr == "replaceIndentByMargin"
-            {
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
-                }
-                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
-        if args.count == 1 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(arg0Type, sema.types.intType)
-            {
-                let resultType: TypeID? = switch calleeStr {
-                case "repeat", "drop", "take", "takeLast", "dropLast":
-                    sema.types.stringType
-                case "toInt":
-                    sema.types.intType
-                case "toUByteOrNull":
-                    sema.types.makeNullable(sema.types.ubyteType)
-                case "toUShortOrNull":
-                    sema.types.makeNullable(sema.types.ushortType)
-                case "toUIntOrNull":
-                    sema.types.makeNullable(sema.types.uintType)
-                case "toULongOrNull":
-                    sema.types.makeNullable(sema.types.ulongType)
-                case "get":
-                    sema.types.make(.primitive(.char, .nonNull))
-                default:
-                    nil
-                }
-                if let resultType {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-        // KSP-406: substring is bundled Kotlin source (StringSubstringSlice.kt).
-        // KSP-413: equals(other, ignoreCase) is bundled Kotlin source.
-        if calleeStr == "equals" {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
-                if args.count == 1,
-                   sema.types.isSubtype(argTypes[0], nullableStringType)
-                {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(sema.types.booleanType) : sema.types.booleanType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-        // KSP-413: 2-arg compareTo(String, Boolean) is bundled Kotlin source
-        // (STDLIB-141 fallback removed).
-        if args.count == 2, calleeStr == "replaceFirst" {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let oldType = sema.types.makeNonNullable(argTypes[0])
-            let newType = sema.types.makeNonNullable(argTypes[1])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(oldType, sema.types.stringType),
-               sema.types.isSubtype(newType, sema.types.stringType)
-            {
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
-                }
-                let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
-        // KSP-406: replaceRange/removeRange are bundled Kotlin source (StringSubstringSlice.kt).
         let stringHOFReceiverType = safeCall
             ? sema.types.makeNonNullable(lookupReceiverType)
             : lookupReceiverType
-        if let boundType = tryBindStringWindowedTransform(
-            id,
-            calleeName: calleeName,
-            receiverType: stringHOFReceiverType,
-            args: args,
-            safeCall: safeCall,
-            ast: ast,
-            ctx: ctx,
-            locals: &locals,
-            explicitTypeArgs: explicitTypeArgs
-        ) {
+        if sema.types.isSubtype(stringHOFReceiverType, sema.types.stringType),
+           let boundType = tryBindSyntheticStringMemberFallback(
+               id,
+               calleeName: calleeName,
+               receiverType: stringHOFReceiverType,
+               args: args,
+               argTypes: argTypes,
+               range: range,
+               ctx: ctx,
+               expectedType: expectedType,
+               explicitTypeArgs: explicitTypeArgs,
+               safeCall: safeCall
+           )
+        {
             return boundType
         }
 
-        // KSP-1403: CharSequence.substring(Int, Int) and substring(IntRange)
-        // are bundled Kotlin source overloads. Route their source-backed
-        // declarations before the legacy String-only two-argument fallback.
-        if let boundType = tryBindSyntheticStringSubstringFallback(
-            id,
-            calleeName: calleeName,
-            receiverType: stringHOFReceiverType,
-            args: args,
-            argTypes: argTypes,
-            range: range,
-            ctx: ctx,
-            expectedType: expectedType,
-            explicitTypeArgs: explicitTypeArgs,
-            safeCall: safeCall
-        ) {
-            return boundType
-        }
-
-        if args.count == 1 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let isStringHOFReceiver = sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType)
-                || ((calleeStr == "ifBlank" || calleeStr == "ifEmpty" || calleeStr == "zipWithNext" || calleeStr == "sumBy" || calleeStr == "sumByDouble")
-                    && isSyntheticStringLikeType(receiverTypeForCheck, sema: sema))
-            if isStringHOFReceiver,
-               [
-                   "filter", "map", "count", "any", "all", "none",
-                   "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
-                   "takeWhile", "dropWhile", "find", "findLast",
-                   "trim", "trimStart", "trimEnd",
-                   "zipWithNext",
-                   "partition",
-                   "ifBlank",
-                   "ifEmpty",
-                   "firstNotNullOf",
-                   "firstNotNullOfOrNull",
-                   "reduceRightIndexed",
-                   "reduceRightIndexedOrNull",
-                   "reduceRightOrNull",
-                   "reduceOrNull",
-                   "sumBy",
-                   "sumByDouble",
-               ].contains(calleeStr)
-            {
-                let charType = sema.types.make(.primitive(.char, .nonNull))
-                let intType = sema.types.intType
-                if calleeStr != "zipWithNext" {
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                    let lambdaParamTypes: [TypeID] = switch calleeStr {
-                    case "mapIndexed", "filterIndexed":
-                        [intType, charType]
-                    case "reduceRightIndexed", "reduceRightIndexedOrNull":
-                        [intType, charType, charType]
-                    case "reduceRightOrNull", "reduceOrNull":
-                        [charType, charType]
-                    case "zipWithNext":
-                        [charType, charType]
-                    case "ifBlank", "ifEmpty":
-                        []
-                    default:
-                        [charType]
-                    }
-                    let lambdaReturnType: TypeID = switch calleeStr {
-                    case "map", "mapIndexed":
-                        sema.types.anyType
-                    case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull":
-                        sema.types.nullableAnyType
-                    case "reduceRightIndexed", "reduceRightIndexedOrNull":
-                        charType
-                    case "reduceRightOrNull", "reduceOrNull":
-                        charType
-                    case "zipWithNext":
-                        sema.types.anyType
-                    case "ifBlank", "ifEmpty":
-                        sema.types.stringType
-                    case "sumBy":
-                        sema.types.intType
-                    case "sumByDouble":
-                        sema.types.doubleType
-                    default:
-                        sema.types.booleanType
-                    }
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: lambdaParamTypes,
-                        returnType: lambdaReturnType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                }
-                if calleeStr == "zipWithNext" {
-                    // Re-run inference with the transform overload so the result type
-                    // comes from the lambda body rather than the placeholder `Any`.
-                    guard explicitTypeArgs.count <= 1 else {
-                        sema.bindings.bindExprType(id, type: sema.types.anyType)
-                        return sema.types.anyType
-                    }
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [charType, charType],
-                        returnType: resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs) ?? sema.types.anyType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                        ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
-                    if let chosen = sema.symbols.lookupAll(fqName: [
-                        interner.intern("kotlin"),
-                        interner.intern("text"),
-                        calleeName,
-                    ]).first(where: { candidate in
-                        isSyntheticStringMemberCandidate(
-                            candidate,
-                            named: calleeName,
-                            receiverType: receiverTypeForCheck,
-                            sema: sema,
-                            interner: interner
-                        )
-                            && (sema.symbols.functionSignature(for: candidate)?.parameterTypes.count ?? Int.max) == args.count
-                    }) {
-                        sema.bindings.bindCall(
-                            id,
-                            binding: CallBinding(
-                                chosenCallee: chosen,
-                                substitutedTypeArguments: [bodyType],
-                                parameterMapping: [0: 0]
-                            )
-                        )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                    }
-                    let resultType = makeSyntheticListType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: bodyType
-                    )
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-                if calleeStr == "firstNotNullOf" {
-                    guard explicitTypeArgs.count <= 1 else {
-                        sema.bindings.bindExprType(id, type: sema.types.anyType)
-                        return sema.types.anyType
-                    }
-                    let lambdaExpectedReturn = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs).map { sema.types.makeNullable($0) }
-                        ?? sema.types.nullableAnyType
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [charType],
-                        returnType: lambdaExpectedReturn,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                        ?? sema.types.makeNonNullable(inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema))
-                    if let chosen = sema.symbols.lookupAll(fqName: [
-                        interner.intern("kotlin"),
-                        interner.intern("text"),
-                        calleeName,
-                    ]).first(where: { candidate in
-                        isSyntheticStringMemberCandidate(
-                            candidate,
-                            named: calleeName,
-                            receiverType: receiverTypeForCheck,
-                            sema: sema,
-                            interner: interner
-                        )
-                            && (sema.symbols.functionSignature(for: candidate)?.parameterTypes.count ?? Int.max) == args.count
-                    }) {
-                        sema.bindings.bindCall(
-                            id,
-                            binding: CallBinding(
-                                chosenCallee: chosen,
-                                substitutedTypeArguments: [bodyType],
-                                parameterMapping: [0: 0]
-                            )
-                        )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(bodyType) : bodyType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-                if calleeStr == "firstNotNullOfOrNull" {
-                    guard explicitTypeArgs.count <= 1 else {
-                        sema.bindings.bindExprType(id, type: sema.types.nullableAnyType)
-                        return sema.types.nullableAnyType
-                    }
-                    let lambdaExpectedReturn = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs).map { sema.types.makeNullable($0) }
-                        ?? sema.types.nullableAnyType
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [charType],
-                        returnType: lambdaExpectedReturn,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs)
-                        ?? sema.types.makeNonNullable(inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema))
-                    if let chosen = sema.symbols.lookupAll(fqName: [
-                        interner.intern("kotlin"),
-                        interner.intern("text"),
-                        calleeName,
-                    ]).first(where: { candidate in
-                        isSyntheticStringMemberCandidate(
-                            candidate,
-                            named: calleeName,
-                            receiverType: receiverTypeForCheck,
-                            sema: sema,
-                            interner: interner
-                        )
-                            && (sema.symbols.functionSignature(for: candidate)?.parameterTypes.count ?? Int.max) == args.count
-                    }) {
-                        sema.bindings.bindCall(
-                            id,
-                            binding: CallBinding(
-                                chosenCallee: chosen,
-                                substitutedTypeArguments: [bodyType],
-                                parameterMapping: [0: 0]
-                            )
-                        )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                    }
-                    let resultType = sema.types.makeNullable(bodyType)
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-                bindSyntheticStringMemberDirectlyIfAvailable(
-                    id,
-                    calleeName: calleeName,
-                    argumentCount: args.count,
-                    receiverType: receiverTypeForCheck,
-                    sema: sema,
-                    interner: interner
-                )
-                let pairStringStringType: TypeID = {
-                    let pairFQName: [InternedString] = [
-                        interner.intern("kotlin"),
-                        interner.intern("Pair"),
-                    ]
-                    guard let pairSymbol = sema.symbols.lookup(fqName: pairFQName) else {
-                        return sema.types.anyType
-                    }
-                    return sema.types.make(.classType(ClassType(
-                        classSymbol: pairSymbol,
-                        args: [.out(sema.types.stringType), .out(sema.types.stringType)],
-                        nullability: .nonNull
-                    )))
-                }()
-                let resultType: TypeID = switch calleeStr {
-                case "filter": sema.types.stringType
-                case "map": sema.types.anyType
-                case "mapIndexed", "mapNotNull": sema.types.anyType
-                case "count": sema.types.intType
-                case "any", "all", "none": sema.types.booleanType
-                case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
-                case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
-                case "partition": pairStringStringType
-                case "ifBlank", "ifEmpty": sema.types.stringType
-                case "reduceRightIndexed": charType
-                case "reduceRightIndexedOrNull": sema.types.make(.primitive(.char, .nullable))
-                case "reduceRightOrNull", "reduceOrNull": sema.types.make(.primitive(.char, .nullable))
-                case "sumBy": sema.types.intType
-                case "sumByDouble": sema.types.doubleType
-                default: sema.types.anyType
-                }
-                // For "partition", skip the fallback resolver (which may fail due to
-                // lambda argType mismatch) and bind the synthetic symbol directly.
-                if calleeStr == "partition" {
-                    bindSyntheticStringMemberDirectlyIfAvailable(
-                        id,
-                        calleeName: calleeName,
-                        argumentCount: args.count,
-                        receiverType: receiverTypeForCheck,
-                        sema: sema,
-                        interner: interner
-                    )
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
-                }
-                switch calleeStr {
-                case "map":
-                    sema.bindings.markCollectionExpr(id)
-                default:
-                    break
-                }
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
-        if args.count == 2, calleeStr == "replace" {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
+        let knownNames = KnownCompilerNames(interner: interner)
+        if args.count == 2, calleeName == knownNames.replace {
+            let receiverTypeForCheck = stringHOFReceiverType
             let oldType = argTypes[0]
             let newType = argTypes[1]
             // This is a compatibility fallback for older stdlib artifacts that
@@ -1409,75 +717,7 @@ extension CallTypeChecker {
                 return finalType
             }
         }
-        if args.count == 2 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            let arg1Type = sema.types.makeNonNullable(argTypes[1])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(arg0Type, sema.types.stringType),
-               isJavaUtilLocaleType(arg1Type, sema: sema, interner: interner),
-               calleeStr == "compareTo"
-            {
-                if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
-                    receiverType: receiverTypeForCheck,
-                    args: args,
-                    argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
-                ) {
-                    return boundType
-                }
-                let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            }
-        }
-        if args.count == 2 {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
-                : lookupReceiverType
-            let startType = sema.types.makeNonNullable(argTypes[0])
-            let arg1Type = sema.types.makeNonNullable(argTypes[1])
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-               sema.types.isSubtype(startType, sema.types.intType)
-            {
-                let resultType: TypeID? = switch calleeStr {
-                case "indexOf" where sema.types.isSubtype(arg1Type, sema.types.intType):
-                    sema.types.intType
-                case "substring" where sema.types.isSubtype(arg1Type, sema.types.intType):
-                    sema.types.stringType
-                default:
-                    nil
-                }
-                if let resultType {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        return boundType
-                    }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
-        }
-        if calleeName == interner.intern("format"), !hasLeadingLocaleArgument {
+        if calleeName == knownNames.format, !hasLeadingLocaleArgument {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
@@ -1588,17 +828,16 @@ extension CallTypeChecker {
         }
         // Allow flow chain calls only when receiver provenance is known as Flow.
         if !isClassNameReceiver, isFlowReceiver {
-            let memberName = calleeStr
             if KnownCompilerNames(interner: interner).flowChainMemberNames.contains(calleeName) {
-                let acceptsArity = memberName == "single" ? args.isEmpty : args.count == 1
-                if memberName == "single", acceptsArity {
+                let acceptsArity = calleeName == knownNames.single ? args.isEmpty : args.count == 1
+                if calleeName == knownNames.single, acceptsArity {
                     let resultType = safeCall ? sema.types.makeNullable(flowElementType) : flowElementType
                     sema.bindings.bindExprType(id, type: resultType)
                     return resultType
                 }
                 if acceptsArity,
-                   memberName == "map" || memberName == "filter" || memberName == "collect" ||
-                   memberName == "catch" || memberName == "retryWhen"
+                   calleeName == knownNames.mapMember || calleeName == knownNames.filter || calleeName == knownNames.collect ||
+                   calleeName == knownNames.catchName || calleeName == knownNames.retryWhen
                 {
                     let expectsLambdaTypeConstraint = switch ast.arena.expr(args[0].expr) {
                     case .callableRef:
@@ -1606,30 +845,24 @@ extension CallTypeChecker {
                     default:
                         true
                     }
-                    let lambdaReturnType: TypeID = switch memberName {
-                    case "filter":
-                        sema.types.make(.primitive(.boolean, .nonNull))
-                    case "collect":
-                        sema.types.unitType
-                    case "catch":
-                        sema.types.unitType
-                    case "retryWhen":
+                    let lambdaReturnType: TypeID = if calleeName == knownNames.filter || calleeName == knownNames.retryWhen {
                         sema.types.booleanType
-                    default:
+                    } else if calleeName == knownNames.collect || calleeName == knownNames.catchName {
+                        sema.types.unitType
+                    } else {
                         sema.types.anyType
                     }
-                    let lambdaParameterTypes: [TypeID] = switch memberName {
-                    case "catch":
+                    let lambdaParameterTypes: [TypeID] = if calleeName == knownNames.catchName {
                         [sema.types.anyType]
-                    case "retryWhen":
+                    } else if calleeName == knownNames.retryWhen {
                         [sema.types.anyType, sema.types.longType]
-                    default:
+                    } else {
                         [flowElementType]
                     }
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: lambdaParameterTypes,
                         returnType: lambdaReturnType,
-                        isSuspend: memberName == "collect",
+                        isSuspend: calleeName == knownNames.collect,
                         nullability: .nonNull
                     )))
                     if expectsLambdaTypeConstraint {
@@ -1640,28 +873,26 @@ extension CallTypeChecker {
                 }
 
                 if acceptsArity {
-                    if memberName == "map" || memberName == "filter" || memberName == "take" ||
-                        memberName == "catch" || memberName == "retry" || memberName == "retryWhen"
+                    if calleeName == knownNames.mapMember || calleeName == knownNames.filter || calleeName == knownNames.take ||
+                        calleeName == knownNames.catchName || calleeName == knownNames.retry || calleeName == knownNames.retryWhen
                     {
                         sema.bindings.markFlowExpr(id)
-                        let resultElementType: TypeID = switch memberName {
-                        case "map":
+                        let resultElementType: TypeID
+                        if calleeName == knownNames.mapMember {
                             if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
                                let mappedType = sema.bindings.exprType(for: bodyExpr)
                             {
-                                mappedType
+                                resultElementType = mappedType
                             } else {
-                                sema.types.anyType
+                                resultElementType = sema.types.anyType
                             }
-                        case "filter", "take", "catch", "retry", "retryWhen":
-                            flowElementType
-                        default:
-                            sema.types.anyType
+                        } else {
+                            resultElementType = flowElementType
                         }
                         sema.bindings.bindFlowElementType(resultElementType, forExpr: id)
                     }
                     let resultType: TypeID
-                    if memberName == "collect" {
+                    if calleeName == knownNames.collect {
                         resultType = sema.types.unitType
                     } else {
                         let resultElement = sema.bindings.flowElementType(forExpr: id) ?? flowElementType
@@ -1679,30 +910,23 @@ extension CallTypeChecker {
         let isCoroutineHandleReceiver = ReceiverClassifier(sema: sema, interner: interner)
             .isCoroutineHandleReceiverType(lookupReceiverType)
         if !isClassNameReceiver, args.isEmpty, isCoroutineHandleReceiver {
-            let memberName = calleeStr
-            switch memberName {
-            case "cancel":
+            if calleeName == knownNames.cancel || calleeName == knownNames.join {
                 let resultType = sema.types.unitType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
-            case "join":
-                let resultType = sema.types.unitType
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
-                return finalType
-            case "await":
+            }
+            if calleeName == knownNames.awaitName {
                 let resultType = deferredAwaitResultType(receiverID: receiverID, fallback: sema.types.nullableAnyType, ast: ast, sema: sema)
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
-            case "isActive", "isCompleted", "isCancelled", "isClosedForReceive", "isClosedForSend":
+            }
+            if knownNames.coroutineHandleBoolProperties.contains(calleeName) {
                 let resultType = sema.types.booleanType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
-            default:
-                break
             }
         }
         if ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
