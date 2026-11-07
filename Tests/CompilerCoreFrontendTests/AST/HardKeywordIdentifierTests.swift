@@ -36,6 +36,44 @@ struct HardKeywordIdentifierTests {
         }
     }
 
+    /// KUU-4363: `import` is a hard keyword token, but Kotlin only treats it
+    /// as a directive at compilation-unit level. Inside blocks it remains a
+    /// legal simple identifier — kotlinc accepts it as a local name, a
+    /// value-parameter name and a lambda parameter.
+    @Test
+    func importIsLegalIdentifierInsideBlocks() throws {
+        let source = """
+        fun apply(f: (Int) -> Int, v: Int): Int = f(v)
+        fun named(import: Int): Int = import + 1
+        fun main(): Int {
+            val import = 20
+            val g: (Int) -> Int = { import -> import + 1 }
+            return import + named(import) + apply({ x -> x * 2 }, 3) + g(1)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let context = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(context)
+
+            #expect(!context.diagnostics.hasError, "Expected 'import' to stay usable as an identifier inside blocks: \(context.diagnostics.diagnostics)")
+        }
+    }
+
+    /// KUU-4363 guard: removing `import` from the declaration-start keywords
+    /// must not break real import directives at file top level.
+    @Test
+    func topLevelImportRemainsAnImportDirective() throws {
+        let (ast, ctx) = try buildASTModule(from: """
+        import kotlin.collections.listOf
+        fun main() = 0
+        """, includeStdlib: false)
+
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        let file = try #require(ast.files.first)
+        #expect(file.imports.count == 1)
+        #expect(file.topLevelDecls.count == 1)
+    }
+
     @Test
     func backtickedHardKeywordsRemainLegalVariableNames() throws {
         let source = """
