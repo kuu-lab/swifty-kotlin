@@ -64,9 +64,10 @@ struct DestinationHOFRequiredLambdaTests {
             #expect(errors.count == 1, "Expected exactly one rejection for \(call), got \(errors)")
             // SEMA-0002 when same-named overloads exist but none accepts the
             // arity; SEMA-0024 when the name does not exist on the receiver
-            // at all (e.g. mapKeysTo on List — kotlinc: unresolved reference).
+            // at all (e.g. mapKeysTo on List — kotlinc: unresolved reference);
+            // SEMA-0480 reports the missing parameter directly (KUU-4168).
             #expect(
-                ["KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0024"].contains(errors.first?.code),
+                ["KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0024", "KSWIFTK-SEMA-0480"].contains(errors.first?.code),
                 "Expected a compile-time rejection for \(call), got \(errors)"
             )
         }
@@ -89,7 +90,7 @@ struct DestinationHOFRequiredLambdaTests {
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
             #expect(!errors.isEmpty, "Expected bad-arity destination calls to be rejected")
             #expect(
-                errors.contains { ["KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0024"].contains($0.code) },
+                errors.contains { ["KSWIFTK-SEMA-0002", "KSWIFTK-SEMA-0024", "KSWIFTK-SEMA-0480"].contains($0.code) },
                 "Expected an overload rejection, got \(errors)"
             )
         }
@@ -98,18 +99,26 @@ struct DestinationHOFRequiredLambdaTests {
     /// The arity gate must not swallow legitimate calls: two-argument
     /// destination HOFs still bind, and `filterNotNullTo` (a real one-argument
     /// destination HOF outside `destinationCollectionHOFs`) keeps working.
+    /// KUU-4392: argument-less destination factories (`mutableListOf()`,
+    /// `mutableMapOf()`, `mutableSetOf()`, `ArrayDeque()`) must infer their
+    /// element types from the enclosing `C`/`M` bound like kotlinc.
     @Test
     func wellFormedDestinationCallsStillTypeCheck() throws {
         let source = """
-        fun probe(l: List<Int>, ln: List<Int?>, m: Map<Int, String>) {
+        fun probe(l: List<Int>, ln: List<Int?>, m: Map<Int, String>, sq: Sequence<Int?>) {
             l.filterTo(mutableListOf()) { it > 0 }
             l.filterNotTo(mutableListOf()) { it > 0 }
             l.filterIndexedTo(mutableListOf()) { index, _ -> index > 0 }
             l.mapTo(mutableListOf()) { it }
+            l.flatMapTo(mutableListOf()) { listOf(it) }
             l.associateTo(mutableMapOf()) { it to it }
             m.filterTo(mutableMapOf()) { it.key > 0 }
+            m.filterNotTo(mutableMapOf()) { it.key > 0 }
             m.mapKeysTo(mutableMapOf()) { it.key }
             ln.filterNotNullTo(mutableListOf())
+            ln.filterNotNullTo(mutableSetOf())
+            ln.filterNotNullTo(ArrayDeque())
+            sq.filterNotNullTo(mutableListOf())
         }
         """
         try withTemporaryFile(contents: source) { path in
