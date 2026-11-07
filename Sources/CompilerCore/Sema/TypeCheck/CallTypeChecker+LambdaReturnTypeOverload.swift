@@ -1678,7 +1678,6 @@ extension CallTypeChecker {
         sema: SemaModule
     ) -> TypeID? {
         guard let callResultType,
-              sema.types.makeNonNullable(callResultType) == callResultType,
               candidates.count == 1,
               let signature = sema.symbols.functionSignature(for: candidates[0]),
               sema.types.makeNonNullable(signature.returnType) == signature.returnType,
