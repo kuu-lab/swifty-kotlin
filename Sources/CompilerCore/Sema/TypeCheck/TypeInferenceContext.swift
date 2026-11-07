@@ -880,22 +880,33 @@ struct TypeInferenceContext: CustomStringConvertible {
         return (fileLevelMatches, inheritedInterfaces)
     }
 
-    /// A source declaration shadows an imported-library declaration at the
-    /// same FQ name — e.g. upstream `kotlinx.io`/`kotlinx.coroutines` sources
-    /// vendored over the bundled stdlib copy. Callables shadow when their
-    /// erased signatures match; nominal classifiers shadow on a same-kind,
-    /// same-FQ-name pair. Keeping both as candidates merges two declarations
-    /// that must behave as one: type references already prefer the source
-    /// nominal (`sourceFirstThenID` in Helpers.swift), so an imported twin
-    /// left in expression position binds enum entries and qualifier members
-    /// of the library-side type while signatures expect the source type —
-    /// the split surfaces as initializer mismatches and "no viable overload"
-    /// errors (KUU-4274).
+    /// A source declaration shadows a bundled declaration at the same FQ
+    /// name — an imported-library twin (e.g. upstream `kotlinx.io`/
+    /// `kotlinx.coroutines` sources vendored over the bundled stdlib copy) or
+    /// a synthetic stand-in such as the coroutine launcher stubs. Callables
+    /// shadow when their erased signatures match; nominal classifiers shadow
+    /// on a same-kind, same-FQ-name pair. Keeping both as candidates merges
+    /// two declarations that must behave as one: type references already
+    /// prefer the source nominal (`sourceFirstThenID` in Helpers.swift), so
+    /// a bundled twin left in expression position binds enum entries and
+    /// qualifier members of the library-side type while signatures expect
+    /// the source type — the split surfaces as initializer mismatches and
+    /// "no viable overload" errors (KUU-4274).
     func isImportedSymbolShadowedBySource(_ id: SymbolID) -> Bool {
-        guard let symbol = cachedSymbol(id),
-              symbol.flags.contains(.importedLibrary)
-        else {
+        guard let symbol = cachedSymbol(id) else {
             return false
+        }
+        // A synthetic stand-in yields only to a genuine source declaration:
+        // another synthetic at the same FQName is a distinct stub, not the
+        // declaration it stands in for (KUU-4240).
+        let isSyntheticStandIn = symbol.flags.contains(.synthetic)
+            && !symbol.flags.contains(.importedLibrary)
+        guard symbol.flags.contains(.importedLibrary) || isSyntheticStandIn else {
+            return false
+        }
+        func isSourceShadower(_ otherSymbol: SemanticSymbol) -> Bool {
+            !otherSymbol.flags.contains(.importedLibrary)
+                && !(isSyntheticStandIn && otherSymbol.flags.contains(.synthetic))
         }
         switch symbol.kind {
         case .function, .constructor:
@@ -905,7 +916,7 @@ struct TypeInferenceContext: CustomStringConvertible {
             return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
                 guard other != id,
                       let otherSymbol = cachedSymbol(other),
-                      !otherSymbol.flags.contains(.importedLibrary),
+                      isSourceShadower(otherSymbol),
                       otherSymbol.kind == symbol.kind,
                       let otherSignature = sema.symbols.functionSignature(for: other)
                 else {
@@ -917,7 +928,7 @@ struct TypeInferenceContext: CustomStringConvertible {
             return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
                 guard other != id,
                       let otherSymbol = cachedSymbol(other),
-                      !otherSymbol.flags.contains(.importedLibrary),
+                      isSourceShadower(otherSymbol),
                       otherSymbol.kind == symbol.kind
                 else {
                     return false

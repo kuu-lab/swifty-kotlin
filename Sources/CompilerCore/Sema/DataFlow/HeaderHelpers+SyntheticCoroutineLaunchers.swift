@@ -230,6 +230,7 @@ extension DataFlowSemaPhase {
             packageFQName: coroutinesPkg,
             parameters: [],
             returnType: types.unitType,
+            isSuspend: true,
             symbols: symbols,
             interner: interner
         )

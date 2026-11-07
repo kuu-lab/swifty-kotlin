@@ -129,5 +129,33 @@ extension CompilerCoreTests {
 
         assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
     }
+
+    /// KUU-4240: the synthetic coroutine launcher stubs register
+    /// `kotlinx.coroutines.yield()` alongside vendored-source declarations of
+    /// the same FQName and erased signature, so `yield()` inside
+    /// `flowScope`/`launch`/`collect` nesting reports KSWIFTK-SEMA-0003
+    /// (Combine.kt:30). The source declaration must shadow the synthetic
+    /// stand-in while a differently-shaped source overload keeps coexisting.
+    @Test func testCoroutinesSourceYieldShadowsSyntheticStub() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        package kotlinx.coroutines
+
+        suspend fun yield(): Unit {
+        }
+
+        suspend fun yield(unused: Int): Unit {
+        }
+
+        suspend fun probe() {
+            yield()
+            yield(1)
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-0003", in: ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+    }
 }
 #endif
