@@ -48,7 +48,7 @@ private func runTimeoutBlock(
     // Protect setup as well as the queued callback from a concurrent test reset.
     let callerResetLease = RuntimeGCResetWorkLease()
     defer { callerResetLease.finish() }
-    let scopeHandle = kk_coroutine_scope_new()
+    let scopeHandle = kk_coroutine_scope_new_detached()
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
         UnsafeMutableRawPointer(bitPattern: scopeHandle)!
     ).takeUnretainedValue()
