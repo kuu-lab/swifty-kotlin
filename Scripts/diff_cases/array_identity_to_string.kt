@@ -28,11 +28,10 @@ fun main() {
     checkIdentity(shortArrayOf(1, 2), "[1, 2]")
     checkIdentity(intArrayOf(1, 2), "[1, 2]")
     checkIdentity(longArrayOf(1L, 2L), "[1, 2]")
-    // KSwiftK deliberately renders floating-point array contents (KUU-1048).
-    println(floatArrayOf(1.0f, -0.0f).contentToString())
-    println(doubleArrayOf(1.0, -0.0).contentToString())
     checkIdentity(charArrayOf('a', 'b'), "[a, b]")
     checkIdentity(IntArray(0), "[]")
+    checkIdentity(floatArrayOf(1.0f, -0.0f), "[1.0, -0.0]")
+    checkIdentity(doubleArrayOf(1.0, -0.0), "[1.0, -0.0]")
 
     val primitives = intArrayOf(1, 2)
     val mixed: Array<Any?> = arrayOf(first, primitives, null, "x")

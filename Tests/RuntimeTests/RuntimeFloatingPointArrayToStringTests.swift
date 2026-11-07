@@ -4,30 +4,43 @@ import Testing
 
 @Suite(.runtimeIsolation(.gcAndMetadata))
 struct RuntimeFloatingPointArrayToStringTests {
+    // KUU-4436: DoubleArray/FloatArray do not override Any.toString() on the
+    // JVM, so every Any-context render spells the `[D@hash`/`[F@hash`
+    // identity. Element-list rendering belongs to contentToString /
+    // contentDeepToString, which keep their own paths.
+
     @Test
-    func doubleArrayRendersValuesInsteadOfBits() {
+    func doubleArrayRendersIdentityAcrossAnyContexts() {
         let values: [Double] = [1.0, 2.5, -0.5, 0.0, -0.0, .nan, .infinity, -.infinity, .leastNonzeroMagnitude]
         let array = makeArray(values.map { Int(bitPattern: UInt($0.bitPattern)) }, type: "kotlin.DoubleArray")
-        expectRendering(array, "[1.0, 2.5, -0.5, 0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]")
-        expectRendering(__kk_array_copyOf(array), "[1.0, 2.5, -0.5, 0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]")
+        expectRendering(array, runtimeArrayIdentityToString(array))
+        let copy = __kk_array_copyOf(array)
+        expectRendering(copy, runtimeArrayIdentityToString(copy))
+        #expect(extractString(from: __kk_array_contentDeepToString(array)) == "[1.0, 2.5, -0.5, 0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]")
     }
 
     @Test
-    func floatArrayRendersValuesInsteadOfBits() {
+    func floatArrayRendersIdentityAcrossAnyContexts() {
         let values: [Float] = [1.0, 2.5, -0.5, 0.0, -0.0, .nan, .infinity, -.infinity, .leastNonzeroMagnitude]
         let array = makeArray(values.map { Int($0.bitPattern) }, type: "kotlin.FloatArray")
-        expectRendering(array, "[1.0, 2.5, -0.5, 0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]")
-        expectRendering(__kk_array_copyOf(array), "[1.0, 2.5, -0.5, 0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]")
+        expectRendering(array, runtimeArrayIdentityToString(array))
+        let copy = __kk_array_copyOf(array)
+        expectRendering(copy, runtimeArrayIdentityToString(copy))
+        #expect(extractString(from: __kk_array_contentDeepToString(array)) == "[1.0, 2.5, -0.5, 0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]")
     }
 
     @Test(arguments: ["kotlin.DoubleArray", "kotlin.FloatArray"])
-    func emptyAndZeroInitializedArraysRenderValues(type: String) {
-        expectRendering(makeArray([], type: type), "[]")
-        expectRendering(makeArray([0, 0], type: type), "[0.0, 0.0]")
+    func emptyAndZeroInitializedArraysRenderIdentity(type: String) {
+        let empty = makeArray([], type: type)
+        expectRendering(empty, runtimeArrayIdentityToString(empty))
+        #expect(extractString(from: __kk_array_contentDeepToString(empty)) == "[]")
+        let zeros = makeArray([0, 0], type: type)
+        expectRendering(zeros, runtimeArrayIdentityToString(zeros))
+        #expect(extractString(from: __kk_array_contentDeepToString(zeros)) == "[0.0, 0.0]")
     }
 
     @Test
-    func nestedArraysAndCollectionsRenderFloatingPointElements() {
+    func nestedArraysAndCollectionsRenderFloatingPointElementsByIdentity() {
         let doubles = makeArray([Int(bitPattern: UInt(Double(1.0).bitPattern))], type: "kotlin.DoubleArray")
         let floats = makeArray([Int(Float(2.5).bitPattern)], type: "kotlin.FloatArray")
         let nested = makeArray([doubles, floats], type: "kotlin.Array")
@@ -35,15 +48,16 @@ struct RuntimeFloatingPointArrayToStringTests {
         #expect(extractString(from: __kk_array_contentDeepToString(nested)) == "[[1.0], [2.5]]")
 
         let list = registerRuntimeObject(RuntimeListBox(elements: [doubles, floats]))
-        expectRendering(list, "[[1.0], [2.5]]")
+        expectRendering(
+            list,
+            "[\(runtimeArrayIdentityToString(doubles)), \(runtimeArrayIdentityToString(floats))]"
+        )
     }
 
     @Test
-    func integerArraysAreNotReinterpretedAsFloatingPoint() throws {
+    func integerArraysAreNotReinterpretedAsFloatingPoint() {
         for type in ["kotlin.IntArray", "kotlin.LongArray", "kotlin.Array"] {
             let array = makeArray([1065353216, -1], type: type)
-            let box = try #require(runtimeArrayBox(from: array))
-            #expect(runtimeFloatingPointArrayToString(array, box: box) == nil)
             expectRendering(array, runtimeArrayIdentityToString(array))
         }
     }
