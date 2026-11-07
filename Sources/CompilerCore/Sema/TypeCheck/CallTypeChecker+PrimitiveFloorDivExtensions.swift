@@ -6,29 +6,28 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx, sema = request.sema, interner = request.interner
-        let receiver = sema.types.makeNonNullable(lookupReceiverType)
-        guard case .primitive = sema.types.kind(of: receiver) else { return false }
+        let receiver = request.sema.types.makeNonNullable(lookupReceiverType)
+        guard case .primitive = request.sema.types.kind(of: receiver) else { return false }
         let candidates = collectExtensionCallCandidates(
             named: request.calleeName,
             memberLookupType: lookupReceiverType,
             isSuperCall: false,
             supertypeSymbols: [],
-            ctx: ctx,
+            ctx: request.ctx,
             locals: locals,
-            sema: sema,
-            interner: interner,
+            sema: request.sema,
+            interner: request.interner,
             callShapeMatches: {
                 self.extensionCandidateMatchesCallShape(
                     $0, request: request, argumentTypes: argTypes, receiverType: lookupReceiverType
                 )
             },
-            requiresInfix: ctx.ast.arena.isInfixCall(request.id)
+            requiresInfix: request.ctx.ast.arena.isInfixCall(request.id)
         )
         return candidates.contains { candidate in
-            guard let symbol = sema.symbols.symbol(candidate),
-                  ctx.visibilityChecker.isAccessible(
-                      symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol
+            guard let symbol = request.sema.symbols.symbol(candidate),
+                  request.ctx.visibilityChecker.isAccessible(
+                      symbol, fromFile: request.ctx.currentFileID, enclosingClass: request.ctx.enclosingClassSymbol
                   ),
                   extensionCandidateMatchesCallShape(
                       candidate, request: request, argumentTypes: argTypes, receiverType: lookupReceiverType
@@ -37,7 +36,7 @@ extension CallTypeChecker {
             if let file = symbol.declSite?.start.file, let origin = driver.sourceManager?.origin(of: file) {
                 return origin == .user
             }
-            return symbol.fqName.first != interner.intern("kotlin")
+            return symbol.fqName.first != request.interner.intern("kotlin")
         }
     }
 }

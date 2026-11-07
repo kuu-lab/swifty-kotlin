@@ -14,66 +14,62 @@ extension CallTypeChecker {
         callableReferenceFunctionType: TypeID?,
         locals: LocalBindings
     ) -> TypeID? {
-        let id = request.id, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let expectedType = request.expectedType, safeCall = request.safeCall
-        let ast = request.ast, sema = request.sema, interner = request.interner
         let extensionPropertyReceiverType = callableReferenceFunctionType ?? memberLookupType
         let entryMemberProperty: (symbol: SymbolID, type: TypeID)? = {
-            guard case let .thisRef(label?, _) = ast.arena.expr(request.receiverID),
-                  let entrySymbol = ctx.enumEntryReceiverSymbol(forQualifiedThisLabel: label)
+            guard case let .thisRef(label?, _) = request.ast.arena.expr(request.receiverID),
+                  let entrySymbol = request.ctx.enumEntryReceiverSymbol(forQualifiedThisLabel: label)
             else {
                 return nil
             }
             return driver.helpers.lookupEnumEntryMemberProperty(
-                named: calleeName,
+                named: request.calleeName,
                 entrySymbol: entrySymbol,
                 receiverType: memberLookupType,
-                sema: sema
+                sema: request.sema
             )
         }()
         let memberProperty = entryMemberProperty ?? driver.helpers.lookupMemberProperty(
-            named: calleeName,
+            named: request.calleeName,
             receiverType: memberLookupType,
-            sema: sema
+            sema: request.sema
         )
 
         if !isClassNameReceiver,
-           args.isEmpty,
-           !ast.arena.isExplicitCall(id),
+           request.args.isEmpty,
+           !request.ast.arena.isExplicitCall(request.id),
            memberProperty == nil,
-           let sourceFile = ctx.currentASTFile,
+           let sourceFile = request.ctx.currentASTFile,
            let preferredSourcePackage = preferredBundledStdlibPackage(
                sourceFile: sourceFile,
-               candidates: sema.symbols.lookupByShortName(calleeName),
+               candidates: request.sema.symbols.lookupByShortName(request.calleeName),
                receiverType: extensionPropertyReceiverType,
-               sema: sema
+               sema: request.sema
            ),
            let extensionPropertyType = resolveExtensionPropertyGetter(
-               id: id,
-               calleeName: calleeName,
-               range: range,
+               id: request.id,
+               calleeName: request.calleeName,
+               range: request.range,
                receiverType: extensionPropertyReceiverType,
-               expectedType: expectedType,
-               ctx: ctx,
+               expectedType: request.expectedType,
+               ctx: request.ctx,
                preferredSourcePackage: preferredSourcePackage
            )
         {
-            let finalType = safeCall ? sema.types.makeNullable(extensionPropertyType) : extensionPropertyType
-            sema.bindings.bindExprType(id, type: finalType)
+            let finalType = request.safeCall ? request.sema.types.makeNullable(extensionPropertyType) : extensionPropertyType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
         if !isClassNameReceiver,
-           args.isEmpty,
-           !ast.arena.isExplicitCall(id),
+           request.args.isEmpty,
+           !request.ast.arena.isExplicitCall(request.id),
            let boundPropResult = isSuperCall
                ? driver.helpers.lookupMemberProperty(
-                   named: calleeName,
+                   named: request.calleeName,
                    // Property reads are resolved from the receiver's static type.
                    // In particular, `super.p` must select the direct superclass
                    // declaration instead of the most-derived override.
                    receiverType: lookupReceiverType,
-                   sema: sema
+                   sema: request.sema
                )
                : memberProperty
         {
@@ -86,89 +82,89 @@ extension CallTypeChecker {
                 driver.resolveInferredPropertyType(for: propResult.symbol)
                 if !driver.pendingPropertyTypes.contains(propResult.symbol),
                    let refreshed = driver.helpers.lookupMemberProperty(
-                       named: calleeName,
+                       named: request.calleeName,
                        receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
-                       sema: sema
+                       sema: request.sema
                    )
                 {
                     propResult = refreshed
                 }
             }
-            if let propSymbol = sema.symbols.symbol(propResult.symbol),
-               !ctx.visibilityChecker.isAccessible(
+            if let propSymbol = request.sema.symbols.symbol(propResult.symbol),
+               !request.ctx.visibilityChecker.isAccessible(
                    propSymbol,
-                   fromFile: ctx.currentFileID,
-                   enclosingClass: ctx.enclosingClassSymbol
+                   fromFile: request.ctx.currentFileID,
+                   enclosingClass: request.ctx.enclosingClassSymbol
                )
             {
                 driver.helpers.emitVisibilityError(
                     for: propSymbol,
-                    name: interner.resolve(calleeName),
-                    range: range,
-                    diagnostics: ctx.sema.diagnostics
+                    name: request.interner.resolve(request.calleeName),
+                    range: request.range,
+                    diagnostics: request.ctx.sema.diagnostics
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
-            if !safeCall, !isSuperCall,
-               sema.types.nullability(of: lookupReceiverType) == .nullable
+            if !request.safeCall, !isSuperCall,
+               request.sema.types.nullability(of: lookupReceiverType) == .nullable
             {
-                sema.diagnostics.error(
+                request.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0026",
                     "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                    range: range
+                    range: request.range
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
             driver.helpers.checkDeprecation(
                 for: propResult.symbol,
-                sema: sema,
-                interner: interner,
-                range: range,
-                diagnostics: sema.diagnostics
+                sema: request.sema,
+                interner: request.interner,
+                range: request.range,
+                diagnostics: request.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: propResult.symbol,
-                ctx: ctx,
-                range: range,
-                diagnostics: sema.diagnostics
+                ctx: request.ctx,
+                range: request.range,
+                diagnostics: request.sema.diagnostics
             )
-            sema.bindings.bindIdentifier(id, symbol: propResult.symbol)
-            sema.bindings.bindExprType(id, type: propResult.type)
+            request.sema.bindings.bindIdentifier(request.id, symbol: propResult.symbol)
+            request.sema.bindings.bindExprType(request.id, type: propResult.type)
             bindMemberContextPropertyGetterCall(
-                id,
+                request.id,
                 propertySymbol: propResult.symbol,
                 memberLookupType: memberLookupType,
-                ctx: ctx
+                ctx: request.ctx
             )
-            let narrowedType: TypeID? = if let reference = ctx.dataFlow.resolveStableReference(
-                id, locals: locals, ast: ast, sema: sema, interner: interner
+            let narrowedType: TypeID? = if let reference = request.ctx.dataFlow.resolveStableReference(
+                request.id, locals: locals, ast: request.ast, sema: request.sema, interner: request.interner
             ), reference.isStable {
-                ctx.dataFlow.resolvedTypeFromFlowState(
-                    ctx.flowState.includingMembers(from: locals), reference: reference.symbol,
-                    types: sema.types
+                request.ctx.dataFlow.resolvedTypeFromFlowState(
+                    request.ctx.flowState.includingMembers(from: locals), reference: reference.symbol,
+                    types: request.sema.types
                 )
             } else {
                 nil
             }
             let propertyType = narrowedType ?? propResult.type
-            let finalType = safeCall ? sema.types.makeNullable(propertyType) : propertyType
-            sema.bindings.bindExprType(id, type: finalType)
+            let finalType = request.safeCall ? request.sema.types.makeNullable(propertyType) : propertyType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
         if !isClassNameReceiver,
-           args.isEmpty,
-           !ast.arena.isExplicitCall(id),
+           request.args.isEmpty,
+           !request.ast.arena.isExplicitCall(request.id),
            let extensionPropertyType = resolveExtensionPropertyGetter(
-               id: id,
-               calleeName: calleeName,
-               range: range,
+               id: request.id,
+               calleeName: request.calleeName,
+               range: request.range,
                receiverType: extensionPropertyReceiverType,
-               expectedType: expectedType,
-               ctx: ctx
+               expectedType: request.expectedType,
+               ctx: request.ctx
            )
         {
-            let finalType = safeCall ? sema.types.makeNullable(extensionPropertyType) : extensionPropertyType
-            sema.bindings.bindExprType(id, type: finalType)
+            let finalType = request.safeCall ? request.sema.types.makeNullable(extensionPropertyType) : extensionPropertyType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
         // Bundled property-style facades (the synthetic Char stubs and the
@@ -178,23 +174,23 @@ extension CallTypeChecker {
         // function of the same name must not shadow them (KUU-4389).
         if !isClassNameReceiver,
            !isSuperCall,
-           args.isEmpty,
-           !ast.arena.isExplicitCall(id),
-           let facade = sema.symbols.lookupByShortName(calleeName).first(where: { candidate in
-               guard isBundledPropertyStyleFacadeFunction(candidate, ctx: ctx),
-                     let signature = sema.symbols.functionSignature(for: candidate),
+           request.args.isEmpty,
+           !request.ast.arena.isExplicitCall(request.id),
+           let facade = request.sema.symbols.lookupByShortName(request.calleeName).first(where: { candidate in
+               guard isBundledPropertyStyleFacadeFunction(candidate, ctx: request.ctx),
+                     let signature = request.sema.symbols.functionSignature(for: candidate),
                      signature.typeParameterSymbols.isEmpty,
                      let facadeReceiver = signature.receiverType,
                      extensionSyntheticFallbackReceiverMatches(
                          callSiteReceiver: extensionPropertyReceiverType,
                          declaredReceiver: facadeReceiver,
-                         sema: sema
+                         sema: request.sema
                      ),
-                     let facadeSymbol = sema.symbols.symbol(candidate),
-                     ctx.visibilityChecker.isAccessible(
+                     let facadeSymbol = request.sema.symbols.symbol(candidate),
+                     request.ctx.visibilityChecker.isAccessible(
                          facadeSymbol,
-                         fromFile: ctx.currentFileID,
-                         enclosingClass: ctx.enclosingClassSymbol
+                         fromFile: request.ctx.currentFileID,
+                         enclosingClass: request.ctx.enclosingClassSymbol
                      )
                else { return false }
                return true
@@ -202,16 +198,16 @@ extension CallTypeChecker {
         {
             driver.helpers.checkDeprecation(
                 for: facade,
-                sema: sema,
-                interner: interner,
-                range: range,
-                diagnostics: sema.diagnostics
+                sema: request.sema,
+                interner: request.interner,
+                range: request.range,
+                diagnostics: request.sema.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: facade,
-                ctx: ctx,
-                range: range,
-                diagnostics: sema.diagnostics
+                ctx: request.ctx,
+                range: request.range,
+                diagnostics: request.sema.diagnostics
             )
             let resolved = ResolvedCall(
                 chosenCallee: facade,
@@ -219,9 +215,9 @@ extension CallTypeChecker {
                 parameterMapping: [:],
                 diagnostic: nil
             )
-            let resultType = bindCallAndResolveReturnType(id, chosen: facade, resolved: resolved, sema: sema)
-            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-            sema.bindings.bindExprType(id, type: finalType)
+            let resultType = bindCallAndResolveReturnType(request.id, chosen: facade, resolved: resolved, sema: request.sema)
+            let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
 
@@ -241,26 +237,21 @@ extension CallTypeChecker {
         allCandidates: inout [SymbolID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let knownNames = KnownCompilerNames(interner: interner)
 
-        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let receiverClassifier = ReceiverClassifier(sema: request.sema, interner: request.interner)
         let isChannelReceiver = receiverClassifier.isChannelReceiverType(lookupReceiverType)
         if !isClassNameReceiver, isChannelReceiver {
-            let memberName = interner.resolve(calleeName)
+            let memberName = request.interner.resolve(request.calleeName)
             // KSP-678: send is resolved through the bundled SendChannel member
             // so its element type, variance, and suspend contract use ordinary
             // candidate resolution. close / isClosedForReceive /
             // isClosedForSend also resolve through bundled Kotlin source;
             // only receive needs a direct result-type binding here.
-            switch (memberName, args.count) {
+            switch (memberName, request.args.count) {
             // KUU-1453: `ch.receive` without parentheses is property-access
             // syntax on a function — fall through so the invocation-syntax
             // check rejects it like any other bound function.
-            case ("receive", 0) where ast.arena.isExplicitCall(id) && explicitTypeArgs.isEmpty:
+            case ("receive", 0) where request.ast.arena.isExplicitCall(request.id) && request.explicitTypeArgs.isEmpty:
                 // This direct-call shortcut has no suspend FunctionSignature
                 // binding for the post-inference context validator to inspect.
                 // Only the kotlinx.coroutines Channel surface owns this rule;
@@ -268,22 +259,22 @@ extension CallTypeChecker {
                 guard receiverClassifier.isKotlinxCoroutinesChannelType(lookupReceiverType) else {
                     break
                 }
-                driver.specialSuspendingCallNames[id] = memberName
+                driver.specialSuspendingCallNames[request.id] = memberName
                 let resultType: TypeID
-                if let element = resolveClassType(lookupReceiverType, sema: sema)?.args.first {
+                if let element = resolveClassType(lookupReceiverType, sema: request.sema)?.args.first {
                     switch element {
                     case let .invariant(type), let .out(type):
                         resultType = type
                     case .in, .star:
                         // A contravariant or star projection exposes only the
                         // Channel element parameter's nullable Any upper bound.
-                        resultType = sema.types.nullableAnyType
+                        resultType = request.sema.types.nullableAnyType
                     }
                 } else {
-                    resultType = sema.types.nullableAnyType
+                    resultType = request.sema.types.nullableAnyType
                 }
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
+                let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             default:
                 break
@@ -294,38 +285,38 @@ extension CallTypeChecker {
         // generic Comparable<T>.compareTo member, which otherwise leaves
         // String.compareTo(String) ambiguous after both surfaces are available.
         if !isClassNameReceiver,
-           calleeName == knownNames.compareTo,
-           args.count == 1 || args.count == 2
+           request.calleeName == request.knownNames.compareTo,
+           request.args.count == 1 || request.args.count == 2
         {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
+            let receiverTypeForCheck = request.safeCall
+                ? request.sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            let arg0Type = sema.types.makeNonNullable(argTypes[0])
-            let stringArgMatches = sema.types.isSubtype(arg0Type, sema.types.stringType)
-            let boolArgMatches = args.count == 1
-                || sema.types.isSubtype(sema.types.makeNonNullable(argTypes[1]), sema.types.booleanType)
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+            let arg0Type = request.sema.types.makeNonNullable(argTypes[0])
+            let stringArgMatches = request.sema.types.isSubtype(arg0Type, request.sema.types.stringType)
+            let boolArgMatches = request.args.count == 1
+                || request.sema.types.isSubtype(request.sema.types.makeNonNullable(argTypes[1]), request.sema.types.booleanType)
+            if request.sema.types.isSubtype(receiverTypeForCheck, request.sema.types.stringType),
                stringArgMatches,
                boolArgMatches
             {
                 if let boundType = tryBindSyntheticStringMemberFallback(
-                    id,
-                    calleeName: calleeName,
+                    request.id,
+                    calleeName: request.calleeName,
                     receiverType: receiverTypeForCheck,
-                    args: args,
+                    args: request.args,
                     argTypes: argTypes,
-                    range: range,
-                    ctx: ctx,
-                    expectedType: expectedType,
-                    explicitTypeArgs: explicitTypeArgs,
-                    safeCall: safeCall
+                    range: request.range,
+                    ctx: request.ctx,
+                    expectedType: request.expectedType,
+                    explicitTypeArgs: request.explicitTypeArgs,
+                    safeCall: request.safeCall
                 ) {
                     return boundType
                 }
-                let finalType = safeCall
-                    ? sema.types.makeNullable(sema.types.intType)
-                    : sema.types.intType
-                sema.bindings.bindExprType(id, type: finalType)
+                let finalType = request.safeCall
+                    ? request.sema.types.makeNullable(request.sema.types.intType)
+                    : request.sema.types.intType
+                request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
         }
@@ -333,16 +324,16 @@ extension CallTypeChecker {
         // KSP-1403: CharSequence.substring overloads must keep normal member
         // and user-extension precedence before the source fallback is used.
         if let boundType = tryBindSyntheticStringSubstringFallback(
-            id,
-            calleeName: calleeName,
+            request.id,
+            calleeName: request.calleeName,
             receiverType: lookupReceiverType,
-            args: args,
+            args: request.args,
             argTypes: argTypes,
-            range: range,
-            ctx: ctx,
-            expectedType: expectedType,
-            explicitTypeArgs: explicitTypeArgs,
-            safeCall: safeCall,
+            range: request.range,
+            ctx: request.ctx,
+            expectedType: request.expectedType,
+            explicitTypeArgs: request.explicitTypeArgs,
+            safeCall: request.safeCall,
             existingCandidates: allCandidates
         ) {
             return boundType
@@ -353,51 +344,51 @@ extension CallTypeChecker {
         // Resolve the range overload before the nominal candidate resolver sees
         // the scalar representation of an inline range literal.
         if let boundType = tryBindSyntheticStringRangeSubSequenceFallback(
-            id,
-            calleeName: calleeName,
+            request.id,
+            calleeName: request.calleeName,
             receiverType: lookupReceiverType,
-            args: args,
+            args: request.args,
             argTypes: argTypes,
-            range: range,
-            ctx: ctx,
-            expectedType: expectedType,
-            explicitTypeArgs: explicitTypeArgs,
-            safeCall: safeCall,
+            range: request.range,
+            ctx: request.ctx,
+            expectedType: request.expectedType,
+            explicitTypeArgs: request.explicitTypeArgs,
+            safeCall: request.safeCall,
             existingCandidates: allCandidates
         ) {
             return boundType
         }
 
-        let stringMemberName = interner.resolve(calleeName)
+        let stringMemberName = request.interner.resolve(request.calleeName)
         if ["minWith", "minWithOrNull"].contains(stringMemberName),
-           isSyntheticStringLikeType(lookupReceiverType, sema: sema),
-           args.count == 1,
+           isSyntheticStringLikeType(lookupReceiverType, sema: request.sema),
+           request.args.count == 1,
            let comparatorElementType = resolvedComparatorElementType(
                of: argTypes[0],
-               sema: sema,
-               interner: interner
+               sema: request.sema,
+               interner: request.interner
            ),
-           sema.types.nullability(of: argTypes[0]) != .nullable,
-           sema.types.isSubtype(sema.types.charType, comparatorElementType)
+           request.sema.types.nullability(of: argTypes[0]) != .nullable,
+           request.sema.types.isSubtype(request.sema.types.charType, comparatorElementType)
         {
             // The source-backed Comparator<in Char> parameter is valid for a
             // Comparator<Char> argument, but the regular resolver currently
             // rejects that variance. Bind the uniquely named CharSequence
             // declaration after the normal candidates have been considered.
             bindSyntheticStringMemberDirectlyIfAvailable(
-                id,
-                calleeName: calleeName,
-                argumentCount: args.count,
+                request.id,
+                calleeName: request.calleeName,
+                argumentCount: request.args.count,
                 receiverType: lookupReceiverType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
-            if sema.bindings.callBindings[id] != nil {
+            if request.sema.bindings.callBindings[request.id] != nil {
                 let resultType = stringMemberName == "minWithOrNull"
-                    ? sema.types.make(.primitive(.char, .nullable))
-                    : sema.types.make(.primitive(.char, .nonNull))
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
+                    ? request.sema.types.make(.primitive(.char, .nullable))
+                    : request.sema.types.make(.primitive(.char, .nonNull))
+                let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
         }
@@ -405,14 +396,14 @@ extension CallTypeChecker {
         // A lexical extension function value outranks package extensions,
         // while actual receiver members retain their usual priority.
         let hasReceiverMember = driver.helpers.collectMemberFunctionCandidates(
-            named: calleeName, receiverType: memberLookupType, sema: sema, interner: interner
+            named: request.calleeName, receiverType: memberLookupType, sema: request.sema, interner: request.interner
         ).contains {
-            ctx.cachedSymbol($0)?.flags.contains(.extensionMemberAlias) != true
-                && !driver.helpers.declaresExtensionReceiver($0, sema: sema, interner: interner)
+            request.ctx.cachedSymbol($0)?.flags.contains(.extensionMemberAlias) != true
+                && !driver.helpers.declaresExtensionReceiver($0, sema: request.sema, interner: request.interner)
         }
         let localExtensionMatchesCallShape: Bool = {
-            guard let local = locals[calleeName],
-                  sema.symbols.functionSignature(for: local.symbol)?.receiverType != nil
+            guard let local = locals[request.calleeName],
+                  request.sema.symbols.functionSignature(for: local.symbol)?.receiverType != nil
             else { return true }
             return extensionCandidateMatchesCallShape(
                 local.symbol, request: request, argumentTypes: argTypes, receiverType: memberLookupType
@@ -420,7 +411,7 @@ extension CallTypeChecker {
         }()
         // `a.f { }` carries a trailing lambda without `()`, so a non-empty
         // argument list counts as a call the same way `isExplicitCall` does.
-        if !isSuperCall, !args.isEmpty || ast.arena.isExplicitCall(id),
+        if !isSuperCall, !request.args.isEmpty || request.ast.arena.isExplicitCall(request.id),
            !hasReceiverMember,
            localExtensionMatchesCallShape,
            let result = inferLexicalExtensionCallableInvocation(request, receiverType: receiverType, argumentTypes: argTypes, locals: &locals)
@@ -430,11 +421,11 @@ extension CallTypeChecker {
 
         if !isSuperCall,
            localExtensionMatchesCallShape,
-           let local = locals[calleeName],
-           !ast.arena.isInfixCall(id) || sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
-           let receiver = sema.symbols.functionSignature(for: local.symbol)?.receiverType,
+           let local = locals[request.calleeName],
+           !request.ast.arena.isInfixCall(request.id) || request.sema.symbols.symbol(local.symbol)?.flags.contains(.infixFunction) == true,
+           let receiver = request.sema.symbols.functionSignature(for: local.symbol)?.receiverType,
            extensionSyntheticFallbackReceiverMatches(
-               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: sema
+               callSiteReceiver: memberLookupType, declaredReceiver: receiver, sema: request.sema
            ),
            !hasReceiverMember
         {

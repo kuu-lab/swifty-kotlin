@@ -6,18 +6,13 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let knownNames = request.knownNames
         // `recv.name` without parentheses is property-access syntax: it can
         // only bind a property (or accessor), never one of the collection
         // functions this fast path models. A same-named extension property
         // must win over `first()`/`last()`/`count()` here, and when no
         // property applies regular resolution still binds the function so
         // enforceFunctionInvocationSyntax reports SEMA-0309 (KUU-4387).
-        if args.isEmpty, !ast.arena.isExplicitCall(id) {
+        if request.args.isEmpty, !request.ast.arena.isExplicitCall(request.id) {
             return nil
         }
         // Primitive-array source members are bundled Kotlin extensions, not collection or
@@ -25,19 +20,19 @@ extension CallTypeChecker {
         // synthetic sequences, so let exact primitive-array source lookup run
         // before the generic collection-flow fast path.
         if !collectPrimitiveArraySourceMembers(
-            named: calleeName,
+            named: request.calleeName,
             receiverType: receiverType,
-            sema: sema,
-            interner: interner
+            sema: request.sema,
+            interner: request.interner
         ).isEmpty {
             return nil
         }
         if !collectArraySourceBackedCandidates(
-            named: calleeName,
+            named: request.calleeName,
             receiverType: receiverType,
-            ctx: ctx,
-            sema: sema,
-            interner: interner
+            ctx: request.ctx,
+            sema: request.sema,
+            interner: request.interner
         ).isEmpty {
             return nil
         }
@@ -45,23 +40,23 @@ extension CallTypeChecker {
         // call (e.g. a user function declared `fun f(): Flow<Int>`), so the
         // `isFlowExpr`/`isFlowSymbol` bindings were never marked. Recover the
         // same information directly from the receiver's inferred class type.
-        let flowClassSymbol = sema.symbols.lookup(fqName: [
-            interner.intern("kotlinx"), interner.intern("coroutines"),
-            interner.intern("flow"), interner.intern("Flow"),
+        let flowClassSymbol = request.sema.symbols.lookup(fqName: [
+            request.interner.intern("kotlinx"), request.interner.intern("coroutines"),
+            request.interner.intern("flow"), request.interner.intern("Flow"),
         ])
         let receiverFlowClassType: ClassType? = if let flowClassSymbol,
-                                                    case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                                                    case let .classType(classType) = request.sema.types.kind(of: request.sema.types.makeNonNullable(receiverType)),
                                                     classType.classSymbol == flowClassSymbol
         {
             classType
         } else {
             nil
         }
-        let isFlowReceiver = if sema.bindings.isFlowExpr(receiverID) {
+        let isFlowReceiver = if request.sema.bindings.isFlowExpr(request.receiverID) {
             true
-        } else if case .nameRef = ast.arena.expr(receiverID),
-                  let receiverSymbol = sema.bindings.identifierSymbol(for: receiverID),
-                  sema.bindings.isFlowSymbol(receiverSymbol)
+        } else if case .nameRef = request.ast.arena.expr(request.receiverID),
+                  let receiverSymbol = request.sema.bindings.identifierSymbol(for: request.receiverID),
+                  request.sema.bindings.isFlowSymbol(receiverSymbol)
         {
             true
         } else if receiverFlowClassType != nil {
@@ -69,12 +64,12 @@ extension CallTypeChecker {
         } else {
             false
         }
-        if isFlowReceiver, calleeName == interner.intern("collect") {
-            let flowPackage = [interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("flow")]
-            if sema.bundledIndex.contains(
-                ownerFQName: flowPackage + [interner.intern("Flow")], name: calleeName, arity: args.count
-            ) || sema.symbols.lookupAll(fqName: flowPackage + [calleeName]).contains(where: {
-                sema.symbols.isSourceBackedSymbol($0)
+        if isFlowReceiver, request.calleeName == request.interner.intern("collect") {
+            let flowPackage = [request.interner.intern("kotlinx"), request.interner.intern("coroutines"), request.interner.intern("flow")]
+            if request.sema.bundledIndex.contains(
+                ownerFQName: flowPackage + [request.interner.intern("Flow")], name: request.calleeName, arity: request.args.count
+            ) || request.sema.symbols.lookupAll(fqName: flowPackage + [request.calleeName]).contains(where: {
+                request.sema.symbols.isSourceBackedSymbol($0)
             }) {
                 return nil
             }
@@ -88,24 +83,24 @@ extension CallTypeChecker {
             case let .invariant(t), let .out(t), let .in(t):
                 t
             case .star:
-                sema.types.anyType
+                request.sema.types.anyType
             }
-        } else if let elementType = sema.bindings.flowElementType(forExpr: receiverID) {
+        } else if let elementType = request.sema.bindings.flowElementType(forExpr: request.receiverID) {
             elementType
-        } else if case .nameRef = ast.arena.expr(receiverID),
-                  let receiverSymbol = sema.bindings.identifierSymbol(for: receiverID),
-                  let elementType = sema.bindings.flowElementType(forSymbol: receiverSymbol)
+        } else if case .nameRef = request.ast.arena.expr(request.receiverID),
+                  let receiverSymbol = request.sema.bindings.identifierSymbol(for: request.receiverID),
+                  let elementType = request.sema.bindings.flowElementType(forSymbol: receiverSymbol)
         {
             elementType
         } else {
-            sema.types.anyType
+            request.sema.types.anyType
         }
-        let isFlowHOF = isFlowReceiver && knownNames.flowHOFNames.contains(calleeName)
-        let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        let isFlowHOF = isFlowReceiver && request.knownNames.flowHOFNames.contains(request.calleeName)
+        let receiverClassifier = ReceiverClassifier(sema: request.sema, interner: request.interner)
         let receiverClassification = receiverClassifier.classify(
-            receiverID: receiverID,
+            receiverID: request.receiverID,
             receiverType: receiverType,
-            ast: ast
+            ast: request.ast
         )
         let isCollectionReceiver = receiverClassification.isCollectionReceiver
         let isIterableReceiver = receiverClassification.isIterableReceiver
@@ -119,19 +114,19 @@ extension CallTypeChecker {
         let isSetReceiver = receiverClassification.isSetReceiver
         let isEnumEntriesReceiver: Bool = {
             guard let (_, symbol) = resolveClassTypeSymbol(
-                sema.types.makeNonNullable(receiverType),
-                sema: sema
+                request.sema.types.makeNonNullable(receiverType),
+                sema: request.sema
             ) else {
                 return false
             }
-            return symbol.fqName == knownNames.kotlinEnumsEnumEntriesFQName
+            return symbol.fqName == request.knownNames.kotlinEnumsEnumEntriesFQName
         }()
-        let isStringReceiver = sema.types.isSubtype(
-            sema.types.makeNonNullable(receiverType),
-            sema.types.stringType
+        let isStringReceiver = request.sema.types.isSubtype(
+            request.sema.types.makeNonNullable(receiverType),
+            request.sema.types.stringType
         ) || isSyntheticStringLikeType(
-            sema.types.makeNonNullable(receiverType),
-            sema: sema
+            request.sema.types.makeNonNullable(receiverType),
+            sema: request.sema
         )
         // Concrete collection receivers retain their existing owner-specific paths.
         let isIterableIndexReceiver = !isSequenceReceiver
@@ -140,30 +135,30 @@ extension CallTypeChecker {
         // Range/Progression aggregates have an independent runtime dispatch
         // family. Keep that ownership out of the Iterable source migration.
         let isRangeReceiver = MemberRuntimeDispatch.rangeReceiverKind(
-            receiverExpr: receiverID,
+            receiverExpr: request.receiverID,
             receiverType: receiverType,
-            sema: sema,
-            interner: interner
+            sema: request.sema,
+            interner: request.interner
         ) != nil
         let isULongProgressionFirstLastCall = MemberRuntimeDispatch.rangeReceiverKind(
-            receiverExpr: receiverID,
+            receiverExpr: request.receiverID,
             receiverType: receiverType,
-            sema: sema,
-            interner: interner
+            sema: request.sema,
+            interner: request.interner
         ) == .ulongProgression
-            && args.isEmpty
-            && knownNames.progressionFirstLastMemberNames.contains(calleeName)
+            && request.args.isEmpty
+            && request.knownNames.progressionFirstLastMemberNames.contains(request.calleeName)
         let isActiveCollectionHOFName: Bool = {
             // zip is source-backed. Regular overload resolution must validate the
             // other collection/Sequence argument and respect user extensions.
-            guard knownNames.collectionHOFNames.contains(calleeName),
-                  calleeName != knownNames.zip
+            guard request.knownNames.collectionHOFNames.contains(request.calleeName),
+                  request.calleeName != request.knownNames.zip
             else { return false }
-            if !isMutableListReceiver, knownNames.mutableListOnlyCollectionHOFNames.contains(calleeName) {
+            if !isMutableListReceiver, request.knownNames.mutableListOnlyCollectionHOFNames.contains(request.calleeName) {
                 return false
             }
             if !isSequenceReceiver {
-                if calleeName == knownNames.flatMapIndexed,
+                if request.calleeName == request.knownNames.flatMapIndexed,
                    (!isIterableReceiver
                        || receiverClassification.isListReceiver
                        || receiverClassification.isSetReceiver
@@ -171,15 +166,15 @@ extension CallTypeChecker {
                 {
                     return false
                 }
-            } else if knownNames.sequenceExcludedCollectionHOFNames.contains(calleeName) {
+            } else if request.knownNames.sequenceExcludedCollectionHOFNames.contains(request.calleeName) {
                 return false
             }
-            if isMapReceiver, !knownNames.mapCollectionHOFNames.contains(calleeName) {
+            if isMapReceiver, !request.knownNames.mapCollectionHOFNames.contains(request.calleeName) {
                 return false
             }
             return true
         }()
-        let calleeStr = interner.resolve(calleeName)
+        let calleeStr = request.interner.resolve(request.calleeName)
         if calleeStr == "flatten", !isSequenceReceiver {
             // Let overload resolution choose between List<List<T>> and
             // Iterable<Iterable<T>> using the nested receiver's variance.
@@ -187,17 +182,17 @@ extension CallTypeChecker {
         }
         let isPrimitiveOperatorReducerReference: Bool = {
             guard calleeStr == "reduce",
-                  explicitTypeArgs.isEmpty,
-                  args.count == 1,
-                  let argument = args.first,
+                  request.explicitTypeArgs.isEmpty,
+                  request.args.count == 1,
+                  let argument = request.args.first,
                   !argument.isSpread,
-                  argument.label == nil || argument.label == interner.intern("operation"),
-                  case let .callableRef(receiver?, member, _) = ast.arena.expr(argument.expr),
-                  ast.arena.callableRefReceiverTypeRef(for: argument.expr) == nil,
-                  case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
+                  argument.label == nil || argument.label == request.interner.intern("operation"),
+                  case let .callableRef(receiver?, member, _) = request.ast.arena.expr(argument.expr),
+                  request.ast.arena.callableRefReceiverTypeRef(for: argument.expr) == nil,
+                  case let .nameRef(receiverName, _) = request.ast.arena.expr(receiver),
                   locals[receiverName] == nil,
                   let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName),
-                  ["plus", "times"].contains(interner.resolve(member))
+                  ["plus", "times"].contains(request.interner.resolve(member))
             else {
                 return false
             }
@@ -213,48 +208,48 @@ extension CallTypeChecker {
         // operator references without type arguments use the receiver element
         // context (S = T).
         if calleeStr == "reduce",
-           let listOwner = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName),
-           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
-               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           let listOwner = request.sema.symbols.lookupNominal(fqName: request.knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: request.sema.types, symbols: request.sema.symbols).contains(where: {
+               request.sema.types.isNominalSubtypeSymbol($0, of: listOwner)
            })
         {
-            guard explicitTypeArgs.isEmpty,
-                  args.count == 1,
-                  let argument = args.first,
+            guard request.explicitTypeArgs.isEmpty,
+                  request.args.count == 1,
+                  let argument = request.args.first,
                   !argument.isSpread,
-                  argument.label == nil || argument.label == interner.intern("operation")
+                  argument.label == nil || argument.label == request.interner.intern("operation")
             else {
                 return nil
             }
             let isUnannotatedBinaryLambda: Bool
-            if case let .lambdaLiteral(parameters, _, _, _) = ast.arena.expr(argument.expr) {
+            if case let .lambdaLiteral(parameters, _, _, _) = request.ast.arena.expr(argument.expr) {
                 isUnannotatedBinaryLambda = parameters.count == 2
-                    && ast.arena.lambdaParamTypeRefs(for: argument.expr)?.contains(where: { $0 != nil }) != true
+                    && request.ast.arena.lambdaParamTypeRefs(for: argument.expr)?.contains(where: { $0 != nil }) != true
             } else {
                 isUnannotatedBinaryLambda = false
             }
             guard isUnannotatedBinaryLambda || isPrimitiveOperatorReducerReference else {
                 return nil
             }
-            var scopedCandidates = ctx.scope.lookupMergingChain(calleeName)
-            if let local = locals[calleeName] {
+            var scopedCandidates = request.ctx.scope.lookupMergingChain(request.calleeName)
+            if let local = locals[request.calleeName] {
                 scopedCandidates.append(local.symbol)
             }
-            let hasUserExtension = ctx.filterByVisibility(scopedCandidates).visible.contains { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
+            let hasUserExtension = request.ctx.filterByVisibility(scopedCandidates).visible.contains { candidate in
+                guard let symbol = request.sema.symbols.symbol(candidate),
                       let site = symbol.declSite,
                       driver.sourceManager?.origin(of: site.start.file) == .user,
-                      !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                      !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: request.sema.symbols),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       let receiver = signature.receiverType,
-                      parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) != nil
+                      parameterMappingForCallArguments(request.args, in: signature, callRange: request.range, ctx: request.ctx) != nil
                 else {
                     return false
                 }
                 return extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: sema.types.makeNonNullable(receiverType),
+                    callSiteReceiver: request.sema.types.makeNonNullable(receiverType),
                     declaredReceiver: receiver,
-                    sema: sema
+                    sema: request.sema
                 )
             }
             if hasUserExtension {
@@ -268,11 +263,11 @@ extension CallTypeChecker {
         // must reach regular overload resolution instead.
         if calleeStr == "partition",
            hasUserDefinedCollectionExtensionCandidate(
-               named: calleeName,
+               named: request.calleeName,
                receiverType: receiverType,
-               args: args,
-               range: range,
-               ctx: ctx,
+               args: request.args,
+               range: request.range,
+               ctx: request.ctx,
                locals: locals
            )
         {
@@ -293,9 +288,9 @@ extension CallTypeChecker {
             return nil
         }
         if ["indexOf", "lastIndexOf", "subList"].contains(calleeStr),
-           let listOwner = sema.symbols.lookupNominal(fqName: knownNames.kotlinCollectionsListFQName),
-           driver.helpers.allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols).contains(where: {
-               sema.types.isNominalSubtypeSymbol($0, of: listOwner)
+           let listOwner = request.sema.symbols.lookupNominal(fqName: request.knownNames.kotlinCollectionsListFQName),
+           driver.helpers.allNominalSymbols(of: receiverType, types: request.sema.types, symbols: request.sema.symbols).contains(where: {
+               request.sema.types.isNominalSubtypeSymbol($0, of: listOwner)
            })
         {
             return nil
@@ -305,7 +300,7 @@ extension CallTypeChecker {
         // Iterable max-family declarations. Let regular overload resolution
         // select the Comparable/Float/Double and lambda-return overloads;
         // concrete List/Set/Map/Sequence paths remain under their own owners.
-        if knownNames.iterableMaxFamilyNames.contains(calleeName),
+        if request.knownNames.iterableMaxFamilyNames.contains(request.calleeName),
            (isCollectionReceiver || isIterableReceiver),
            !isSequenceReceiver,
            !isSetReceiver,
@@ -319,7 +314,7 @@ extension CallTypeChecker {
             "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance", "filterIsInstanceTo",
             "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         ].contains(calleeStr)
-            && (!isMapReceiver || knownNames.mapFilterFamilyHOFNames.contains(calleeName))
+            && (!isMapReceiver || request.knownNames.mapFilterFamilyHOFNames.contains(request.calleeName))
         let isCollectionHOF = (isActiveCollectionHOFName || isIterableFilterFamilyHOF)
             && (isCollectionReceiver
                 || isSequenceReceiver
@@ -344,7 +339,7 @@ extension CallTypeChecker {
             // so regular overload resolution reports the missing argument
             // (SEMA-0002/SEMA-0024), matching kotlinc's "no value passed for
             // parameter" rejection.
-            && !(knownNames.destinationCollectionHOFs.contains(calleeName) && args.count != 2)
+            && !(request.knownNames.destinationCollectionHOFs.contains(request.calleeName) && request.args.count != 2)
 
         // KSP-957: the generic Iterable/Map on-family declarations are real
         // source-backed overloads. Let regular overload resolution select
@@ -366,19 +361,7 @@ extension CallTypeChecker {
         let flow = MemberCallCollectionFlowContext(
             checker: self,
             driver: driver,
-            id: id,
-            receiverID: receiverID,
-            calleeName: calleeName,
-            args: args,
-            range: range,
-            ctx: ctx,
-            expectedType: expectedType,
-            explicitTypeArgs: explicitTypeArgs,
-            safeCall: safeCall,
-            ast: ast,
-            sema: sema,
-            interner: interner,
-            knownNames: knownNames,
+            request: request,
             receiverType: receiverType,
             receiverClassifier: receiverClassifier,
             receiverClassification: receiverClassification,
@@ -409,7 +392,7 @@ extension CallTypeChecker {
         if flow.didReturnNil { return nil }
 
         if let mapIteratorType = flow.bindBundledMapIteratorSourceFunction() {
-            sema.bindings.bindExprType(id, type: mapIteratorType)
+            request.sema.bindings.bindExprType(request.id, type: mapIteratorType)
             return mapIteratorType
         }
 
@@ -439,11 +422,11 @@ extension CallTypeChecker {
         if flow.didReturnNil { return nil }
 
         if isFlowHOF,
-           let lambdaArg = args.first?.expr,
-           let lambdaExpr = ast.arena.expr(lambdaArg),
+           let lambdaArg = request.args.first?.expr,
+           let lambdaExpr = request.ast.arena.expr(lambdaArg),
            lambdaExpr.isLambdaOrCallableRef
         {
-            sema.bindings.markCollectionHOFLambdaExpr(lambdaArg)
+            request.sema.bindings.markCollectionHOFLambdaExpr(lambdaArg)
         }
 
         // KSP-499 Stage 3: a real bundled/user Kotlin declaration for this
@@ -454,33 +437,33 @@ extension CallTypeChecker {
         // Flow operator to real Kotlin source would compile but never run:
         // this special-case would keep intercepting the call by name.
         let flowOwnerFQNameForPriorityCheck: [InternedString]? = {
-            guard case let .classType(classType) = sema.types.kind(of: receiverType),
-                  let ownerSymbol = sema.symbols.symbol(classType.classSymbol)
+            guard case let .classType(classType) = request.sema.types.kind(of: receiverType),
+                  let ownerSymbol = request.sema.symbols.symbol(classType.classSymbol)
             else {
                 return nil
             }
             return ownerSymbol.fqName
         }()
         let hasBundledFlowDeclaration = flowOwnerFQNameForPriorityCheck.map {
-            sema.bundledIndex.contains(
+            request.sema.bundledIndex.contains(
                 ownerFQName: $0,
-                name: calleeName
+                name: request.calleeName
             )
         } ?? false
         // Buffer has defaulted and named parameters, so normal overload
         // resolution must select the declaration and map its arguments.
         if isFlowReceiver,
            hasBundledFlowDeclaration,
-           !["buffer", "transform", "takeWhile", "dropWhile", "catch", "retry", "retryWhen"].contains(interner.resolve(calleeName)),
+           !["buffer", "transform", "takeWhile", "dropWhile", "catch", "retry", "retryWhen"].contains(request.interner.resolve(request.calleeName)),
            let bundledFlowType = tryBuiltinFlowMemberCall(
-               id,
-               calleeName: calleeName,
+               request.id,
+               calleeName: request.calleeName,
                receiverElementType: flowElementType,
-               args: args,
-               safeCall: safeCall,
-               ast: ast,
-               sema: sema,
-               ctx: ctx,
+               args: request.args,
+               safeCall: request.safeCall,
+               ast: request.ast,
+               sema: request.sema,
+               ctx: request.ctx,
                locals: &locals
            )
         {
@@ -489,22 +472,22 @@ extension CallTypeChecker {
             // Kotlin declaration, retain that source-backed symbol as the
             // call target so lowering cannot fall back to a name-only bridge.
             let flowPackageFQName = [
-                interner.intern("kotlinx"),
-                interner.intern("coroutines"),
-                interner.intern("flow"),
-                calleeName,
+                request.interner.intern("kotlinx"),
+                request.interner.intern("coroutines"),
+                request.interner.intern("flow"),
+                request.calleeName,
             ]
-            if let bundledCallee = sema.symbols.lookupAll(fqName: flowPackageFQName).first(where: { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
+            if let bundledCallee = request.sema.symbols.lookupAll(fqName: flowPackageFQName).first(where: { candidate in
+                guard let symbol = request.sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      sema.symbols.isSourceBackedSymbol(candidate),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                      request.sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       let declaredReceiver = signature.receiverType,
                       let declaredReceiverOwner = driver.helpers.nominalSymbol(
                           of: declaredReceiver,
-                          types: sema.types
+                          types: request.sema.types
                       ),
-                      let declaredReceiverFQName = sema.symbols.symbol(declaredReceiverOwner)?.fqName
+                      let declaredReceiverFQName = request.sema.symbols.symbol(declaredReceiverOwner)?.fqName
                 else {
                     return false
                 }
@@ -512,17 +495,17 @@ extension CallTypeChecker {
                 // name and arity. The Flow intrinsic path must bind the
                 // source declaration for this receiver, rather than whichever
                 // same-named overload happens to be first in the symbol table.
-                return signature.parameterTypes.count == args.count
+                return signature.parameterTypes.count == request.args.count
                     && declaredReceiverFQName == flowOwnerFQNameForPriorityCheck
             }),
-               let signature = sema.symbols.functionSignature(for: bundledCallee)
+               let signature = request.sema.symbols.functionSignature(for: bundledCallee)
             {
                 func typeID(from argument: TypeArg) -> TypeID {
                     switch argument {
                     case let .invariant(type), let .out(type), let .in(type):
                         type
                     case .star:
-                        sema.types.anyType
+                        request.sema.types.anyType
                     }
                 }
 
@@ -531,11 +514,11 @@ extension CallTypeChecker {
                     actual: TypeID,
                     substitutions: inout [SymbolID: TypeID]
                 ) {
-                    switch sema.types.kind(of: declared) {
+                    switch request.sema.types.kind(of: declared) {
                     case let .typeParam(typeParameter):
                         substitutions[typeParameter.symbol] = actual
                     case let .classType(declaredClass):
-                        guard case let .classType(actualClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)),
+                        guard case let .classType(actualClass) = request.sema.types.kind(of: request.sema.types.makeNonNullable(actual)),
                               declaredClass.classSymbol == actualClass.classSymbol
                         else {
                             return
@@ -548,7 +531,7 @@ extension CallTypeChecker {
                             )
                         }
                     case let .functionType(declaredFunction):
-                        guard case let .functionType(actualFunction) = sema.types.kind(of: actual) else {
+                        guard case let .functionType(actualFunction) = request.sema.types.kind(of: actual) else {
                             return
                         }
                         if let declaredReceiver = declaredFunction.receiver,
@@ -586,27 +569,27 @@ extension CallTypeChecker {
                     )
                 }
                 for (index, parameterType) in signature.parameterTypes.enumerated()
-                where index < args.count {
-                    let actualType = sema.bindings.exprType(for: args[index].expr)
-                        ?? driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals)
+                where index < request.args.count {
+                    let actualType = request.sema.bindings.exprType(for: request.args[index].expr)
+                        ?? driver.inferExpr(request.args[index].expr, ctx: request.ctx, locals: &locals)
                     inferTypeParameters(
                         declared: parameterType,
                         actual: actualType,
                         substitutions: &substitutions
                     )
                 }
-                let typeArguments = signature.typeParameterSymbols.map { substitutions[$0] ?? sema.types.anyType }
-                sema.bindings.bindCall(id, binding: CallBinding(
+                let typeArguments = signature.typeParameterSymbols.map { substitutions[$0] ?? request.sema.types.anyType }
+                request.sema.bindings.bindCall(request.id, binding: CallBinding(
                     chosenCallee: bundledCallee,
                     substitutedTypeArguments: typeArguments,
-                    parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                    parameterMapping: Dictionary(uniqueKeysWithValues: request.args.indices.map { ($0, $0) })
                 ))
-                sema.bindings.bindCallableTarget(id, target: .symbol(bundledCallee))
+                request.sema.bindings.bindCallableTarget(request.id, target: .symbol(bundledCallee))
                 driver.helpers.checkOptIn(
                     for: bundledCallee,
-                    ctx: ctx,
-                    range: range,
-                    diagnostics: ctx.sema.diagnostics
+                    ctx: request.ctx,
+                    range: request.range,
+                    diagnostics: request.ctx.sema.diagnostics
                 )
             }
             return bundledFlowType
@@ -614,14 +597,14 @@ extension CallTypeChecker {
         if isFlowReceiver,
            !hasBundledFlowDeclaration,
            let builtinFlowType = tryBuiltinFlowMemberCall(
-               id,
-               calleeName: calleeName,
+               request.id,
+               calleeName: request.calleeName,
                receiverElementType: flowElementType,
-               args: args,
-               safeCall: safeCall,
-               ast: ast,
-               sema: sema,
-               ctx: ctx,
+               args: request.args,
+               safeCall: request.safeCall,
+               ast: request.ast,
+               sema: request.sema,
+               ctx: request.ctx,
                locals: &locals
            )
         {

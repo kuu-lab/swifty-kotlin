@@ -19,11 +19,6 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         locals: inout LocalBindings
     ) -> (candidates: [SymbolID], earlyReturnType: TypeID?) {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let knownNames = request.knownNames
 
         // Direct member lookup and short-name extension recovery can bypass
         // cachedScopeLookup, which normally removes an expect declaration once
@@ -34,58 +29,58 @@ extension CallTypeChecker {
         let resolvedCandidates = allCandidates.filter { candidate in
             // The Array bulk mutation is a Kotlin extension on JVM. The native
             // MutableSet shortcut would otherwise shadow user extensions.
-            if sema.requiresResolvedLibraryCalls,
-               let symbol = ctx.cachedSymbol(candidate), symbol.flags.contains(.synthetic),
-               symbol.fqName == knownNames.kotlinCollectionsMutableSetFQName + [knownNames.addAll],
-               let parameter = sema.symbols.functionSignature(for: candidate)?.parameterTypes.first,
-               let (_, parameterSymbol) = resolveClassTypeSymbol(parameter, sema: sema),
-               parameterSymbol.fqName == knownNames.kotlinArrayFQName
+            if request.sema.requiresResolvedLibraryCalls,
+               let symbol = request.ctx.cachedSymbol(candidate), symbol.flags.contains(.synthetic),
+               symbol.fqName == request.knownNames.kotlinCollectionsMutableSetFQName + [request.knownNames.addAll],
+               let parameter = request.sema.symbols.functionSignature(for: candidate)?.parameterTypes.first,
+               let (_, parameterSymbol) = resolveClassTypeSymbol(parameter, sema: request.sema),
+               parameterSymbol.fqName == request.knownNames.kotlinArrayFQName
             { return false }
-            if ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true,
-               locals[calleeName]?.symbol != candidate
+            if request.ctx.cachedSymbol(candidate)?.flags.contains(.localFunction) == true,
+               locals[request.calleeName]?.symbol != candidate
             {
                 return false
             }
-            guard let symbol = ctx.cachedSymbol(candidate),
+            guard let symbol = request.ctx.cachedSymbol(candidate),
                   symbol.flags.contains(.expectDeclaration)
             else {
                 return true
             }
-            guard let actual = sema.symbols.actualSymbol(for: candidate) else {
+            guard let actual = request.sema.symbols.actualSymbol(for: candidate) else {
                 return true
             }
             return !candidateSet.contains(actual)
         }
-        let (visible, invisible) = ctx.filterByVisibility(
+        let (visible, invisible) = request.ctx.filterByVisibility(
             resolvedCandidates,
             protectedAccessReceiverType: memberLookupType
         )
-        let memberName = interner.resolve(calleeName)
+        let memberName = request.interner.resolve(request.calleeName)
         if !isClassNameReceiver,
-           !safeCall,
-           args.isEmpty,
-           explicitTypeArgs.isEmpty,
-           ast.arena.isExplicitCall(id),
+           !request.safeCall,
+           request.args.isEmpty,
+           request.explicitTypeArgs.isEmpty,
+           request.ast.arena.isExplicitCall(request.id),
            invisible.isEmpty,
-           sema.types.nullability(of: receiverType) == .nullable,
+           request.sema.types.nullability(of: receiverType) == .nullable,
            memberName == "toString" || memberName == "hashCode",
            !visible.contains(where: { candidate in
-               guard let signature = sema.symbols.functionSignature(for: candidate),
+               guard let signature = request.sema.symbols.functionSignature(for: candidate),
                      signature.parameterTypes.isEmpty,
                      let declaredReceiver = signature.receiverType,
-                     sema.types.nullability(of: declaredReceiver) == .nullable
+                     request.sema.types.nullability(of: declaredReceiver) == .nullable
                else {
                    return false
                }
-               return sema.types.isSubtype(receiverType, declaredReceiver)
+               return request.sema.types.isSubtype(receiverType, declaredReceiver)
            })
         {
             // Kotlin exposes toString() and hashCode() through nullable Any
             // extensions. Flat-representation and class receivers can expose
             // only non-null synthetic members, which the normal resolver must
             // reject for a nullable receiver before KIR can use the Any ABI.
-            let resultType = memberName == "toString" ? sema.types.stringType : sema.types.intType
-            sema.bindings.bindExprType(id, type: resultType)
+            let resultType = memberName == "toString" ? request.sema.types.stringType : request.sema.types.intType
+            request.sema.bindings.bindExprType(request.id, type: resultType)
             return ([], resultType)
         }
         // Provisional lambda arguments are Any until preparation. A nearer
@@ -100,14 +95,14 @@ extension CallTypeChecker {
             shapeCompatible.isEmpty ? visible : shapeCompatible,
             receiverType: lookupReceiverType,
             argumentTypes: argTypes,
-            sema: sema,
-            interner: interner
+            sema: request.sema,
+            interner: request.interner
         )
-        if calleeName == knownNames.forEach, !sema.requiresResolvedLibraryCalls {
-            let receiverClassification = ReceiverClassifier(sema: sema, interner: interner).classify(
-                receiverID: receiverID,
+        if request.calleeName == request.knownNames.forEach, !request.sema.requiresResolvedLibraryCalls {
+            let receiverClassification = ReceiverClassifier(sema: request.sema, interner: request.interner).classify(
+                receiverID: request.receiverID,
                 receiverType: lookupReceiverType,
-                ast: ast
+                ast: request.ast
             )
             let isEligibleIterableReceiver = receiverClassification.isIterableReceiver
                 || (
@@ -118,11 +113,11 @@ extension CallTypeChecker {
                         && !receiverClassification.isSetReceiver
                 )
             if !isEligibleIterableReceiver {
-                let iterableFQName = knownNames.kotlinCollectionsIterableFQName
+                let iterableFQName = request.knownNames.kotlinCollectionsIterableFQName
                 candidates.removeAll { candidate in
-                    guard sema.symbols.isSourceBackedSymbol(candidate),
-                          let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
-                          let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema)
+                    guard request.sema.symbols.isSourceBackedSymbol(candidate),
+                          let signatureReceiver = request.sema.symbols.functionSignature(for: candidate)?.receiverType,
+                          let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: request.sema)
                     else {
                         return false
                     }
@@ -134,70 +129,70 @@ extension CallTypeChecker {
         // Map.withDefault extension for a MutableMap receiver. Resolve this
         // subtype preference before trailing-lambda overload inference sees
         // two otherwise identical function shapes.
-        if calleeName == knownNames.withDefault,
-           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(lookupReceiverType)
+        if request.calleeName == request.knownNames.withDefault,
+           ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(lookupReceiverType)
         {
             let mutableMapCandidates = candidates.filter { candidate in
-                guard sema.symbols.isSourceBackedSymbol(candidate),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                guard request.sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       let receiver = signature.receiverType,
-                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
-                      let symbol = sema.symbols.symbol(receiverSymbol)
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: request.sema.types),
+                      let symbol = request.sema.symbols.symbol(receiverSymbol)
                 else {
                     return false
                 }
-                return symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName
+                return symbol.fqName == request.knownNames.kotlinCollectionsMutableMapFQName
             }
             if !mutableMapCandidates.isEmpty {
                 candidates = mutableMapCandidates
             }
         }
-        if calleeName == knownNames.coerceIn,
-           !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
+        if request.calleeName == request.knownNames.coerceIn,
+           !request.args.contains(where: { request.sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
             // The generic ClosedFloatingPointRange overload must not turn a
             // scalar call with the wrong arity or argument type into a type
             // constraint failure. Kotlin reports those calls as no overload.
             candidates.removeAll { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
+                guard let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.typeParameterSymbols.count == 1,
                       signature.parameterTypes.count == 1,
                       let (_, parameterSymbol) = resolveClassTypeSymbol(
-                          signature.parameterTypes[0], sema: sema
+                          signature.parameterTypes[0], sema: request.sema
                       )
                 else {
                     return false
                 }
-                return parameterSymbol.name == knownNames.closedFloatingPointRange
+                return parameterSymbol.name == request.knownNames.closedFloatingPointRange
             }
         }
-        if calleeName == knownNames.coerceIn,
-           args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
+        if request.calleeName == request.knownNames.coerceIn,
+           request.args.contains(where: { request.sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
             // Imported `.kklib` metadata does not make a generic extension whose
             // receiver is a type parameter visible through the receiver-type
             // fallback above. Recover the source-backed range overloads here so
             // the same call resolves with bundled source injection and a library.
-            let genericRangeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
+            let genericRangeCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                guard let symbol = request.sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      sema.symbols.isSourceBackedSymbol(candidate),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                      request.sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.typeParameterSymbols.count == 1,
                       signature.parameterTypes.count == 1,
                       let (_, parameterSymbol) = resolveClassTypeSymbol(
-                          signature.parameterTypes[0], sema: sema
+                          signature.parameterTypes[0], sema: request.sema
                       )
                 else {
                     return false
                 }
-                return parameterSymbol.name == knownNames.closedFloatingPointRange
+                return parameterSymbol.name == request.knownNames.closedFloatingPointRange
             }
             candidates.append(contentsOf: genericRangeCandidates.filter { !candidates.contains($0) })
         }
-        if calleeName == knownNames.coerceAtLeast
-            || calleeName == knownNames.coerceAtMost
-            || calleeName == knownNames.coerceIn
+        if request.calleeName == request.knownNames.coerceAtLeast
+            || request.calleeName == request.knownNames.coerceAtMost
+            || request.calleeName == request.knownNames.coerceIn
         {
             // A concrete `Int.coerceIn`/`UByte.coerceAtLeast`-style overload is
             // strictly more specific than the generic `T.coerceX` extensions
@@ -209,7 +204,7 @@ extension CallTypeChecker {
             // user-defined `Comparable` receivers, or shapes no concrete
             // overload covers (e.g. `Double.coerceIn(ClosedFloatingPointRange)`).
             let concreteArities = Set(candidates.compactMap { candidate -> Int? in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
+                guard let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.typeParameterSymbols.isEmpty
                 else {
                     return nil
@@ -217,110 +212,110 @@ extension CallTypeChecker {
                 return signature.parameterTypes.count
             })
             candidates.removeAll { candidate in
-                guard let signature = sema.symbols.functionSignature(for: candidate),
+                guard let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.typeParameterSymbols.count == 1,
                       let receiver = signature.receiverType,
-                      resolveClassTypeSymbol(receiver, sema: sema) == nil
+                      resolveClassTypeSymbol(receiver, sema: request.sema) == nil
                 else {
                     return false
                 }
                 return concreteArities.contains(signature.parameterTypes.count)
             }
         }
-        if calleeName == knownNames.toList {
+        if request.calleeName == request.knownNames.toList {
             candidates = preferCollectionToListCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
         }
-        if calleeName == knownNames.take {
+        if request.calleeName == request.knownNames.take {
             candidates = preferListTakeCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
         }
-        if calleeName == knownNames.unzip {
+        if request.calleeName == request.knownNames.unzip {
             candidates = preferListUnzipCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
         }
         if isNullLiteralReceiver,
-           args.isEmpty,
-           calleeName == knownNames.isNullOrEmpty,
-           let charSequenceType = syntheticCharSequenceType(sema: sema),
+           request.args.isEmpty,
+           request.calleeName == request.knownNames.isNullOrEmpty,
+           let charSequenceType = syntheticCharSequenceType(sema: request.sema),
            candidates.contains(where: { candidate in
-               sema.symbols.functionSignature(for: candidate)?.receiverType == sema.types.makeNullable(charSequenceType)
+               request.sema.symbols.functionSignature(for: candidate)?.receiverType == request.sema.types.makeNullable(charSequenceType)
            })
         {
             // Kotlin stdlib also provides Array/Collection/Map nullable-receiver
             // isNullOrEmpty overloads. They are still lowered through synthetic
             // typed-receiver fallbacks here, but a bare null receiver must see the
             // same ambiguous overload set as kotlinc.
-            ctx.sema.diagnostics.error(
+            request.ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0003",
                 "Ambiguous overload resolution.",
-                range: range
+                range: request.range
             )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return (candidates, sema.types.errorType)
+            request.sema.bindings.bindExprType(request.id, type: request.sema.types.errorType)
+            return (candidates, request.sema.types.errorType)
         }
         if hasLeadingLocaleArgument {
             candidates.removeAll { candidate in
-                isSyntheticStringFormatCandidate(candidate, sema: sema, interner: interner)
+                isSyntheticStringFormatCandidate(candidate, sema: request.sema, interner: request.interner)
             }
         }
-        if calleeName == knownNames.trimMargin {
-            let receiverTypeForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
+        if request.calleeName == request.knownNames.trimMargin {
+            let receiverTypeForCheck = request.safeCall
+                ? request.sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
-                if !explicitTypeArgs.isEmpty {
-                    ctx.sema.diagnostics.error(
+            if request.sema.types.isSubtype(receiverTypeForCheck, request.sema.types.stringType) {
+                if !request.explicitTypeArgs.isEmpty {
+                    request.ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
-                        range: range
+                        range: request.range
                     )
-                    sema.bindings.bindExprType(id, type: sema.types.errorType)
-                    return (candidates, sema.types.errorType)
+                    request.sema.bindings.bindExprType(request.id, type: request.sema.types.errorType)
+                    return (candidates, request.sema.types.errorType)
                 }
-                let trimMarginFQName = knownNames.kotlinTextPackage + [calleeName]
-                let chosen = sema.symbols.lookupAll(fqName: trimMarginFQName).first(where: { symbolID in
-                    guard let signature = sema.symbols.functionSignature(for: symbolID),
-                          signature.receiverType == sema.types.stringType
+                let trimMarginFQName = request.knownNames.kotlinTextPackage + [request.calleeName]
+                let chosen = request.sema.symbols.lookupAll(fqName: trimMarginFQName).first(where: { symbolID in
+                    guard let signature = request.sema.symbols.functionSignature(for: symbolID),
+                          signature.receiverType == request.sema.types.stringType
                     else {
                         return false
                     }
-                    switch args.count {
+                    switch request.args.count {
                     case 0:
                         return signature.parameterTypes.isEmpty
                     case 1:
                         return signature.parameterTypes.count == 1
-                            && sema.types.isSubtype(sema.types.makeNonNullable(argTypes[0]), signature.parameterTypes[0])
+                            && request.sema.types.isSubtype(request.sema.types.makeNonNullable(argTypes[0]), signature.parameterTypes[0])
                     default:
                         return false
                     }
                 })
                 if let chosen {
                     let returnType = bindCallAndResolveReturnType(
-                        id,
+                        request.id,
                         chosen: chosen,
                         resolved: ResolvedCall(
                             chosenCallee: chosen,
                             substitutedTypeArguments: [:],
-                            parameterMapping: args.isEmpty ? [:] : [0: 0],
+                            parameterMapping: request.args.isEmpty ? [:] : [0: 0],
                             diagnostic: nil
                         ),
-                        sema: sema
+                        sema: request.sema
                     )
-                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(returnType) : returnType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return (candidates, finalType)
                 }
             }

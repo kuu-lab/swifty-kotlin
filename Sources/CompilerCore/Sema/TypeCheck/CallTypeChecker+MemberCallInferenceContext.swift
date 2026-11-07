@@ -10,29 +10,65 @@ extension CallTypeChecker {
         let expectedType: TypeID?
         let explicitTypeArgs: [TypeID]
         let safeCall: Bool
+        let calleeStr: String
+        let knownNames: KnownCompilerNames
+
+        init(
+            id: ExprID,
+            receiverID: ExprID,
+            calleeName: InternedString,
+            args: [CallArgument],
+            range: SourceRange,
+            ctx: TypeInferenceContext,
+            expectedType: TypeID?,
+            explicitTypeArgs: [TypeID],
+            safeCall: Bool
+        ) {
+            self.id = id
+            self.receiverID = receiverID
+            self.calleeName = calleeName
+            self.args = args
+            self.range = range
+            self.ctx = ctx
+            self.expectedType = expectedType
+            self.explicitTypeArgs = explicitTypeArgs
+            self.safeCall = safeCall
+            self.calleeStr = ctx.interner.resolve(calleeName)
+            self.knownNames = KnownCompilerNames(interner: ctx.interner)
+        }
 
         var ast: ASTModule { ctx.ast }
         var sema: SemaModule { ctx.sema }
+        var types: TypeSystem { ctx.sema.types }
+        var symbols: SymbolTable { ctx.sema.symbols }
+        var bindings: BindingTable { ctx.sema.bindings }
+        var diagnostics: DiagnosticEngine { ctx.sema.diagnostics }
         var interner: StringInterner { ctx.interner }
-        var knownNames: KnownCompilerNames { KnownCompilerNames(interner: ctx.interner) }
         var isExplicitCall: Bool { ctx.ast.arena.isExplicitCall(id) }
         var isInfixCall: Bool { ctx.ast.arena.isInfixCall(id) }
         /// `recv.name` without parentheses is property-access syntax, not an
         /// invocation of a same-named function.
         var isPropertyAccessShape: Bool { args.isEmpty && !isExplicitCall }
+
+        func finalType(_ type: TypeID) -> TypeID {
+            safeCall ? ctx.sema.types.makeNullable(type) : type
+        }
+
+        @discardableResult
+        func bindResult(_ type: TypeID) -> TypeID {
+            let final = finalType(type)
+            ctx.sema.bindings.bindExprType(id, type: final)
+            return final
+        }
     }
 
     func markDeferredCollectionHOFLambdaIfNeeded(_ request: MemberCallInferenceRequest) {
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let calleeName = request.calleeName, args = request.args
-
-        if ["firstNotNullOf", "firstNotNullOfOrNull", "takeLastWhile"]
-            .contains(interner.resolve(calleeName)),
-            args.count == 1,
-            let lambdaExpr = ast.arena.expr(args[0].expr),
-            lambdaExpr.isLambdaOrCallableRef
+        if ["firstNotNullOf", "firstNotNullOfOrNull", "takeLastWhile"].contains(request.calleeStr),
+           request.args.count == 1,
+           let lambdaExpr = request.ast.arena.expr(request.args[0].expr),
+           lambdaExpr.isLambdaOrCallableRef
         {
-            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+            request.bindings.markCollectionHOFLambdaExpr(request.args[0].expr)
         }
     }
 
@@ -58,27 +94,23 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let explicitTypeArgs = request.explicitTypeArgs
-
         if let result = tryInferLateinitIsInitializedCall(
-            id, receiverID: receiverID, calleeName: calleeName, args: args,
-            range: range, ctx: ctx, locals: &locals
+            request.id, receiverID: request.receiverID, calleeName: request.calleeName, args: request.args,
+            range: request.range, ctx: request.ctx, locals: &locals
         ) {
             return result
         }
 
         if let result = tryInferClassRefMemberCall(
-            id, receiverID: receiverID, calleeName: calleeName, args: args,
-            explicitTypeArgs: explicitTypeArgs, range: range, ctx: ctx, locals: &locals
+            request.id, receiverID: request.receiverID, calleeName: request.calleeName, args: request.args,
+            explicitTypeArgs: request.explicitTypeArgs, range: request.range, ctx: request.ctx, locals: &locals
         ) {
             return result
         }
 
         if let result = tryInferNumericCompanionMemberCall(
-            id, receiverID: receiverID, calleeName: calleeName, args: args,
-            ctx: ctx, locals: &locals
+            request.id, receiverID: request.receiverID, calleeName: request.calleeName, args: request.args,
+            ctx: request.ctx, locals: &locals
         ) {
             return result
         }
@@ -93,14 +125,11 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         locals: LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let ctx = request.ctx, sema = request.sema, ast = request.ast, interner = request.interner
-
         guard request.args.isEmpty,
               request.explicitTypeArgs.isEmpty,
               !request.safeCall,
-              !ast.arena.isExplicitCall(id),
-              let receiverPath = qualifiedCalleePath(for: request.receiverID, ast: ast),
+              !request.isExplicitCall,
+              let receiverPath = qualifiedCalleePath(for: request.receiverID, ast: request.ast),
               !receiverPath.isEmpty,
               locals[receiverPath[0]] == nil
         else {
@@ -108,15 +137,15 @@ extension CallTypeChecker {
         }
 
         let qualifiedPath = receiverPath + [request.calleeName]
-        let propertyCandidates = sema.symbols.lookupAll(fqName: qualifiedPath).filter { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate),
+        let propertyCandidates = request.symbols.lookupAll(fqName: qualifiedPath).filter { candidate in
+            guard let symbol = request.ctx.cachedSymbol(candidate),
                   symbol.kind == .property,
-                  sema.symbols.extensionPropertyReceiverType(for: candidate) == nil
+                  request.symbols.extensionPropertyReceiverType(for: candidate) == nil
             else {
                 return false
             }
-            let parentKind = sema.symbols.parentSymbol(for: candidate)
-                .flatMap { sema.symbols.symbol($0) }?.kind
+            let parentKind = request.symbols.parentSymbol(for: candidate)
+                .flatMap { request.symbols.symbol($0) }?.kind
             // A package-qualified object member such as
             // `kotlin.text.Charsets.UTF_8` has the object as its symbol
             // parent, even though the receiver path is still a namespace-only
@@ -129,49 +158,49 @@ extension CallTypeChecker {
             return parentKind == nil || parentKind == .package || isStaticObjectProperty
         }
         if !propertyCandidates.isEmpty {
-            let visibility = ctx.filterByVisibility(propertyCandidates, usageRange: request.range)
+            let visibility = request.ctx.filterByVisibility(propertyCandidates, usageRange: request.range)
             guard let property = visibility.visible.first else {
                 if let inaccessible = visibility.invisible.first {
                     driver.helpers.emitVisibilityError(
                         for: inaccessible,
-                        name: interner.resolve(request.calleeName),
+                        name: request.calleeStr,
                         range: request.range,
-                        diagnostics: ctx.sema.diagnostics
+                        diagnostics: request.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
                 return nil
             }
-            guard let propertyType = sema.symbols.propertyType(for: property) else {
+            guard let propertyType = request.symbols.propertyType(for: property) else {
                 return nil
             }
             driver.helpers.checkDeprecation(
                 for: property,
-                sema: sema,
-                interner: interner,
+                sema: request.sema,
+                interner: request.interner,
                 range: request.range,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: request.diagnostics
             )
             driver.helpers.checkOptIn(
                 for: property,
-                ctx: ctx,
+                ctx: request.ctx,
                 range: request.range,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: request.diagnostics
             )
-            sema.bindings.bindIdentifier(id, symbol: property)
-            if let propertySymbol = sema.symbols.symbol(property),
+            request.bindings.bindIdentifier(request.id, symbol: property)
+            if let propertySymbol = request.symbols.symbol(property),
                propertySymbol.flags.contains(.constValue),
-               let constant = sema.symbols.constValueExprKind(for: property)
+               let constant = request.symbols.constValueExprKind(for: property)
             {
-                sema.bindings.bindConstExprValue(id, value: constant)
+                request.bindings.bindConstExprValue(request.id, value: constant)
             }
-            sema.bindings.markFQNQualifiedValueExpr(id)
-            sema.bindings.bindExprType(id, type: propertyType)
+            request.bindings.markFQNQualifiedValueExpr(request.id)
+            request.bindings.bindExprType(request.id, type: propertyType)
             return propertyType
         }
 
-        let receiverIsClassifier = sema.symbols.lookupAll(fqName: receiverPath).contains { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+        let receiverIsClassifier = request.symbols.lookupAll(fqName: receiverPath).contains { candidate in
+            guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
             switch symbol.kind {
             case .class, .interface, .object, .enumClass, .annotationClass:
                 return true
@@ -179,18 +208,18 @@ extension CallTypeChecker {
                 return false
             }
         }
-        guard let classifier = sema.symbols.lookupAll(fqName: qualifiedPath).first(where: { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+        guard let classifier = request.symbols.lookupAll(fqName: qualifiedPath).first(where: { candidate in
+            guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
             switch symbol.kind {
             case .object, .annotationClass:
                 return true
             case .class, .interface, .enumClass:
-                return sema.symbols.companionObjectSymbol(for: candidate) != nil
+                return request.symbols.companionObjectSymbol(for: candidate) != nil
             default:
                 return false
             }
         }),
-            let classifierSymbol = ctx.cachedSymbol(classifier)
+            let classifierSymbol = request.ctx.cachedSymbol(classifier)
         else {
             return nil
         }
@@ -199,65 +228,65 @@ extension CallTypeChecker {
             // is a singleton value, even when the owner has no companion.
             // Preserve ordinary receiver inference for other classifier paths.
             guard classifierSymbol.kind == .object,
-                  !ctx.cachedScopeLookup(receiverPath[0]).contains(where: {
-                      guard let root = sema.symbols.symbol($0) else { return false }
+                  !request.ctx.cachedScopeLookup(receiverPath[0]).contains(where: {
+                      guard let root = request.symbols.symbol($0) else { return false }
                       switch root.kind {
                       case .property, .object, .local, .valueParameter, .typeAlias, .enumClass:
                           return true
                       case .class, .interface, .annotationClass:
-                          return sema.symbols.companionObjectSymbol(for: root.id) != nil
+                          return request.symbols.companionObjectSymbol(for: root.id) != nil
                       default:
                           return false
                       }
                   }),
-                  sema.symbols.lookupAll(fqName: [receiverPath[0]]).contains(where: {
-                      sema.symbols.symbol($0)?.kind == .package
+                  request.symbols.lookupAll(fqName: [receiverPath[0]]).contains(where: {
+                      request.symbols.symbol($0)?.kind == .package
                   }) else { return nil }
-            var owner = sema.symbols.parentSymbol(for: classifier)
-            while let current = owner, let info = sema.symbols.symbol(current), info.kind != .package {
-                guard ctx.visibilityChecker.isAccessible(info, fromFile: ctx.currentFileID,
-                                                          enclosingClass: ctx.enclosingClassSymbol) else {
-                    driver.helpers.emitVisibilityError(for: info, name: interner.resolve(info.name),
-                                                       range: request.range, diagnostics: ctx.sema.diagnostics)
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            var owner = request.symbols.parentSymbol(for: classifier)
+            while let current = owner, let info = request.symbols.symbol(current), info.kind != .package {
+                guard request.ctx.visibilityChecker.isAccessible(info, fromFile: request.ctx.currentFileID,
+                                                          enclosingClass: request.ctx.enclosingClassSymbol) else {
+                    driver.helpers.emitVisibilityError(for: info, name: request.interner.resolve(info.name),
+                                                       range: request.range, diagnostics: request.diagnostics)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
-                owner = sema.symbols.parentSymbol(for: current)
+                owner = request.symbols.parentSymbol(for: current)
             }
         }
-        guard ctx.visibilityChecker.isAccessible(
+        guard request.ctx.visibilityChecker.isAccessible(
             classifierSymbol,
-            fromFile: ctx.currentFileID,
-            enclosingClass: ctx.enclosingClassSymbol
+            fromFile: request.ctx.currentFileID,
+            enclosingClass: request.ctx.enclosingClassSymbol
         ) else {
             driver.helpers.emitVisibilityError(
                 for: classifierSymbol,
-                name: interner.resolve(request.calleeName),
+                name: request.calleeStr,
                 range: request.range,
-                diagnostics: ctx.sema.diagnostics
+                diagnostics: request.diagnostics
             )
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
         driver.helpers.checkDeprecation(
             for: classifier,
-            sema: sema,
-            interner: interner,
+            sema: request.sema,
+            interner: request.interner,
             range: request.range,
-            diagnostics: ctx.sema.diagnostics
+            diagnostics: request.diagnostics
         )
         driver.helpers.checkOptIn(
             for: classifier,
-            ctx: ctx,
+            ctx: request.ctx,
             range: request.range,
-            diagnostics: ctx.sema.diagnostics
+            diagnostics: request.diagnostics
         )
-        let classifierType = sema.types.make(.classType(ClassType(
+        let classifierType = request.types.make(.classType(ClassType(
             classSymbol: classifier,
             args: [],
             nullability: .nonNull
         )))
-        sema.bindings.bindIdentifier(id, symbol: classifier)
-        sema.bindings.markFQNQualifiedValueExpr(id)
-        sema.bindings.bindExprType(id, type: classifierType)
+        request.bindings.bindIdentifier(request.id, symbol: classifier)
+        request.bindings.markFQNQualifiedValueExpr(request.id)
+        request.bindings.bindExprType(request.id, type: classifierType)
         return classifierType
     }
 
@@ -266,12 +295,8 @@ extension CallTypeChecker {
         _ request: MemberCallInferenceRequest,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let explicitTypeArgs = request.explicitTypeArgs
-        let sema = request.sema, ast = request.ast, interner = request.interner
 
-        guard let receiverPath = qualifiedCalleePath(for: receiverID, ast: ast),
+        guard let receiverPath = qualifiedCalleePath(for: request.receiverID, ast: request.ast),
               !receiverPath.isEmpty,
               locals[receiverPath[0]] == nil
         else { return nil }
@@ -287,8 +312,8 @@ extension CallTypeChecker {
         // leaves trailing lambda parameters without an expected type. Bail
         // out here so the regular member-call path (which defers lambda
         // inference until overload resolution picks a signature) handles it.
-        if sema.symbols.lookupAll(fqName: receiverPath).contains(where: { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+        if request.sema.symbols.lookupAll(fqName: receiverPath).contains(where: { candidate in
+            guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
             switch symbol.kind {
             case .class, .interface, .object, .enumClass, .annotationClass:
                 return true
@@ -299,40 +324,40 @@ extension CallTypeChecker {
             return nil
         }
 
-        let fqnPath = receiverPath + [calleeName]
-        var fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
-            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+        let fqnPath = receiverPath + [request.calleeName]
+        var fqnCandidates = request.sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
+            guard let symbol = request.ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
-        if samConstructorTarget(named: calleeName, qualifiedName: fqnPath, ctx: ctx) != nil {
+        if samConstructorTarget(named: request.calleeName, qualifiedName: fqnPath, ctx: request.ctx) != nil {
             var samFactoryCandidates: [SymbolID]?
             if let samType = inferSamConvertedCallExpr(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 qualifiedName: fqnPath,
-                args: args,
-                range: range,
-                ctx: ctx,
+                args: request.args,
+                range: request.range,
+                ctx: request.ctx,
                 locals: &locals,
                 expectedType: request.expectedType,
-                explicitTypeArgs: explicitTypeArgs,
+                explicitTypeArgs: request.explicitTypeArgs,
                 samFactoryCandidates: &samFactoryCandidates
             ) {
-                sema.bindings.markFQNTopLevelCallExpr(id)
+                request.sema.bindings.markFQNTopLevelCallExpr(request.id)
                 return samType
             }
             if let samFactoryCandidates {
                 fqnCandidates = samFactoryCandidates
             }
         }
-        if let classSymbolID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
-            guard let symbol = ctx.cachedSymbol($0) else { return false }
+        if let classSymbolID = request.sema.symbols.lookupAll(fqName: fqnPath).first(where: {
+            guard let symbol = request.ctx.cachedSymbol($0) else { return false }
             guard symbol.kind == .class || symbol.kind == .enumClass || symbol.kind == .annotationClass else {
                 return false
             }
             return !symbol.flags.contains(.expectDeclaration)
-                || sema.symbols.actualSymbol(for: $0) == nil
-        }), let classSymbol = ctx.cachedSymbol(classSymbolID) {
+                || request.sema.symbols.actualSymbol(for: $0) == nil
+        }), let classSymbol = request.ctx.cachedSymbol(classSymbolID) {
             // Merge constructors with same-name factory functions, just as
             // unqualified call resolution does. fqnPath may name both a class
             // and a top-level function
@@ -351,33 +376,33 @@ extension CallTypeChecker {
             // must remain a classifier for further nested access (for example,
             // `HexFormat.Builder`); an explicit call must continue through
             // constructor resolution.
-            if args.isEmpty, !ast.arena.isExplicitCall(id) {
-                let classifierType = sema.types.make(.classType(ClassType(
+            if request.args.isEmpty, !request.ast.arena.isExplicitCall(request.id) {
+                let classifierType = request.sema.types.make(.classType(ClassType(
                     classSymbol: classSymbolID,
                     args: [],
                     nullability: .nonNull
                 )))
-                sema.bindings.bindIdentifier(id, symbol: classSymbolID)
-                sema.bindings.bindExprType(id, type: classifierType)
+                request.sema.bindings.bindIdentifier(request.id, symbol: classSymbolID)
+                request.sema.bindings.bindExprType(request.id, type: classifierType)
                 return classifierType
             }
             if classSymbol.flags.contains(.abstractType), fqnCandidates.isEmpty {
-                let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                ctx.sema.diagnostics.error(
+                let className = classSymbol.fqName.map { request.interner.resolve($0) }.joined(separator: ".")
+                request.ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT",
                     "Cannot create an instance of abstract class '\(className)'.",
-                    range: range
+                    range: request.range
                 )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
+                request.sema.bindings.bindExprType(request.id, type: request.sema.types.errorType)
+                return request.sema.types.errorType
             }
-            let ctorFQName = fqnPath + [interner.intern("<init>")]
+            let ctorFQName = fqnPath + [request.interner.intern("<init>")]
             if !classSymbol.flags.contains(.abstractType) {
                 // Constructor symbols carry their declaring class as parent;
                 // filter out the linked expect class's duplicate constructors.
-                fqnCandidates.append(contentsOf: sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
-                    ctx.cachedSymbol(candidate)?.kind == .constructor
-                        && sema.symbols.parentSymbol(for: candidate) == classSymbolID
+                fqnCandidates.append(contentsOf: request.sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
+                    request.ctx.cachedSymbol(candidate)?.kind == .constructor
+                        && request.sema.symbols.parentSymbol(for: candidate) == classSymbolID
                 })
             }
         }
@@ -388,29 +413,29 @@ extension CallTypeChecker {
         // `java` as a value receiver.
         var typeAliasConstructor: TypeAliasConstructorContext?
         if fqnCandidates.isEmpty,
-           let aliasID = sema.symbols.lookupAll(fqName: fqnPath).first(where: {
-               ctx.cachedSymbol($0)?.kind == .typeAlias
+           let aliasID = request.sema.symbols.lookupAll(fqName: fqnPath).first(where: {
+               request.ctx.cachedSymbol($0)?.kind == .typeAlias
            })
         {
-            let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasID)
-            if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
-                sema.diagnostics.error(
+            let aliasTypeParameters = request.sema.symbols.typeAliasTypeParameters(for: aliasID)
+            if !request.explicitTypeArgs.isEmpty, request.explicitTypeArgs.count != aliasTypeParameters.count {
+                request.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0062",
-                    "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
-                    range: range
+                    "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(request.explicitTypeArgs.count).",
+                    range: request.range
                 )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
+                request.sema.bindings.bindExprType(request.id, type: request.sema.types.errorType)
+                return request.sema.types.errorType
             }
 
-            let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+            let aliasTypeArgs: [TypeArg] = if request.explicitTypeArgs.isEmpty {
                 aliasTypeParameters.map {
-                    .invariant(sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
+                    .invariant(request.sema.types.make(.typeParam(TypeParamType(symbol: $0, nullability: .nonNull))))
                 }
             } else {
-                explicitTypeArgs.enumerated().map { index, type in
+                request.explicitTypeArgs.enumerated().map { index, type in
                     let resolved = type == TypeID.invalid
-                        ? sema.types.make(.typeParam(TypeParamType(
+                        ? request.sema.types.make(.typeParam(TypeParamType(
                             symbol: aliasTypeParameters[index],
                             nullability: .nonNull
                         )))
@@ -422,32 +447,32 @@ extension CallTypeChecker {
             if let expanded = driver.helpers.expandTypeAlias(
                 aliasID,
                 typeArgs: aliasTypeArgs,
-                sema: sema,
+                sema: request.sema,
                 visited: [],
                 depth: 0,
-                diagnostics: sema.diagnostics
+                diagnostics: request.sema.diagnostics
             ) {
                 let aliasTarget: ClassType?
-                switch sema.types.kind(of: expanded) {
+                switch request.sema.types.kind(of: expanded) {
                 case let .classType(classType):
                     aliasTarget = classType
                 case .any:
-                    aliasTarget = sema.types.anyClassSymbol.map { ClassType(classSymbol: $0) }
+                    aliasTarget = request.sema.types.anyClassSymbol.map { ClassType(classSymbol: $0) }
                 default:
                     aliasTarget = nil
                 }
 
                 if let aliasTarget {
-                    let ownerID = sema.symbols.actualSymbol(for: aliasTarget.classSymbol) ?? aliasTarget.classSymbol
-                    if let owner = ctx.cachedSymbol(ownerID) {
-                        let constructorPath = owner.fqName + [interner.intern("<init>")]
-                        let constructors = sema.symbols.lookupAll(fqName: constructorPath).filter {
-                            ctx.cachedSymbol($0)?.kind == .constructor
-                                && sema.symbols.parentSymbol(for: $0) == ownerID
+                    let ownerID = request.sema.symbols.actualSymbol(for: aliasTarget.classSymbol) ?? aliasTarget.classSymbol
+                    if let owner = request.ctx.cachedSymbol(ownerID) {
+                        let constructorPath = owner.fqName + [request.interner.intern("<init>")]
+                        let constructors = request.sema.symbols.lookupAll(fqName: constructorPath).filter {
+                            request.ctx.cachedSymbol($0)?.kind == .constructor
+                                && request.sema.symbols.parentSymbol(for: $0) == ownerID
                         }
                         if !constructors.isEmpty {
                             fqnCandidates.append(contentsOf: constructors)
-                            let expandedConstructorType = sema.types.make(.classType(ClassType(
+                            let expandedConstructorType = request.sema.types.make(.classType(ClassType(
                                 classSymbol: ownerID,
                                 args: aliasTarget.args,
                                 enclosingTypeArgs: aliasTarget.enclosingTypeArgs,
@@ -468,51 +493,51 @@ extension CallTypeChecker {
         // declaration level) can expose bundled-internal declarations the
         // way unqualified calls do (KUU-3920: ktor-utils calls
         // `kotlinx.coroutines.internal.recoverStackTrace` by FQN).
-        let (vis, _) = ctx.filterByVisibility(fqnCandidates, usageRange: range)
+        let (vis, _) = request.ctx.filterByVisibility(fqnCandidates, usageRange: request.range)
         guard !vis.isEmpty else { return nil }
 
-        if sema.requiresResolvedLibraryCalls,
-           receiverPath.map(interner.resolve) == ["kotlin", "sequences"],
-           ["sequence", "iterator"].contains(interner.resolve(calleeName)),
+        if request.sema.requiresResolvedLibraryCalls,
+           receiverPath.map(request.interner.resolve) == ["kotlin", "sequences"],
+           ["sequence", "iterator"].contains(request.interner.resolve(request.calleeName)),
            vis.contains(where: { candidate in
-               ctx.cachedSymbol(candidate)?.declSite.map { driver.sourceManager?.origin(of: $0.start.file) == .residualStdlib } == true
+               request.ctx.cachedSymbol(candidate)?.declSite.map { driver.sourceManager?.origin(of: $0.start.file) == .residualStdlib } == true
            }),
-           let builder = inferSequenceBuilderCall(id, args: args, range: range, ctx: ctx, locals: &locals, expectedType: request.expectedType, explicitTypeArgs: explicitTypeArgs, calleeName: calleeName, jvmBuilderName: calleeName)
-               ?? inferIteratorBuilderCall(id, args: args, range: range, ctx: ctx, locals: &locals, expectedType: request.expectedType, explicitTypeArgs: explicitTypeArgs, calleeName: calleeName, jvmBuilderName: calleeName) {
-            sema.bindings.markFQNTopLevelCallExpr(id)
+           let builder = inferSequenceBuilderCall(request.id, args: request.args, range: request.range, ctx: request.ctx, locals: &locals, expectedType: request.expectedType, explicitTypeArgs: request.explicitTypeArgs, calleeName: request.calleeName, jvmBuilderName: request.calleeName)
+               ?? inferIteratorBuilderCall(request.id, args: request.args, range: request.range, ctx: request.ctx, locals: &locals, expectedType: request.expectedType, explicitTypeArgs: request.explicitTypeArgs, calleeName: request.calleeName, jvmBuilderName: request.calleeName) {
+            request.sema.bindings.markFQNTopLevelCallExpr(request.id)
             return builder
         }
         if let builderResult = inferReceiverBuilderCall(
-            id, calleeName: calleeName, args: args, range: range,
-            ctx: ctx, locals: &locals, expectedType: request.expectedType,
-            explicitTypeArgs: explicitTypeArgs, candidateOverride: vis
+            request.id, calleeName: request.calleeName, args: request.args, range: request.range,
+            ctx: request.ctx, locals: &locals, expectedType: request.expectedType,
+            explicitTypeArgs: request.explicitTypeArgs, candidateOverride: vis
         ) {
-            sema.bindings.markFQNTopLevelCallExpr(id)
+            request.sema.bindings.markFQNTopLevelCallExpr(request.id)
             return builderResult
         }
         // A package qualifier is not a value receiver, but its arguments need
         // the same signature context as an imported top-level call. This also
         // contextualizes builders with explicit element type arguments.
         let argumentContextTypeArgs = typeAliasConstructor.map {
-            aliasConstructorArgumentContextTypes($0, explicitTypeArgs: explicitTypeArgs, sema: sema)
-        } ?? explicitTypeArgs
+            aliasConstructorArgumentContextTypes($0, explicitTypeArgs: request.explicitTypeArgs, sema: request.sema)
+        } ?? request.explicitTypeArgs
         var expectedTypeOverrides: [Int: TypeID] = [:]
         prepareCompareByExpectedTypeOverrides(
-            args: args,
-            callRange: range,
+            args: request.args,
+            callRange: request.range,
             candidates: vis,
             explicitTypeArgs: argumentContextTypeArgs,
             locals: locals,
-            ctx: ctx,
+            ctx: request.ctx,
             expectedTypeOverrides: &expectedTypeOverrides
         )
-        let hasContextualIntegerLiteral = args.contains { argument in
-            switch ast.arena.expr(argument.expr) {
+        let hasContextualIntegerLiteral = request.args.contains { argument in
+            switch request.ast.arena.expr(argument.expr) {
             case .intLiteral, .uintLiteral:
                 return true
             case let .unaryExpr(op, operand, _):
                 guard op == .unaryPlus || op == .unaryMinus,
-                      case .intLiteral = ast.arena.expr(operand)
+                      case .intLiteral = request.ast.arena.expr(operand)
                 else {
                     return false
                 }
@@ -521,56 +546,56 @@ extension CallTypeChecker {
                 return false
             }
         }
-        let needsArgumentPreparation = args.contains { ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
+        let needsArgumentPreparation = request.args.contains { request.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true }
             || !expectedTypeOverrides.isEmpty
             || hasContextualIntegerLiteral
         let preparedArgs = needsArgumentPreparation
             ? prepareCallArguments(
-                args: args, callRange: range, candidates: vis,
+                args: request.args, callRange: request.range, candidates: vis,
                 expectedTypeOverrides: expectedTypeOverrides,
                 contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
                     ? request.ctx.sema.types.unitType : request.expectedType,
-                explicitTypeArgs: argumentContextTypeArgs, ctx: ctx, locals: &locals
+                explicitTypeArgs: argumentContextTypeArgs, ctx: request.ctx, locals: &locals
             ) : nil
-        let argTypes = preparedArgs?.argTypes ?? args.map { arg -> TypeID in
-            sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+        let argTypes = preparedArgs?.argTypes ?? request.args.map { arg -> TypeID in
+            request.sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: request.ctx, locals: &locals)
         }
-        let callArgs = zip(args, argTypes).map { arg, type in
-            CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
+        let callArgs = zip(request.args, argTypes).map { arg, type in
+            CallArg.source(arg, type: type, callRange: request.range, ast: request.ctx.ast)
         }
         let call = CallExpr(
-            range: range,
-            calleeName: calleeName,
+            range: request.range,
+            calleeName: request.calleeName,
             args: callArgs,
-            explicitTypeArgs: explicitTypeArgs,
+            explicitTypeArgs: request.explicitTypeArgs,
             typeAliasConstructor: typeAliasConstructor,
-            elvisLhsExpectedTypeHint: ctx.isElvisBranchExpectedTypeHint,
-            elvisRhsCallResultTypeHint: ctx.elvisRhsCallResultTypeHint
+            elvisLhsExpectedTypeHint: request.ctx.isElvisBranchExpectedTypeHint,
+            elvisRhsCallResultTypeHint: request.ctx.elvisRhsCallResultTypeHint
         )
         let resolved: ResolvedCall
         if let preparedArgs {
             resolved = resolveCallRespectingLambdaReturnType(
-                candidates: vis, args: args, argTypes: argTypes, range: range,
-                calleeName: calleeName, explicitTypeArgs: explicitTypeArgs,
+                candidates: vis, args: request.args, argTypes: argTypes, range: request.range,
+                calleeName: request.calleeName, explicitTypeArgs: request.explicitTypeArgs,
                 typeAliasConstructor: typeAliasConstructor,
                 expectedType: request.expectedType, implicitReceiverType: nil,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
                 hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-                ctx: ctx
+                ctx: request.ctx
             )
         } else {
-            resolved = ctx.resolver.resolveCall(
-                candidates: vis, call: call, expectedType: request.expectedType, ctx: sema
+            resolved = request.ctx.resolver.resolveCall(
+                candidates: vis, call: call, expectedType: request.expectedType, ctx: request.sema
             )
         }
         guard let chosen = resolved.chosenCallee,
-              let signature = sema.symbols.functionSignature(for: chosen)
+              let signature = request.sema.symbols.functionSignature(for: chosen)
         else { return nil }
 
-        sema.bindings.bindCall(
-            id,
+        request.sema.bindings.bindCall(
+            request.id,
             binding: CallBinding(
                 chosenCallee: chosen,
                 substitutedTypeArguments: resolved.substitutedTypeArguments
@@ -579,45 +604,45 @@ extension CallTypeChecker {
                 parameterMapping: resolved.parameterMapping
             )
         )
-        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        request.sema.bindings.bindCallableTarget(request.id, target: .symbol(chosen))
         driver.helpers.checkDeprecation(
             for: chosen,
-            sema: sema,
-            interner: interner,
-            range: range,
-            diagnostics: ctx.sema.diagnostics
+            sema: request.sema,
+            interner: request.interner,
+            range: request.range,
+            diagnostics: request.ctx.sema.diagnostics
         )
-        markSourceBackedCoroutineLauncherArguments(chosen, args: args, ctx: ctx)
+        markSourceBackedCoroutineLauncherArguments(chosen, args: request.args, ctx: request.ctx)
         // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
         // namespace path, never type-checked above, so KIR lowering must not
         // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.
-        sema.bindings.markFQNTopLevelCallExpr(id)
+        request.sema.bindings.markFQNTopLevelCallExpr(request.id)
         // KSP-1323: fully-qualified `kotlin.reflect.typeOf<T>()` expands
         // through the same intrinsic as the unqualified spelling instead of
         // calling the bundled declaration body.
-        if args.isEmpty,
-           sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
+        if request.args.isEmpty,
+           request.sema.wellKnownSymbols.reflectIntrinsic(for: chosen) == .typeOf
         {
-            sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+            request.sema.bindings.markStdlibSpecialCallExpr(request.id, kind: .typeOf)
         }
-        if args.isEmpty {
-            switch sema.wellKnownSymbols.enumIntrinsic(for: chosen) {
+        if request.args.isEmpty {
+            switch request.sema.wellKnownSymbols.enumIntrinsic(for: chosen) {
             case .enumValues:
-                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumValues)
-                sema.bindings.markCollectionExpr(id)
+                request.sema.bindings.markStdlibSpecialCallExpr(request.id, kind: .enumValues)
+                request.sema.bindings.markCollectionExpr(request.id)
             case .enumEntries:
-                sema.bindings.markStdlibSpecialCallExpr(id, kind: .enumEntries)
+                request.sema.bindings.markStdlibSpecialCallExpr(request.id, kind: .enumEntries)
             case .enumValueOf, .enumEntriesIntrinsic, .none:
                 break
             }
         }
-        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-        let resultType = sema.types.substituteTypeParameters(
+        let typeVarBySymbol = request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let resultType = request.sema.types.substituteTypeParameters(
             in: signature.returnType,
             substitution: resolved.substitutedTypeArguments,
             typeVarBySymbol: typeVarBySymbol
         )
-        sema.bindings.bindExprType(id, type: resultType)
+        request.sema.bindings.bindExprType(request.id, type: resultType)
         return resultType
     }
 }

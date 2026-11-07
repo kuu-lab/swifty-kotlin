@@ -12,13 +12,11 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, args = request.args
-        let ctx = request.ctx, sema = request.sema, ast = request.ast, interner = request.interner
 
-        guard ast.arena.isExplicitCall(id),
+        guard request.ast.arena.isExplicitCall(request.id),
               let target = nestedClassifierCompanionInvokeTarget(
                   classifierSymbol: classifierSymbol,
-                  ctx: ctx
+                  ctx: request.ctx
               )
         else {
             return nil
@@ -31,19 +29,19 @@ extension CallTypeChecker {
             }
             driver.helpers.emitVisibilityError(
                 for: firstInvisible,
-                name: interner.resolve(request.calleeName),
+                name: request.interner.resolve(request.calleeName),
                 range: request.range,
-                diagnostics: sema.diagnostics
+                diagnostics: request.sema.diagnostics
             )
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
 
         var preInferredNonLambdaArgTypes: [Int: TypeID] = [:]
-        for (index, argument) in args.enumerated() {
-            switch ast.arena.expr(argument.expr) {
+        for (index, argument) in request.args.enumerated() {
+            switch request.ast.arena.expr(argument.expr) {
             case .lambdaLiteral, .callableRef:
                 continue
-            case .blockExpr where ast.arena.isAnonymousFunction(argument.expr):
+            case .blockExpr where request.ast.arena.isAnonymousFunction(argument.expr):
                 continue
             default:
                 preInferredNonLambdaArgTypes[index] = argTypes[index]
@@ -53,9 +51,9 @@ extension CallTypeChecker {
         var expectedTypeOverrides: [Int: TypeID] = [:]
         var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
         let expectedTypeHintIndices = prepareCallExprArgumentContexts(
-            args: args,
+            args: request.args,
             callRange: request.range,
-            ctx: ctx,
+            ctx: request.ctx,
             expectedType: request.expectedType,
             explicitTypeArgs: request.explicitTypeArgs,
             calleeName: request.calleeName,
@@ -67,24 +65,24 @@ extension CallTypeChecker {
             lambdaContextOverrides: &lambdaContextOverrides
         )
         let preparedArgs = prepareCallArguments(
-            args: args,
+            args: request.args,
             callRange: request.range,
             candidates: candidates,
             preInferredNonLambdaArgTypes: preInferredNonLambdaArgTypes,
             expectedTypeOverrides: expectedTypeOverrides,
             expectedTypeHintIndices: expectedTypeHintIndices,
-            contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
-                ? sema.types.unitType : request.expectedType,
+            contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
+                ? request.sema.types.unitType : request.expectedType,
             explicitTypeArgs: request.explicitTypeArgs,
             receiverType: target.receiverType,
             boundObjectDispatchReceiverCandidates: Set(candidates),
             lambdaContextOverrides: lambdaContextOverrides,
-            ctx: ctx,
+            ctx: request.ctx,
             locals: &locals
         )
         let resolved = resolveCallRespectingLambdaReturnType(
             candidates: candidates,
-            args: args,
+            args: request.args,
             argTypes: preparedArgs.argTypes,
             range: request.range,
             calleeName: request.calleeName,
@@ -97,49 +95,49 @@ extension CallTypeChecker {
             inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
             blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
             hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-            ctx: ctx
+            ctx: request.ctx
         )
         if let diagnostic = resolved.diagnostic {
-            sema.diagnostics.emit(diagnostic)
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            request.sema.diagnostics.emit(diagnostic)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
         guard let chosen = resolved.chosenCallee else {
             return nil
         }
 
-        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
+        contextualizeResolvedIntegerArguments(args: request.args, resolved: resolved, ctx: request.ctx, locals: &locals)
         let contextParameterReceiverSymbols = contextParameterReceiverSymbols(
             for: chosen,
             substitution: resolved.substitutedTypeArguments,
-            ctx: ctx
+            ctx: request.ctx
         )
         let resultType = bindCallAndResolveReturnType(
-            id,
+            request.id,
             chosen: chosen,
             resolved: resolved,
-            sema: sema,
+            sema: request.sema,
             dispatchReceiverSymbol: target.companionSymbol,
             contextParameterReceiverSymbols: contextParameterReceiverSymbols
         )
-        sema.bindings.bindIdentifier(id, symbol: chosen)
-        sema.bindings.bindIdentifier(request.receiverID, symbol: target.companionSymbol)
-        sema.bindings.bindExprType(request.receiverID, type: target.receiverType)
-        sema.bindings.markInvokeOperatorCall(id)
-        applyContractEffects(id: id, chosen: chosen, args: args, ctx: ctx, locals: &locals)
+        request.sema.bindings.bindIdentifier(request.id, symbol: chosen)
+        request.sema.bindings.bindIdentifier(request.receiverID, symbol: target.companionSymbol)
+        request.sema.bindings.bindExprType(request.receiverID, type: target.receiverType)
+        request.sema.bindings.markInvokeOperatorCall(request.id)
+        applyContractEffects(id: request.id, chosen: chosen, args: request.args, ctx: request.ctx, locals: &locals)
         driver.helpers.checkDeprecation(
             for: chosen,
-            sema: sema,
-            interner: interner,
+            sema: request.sema,
+            interner: request.interner,
             range: request.range,
-            diagnostics: sema.diagnostics
+            diagnostics: request.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: chosen,
-            ctx: ctx,
+            ctx: request.ctx,
             range: request.range,
-            diagnostics: sema.diagnostics
+            diagnostics: request.sema.diagnostics
         )
-        sema.bindings.bindExprType(id, type: resultType)
+        request.sema.bindings.bindExprType(request.id, type: resultType)
         return resultType
     }
 

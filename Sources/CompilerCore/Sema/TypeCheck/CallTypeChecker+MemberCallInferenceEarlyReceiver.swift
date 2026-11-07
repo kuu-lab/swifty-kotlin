@@ -85,10 +85,6 @@ extension CallTypeChecker {
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
-        let ast = request.ast, sema = request.sema, interner = request.interner
         // KUU-4063: `flatMap`/`flatMapIndexed` select between two bundled
         // overloads that differ only in the transform's return type
         // (`(T) -> Sequence<R>` vs `(T) -> Iterable<R>`). The selection must
@@ -97,103 +93,103 @@ extension CallTypeChecker {
         // crashed at runtime) and for List receivers (regular overload
         // resolution commits to the `List.flatMap*` specialization and never
         // retries the `Iterable.flatMap*` variants).
-        let flatMapMemberName = interner.resolve(calleeName)
+        let flatMapMemberName = request.interner.resolve(request.calleeName)
         if (flatMapMemberName == "flatMap" || flatMapMemberName == "flatMapIndexed"),
-           args.count == 1,
-           isSequenceLikeType(receiverType, sema: sema, interner: interner)
+           request.args.count == 1,
+           isSequenceLikeType(receiverType, sema: request.sema, interner: request.interner)
         {
-            let receiverElementType: TypeID = if case let .classType(classType) = sema.types.kind(
-                of: sema.types.makeNonNullable(receiverType)
+            let receiverElementType: TypeID = if case let .classType(classType) = request.sema.types.kind(
+                of: request.sema.types.makeNonNullable(receiverType)
             ), let firstArg = classType.args.first {
                 switch firstArg {
                 case let .invariant(type), let .in(type), let .out(type):
                     type
                 case .star:
-                    sema.types.anyType
+                    request.sema.types.anyType
                 }
             } else {
-                sema.types.anyType
+                request.sema.types.anyType
             }
             let lambdaParameterTypes: [TypeID] = flatMapMemberName == "flatMapIndexed"
-                ? [sema.types.intType, receiverElementType]
+                ? [request.sema.types.intType, receiverElementType]
                 : [receiverElementType]
-            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+            if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                request.sema.bindings.markCollectionHOFLambdaExpr(request.args[0].expr)
             }
             inferFlatMapTransformArgument(
-                args[0].expr,
+                request.args[0].expr,
                 parameterTypes: lambdaParameterTypes,
                 expectedCallResultType: request.expectedType,
-                ctx: ctx,
+                ctx: request.ctx,
                 locals: &locals
             )
             let lambdaBodyType = inferredLambdaReturnType(
-                argExpr: args[0].expr,
-                ast: ast,
-                sema: sema
+                argExpr: request.args[0].expr,
+                ast: request.ast,
+                sema: request.sema
             )
             let flattenedElementType = flatMapTransformElementType(
-                lambdaArgExpr: args[0].expr,
+                lambdaArgExpr: request.args[0].expr,
                 returnType: lambdaBodyType,
-                ast: ast,
-                sema: sema,
-                interner: interner
+                ast: request.ast,
+                sema: request.sema,
+                interner: request.interner
             )
             if let sourceCallee = sourceBackedSequenceFlatMapOverload(
                 named: flatMapMemberName,
                 lambdaBodyType: lambdaBodyType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             ) {
-                sema.bindings.bindCall(
-                    id,
+                request.sema.bindings.bindCall(
+                    request.id,
                     binding: CallBinding(
                         chosenCallee: sourceCallee,
                         substitutedTypeArguments: [receiverElementType, flattenedElementType],
                         parameterMapping: [0: 0]
                     )
                 )
-                sema.bindings.bindCallableTarget(id, target: .symbol(sourceCallee))
-                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                request.sema.bindings.bindCallableTarget(request.id, target: .symbol(sourceCallee))
+                if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    request.sema.bindings.unmarkCollectionHOFLambdaExpr(request.args[0].expr)
                 }
             } else if let owner = driver.helpers.nominalSymbol(
-                of: sema.types.makeNonNullable(receiverType),
-                types: sema.types
+                of: request.sema.types.makeNonNullable(receiverType),
+                types: request.sema.types
             ),
-                let ownerSymbol = sema.symbols.symbol(owner)
+                let ownerSymbol = request.sema.symbols.symbol(owner)
             {
-                let memberFQName = ownerSymbol.fqName + [calleeName]
-                if let fallbackCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
+                let memberFQName = ownerSymbol.fqName + [request.calleeName]
+                if let fallbackCallee = request.sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
+                    guard let symbol = request.sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          sema.symbols.parentSymbol(for: candidate) == owner,
-                          let signature = sema.symbols.functionSignature(for: candidate)
+                          request.sema.symbols.parentSymbol(for: candidate) == owner,
+                          let signature = request.sema.symbols.functionSignature(for: candidate)
                     else {
                         return false
                     }
                     return signature.parameterTypes.count == 1
                 }) {
-                    sema.bindings.bindCall(
-                        id,
+                    request.sema.bindings.bindCall(
+                        request.id,
                         binding: CallBinding(
                             chosenCallee: fallbackCallee,
                             substitutedTypeArguments: [],
                             parameterMapping: [0: 0]
                         )
                     )
-                    sema.bindings.bindCallableTarget(id, target: .symbol(fallbackCallee))
+                    request.sema.bindings.bindCallableTarget(request.id, target: .symbol(fallbackCallee))
                 }
             }
-            sema.bindings.markCollectionExpr(id)
+            request.sema.bindings.markCollectionExpr(request.id)
             let resultType = makeSyntheticSequenceType(
-                symbols: sema.symbols,
-                types: sema.types,
-                interner: interner,
+                symbols: request.sema.symbols,
+                types: request.sema.types,
+                interner: request.interner,
                 elementType: flattenedElementType
             )
-            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-            sema.bindings.bindExprType(id, type: finalType)
+            let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
         // KUU-4063: non-Sequence receivers hit two overload holes:
@@ -212,10 +208,10 @@ extension CallTypeChecker {
         // Iterable-static receivers already resolves through regular
         // overload resolution, so only the List receiver shape is claimed.
         if (flatMapMemberName == "flatMap" || flatMapMemberName == "flatMapIndexed"),
-           args.count == 1,
-           !isSequenceLikeType(receiverType, sema: sema, interner: interner)
+           request.args.count == 1,
+           !isSequenceLikeType(receiverType, sema: request.sema, interner: request.interner)
         {
-            let classifier = receiverClassifier(sema: sema, interner: interner)
+            let classifier = receiverClassifier(sema: request.sema, interner: request.interner)
             let receiverIsListLike = classifier.isListLikeType(receiverType)
             // `flatMap` is only claimed for Collection-family receivers —
             // `Collection<T>`/`MutableCollection<T>` are routed into the
@@ -234,46 +230,46 @@ extension CallTypeChecker {
                     && !classifier.isArrayLikeType(receiverType)
             }
             if claimableReceiver {
-                let receiverElementType: TypeID = if case let .classType(classType) = sema.types.kind(
-                    of: sema.types.makeNonNullable(receiverType)
+                let receiverElementType: TypeID = if case let .classType(classType) = request.sema.types.kind(
+                    of: request.sema.types.makeNonNullable(receiverType)
                 ), let firstArg = classType.args.first {
                     switch firstArg {
                     case let .invariant(type), let .in(type), let .out(type):
                         type
                     case .star:
-                        sema.types.anyType
+                        request.sema.types.anyType
                     }
                 } else {
-                    sema.types.anyType
+                    request.sema.types.anyType
                 }
                 let lambdaParameterTypes: [TypeID] = flatMapMemberName == "flatMapIndexed"
-                    ? [sema.types.intType, receiverElementType]
+                    ? [request.sema.types.intType, receiverElementType]
                     : [receiverElementType]
-                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    request.sema.bindings.markCollectionHOFLambdaExpr(request.args[0].expr)
                 }
                 inferFlatMapTransformArgument(
-                    args[0].expr,
+                    request.args[0].expr,
                     parameterTypes: lambdaParameterTypes,
                     expectedCallResultType: request.expectedType,
-                    ctx: ctx,
+                    ctx: request.ctx,
                     locals: &locals
                 )
                 let lambdaBodyType = inferredLambdaReturnType(
-                    argExpr: args[0].expr,
-                    ast: ast,
-                    sema: sema
+                    argExpr: request.args[0].expr,
+                    ast: request.ast,
+                    sema: request.sema
                 )
                 // A concrete `List` receiver keeps the `List.flatMap*`
                 // specialization for List-returning transforms; other
                 // receivers claim any flattenable transform since nothing
                 // else binds their call.
                 let transformIsFlattenable = flatMapTransformIsFlattenable(
-                    lambdaArgExpr: args[0].expr,
+                    lambdaArgExpr: request.args[0].expr,
                     returnType: lambdaBodyType,
-                    ast: ast,
-                    sema: sema,
-                    interner: interner
+                    ast: request.ast,
+                    sema: request.sema,
+                    interner: request.interner
                 )
                 let claimCall = if receiverIsListLike {
                     transformIsFlattenable
@@ -285,109 +281,109 @@ extension CallTypeChecker {
                    let sourceCallee = sourceBackedIterableFlatMapOverload(
                        named: flatMapMemberName,
                        lambdaBodyType: lambdaBodyType,
-                       sema: sema,
-                       interner: interner
+                       sema: request.sema,
+                       interner: request.interner
                    )
                 {
                     let flattenedElementType = flatMapTransformElementType(
-                        lambdaArgExpr: args[0].expr,
+                        lambdaArgExpr: request.args[0].expr,
                         returnType: lambdaBodyType,
-                        ast: ast,
-                        sema: sema,
-                        interner: interner
+                        ast: request.ast,
+                        sema: request.sema,
+                        interner: request.interner
                     )
-                    sema.bindings.bindCall(
-                        id,
+                    request.sema.bindings.bindCall(
+                        request.id,
                         binding: CallBinding(
                             chosenCallee: sourceCallee,
                             substitutedTypeArguments: [receiverElementType, flattenedElementType],
                             parameterMapping: [0: 0]
                         )
                     )
-                    sema.bindings.bindCallableTarget(id, target: .symbol(sourceCallee))
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                    request.sema.bindings.bindCallableTarget(request.id, target: .symbol(sourceCallee))
+                    if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        request.sema.bindings.unmarkCollectionHOFLambdaExpr(request.args[0].expr)
                     }
                     let resultType: TypeID = if let listSymbol = lookupStdlibSymbol(
                         "List",
-                        symbols: sema.symbols,
-                        interner: interner
+                        symbols: request.sema.symbols,
+                        interner: request.interner
                     ) {
-                        sema.types.make(.classType(ClassType(
+                        request.sema.types.make(.classType(ClassType(
                             classSymbol: listSymbol,
                             args: [.invariant(flattenedElementType)],
                             nullability: .nonNull
                         )))
                     } else {
-                        sema.types.anyType
+                        request.sema.types.anyType
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
                 // The call stays on the regular resolution/fast-path route:
                 // undo the speculative native-HOF lambda marking so the
                 // lambda is materialized as a boxed callable, matching the
                 // callee the later stages will bind.
-                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                if let lambdaExpr = request.ast.arena.expr(request.args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    request.sema.bindings.unmarkCollectionHOFLambdaExpr(request.args[0].expr)
                 }
             }
         }
         if let boundContinuationCall = tryContinuationSyntheticMemberCall(
-            id,
-            calleeName: calleeName,
+            request.id,
+            calleeName: request.calleeName,
             receiverType: receiverType,
-            args: args,
-            range: range,
-            ctx: ctx,
+            args: request.args,
+            range: request.range,
+            ctx: request.ctx,
             locals: &locals
         ) {
             return boundContinuationCall
         }
 
         if let result = tryInferKClassReceiverMemberCall(
-            id, receiverType: receiverType, calleeName: calleeName, args: args,
-            explicitTypeArgs: explicitTypeArgs, range: range, ctx: ctx, locals: &locals
+            request.id, receiverType: receiverType, calleeName: request.calleeName, args: request.args,
+            explicitTypeArgs: request.explicitTypeArgs, range: request.range, ctx: request.ctx, locals: &locals
         ) {
             return result
         }
 
-        if args.isEmpty,
-           case let .nameRef(receiverName, _) = ast.arena.expr(receiverID),
+        if request.args.isEmpty,
+           case let .nameRef(receiverName, _) = request.ast.arena.expr(request.receiverID),
            locals[receiverName] == nil,
-           !receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx),
-           let ownerSymbol = sema.bindings.identifierSymbol(for: receiverID),
-           let owner = sema.symbols.symbol(ownerSymbol),
+           !receiverQualifierIsTypeAlias(receiverID: request.receiverID, ctx: request.ctx),
+           let ownerSymbol = request.sema.bindings.identifierSymbol(for: request.receiverID),
+           let owner = request.sema.symbols.symbol(ownerSymbol),
            owner.kind == .class || owner.kind == .interface || owner.kind == .enumClass,
            let staticMember = resolveClassNameMemberValue(
                ownerNominalSymbol: ownerSymbol,
-               memberName: calleeName,
-               sema: sema
+               memberName: request.calleeName,
+               sema: request.sema
            ),
            // An explicit `()` on a nested `object` is a function invocation,
            // not a value read — fall through so `invoke` can dispatch
            // (KUU-3662).
-           !(ast.arena.isExplicitCall(id)
-               && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
+           !(request.ast.arena.isExplicitCall(request.id)
+               && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
-            if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
-               !ctx.visibilityChecker.isAccessible(
+            if let memberSymbol = request.sema.symbols.symbol(staticMember.symbol),
+               !request.ctx.visibilityChecker.isAccessible(
                    memberSymbol,
-                   fromFile: ctx.currentFileID,
-                   enclosingClass: ctx.enclosingClassSymbol
+                   fromFile: request.ctx.currentFileID,
+                   enclosingClass: request.ctx.enclosingClassSymbol
                )
             {
                 driver.helpers.emitVisibilityError(
                     for: memberSymbol,
-                    name: interner.resolve(calleeName),
-                    range: range,
-                    diagnostics: ctx.sema.diagnostics
+                    name: request.interner.resolve(request.calleeName),
+                    range: request.range,
+                    diagnostics: request.ctx.sema.diagnostics
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
-            sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
-            sema.bindings.bindExprType(id, type: staticMember.type)
+            request.sema.bindings.bindIdentifier(request.id, symbol: staticMember.symbol)
+            request.sema.bindings.bindExprType(request.id, type: staticMember.type)
             return staticMember.type
         }
         return nil

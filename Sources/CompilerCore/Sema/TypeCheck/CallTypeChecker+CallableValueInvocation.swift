@@ -893,10 +893,10 @@ extension CallTypeChecker {
         argumentTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        let ctx = request.ctx, sema = request.sema
         // Function values have no infix modifier. Local infix declarations
         // resolve as function symbols through the ordinary candidate path.
-        guard !ctx.ast.arena.isInfixCall(request.id) else { return nil }
+        guard !request.ctx.ast.arena.isInfixCall(request.id) else { return nil }
+        let sema = request.ctx.sema
         let name = request.calleeName
         let callSiteReceiver = request.safeCall
             ? sema.types.makeNonNullable(receiverType)
@@ -914,12 +914,12 @@ extension CallTypeChecker {
             // (KUU-3791).
             if localExtensionFunctionShadowsCallableValue(
                 local, named: name, request: request,
-                argumentTypes: argumentTypes, receiverType: callSiteReceiver, ctx: ctx
+                argumentTypes: argumentTypes, receiverType: callSiteReceiver, ctx: request.ctx
             ) {
                 return nil
             }
             candidateType = local.type
-        } else if let implicitReceiver = ctx.implicitReceiverType,
+        } else if let implicitReceiver = request.ctx.implicitReceiverType,
                   let property = driver.helpers.lookupMemberProperty(
                       named: name,
                       receiverType: sema.types.makeNonNullable(implicitReceiver),
@@ -929,10 +929,10 @@ extension CallTypeChecker {
                   // implicit-receiver resolution from outside their
                   // declaring scope (KUU-4335).
                   let propertySymbol = sema.symbols.symbol(property.symbol),
-                  ctx.visibilityChecker.isAccessible(
+                  request.ctx.visibilityChecker.isAccessible(
                       propertySymbol,
-                      fromFile: ctx.currentFileID,
-                      enclosingClass: ctx.enclosingClassSymbol
+                      fromFile: request.ctx.currentFileID,
+                      enclosingClass: request.ctx.enclosingClassSymbol
                   ) {
             // A member extension function reachable through the same implicit
             // receiver shares the property's tier, where the declaration wins;
@@ -945,7 +945,7 @@ extension CallTypeChecker {
                 request: request,
                 argumentTypes: argumentTypes,
                 receiverType: callSiteReceiver,
-                ctx: ctx
+                ctx: request.ctx
             ) {
                 return nil
             }
@@ -957,19 +957,19 @@ extension CallTypeChecker {
             // the property's own tier or a nearer one — locals, implicit
             // receiver member extensions, explicit imports, same-package
             // declarations — outrank its function value (KUU-3791).
-            let property = ctx.cachedScopeLookup(name).first(where: {
+            let property = request.ctx.cachedScopeLookup(name).first(where: {
                 sema.symbols.symbol($0)?.kind == .property
                     && sema.symbols.extensionPropertyReceiverType(for: $0) == nil
             })
             if property != nil,
                nearerTierExtensionFunctionShadowsCallableValue(
                    named: name,
-                   implicitReceivers: ctx.implicitReceiverMemberLookupEntries().map(\.type),
+                   implicitReceivers: request.ctx.implicitReceiverMemberLookupEntries().map(\.type),
                    maximumScopePriority: 3,
                    request: request,
                    argumentTypes: argumentTypes,
                    receiverType: callSiteReceiver,
-                   ctx: ctx
+                   ctx: request.ctx
                ) {
                 return nil
             }
@@ -986,7 +986,7 @@ extension CallTypeChecker {
         }
         for (index, argument) in request.args.enumerated() {
             let parameter = candidateFunction.params[index]
-            if case let .lambdaLiteral(parameters, _, _, _) = ctx.ast.arena.expr(argument.expr) {
+            if case let .lambdaLiteral(parameters, _, _, _) = request.ctx.ast.arena.expr(argument.expr) {
                 if case let .functionType(function) = sema.types.kind(of: sema.types.makeNonNullable(parameter)) {
                     if parameters.isEmpty ? function.params.count > 1 : function.params.count != parameters.count {
                         return nil
@@ -995,9 +995,9 @@ extension CallTypeChecker {
                     return nil
                 }
             }
-            if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) { continue }
+            if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: request.ctx) { continue }
             if let argumentType = sema.bindings.exprType(for: argument.expr),
-               ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef != true,
+               request.ctx.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef != true,
                !sema.types.isSubtype(argumentType, parameter),
                sema.types.functionArgumentConversionType(from: argumentType, to: parameter) == nil
             {
@@ -1012,7 +1012,7 @@ extension CallTypeChecker {
         // must not leak past a successful bind (KUU-3145).
         var removedArgumentDiagnostics: [(ExprID, Diagnostic)] = []
         for argument in request.args {
-            guard let argumentRange = ctx.ast.arena.exprRange(argument.expr) else { continue }
+            guard let argumentRange = request.ctx.ast.arena.exprRange(argument.expr) else { continue }
             for removed in sema.diagnostics.removeErrorDiagnostics(containedIn: argumentRange) {
                 removedArgumentDiagnostics.append((argument.expr, removed))
             }
@@ -1027,7 +1027,7 @@ extension CallTypeChecker {
             }
         }
 
-        let calleeExpr = ctx.ast.arena.appendExpr(.nameRef(name, request.range))
+        let calleeExpr = request.ctx.ast.arena.appendExpr(.nameRef(name, request.range))
         let calleeType: TypeID
         if let local = locals[name],
            sema.symbols.symbol(local.symbol)?.kind == .function
@@ -1043,7 +1043,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(calleeExpr, type: local.type)
             calleeType = local.type
         } else {
-            calleeType = driver.inferExpr(calleeExpr, ctx: ctx, locals: &locals)
+            calleeType = driver.inferExpr(calleeExpr, ctx: request.ctx, locals: &locals)
         }
         guard case let .functionType(functionType) = sema.types.kind(of: calleeType),
               functionType.receiver != nil
@@ -1051,9 +1051,9 @@ extension CallTypeChecker {
             return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
         }
         guard functionType.nullability == .nonNull, request.explicitTypeArgs.isEmpty else {
-            ctx.sema.diagnostics.error(
+            request.ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0024",
-                "Cannot invoke nullable or type-argument-qualified function value '\(ctx.interner.resolve(name))'.",
+                "Cannot invoke nullable or type-argument-qualified function value '\(request.ctx.interner.resolve(name))'.",
                 range: request.range
             )
             return driver.helpers.bindAndReturnErrorType(request.id, sema: sema)
@@ -1061,7 +1061,7 @@ extension CallTypeChecker {
         let argumentTypes = request.args.enumerated().map { index, argument in
             driver.inferExpr(
                 argument.expr,
-                ctx: ctx,
+                ctx: request.ctx,
                 locals: &locals,
                 expectedType: functionType.params.indices.contains(index) ? functionType.params[index] : nil
             )
@@ -1073,7 +1073,7 @@ extension CallTypeChecker {
             args: [CallArgument(expr: request.receiverID)] + request.args,
             argTypes: [request.safeCall ? sema.types.makeNonNullable(receiverType) : receiverType] + argumentTypes,
             range: request.range,
-            ctx: ctx,
+            ctx: request.ctx,
             locals: &locals,
             expectedType: request.expectedType,
             arityPolicy: .receiverRequiredExplicit,
