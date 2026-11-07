@@ -1262,8 +1262,8 @@ extension OverloadResolver {
             }
         }
 
-        let constraintsBeforeElvisLhsHint = constraints
-        let inputsBeforeElvisLhsHint = inputConstraints
+        let constraintsBeforeExpectedTypeHint = constraints
+        let inputsBeforeExpectedTypeHint = inputConstraints
         var hasElvisLhsHintConstraints = false
         if let expectedType, expectedType != ctx.types.unitType {
             if call.elvisLhsExpectedTypeHint {
@@ -1422,8 +1422,30 @@ extension OverloadResolver {
                 // cannot invalidate a type argument already determined by the
                 // call's nullable inputs; the enclosing expression is checked
                 // against its expected type separately.
-                constraints = constraintsBeforeElvisLhsHint
-                inputConstraints = inputsBeforeElvisLhsHint
+                constraints = constraintsBeforeExpectedTypeHint
+                inputConstraints = inputsBeforeExpectedTypeHint
+                solveResult = solveConstraints(
+                    constraints,
+                    solver: solver,
+                    typeSystem: ctx.types
+                )
+            }
+        }
+        switch solveResult {
+        case .success:
+            break
+        case .constraintFailure, .rejected:
+            if constraints.count > constraintsBeforeExpectedTypeHint.count {
+                // The expected-type decomposition is an inference hint, not
+                // a veto: kotlinc feeds the expected type into a call's
+                // inference variables but lets the enclosing context report
+                // the position-specific mismatch (return/initializer/
+                // argument) after the call resolves. Retrying without it
+                // keeps `fun f(): Int = q.peekLast()` on the SEMA-0469
+                // return-mismatch path instead of surfacing a generic
+                // TYPE-0001 constraint failure at the call (KUU-4478).
+                constraints = constraintsBeforeExpectedTypeHint
+                inputConstraints = inputsBeforeExpectedTypeHint
                 solveResult = solveConstraints(
                     constraints,
                     solver: solver,
