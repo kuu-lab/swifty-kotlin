@@ -973,13 +973,14 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(receiverType)
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 2
-            && interner.resolve(symbol.fqName.last!) == "File"
-            && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
+            && symbol.fqName.last! == knownNames.file
+            && symbol.fqName[symbol.fqName.count - 2] == knownNames.io
     }
 
     /// Used by Reader-targeted special-case lambda inference (STDLIB-IO-FN-040)
@@ -991,13 +992,14 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(receiverType)
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 2
-            && interner.resolve(symbol.fqName.last!) == "BufferedReader"
-            && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
+            && symbol.fqName.last! == knownNames.bufferedReader
+            && symbol.fqName[symbol.fqName.count - 2] == knownNames.io
     }
 
     func kClassReceiverArgumentType(

@@ -67,7 +67,7 @@ extension CallTypeChecker {
             return callableReferenceFunctionType
         }()
         let resolvedLookupReceiverType = resolvedBuilderInferenceType(lookupReceiverType, ctx: ctx)
-        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+        let channelBoundReceiverType = calleeName == knownNames.receive
             ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
             : nil
         let effectiveReceiverType = companionReceiverType

@@ -582,6 +582,7 @@ private final class InlineParameterUsageWalker {
     private let sema: SemaModule
     private let diagnostics: DiagnosticEngine
     private let interner: StringInterner
+    private let knownNames: KnownCompilerNames
     private let invokeName: InternedString
     private let inlineLambdaArguments: Set<ExprID>
     private let inlineAnonymousFunctionArguments: Set<ExprID>
@@ -608,6 +609,7 @@ private final class InlineParameterUsageWalker {
         self.sema = sema
         self.diagnostics = diagnostics
         self.interner = interner
+        self.knownNames = KnownCompilerNames(interner: interner)
         self.invokeName = invokeName
         self.inlineLambdaArguments = inlineLambdaArguments
         self.inlineAnonymousFunctionArguments = inlineAnonymousFunctionArguments
@@ -1119,6 +1121,6 @@ private final class InlineParameterUsageWalker {
         else {
             return false
         }
-        return interner.resolve(calleeName) == "contract"
+        return calleeName == knownNames.contract
     }
 }

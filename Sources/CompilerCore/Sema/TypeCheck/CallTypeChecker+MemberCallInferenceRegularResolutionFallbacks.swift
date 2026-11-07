@@ -356,6 +356,7 @@ extension CallTypeChecker {
         let args = request.args, range = request.range, ctx = request.ctx
         let safeCall = request.safeCall
         let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
 
         guard let chosen = resolved.chosenCallee else {
             if isClassNameReceiver,
@@ -528,7 +529,7 @@ extension CallTypeChecker {
                 }
             }?.symbol
         }
-        let projectionReceiverType: TypeID = if interner.resolve(calleeName) == "receive",
+        let projectionReceiverType: TypeID = if calleeName == knownNames.receive,
                                                 let channelBoundReceiverType = ReceiverClassifier(
                                                     sema: sema,
                                                     interner: interner

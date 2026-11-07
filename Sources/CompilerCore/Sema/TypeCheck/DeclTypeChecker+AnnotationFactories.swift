@@ -14,6 +14,7 @@ extension DeclTypeChecker {
         _ annotations: [AnnotationNode], symbol: SymbolID, ctx: TypeInferenceContext
     ) {
         let sema = ctx.sema
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         var records = sema.symbols.annotations(for: symbol)
         for annotation in annotations {
             guard let usageID = annotation.usageID,
@@ -95,7 +96,7 @@ extension DeclTypeChecker {
                 for (argumentIndex, argument) in arguments.enumerated() {
                     guard case let .call(callee, _, _, _) = ctx.ast.arena.expr(argument.expr),
                           case let .nameRef(name, _) = ctx.ast.arena.expr(callee),
-                          ctx.interner.resolve(name) == "$annotationArrayLiteral",
+                          name == knownNames.annotationArrayLiteralMarker,
                           let parameterIndex = driver.callChecker.parameterIndexForCallArgument(
                               at: argumentIndex, label: argument.label, in: signature, sema: sema
                           ), let expectedType = driver.callChecker.contextualCallArgumentType(
@@ -184,6 +185,7 @@ extension DeclTypeChecker {
     }
 
     private func isAnnotationConstant(_ id: ExprID, ctx: TypeInferenceContext, depth: Int) -> Bool {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard depth < 64, let expression = ctx.ast.arena.expr(id) else { return false }
         if annotationConstantEvaluator == nil {
             annotationConstantEvaluator = ConstPropertyEvaluator(ast: ctx.ast, sema: ctx.sema, interner: ctx.interner)
@@ -200,7 +202,7 @@ extension DeclTypeChecker {
         switch expression {
         case .nameRef: return constantSymbol()
         case let .callableRef(receiver, member, _):
-            guard ctx.interner.resolve(member) == "class", let receiver,
+            guard member == knownNames.className, let receiver,
                   let symbolID = ctx.sema.bindings.identifierSymbols[receiver],
                   let kind = ctx.sema.symbols.symbol(symbolID)?.kind else { return false }
             return [.class, .interface, .object, .enumClass, .annotationClass, .typeAlias].contains(kind)
@@ -209,7 +211,7 @@ extension DeclTypeChecker {
             guard let binding = ctx.sema.bindings.callBindings[id],
                   let callee = ctx.sema.symbols.symbol(binding.chosenCallee) else { return false }
             let isArrayFactory = callee.fqName.count == 2
-                && ctx.interner.resolve(callee.fqName[0]) == "kotlin"
+                && callee.fqName[0] == knownNames.kotlin
                 && KnownCompilerNames(interner: ctx.interner).arrayFactoryFunctionNames.contains(callee.name)
             let isAnnotationConstructor = callee.kind == .constructor
                 && ctx.sema.symbols.lookup(fqName: Array(callee.fqName.dropLast())).flatMap {

@@ -41,7 +41,8 @@ extension CallTypeChecker {
     ) {
         let sema = ctx.sema
         let interner = ctx.interner
-        guard interner.resolve(calleeName) == "sortedWith", args.count == 1,
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard calleeName == knownNames.sortedWith, args.count == 1,
               let (_, receiverSymbol) = resolveClassTypeSymbol(
                   sema.types.makeNonNullable(receiverType), sema: sema
               ),
@@ -65,9 +66,10 @@ extension CallTypeChecker {
         ctx: TypeInferenceContext, locals: inout LocalBindings
     ) {
         let sema = ctx.sema
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard let chosen = resolved.chosenCallee,
               let symbol = sema.symbols.symbol(chosen),
-              ctx.interner.resolve(symbol.name) == "reduceRight",
+              symbol.name == knownNames.reduceRight,
               sema.symbols.isSourceBackedSymbol(chosen),
               symbol.fqName == [ctx.interner.intern("kotlin"), ctx.interner.intern("collections"), symbol.name],
               let signature = sema.symbols.functionSignature(for: chosen),

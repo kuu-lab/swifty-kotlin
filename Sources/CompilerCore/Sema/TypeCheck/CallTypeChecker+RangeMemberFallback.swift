@@ -120,7 +120,7 @@ extension CallTypeChecker {
            memberName == "contains",
            args.contains(where: { argument in
                guard let label = argument.label else { return false }
-               return interner.resolve(label) != "value"
+               return label != knownNames.value
            })
         {
             return nil

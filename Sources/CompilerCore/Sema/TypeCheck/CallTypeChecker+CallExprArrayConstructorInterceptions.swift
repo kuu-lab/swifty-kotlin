@@ -74,7 +74,7 @@ extension CallTypeChecker {
         {
             var indices: [Int: Int] = [:]
             for (i, argument) in args.enumerated() {
-                let parameter = argument.label.map { interner.resolve($0) == "size" ? 0 : (interner.resolve($0) == "init" ? 1 : -1) } ?? i
+                let parameter = argument.label.map { $0 == knownNames.size ? 0 : ($0 == knownNames.initMember ? 1 : -1) } ?? i
                 guard (0...1).contains(parameter), indices[parameter] == nil, !argument.isSpread else {
                     sema.diagnostics.error("KSWIFTK-SEMA-0001", "Invalid array constructor argument.", range: range)
                     return sema.types.errorType

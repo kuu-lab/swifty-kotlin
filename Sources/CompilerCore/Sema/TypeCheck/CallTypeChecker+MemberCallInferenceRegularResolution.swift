@@ -79,7 +79,7 @@ extension CallTypeChecker {
         // callBy supplies the parameter-map context to nested generic calls.
         // Infer it before context-free argument probing can emit a stale error.
         let callableReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
-        if interner.resolve(calleeName) == "callBy",
+        if calleeName == knownNames.callBy,
            case let .functionType(functionType) = sema.types.kind(of: callableReceiverType),
            functionType.isCallableReference,
            let result = inferCallableReferenceMember(
@@ -252,7 +252,7 @@ extension CallTypeChecker {
         // Numeric mod is an extension, so an applicable user extension in a
         // nearer scope must be resolved before the primitive fallback.
         let hasUserNumericMod = {
-            guard interner.resolve(calleeName) == "mod", args.count == 1,
+            guard calleeName == knownNames.mod, args.count == 1,
                   case .primitive = sema.types.kind(of: sema.types.makeNonNullable(lookupReceiverType))
             else { return false }
             let candidates = collectExtensionCallCandidates(
@@ -385,7 +385,7 @@ extension CallTypeChecker {
                 && sema.types.isUnsigned(receiver) == sema.types.isUnsigned(argument)
             return bothArithmetic ? receiver : nil
         }()
-        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+        let channelBoundReceiverType = calleeName == knownNames.receive
             ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
             : nil
         let memberLookupType = rangeSourceMemberLookupType

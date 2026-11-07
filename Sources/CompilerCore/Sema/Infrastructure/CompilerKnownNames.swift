@@ -446,6 +446,40 @@ package struct KnownCompilerNames {
     let yieldAll: InternedString
     let comparisons: InternedString
 
+    // Additional member/marker names compared by name during type checking.
+    let receive: InternedString
+    let callBy: InternedString
+    let send: InternedString
+    let returns: InternedString
+    let returnsNotNull: InternedString
+    let contract: InternedString
+    let callsInPlace: InternedString
+    let implies: InternedString
+    let substring: InternedString
+    let subSequence: InternedString
+    let readValue: InternedString
+    let alloc: InternedString
+    let not: InternedString
+    let equals: InternedString
+    let hashCode: InternedString
+    let mod: InternedString
+    let inv: InternedString
+    let mutableListOf: InternedString
+    let asFlow: InternedString
+    let value: InternedString
+    let openEndRange: InternedString
+    let linkedHashMap: InternedString
+    let invocationKind: InternedString
+    let letKeyword: InternedString
+    let annotationArrayLiteralMarker: InternedString
+    let failure: InternedString
+    let io: InternedString
+    let file: InternedString
+    let java: InternedString
+    let initMember: InternedString
+    let underscore: InternedString
+    let bufferedReader: InternedString
+
     // Package prefixes and FQ names for the same hot paths.
     let kotlinCollectionsPackage: [InternedString]
     let kotlinSequencesPackage: [InternedString]
@@ -994,6 +1028,38 @@ package struct KnownCompilerNames {
         yield = interner.intern("yield")
         yieldAll = interner.intern("yieldAll")
         comparisons = interner.intern("comparisons")
+        receive = interner.intern("receive")
+        callBy = interner.intern("callBy")
+        send = interner.intern("send")
+        returns = interner.intern("returns")
+        returnsNotNull = interner.intern("returnsNotNull")
+        contract = interner.intern("contract")
+        callsInPlace = interner.intern("callsInPlace")
+        implies = interner.intern("implies")
+        substring = interner.intern("substring")
+        subSequence = interner.intern("subSequence")
+        readValue = interner.intern("readValue")
+        alloc = interner.intern("alloc")
+        not = interner.intern("not")
+        equals = interner.intern("equals")
+        hashCode = interner.intern("hashCode")
+        mod = interner.intern("mod")
+        inv = interner.intern("inv")
+        mutableListOf = interner.intern("mutableListOf")
+        asFlow = interner.intern("asFlow")
+        value = interner.intern("value")
+        openEndRange = interner.intern("OpenEndRange")
+        linkedHashMap = interner.intern("LinkedHashMap")
+        invocationKind = interner.intern("InvocationKind")
+        letKeyword = interner.intern("let")
+        annotationArrayLiteralMarker = interner.intern("$annotationArrayLiteral")
+        failure = interner.intern("failure")
+        io = interner.intern("io")
+        file = interner.intern("File")
+        self.java = interner.intern("java")
+        initMember = interner.intern("init")
+        underscore = interner.intern("_")
+        bufferedReader = interner.intern("BufferedReader")
 
         let kotlinRanges = interner.intern("ranges")
         let kotlinTime = interner.intern("time")

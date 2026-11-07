@@ -10,6 +10,7 @@ extension CallTypeChecker {
         let args = request.args, range = request.range, ctx = request.ctx
         let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
         let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
         // Range forEach/map need lambda inference with expectedType so the
         // implicit `it` parameter gets bound correctly.
         // Must run before argument pre-inference below to avoid resolving
@@ -34,7 +35,7 @@ extension CallTypeChecker {
         let stringHOFReceiverType = safeCall
             ? sema.types.makeNonNullable(receiverType)
             : receiverType
-        if interner.resolve(calleeName) == "toCollection",
+        if calleeName == knownNames.toCollection,
            args.count == 1,
            isSyntheticStringLikeType(stringHOFReceiverType, sema: sema)
         {

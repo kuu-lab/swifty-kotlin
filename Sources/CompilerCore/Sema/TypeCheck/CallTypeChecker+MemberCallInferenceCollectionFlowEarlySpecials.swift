@@ -225,7 +225,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferAsFlowMemberSpecial(locals _: inout LocalBindings) -> TypeID? {
-        if interner.resolve(calleeName) == "asFlow",
+        if calleeName == knownNames.asFlow,
            args.isEmpty,
            !isMapReceiver,
            isCollectionReceiver || isSequenceReceiver
@@ -293,7 +293,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferZipMemberSpecial(locals: inout LocalBindings) -> TypeID? {
-        if interner.resolve(calleeName) == "zip",
+        if calleeName == knownNames.zip,
            !isSequenceReceiver,
            isCollectionReceiver,
            !isMapReceiver,
@@ -431,7 +431,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func inferFilterIsInstanceSpecial(locals _: inout LocalBindings) -> TypeID? {
 
-        if interner.resolve(calleeName) == "filterIsInstance",
+        if calleeName == knownNames.filterIsInstance,
            args.isEmpty,
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
@@ -511,7 +511,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferToCollectionSpecial(locals: inout LocalBindings) -> TypeID? {
-        if interner.resolve(calleeName) == "toCollection",
+        if calleeName == knownNames.toCollection,
            args.count == 1,
            !isMapReceiver,
            isCollectionReceiver || isSequenceReceiver
@@ -553,7 +553,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferFilterIsInstanceToSpecial(locals: inout LocalBindings) -> TypeID? {
-        if interner.resolve(calleeName) == "filterIsInstanceTo",
+        if calleeName == knownNames.filterIsInstanceTo,
            args.count == 1,
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
@@ -598,7 +598,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                                                            callArgs.isEmpty,
                                                            case let .nameRef(calleeName, _) = ast.arena.expr(calleeID)
             {
-                interner.resolve(calleeName) == "mutableListOf"
+                calleeName == knownNames.mutableListOf
             } else {
                 false
             }
@@ -638,7 +638,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func inferFilterNotNullSpecial(locals _: inout LocalBindings) -> TypeID? {
 
-        if interner.resolve(calleeName) == "filterNotNull",
+        if calleeName == knownNames.filterNotNull,
            args.isEmpty,
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
@@ -706,7 +706,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
 
     func inferFilterNotNullToSpecial(locals: inout LocalBindings) -> TypeID? {
 
-        if interner.resolve(calleeName) == "filterNotNullTo",
+        if calleeName == knownNames.filterNotNullTo,
            args.count == 1,
            !isMapReceiver,
            isCollectionReceiver || isIterableReceiver || isSequenceReceiver
@@ -749,7 +749,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
     }
 
     func inferBinarySearchLambdaSpecial(locals: inout LocalBindings) -> TypeID? {
-        if interner.resolve(calleeName) == "binarySearch",
+        if calleeName == knownNames.binarySearch,
            receiverClassifier.isConcreteListLikeType(receiverType),
            args.count == 1,
            let lambdaExpr = ast.arena.expr(args[0].expr),

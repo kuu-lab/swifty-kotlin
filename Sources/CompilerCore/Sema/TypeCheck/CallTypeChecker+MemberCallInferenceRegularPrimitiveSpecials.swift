@@ -51,12 +51,13 @@ extension CallTypeChecker {
         let args = request.args, range = request.range, ctx = request.ctx
         let safeCall = request.safeCall
         let sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
         if enforceInfixEligibility, ctx.ast.arena.isInfixCall(id),
            !isInfixPrimitiveIntrinsic(calleeName, receiverType: lookupReceiverType, ctx: ctx)
         {
             return nil
         }
-        if interner.resolve(calleeName) == "inv",
+        if calleeName == knownNames.inv,
            args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -93,7 +94,7 @@ extension CallTypeChecker {
             // binds the single Comparable<T> member instead and must report the
             // ambiguity itself (KUU-4351). Unsigned primitives keep their
             // unique resolution, matching kotlinc.
-            if interner.resolve(calleeName) == "compareTo",
+            if calleeName == knownNames.compareTo,
                case .nothing(.nonNull) = sema.types.kind(of: argTypes[0]),
                receiverForCheck == byteType || receiverForCheck == shortType
                    || receiverForCheck == intType || receiverForCheck == longType
@@ -154,7 +155,7 @@ extension CallTypeChecker {
             // overload applicable and kotlinc reports the signed and
             // floating-point sets as ambiguous. Char and the unsigned types
             // keep a unique winner and fall through to normal resolution.
-            if interner.resolve(calleeName) == "compareTo",
+            if calleeName == knownNames.compareTo,
                isNonNullNothingOperand,
                receiverForCheck == byteType || receiverForCheck == shortType
                    || receiverForCheck == intType || receiverForCheck == longType
@@ -450,7 +451,7 @@ extension CallTypeChecker {
         // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
         // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and resolves
         // through normal extension-function overload resolution below instead.
-        if interner.resolve(calleeName) == "toString",
+        if calleeName == knownNames.toString,
            args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -494,20 +495,20 @@ extension CallTypeChecker {
             anyFallbackReceiverType == sema.types.anyType || anyFallbackReceiverType == sema.types.nullableAnyType
         }
 
-        if interner.resolve(calleeName) == "hashCode", args.isEmpty, allowsAnyFallback {
+        if calleeName == knownNames.hashCode, args.isEmpty, allowsAnyFallback {
             let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
 
-        if interner.resolve(calleeName) == "toString", args.isEmpty, allowsAnyFallback {
+        if calleeName == knownNames.toString, args.isEmpty, allowsAnyFallback {
             let stringType = sema.types.stringType
             let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         }
 
-        if interner.resolve(calleeName) == "equals", args.count == 1, allowsAnyFallback {
+        if calleeName == knownNames.equals, args.count == 1, allowsAnyFallback {
             if !safeCall, sema.types.nullability(of: lookupReceiverType) == .nullable {
                 sema.diagnostics.error(
                     "KSWIFTK-SEMA-0026",

@@ -491,8 +491,9 @@ extension LocalDeclTypeChecker {
     /// genericArrayElementType, which need a concrete T to select the matching
     /// box/unbox pair.
     private func isStarProjectedArrayReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let (classType, symbol) = resolveClassTypeSymbol(receiverType, sema: sema),
-              interner.resolve(symbol.name) == "Array",
+              symbol.name == knownNames.array,
               let firstArg = classType.args.first,
               case .star = firstArg
         else {

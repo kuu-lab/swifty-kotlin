@@ -19,7 +19,8 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
         let sema = ctx.sema
-        guard ctx.interner.resolve(calleeName) == "invoke",
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        guard calleeName == knownNames.invoke,
               let receiverType = ctx.implicitReceiverType,
               case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
         else {
@@ -309,7 +310,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            if interner.resolve(calleeName) == "toList" {
+            if calleeName == knownNames.toList {
                 memberCandidates = preferCollectionToListCandidates(
                     memberCandidates,
                     receiverType: nonNullReceiver,

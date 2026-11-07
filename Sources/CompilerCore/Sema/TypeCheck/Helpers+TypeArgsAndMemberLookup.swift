@@ -139,7 +139,7 @@ extension TypeCheckHelpers {
         else {
             return false
         }
-        return interner.resolve(path[0]) == "_"
+        return path[0] == KnownCompilerNames(interner: interner).underscore
     }
 
     func isTerminatingExpr(_ expr: Expr) -> Bool {

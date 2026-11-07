@@ -38,6 +38,7 @@ extension CallTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
 
         var expectedType = expectedType
         if let expected = expectedType {
@@ -71,7 +72,7 @@ extension CallTypeChecker {
             return qualifierType
         }
 
-        if calleeName.map(interner.resolve) == "$annotationArrayLiteral" {
+        if calleeName == knownNames.annotationArrayLiteralMarker {
             if expectedType == nil, let boundType = sema.bindings.exprTypes[id],
                sema.bindings.callBindings[id] != nil { return boundType }
             var factoryName = "arrayOf"
@@ -669,7 +670,7 @@ extension CallTypeChecker {
         // same-named local *value* — parameter, property, variable —
         // shadows both the receiver member and the probe outright.
         if let calleeName,
-           interner.resolve(calleeName) == "invoke",
+           calleeName == knownNames.invoke,
            !ast.arena.isInfixCall(id),
            locals[calleeName].map({ local in
                ctx.cachedSymbol(local.symbol)?.flags.contains(.localFunction) == true
