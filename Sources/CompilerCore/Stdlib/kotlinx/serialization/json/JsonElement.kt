@@ -33,6 +33,107 @@ public object JsonNull : JsonPrimitive() {
     public override val content: String = "null"
 }
 
+// KUU-4474: upstream `JsonArray`/`JsonObject` are public `JsonElement`
+// subclasses delegating to List/Map. Without them the sealed `when` over
+// `JsonElement` cannot be exhaustive and `is JsonArray`/`is JsonObject`
+// checks do not resolve.
+// KUU-4474: members are implemented explicitly rather than via `by`
+// delegation — delegated forwarders for the search members dispatch through
+// itable slots the runtime collection boxes do not register, crashing in
+// vtable lookup. Iteration + `==` gives identical semantics.
+public class JsonArray(
+    private val content: List<JsonElement>
+) : JsonElement(), List<JsonElement> {
+    override val size: Int get() = content.size
+
+    override fun isEmpty(): Boolean = content.isEmpty()
+
+    override operator fun get(index: Int): JsonElement = content[index]
+
+    override fun iterator(): Iterator<JsonElement> = content.iterator()
+
+    override fun listIterator(): ListIterator<JsonElement> = content.listIterator()
+
+    override fun listIterator(index: Int): ListIterator<JsonElement> = content.listIterator(index)
+
+    override fun subList(fromIndex: Int, toIndex: Int): List<JsonElement> =
+        content.subList(fromIndex, toIndex)
+
+    override fun contains(element: JsonElement): Boolean {
+        for (candidate in content) {
+            if (candidate == element) return true
+        }
+        return false
+    }
+
+    override fun containsAll(elements: Collection<JsonElement>): Boolean {
+        for (element in elements) {
+            if (!contains(element)) return false
+        }
+        return true
+    }
+
+    override fun indexOf(element: JsonElement): Int {
+        var index = 0
+        for (candidate in content) {
+            if (candidate == element) return index
+            index++
+        }
+        return -1
+    }
+
+    override fun lastIndexOf(element: JsonElement): Int {
+        var result = -1
+        var index = 0
+        for (candidate in content) {
+            if (candidate == element) result = index
+            index++
+        }
+        return result
+    }
+
+    public override fun equals(other: Any?): Boolean =
+        other is JsonArray && content == other.content
+
+    public override fun hashCode(): Int = content.hashCode()
+
+    public override fun toString(): String = content.joinToString(",", "[", "]")
+}
+
+public class JsonObject(
+    private val content: Map<String, JsonElement>
+) : JsonElement(), Map<String, JsonElement> {
+    override val size: Int get() = content.size
+
+    override val keys: Set<String> get() = content.keys
+
+    override val values: Collection<JsonElement> get() = content.values
+
+    override val entries: Set<Map.Entry<String, JsonElement>> get() = content.entries
+
+    override fun isEmpty(): Boolean = content.isEmpty()
+
+    override operator fun get(key: String): JsonElement? = content[key]
+
+    override fun containsKey(key: String): Boolean = content.keys.contains(key)
+
+    override fun containsValue(value: JsonElement): Boolean {
+        for (entry in content.entries) {
+            if (entry.value == value) return true
+        }
+        return false
+    }
+
+    public override fun equals(other: Any?): Boolean =
+        other is JsonObject && content == other.content
+
+    public override fun hashCode(): Int = content.hashCode()
+
+    public override fun toString(): String = content.entries.joinToString(",", "{", "}") { entry ->
+        entry.key.toJsonQuotedString() + ":" + entry.value.toString()
+    }
+}
+
 public fun JsonPrimitive(value: Boolean?): JsonPrimitive =
     if (value == null) JsonNull else JsonLiteral(value, isString = false)
 
@@ -53,11 +154,21 @@ public fun JsonPrimitive(value: UInt): JsonPrimitive = JsonPrimitive(value.toULo
 
 public fun JsonPrimitive(value: ULong): JsonPrimitive = JsonLiteral(value.toString(), isString = false)
 
+public fun jsonArrayOf(vararg elements: JsonElement): JsonArray = JsonArray(elements.asList())
+
+public fun jsonObjectOf(vararg pairs: Pair<String, JsonElement>): JsonObject = JsonObject(mapOf(*pairs))
+
 public val JsonElement.jsonPrimitive: JsonPrimitive
     get() = this as? JsonPrimitive ?: error("JsonPrimitive")
 
 public val JsonElement.jsonNull: JsonNull
     get() = this as? JsonNull ?: error("JsonNull")
+
+public val JsonElement.jsonArray: JsonArray
+    get() = this as JsonArray
+
+public val JsonElement.jsonObject: JsonObject
+    get() = this as JsonObject
 
 public val JsonPrimitive.int: Int
     get() {
