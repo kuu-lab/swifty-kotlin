@@ -6,9 +6,10 @@ import Testing
 
 extension StdlibArtifactRegressionTests {
 
-    /// KUU-3214 / KT-83308: virtual `toString()` dispatch must use the ABI
-    /// of the implementation registered in the Any slot. Kotlin overrides
-    /// use the flat String ABI; only the runtime fallback uses a raw handle.
+    /// KUU-3214 / KT-83308: virtual `toString()` dispatch through the Any
+    /// vtable slot uses a single raw-handle ABI — the slot always stores
+    /// `kk_any_member_to_string`, which forwards to the most-derived
+    /// Kotlin override through the Any-toString registry (KUU-4487).
     @Test
     func testInheritedToStringVirtualCallUsesRegisteredAnySlotABI() throws {
         let artifactPath = try Self.buildStdlibArtifact()
