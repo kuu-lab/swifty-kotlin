@@ -171,7 +171,7 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "Enum") { phase, symbols, types, interner in
             phase.registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Atomic") { phase, symbols, types, interner in
+        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "Atomic") { phase, symbols, types, interner in
             phase.registerSyntheticAtomicResidualStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in
