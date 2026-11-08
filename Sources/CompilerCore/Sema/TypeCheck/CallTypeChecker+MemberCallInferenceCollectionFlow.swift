@@ -152,71 +152,33 @@ extension CallTypeChecker {
             interner: interner
         ) == .ulongProgression
             && args.isEmpty
-            && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
-        var activeCollectionHOFNames = knownNames.collectionHOFNames
-        // zip is source-backed. Regular overload resolution must validate the
-        // other collection/Sequence argument and respect user extensions.
-        activeCollectionHOFNames.remove(knownNames.zip)
-        if !isMutableListReceiver {
-            activeCollectionHOFNames.subtract(knownNames.mutableListOnlyCollectionHOFNames)
-        }
-        if !isSequenceReceiver {
-            if !isIterableReceiver
-                || receiverClassification.isListReceiver
-                || receiverClassification.isSetReceiver
-                || receiverClassification.isMapReceiver
-            {
-                activeCollectionHOFNames.remove(knownNames.flatMapIndexed)
+            && knownNames.progressionFirstLastMemberNames.contains(calleeName)
+        let isActiveCollectionHOFName: Bool = {
+            // zip is source-backed. Regular overload resolution must validate the
+            // other collection/Sequence argument and respect user extensions.
+            guard knownNames.collectionHOFNames.contains(calleeName),
+                  calleeName != knownNames.zip
+            else { return false }
+            if !isMutableListReceiver, knownNames.mutableListOnlyCollectionHOFNames.contains(calleeName) {
+                return false
             }
-        } else {
-            activeCollectionHOFNames.remove(knownNames.mapIndexedNotNull)
-            activeCollectionHOFNames.remove(knownNames.dropLastWhile)
-            // KUU-1846: union/intersect/subtract are Iterable/Set operations,
-            // not Sequence members. Let regular resolution report an
-            // unresolved member instead of binding a phantom collection call.
-            activeCollectionHOFNames.subtract(knownNames.setReturningCollectionBinaryMembers)
-            // These eager operations are unavailable on Kotlin Sequence.
-            activeCollectionHOFNames.remove(knownNames.takeLastWhile)
-            activeCollectionHOFNames.remove(knownNames.reversed)
-            // KUU-1413: kotlin.sequences has no reduceRight family — a
-            // one-pass Sequence cannot fold from the right. Skip the fast
-            // path so regular overload resolution reports SEMA-0024 like
-            // kotlinc's unresolved reference.
-            activeCollectionHOFNames.remove(knownNames.reduceRight)
-            activeCollectionHOFNames.remove(knownNames.reduceRightIndexed)
-            activeCollectionHOFNames.remove(knownNames.reduceRightOrNull)
-            activeCollectionHOFNames.remove(knownNames.reduceRightIndexedOrNull)
-            // Sequence.flatMapTo/flatMapIndexedTo have Iterable- and
-            // Sequence-return overloads. Let regular overload resolution use
-            // the lambda return type instead of the single-shape destination
-            // fast path below, which otherwise binds the first declaration.
-            activeCollectionHOFNames.remove(knownNames.flatMapTo)
-            activeCollectionHOFNames.remove(knownNames.flatMapIndexedTo)
-            // KSP-1353/1354: Sequence.maxOfWith/minOfWith/maxOfWithOrNull/
-            // minOfWithOrNull are now bundled Kotlin source. The fast path
-            // below (case "maxOfWith", "minOfWith", ...) has no Sequence
-            // binding branch for this family — bindBundledListSourceFunction
-            // only binds a List receiver — so for a Sequence receiver the
-            // call was left unresolved by this fast path and fell through to
-            // the legacy kk_list_maxOfWith-family fallback at KIR lowering
-            // (undefined symbol, since that bridge was never implemented for
-            // Sequence). Drop these names here so a Sequence receiver skips
-            // the fast path entirely and regular overload resolution picks
-            // the source-backed declarations instead, the same way KSP-1345
-            // did for flatMapTo/flatMapIndexedTo above.
-            activeCollectionHOFNames.remove(knownNames.maxOfWith)
-            activeCollectionHOFNames.remove(knownNames.maxOfWithOrNull)
-            activeCollectionHOFNames.remove(knownNames.minOfWith)
-            activeCollectionHOFNames.remove(knownNames.minOfWithOrNull)
-        }
-        if isMapReceiver {
-            // KUU-1362: Map<K, V> is not an Iterable in Kotlin. Only names on
-            // the bundled Map surface may take the collection fast path;
-            // anything else (filterNotNull, fold, first, groupBy, ...) falls
-            // through to regular overload resolution and reports SEMA-0024
-            // instead of lowering to a phantom callee (LINK-0001).
-            activeCollectionHOFNames.formIntersection(knownNames.mapCollectionHOFNames)
-        }
+            if !isSequenceReceiver {
+                if calleeName == knownNames.flatMapIndexed,
+                   (!isIterableReceiver
+                       || receiverClassification.isListReceiver
+                       || receiverClassification.isSetReceiver
+                       || receiverClassification.isMapReceiver)
+                {
+                    return false
+                }
+            } else if knownNames.sequenceExcludedCollectionHOFNames.contains(calleeName) {
+                return false
+            }
+            if isMapReceiver, !knownNames.mapCollectionHOFNames.contains(calleeName) {
+                return false
+            }
+            return true
+        }()
         let calleeStr = interner.resolve(calleeName)
         if calleeStr == "flatten", !isSequenceReceiver {
             // Let overload resolution choose between List<List<T>> and
@@ -358,7 +320,7 @@ extension CallTypeChecker {
             "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         ].contains(calleeStr)
             && (!isMapReceiver || knownNames.mapFilterFamilyHOFNames.contains(calleeName))
-        let isCollectionHOF = (activeCollectionHOFNames.contains(calleeName) || isIterableFilterFamilyHOF)
+        let isCollectionHOF = (isActiveCollectionHOFName || isIterableFilterFamilyHOF)
             && (isCollectionReceiver
                 || isSequenceReceiver
                 || (isIterableIndexFamilyHOF && isIterableIndexReceiver)

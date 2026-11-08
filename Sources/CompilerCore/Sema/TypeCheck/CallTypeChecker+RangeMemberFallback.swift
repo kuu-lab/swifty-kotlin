@@ -16,9 +16,7 @@ extension CallTypeChecker {
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
         let memberName = interner.resolve(calleeName)
-        let isRangeIteratorMigrationMember = [
-            "iterator", "step", "take", "drop", "chunked", "windowed",
-        ].contains(memberName)
+        let isRangeIteratorMigrationMember = knownNames.rangeMigrationMemberNames.contains(calleeName)
 
         // An unqualified member call inside an extension body has no receiver
         // expression to bind. Use the extension receiver carried by the type

@@ -18,12 +18,6 @@ private external fun AtomicLong.__kkAtomicLongCompareAndExchange(
 @KsSymbolName("__kk_atomic_long_fetchAndAdd")
 private external fun AtomicLong.__kkAtomicLongFetchAndAdd(delta: Long): Long
 
-@KsSymbolName("__kk_atomic_long_fetchAndDecrement")
-private external fun AtomicLong.__kkAtomicLongFetchAndDecrement(): Long
-
-@KsSymbolName("__kk_atomic_long_fetchAndIncrement")
-private external fun AtomicLong.__kkAtomicLongFetchAndIncrement(): Long
-
 @KsSymbolName("__kk_atomic_long_load")
 private external fun AtomicLong.__kkAtomicLongLoad(): Long
 
@@ -39,10 +33,10 @@ public class AtomicLong private constructor() {
         __kkAtomicLongFetchAndAdd(delta)
 
     public fun getAndDecrement(): Long =
-        __kkAtomicLongFetchAndDecrement()
+        getAndAdd(-1L)
 
     public fun getAndIncrement(): Long =
-        __kkAtomicLongFetchAndIncrement()
+        getAndAdd(1L)
 
     public override fun toString(): String =
         __kkAtomicLongLoad().toString()

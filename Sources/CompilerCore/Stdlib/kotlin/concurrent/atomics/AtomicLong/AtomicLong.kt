@@ -12,9 +12,6 @@ import kotlin.internal.KsSymbolName
 
 // Keep the runtime entry points private and expose the public API as
 // source-backed receiver declarations.
-@KsSymbolName("__kk_atomic_long_addAndFetch")
-private external fun AtomicLong.__kkAtomicLongAddAndFetch(delta: Long): Long
-
 @KsSymbolName("__kk_atomic_long_compareAndExchange")
 private external fun AtomicLong.__kkAtomicLongCompareAndExchange(
     expectedValue: Long,
@@ -27,12 +24,6 @@ private external fun AtomicLong.__kkAtomicLongExchange(newValue: Long): Long
 @KsSymbolName("__kk_atomic_long_fetchAndAdd")
 private external fun AtomicLong.__kkAtomicLongFetchAndAdd(delta: Long): Long
 
-@KsSymbolName("__kk_atomic_long_fetchAndDecrement")
-private external fun AtomicLong.__kkAtomicLongFetchAndDecrement(): Long
-
-@KsSymbolName("__kk_atomic_long_fetchAndIncrement")
-private external fun AtomicLong.__kkAtomicLongFetchAndIncrement(): Long
-
 @KsSymbolName("__kk_atomic_long_load")
 private external fun AtomicLong.__kkAtomicLongLoad(): Long
 
@@ -42,7 +33,7 @@ private external fun AtomicLong.__kkAtomicLongStore(value: Long): Int
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicLong.addAndFetch(delta: Long): Long =
-    __kkAtomicLongAddAndFetch(delta)
+    fetchAndAdd(delta) + delta
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
@@ -62,12 +53,12 @@ public fun AtomicLong.fetchAndAdd(delta: Long): Long =
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicLong.fetchAndDecrement(): Long =
-    __kkAtomicLongFetchAndDecrement()
+    fetchAndAdd(-1L)
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicLong.fetchAndIncrement(): Long =
-    __kkAtomicLongFetchAndIncrement()
+    fetchAndAdd(1L)
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")

@@ -445,6 +445,13 @@ package struct KnownCompilerNames {
     let yield: InternedString
     let yieldAll: InternedString
     let comparisons: InternedString
+    let catchName: InternedString
+    let retryWhen: InternedString
+    let mapMember: InternedString
+    let retry: InternedString
+    let cancel: InternedString
+    let join: InternedString
+    let awaitName: InternedString
 
     // Additional member/marker names compared by name during type checking.
     let receive: InternedString
@@ -536,14 +543,12 @@ package struct KnownCompilerNames {
     let rangeMigrationMemberNames: Set<InternedString>
     let progressionFirstLastMemberNames: Set<InternedString>
     let instantValueSemanticsMemberNames: Set<InternedString>
-
-    // Name tables migrated from per-file `Set<String>` literals so call sites
-    // compare interned IDs instead of resolving back to `String`.
     let collectionHOFNames: Set<InternedString>
     let flowHOFNames: Set<InternedString>
     let mapCollectionHOFNames: Set<InternedString>
     let mapFilterFamilyHOFNames: Set<InternedString>
     let mutableListOnlyCollectionHOFNames: Set<InternedString>
+    let sequenceExcludedCollectionHOFNames: Set<InternedString>
     let iterableMaxFamilyNames: Set<InternedString>
     let destinationCollectionHOFs: Set<InternedString>
     let sourceBackedListFilterNames: Set<InternedString>
@@ -557,12 +562,16 @@ package struct KnownCompilerNames {
     let sourceBackedCollectionMemberNames: Set<InternedString>
     let sourceBackedTrailingLambdaMemberNames: Set<InternedString>
     let coroutineBuilderNames: Set<InternedString>
+    let knownJvmPropertyNames: Set<InternedString>
+    let inheritedOperatorNames: Set<InternedString>
+    let coroutineHandleBoolProperties: Set<InternedString>
+
+    // Name tables migrated from per-file `Set<String>` literals so call sites
+    // compare interned IDs instead of resolving back to `String`.
     let builtinFlowMemberNames: Set<InternedString>
     let flowChainMemberNames: Set<InternedString>
     let resultMemberNames: Set<InternedString>
     let arrayFallbackMemberNames: Set<InternedString>
-    let knownJvmPropertyNames: Set<InternedString>
-    let inheritedOperatorNames: Set<InternedString>
     let workerExtensionMemberNames: Set<InternedString>
     let rangeTypeNames: Set<InternedString>
     /// Stdlib collection factory function names used for marking collection
@@ -1060,6 +1069,13 @@ package struct KnownCompilerNames {
         initMember = interner.intern("init")
         underscore = interner.intern("_")
         bufferedReader = interner.intern("BufferedReader")
+        catchName = interner.intern("catch")
+        retryWhen = interner.intern("retryWhen")
+        mapMember = interner.intern("map")
+        retry = interner.intern("retry")
+        cancel = interner.intern("cancel")
+        join = interner.intern("join")
+        awaitName = interner.intern("await")
 
         let kotlinRanges = interner.intern("ranges")
         let kotlinTime = interner.intern("time")
@@ -1164,6 +1180,13 @@ package struct KnownCompilerNames {
         ].map { interner.intern($0) })
         mapFilterFamilyHOFNames = Set(["filter", "filterNot", "filterTo", "filterNotTo"].map { interner.intern($0) })
         mutableListOnlyCollectionHOFNames = Set(["sort", "sortBy", "sortByDescending", "sortWith"].map { interner.intern($0) })
+        sequenceExcludedCollectionHOFNames = Set([
+            "mapIndexedNotNull", "dropLastWhile", "intersect", "union", "subtract",
+            "takeLastWhile", "reversed",
+            "reduceRight", "reduceRightIndexed", "reduceRightOrNull", "reduceRightIndexedOrNull",
+            "flatMapTo", "flatMapIndexedTo",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+        ].map { interner.intern($0) })
         iterableMaxFamilyNames = Set([
             "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
             "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
@@ -1321,6 +1344,9 @@ package struct KnownCompilerNames {
             "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
             "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
             "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+        ].map { interner.intern($0) })
+        coroutineHandleBoolProperties = Set([
+            "isActive", "isCompleted", "isCancelled", "isClosedForReceive", "isClosedForSend",
         ].map { interner.intern($0) })
     }
 

@@ -602,7 +602,8 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
-        rigidSubtypeTypeParameters: Set<SymbolID> = []
+        rigidSubtypeTypeParameters: Set<SymbolID> = [],
+        rigidSupertypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
         decomposeSubtypeConstraintImpl(
             subtype: subtype,
@@ -611,7 +612,8 @@ extension OverloadResolver {
             typeSystem: typeSystem,
             blameRange: blameRange,
             depth: 0,
-            rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+            rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+            rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
         )
     }
 
@@ -622,7 +624,8 @@ extension OverloadResolver {
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
         depth: Int,
-        rigidSubtypeTypeParameters: Set<SymbolID> = []
+        rigidSubtypeTypeParameters: Set<SymbolID> = [],
+        rigidSupertypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
         // Guard against infinite recursion in cyclic type hierarchies.
         if depth > 20 {
@@ -636,6 +639,7 @@ extension OverloadResolver {
         let supertypeKind = typeSystem.kind(of: supertype)
         if case let .typeParam(typeParam) = supertypeKind,
            typeParam.capture == nil,
+           !rigidSupertypeTypeParameters.contains(typeParam.symbol),
            let variable = typeVarBySymbol[typeParam.symbol]
         {
             // Contextual lambda inputs can still refer to the candidate's
@@ -734,7 +738,8 @@ extension OverloadResolver {
                     typeSystem: typeSystem,
                     blameRange: blameRange,
                     depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 ))
             }
             if !result.isEmpty {
@@ -788,7 +793,8 @@ extension OverloadResolver {
                 typeSystem: typeSystem,
                 blameRange: blameRange,
                 depth: depth + 1,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
         }
 
@@ -802,7 +808,8 @@ extension OverloadResolver {
                     subtype: subtype, supertype: typeSystem.make(.functionType(function)),
                     typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                     blameRange: blameRange, depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 )
             }
             if case let .functionType(superFunction) = supertypeKind,
@@ -817,7 +824,8 @@ extension OverloadResolver {
                     subtype: typeSystem.make(.functionType(function)), supertype: supertype,
                     typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                     blameRange: blameRange, depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 )
             }
         }
@@ -858,7 +866,8 @@ extension OverloadResolver {
                         subtype: bound, supertype: supertype,
                         typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                         blameRange: blameRange, depth: depth + 1,
-                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                     )
                 }
             }
@@ -880,7 +889,8 @@ extension OverloadResolver {
                         typeSystem: typeSystem,
                         blameRange: blameRange,
                         depth: depth + 1,
-                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                     )
                 case .in, .star:
                     break
@@ -909,7 +919,8 @@ extension OverloadResolver {
                         typeSystem: typeSystem,
                         blameRange: blameRange,
                         depth: depth + 1,
-                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                     )
                 case .in, .star:
                     break
@@ -927,7 +938,8 @@ extension OverloadResolver {
                     typeSystem: typeSystem,
                     blameRange: blameRange,
                     depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 )
             }
             if case let .classType(subClass) = subtypeKind,
@@ -955,7 +967,8 @@ extension OverloadResolver {
                         typeSystem: typeSystem,
                         blameRange: blameRange,
                         depth: depth + 1,
-                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                     )
                 }
                 let subArguments = typeSystem.allTypeArguments(for: alignedClass)
@@ -992,7 +1005,8 @@ extension OverloadResolver {
                         declarationVariance: declarationVariances.indices.contains(index)
                             ? declarationVariances[index] : .invariant,
                         subStarUpperBound: subStarUpperBound,
-                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -1013,7 +1027,8 @@ extension OverloadResolver {
                     typeSystem: typeSystem,
                     blameRange: blameRange,
                     depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 )
             }
         }
@@ -1031,7 +1046,8 @@ extension OverloadResolver {
                 typeSystem: typeSystem,
                 blameRange: blameRange,
                 depth: depth + 1,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
         }
 
@@ -1091,7 +1107,8 @@ extension OverloadResolver {
                     typeSystem: typeSystem,
                     blameRange: blameRange,
                     depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 ))
                 return result
             }
@@ -1149,7 +1166,8 @@ extension OverloadResolver {
                         declarationVariance: declarationVariances.indices.contains(index)
                             ? declarationVariances[index] : .invariant,
                         subStarUpperBound: subStarUpperBound,
-                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -1175,7 +1193,8 @@ extension OverloadResolver {
                     typeSystem: typeSystem,
                     blameRange: blameRange,
                     depth: depth + 1,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                    rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
                 )
             }
         }
@@ -1192,7 +1211,8 @@ extension OverloadResolver {
                 typeSystem: typeSystem,
                 blameRange: blameRange,
                 depth: depth + 1,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
         }
 
@@ -1276,7 +1296,8 @@ extension OverloadResolver {
         depth: Int,
         declarationVariance: TypeVariance = .invariant,
         subStarUpperBound: TypeID? = nil,
-        rigidSubtypeTypeParameters: Set<SymbolID> = []
+        rigidSubtypeTypeParameters: Set<SymbolID> = [],
+        rigidSupertypeTypeParameters: Set<SymbolID> = []
     ) -> [VariableConstraint] {
         // Kotlin declaration-site variance applies even when source syntax uses
         // invariant type arguments (`Sequence<T>` is still covariant because
@@ -1295,20 +1316,23 @@ extension OverloadResolver {
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
-            // Invariant: both directions (equality). Only the first direction
-            // keeps the caller-derived side in the subtype position, so the
-            // rigid set follows it; the flipped direction decomposes the
-            // signature-derived side and must keep ordinary variable lookups.
+            // Invariant: both directions (equality). The rigid sets follow
+            // the side each symbol came from, so the flipped direction swaps
+            // them: caller-derived symbols stay rigid whichever way the
+            // constraint decomposes (KUU-4461).
             var result = decomposeSubtypeConstraintImpl(
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                 blameRange: blameRange, depth: depth,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
             result.append(contentsOf: decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSupertypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSubtypeTypeParameters
             ))
             return result
 
@@ -1318,7 +1342,8 @@ extension OverloadResolver {
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                 blameRange: blameRange, depth: depth,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
 
         case let (.invariant(subInner), .in(superInner)),
@@ -1326,7 +1351,9 @@ extension OverloadResolver {
             return decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSupertypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSubtypeTypeParameters
             )
 
         case let (.star, .invariant(superInner)), let (.star, .out(superInner)):
@@ -1340,11 +1367,14 @@ extension OverloadResolver {
                 subtype: starUpperBound, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                 blameRange: blameRange, depth: depth,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             ) + decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: starUpperBound,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSupertypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSubtypeTypeParameters
             )
 
         case let (.out(_), .in(superInner)):
@@ -1356,7 +1386,9 @@ extension OverloadResolver {
             return decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: typeSystem.nothingType,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth + 1
+                blameRange: blameRange, depth: depth + 1,
+                rigidSubtypeTypeParameters: rigidSupertypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSubtypeTypeParameters
             )
 
         case let (.in(_), .out(superInner)):
@@ -1366,7 +1398,9 @@ extension OverloadResolver {
             return decomposeSubtypeConstraintImpl(
                 subtype: typeSystem.nullableAnyType, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth + 1
+                blameRange: blameRange, depth: depth + 1,
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
 
         default:
@@ -1386,12 +1420,15 @@ extension OverloadResolver {
                 subtype: subInner, supertype: superInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
                 blameRange: blameRange, depth: depth,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
             )
             fallback.append(contentsOf: decomposeSubtypeConstraintImpl(
                 subtype: superInner, supertype: subInner,
                 typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem,
-                blameRange: blameRange, depth: depth
+                blameRange: blameRange, depth: depth,
+                rigidSubtypeTypeParameters: rigidSupertypeTypeParameters,
+                rigidSupertypeTypeParameters: rigidSubtypeTypeParameters
             ))
             return fallback
         }

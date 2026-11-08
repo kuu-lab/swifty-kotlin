@@ -18,12 +18,6 @@ private external fun AtomicInt.__kkAtomicIntCompareAndExchange(
 @KsSymbolName("__kk_atomic_int_fetchAndAdd")
 private external fun AtomicInt.__kkAtomicIntFetchAndAdd(delta: Int): Int
 
-@KsSymbolName("__kk_atomic_int_fetchAndDecrement")
-private external fun AtomicInt.__kkAtomicIntFetchAndDecrement(): Int
-
-@KsSymbolName("__kk_atomic_int_fetchAndIncrement")
-private external fun AtomicInt.__kkAtomicIntFetchAndIncrement(): Int
-
 @KsSymbolName("__kk_atomic_int_load")
 private external fun AtomicInt.__kkAtomicIntLoad(): Int
 
@@ -39,10 +33,10 @@ public class AtomicInt private constructor() {
         __kkAtomicIntFetchAndAdd(delta)
 
     public fun getAndDecrement(): Int =
-        __kkAtomicIntFetchAndDecrement()
+        getAndAdd(-1)
 
     public fun getAndIncrement(): Int =
-        __kkAtomicIntFetchAndIncrement()
+        getAndAdd(1)
 
     public override fun toString(): String =
         __kkAtomicIntLoad().toString()
