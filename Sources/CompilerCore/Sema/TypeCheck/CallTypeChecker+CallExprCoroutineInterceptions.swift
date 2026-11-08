@@ -287,6 +287,128 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// `suspend { p: T -> body }` is a suspend function *literal*: the
+    /// `suspend` keyword modifies the lambda, so the declared parameter list
+    /// shapes the resulting `suspend (T) -> R` type. The bundled
+    /// `kotlin.suspend(noinline block: suspend () -> R)` only models the
+    /// zero-parameter form, so a literal that declares value parameters is
+    /// otherwise rejected for arity mismatch against `suspend () -> R`
+    /// (KUU-4475). Intercept the literal shape, infer the lambda against a
+    /// suspend function type of matching arity, and mark the call for
+    /// transparent lowering — the expression's value is the lambda itself,
+    /// not a call to `kotlin.suspend`.
+    func inferSuspendLambdaLiteralCall(
+        _ id: ExprID,
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings,
+        expectedType: TypeID?,
+        explicitTypeArgs: [TypeID],
+        calleeName: InternedString?
+    ) -> TypeID? {
+        let ast = ctx.ast
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let calleeName,
+              calleeName == interner.intern("suspend"),
+              explicitTypeArgs.isEmpty,
+              args.count == 1,
+              let lambdaExprID = args.first?.expr,
+              !ast.arena.isParenthesized(lambdaExprID),
+              case let .lambdaLiteral(params, _, _, _) = ast.arena.expr(lambdaExprID),
+              locals[calleeName] == nil
+        else {
+            return nil
+        }
+
+        let expectedSuspendFunctionType: FunctionType? = expectedType.flatMap { expected in
+            guard case let .functionType(functionType) = sema.types.kind(
+                of: sema.types.makeNonNullable(expected)
+            ), functionType.isSuspend else {
+                return nil
+            }
+            return functionType
+        }
+
+        let lambdaExpectedType: TypeID
+        if params.isEmpty {
+            // The zero-parameter literal stays on the bundled arity-0 call
+            // path unless an expected suspend function type supplies a
+            // receiver or the single implicit `it` parameter.
+            guard let expectedSuspendFunctionType,
+                  expectedSuspendFunctionType.params.count == 1
+                      || expectedSuspendFunctionType.receiver != nil,
+                  let expectedType
+            else {
+                return nil
+            }
+            lambdaExpectedType = expectedType
+        } else if let expectedSuspendFunctionType,
+                  expectedSuspendFunctionType.params.count == params.count,
+                  let expectedType
+        {
+            lambdaExpectedType = expectedType
+        } else {
+            // Declared annotations pin the parameter types; the synthesized
+            // `Any?` return is a placeholder so the body's inferred type
+            // flows through (matching the erased-placeholder rule in
+            // `inferLambdaLiteralExpr`).
+            guard let typeRefs = ast.arena.lambdaParamTypeRefs(for: lambdaExprID),
+                  typeRefs.count == params.count
+            else {
+                return nil
+            }
+            var declaredParameterTypes: [TypeID] = []
+            declaredParameterTypes.reserveCapacity(params.count)
+            for typeRef in typeRefs {
+                guard let typeRef else { return nil }
+                let resolved = driver.helpers.resolveTypeRef(
+                    typeRef,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner,
+                    scope: ctx.scope,
+                    inferenceContext: ctx
+                )
+                guard resolved != sema.types.errorType else { return nil }
+                declaredParameterTypes.append(resolved)
+            }
+            lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                params: declaredParameterTypes,
+                returnType: sema.types.nullableAnyType,
+                isSuspend: true,
+                nullability: .nonNull
+            )))
+        }
+
+        let lambdaType = driver.inferExpr(
+            lambdaExprID,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: lambdaExpectedType
+        )
+        let lambdaReturnType: TypeID = if case let .functionType(functionType) = sema.types.kind(
+            of: sema.types.makeNonNullable(lambdaType)
+        ) {
+            functionType.returnType
+        } else {
+            sema.types.nullableAnyType
+        }
+        if let suspendSymbol = sema.symbols.lookup(
+            fqName: [interner.intern("kotlin"), calleeName]
+        ) {
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: suspendSymbol,
+                substitutedTypeArguments: [lambdaReturnType],
+                parameterMapping: [0: 0]
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(suspendSymbol))
+        }
+        sema.bindings.markStdlibSpecialCallExpr(id, kind: .suspendLambdaLiteral)
+        sema.bindings.bindExprType(id, type: lambdaType)
+        return lambdaType
+    }
+
     func resolveWithContextExpectedLambdaType(
         calleeName: InternedString?,
         args: [CallArgument],
