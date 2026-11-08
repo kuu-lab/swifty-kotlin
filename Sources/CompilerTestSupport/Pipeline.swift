@@ -24,11 +24,11 @@ func defaultTargetTriple() -> TargetTriple {
     TargetTriple.hostDefault()
 }
 
-/// `allowDefaultStdlibLibrary` is intentionally required rather than
-/// defaulted here: CompilerCoreTests and CompilerBackendTests want opposite
-/// defaults (source-compiled bundled stdlib vs. the precompiled artifact),
-/// so each test target supplies its own default via a thin local wrapper
-/// around this function instead of sharing one.
+/// `allowDefaultStdlibLibrary` defaults to `false` here: test targets that
+/// inspect KIR callee names or symbol flags want the bundled stdlib compiled
+/// from source, which is what `false` selects. `CompilerBackendTests` wants
+/// the opposite default (the precompiled artifact) and keeps its own thin
+/// wrapper in `Tests/CompilerBackendTests/Integration/TestSupport/Pipeline.swift`.
 func makeCompilationContext(
     inputs: [String],
     moduleName: String = "TestModule",
@@ -42,7 +42,7 @@ func makeCompilationContext(
     diagnostics: DiagnosticEngine? = nil,
     stdlibOnly: Bool = false,
     stdlibLibraryPath: String? = nil,
-    allowDefaultStdlibLibrary: Bool
+    allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -88,14 +88,13 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try LoweringPhase().run(ctx)
 }
 
-/// See `makeCompilationContext` for why `allowDefaultStdlibLibrary` has no
-/// default here.
+/// See `makeCompilationContext` for the `allowDefaultStdlibLibrary` default.
 func makeContextFromSource(
     _ source: String,
     moduleName: String = "TestModule",
     frontendFlags: [String] = [],
     emit: EmitMode = .kirDump,
-    allowDefaultStdlibLibrary: Bool
+    allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
     let fakePath = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString + ".kt").path
@@ -107,6 +106,29 @@ func makeContextFromSource(
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
+    return ctx
+}
+
+/// Multi-file variant of `makeContextFromSource`: registers each source
+/// under a distinct fake path without touching the disk.
+func makeContextFromSources(
+    _ sources: [String],
+    moduleName: String = "TestModule",
+    allowDefaultStdlibLibrary: Bool = false
+) -> CompilationContext {
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString)
+    let fakePaths = sources.indices.map { index in
+        tempDir.appendingPathComponent("input\(index).kt").path
+    }
+    let ctx = makeCompilationContext(
+        inputs: fakePaths,
+        moduleName: moduleName,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+    )
+    for (path, source) in zip(fakePaths, sources) {
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+    }
     return ctx
 }
 

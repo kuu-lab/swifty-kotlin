@@ -63,6 +63,63 @@ extension CallLowerer {
             return unit
         }
 
+        // KUU-4431: `isArrayOf<T>()` spelled without a receiver inside an
+        // `Array<*>` scope (`with(arr) { isArrayOf<Int>() }`) resolves to the
+        // same bundled intrinsic as the member-call spelling.
+        if let callBinding = sema.bindings.callBindings[exprID],
+           let calleeSymbol = sema.symbols.symbol(callBinding.chosenCallee),
+           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+        {
+            // The receiver tower can hold unrelated receivers (e.g. a
+            // `with("s")` lambda nested inside `with(array)`); only a
+            // candidate matching the declared `Array<*>` receiver supplies
+            // the array, mirroring the member-extension receiver selection
+            // in CallLowerer+ResolvedCallEmission.swift.
+            let declaredReceiverType = sema.symbols
+                .functionSignature(for: callBinding.chosenCallee)?.receiverType
+            func suppliesArrayReceiver(_ candidate: KIRExprID?) -> Bool {
+                guard let candidate,
+                      let candidateType = arena.exprType(candidate),
+                      let declaredReceiverType
+                else { return false }
+                return sema.types.isSubtype(
+                    sema.types.makeNonNullable(candidateType),
+                    sema.types.makeNonNullable(declaredReceiverType)
+                )
+            }
+            let receiverCandidates: [KIRExprID?] = [
+                sema.bindings.implicitExtensionReceiver(for: exprID)
+                    .flatMap({ driver.ctx.localValue(for: $0) }),
+                sema.bindings.implicitReceiverOuterReceiver(for: exprID)
+                    .flatMap({ driver.ctx.localValue(for: $0) }),
+                driver.ctx.activeImplicitReceiverExprID(),
+            ]
+            let receiver = receiverCandidates.compactMap({ $0 }).first(where: suppliesArrayReceiver)
+            if let receiver {
+                // See the member-call site: kotlinc's non-inline reified
+                // `isArrayOf` observes only the type parameter's upper bound.
+                let componentToken = runtimeArrayComponentTypeExpr(
+                    for: callBinding.substitutedTypeArguments.first ?? sema.types.anyType,
+                    useReifiedToken: false,
+                    context: driver.ctx,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                let result = arena.appendTemporary(
+                    type: sema.bindings.exprType(for: exprID) ?? sema.types.booleanType
+                )
+                instructions.append(.call(
+                    callee: interner.intern("kk_array_is_array_of"),
+                    arguments: [receiver, componentToken],
+                    result: result,
+                    canThrow: false
+                ))
+                return result
+            }
+        }
+
         // `G<Int>.member` wraps `G<Int>` in a marked `.call`; Sema binds its
         // qualifier's nominal symbol instead of a call binding. The qualifier
         // is a namespace reference, never a real call — emit the same
@@ -146,6 +203,19 @@ extension CallLowerer {
             instructions: &instructions
         ) {
             return loweredSuspendIntrinsic
+        }
+
+        if let loweredSuspendLiteral = lowerSuspendLambdaLiteralCallExpr(
+            exprID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return loweredSuspendLiteral
         }
 
         if let loweredRepeat = lowerRepeatCallExpr(

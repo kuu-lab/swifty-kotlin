@@ -1183,6 +1183,7 @@ extension CallLowerer {
                 finalArgIDs.append(nullCauseExpr)
             } else if loweredCalleeName == interner.intern("kk_channel_send")
                 || loweredCalleeName == interner.intern("kk_channel_receive")
+                || loweredCalleeName == interner.intern("__kk_channel_receive_catching")
                 || loweredCalleeName == interner.intern("kk_mutex_lock")
                 || loweredCalleeName == interner.intern("__kk_mutex_lock_owner")
                 || loweredCalleeName == interner.intern("kk_semaphore_acquire")

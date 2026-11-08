@@ -26,16 +26,44 @@ extension DataFlowAnalyzer {
                 guard sema.bindings.implicitReceiverMemberNames[id] != nil,
                       let property = sema.bindings.identifierSymbols[id],
                       isStableMemberProperty(property, ast: ast, sema: sema),
-                      let receiver = locals[interner.intern("this")],
+                      let type = sema.bindings.exprType(for: id)
+                else { return nil }
+                // A member resolved through an *outer* implicit receiver keeps
+                // its own flow reference — `alias` inside `buildString {}`
+                // belongs to the enclosing class's `this`, not the lambda's
+                // StringBuilder receiver, so `if (alias != null)` can narrow it
+                // inside the inline lambda (KUU-4473).
+                if let outerSymbol = sema.bindings.implicitReceiverOuterReceiver(for: id),
+                   isStableReceiverValueSymbol(outerSymbol, sema: sema)
+                {
+                    return (DataFlowReference(root: outerSymbol, properties: [property]), type, true)
+                }
+                guard let receiver = locals[interner.intern("this")],
                       TypeCheckHelpers().lookupMemberProperty(
                           named: name, receiverType: receiver.type, sema: sema
-                      )?.symbol == property,
-                      let type = sema.bindings.exprType(for: id)
+                      )?.symbol == property
                 else { return nil }
                 return (DataFlowReference(root: receiver.symbol, properties: [property]), type, true)
             }
-        case let .thisRef(label, _) where label == nil:
+        case let .thisRef(label, _):
             guard let resolved = locals[interner.intern("this")] else { return nil }
+            if label != nil, sema.bindings.identifierSymbols[id] != resolved.symbol {
+                // A labeled `this@…` shares the unqualified receiver's flow
+                // slot only when it denotes that same receiver — e.g.
+                // `this@func` inside the extension function `func`, which
+                // binds the same synthetic receiver parameter symbol. When the
+                // label instead binds a different *receiver value* (an
+                // extension receiver parameter or a labeled lambda's
+                // receiver), root the reference at that symbol so
+                // `this@func.alias` smart-casts inside inner lambdas.
+                // `this@Class` binds the classifier itself, which would
+                // conflate different instances, so it keeps the nil result.
+                guard let bound = sema.bindings.identifierSymbols[id],
+                      isStableReceiverValueSymbol(bound, sema: sema),
+                      let type = sema.bindings.exprType(for: id)
+                else { return nil }
+                return (DataFlowReference(root: bound), type, true)
+            }
             local = resolved
         case let .memberCall(receiver, _, _, args, _):
             guard args.isEmpty, !ast.arena.isExplicitCall(id),
@@ -72,6 +100,21 @@ extension DataFlowAnalyzer {
             )
         } ?? false
         return (DataFlowReference(root: local.symbol), local.type, isStable && !mutatedInClosure)
+    }
+
+    /// Flow-fact roots must denote stable *values*: synthetic receiver
+    /// parameters and lambda receivers are per-instance `this` values, and
+    /// singleton `object`/local/parameter symbols are stable bindings. A
+    /// classifier symbol (class/interface) would conflate different
+    /// instances, so it is not a valid root.
+    private func isStableReceiverValueSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        if symbol.rawValue < 0 { return true }
+        switch sema.symbols.symbol(symbol)?.kind {
+        case .object, .local, .valueParameter:
+            return true
+        default:
+            return false
+        }
     }
 
     func isStableMemberProperty(_ property: SymbolID, ast: ASTModule, sema: SemaModule) -> Bool {

@@ -1,0 +1,68 @@
+symbol fq=__local_0.children[kind=local;type=kotlin.collections.List<String>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<String>
+symbol fq=__local_1.a[kind=local;type=kotlin.collections.List<Int>?;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>?
+symbol fq=__local_2.b[kind=local;type=kotlin.collections.List<Int>?;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>?
+symbol fq=__local_3.c[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
+symbol fq=__local_4.d[kind=local;type=kotlin.collections.List<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.List<Int>
+symbol fq=__local_5.e[kind=local;type=kotlin.collections.Collection<Int>;origin=fixture] kind=local vis=private flags=_ type=kotlin.collections.Collection<Int>
+symbol fq=golden.sema.FS.children.$0.follow[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.FS.children.$0.path[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.FS.listOrNull.$1.path[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.FS.listOrNull[kind=fun;recv=golden.sema.FS;params=String;ret=kotlin.collections.List<String>?;names=[path];origin=fixture] kind=function vis=public flags=abstractType sig=recv=golden.sema.FS params=[String] ret=kotlin.collections.List<String>?
+symbol fq=golden.sema.FS[kind=class;origin=fixture] kind=class vis=public flags=abstractType|openType
+symbol fq=golden.sema.listOrNull.$2.p[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.listOrNull[kind=fun;params=Int;ret=kotlin.collections.List<Int>?;names=[p];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Int] ret=kotlin.collections.List<Int>?
+symbol fq=golden.sema.probe.$3.t[kind=vparam;origin=fixture] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.probe[kind=fun;params=Boolean;ret=Unit;names=[t];origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[Boolean] ret=Unit
+file fif_expr_failed_branch_sibling_join package=golden.sema
+  decl golden.sema.listOrNull[kind=fun;params=Int;ret=kotlin.collections.List<Int>?;names=[p];origin=fixture] fun listOrNull sym=golden.sema.listOrNull[kind=fun;params=Int;ret=kotlin.collections.List<Int>?;names=[p];origin=fixture]
+  decl golden.sema.FS[kind=class;origin=fixture] class FS sym=golden.sema.FS[kind=class;origin=fixture]
+  decl golden.sema.probe[kind=fun;params=Boolean;ret=Unit;names=[t];origin=fixture] fun probe sym=golden.sema.probe[kind=fun;params=Boolean;ret=Unit;names=[t];origin=fixture]
+expr e@9:42 name(p) type=Int ref=golden.sema.listOrNull.$2.p[kind=vparam;origin=fixture]
+expr e@9:46 int(0) type=Int
+expr e@9:42#1 binary(greaterThan) lhs=e@9:42 rhs=e@9:46 type=Boolean
+expr e@9:56 name(p) type=Int ref=golden.sema.listOrNull.$2.p[kind=vparam;origin=fixture]
+expr e@9:49 call callee=e@9:49#1 args=[_:e@9:56] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=T0;ret=kotlin.collections.List<T0>;gen=1;names=[element]] targs=[Int]
+expr e@9:64 name(null) type=Nothing?
+expr e@9:38 if cond=e@9:42#1 then=e@9:49 else=e@9:64 type=kotlin.collections.List<Int>?
+expr e@15:28 name(follow) type=Boolean ref=golden.sema.FS.children.$0.follow[kind=vparam;origin=fixture]
+expr e@16:24 name(path) type=String ref=golden.sema.FS.children.$0.path[kind=vparam;origin=fixture]
+expr e@16:13 call callee=e@16:13#1 args=[_:e@16:24] type=kotlin.collections.List<String>? call=golden.sema.FS.listOrNull[kind=fun;recv=golden.sema.FS;params=String;ret=kotlin.collections.List<String>?;names=[path];origin=fixture]
+expr e@16:33 call callee=e@16:33#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[String]
+expr e@16:13#2 binary(elvis) lhs=e@16:13 rhs=e@16:33 type=kotlin.collections.List<String>
+expr e@15:36 blockExpr stmts=[] trailing=e@16:13#2 type=kotlin.collections.List<String>
+expr e@18:13 call callee=e@18:13#1 args=[] type=kotlin.collections.List<String> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[String]
+expr e@17:16 blockExpr stmts=[] trailing=e@18:13 type=kotlin.collections.List<String>
+expr e@15:24 if cond=e@15:28 then=e@15:36 else=e@17:16 type=kotlin.collections.List<String>
+expr e@15:9 localDecl children mutable=0 type=_ init=e@15:24 type=Unit ref=__local_0.children[kind=local;type=kotlin.collections.List<String>;origin=fixture]
+expr e@20:16 name(children) type=kotlin.collections.List<String> ref=__local_0.children[kind=local;type=kotlin.collections.List<String>;origin=fixture]
+expr e@20:9 return value=e@20:16 type=Nothing
+expr e@25:17 name(t) type=Boolean ref=golden.sema.probe.$3.t[kind=vparam;origin=fixture]
+expr e@25:31 int(1) type=Int
+expr e@25:20 call callee=e@25:20#1 args=[_:e@25:31] type=kotlin.collections.List<Int>? call=golden.sema.listOrNull[kind=fun;params=Int;ret=kotlin.collections.List<Int>?;names=[p];origin=fixture]
+expr e@25:39 call callee=e@25:39#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@25:13 if cond=e@25:17 then=e@25:20 else=e@25:39 type=kotlin.collections.List<Int>?
+expr e@25:5 localDecl a mutable=0 type=_ init=e@25:13 type=Unit ref=__local_1.a[kind=local;type=kotlin.collections.List<Int>?;origin=fixture]
+expr e@26:17 name(t) type=Boolean ref=golden.sema.probe.$3.t[kind=vparam;origin=fixture]
+expr e@26:20 call callee=e@26:20#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@26:45 int(2) type=Int
+expr e@26:34 call callee=e@26:34#1 args=[_:e@26:45] type=kotlin.collections.List<Int>? call=golden.sema.listOrNull[kind=fun;params=Int;ret=kotlin.collections.List<Int>?;names=[p];origin=fixture]
+expr e@26:13 if cond=e@26:17 then=e@26:20 else=e@26:34 type=kotlin.collections.List<Int>?
+expr e@26:5 localDecl b mutable=0 type=_ init=e@26:13 type=Unit ref=__local_2.b[kind=local;type=kotlin.collections.List<Int>?;origin=fixture]
+expr e@27:17 name(t) type=Boolean ref=golden.sema.probe.$3.t[kind=vparam;origin=fixture]
+expr e@27:20 call callee=e@27:20#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@27:48 int(3) type=Int
+expr e@27:34 call callee=e@27:34#1 args=[_:e@27:48] type=kotlin.collections.MutableList<Int> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;ret=kotlin.collections.MutableList<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
+expr e@27:13 if cond=e@27:17 then=e@27:20 else=e@27:34 type=kotlin.collections.List<Int>
+expr e@27:5 localDecl c mutable=0 type=_ init=e@27:13 type=Unit ref=__local_3.c[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
+expr e@29:9 name(t) type=Boolean ref=golden.sema.probe.$3.t[kind=vparam;origin=fixture]
+expr e@29:28 int(4) type=Int
+expr e@29:14 call callee=e@29:14#1 args=[_:e@29:28] type=kotlin.collections.MutableList<Int> call=kotlin.collections.mutableListOf[kind=fun;params=*T0;ret=kotlin.collections.MutableList<T0>;gen=1;vararg=[1];names=[elements]] targs=[Int]
+expr e@30:17 call callee=e@30:17#1 args=[] type=kotlin.collections.List<Int> call=kotlin.collections.listOf[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@28:13 when subject=_ branches=[e@29:9->e@29:14] else=e@30:17 type=kotlin.collections.List<Int>
+expr e@28:5 localDecl d mutable=0 type=_ init=e@28:13 type=Unit ref=__local_4.d[kind=local;type=kotlin.collections.List<Int>;origin=fixture]
+expr e@32:17 name(t) type=Boolean ref=golden.sema.probe.$3.t[kind=vparam;origin=fixture]
+expr e@32:20 call callee=e@32:20#1 args=[] type=kotlin.collections.Collection<Int> call=kotlin.collections.emptyList[kind=fun;params=;ret=kotlin.collections.List<T0>;gen=1] targs=[Int]
+expr e@32:43 int(5) type=Int
+expr e@32:37 call callee=e@32:37#1 args=[_:e@32:43] type=kotlin.collections.Set<out Int> call=kotlin.collections.setOf[kind=fun;params=T0;ret=kotlin.collections.Set<T0>;gen=1;names=[element]] targs=[Int]
+expr e@32:13 if cond=e@32:17 then=e@32:20 else=e@32:37 type=kotlin.collections.Collection<Int>
+expr e@32:5 localDecl e mutable=0 type=_ init=e@32:13 type=Unit ref=__local_5.e[kind=local;type=kotlin.collections.Collection<Int>;origin=fixture]

@@ -78,4 +78,47 @@ extension CallLowerer {
         instructions.append(.copy(from: blockResultExpr, to: resultExpr))
         return resultExpr
     }
+
+    /// `suspend { p: T -> ... }` is a suspend function literal, not a real
+    /// call to `kotlin.suspend` — lower the expression as the materialized
+    /// lambda value itself (KUU-4475).
+    func lowerSuspendLambdaLiteralCallExpr(
+        _ exprID: ExprID,
+        args: [CallArgument],
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .suspendLambdaLiteral,
+              args.count == 1
+        else {
+            return nil
+        }
+        var blockExpr = driver.lowerExpr(
+            args[0].expr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        if let blockType = sema.bindings.exprType(for: args[0].expr),
+           case let .functionType(functionType) = sema.types.kind(of: blockType)
+        {
+            blockExpr = materializeFunctionValueArgument(
+                loweredArgID: blockExpr,
+                argExprID: args[0].expr,
+                functionType: functionType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+        return blockExpr
+    }
 }

@@ -1,10 +1,14 @@
-/// Synthetic bridges retained for kotlin.time.Duration's native parsing and
-/// arithmetic compatibility surface.
+/// Synthetic anchors retained for kotlin.time.Duration's nominal shell and
+/// DurationUnit enum fallback compatibility surface.
+///
+/// KSP-1542: The __kk_duration_parse* runtime bridges are declared directly
+/// in Stdlib/kotlin/time/Duration.kt using @KsSymbolName. No synthetic function
+/// stubs remain here; this file only registers nominal shells for DurationUnit,
+/// Duration, and Companion as residual compiler anchors (bucket: (c)).
 
 extension DataFlowSemaPhase {
     func registerSyntheticDurationStubs(
         symbols: SymbolTable,
-        types: TypeSystem,
         interner: StringInterner
     ) {
         let kotlinTimePkg = ensureDurationPackageHierarchy(
@@ -31,80 +35,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        guard symbols.companionObjectSymbol(for: durationSymbol) != nil else {
-            return
-        }
-        let longType = types.longType
-        let stringType = types.stringType
-
-        // --- STDLIB-TIME-STABLE-001: Duration companion constants ---
-        // KUU-1093: `Duration` now implements `Comparable<Duration>`, so every
-        // Duration value is a real boxed object (interface-implementing value
-        // classes keep their boxed representation; see
-        // `effectiveValueClassUnderlyingType`). The kk_duration_* cdecls,
-        // however, speak raw Int64 nanosecond payloads — a raw `Duration`-typed
-        // bridge return would be a bogus object reference. The parse bridges
-        // therefore return `Long`/`Long?` (nanoseconds), and Kotlin source in
-        // Stdlib/kotlin/time/Duration.kt wraps them in `Duration(...)`. The
-        // former __kk_duration_zero/infinite and member bridges
-        // (absoluteValue/isNegative/isPositive/isInfinite/plus/minus/times_int/
-        // div_int/div_duration/unary_minus/compareTo) were dropped: every
-        // operation they backed is now resolved via Kotlin source, and leaving
-        // raw-Int64-typed-as-Duration stubs registered would be a latent
-        // wrong-ABI hazard.
-        registerDurationTopLevelBridgeFunction(
-            named: "__kk_duration_parse",
-            externalLinkName: "kk_duration_parse",
-            parameterTypes: [stringType],
-            returnType: longType,
-            canThrow: true,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationTopLevelBridgeFunction(
-            named: "__kk_duration_parseOrNull",
-            externalLinkName: "kk_duration_parseOrNull",
-            parameterTypes: [stringType],
-            returnType: types.makeNullable(longType),
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationTopLevelBridgeFunction(
-            named: "__kk_duration_parseIsoString",
-            externalLinkName: "kk_duration_parseIsoString",
-            parameterTypes: [stringType],
-            returnType: longType,
-            canThrow: true,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerDurationTopLevelBridgeFunction(
-            named: "__kk_duration_parseIsoStringOrNull",
-            externalLinkName: "kk_duration_parseIsoStringOrNull",
-            parameterTypes: [stringType],
-            returnType: types.makeNullable(longType),
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // KSP-471: Int/Long/Double.{nanoseconds,microseconds,milliseconds,seconds,
-        // minutes,hours,days} factory extension properties are now Kotlin source
-        // top-level extension properties (Stdlib/kotlin/time/Duration.kt) built on
-        // top of the toDuration(unit) bridges registered above. No direct stubs.
-
-        // KSP-1497: TimedValue is declared as a bundled Kotlin data class.
-        // Its constructor, stored properties, and synthesized members use the
-        // ordinary source-backed data-class pipeline, with no runtime bridge.
-
-        // KSP-471: Long/Double factory extension properties are also Kotlin
-        // source (see note above); no direct stubs for those receivers either.
     }
 
     private func ensureSyntheticDurationUnitEnumClass(
@@ -160,96 +90,4 @@ extension DataFlowSemaPhase {
         }
         return kotlinTimeFQ
     }
-
-    /// Registers a receiver-less bridge function at package scope. Unlike
-    /// registerDurationMemberMethod (which passes the receiver's internal handle
-    /// as the native call's first argument), this has no receiver at all, so it
-    /// matches native factory functions like kk_duration_zero() that take no
-    /// argument. Kotlin source calls it without a `this.` prefix.
-    private func registerDurationTopLevelBridgeFunction(
-        named name: String,
-        externalLinkName: String,
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        canThrow: Bool = false,
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        if symbols.deferWorkUntilImportedMemberMaterializes(at: functionFQName, work: { [self] in
-            registerDurationTopLevelBridgeFunction(
-                named: name,
-                externalLinkName: externalLinkName,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                canThrow: canThrow,
-                packageFQName: packageFQName,
-                symbols: symbols,
-                interner: interner
-            )
-        }) {
-            return
-        }
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return signature.receiverType == nil && signature.parameterTypes == parameterTypes
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            if canThrow {
-                symbols.insertFlags([.throwingFunction], for: existing)
-            }
-            return
-        }
-
-        var flags: SymbolFlags = [.synthetic]
-        if canThrow {
-            flags.insert(.throwingFunction)
-        }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        var paramSymbols: [SymbolID] = []
-        for (idx, paramType) in parameterTypes.enumerated() {
-            let paramName = interner.intern("p\(idx)")
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramName,
-                fqName: functionFQName + [paramName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            symbols.setPropertyType(paramType, for: paramSymbol)
-            paramSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                canThrow: canThrow,
-                valueParameterSymbols: paramSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count)
-            ),
-            for: functionSymbol
-        )
-    }
 }
-
-

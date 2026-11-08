@@ -74,6 +74,7 @@ final class RuntimeJavaMethodRegistry: @unchecked Sendable {
 }
 
 struct RuntimeJavaFieldMetadata {
+    let name: String
     let annotations: [RuntimeAnnotationRecord]
 }
 
@@ -105,7 +106,13 @@ final class RuntimeJavaFieldRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard let annotations = fieldsByTypeToken[typeToken]?[name] else { return nil }
-        return RuntimeJavaFieldMetadata(annotations: annotations)
+        return RuntimeJavaFieldMetadata(name: name, annotations: annotations)
+    }
+
+    func fieldNames(for typeToken: Int) -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return Array(fieldsByTypeToken[typeToken]?.keys ?? Dictionary<String, [RuntimeAnnotationRecord]>().keys)
     }
 
     func reset() {
@@ -307,6 +314,95 @@ public func __kk_java_class_get_declared_field(_ classRaw: Int, _ nameRaw: Int) 
         RuntimeJavaFieldBox(metadata: metadata),
         typeID: runtimeStableNominalTypeID(fqName: "java.lang.reflect.Field")
     )
+}
+
+@_cdecl("__kk_java_class_get_field")
+public func __kk_java_class_get_field(_ classRaw: Int, _ nameRaw: Int) -> Int {
+    guard let javaClass = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) ?? ""
+    var currentToken = javaClass.typeToken
+    var visitedTokens: Set<Int> = []
+    var foundMetadata: RuntimeJavaFieldMetadata? = nil
+    while foundMetadata == nil && visitedTokens.insert(currentToken).inserted {
+        if let metadata = runtimeJavaFieldRegistry.field(for: currentToken, name: name) {
+            foundMetadata = metadata
+            break
+        }
+        guard let metadataEntry = runtimeKClassMetadataRegistry.lookup(typeToken: currentToken),
+              let superclass = runtimeJavaSuperclassMetadata(of: metadataEntry)
+        else { break }
+        currentToken = Int(truncatingIfNeeded: runtimeTypeToken(forQualifiedName: superclass.qualifiedName))
+    }
+    guard let metadata = foundMetadata else {
+        runtimeStructuredPanic("java.lang.NoSuchFieldException: \(name)")
+    }
+    return registerRuntimeObject(
+        RuntimeJavaFieldBox(metadata: metadata),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.reflect.Field")
+    )
+}
+
+@_cdecl("__kk_java_field_get_name")
+public func __kk_java_field_get_name(_ fieldRaw: Int) -> Int {
+    guard let field = resolveRuntimeHandle(fieldRaw, as: RuntimeJavaFieldBox.self) else {
+        runtimeStructuredPanic("invalid Java Field handle")
+    }
+    return runtimeMakeStringRaw(field.metadata.name)
+}
+
+@_cdecl("__kk_java_method_get_parameter_types")
+public func __kk_java_method_get_parameter_types(_ methodRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(methodRaw, as: RuntimeJavaMethodBox.self) else {
+        runtimeStructuredPanic("invalid Java Method handle")
+    }
+    let classTypeID = runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    let classTypeToken = Int(
+        ((classTypeID & RuntimeTypeTokenEncoding.payloadMask) << RuntimeTypeTokenEncoding.payloadShift)
+            | RuntimeTypeTokenEncoding.nominalBase
+    )
+    let array = RuntimeArrayBox(length: box.metadata.parameterTypeTokens.count)
+    let arrayRaw = registerRuntimeObject(array)
+    array.installComponentTypeIfAbsent(__kk_array_component_type(classTypeToken, 0))
+    runtimeRegisterArrayType(rawValue: arrayRaw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.Array"))
+    for (index, token) in box.metadata.parameterTypeTokens.enumerated() {
+        array[index] = runtimeJavaClassHandle(typeToken: token, nameHint: 0)
+    }
+    return arrayRaw
+}
+
+@_cdecl("__kk_java_class_identity_token")
+public func __kk_java_class_identity_token(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    return box.typeToken
+}
+
+@_cdecl("__kk_java_class_get_modifiers")
+public func __kk_java_class_get_modifiers(_ classRaw: Int) -> Int {
+    guard let box = resolveRuntimeHandle(classRaw, as: RuntimeJavaClassBox.self) else {
+        runtimeStructuredPanic("invalid Java Class handle")
+    }
+    var modifiers = 0
+    if runtimeJavaClassModelsPrimitive(box) || runtimeJavaClassIsArray(box) {
+        modifiers = 0x0411
+    } else if let metadata = runtimeKClassMetadataRegistry.lookup(typeToken: box.typeToken) {
+        switch metadata.visibility {
+        case "private": modifiers |= 0x0002
+        case "protected": modifiers |= 0x0004
+        default: modifiers |= 0x0001
+        }
+        if metadata.isFinal { modifiers |= 0x0010 }
+        if metadata.isAbstract { modifiers |= 0x0400 }
+        if metadata.isInterface { modifiers |= 0x0200 | 0x0400 }
+        if metadata.isEnumClass { modifiers |= 0x0010 | 0x4000 }
+    } else {
+        modifiers |= 0x0001
+        if runtimeJavaClassIsInterfaceKind(box) { modifiers |= 0x0200 | 0x0400 }
+    }
+    return modifiers
 }
 
 @_cdecl("__kk_java_field_get_annotations_typed")

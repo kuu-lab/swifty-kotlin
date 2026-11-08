@@ -96,6 +96,30 @@ struct JavaLinkedListPlatformReturnTests {
     }
 
     @Test
+    func elvisLhsPlatformReturnSkipsNullAssertion() throws {
+        let ctx = makeContextFromSource("""
+        import java.util.Properties
+        fun pick(p: Properties): String = p.getProperty("x") ?: "d"
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let elvisLhs = try #require(ast.arena.exprs.enumerated().compactMap { index, expression -> ExprID? in
+            guard case let .binary(.elvis, lhs, _, range) = expression,
+                  isUserSourceRange(range, in: ctx)
+            else { return nil }
+            return lhs
+        }.first)
+        // The elvis branch null-checks its LHS itself: the platform assertion
+        // recorded from the propagated non-null expected type must not survive,
+        // or `Properties.getProperty(key) ?: default` throws NPE on a missing
+        // key before the fallback runs (KUU-4451).
+        #expect(sema.bindings.platformNullAssertionTypes[elvisLhs] == nil)
+    }
+
+    @Test
     func metadataKeepsPlatformNullabilityWithoutChangingLinkNames() throws {
         let types = TypeSystem()
         let symbols = SymbolTable()

@@ -254,19 +254,36 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         let intType = sema.types.intType
         let registerCallee = interner.intern("kk_object_register_vtable_method")
         for implementation in implementations {
-            let bridgeSymbol = itableBridgeSymbolForMethod(
-                interfaceMethod: implementation.dispatchMethod,
-                implementation: implementation.implementation,
-                nominalSymbol: nominalSymbol,
-                driver: driver,
-                arena: arena,
-                sema: sema,
-                interner: interner
-            )
+            // The `kotlin.Any.toString` vtable slot keeps the runtime's raw
+            // `(Int, Int*) -> Int` handle ABI on every object: a
+            // `Base`-typed receiver cannot see the dynamic class's layout,
+            // so the slot must hold one ABI regardless of whether the
+            // concrete class overrides `toString`. Registering the flat
+            // Kotlin override directly leaves the slot ABI-ambiguous —
+            // non-overriding classes keep `kk_any_member_to_string` there —
+            // and a raw-typed call then reads the flat impl's sret return
+            // as null (KUU-4487). `kk_any_member_to_string` itself dispatches
+            // through the per-object `kk_object_register_any_to_string`
+            // entry, so overrides still win.
+            let registeredSymbol = if let dispatchSymbol = sema.symbols.symbol(implementation.dispatchMethod),
+                   isSyntheticAnyToStringSymbol(dispatchSymbol, interner: interner)
+            {
+                implementation.dispatchMethod
+            } else {
+                itableBridgeSymbolForMethod(
+                    interfaceMethod: implementation.dispatchMethod,
+                    implementation: implementation.implementation,
+                    nominalSymbol: nominalSymbol,
+                    driver: driver,
+                    arena: arena,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             let slotExpr = arena.appendExpr(.intLiteral(Int64(implementation.slot)), type: intType)
             instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(implementation.slot))))
-            let methodFnExpr = arena.appendExpr(.symbolRef(bridgeSymbol), type: intType)
-            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(bridgeSymbol)))
+            let methodFnExpr = arena.appendExpr(.symbolRef(registeredSymbol), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredSymbol)))
             let registerResult = arena.appendTemporary(type: intType)
             instructions.append(.call(
                 callee: registerCallee,

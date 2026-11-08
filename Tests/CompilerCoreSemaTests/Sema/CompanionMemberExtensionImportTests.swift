@@ -208,5 +208,111 @@ struct CompanionMemberExtensionImportTests {
             #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    private let companionExtensionDeclaration = """
+        package sample.library
+        class Box<T> {
+            companion object
+        }
+        fun <T> Box.Companion.make(v: T): Box<T> = Box()
+        """
+
+    private func callableReferenceExprID(
+        named name: String,
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext
+    ) -> ExprID? {
+        allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
+            guard case let .callableRef(_, member, _) = expr else { return false }
+            return ctx.interner.resolve(member) == name
+        }.first
+    }
+
+    @Test
+    func importedCompanionExtensionCallableReferenceBindsSingleton() throws {
+        let usage = """
+            package sample.usage
+            import sample.library.Box
+            import sample.library.Box.Companion.make
+
+            fun use(): Box<Int> {
+                val f: (Int) -> Box<Int> = ::make
+                return f(1)
+            }
+            """
+        try withTemporaryFiles(contents: [companionExtensionDeclaration, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let reference = try #require(callableReferenceExprID(
+                named: "make",
+                in: ast,
+                path: paths[1],
+                ctx: ctx
+            ))
+            let binding = try #require(sema.bindings.callableReferenceBinding(for: reference))
+            let dispatchReceiver = try #require(binding.dispatchReceiverSymbol)
+            #expect(sema.symbols.symbol(dispatchReceiver)?.kind == .object)
+
+            let referenceType = try #require(sema.bindings.exprType(for: reference))
+            guard case let .functionType(function) = sema.types.kind(of: referenceType) else {
+                Issue.record("Expected a function type for the callable reference.")
+                return
+            }
+            #expect(function.receiver == nil)
+            #expect(function.params.count == 1)
+        }
+    }
+
+    @Test
+    func importedCompanionExtensionCallableReferenceSupportsAlias() throws {
+        let usage = """
+            package sample.usage
+            import sample.library.Box
+            import sample.library.Box.Companion.make as buildBox
+
+            fun use(): Box<Int> {
+                val f: (Int) -> Box<Int> = ::buildBox
+                return f(1)
+            }
+            """
+        try withTemporaryFiles(contents: [companionExtensionDeclaration, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let reference = try #require(callableReferenceExprID(
+                named: "buildBox",
+                in: ast,
+                path: paths[1],
+                ctx: ctx
+            ))
+            #expect(sema.bindings.callableReferenceBinding(for: reference)?.dispatchReceiverSymbol != nil)
+        }
+    }
+
+    @Test
+    func unimportedCompanionExtensionCallableReferenceIsRejected() throws {
+        let usage = """
+            package sample.usage
+            import sample.library.Box
+
+            fun use(): Box<Int> {
+                val f: (Int) -> Box<Int> = ::make
+                return f(1)
+            }
+            """
+        try withTemporaryFiles(contents: [companionExtensionDeclaration, usage]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            assertHasDiagnostic("KSWIFTK-SEMA-0022", in: diagnosticsForPath(paths[1], in: ctx))
+        }
+    }
 }
 #endif

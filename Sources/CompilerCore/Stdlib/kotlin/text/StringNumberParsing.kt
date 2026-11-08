@@ -84,15 +84,6 @@ private external fun __kk_string_toULongOrNull(str: String): ULong?
 @KsSymbolName("__kk_string_toULongOrNull_radix")
 private external fun __kk_string_toULongOrNull_radix(str: String, radix: Int): ULong?
 
-@KsSymbolName("__kk_string_toBoolean")
-private external fun __kk_string_toBoolean(str: String?): Boolean
-
-@KsSymbolName("__kk_string_toBooleanStrict")
-private external fun __kk_string_toBooleanStrict(str: String): Boolean
-
-@KsSymbolName("__kk_string_toBooleanStrictOrNull")
-private external fun __kk_string_toBooleanStrictOrNull(str: String): Boolean?
-
 public fun String.toFloat(): Float {
     return __kk_string_toFloat(this)
 }
@@ -255,14 +246,19 @@ public fun String.toULongOrNull(radix: Int): ULong? {
     return __kk_string_toULongOrNull_radix(this, radix)
 }
 
-public fun String?.toBoolean(): Boolean {
-    return __kk_string_toBoolean(this)
-}
+public fun String?.toBoolean(): Boolean =
+    this != null && this.equals("true", ignoreCase = true)
 
-public fun String.toBooleanStrict(): Boolean {
-    return __kk_string_toBooleanStrict(this)
-}
+public fun String.toBooleanStrict(): Boolean =
+    when (this) {
+        "true" -> true
+        "false" -> false
+        else -> throw IllegalArgumentException("The string doesn't represent a boolean value: $this")
+    }
 
-public fun String.toBooleanStrictOrNull(): Boolean? {
-    return __kk_string_toBooleanStrictOrNull(this)
-}
+public fun String.toBooleanStrictOrNull(): Boolean? =
+    when (this) {
+        "true" -> true
+        "false" -> false
+        else -> null
+    }

@@ -50,6 +50,11 @@ private final class CountBox: @unchecked Sendable {
     var count: Int = 0
 }
 
+/// Collects the raw element handles a `kk_context_fold` visitor sees.
+private final class VisitedElementsBox: @unchecked Sendable {
+    var elements: [Int] = []
+}
+
 // MARK: - Private helpers
 
 /// Register a RuntimeStringBox into the runtime object store and return its raw pointer Int.
@@ -594,5 +599,69 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         // runtimeResultValueOrNull returns runtimeNullSentinelInt (Int.min) for failure.
         let value = runtimeResultValueOrNull(resultRaw)
         #expect(value == Int.min, "getOrNull for failure should return the null sentinel (Int.min)")
+    }
+
+    // MARK: - KUU-4402: CombinedContext semantics
+
+    /// `elementA + elementB` with the same key collapses to the surviving
+    /// bare element, like kotlinx's `CombinedContext` never wrapping a
+    /// single element.
+    @Test func testContextPlusSameKeyCollapsesToElement() {
+        let nameA = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("A")))
+        let nameB = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("B")))
+        let combined = kk_context_plus(nameA, nameB)
+        #expect(combined == nameB, "nameA + nameB must return the surviving element itself")
+    }
+
+    /// `minusKey` on a two-element context returns the remaining element,
+    /// not a single-element wrapper.
+    @Test func testContextMinusKeyCollapsesToRemainingElement() {
+        let dispatcher = kk_dispatcher_named(0)
+        let name = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("x")))
+        let ctx = kk_context_plus(dispatcher, name)
+        let removed = kk_context_minusKey(ctx, kk_coroutine_name_key())
+        #expect(removed == dispatcher, "minusKey must unwrap to the surviving dispatcher element")
+    }
+
+    /// A context emptied by `minusKey` renders as `EmptyCoroutineContext`.
+    @Test func testContextMinusKeyEmptyRendersEmptyCoroutineContext() {
+        let name = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("x")))
+        let emptied = kk_context_minusKey(name, kk_coroutine_name_key())
+        #expect(emptied != 0)
+        #expect(runtimeRenderAnyForPrint(emptied) == "EmptyCoroutineContext")
+    }
+
+    /// `fold` walks elements in kotlinx order: insertion order with the
+    /// ContinuationInterceptor (dispatcher) rightmost.
+    @Test func testContextFoldInterceptorLast() {
+        let dispatcher = kk_dispatcher_named(0)
+        let name = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("n")))
+        let job = kk_job_new()
+        let ctx = kk_context_plus(kk_context_plus(dispatcher, name), job)
+
+        let visitedBox = VisitedElementsBox()
+        let visitedRaw = Int(bitPattern: Unmanaged.passUnretained(visitedBox).toOpaque())
+        let collect: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closure, acc, element, out in
+            out?.pointee = 0
+            let box = Unmanaged<VisitedElementsBox>.fromOpaque(UnsafeMutableRawPointer(bitPattern: closure)!).takeUnretainedValue()
+            box.elements.append(element)
+            return acc
+        }
+        var thrown = 0
+        _ = kk_context_fold(ctx, 0, unsafeBitCast(collect, to: Int.self), visitedRaw, &thrown)
+        #expect(thrown == 0)
+        #expect(visitedBox.elements == [name, job, dispatcher],
+                "fold must visit name, job, then the interceptor-last dispatcher; got \(visitedBox.elements)")
+    }
+
+    /// Composite contexts render like kotlinx's CombinedContext:
+    /// `[elem, elem]` with the interceptor last; a lone element renders as
+    /// itself.
+    @Test func testContextToStringCombinedShape() {
+        let dispatcher = kk_dispatcher_named(0)
+        let name = kk_coroutine_name_create(runtimeRegisterObject(RuntimeStringBox("n")))
+        let ctx = kk_context_plus(dispatcher, name)
+        #expect(runtimeRenderAnyForPrint(ctx) == "[CoroutineName(n), Dispatchers.Default]")
+        #expect(runtimeRenderAnyForPrint(name) == "CoroutineName(n)")
     }
 }

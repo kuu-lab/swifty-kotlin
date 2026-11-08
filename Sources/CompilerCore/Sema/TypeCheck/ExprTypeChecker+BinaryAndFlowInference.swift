@@ -169,6 +169,15 @@ extension ExprTypeChecker {
             lhsID, ctx: lhsCtx, locals: &locals,
             expectedType: lhsExpectedType
         )
+        if op == .elvis {
+            // The elvis branch itself null-checks its LHS before the non-null
+            // view is used, so a platform-typed operand (`Properties.getProperty`,
+            // `Queue.poll`, ...) may legitimately be null here. Discard the
+            // expected-type-driven platform assertion inference recorded on the
+            // operand: emitting it would throw before the branch ever runs
+            // (KUU-4451).
+            sema.bindings.bindPlatformNullAssertion(lhsID, targetType: nil)
+        }
         // A bare `ClassName` on an Elvis side denotes the companion object;
         // keep the companion value type through the join (KUU-3232).
         let inferredLhs = op == .elvis
@@ -273,6 +282,7 @@ extension ExprTypeChecker {
             rhsCtx.elvisRhsCallResultTypeHint = nonNullLhs
             rhsCtx.elvisRhsCallResultTypeHintExpr = rhsID
         }
+        let localsBeforeRhsInference = locals
         var rhs: TypeID
         if let earlyElvisRhs {
             rhs = earlyElvisRhs
@@ -479,6 +489,95 @@ extension ExprTypeChecker {
         }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
         let operatorName = operatorNames[0]
+        // An operator RHS that is itself an inferable call can depend on the
+        // desugared operator's parameter type for its own inference
+        // (`listOf<T>() + l.flatMap { getAll(it) }`). The synthetic operator
+        // call only carries the argument's inferred type, so when the first
+        // pass failed, re-infer the RHS under each viable candidate's
+        // parameter type (KUU-4464).
+        let rhsIsInferableCall: Bool = switch ast.arena.expr(rhsID) {
+        case .call, .memberCall, .safeMemberCall:
+            true
+        default:
+            false
+        }
+        if rhsIsInferableCall,
+           [.add, .subtract, .multiply, .divide, .modulo,
+            .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op)
+        {
+            let removedFirstPassErrors = ast.arena.exprRange(rhsID).map {
+                sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+            } ?? []
+            if rhs == sema.types.errorType || !removedFirstPassErrors.isEmpty {
+                let probeCall = CallExpr(
+                    range: range,
+                    calleeName: operatorName,
+                    args: [CallArg(type: sema.types.errorType)],
+                    isOperatorCall: true
+                )
+                let retryCandidates = collectOperatorCandidates(
+                    names: operatorNames,
+                    receiverType: lhs,
+                    call: probeCall,
+                    locals: locals,
+                    ctx: ctx
+                )
+                var triedParameterTypes: [TypeID] = []
+                var retriedRhs: TypeID?
+                var retriedLocals: LocalBindings?
+                for candidate in retryCandidates {
+                    guard let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes.count == 1
+                    else {
+                        continue
+                    }
+                    let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                    let substitution = ctx.resolver.probeArgumentTypeSubstitution(
+                        signature: signature,
+                        typeVarBySymbol: typeVarBySymbol,
+                        knownArgumentTypes: [:],
+                        typeSystem: sema.types,
+                        implicitReceiverType: lhs
+                    )
+                    let parameterType = sema.types.substituteTypeParameters(
+                        in: signature.parameterTypes[0],
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    guard parameterType != sema.types.errorType,
+                          !triedParameterTypes.contains(parameterType)
+                    else {
+                        continue
+                    }
+                    triedParameterTypes.append(parameterType)
+                    let checkpoint = sema.diagnostics.checkpoint()
+                    var candidateLocals = localsBeforeRhsInference
+                    let candidateRhs = driver.inferExpr(
+                        rhsID,
+                        ctx: rhsCtx,
+                        locals: &candidateLocals,
+                        expectedType: parameterType
+                    )
+                    let retryEmittedError = sema.diagnostics.diagnostics
+                        .dropFirst(checkpoint)
+                        .contains { $0.severity == .error }
+                    if candidateRhs != sema.types.errorType, !retryEmittedError {
+                        retriedRhs = candidateRhs
+                        retriedLocals = candidateLocals
+                        break
+                    }
+                    sema.diagnostics.rollback(to: checkpoint)
+                }
+                if let retriedRhs, let retriedLocals {
+                    rhs = sema.types.capturedOperatorReceiverType(of: retriedRhs)
+                    locals = retriedLocals
+                } else {
+                    for diagnostic in removedFirstPassErrors {
+                        sema.diagnostics.emit(diagnostic)
+                    }
+                }
+            }
+        }
         let nothingRangePeerType: TypeID? = {
             guard [.rangeTo, .rangeUntil, .downTo].contains(op) else { return nil }
             if lhs == sema.types.nothingType,
@@ -825,21 +924,16 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            let isComparisonOperator: Bool = switch op {
-            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
-                true
-            default:
-                false
-            }
             let hasUninferredOperatorReturn = operatorCandidates.contains { candidate in
                 driver.inferredReturnFunctions[candidate] != nil
                     && !driver.checkedInferredReturnFunctions.contains(candidate)
                     && !driver.checkingInferredReturnFunctions.contains(candidate)
             }
-            if isComparisonOperator, hasUninferredOperatorReturn {
+            if hasUninferredOperatorReturn {
                 // Select by receiver and operand types before inferring a return
                 // type, so an unselected overload cannot create a false cycle.
-                // The final resolution below then enforces compareTo's Int result.
+                // The final resolution below then enforces compareTo's Int result
+                // for comparisons and the declared signature otherwise.
                 let inputSelection = ctx.resolver.resolveCall(
                     candidates: operatorCandidates,
                     call: operatorCall,
@@ -863,13 +957,48 @@ extension ExprTypeChecker {
                 expectedType
             }
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
-            let resolved = ctx.resolver.resolveCall(
+            var resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: operatorCall,
                 expectedType: operatorExpectedType,
                 implicitReceiverType: operatorReceiverType,
                 ctx: ctx.sema
             )
+            // Kotlin consults outer scopes for operator extensions only when
+            // the nearest scope's candidates are all inapplicable: a
+            // file-level `plus` extension that rejects the argument must not
+            // hide the bundled `Iterable.plus` overloads (KUU-4462).
+            // Ambiguity (SEMA-0003) means the inner scope already produced
+            // viable candidates, so it stays an error without the retry.
+            if resolved.chosenCallee == nil,
+               resolved.diagnostic?.code != "KSWIFTK-SEMA-0003"
+            {
+                let outerExtensionCandidates = collectScopedOperatorExtensionCandidates(
+                    names: operatorNames,
+                    receiverType: operatorReceiverType,
+                    mergeChain: true,
+                    ctx: ctx
+                ).filter { !operatorCandidates.contains($0) }
+                if !outerExtensionCandidates.isEmpty {
+                    let widenedCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+                        operatorCandidates + outerExtensionCandidates,
+                        receiverType: operatorReceiverType,
+                        argumentTypes: [operatorArgumentType],
+                        sema: sema,
+                        interner: interner
+                    )
+                    let retried = ctx.resolver.resolveCall(
+                        candidates: widenedCandidates,
+                        call: operatorCall,
+                        expectedType: operatorExpectedType,
+                        implicitReceiverType: operatorReceiverType,
+                        ctx: ctx.sema
+                    )
+                    if retried.chosenCallee != nil {
+                        resolved = retried
+                    }
+                }
+            }
             if isSeqLhs, resolved.chosenCallee == nil {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)
@@ -1426,10 +1555,11 @@ extension ExprTypeChecker {
         names: [InternedString],
         receiverType: TypeID,
         argumentType: TypeID? = nil,
+        mergeChain: Bool = false,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         names.flatMap { name in
-            ctx.cachedScopeLookup(name).filter { candidate in
+            (mergeChain ? ctx.cachedScopeLookupMergingChain(name) : ctx.cachedScopeLookup(name)).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),

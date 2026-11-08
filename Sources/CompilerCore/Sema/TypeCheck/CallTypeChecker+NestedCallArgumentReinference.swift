@@ -189,6 +189,8 @@ extension CallTypeChecker {
             return typeArgs.isEmpty
         case let .memberCall(_, _, typeArgs, _, _):
             return typeArgs.isEmpty
+        case let .safeMemberCall(_, _, typeArgs, _, _):
+            return typeArgs.isEmpty
         default:
             return false
         }

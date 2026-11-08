@@ -1,6 +1,19 @@
 package java.lang
 
-public class Short private constructor() {
+public class Short(private val value: kotlin.Short) {
+    public constructor(value: String) : this(value.toShort())
+
+    override fun toString(): String = value.toString()
+
+    public fun shortValue(): kotlin.Short = value
+
+    override fun equals(other: Any?): kotlin.Boolean {
+        val o = other as? Short ?: return false
+        return o.value == value
+    }
+
+    override fun hashCode(): Int = value.toInt()
+
     public companion object {
         public val MAX_VALUE: kotlin.Short get() = 32767
         public val MIN_VALUE: kotlin.Short get() = -32768

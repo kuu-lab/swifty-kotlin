@@ -13,5 +13,13 @@ public fun interface Comparator<in T> {
     public companion object {
         public fun <T> comparingInt(selector: (T) -> Int): Comparator<T> =
             Comparator { a, b -> selector(a).compareTo(selector(b)) }
+
+        // java.util.Comparator static factories, reachable through the
+        // java.util.Comparator typealias.
+        public fun <T : Comparable<T>> naturalOrder(): Comparator<T> =
+            Comparator { a, b -> a.compareTo(b) }
+
+        public fun <T : Comparable<T>> reverseOrder(): Comparator<T> =
+            Comparator { a, b -> b.compareTo(a) }
     }
 }

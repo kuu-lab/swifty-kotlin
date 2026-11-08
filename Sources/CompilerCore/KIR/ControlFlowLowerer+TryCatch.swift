@@ -623,13 +623,25 @@ extension ControlFlowLowerer {
                     continue
                 }
                 let notNullResult = arena.appendTemporary(type: arena.exprType(result))
-                instructions.append(.call(
-                    callee: interner.intern("kk_op_notnull"),
-                    arguments: [operand],
-                    result: notNullResult,
-                    canThrow: true,
-                    thrownResult: exceptionSlot
-                ))
+                if let message = arena.platformNullAssertMessages[result] {
+                    let messageExpr = arena.appendExpr(.stringLiteral(message), type: sema.types.intType)
+                    instructions.append(.constValue(result: messageExpr, value: .stringLiteral(message)))
+                    instructions.append(.call(
+                        callee: interner.intern("kk_op_notnull_msg"),
+                        arguments: [operand, messageExpr],
+                        result: notNullResult,
+                        canThrow: true,
+                        thrownResult: exceptionSlot
+                    ))
+                } else {
+                    instructions.append(.call(
+                        callee: interner.intern("kk_op_notnull"),
+                        arguments: [operand],
+                        result: notNullResult,
+                        canThrow: true,
+                        thrownResult: exceptionSlot
+                    ))
+                }
                 let unboxCallee: InternedString? = if let resultType,
                                                        case .primitive(_, .nonNull) = sema.types.kind(of: resultType)
                 {

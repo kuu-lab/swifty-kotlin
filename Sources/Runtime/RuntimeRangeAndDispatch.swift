@@ -676,6 +676,22 @@ public func kk_op_notnull(_ value: Int, _ outThrown: UnsafeMutablePointer<Int>?)
     return value
 }
 
+/// `kk_op_notnull` variant carrying the JVM `checkNotNullExpressionValue`
+/// diagnostic (`"<call>(...) must not be null"`) that kotlinc attaches when a
+/// platform-typed call result flows into a non-null position (KUU-4452).
+@_cdecl("kk_op_notnull_msg")
+public func kk_op_notnull_msg(_ value: Int, _ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if value == runtimeNullSentinelInt {
+        outThrown?.pointee = runtimeAllocateNullPointerException(
+            message: runtimeStringBox(fromRaw: messageRaw)?.value,
+            messageRaw: runtimeThrowableStringMessageRaw(messageRaw)
+        )
+        return 0
+    }
+    return value
+}
+
 @_cdecl("kk_op_elvis")
 public func kk_op_elvis(_ lhs: Int, _ rhs: Int) -> Int {
     lhs == runtimeNullSentinelInt ? rhs : lhs

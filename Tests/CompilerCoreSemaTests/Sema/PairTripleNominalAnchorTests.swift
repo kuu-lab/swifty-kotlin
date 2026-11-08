@@ -62,20 +62,24 @@ struct PairTripleNominalAnchorTests {
             try runSema(ctx)
 
             let sema = try #require(ctx.sema)
-            let expectations: [(names: [String], ownerFile: String)] = [
-                (["kotlin", "Pair"], "__bundled_kotlin/Pair/Stdlib.kt"),
-                (["kotlin", "Triple"], "__bundled_kotlin/Tuples.kt"),
-                (["kotlin", "text", "Charset"], "__bundled_kotlin/text/StringEncoding.kt"),
+            let expectations: [(names: [String], ownerFile: String, kind: SymbolKind)] = [
+                (["kotlin", "Pair"], "__bundled_kotlin/Pair/Stdlib.kt", .class),
+                (["kotlin", "Triple"], "__bundled_kotlin/Tuples.kt", .class),
+                // kotlin.text.Charset is a source typealias to the bundled
+                // java.nio.charset.Charset class (matching JVM).
+                (["kotlin", "text", "Charset"], "__bundled_kotlin/text/StringEncoding.kt", .typeAlias),
+                (["java", "nio", "charset", "Charset"], "__bundled_java/nio/charset/Charset.kt", .class),
             ]
             var pairSymbol: SymbolID?
-            for (names, ownerFilePath) in expectations {
+            var javaCharsetSymbol: SymbolID?
+            for (names, ownerFilePath, expectedKind) in expectations {
                 let fqName = names.map { ctx.interner.intern($0) }
                 let symbolID = try #require(
                     sema.symbols.lookup(fqName: fqName),
                     "\(names.joined(separator: ".")) should resolve"
                 )
                 let symbol = try #require(sema.symbols.symbol(symbolID))
-                #expect(symbol.kind == .class, "\(names.joined(separator: ".")) should be a class")
+                #expect(symbol.kind == expectedKind, "\(names.joined(separator: ".")) should be a \(expectedKind)")
                 #expect(symbol.visibility == .public)
                 #expect(!symbol.flags.contains(.synthetic), "\(names.joined(separator: ".")) should be the real bundled declaration, not a shell")
                 let ownerFile = try #require(
@@ -88,6 +92,8 @@ struct PairTripleNominalAnchorTests {
                 #expect(sema.symbols.isSourceBackedSymbol(symbolID))
                 if names.last == "Pair" {
                     pairSymbol = symbolID
+                } else if names == ["java", "nio", "charset", "Charset"] {
+                    javaCharsetSymbol = symbolID
                 }
             }
 
@@ -96,12 +102,17 @@ struct PairTripleNominalAnchorTests {
             let pairReturnType = try #require(sema.symbols.functionSignature(for: passThroughPairSymbol)?.returnType)
             #expect(resolveClassTypeSymbol(pairReturnType, sema: sema)?.symbol.id == pairSymbol)
 
+            // The kotlin.text.Charset alias expands to the bundled
+            // java.nio.charset.Charset class, and signature types bind to the
+            // expanded class symbol rather than the alias symbol.
             let charsetSymbol = try #require(sema.symbols.lookup(fqName: [
                 ctx.interner.intern("kotlin"), ctx.interner.intern("text"), ctx.interner.intern("Charset"),
             ]))
+            let charsetUnderlyingType = try #require(sema.symbols.typeAliasUnderlyingType(for: charsetSymbol))
+            #expect(resolveClassTypeSymbol(charsetUnderlyingType, sema: sema)?.symbol.id == javaCharsetSymbol)
             let passThroughCharsetSymbol = try #require(sema.symbols.lookupAll(fqName: [ctx.interner.intern("passThroughCharset")]).first)
             let charsetReturnType = try #require(sema.symbols.functionSignature(for: passThroughCharsetSymbol)?.returnType)
-            #expect(resolveClassTypeSymbol(charsetReturnType, sema: sema)?.symbol.id == charsetSymbol)
+            #expect(resolveClassTypeSymbol(charsetReturnType, sema: sema)?.symbol.id == javaCharsetSymbol)
         }
     }
 }

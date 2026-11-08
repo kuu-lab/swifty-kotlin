@@ -413,8 +413,7 @@ private func enterScopeOnCurrentContinuation(_ scope: RuntimeCoroutineScope?, jo
     RuntimeJobHandle.current = job
 }
 
-@_cdecl("kk_coroutine_scope_new")
-public func kk_coroutine_scope_new() -> Int {
+private func runtimeCoroutineScopeNew(pushAmbient: Bool) -> Int {
     let context = RuntimeContinuationState.current?.makeContinuationContext()
         ?? RuntimeCoroutineScope.current?.context ?? RuntimeCoroutineContext()
     let scope = RuntimeCoroutineScope(context: context)
@@ -429,9 +428,27 @@ public func kk_coroutine_scope_new() -> Int {
 
     scope.parent = RuntimeCoroutineScope.current
     scope.enclosingJob = RuntimeContinuationState.current?.jobHandle ?? RuntimeJobHandle.current
-    enterScopeOnCurrentContinuation(scope, job: scope.job)
+    if pushAmbient {
+        enterScopeOnCurrentContinuation(scope, job: scope.job)
+    }
 
     return Int(bitPattern: ptr)
+}
+
+@_cdecl("kk_coroutine_scope_new")
+public func kk_coroutine_scope_new() -> Int {
+    runtimeCoroutineScopeNew(pushAmbient: true)
+}
+
+/// KUU-4430: scopes that only group children for an internal driver (the
+/// `withTimeout` block runs on its own continuation, not the caller's) must
+/// not become the ambient scope of the calling continuation. Pushing it would
+/// link the scope job to the caller's continuation state, so cancelling the
+/// scope on timeout would signalResume the caller mid-burst and the pending
+/// cancellation would be consumed at its next real suspend point.
+@_cdecl("kk_coroutine_scope_new_detached")
+public func kk_coroutine_scope_new_detached() -> Int {
+    runtimeCoroutineScopeNew(pushAmbient: false)
 }
 
 @_cdecl("kk_supervisor_scope_new")

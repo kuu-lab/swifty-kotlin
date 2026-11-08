@@ -2,7 +2,20 @@ package java.lang
 
 import kotlin.fromBits
 
-public class Float private constructor() {
+public class Float(private val value: kotlin.Float) {
+    public constructor(value: String) : this(value.toFloat())
+
+    override fun toString(): String = value.toString()
+
+    public fun floatValue(): kotlin.Float = value
+
+    override fun equals(other: Any?): kotlin.Boolean {
+        val o = other as? Float ?: return false
+        return value.toBits() == o.value.toBits()
+    }
+
+    override fun hashCode(): Int = value.toBits()
+
     public companion object {
         public val POSITIVE_INFINITY: kotlin.Float get() = kotlin.Float.POSITIVE_INFINITY
         public val NEGATIVE_INFINITY: kotlin.Float get() = kotlin.Float.NEGATIVE_INFINITY

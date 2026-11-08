@@ -350,5 +350,87 @@ struct CodegenBackendStringHOFEdgeCasesTests {
                 + "\n"
         )
     }
+
+    // Pure Kotlin string accessors and parsing regression tests
+    @Test
+    func testCodegenStringPureKotlinAccessorsAndParsing() throws {
+        let source = """
+        fun main() {
+            val s = "hello"
+            println(s.first())
+            println(s.last())
+            println(s.getOrNull(-1))
+            println(s.getOrNull(0))
+            println(s.getOrNull(4))
+            println(s.getOrNull(5))
+
+            val singleChar = "x"
+            println(singleChar.single())
+            println(singleChar.singleOrNull())
+            println(s.singleOrNull())
+
+            try {
+                "".first()
+            } catch (e: NoSuchElementException) {
+                println("empty-first-caught")
+            }
+
+            try {
+                "".last()
+            } catch (e: NoSuchElementException) {
+                println("empty-last-caught")
+            }
+
+            try {
+                "abc".single()
+            } catch (e: IllegalArgumentException) {
+                println("multi-single-caught")
+            }
+
+            val t: String? = "True"
+            val f: String? = "False"
+            val n: String? = null
+            println(t.toBoolean())
+            println(f.toBoolean())
+            println(n.toBoolean())
+            println("true".toBooleanStrict())
+            println("false".toBooleanStrict())
+            println("invalid".toBooleanStrictOrNull())
+
+            try {
+                "not-bool".toBooleanStrict()
+            } catch (e: IllegalArgumentException) {
+                println("strict-bool-caught")
+            }
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringPureKotlinAccessors",
+            expected:
+                """
+                h
+                o
+                null
+                h
+                o
+                null
+                x
+                x
+                null
+                empty-first-caught
+                empty-last-caught
+                multi-single-caught
+                true
+                false
+                false
+                true
+                false
+                null
+                strict-bool-caught
+                """
+                + "\n"
+        )
+    }
 }
 #endif

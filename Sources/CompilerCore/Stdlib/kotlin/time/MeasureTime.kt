@@ -19,7 +19,7 @@ public inline fun measureTime(block: () -> Unit): Duration {
     return (__kk_system_nanoTime() - start).nanoseconds
 }
 
-public inline fun measureTimedValue(block: () -> Any?): TimedValue<Any?> {
+public inline fun <T> measureTimedValue(block: () -> T): TimedValue<T> {
     val start = __kk_system_nanoTime()
     val value = block()
     val elapsed = (__kk_system_nanoTime() - start).nanoseconds

@@ -100,5 +100,83 @@ struct ImplicitReceiverSmartCastPropertyTests {
         #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         #expect(ctx.diagnostics.diagnostics.contains { $0.severity == .error && $0.message.contains("names") }, "\(ctx.diagnostics.diagnostics)")
     }
+
+    // KUU-4473: a stable `val` member of the enclosing class smart-casts
+    // inside an inline receiver lambda such as `buildString {}`.
+    @Test(arguments: [
+        // The reported pattern: StringBuilder receiver lambda.
+        """
+        internal class C(val alias: String?) {
+            private val t = buildString {
+                if (alias != null) {
+                    append(" as ${'$'}{alias.trim()}")
+                }
+            }
+            fun show() = t
+        }
+        """,
+        // Doubly-nested receiver lambdas keep the outer class receiver.
+        """
+        internal class C(val alias: String?) {
+            private val t = buildString {
+                with(1) {
+                    if (alias != null) {
+                        append(alias.trim())
+                    }
+                }
+            }
+            fun show() = t
+        }
+        """,
+        // The member-function receiver works the same way as an initializer.
+        """
+        internal class C(val alias: String?) {
+            fun show() = buildString {
+                if (alias != null) {
+                    append(alias.trim())
+                } else {
+                    append("none")
+                }
+            }
+        }
+        """,
+    ])
+    func outerClassValMemberSmartCastsInsideReceiverLambda(body: String) throws {
+        let ctx = makeContextFromSource(body)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    // Unstable properties must not narrow even through the outer receiver.
+    @Test(arguments: [
+        // `var` can be mutated concurrently — no smart cast.
+        """
+        internal class C(var alias: String?) {
+            private val t = buildString {
+                if (alias != null) {
+                    append(alias.trim())
+                }
+            }
+            fun show() = t
+        }
+        """,
+        // A custom getter can return a different value per call.
+        """
+        internal class C(private val raw: String?) {
+            val alias: String? get() = raw
+            private val t = buildString {
+                if (alias != null) {
+                    append(alias.trim())
+                }
+            }
+            fun show() = t
+        }
+        """,
+    ])
+    func unstableOuterMemberDoesNotSmartCastInsideReceiverLambda(body: String) throws {
+        let ctx = makeContextFromSource(body)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

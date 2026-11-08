@@ -1,19 +1,26 @@
 package java.util
 
-public typealias Hashtable<K, V> = HashMap<K, V>
+import kotlin.collections.Map
 
-public fun <K, V> Hashtable<K, V>.contains(value: Any?): Boolean {
-    for (candidate in values) {
-        if (candidate == value) return true
+public open class Hashtable<K, V> : HashMap<K, V> {
+    constructor() : super()
+    constructor(initialCapacity: Int) : super(initialCapacity)
+    constructor(initialCapacity: Int, loadFactor: Float) : super(initialCapacity, loadFactor)
+    constructor(elements: Map<out K, V>) : super(elements)
+
+    public fun contains(value: Any?): Boolean {
+        for (candidate in values) {
+            if (candidate == value) return true
+        }
+        return false
     }
-    return false
+
+    public fun keys(): Enumeration<K> =
+        IteratorBackedEnumeration(keys.iterator())
+
+    public fun elements(): Enumeration<V> =
+        IteratorBackedEnumeration(values.iterator())
 }
-
-public fun <K, V> Hashtable<K, V>.keys(): Enumeration<K> =
-    IteratorBackedEnumeration(this.keys.iterator())
-
-public fun <K, V> Hashtable<K, V>.elements(): Enumeration<V> =
-    IteratorBackedEnumeration(this.values.iterator())
 
 internal class IteratorBackedEnumeration<out E>(
     private val iterator: Iterator<E>,

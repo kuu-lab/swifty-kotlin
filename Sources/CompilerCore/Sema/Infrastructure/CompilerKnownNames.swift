@@ -1151,6 +1151,12 @@ package struct KnownCompilerNames {
             "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "fill", "getOrNull",
             "sortedBy", "sortedByDescending", "sortedWith", "sortWith", "joinTo",
             "distinctBy", "minByOrNull", "maxByOrNull", "intersect", "union", "subtract",
+            // copyOf/copyOfRange/copyInto/contains have bundled kotlin.collections
+            // declarations for every array-like receiver. Leaving them out let the
+            // raw fallback accept argument-type mismatches that normal resolution
+            // rejected, emitting an unresolved `_name` symbol that only failed at
+            // link time (KUU-4453).
+            "copyOf", "copyOfRange", "copyInto", "contains",
         ].map { interner.intern($0) })
         intRangeSourceBackedHOFNames = Set([
             "toList", "average", "sorted",

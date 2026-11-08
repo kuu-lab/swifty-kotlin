@@ -1,5 +1,11 @@
 package java.util.stream
 
+import java.util.Optional
+
+@Suppress("UNCHECKED_CAST")
+internal fun <T> streamOptionalOf(value: T?): Optional<T> =
+    (if (value == null) Optional.empty<Any>() else Optional.of(value as Any)) as Optional<T>
+
 internal fun <T> streamSequence(iteratorFactory: () -> Iterator<T>): Sequence<T> =
     Sequence(iteratorFactory)
 

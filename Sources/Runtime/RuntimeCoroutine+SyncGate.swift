@@ -748,22 +748,25 @@ final class RuntimeContinuationState: @unchecked Sendable {
                 dispatcher.dispatchAsync { boxedContinuation.invoke(nil) }
                 return
             }
-            if inlineResume {
-                boxedContinuation.invoke(nil)
-                return
-            }
             // On a runBlocking event loop this lands at the TAIL of the queue,
             // and that is precisely what makes `yield()` FIFO: `yield()` resumes
             // its own continuation synchronously during the burst (marking a
             // pending signal, since nothing is installed yet), the suspension
             // handler flushes the coroutines this burst launched, and only then
-            // installs -- so the yielding coroutine queues up behind them.
+            // installs -- so the yielding coroutine queues up behind them. The
+            // loop check must precede `resumesInline`: unlike `signalResume`,
+            // a pending install has no resumer stack to continue on, so running
+            // inline here would overtake items already queued on the loop.
             if let loop {
                 loop.enqueue { boxedContinuation.invoke(nil) }
-            } else {
-                DispatchQueue.global().async {
-                    boxedContinuation.invoke(nil)
-                }
+                return
+            }
+            if inlineResume {
+                boxedContinuation.invoke(nil)
+                return
+            }
+            DispatchQueue.global().async {
+                boxedContinuation.invoke(nil)
             }
             return
         }

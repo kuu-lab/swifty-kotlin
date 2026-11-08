@@ -183,10 +183,14 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             return symbols.throwableMessageGetterSlot(for: owner, interner: interner) == slot
         }()
-        // The Any.toString slot can hold either the raw runtime fallback or a
-        // flat-String Kotlin override. Use the raw ABI only when the slot's
-        // resolved implementation has no emitted Kotlin ABI; KUU-3197 moved
-        // Kotlin overrides back into the slot as flat-ABI functions.
+        // The `kotlin.Any.toString` vtable slot keeps the runtime's raw
+        // `(Int, Int*) -> Int` handle ABI on every object: registration
+        // stores `kk_any_member_to_string` regardless of whether the
+        // concrete class overrides `toString` — a `Base`-typed receiver
+        // cannot see the dynamic class's layout, so the slot ABI must be
+        // uniform across a hierarchy (KUU-4487). The indirect call
+        // therefore uses the `(Int, Int*) -> Int` shape and bridges the
+        // returned handle back to the flat String aggregate.
         let isAnyToStringRawABISlot: Bool = {
             guard case let .vtable(slot) = dispatch,
                   let symbols
@@ -204,45 +208,28 @@ extension NativeEmitter.FunctionEmissionContext {
                         } == true
                 }
             }
-            let receiverNominal: SymbolID? = {
-                if let typeSystem,
-                   let receiverType = module.arena.exprType(receiver),
-                   case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
-                {
-                    return receiverClass.classSymbol
-                }
-                guard let symbol,
-                      symbol != .invalid,
-                      let owner = virtualCallNominalOwner(for: symbol, symbols: symbols)
-                else {
-                    return nil
-                }
-                return owner
-            }()
-            guard let receiverNominal,
-                  slotHasAnyToString(in: receiverNominal),
-                  let layout = symbols.nominalLayout(for: receiverNominal)
+            if let typeSystem,
+               let receiverType = module.arena.exprType(receiver),
+               case let .classType(receiverClass) = typeSystem.kind(of: receiverType)
+            {
+                return slotHasAnyToString(in: receiverClass.classSymbol)
+            }
+            // Erased receivers (type parameters) have no classType: the
+            // resolved callee itself identifies the Any.toString slot.
+            if let symbol,
+               symbol != .invalid,
+               let member = symbols.symbol(symbol),
+               isSyntheticAnyToStringSymbol(member, interner: interner)
+            {
+                return true
+            }
+            guard let symbol,
+                  symbol != .invalid,
+                  let owner = virtualCallNominalOwner(for: symbol, symbols: symbols)
             else {
                 return false
             }
-
-            // Data-class synthesis creates its own toString declaration, but
-            // that method does not replace the inherited Any slot. In that
-            // case the slot still contains the raw runtime fallback even
-            // though the call-site symbol names an emitted Kotlin function.
-            // Only use the flat ABI when this exact slot has a source-backed
-            // Kotlin override registered in the receiver's layout.
-            let hasSourceOverrideInSlot = layout.vtableSlots.contains { candidate, candidateSlot in
-                guard candidateSlot == slot,
-                      let candidateInfo = symbols.symbol(candidate),
-                      !isSyntheticAnyToStringSymbol(candidateInfo, interner: interner)
-                else {
-                    return false
-                }
-                return internalFunctions[candidate] != nil
-                    || symbols.externalLinkName(for: candidate)?.hasPrefix("kk_fn_") == true
-            }
-            return !hasSourceOverrideInSlot
+            return slotHasAnyToString(in: owner)
         }()
         // A vtable slot whose root-most declaration returns a String
         // aggregate (`toString`, `message` getters, `componentN`, ...) is

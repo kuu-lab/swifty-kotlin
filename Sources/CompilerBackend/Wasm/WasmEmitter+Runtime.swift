@@ -694,7 +694,7 @@ enum WasmRuntimeHelpers {
         "__kk_function_set_enclosing_class",
         "kk_iterable_iterator", "__kk_collection_size",
         "kk_string_from_flat", "kk_string_to_flat",
-        "kk_op_notnull", "kk_op_elvis",
+        "kk_op_notnull", "kk_op_notnull_msg", "kk_op_elvis",
         // Double/Float primitive boxes (`RuntimeBoxing.swift` equivalents):
         // a real heap object `{typeID@-16, bits@16}` so `is`/generic-element
         // dispatch reads the nominal tag — the raw i64 ABI stays in force for
@@ -2002,6 +2002,25 @@ enum WasmRuntimeHelpers {
             code.i64Const(L.nullSentinel)
             code.call(ctx.emittedHelperIndex(
                 for: "__kk_null_pointer_exception_new", argumentCount: 1
+            ))
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+            code.localGet(0)
+        case "kk_op_notnull_msg":
+            // Platform `T!` in a non-null position — JVM
+            // `checkNotNullExpressionValue`: nullSentinel →
+            // NPE("<call>(...) must not be null") through thrownGlobal
+            // (KUU-4452); else pass the value through.
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.localGet(1)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_null_pointer_exception_new_message", argumentCount: 1
             ))
             code.globalSet(ctx.thrownGlobal)
             code.i64Const(0)

@@ -450,6 +450,25 @@ extension LocalDeclTypeChecker {
             }
         }
         guard !candidates.isEmpty else { return nil }
+        // A forward-declared element operator can still carry the header's
+        // inferred-return placeholder; infer the pre-selected callee first
+        // (KUU-4479).
+        let hasUninferredReturn = candidates.contains { candidate in
+            driver.inferredReturnFunctions[candidate] != nil
+                && !driver.checkedInferredReturnFunctions.contains(candidate)
+                && !driver.checkingInferredReturnFunctions.contains(candidate)
+        }
+        if hasUninferredReturn {
+            let inputSelection = ctx.resolver.resolveCall(
+                candidates: candidates, call: call,
+                expectedType: nil, implicitReceiverType: elementType, ctx: ctx.sema
+            )
+            if inputSelection.diagnostic == nil,
+               let chosen = inputSelection.chosenCallee
+            {
+                driver.inferFunctionReturnTypesIfNeeded(for: [chosen])
+            }
+        }
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates, call: call,
             expectedType: nil, implicitReceiverType: elementType, ctx: ctx.sema
@@ -683,6 +702,28 @@ extension LocalDeclTypeChecker {
 
         guard !getCandidates.isEmpty else { return .noCandidate }
 
+        // A forward-declared `get` operator can still carry the header's
+        // inferred-return placeholder; infer the pre-selected callee first
+        // (KUU-4479).
+        let hasUninferredGetReturn = getCandidates.contains { candidate in
+            driver.inferredReturnFunctions[candidate] != nil
+                && !driver.checkedInferredReturnFunctions.contains(candidate)
+                && !driver.checkingInferredReturnFunctions.contains(candidate)
+        }
+        if hasUninferredGetReturn {
+            let inputSelection = ctx.resolver.resolveCall(
+                candidates: getCandidates,
+                call: getCall,
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                ctx: ctx.sema
+            )
+            if inputSelection.diagnostic == nil,
+               let chosen = inputSelection.chosenCallee
+            {
+                driver.inferFunctionReturnTypesIfNeeded(for: [chosen])
+            }
+        }
         let resolved = ctx.resolver.resolveCall(
             candidates: getCandidates,
             call: getCall,

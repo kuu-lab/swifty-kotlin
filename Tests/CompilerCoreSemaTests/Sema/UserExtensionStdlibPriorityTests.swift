@@ -34,6 +34,21 @@ struct UserExtensionStdlibPriorityTests {
     fun useIt(x: Long) = x.toBigDecimal()
     """
 
+    /// KUU-4476: kotlin-result's zero-argument
+    /// `Iterable<Result<V, E>>.partition()` shares its name with the bundled
+    /// `partition(predicate)` collection HOF. The fast path must not claim
+    /// the call — the result has to stay `Pair<List<V>, List<E>>`.
+    private let userPartitionExtension = """
+    package probe
+
+    fun <V, E> Iterable<Pair<V, E>>.partition(): Pair<List<V>, List<E>> = Pair(listOf(), listOf())
+
+    fun useIt(): Int {
+        val (a, b) = listOf(1 to "x").partition()
+        return a.size + b.size
+    }
+    """
+
     private func chosenCallees(
         named name: String,
         in ctx: CompilationContext
@@ -122,6 +137,31 @@ struct UserExtensionStdlibPriorityTests {
             callees.first.map { $0.fqName.map { ctx.interner.resolve($0) } }
                 == ["kotlin", "toBigDecimal"],
             "toBigDecimal resolved to \(callees.first?.fqName ?? [])"
+        )
+    }
+
+    /// The collection-HOF fast path models only the bundled
+    /// `partition(predicate)` shape; a user-declared zero-argument
+    /// `partition` extension must reach regular overload resolution so the
+    /// call keeps its real `Pair` result type instead of degrading to Any
+    /// (KUU-4476).
+    @Test
+    func userPartitionExtensionKeepsPairResultType() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSources(
+            [userPartitionExtension],
+            allowDefaultStdlibLibrary: true
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors.map { "\($0.code): \($0.message)" })")
+
+        let callees = try chosenCallees(named: "partition", in: ctx)
+        #expect(callees.count == 1)
+        #expect(
+            callees.first.map { $0.fqName.map { ctx.interner.resolve($0) } }
+                == ["probe", "partition"],
+            "partition resolved to \(callees.first?.fqName ?? [])"
         )
     }
 }

@@ -464,6 +464,17 @@ extension LambdaLowerer {
         if excludingReceiverType == nil, sema.bindings.implicitReceiverMemberNames[exprID] != nil {
             return true
         }
+        // KUU-4209: an unqualified `invoke(...)` bound to an outer
+        // function-typed receiver stores a synthesized `this@label` in
+        // `implicitInvokeReceiverExpr`. A labeled `this` always names an
+        // enclosing tower entry, never the lambda's own receiver, so the
+        // body genuinely reads an outer receiver and its symbol must stay
+        // in the capture list.
+        if let implicitInvokeReceiver = sema.bindings.callableValueCalls[exprID]?.implicitInvokeReceiverExpr,
+           case .thisRef(.some, _) = ast.arena.expr(implicitInvokeReceiver)
+        {
+            return true
+        }
         guard let expr = ast.arena.expr(exprID) else {
             return false
         }

@@ -92,9 +92,15 @@ extension TypeCheckHelpers {
         {
             let variables = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             let resolver = OverloadResolver()
+            // The receiver may itself be the generic self type (`this:
+            // Outer<T>`), so its arguments can mention the very symbols being
+            // solved. Keep them rigid: `T <: T` would otherwise collapse to a
+            // variable-variable constraint with no concrete bound and the
+            // solver would substitute errorType (KUU-4468).
             let constraints = resolver.decomposeSubtypeConstraint(
                 subtype: boundReceiver.receiverType, supertype: declaredReceiver,
-                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: nil
+                typeVarBySymbol: variables, typeSystem: sema.types, blameRange: nil,
+                rigidSubtypeTypeParameters: Set(signature.typeParameterSymbols)
             )
             let solution = ConstraintSolver().solve(
                 vars: resolver.usedTypeVariables(from: constraints), constraints: constraints,
@@ -436,12 +442,17 @@ extension TypeCheckHelpers {
         postponedReturnTypeParameter: SymbolID? = nil,
         interner: StringInterner? = nil,
         availableContextReceiverTypes: [TypeID] = [],
+        enclosingInferenceParameters: Set<SymbolID> = [],
         sema: SemaModule
     ) -> SymbolID? {
         let sorted = candidates.sorted(by: { $0.rawValue < $1.rawValue })
         guard !sorted.isEmpty else {
             return nil
         }
+        // Deferred contextual binding is only meaningful for a single
+        // candidate: with several references the enclosing call's solver
+        // cannot tell which one it should verify.
+        let deferredInferenceParameters = sorted.count == 1 ? enclosingInferenceParameters : []
         guard let expectedType else {
             // Without a contextual type, declaration order cannot disambiguate
             // overloaded callable references.
@@ -473,6 +484,7 @@ extension TypeCheckHelpers {
                     expectedCallableReferenceReturnType: expectedCallableReferenceReturnType,
                     interner: interner,
                     availableContextReceiverTypes: availableContextReceiverTypes,
+                    enclosingInferenceParameters: deferredInferenceParameters,
                     sema: sema
                 ) != nil
             }
@@ -511,6 +523,7 @@ extension TypeCheckHelpers {
                     postponedReturnTypeParameter: postponedReturnTypeParameter,
                     interner: interner,
                     availableContextReceiverTypes: availableContextReceiverTypes,
+                    enclosingInferenceParameters: deferredInferenceParameters,
                     sema: sema
                 ) != nil
             }
@@ -532,6 +545,7 @@ extension TypeCheckHelpers {
                 postponedReturnTypeParameter: postponedReturnTypeParameter,
                 interner: interner,
                 availableContextReceiverTypes: availableContextReceiverTypes,
+                enclosingInferenceParameters: deferredInferenceParameters,
                 sema: sema
             )?.requiresAdapter == true
         }
@@ -643,8 +657,24 @@ extension TypeCheckHelpers {
         interner: StringInterner? = nil,
         allowScalarVarargAdaptation: Bool = true,
         availableContextReceiverTypes: [TypeID] = [],
+        enclosingInferenceParameters: Set<SymbolID> = [],
         sema: SemaModule
     ) -> ContextualCallableReferenceBinding? {
+        // An expected type that still mentions the enclosing call's own
+        // inference parameters cannot be checked rigidly here: those
+        // parameters are solved by the call's constraint system, not by
+        // this binding (KUU-4467). When ordinary specialization fails, the
+        // reference still reports a legal instantiation — its type
+        // parameters at their declared upper bounds — so the call solver
+        // can verify the argument type for real.
+        let defersToEnclosingInference = !enclosingInferenceParameters.isEmpty
+            && expectedFunctionType.map {
+                callableReferenceExpectedTypeHasInferenceParameters(
+                    $0,
+                    inferenceParameters: enclosingInferenceParameters,
+                    sema: sema
+                )
+            } == true
         let defaultArgumentOwner = (targetSymbol ?? boundReceiver?.symbol).flatMap { target in
             let inheritedOwner = (boundReceiver?.receiverType ?? unboundReceiverType).flatMap {
                 sema.symbols.inheritedDefaultsOwner(for: target, receiver: sema.types.makeNonNullable($0))
@@ -885,6 +915,13 @@ extension TypeCheckHelpers {
             return shapes
         }
 
+        func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {
+            let declared = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index] : []
+            let stored = sema.symbols.typeParameterUpperBounds(for: symbol)
+            return declared + stored.filter { !declared.contains($0) }
+        }
+
         func attempt(shape: CallableReferenceFunctionShape) -> ContextualCallableReferenceBinding? {
             let callableType = shape.functionType
             let inferredType = expectedFunctionType.flatMap { expected in
@@ -1086,12 +1123,6 @@ extension TypeCheckHelpers {
                     ))
                 }
             }
-            func upperBounds(_ index: Int, _ symbol: SymbolID) -> [TypeID] {
-                let declared = index < signature.typeParameterUpperBoundsList.count
-                    ? signature.typeParameterUpperBoundsList[index] : []
-                let stored = sema.symbols.typeParameterUpperBounds(for: symbol)
-                return declared + stored.filter { !declared.contains($0) }
-            }
             let contextualVariables = Set(resolver.usedTypeVariables(from: constraints))
             for (index, symbol) in signature.typeParameterSymbols.enumerated() {
                 guard let variable = typeVars[symbol], contextualVariables.contains(variable) else { continue }
@@ -1212,8 +1243,82 @@ extension TypeCheckHelpers {
                 defaultArgumentOwner: defaultArgumentOwner
             )
         }
-        for shape in functionShapes() {
+        /// Last resort for an expected type whose inference parameters the
+        /// enclosing call has not solved yet: report the reference at its
+        /// declared upper bounds instead of rejecting it here. The call's
+        /// own solver then checks the reported function type against the
+        /// parameter type, so an actually incompatible reference still
+        /// fails — just at the call site rather than inside target
+        /// selection (KUU-4467).
+        func deferredToEnclosingInference(
+            shape: CallableReferenceFunctionShape
+        ) -> ContextualCallableReferenceBinding? {
+            guard defersToEnclosingInference,
+                  !signature.typeParameterSymbols.isEmpty,
+                  expectedFunctionType != nil
+            else { return nil }
+            let types = sema.types
+            let callableType = shape.functionType
+            let inferredType = expectedFunctionType.flatMap { expected in
+                unitCoercedCallableReferenceType(callableType, expectedFunctionType: expected, sema: sema)
+            } ?? callableType
+            let typeVars = types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var substitution: [TypeVarID: TypeID] = [:]
+            var arguments: [TypeID] = []
+            for (index, symbol) in signature.typeParameterSymbols.enumerated() {
+                guard let variable = typeVars[symbol] else { return nil }
+                let bounds = upperBounds(index, symbol)
+                var argument = bounds.isEmpty ? types.nullableAnyType : types.glb(bounds)
+                // An F-bounded parameter (`T : Comparable<T>`) would
+                // substitute to a type still mentioning the parameter
+                // itself; fall back to the trivial bound instead of
+                // leaking an unsubstituted type parameter.
+                if signature.typeParameterSymbols.contains(where: {
+                    types.typeContainsTypeParam(argument, symbol: $0)
+                }) {
+                    argument = types.nullableAnyType
+                }
+                substitution[variable] = argument
+                arguments.append(argument)
+            }
+            let specializedType = types.substituteTypeParameters(
+                in: inferredType, substitution: substitution, typeVarBySymbol: typeVars
+            )
+            // The deferred type still has to name a compatible result: an
+            // expected `() -> Ex<...>` cannot be served by `() -> NotEx<...>`
+            // no matter how the enclosing call's parameters are solved.
+            // Compare the nominal result classes so unrelated references
+            // keep failing here; argument-level compatibility remains the
+            // call solver's job.
+            if let expectedFunctionType,
+               case let .functionType(expectedFunction) = types.kind(of: expectedFunctionType),
+               case let .functionType(specializedFunction) = types.kind(of: specializedType),
+               case let .classType(expectedReturn) = types.kind(of: types.makeNonNullable(expectedFunction.returnType)),
+               case let .classType(actualReturn) = types.kind(of: types.makeNonNullable(specializedFunction.returnType)),
+               !types.isNominalSubtypeSymbol(actualReturn.classSymbol, of: expectedReturn.classSymbol)
+            {
+                return nil
+            }
+            return ContextualCallableReferenceBinding(
+                functionType: specializedType,
+                typeArguments: arguments,
+                parameterMapping: shape.parameterMapping,
+                requiresAdapter: shape.requiresAdapter,
+                isSignatureAdapted: shape.isSignatureAdapted,
+                boundContextParameterTypes: shape.boundContextParameterTypes.map {
+                    types.substituteTypeParameters(
+                        in: $0, substitution: substitution, typeVarBySymbol: typeVars
+                    )
+                },
+                defaultArgumentOwner: defaultArgumentOwner
+            )
+        }
+        let shapes = functionShapes()
+        for shape in shapes {
             if let result = attempt(shape: shape) { return result }
+        }
+        for shape in shapes {
+            if let result = deferredToEnclosingInference(shape: shape) { return result }
         }
         return nil
     }

@@ -800,6 +800,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         if sema.symbols.enumOwnerSymbol(for: symbol) != nil {
             return true
         }
+        var companionSeeds: Set<SymbolID> = []
         for entry in implicitReceiverMemberLookupEntries() {
             guard case let .classType(classType) = sema.types.kind(of: entry.type) else {
                 continue
@@ -807,6 +808,44 @@ struct TypeInferenceContext: CustomStringConvertible {
             if sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerID) {
                 return true
             }
+            companionSeeds.insert(classType.classSymbol)
+        }
+        // Companion shorthand inserts the companion's inherited members into
+        // the class scope, so the receiver that actually supplies `symbol`
+        // is a companion object — possibly reached through a class supertype
+        // — that is a nominal subtype of the member's owner. Probe the
+        // companions of every receiver and every lexically enclosing
+        // nominal (KUU-4488).
+        var lexical: SymbolID? = enclosingClassSymbol
+        while let current = lexical {
+            companionSeeds.insert(current)
+            guard let parent = sema.symbols.parentSymbol(for: current),
+                  let parentKind = sema.symbols.symbol(parent)?.kind,
+                  parentKind == .class || parentKind == .object
+                      || parentKind == .enumClass || parentKind == .interface
+            else {
+                break
+            }
+            lexical = parent
+        }
+        var visitedCompanionOwners: Set<SymbolID> = []
+        var queue = Array(companionSeeds)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visitedCompanionOwners.insert(current).inserted,
+                  sema.symbols.symbol(current)?.kind == .class
+            else {
+                continue
+            }
+            for companion in [
+                sema.symbols.companionObjectSymbol(for: current),
+                sema.symbols.companionBlockObjectSymbol(for: current, interner: interner),
+            ].compactMap({ $0 }) where sema.types.isNominalSubtypeSymbol(companion, of: ownerID) {
+                return true
+            }
+            queue.append(contentsOf: sema.symbols.directSupertypes(for: current).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            })
         }
         return false
     }
@@ -844,6 +883,21 @@ struct TypeInferenceContext: CustomStringConvertible {
         matching predicate: (SymbolID) -> Bool
     ) -> [SymbolID] {
         let results = scope.lookup(name, matching: predicate)
+        return results.filter {
+            !isExpectDeclarationSupersededByActual($0, among: results)
+                && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
+        }
+    }
+
+    /// Merging-chain variant of `cachedScopeLookup`: collects candidates from
+    /// every lexical scope instead of stopping at the first scope that binds
+    /// the name. Callers must only consult it after the nearest scope's
+    /// candidates all proved inapplicable — Kotlin shadows an outer
+    /// declaration only while the inner one remains a viable candidate
+    /// (KUU-4462).
+    func cachedScopeLookupMergingChain(_ name: InternedString) -> [SymbolID] {
+        let results = scope.lookupMergingChain(name)
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)

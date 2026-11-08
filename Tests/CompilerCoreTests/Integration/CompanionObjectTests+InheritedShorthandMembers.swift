@@ -207,6 +207,21 @@ extension CompanionObjectTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func testInheritedCompanionPropertyIsVisibleToNestedObject() throws {
+        let source = """
+        open class Parent<T>(val inherited: String)
+        class Outer {
+            companion object : Parent<Outer>("OK")
+            object Inner {
+                fun read(): String = inherited
+            }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testInstanceMemberBeatsInheritedCompanionProperty() throws {
         let source = """
         open class Parent<T>(val inherited: String)

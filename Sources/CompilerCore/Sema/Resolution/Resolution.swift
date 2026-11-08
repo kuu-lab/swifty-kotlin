@@ -1262,8 +1262,8 @@ extension OverloadResolver {
             }
         }
 
-        let constraintsBeforeElvisLhsHint = constraints
-        let inputsBeforeElvisLhsHint = inputConstraints
+        let constraintsBeforeExpectedTypeHint = constraints
+        let inputsBeforeExpectedTypeHint = inputConstraints
         var hasElvisLhsHintConstraints = false
         if let expectedType, expectedType != ctx.types.unitType {
             if call.elvisLhsExpectedTypeHint {
@@ -1422,14 +1422,43 @@ extension OverloadResolver {
                 // cannot invalidate a type argument already determined by the
                 // call's nullable inputs; the enclosing expression is checked
                 // against its expected type separately.
-                constraints = constraintsBeforeElvisLhsHint
-                inputConstraints = inputsBeforeElvisLhsHint
+                constraints = constraintsBeforeExpectedTypeHint
+                inputConstraints = inputsBeforeExpectedTypeHint
                 solveResult = solveConstraints(
                     constraints,
                     solver: solver,
                     typeSystem: ctx.types
                 )
             }
+        }
+        switch solveResult {
+        case .success:
+            break
+        case .constraintFailure:
+            // `.rejected` is left alone: it is the silent "candidate does
+            // not apply" signal that lets nested-call reinference retry the
+            // argument with concrete parameter types, so turning it into a
+            // solved-but-unbound result would surface SEMA-INFER where the
+            // fallback used to recover.
+            if constraints.count > constraintsBeforeExpectedTypeHint.count {
+                // The expected-type decomposition is an inference hint, not
+                // a veto: kotlinc feeds the expected type into a call's
+                // inference variables but lets the enclosing context report
+                // the position-specific mismatch (return/initializer/
+                // argument) after the call resolves. Retrying without it
+                // keeps `fun f(): Int = q.peekLast()` on the SEMA-0469
+                // return-mismatch path instead of surfacing a generic
+                // TYPE-0001 constraint failure at the call (KUU-4478).
+                constraints = constraintsBeforeExpectedTypeHint
+                inputConstraints = inputsBeforeExpectedTypeHint
+                solveResult = solveConstraints(
+                    constraints,
+                    solver: solver,
+                    typeSystem: ctx.types
+                )
+            }
+        case .rejected:
+            break
         }
         // Infer dependent parameters from concrete upper-bound projections, e.g.
         // R = IntRange and R : ClosedRange<T> imply T = Int, even for a null argument.

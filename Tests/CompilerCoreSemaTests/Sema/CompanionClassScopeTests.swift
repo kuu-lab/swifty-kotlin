@@ -413,5 +413,39 @@ struct CompanionClassScopeTests {
         try runSema(ctx)
         #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
     }
+
+    /// KUU-4471: a superclass's companion members resolve unqualified inside
+    /// subclass bodies — they behave like inherited statics, through any
+    /// depth of inheritance and from lexically nested classes.
+    @Test func superclassCompanionMembersResolveUnqualifiedInSubclass() throws {
+        let path = "/virtual/superclass-companion.kt"
+        let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data("""
+        open class A {
+            companion object {
+                const val C = 2
+                fun f(x: Int) = x + 1
+            }
+        }
+        class B : A() {
+            fun g(x: Int) = f(x) + C
+        }
+        open class Mid : A()
+        class Leaf : Mid() {
+            fun h(x: Int) = f(x)
+        }
+        class Outer {
+            class Inner2 : A() {
+                class Deep { fun k(x: Int) = f(x) }
+            }
+        }
+        class Shadowed : A() {
+            companion object { fun f(x: Int) = x + 100 }
+            fun s(x: Int) = f(x)
+        }
+        """.utf8))
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

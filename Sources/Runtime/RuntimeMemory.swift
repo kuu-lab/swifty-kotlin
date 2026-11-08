@@ -348,10 +348,51 @@ private func normalizedJavaClassTypeToken(_ token: Int) -> Int64 {
     Int64(truncatingIfNeeded: token) & ~RuntimeTypeTokenEncoding.nullableBit
 }
 
+/// Interned primitive `java.lang.Class` handle shared by
+/// `KClass.javaPrimitiveType`, `KClass.java`, and the primitive-receiver
+/// `javaClass` overloads so JVM class identity (`int.class == int.class`)
+/// holds across all three spellings.
+private func runtimeJavaPrimitiveClassHandle(typeToken: Int, nameHint: Int, canonicalNameOverride: String? = nil) -> Int {
+    if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[typeToken] }) {
+        return cached
+    }
+    let raw = registerRuntimeObject(
+        RuntimeJavaClassBox(
+            typeToken: typeToken,
+            nameHint: nameHint,
+            canonicalNameOverride: canonicalNameOverride,
+            displayText: runtimeJavaPrimitiveClassDisplayText(typeToken: typeToken)
+        ),
+        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    )
+    let winner = runtimeStorage.withMetadataLock { state -> Int in
+        if let cached = state.primitiveJavaClassCache[typeToken] { return cached }
+        state.primitiveJavaClassCache[typeToken] = raw
+        return raw
+    }
+    if winner != raw { _ = runtimeReleaseObject(raw) }
+    return winner
+}
+
 @_cdecl("__kk_kclass_java_class")
 public func __kk_kclass_java_class(_ kclassRaw: Int) -> Int {
     guard let classifier = runtimeKClassBox(from: kclassRaw) else {
         runtimeStructuredPanic("invalid KClass handle")
+    }
+    // JVM `Int::class.java` *is* `int.class`: primitive classifiers return
+    // the same interned primitive handle as `javaPrimitiveType`, while
+    // `javaObjectType` keeps its wrapper override on a separate cache key.
+    switch Int64(truncatingIfNeeded: classifier.typeToken) & RuntimeTypeTokenEncoding.baseMask {
+    case RuntimeTypeTokenEncoding.booleanBase, RuntimeTypeTokenEncoding.byteBase,
+         RuntimeTypeTokenEncoding.shortBase, RuntimeTypeTokenEncoding.intBase,
+         RuntimeTypeTokenEncoding.longBase, RuntimeTypeTokenEncoding.charBase,
+         RuntimeTypeTokenEncoding.floatBase, RuntimeTypeTokenEncoding.doubleBase:
+        return runtimeJavaPrimitiveClassHandle(
+            typeToken: classifier.typeToken,
+            nameHint: classifier.nameHint
+        )
+    default:
+        break
     }
     // KClass-sourced lookups canonicalize through javaClassCache so
     // Class.forName and KClass.java agree on identity, matching JVM Class
@@ -429,23 +470,9 @@ public func __kk_kclass_java_primitive_type(_ kclassRaw: Int) -> Int {
         }
         canonicalNameOverride = "void"
     }
-    if let cached = runtimeStorage.withMetadataLock({ $0.primitiveJavaClassCache[token] }) {
-        return cached
-    }
-    let raw = registerRuntimeObject(
-        RuntimeJavaClassBox(
-            typeToken: token,
-            nameHint: box.nameHint,
-            canonicalNameOverride: canonicalNameOverride,
-            displayText: runtimeJavaPrimitiveClassDisplayText(typeToken: token)
-        ),
-        typeID: runtimeStableNominalTypeID(fqName: "java.lang.Class")
+    return runtimeJavaPrimitiveClassHandle(
+        typeToken: token,
+        nameHint: box.nameHint,
+        canonicalNameOverride: canonicalNameOverride
     )
-    let winner = runtimeStorage.withMetadataLock { state -> Int in
-        if let cached = state.primitiveJavaClassCache[token] { return cached }
-        state.primitiveJavaClassCache[token] = raw
-        return raw
-    }
-    if winner != raw { _ = runtimeReleaseObject(raw) }
-    return winner
 }

@@ -178,7 +178,7 @@ extension BuildASTPhase {
         }
 
         let funTokens = Array(statementTokens[startIndex...])
-        let typeParams: [TypeParamDecl]
+        var typeParams: [TypeParamDecl]
         if let funIndex = funTokens.firstIndex(where: { $0.kind == .keyword(.fun) }),
            funIndex + 1 < funTokens.count,
            funTokens[funIndex + 1].kind == .symbol(.lessThan)
@@ -301,8 +301,42 @@ extension BuildASTPhase {
         }
 
         let returnType = parseReturnTypeAnnotation(
-            from: funTokens, index: &index, interner: interner, astArena: astArena
+            from: funTokens, index: &index, interner: interner, astArena: astArena,
+            allowsWhereClause: !typeParams.isEmpty
         )
+
+        // A `where` clause sits between the optional return type and the body:
+        // `fun <T> f(t: T): T where T : Comparable<T> = t`. Top-level
+        // declarations extract it from the CST node; local functions parse
+        // flat statement tokens, so consume the clause here and fold its
+        // bounds into the type parameters (KUU-4409).
+        if !typeParams.isEmpty, index + 2 < funTokens.count,
+           funTokens[index].kind == .softKeyword(.where),
+           TypeRefParserCore.isTypeLikeNameToken(funTokens[index + 1].kind),
+           funTokens[index + 2].kind == .symbol(.colon)
+        {
+            var whereEnd = index + 1
+            var whereDepth = BracketDepth()
+            while whereEnd < funTokens.count {
+                let kind = funTokens[whereEnd].kind
+                if whereDepth.isAtTopLevel,
+                   kind == .symbol(.assign) || kind == .symbol(.lBrace) || kind == .symbol(.semicolon)
+                {
+                    break
+                }
+                whereDepth.track(kind)
+                whereEnd += 1
+            }
+            let clauses = parseWhereClauseEntries(
+                tokens: Array(funTokens[index ..< whereEnd]),
+                startIndex: 0,
+                interner: interner,
+                astArena: astArena,
+                propertyAccessors: false
+            )
+            typeParams = applyWhereClauses(typeParams, whereClauses: clauses)
+            index = whereEnd
+        }
 
         let body: FunctionBody
         if let bodyOverride {
@@ -413,7 +447,8 @@ extension BuildASTPhase {
         from statementTokens: [Token],
         index: inout Int,
         interner: StringInterner,
-        astArena: ASTArena
+        astArena: ASTArena,
+        allowsWhereClause: Bool = false
     ) -> TypeRefID? {
         guard index < statementTokens.count, statementTokens[index].kind == .symbol(.colon) else {
             return nil
@@ -426,6 +461,16 @@ extension BuildASTPhase {
             let token = statementTokens[index]
             if typeDepth.isAtTopLevel {
                 if token.kind == .symbol(.lBrace) || token.kind == .symbol(.assign) {
+                    break
+                }
+                // `where T : Bound` starts the where clause; the `Ident :`
+                // lookahead keeps a type literally named `where` usable.
+                if allowsWhereClause,
+                   token.kind == .softKeyword(.where),
+                   index + 2 < statementTokens.count,
+                   TypeRefParserCore.isTypeLikeNameToken(statementTokens[index + 1].kind),
+                   statementTokens[index + 2].kind == .symbol(.colon)
+                {
                     break
                 }
             }

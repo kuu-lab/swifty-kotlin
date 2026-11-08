@@ -1,8 +1,8 @@
 // KUU-3214 / KT-83308: `by` delegation through a private-constructor
 // abstract class plus a deep interface hierarchy returned null from a
-// virtual `toString()` call. Any-slot calls must follow the ABI of the
-// registered implementation: flat String for Kotlin overrides, raw handles
-// for the runtime fallback.
+// virtual `toString()` call. The Any.toString vtable slot always uses the
+// raw runtime ABI (`kk_any_member_to_string`), which dispatches to the
+// most-derived override through the Any-toString registry (KUU-4487).
 interface Node
 
 internal class NodeImpl : Node

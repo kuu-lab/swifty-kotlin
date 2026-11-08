@@ -1150,6 +1150,111 @@ final class ControlFlowTypeChecker {
             ) {
                 elseType = companionType
             }
+            // A call-like branch can also infer *successfully* yet leave its
+            // type arguments at the unconstrained default (`ArrayList()`
+            // becomes `ArrayList<Any>`): under kotlinc's single constraint
+            // system the sibling's type would have pinned them. The
+            // unspecialized result then forces the join into a use-site `out`
+            // projection (`MutableList<out W>`) whose `in`-position members
+            // such as `add` become unusable (KUU-4472). Retry the branch
+            // against the sibling's type; a retried result that is a subtype
+            // of the sibling replaces the branch type, so the join resolves
+            // to the sibling's own instantiation.
+            func retryUnderConstrainedBranch(
+                _ branchExpr: ExprID,
+                type: inout TypeID,
+                branchLocals: inout LocalBindings,
+                branchCtx: TypeInferenceContext,
+                flowState: DataFlowState,
+                siblingType: TypeID
+            ) {
+                guard expectedType == nil,
+                      retriableBranchExpr(branchExpr),
+                      type != sema.types.errorType,
+                      type != sema.types.nothingType,
+                      siblingType != sema.types.errorType,
+                      siblingType != sema.types.nothingType
+                else { return }
+                var removedDiagnostics: [Diagnostic] = []
+                if let branchRange = ast.arena.exprRange(branchExpr) {
+                    removedDiagnostics = ctx.sema.diagnostics.removeErrorDiagnostics(containedIn: branchRange)
+                }
+                // A conforming branch can still carry inference errors:
+                // `listOf()` stays `List<out Nothing>` with SEMA-INFER when
+                // nothing pins its type argument, and that stuck type happens
+                // to be a subtype of a nullable sibling like `List<Int>?`.
+                // Retry whenever the branch does not conform to the sibling
+                // or it reported errors on the first pass (KUU-4481).
+                let conforms = sema.types.isSubtype(type, siblingType)
+                guard !conforms || !removedDiagnostics.isEmpty else { return }
+                // The sibling type itself can be unsatisfiable for the
+                // call's declared return nominal — `listOf()` can never
+                // produce a `MutableList<Int>`. The join of the branch's
+                // own first-pass type with the sibling type is the common
+                // nominal both can reach (`List<Int>`), matching the
+                // shared-constraint result kotlinc reports.
+                var expectedCandidates = [siblingType]
+                if !conforms {
+                    let bridged = sema.types.lub([type, siblingType])
+                    if bridged != sema.types.errorType, bridged != siblingType {
+                        expectedCandidates.append(bridged)
+                    }
+                }
+                var adopted = false
+                for expectedCandidate in expectedCandidates {
+                    let retryCheckpoint = ctx.sema.diagnostics.checkpoint()
+                    var retryLocals = locals
+                    driver.exprChecker.applyFlowStateToLocals(flowState, locals: &retryLocals, sema: sema)
+                    let retried = driver.inferExpr(
+                        branchExpr,
+                        ctx: branchCtx,
+                        locals: &retryLocals,
+                        expectedType: expectedCandidate,
+                        isStatementContext: isStatementContext
+                    )
+                    // An expected type outside the call's own nominal can
+                    // coerce the retried result into an unrelated nominal
+                    // (`emptyList()` against `Set<Int>` yields `Set<out
+                    // Int>` with a residual SEMA-INFER): it conforms on
+                    // paper but keeps the call broken. Legitimate adoptions
+                    // either keep the first-pass nominal (`ArrayList<Any>`
+                    // → `ArrayList<W>`) or only widen to a supertype of the
+                    // first-pass type (`List<out Nothing>` → `Collection
+                    // <Int>`), so both must be rejected.
+                    let keepsOrWidensFirstPass: Bool = {
+                        if sema.types.isSubtype(type, retried) { return true }
+                        guard case let .classType(retriedClass) = sema.types.kind(of: retried),
+                              case let .classType(originalClass) = sema.types.kind(of: type)
+                        else { return true }
+                        return retriedClass.classSymbol == originalClass.classSymbol
+                    }()
+                    guard retried != sema.types.errorType,
+                          retried != type,
+                          keepsOrWidensFirstPass,
+                          sema.types.isSubtype(retried, expectedCandidate)
+                    else {
+                        ctx.sema.diagnostics.rollback(to: retryCheckpoint)
+                        continue
+                    }
+                    type = retried
+                    branchLocals = retryLocals
+                    adopted = true
+                    break
+                }
+                if !adopted {
+                    for diagnostic in removedDiagnostics {
+                        ctx.sema.diagnostics.emit(diagnostic)
+                    }
+                }
+            }
+            retryUnderConstrainedBranch(
+                thenExpr, type: &thenType, branchLocals: &thenLocals,
+                branchCtx: thenCtx, flowState: branch.trueState, siblingType: elseType
+            )
+            retryUnderConstrainedBranch(
+                elseExpr, type: &elseType, branchLocals: &elseLocals,
+                branchCtx: elseCtx, flowState: branch.falseState, siblingType: thenType
+            )
             let joinedRangeType = bindJoinedRangeExpressionMetadata(
                 id,
                 thenExpr: thenExpr,
