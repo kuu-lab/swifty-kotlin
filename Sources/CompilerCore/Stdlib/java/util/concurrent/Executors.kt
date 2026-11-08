@@ -23,10 +23,8 @@ public object Executors {
 
     public fun newCachedThreadPool(): ExecutorService = CachedThreadExecutorService()
 
-    public fun newScheduledThreadPool(corePoolSize: Int): ExecutorService {
-        if (corePoolSize <= 0) throw IllegalArgumentException("corePoolSize <= 0")
-        return PooledExecutorService(corePoolSize)
-    }
+    public fun newScheduledThreadPool(corePoolSize: Int): ScheduledExecutorService =
+        ScheduledThreadPoolExecutor(corePoolSize)
 
     public fun <T> callable(task: Runnable, result: T): Callable<T> = Callable {
         task.run()
