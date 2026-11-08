@@ -2113,6 +2113,7 @@ extension ExprTypeChecker {
                 postponedReturnTypeParameter: postponedReturnParameter,
                 interner: interner,
                 availableContextReceiverTypes: availableContextReceiverTypes,
+                enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                 sema: sema
             )
         }
@@ -2399,6 +2400,7 @@ extension ExprTypeChecker {
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
                         availableContextReceiverTypes: availableContextReceiverTypes,
+                        enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -2420,6 +2422,7 @@ extension ExprTypeChecker {
                               postponedReturnTypeParameter: postponedReturnParameter,
                               interner: interner,
                               availableContextReceiverTypes: availableContextReceiverTypes,
+                              enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                               sema: sema
                           ) {
                     inferredType = specialization.functionType
@@ -2434,6 +2437,7 @@ extension ExprTypeChecker {
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
                         availableContextReceiverTypes: availableContextReceiverTypes,
+                        enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -2473,6 +2477,7 @@ extension ExprTypeChecker {
                               postponedReturnTypeParameter: postponedReturnParameter,
                               interner: interner,
                               availableContextReceiverTypes: availableContextReceiverTypes,
+                              enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                               sema: sema
                           )
                 {
@@ -2506,6 +2511,7 @@ extension ExprTypeChecker {
                            postponedReturnTypeParameter: postponedReturnParameter,
                            interner: interner,
                            availableContextReceiverTypes: availableContextReceiverTypes,
+                           enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                            sema: sema
                        )
                     {
@@ -2523,6 +2529,7 @@ extension ExprTypeChecker {
                                   postponedReturnTypeParameter: postponedReturnParameter,
                                   interner: interner,
                                   availableContextReceiverTypes: availableContextReceiverTypes,
+                                  enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                                   sema: sema
                               )
                     {
@@ -2544,6 +2551,7 @@ extension ExprTypeChecker {
                                   postponedReturnTypeParameter: postponedReturnParameter,
                                   interner: interner,
                                   availableContextReceiverTypes: availableContextReceiverTypes,
+                                  enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                                   sema: sema
                               )
                     {

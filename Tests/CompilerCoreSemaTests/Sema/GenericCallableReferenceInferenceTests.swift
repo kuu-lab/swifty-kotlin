@@ -246,6 +246,46 @@ struct GenericCallableReferenceInferenceTests {
         #expect(errors.isEmpty, "Expected generic constructor reference to infer from the call, got: \(errors)")
     }
 
+    @Test(arguments: [
+        // KUU-4467: `Byp`'s supertype arguments contain `Nothing` literals
+        // and variance annotations, so the rigid check against the
+        // enclosing call's unsolved inference parameters cannot succeed.
+        // The reference reports a legal upper-bound instantiation and the
+        // call solver verifies the argument type (MVIKotlin
+        // `executorFactory = ::BypassExecutor`).
+        """
+        interface Ex<in I : Any, in A : Any, in S : Any, out M : Any, out L : Any>
+        private class Byp<I : Any, in S : Any> : Ex<I, Nothing, S, I, Nothing>
+        interface SF {
+            fun <I : Any, A : Any, S : Any, M : Any, L : Any> create(
+                name: String? = null,
+                ef: () -> Ex<I, A, S, M, L>
+            ): Any = Any()
+        }
+        fun <I : Any, S : Any> SF.c2(s: S): Any = create(ef = ::Byp)
+        """,
+        // Explicit type arguments leave only rigid lexical parameters in
+        // the expected type, which the reference specializes against
+        // directly.
+        """
+        interface Ex<in I : Any, in A : Any, in S : Any, out M : Any, out L : Any>
+        private class Byp<I : Any, in S : Any> : Ex<I, Nothing, S, I, Nothing>
+        interface SF {
+            fun <I : Any, A : Any, S : Any, M : Any, L : Any> create(
+                name: String? = null,
+                ef: () -> Ex<I, A, S, M, L>
+            ): Any = Any()
+        }
+        fun <I : Any, S : Any> SF.c2(s: S): Any = create<I, Nothing, S, I, Nothing>(ef = ::Byp)
+        """,
+    ])
+    func defersGenericConstructorReferenceToEnclosingCallInference(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected constructor reference to defer to enclosing call inference, got: \(errors)")
+    }
+
     @Test
     func stillRejectsAmbiguousConstructorReferenceWithoutExpectedType() throws {
         // `::C` with multiple constructors and no expected function type must
