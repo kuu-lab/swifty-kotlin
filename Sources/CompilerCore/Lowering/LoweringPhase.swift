@@ -84,9 +84,13 @@ public final class LoweringPhase: CompilerPhase {
         // via `ImportedInlineFunctionStore`.
         ctx.sema?.resolveDemandedImportedInlineBodies?(module)
         module.scanFeatures()
+        // Compiler-plugin passes run before the standard pipeline so the
+        // KIR they synthesize flows through every built-in desugaring and
+        // ABI pass. Each pass still self-gates via `shouldRun`.
+        let pluginPasses = CompilerPluginRegistry.builtins.flatMap(\.loweringPasses)
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.
-        for pass in passes {
+        for pass in pluginPasses + passes {
             let passType = type(of: pass)
             try withSubPhaseTiming(passType.name, timer: ctx.phaseTimer) {
                 try module.validateLoweringStage(

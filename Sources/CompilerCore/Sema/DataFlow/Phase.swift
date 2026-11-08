@@ -637,6 +637,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         canonicalizeDeclarationAnnotations(ast: ast, bindings: bindings, symbols: symbols, types: types, interner: ctx.interner)
+        withSubPhaseTiming("compilerPluginTransforms", timer: ctx.phaseTimer) {
+            runCompilerPluginTransforms(
+                ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx
+            )
+        }
         withSubPhaseTiming("bindInheritanceEdges", timer: ctx.phaseTimer) {
             bindInheritanceEdges(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,

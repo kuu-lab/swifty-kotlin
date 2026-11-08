@@ -58,6 +58,8 @@ enum CLIParser {
       --android-key-pass <pass>    Key password (default: store password)
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
                              common-module)
+      -P <arg>               Compiler plugin option (plugin:<id>:<key>=<value>,
+                             e.g. -P plugin:org.jetbrains.kotlin.allopen:annotation=com.example.Entity)
       --incremental         Enable incremental compilation (default: on for native
                              compilation that uses a stdlib artifact)
       --incremental-cache <path>
@@ -247,6 +249,14 @@ enum CLIParser {
                 frontendFlags.append("opt-in=\(String(arg.dropFirst("-Xopt-in=".count)))")
             case "-Xfrontend":
                 try frontendFlags.append(requireValue(option: arg, args: args, index: &index))
+            case "-P":
+                let value = try requireValue(option: arg, args: args, index: &index)
+                guard value.hasPrefix("plugin:") else {
+                    throw CLIParseError.unknownOption("-P requires plugin:<id>:<key>=<value>")
+                }
+                frontendFlags.append(value)
+            case _ where arg.hasPrefix("-Pplugin:"):
+                frontendFlags.append(String(arg.dropFirst(2)))
             case "--incremental":
                 frontendFlags.append("incremental")
             case "--incremental-cache":
