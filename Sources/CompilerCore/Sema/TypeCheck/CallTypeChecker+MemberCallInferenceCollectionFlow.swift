@@ -381,6 +381,23 @@ extension CallTypeChecker {
                 return nil
             }
         }
+        // KUU-4476: the fast path below only models the bundled
+        // `partition(predicate)` shape — `case "partition"` binds anyType for
+        // any other arity. A user-declared `partition` extension (e.g.
+        // kotlin-result's zero-argument `Iterable<Result<V, E>>.partition()`)
+        // must reach regular overload resolution instead.
+        if calleeStr == "partition",
+           hasUserDefinedCollectionExtensionCandidate(
+               named: calleeName,
+               receiverType: receiverType,
+               args: args,
+               range: range,
+               ctx: ctx,
+               locals: locals
+           )
+        {
+            return nil
+        }
         // KUU-1926: the collection HOF fast path only infers count's result
         // type for Collection/Iterable receivers, leaving the callee unbound.
         // Use regular overload resolution for the bundled Iterable declarations
@@ -731,6 +748,43 @@ extension CallTypeChecker {
             return builtinFlowType
         }
         return nil
+    }
+
+    /// True when a user-source extension (or local function) named `calleeName`
+    /// is visible, receiver-compatible, and arity-compatible with `args`.
+    /// The collection HOF fast path only models bundled stdlib shapes, so
+    /// such a candidate must defer the call to regular overload resolution
+    /// (same gate the `reduce` fast path applies inline, KUU-1926/KUU-4476).
+    private func hasUserDefinedCollectionExtensionCandidate(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        args: [CallArgument],
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> Bool {
+        let sema = ctx.sema
+        var scopedCandidates = ctx.scope.lookupMergingChain(calleeName)
+        if let local = locals[calleeName] {
+            scopedCandidates.append(local.symbol)
+        }
+        return ctx.filterByVisibility(scopedCandidates).visible.contains { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  let site = symbol.declSite,
+                  driver.sourceManager?.origin(of: site.start.file) == .user,
+                  !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let receiver = signature.receiverType,
+                  parameterMappingForCallArguments(args, in: signature, callRange: range, ctx: ctx) != nil
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: sema.types.makeNonNullable(receiverType),
+                declaredReceiver: receiver,
+                sema: sema
+            )
+        }
     }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length
