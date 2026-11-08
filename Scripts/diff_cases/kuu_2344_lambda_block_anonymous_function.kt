@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> block(block: () -> T): T = block()
 
 fun foo() {}

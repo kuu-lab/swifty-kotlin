@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3840: nested typealiases declared inside a class body resolve like
 // Kotlin's NestedTypeAliases feature (stable in 2.4): constructor calls,
 // type positions, qualified access, and generic substitutions.

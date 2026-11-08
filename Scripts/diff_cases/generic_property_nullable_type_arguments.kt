@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <X> makeIt(x: X): X = x
 
 class Factory {

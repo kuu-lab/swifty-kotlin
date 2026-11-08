@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-995: Iterable.take/takeWhile source-backed behavior and early stopping.
 class OneShotIterator<T>(
     val values: List<T>,

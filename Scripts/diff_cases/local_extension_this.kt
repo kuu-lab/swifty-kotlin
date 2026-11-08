@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Choice {
     fun select(): Int = 30
     fun selectTyped(text: String): Int = 40

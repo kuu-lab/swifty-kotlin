@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val numbers = listOf(1, 2, 3, 4)
     println(numbers.associate { (it % 2) to (it * 10) })

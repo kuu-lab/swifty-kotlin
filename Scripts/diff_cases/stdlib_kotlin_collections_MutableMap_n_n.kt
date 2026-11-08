@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun <K, V> readOnly(entry: MutableMap.MutableEntry<K, V>): Map.Entry<K, V> = entry
 
 private fun show(entry: MutableMap.MutableEntry<String, Int>) {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 import Holder as Alias
 
 var initialized = 0

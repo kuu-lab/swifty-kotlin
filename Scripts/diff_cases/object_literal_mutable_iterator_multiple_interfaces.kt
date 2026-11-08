@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-477: Iterator must dispatch correctly when another interface occupies
 // an earlier itable slot on the same object expression.
 interface Marker {

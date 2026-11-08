@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KClass
 
 data class WithDefault(val value: String = "fallback")

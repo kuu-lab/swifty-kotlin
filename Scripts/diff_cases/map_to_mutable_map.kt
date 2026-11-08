@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic toMutableMap: creates independent mutable copy
     val original = mapOf("a" to 1, "b" to 2, "c" to 3)

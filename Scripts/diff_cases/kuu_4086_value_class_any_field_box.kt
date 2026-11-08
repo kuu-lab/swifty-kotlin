@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4086: a value class stored into an `Any?`/`Any` field or parameter must
 // keep its nominal box. `VC(VC(5))` must print `VC(VC(5))`, not `VC(5)`.
 @JvmInline

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Counter {
     var count: Int
     fun inc() { count++ }

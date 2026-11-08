@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1910: inferred nested Node returns must be available inside generic getters.
 // KOTLINC_FLAGS: -Xjdk-release=17
 class Chain<T>(private var head: Node<T>?) {

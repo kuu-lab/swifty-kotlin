@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2145: infix eligibility precedes member and primitive intrinsic priority.
 // KOTLINC_FLAGS: -Xjdk-release=17
 class Token { fun select(other: Token): String = "member" }

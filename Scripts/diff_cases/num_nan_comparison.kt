@@ -1,3 +1,4 @@
+// DIFF_JVM
 // SPEC-NUM-0003: Double/Float relational operators (<, <=, >, >=) must use
 // IEEE-754 comparison, where any comparison involving NaN returns false,
 // and NaN != NaN returns true.  Lowered to kk_op_dlt/dle/dgt/dge/dne which

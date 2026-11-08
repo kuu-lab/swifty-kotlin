@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class P(val k: Int)
 
 fun contextualComparator(): Comparator<P?> = nullsFirst(compareBy { it!!.k })

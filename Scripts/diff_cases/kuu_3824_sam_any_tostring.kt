@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3824 / KT-83308: a `fun interface` whose only abstract member is a
 // declared `Any.toString` gets a SAM wrapper that must also answer the
 // erased-Any toString dispatch (`kk_any_to_string`), not only the interface

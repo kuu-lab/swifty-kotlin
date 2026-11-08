@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class TrackingIterable<T>(private val values: List<T>) : Iterable<T> {
     var iteratorCalls = 0
 

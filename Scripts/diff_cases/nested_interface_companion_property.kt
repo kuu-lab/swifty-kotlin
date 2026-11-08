@@ -1,3 +1,4 @@
+// DIFF_JVM
 package sample
 
 // KUU-1308: nested interface qualifiers must resolve before companion lookup.

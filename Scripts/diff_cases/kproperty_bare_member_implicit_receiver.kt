@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-496 follow-up: a bare `::member` reference to a member property of the
 // enclosing class is implicitly bound to `this` in Kotlin — it must capture
 // the active receiver the same way an explicit `this::member` would, or

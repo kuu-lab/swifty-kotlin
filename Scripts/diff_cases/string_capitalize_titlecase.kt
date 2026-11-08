@@ -1,3 +1,4 @@
+// DIFF_JVM
 @file:Suppress("DEPRECATION")
 
 fun main() {

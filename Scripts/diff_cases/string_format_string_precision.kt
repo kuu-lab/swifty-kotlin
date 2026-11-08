@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     fun codes(value: String) = value.map { it.code }.joinToString(",")
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun buildGreeting(action: StringBuilder.() -> Unit): String {
     val sb = StringBuilder()
     sb.action()

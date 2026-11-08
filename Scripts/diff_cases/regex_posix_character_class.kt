@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4148: JVM treats the POSIX \p{Name} classes (\p{Lower} \p{Upper}
 // \p{ASCII} \p{Alpha} \p{Digit} \p{Alnum} \p{Punct} \p{Graph} \p{Print}
 // \p{Blank} \p{Cntrl} \p{XDigit} \p{Space}) as US-ASCII-only unless

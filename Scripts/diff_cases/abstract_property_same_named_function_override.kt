@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression (KUU-4106): `protected abstract val` declared next to a
 // same-named member function was treated as final, so the subclass's
 // `override val` was rejected with KSWIFTK-SEMA-FINAL. Properties and

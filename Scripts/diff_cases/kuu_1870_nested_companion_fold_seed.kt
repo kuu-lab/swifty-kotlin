@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1870: Keep Day07.calculateIdentity's companion collection fold seed intact.
 class Day07 {
     private class Hand {

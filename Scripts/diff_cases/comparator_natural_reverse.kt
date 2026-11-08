@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = listOf(3, 1, 4, 1, 5, 9)
     println(list.sortedWith(naturalOrder()))

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Plain(val n: Int)
 data class Data(val n: Int)
 

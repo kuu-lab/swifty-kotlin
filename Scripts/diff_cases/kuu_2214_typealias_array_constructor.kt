@@ -1,3 +1,4 @@
+// DIFF_JVM
 // JetBrains Kotlin 2.3.10 compiler/testData/codegen/box/typealias/typeAliasConstructorForArray.kt
 typealias BoolArray = Array<Boolean>
 typealias IArray = IntArray

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4487: explicit Any-member calls (toString/hashCode/equals) on receivers
 // whose static type is an abstract/sealed/open base must dispatch to the
 // concrete override. They previously went through vtable slots resolved from

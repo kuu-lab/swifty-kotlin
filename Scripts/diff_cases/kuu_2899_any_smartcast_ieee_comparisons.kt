@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2899: Any smartcasts must use IEEE primitive comparison semantics.
 fun eq5(a: Any?, b: Any?): Boolean? = if (a is Double && b is Double) a == b else null
 fun lt5(a: Any?, b: Any?): Boolean? = if (a is Double && b is Double) a < b else null

@@ -1,3 +1,4 @@
+// DIFF_JVM
 package golden.sema
 
 interface WithConcreteProperties {

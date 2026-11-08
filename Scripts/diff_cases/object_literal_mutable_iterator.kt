@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-242: an object literal implementing an interface with no superclass
 // (e.g. `object : MutableIterator<Int> { ... }`) previously left its itable
 // slots empty, so every interface it registers (here both `Iterator` and

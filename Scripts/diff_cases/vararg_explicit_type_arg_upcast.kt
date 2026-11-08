@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression for a type-inference bug found while investigating KSP-Map-iterator
 // CI failures (PR #6224): an explicit type argument on a call whose vararg
 // parameter type contains the same type variable in a covariant (`out`)

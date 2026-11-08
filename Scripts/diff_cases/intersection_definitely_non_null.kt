@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun idTag(x: String): Int = 7
 
 fun safeTag(x: String): Int = idTag(x)

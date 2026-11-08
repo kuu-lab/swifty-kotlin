@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val bytes = byteArrayOf(0xe2.toByte(), 0x82.toByte(), 0xac.toByte())
     val codePoint = -0x01e080 xor bytes[2].toInt() xor

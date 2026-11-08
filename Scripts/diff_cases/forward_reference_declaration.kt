@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun make(seed: Long): Box = Box(seed.toInt())
 
 fun describe(shape: Shape): String = shape.name()

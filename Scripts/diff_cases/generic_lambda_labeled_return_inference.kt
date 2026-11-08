@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> evaluate(action: () -> T): T = action()
 inline fun <T> inlineEvaluate(action: () -> T): T = action()
 

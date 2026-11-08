@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun display(x: Any?): String = "d$x"
 
 fun main() {

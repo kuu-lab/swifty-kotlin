@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1542/BUG-166: Collection<T>/MutableCollection<T>/Iterable<T>-typed
 // receivers must dispatch isEmpty/contains/iterator/add/remove/retainAll
 // through the interface member (kk_op_contains, __kk_collection_*,

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3796: a constructor's class type parameters share symbols with the
 // class's lexical type parameters. `P(key)` with `key: T` must infer `P<T>`
 // from the expected type, not `P<Any?>` from the parameter's declared `Any?`.

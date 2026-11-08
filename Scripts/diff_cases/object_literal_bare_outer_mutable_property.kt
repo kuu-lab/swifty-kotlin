@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-CAP-001 (follow-up): an object literal's member function reading or
 // writing an enclosing class's mutable property through a bare (unqualified)
 // name has no explicit receiver expression to lower, unlike `this.counter`.

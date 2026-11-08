@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3151: an explicit type argument on a generic call must specialize the
 // SAM parameter's method signature, so unannotated lambda parameters bind the
 // substituted types. Covers the `in`-projected parameter, its invariant

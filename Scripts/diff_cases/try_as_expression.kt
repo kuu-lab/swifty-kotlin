@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val a = try { "123".toInt() } catch (e: NumberFormatException) { -1 }
     println(a)

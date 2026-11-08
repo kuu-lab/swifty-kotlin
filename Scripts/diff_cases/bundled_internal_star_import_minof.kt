@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1032: internal kotlinx.io helpers must not shadow public default imports.
 import kotlinx.io.*
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("hello".replaceFirstChar { 'H' })
     println("Hello".replaceFirstChar { 'h' })

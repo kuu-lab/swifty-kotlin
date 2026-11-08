@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-632: `(x as Any).hashCode()` / `kk_any_member_hashCode` reaches the
 // runtime Pair/Triple/ObjectBox branches of runtimeAnyHashCode, which must
 // accumulate in 32-bit wrapping Int arithmetic like every other structural

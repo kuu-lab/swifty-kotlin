@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class Item(val group: Int, val score: Int)
 
 fun scoreOf(item: Item): Int = item.score

@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class Base {
     abstract val size: Int
     abstract fun get(index: Int): Int

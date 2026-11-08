@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun visit(key: String, value: Int) { println("$key$value") }
 fun pair2(a: Double, b: Boolean) { println("pair2:$a=$b") }
 fun inc(x: Int): Int = x + 1

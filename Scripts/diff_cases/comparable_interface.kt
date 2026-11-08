@@ -1,3 +1,4 @@
+// DIFF_JVM
 
 // STDLIB-COMP-041: Comparableインターフェース完全実装テストケース
 

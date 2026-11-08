@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator fun Int.contains(value: Int): Boolean = this == 2 && value == 1
 
 fun matchIn(): String = when (1) {

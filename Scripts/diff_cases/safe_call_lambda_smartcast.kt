@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1369: `?.` narrows a stable receiver inside its argument expressions.
 // `x?.let { x.length }` compiles because the lambda body only runs when the
 // receiver is non-null; the narrowing does not escape the call.

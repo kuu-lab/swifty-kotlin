@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3098: unary `+` forwarded its operand's KIR id verbatim. When the
 // operand was a bare local read, the result aliased that local's storage
 // register instead of a value snapshot, so later writes through either name

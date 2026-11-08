@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = listOf("a" to 1, "b" to 2, "c" to 3)
     val map = list.toMap()

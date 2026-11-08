@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-449: Map interface delegation must resolve and preserve the delegate.
 
 class CustomMap : Map<String, Int> by mapOf("k" to 1)

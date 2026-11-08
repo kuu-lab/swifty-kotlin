@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3547 (JetBrains codegen/box/enum/kt7257_notInline): a lambda passed
 // to a non-inline helper inside an enum entry body captures the entry's own
 // member through the implicit `this` receiver. The captured entry reference

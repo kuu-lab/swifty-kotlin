@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // 1. recoverCatching on failure - transform succeeds
     val fail1 = runCatching { throw RuntimeException("original") }

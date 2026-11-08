@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3590: preserve the enclosing receiver through run and an object initializer.
 class C(result: String) {
     var result: String = "Failed"

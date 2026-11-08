@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-631: Iterator.asSequence must preserve the iterator, remain lazy, and
 // enforce the one-shot contract while handling empty and partially consumed iterators.
 

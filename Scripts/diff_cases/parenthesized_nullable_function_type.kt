@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-A: parenthesized / nullable function types must parse. Kotlin's type
 // grammar allows `(Type)` grouping around any type, most commonly to let a
 // trailing `?` bind to a whole function type: `((Int) -> Int)?` is a

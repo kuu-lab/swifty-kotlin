@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2217: preserve star-projected declaration bounds while lifting supertypes.
 interface A<out T : Any> {
     fun foo(): String

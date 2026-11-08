@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(sequenceOf(1, 2, 3).joinToString(", "))
     println(sequenceOf("a", "b", "c").joinToString("-"))

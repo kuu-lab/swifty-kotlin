@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Based on JetBrains/Kotlin's customCompareTo.kt at commit 679366a83f99851b42f64795f10ed803ff011c73.
 var longCompareToInvocations = 0
 var doubleCompareToInvocations = 0

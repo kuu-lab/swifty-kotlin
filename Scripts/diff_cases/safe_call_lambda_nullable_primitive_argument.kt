@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f(idx: Int?) = idx?.let { "abcd".get(it) }
 
 fun main() {

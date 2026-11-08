@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun inspect(values: Collection<Int>, other: Collection<Int>): Boolean {
     val size = values.size
     val empty = values.isEmpty()

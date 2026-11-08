@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2105: preserve the fallback for nullable generic returns with a default
 // argument, including both reference and primitive specializations.
 fun <T : Any?> someFunc(a: T, arg: T? = null): T = arg ?: a

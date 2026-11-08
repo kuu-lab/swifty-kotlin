@@ -1,3 +1,4 @@
+// DIFF_JVM
 object Obj { val x = 42; operator fun invoke(n: Int) = n + 1; fun f() = "f" }
 typealias A = Obj
 class C { companion object { val y = 7; fun g() = "g" } }

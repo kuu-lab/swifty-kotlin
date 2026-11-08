@@ -1,3 +1,4 @@
+// DIFF_JVM
 // EXPECT-STDOUT: OK
 fun foo(f: (Int?) -> Int): Int = f(0)
 

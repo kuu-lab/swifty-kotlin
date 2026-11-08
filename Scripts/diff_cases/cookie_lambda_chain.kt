@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun clientCookies(pairs: List<Pair<String, String>>, skipEscaped: Boolean): List<Pair<String, String>> =
     pairs
         .filter { !skipEscaped || !it.first.startsWith("$") }

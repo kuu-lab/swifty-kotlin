@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val regex = Regex("[a-z]+")
     println(regex.containsMatchIn("123abc"))

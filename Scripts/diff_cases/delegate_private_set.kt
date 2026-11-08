@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.Delegates
 
 // KUU-2946: a `private set` on a delegated var must still route writes

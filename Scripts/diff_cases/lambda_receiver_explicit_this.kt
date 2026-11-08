@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Explicit `this` inside a lambda-with-receiver must denote the lambda's own
 // receiver, not the enclosing extension function's receiver.
 fun String.ext(): String = buildString { append(this@ext); append("|"); append(this.length) }

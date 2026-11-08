@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2314: An explicit bound callable reference can target a local extension
 // and captures the receiver for the extension body.
 

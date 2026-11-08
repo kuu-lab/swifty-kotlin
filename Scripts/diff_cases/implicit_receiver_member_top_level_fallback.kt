@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1949: inapplicable receiver members must not hide top-level overloads.
 interface S { fun require(n: Long) }
 

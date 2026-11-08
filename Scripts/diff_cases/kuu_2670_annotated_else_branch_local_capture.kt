@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f(list: List<Any>): MutableList<Any> {
     val out = mutableListOf<Any>()
     fun walk(l: List<Any>) {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2913: `this::bar.isInitialized` in an inner subclass must inspect the inherited field on the inner instance.
 open class Foo {
     lateinit var bar: String

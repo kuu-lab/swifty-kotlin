@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = floatArrayOf()
     val values = floatArrayOf(1.5f, -2.5f, 3.0f)

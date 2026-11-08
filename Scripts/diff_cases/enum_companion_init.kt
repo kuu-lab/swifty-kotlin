@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression for KUU-2414. Adapted from JetBrains Kotlin's public box test:
 // https://github.com/JetBrains/kotlin/blob/679366a83f99851b42f64795f10ed803ff011c73/compiler/testData/codegen/box/enum/enumCompanionInit.kt
 // The main wrapper exposes box() to the differential harness.

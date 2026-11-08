@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1042: member extension mutation and calls keep both receivers distinct.
 class B {
     var seconds: Int = 0

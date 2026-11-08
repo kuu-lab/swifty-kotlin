@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator fun UByte.unaryMinus(): Int = 11
 operator fun UShort.unaryMinus(): Int = 12
 operator fun UInt.unaryMinus(): Int = 13

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1432: named-group lookup preserves the Kotlin contract for matched,
 // optional, and undefined named groups.
 

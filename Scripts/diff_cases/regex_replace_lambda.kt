@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(Regex("a").replace("aaa") { "X" })
     println(Regex("a").replace("aaa") { it.value + "!" })

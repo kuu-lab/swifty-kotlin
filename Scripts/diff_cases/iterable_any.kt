@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values: Iterable<Int> = listOf(1, 2, 3, 4)
     println(values.any())

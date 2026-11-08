@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class Shape {
     abstract fun area(): Double
     open fun describe(): String = "I am a shape"

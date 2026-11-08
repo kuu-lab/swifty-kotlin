@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val t1 = Throwable()
     val t2 = Throwable("hello")

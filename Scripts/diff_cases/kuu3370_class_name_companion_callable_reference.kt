@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3370: A class-name reference to a companion member captures the companion.
 open class A {
     fun instance() = true

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic do-while (first-run guarantee)
     var count = 0

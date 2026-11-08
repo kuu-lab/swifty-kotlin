@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun singletonPair(): Pair<String?, Int?> {
     println("pair")
     return Pair<String?, Int?>(null, null)

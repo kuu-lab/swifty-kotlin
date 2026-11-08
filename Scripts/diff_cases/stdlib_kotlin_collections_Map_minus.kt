@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun render(entries: Map<String?, Int?>): String = entries.entries.joinToString("|") { "${it.key}:${it.value}" }
 
 fun main() {

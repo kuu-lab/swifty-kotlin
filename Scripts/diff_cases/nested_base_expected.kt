@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KOTLINC_FLAGS: -Xjdk-release=17
 open class ParseResult<out T>
 class ParsedValue<out T>(val value: T) : ParseResult<T>()

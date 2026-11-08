@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-164: callable reference used as an argument whose parameter type is a
 // fun interface.  The lambda-literal equivalent already worked; the reference
 // form must be SAM-converted too.

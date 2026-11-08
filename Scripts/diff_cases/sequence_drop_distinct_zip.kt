@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val d = sequenceOf(1, 2, 3, 4, 5).drop(2).toList()
     println(d)

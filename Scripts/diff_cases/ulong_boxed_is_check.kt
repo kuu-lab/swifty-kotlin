@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun check(x: Any?) {
     println(x is ULong)
     println(x is Long)

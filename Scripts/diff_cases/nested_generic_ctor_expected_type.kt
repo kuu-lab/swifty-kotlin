@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1370: nested generic constructor calls must receive the expected type
 // when a type parameter is not inferable from the call's own arguments.
 class D<T : Any, R>(val t: T, val w: Int, val dv: R? = null)

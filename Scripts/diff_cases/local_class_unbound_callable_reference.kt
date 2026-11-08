@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Outer { fun foo(): String = "OUTER" }
 
 fun box(): String {

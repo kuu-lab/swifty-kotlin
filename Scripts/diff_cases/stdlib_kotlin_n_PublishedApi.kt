@@ -1,3 +1,4 @@
+// DIFF_JVM
 @PublishedApi
 internal fun publishedApiValue(): Int = 42
 

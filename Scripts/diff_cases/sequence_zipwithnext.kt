@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val pairs = sequenceOf(1, 2, 3, 4).zipWithNext().toList()
     println(pairs)

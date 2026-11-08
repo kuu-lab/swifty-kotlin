@@ -1,3 +1,4 @@
+// DIFF_JVM
 package sample
 
 fun describe(x: kotlin.DeprecatedSinceKotlin?): String =

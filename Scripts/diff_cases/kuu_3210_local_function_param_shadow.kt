@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3210: a local function's own value parameters must shadow the
 // function's name inside its body -- `a` in `fun a(a: Any) = a === 1.1`
 // binds to the parameter (kotlinc), not the function (KSwiftK previously

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class DefaultOuter(val seed: Int) {
     inner class Inner(val first: Int = seed + 7, val second: Int = first + seed) {
         fun describe() = "$first/$second/$seed"

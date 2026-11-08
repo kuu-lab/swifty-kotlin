@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2252: qualified-name control for the private nested classifier case.
 package p
 

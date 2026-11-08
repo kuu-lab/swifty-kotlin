@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: inside a generic class/interface, `this` used from a property
 // accessor must be typed as `C<T>` (not the raw nominal), otherwise generic
 // calls taking `C<T>` fail to resolve.

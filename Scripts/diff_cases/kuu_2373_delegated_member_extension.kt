@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2373: delegated interface member extensions keep dispatch and extension receivers.
 fun interface Base {
     fun String.print(): String

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Bag {
     object M {
         val m = 5

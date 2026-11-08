@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class Sink<in T>(private val stored: T) {
     fun accept(value: T) { println(stored == value) }
 }

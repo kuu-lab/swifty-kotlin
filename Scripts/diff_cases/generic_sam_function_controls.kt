@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2361: keep existing generic function-type and concrete SAM paths working.
 fun interface IFoo<T> { fun foo(): T }
 

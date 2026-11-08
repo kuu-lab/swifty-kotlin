@@ -1,3 +1,4 @@
+// DIFF_JVM
 data object DataObject {
     data object Nested
 }

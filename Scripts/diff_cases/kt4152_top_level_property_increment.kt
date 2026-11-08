@@ -1,3 +1,4 @@
+// DIFF_JVM
 public var inc: Int = 0;
 
 public var propInc: Int = 0

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2165: a `fun interface` that re-declares nothing but inherits exactly one
 // abstract function is a valid SAM type, for both lambda conversion and SAM
 // constructors; generic arguments flow through the supertype.

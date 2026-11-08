@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator inline fun <reified T : Number> T.plus(other: T): T = this
 operator inline fun <reified T : Number> T.minus(other: T): T = this
 operator inline fun <T : Number> T.times(other: T): T = this

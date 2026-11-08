@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val x: UInt = 42u
     val y: ULong = 42uL

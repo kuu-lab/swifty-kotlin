@@ -1,3 +1,4 @@
+// DIFF_JVM
 class IndexedLookupBuilder {
     var total = 0
     fun add(value: Int) { total += value }

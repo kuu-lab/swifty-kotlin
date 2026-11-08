@@ -1,3 +1,4 @@
+// DIFF_JVM
 var order = ""
 
 fun low(i: Int): Int { order += "L"; return i }

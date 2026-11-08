@@ -1,3 +1,4 @@
+// DIFF_JVM
 annotation class My
 
 fun foo(): Int {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class A1 { open fun f() = 1 }
 interface B1 { fun f() = 2 }
 class C1 : A1(), B1 {

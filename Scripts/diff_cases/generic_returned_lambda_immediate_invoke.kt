@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> identity(value: T): T = value
 
 val topLevel: Int = with(1) { { 3 } }()

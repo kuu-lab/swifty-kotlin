@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1266: soft keywords are valid label definitions and jump targets.
 fun visit(block: () -> Unit) { block() }
 fun Int.inner(): Int = this@inner

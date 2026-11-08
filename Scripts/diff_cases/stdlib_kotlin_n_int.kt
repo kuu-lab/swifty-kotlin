@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = intArrayOf()
     val values = intArrayOf(1, -2, 2147483647)

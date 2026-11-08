@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun describe(level: DeprecationLevel): String = when (level) {
     DeprecationLevel.WARNING -> "warning"
     DeprecationLevel.ERROR -> "error"

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val sizeOnly = FloatArray(3)
     println(sizeOnly.size)

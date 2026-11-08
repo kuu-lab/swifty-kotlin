@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-043: methods on the implicit StringBuilder receiver inside
 // buildString { ... } other than the six that used to be rewritten to the global
 // builder-state DSL used to run with an invalid `this` handle (0). Pin the

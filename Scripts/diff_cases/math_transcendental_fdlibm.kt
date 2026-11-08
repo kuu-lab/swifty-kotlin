@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.math.*
 
 // KUU-2773: exp/asin/acos must match the JVM (fdlibm) down to the last bit.

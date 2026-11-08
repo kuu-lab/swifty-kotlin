@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Foo<T> {
     inner class Bar<T> {
         val result: String = "OK"

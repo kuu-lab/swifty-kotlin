@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KMutableProperty0
 import kotlin.reflect.KProperty0
 

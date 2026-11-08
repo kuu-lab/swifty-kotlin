@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun describe(v: Any): String {
     if (v is String && v.length > 2) {
         return "long"

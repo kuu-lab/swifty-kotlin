@@ -1,3 +1,4 @@
+// DIFF_JVM
 // SPEC-NUM-0008: Double/Float member calls on negative zero.
 // Verifies: toString() on -0.0/-0.0f, compareTo on Float, and -0.0 return-value sign.
 fun negZeroDouble(): Double = -0.0

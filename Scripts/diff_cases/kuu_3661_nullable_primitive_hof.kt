@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3661: map/forEach-family HOFs over List<Double?>/List<Long?>/List<ULong?>
 // must preserve the null-vs-value distinction across the erased callback
 // boundary. Unboxing an element whose box payload collides with the null

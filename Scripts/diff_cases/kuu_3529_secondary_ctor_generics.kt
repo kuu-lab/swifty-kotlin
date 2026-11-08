@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3529: secondary constructors on a generic class delegate through
 // `this(...)`/`super(...)`; the delegation target must initialize the
 // instance instead of crashing.

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3575: an inherited inner-class constructor is callable on a subclass instance.
 abstract class Base {
     inner class Inner {

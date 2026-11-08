@@ -1,3 +1,4 @@
+// DIFF_JVM
 var argumentEvaluations = 0
 
 fun nextFloatForSafeNullablePrimitiveArithmetic(): Float {

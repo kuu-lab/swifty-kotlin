@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Counter(var value: Int) {
     fun step(): Int { value += 1; return value }
     fun run(): Int {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic partition: even/odd
     val list = listOf(1, 2, 3, 4, 5, 6)

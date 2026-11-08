@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val x = 10
     val nums = listOf(1, 2, 3, 4, 5)

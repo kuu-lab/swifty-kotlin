@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression test from JetBrains/Kotlin compiler/testData/codegen/box/regressions/kt71119.kt.
 class BC<A : Any>(val f: A) {
     open fun m(): Boolean = BC(2.0).f == 3.0

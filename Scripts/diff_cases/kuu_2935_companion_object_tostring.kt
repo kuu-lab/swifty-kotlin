@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2935: a companion object's `toString()` override was ignored when the
 // companion crossed an `Any` boundary -- `<object 0x...>` was printed instead
 // of the override's result, because the eager `__companion_init_*` path never

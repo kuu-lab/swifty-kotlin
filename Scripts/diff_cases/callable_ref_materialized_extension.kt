@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun String.tag(): String = "ext:$this"
 
 fun main() {

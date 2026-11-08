@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Pinned JetBrains Kotlin testData: compiler/testData/codegen/box/binaryOp/overflowLong.kt
 // commit: 679366a83f99851b42f64795f10ed803ff011c73
 fun box(): String {

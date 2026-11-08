@@ -1,3 +1,4 @@
+// DIFF_JVM
 object SharedArrayList : MutableList<Any> by mutableListOf()
 object SharedSet : MutableSet<Int> by mutableSetOf(2, 4)
 object SharedMap : MutableMap<String, Int> by mutableMapOf("one" to 1)

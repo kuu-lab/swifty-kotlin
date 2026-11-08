@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(LazyThreadSafetyMode.SYNCHRONIZED.name)
     println(LazyThreadSafetyMode.SYNCHRONIZED.ordinal)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 data object None {
     data object Inner
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG: a bare mutable-local index/receiver operand in an indexed assign or
 // indexed compound assign returns that local's persistent storage register
 // by identity rather than a value snapshot. Since KIR instructions execute

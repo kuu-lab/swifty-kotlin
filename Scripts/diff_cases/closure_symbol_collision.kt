@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-620 regression: stdlib-only closure wrappers must not collide with a
 // consumer module's synthetic closure symbols.
 

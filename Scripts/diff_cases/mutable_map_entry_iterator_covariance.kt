@@ -1,3 +1,4 @@
+// DIFF_JVM
 // MutableSet inherits iterator declarations through both Set and MutableIterable.
 fun main() {
     val map = mutableMapOf("one" to 1, "two" to 2)

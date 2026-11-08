@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Primitive `Type::toString` callable references invoked as function
     // values: the unbound receiver argument crosses the erased `Any`

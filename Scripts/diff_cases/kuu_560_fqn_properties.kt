@@ -1,3 +1,4 @@
+// DIFF_JVM
 package kuu560
 
 val computedAnswer: Int get() = 42

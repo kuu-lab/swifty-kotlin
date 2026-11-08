@@ -1,3 +1,4 @@
+// DIFF_JVM
 var Any.tag: Int
     get() = 100
     set(value) { println("Any $value") }

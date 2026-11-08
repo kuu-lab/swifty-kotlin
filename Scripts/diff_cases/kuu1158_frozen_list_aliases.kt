@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun addList(target: MutableList<String>) { target.add("c") }
 fun removeList(target: MutableList<String>) { target.remove("a") }
 fun clearList(target: MutableList<String>) { target.clear() }

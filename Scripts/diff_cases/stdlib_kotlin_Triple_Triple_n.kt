@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Diff regression for kotlin.Triple receiver members.
 fun <A, B, C> copyTriple(value: Triple<A, B, C>): Triple<A, B, C> = value.copy()
 

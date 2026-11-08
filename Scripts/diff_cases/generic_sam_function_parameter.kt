@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2361: a lambda result must infer T through a generic fun-interface parameter.
 fun interface IFoo<T> { fun foo(): T }
 

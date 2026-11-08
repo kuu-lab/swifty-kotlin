@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun printAny(x: Any?) {
   println(x)
 }

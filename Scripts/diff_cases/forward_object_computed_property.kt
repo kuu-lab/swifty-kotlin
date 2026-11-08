@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2056: Resolve inferred object property dependencies before earlier consumers.
 class Consumer { fun read(): Int = Chain.value }
 object Chain { val value = Later.value + 1 }

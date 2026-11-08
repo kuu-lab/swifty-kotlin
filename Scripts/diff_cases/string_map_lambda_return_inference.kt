@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4125: on a `String` receiver the `map`/`mapIndexed`/`mapNotNull`
 // String-HOF special path pre-infers the lambda against the placeholder
 // expected type `(Char) -> Any?`, then feeds that bound type to overload

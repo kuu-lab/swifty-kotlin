@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: a catch clause naming a specific (non-catch-all) exception type
 // must only match that type or its real supertypes — an earlier, unrelated
 // sibling catch clause must never win just because it appears first.

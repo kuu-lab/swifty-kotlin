@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3231: the default-argument mask's in-band super-call marker sits at bit
 // 30, so a member stub for 31+ defaulted parameters must carry the marker in a
 // separate trailing word. Otherwise an omitted parameter at index 30 is

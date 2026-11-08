@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.coroutines.*
 
 // KUU-3900: a `suspend` interface method implemented through `by` delegation

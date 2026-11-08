@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3411: a generic value class backed by Any? must retain both the payload
 // type and nested value-class identity across constructor calls.
 @JvmInline

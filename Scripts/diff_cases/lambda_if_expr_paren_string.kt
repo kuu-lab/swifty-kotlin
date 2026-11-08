@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun retLambda(flag: Boolean): (String) -> String =
     if (flag) ({ s -> s.uppercase() }) else ({ s -> s.lowercase() })
 

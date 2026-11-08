@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3551: `is` checks on the extension receiver inside `when (this)` must
 // observe the boxed `Any?` value, not a raw enum ordinal. Minimized from
 // JetBrains testData codegen/box/when/enumOptimization/kt15806.kt; the

@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class TreeBuilder {
     protected class MyASTNodeWrapper(val value: Int, val start: Int, val end: Int)
     public class PublicWrapper(val value: Int)

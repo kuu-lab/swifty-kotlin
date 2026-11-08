@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // A transform lambda's Boolean/Char result must stay boxed when a HOF
     // stores/forwards it into a generically-typed List for later rendering

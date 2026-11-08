@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface CC
 class Context : CC
 interface Job { val value: Int }

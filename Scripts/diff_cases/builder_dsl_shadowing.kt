@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun buildString(x: Int): Int = x + 1
 
 fun buildList(x: Int): Int = x + 2

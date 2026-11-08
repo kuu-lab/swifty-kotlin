@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class Args(val x: String?, val value: Any?)
 class Outer(val inner: Args)
 

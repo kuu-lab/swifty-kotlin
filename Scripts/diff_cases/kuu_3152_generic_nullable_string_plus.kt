@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun concatAny(x: Any) = "$x!!"
 fun <T : String> concat1(x: T) = "[[$x]]"
 fun <T : String?> concat2(x: T) = "[[$x]]"

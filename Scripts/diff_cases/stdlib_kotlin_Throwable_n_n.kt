@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val message: String? = "explicit"
     val root: Throwable = Throwable("root")

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1996: valid member writes retain contextual typing and setter dispatch.
 class AssignmentBox<T>(var value: T)
 open class AssignmentParent<T>(var inherited: T)

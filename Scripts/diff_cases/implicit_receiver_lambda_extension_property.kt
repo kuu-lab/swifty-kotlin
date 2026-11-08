@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3914: an extension property referenced unqualified inside a receiver-typed
 // lambda (`buildString { ... }`, `with(sb) { ... }`) must resolve against the
 // enclosing implicit receiver tower — including when the same file declares

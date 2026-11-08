@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Buffer(val size: Int)
 
 inline fun build(block: StringBuilder.() -> Unit): String {

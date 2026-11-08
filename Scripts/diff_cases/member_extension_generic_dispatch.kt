@@ -1,3 +1,4 @@
+// DIFF_JVM
 class GenericOffset<T>(private val offset: T) {
     fun Int.getOffset(): T = offset
     fun <U> Int.withValue(value: U): T = offset

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3731: overriding a generic vararg member must emit an erased JVM bridge,
 // and call sites must allocate the specialized array component type.
 interface GenericVararg<T> { fun join(vararg values: T): String }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3522: `super.<property>` inside an overriding property accessor
 // must bind and dispatch to the named supertype's implementation — for
 // getters, setters, and unqualified/qualified super receivers.

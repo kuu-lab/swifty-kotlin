@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2100: Double equality against Any? must preserve the boxed primitive type.
 fun equalsNullableAny(a: Double, b: Any?): Boolean = a == b
 fun equalsNonNullAny(a: Double, b: Any): Boolean = a == b

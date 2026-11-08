@@ -1,3 +1,4 @@
+// DIFF_JVM
 val message: String by lazy {
     println("initializing")
     "hello"

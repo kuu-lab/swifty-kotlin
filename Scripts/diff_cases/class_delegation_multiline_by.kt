@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Base { fun base(): String }
 interface Entry { fun entry(): String }
 class Delegate : Entry { override fun entry() = "entry" }

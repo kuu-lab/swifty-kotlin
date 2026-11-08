@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Box<out T>(val v: T)
 
 fun widen(xs: List<out Number>): Int = xs.size

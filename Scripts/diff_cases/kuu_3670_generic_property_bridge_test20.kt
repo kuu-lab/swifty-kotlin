@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3670 regression adapted from Kotlin 2.4.20 bridges/test20.kt.
 open class A<T> {
     val s: T = "zzz" as T

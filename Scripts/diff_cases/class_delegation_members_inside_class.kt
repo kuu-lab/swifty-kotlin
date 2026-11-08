@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3586: delegated interface methods resolve inside the delegating class body.
 
 interface Trait { fun foo() = "O"; fun bar(): String }

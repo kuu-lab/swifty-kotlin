@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2322: an inherited interface member-extension operator must outrank a
 // top-level operator with the same extension receiver.
 package kuu2322

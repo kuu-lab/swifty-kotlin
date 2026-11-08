@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4134: distinctBy/zipWithNext erased-R placeholders must accept
 // nullable selector results. Kotlin's K/R type parameters are unbounded
 // (implicitly Any?), so a String? key or transform result is legal; the

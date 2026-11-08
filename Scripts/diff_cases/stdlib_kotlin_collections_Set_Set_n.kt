@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun inspect(values: Set<Int?>): String {
     return "${values.size}:${values.isEmpty()}:${values.contains(null)}:${values.iterator().hasNext()}"
 }

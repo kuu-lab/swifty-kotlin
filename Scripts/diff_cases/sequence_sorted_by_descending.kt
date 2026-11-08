@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(sequenceOf("cc", "a", "bbb").sortedByDescending { it.length }.toList())
     println(sequenceOf(1, 2, 3).sortedByDescending {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = buildString {
         appendRange("Hello, World!", 0, 5)

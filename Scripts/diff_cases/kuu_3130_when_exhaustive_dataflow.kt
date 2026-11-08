@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3130: enum entries excluded by a preceding terminating branch
 // (`return`/`throw`) must not be required by a following `when`
 // (DataFlowBasedExhaustiveness). Minimized from JetBrains

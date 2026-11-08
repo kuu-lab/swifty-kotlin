@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-496 follow-up: a property callable reference (`Type::property` /
 // `instance::property`) without an explicit expected type must still infer
 // to a real KProperty0/KProperty1, not the property's own value type.

@@ -1,3 +1,4 @@
+// DIFF_JVM
 val String.x: Int get() = 2
 val x: Int = 1
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = booleanArrayOf()
     val values = booleanArrayOf(true, false, true)

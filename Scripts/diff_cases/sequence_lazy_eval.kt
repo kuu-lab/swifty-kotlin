@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-563: Verify that sequence {} builder is lazy.
 // Side effects in the builder should only execute when elements are consumed.
 fun main() {

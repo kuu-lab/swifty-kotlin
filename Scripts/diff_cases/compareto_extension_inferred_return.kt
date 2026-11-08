@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2213: Based on Kotlin 2.3.10's operatorConventions/compareTo/extensionArray.kt.
 fun checkLess(x: Array<Int>, y: Array<Int>) = when {
     x >= y    -> "Fail $x >= $y"

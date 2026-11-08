@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4027: a SAM-converted `fun interface` value passed to a generic call is
 // a value of the interface type, not of the lambda's function type. The
 // argument must satisfy the call's type constraints as `Sup`, not `() -> Int`.

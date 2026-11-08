@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun checkBoolAny(value: Any) {
     println(value.hashCode())
     println(value.toString())

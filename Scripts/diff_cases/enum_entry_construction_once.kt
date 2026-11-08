@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Enum entries are constructed once, on first access to the enum class:
 // constructor arguments are evaluated a single time and then read back.
 var counter = 0

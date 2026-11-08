@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-REFL-175: Advanced Annotation Processing
 // Fixture for KAPT-style processing scenarios:
 // - multiple annotated declarations

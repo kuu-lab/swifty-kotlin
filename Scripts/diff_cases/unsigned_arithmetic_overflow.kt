@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val umax = 4294967295u
     println(umax + 1u)

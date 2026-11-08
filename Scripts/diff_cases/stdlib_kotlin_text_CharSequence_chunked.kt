@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("abcdef".chunked(2) { it.length })
     println("abcde".chunked(3) { it.toString() })

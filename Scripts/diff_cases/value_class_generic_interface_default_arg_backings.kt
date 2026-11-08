@@ -1,3 +1,4 @@
+// DIFF_JVM
 @JvmInline value class NumberValue(val value: Int)
 @JvmInline value class DoubleValue(val value: Double)
 @JvmInline value class MaybeValue(val value: String?)

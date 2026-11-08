@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KCallable
 import kotlin.reflect.KFunction
 

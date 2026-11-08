@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Superclass constructor calls written in a class / object header or as a
 // secondary constructor's `super(...)` must honour named arguments and
 // defaults, and an Exception subclass must keep the message / cause given to

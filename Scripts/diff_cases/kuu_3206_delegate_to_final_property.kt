@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3206: extension getValue/setValue declared after the delegated property
 // must still resolve. kotlinc accepts these; kswiftc reported SEMA-0103.
 class C {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val noArg = NoSuchElementException()
     val message = NoSuchElementException("empty")

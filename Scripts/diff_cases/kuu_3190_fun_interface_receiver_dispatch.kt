@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3190: receiver arguments on fun-interface SAM methods must reach the wrapper implementation.
 fun interface SamWithReceiverAndArgument {
     fun Int.accept(value: String): String

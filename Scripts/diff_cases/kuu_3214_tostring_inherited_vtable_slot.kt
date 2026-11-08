@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3214 / KT-83308: `by` delegation through a private-constructor
 // abstract class plus a deep interface hierarchy returned null from a
 // virtual `toString()` call. The Any.toString vtable slot always uses the

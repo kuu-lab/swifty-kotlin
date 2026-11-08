@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface GenericBound<A> {
     fun <T : A> echo(value: T): T
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3177: invoking T.() -> R after an unchecked Any as T cast must use the
 // lambda's erased bridge so an incompatible receiver fails with ClassCastException.
 private interface Bindings {

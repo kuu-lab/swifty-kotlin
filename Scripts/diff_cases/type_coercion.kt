@@ -1,3 +1,4 @@
+// DIFF_JVM
 // DIFF_LINE_PATTERN: [Ee][+-]?[0-9]+$
 // NOTE: program body mirrors Tests/CompilerCoreTests/GoldenCases/Sema/type_coercion.kt — keep in sync
 fun main() {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class NullableIterator(private val values: List<String?>) : Iterator<String?> {
     private var index = 0
 

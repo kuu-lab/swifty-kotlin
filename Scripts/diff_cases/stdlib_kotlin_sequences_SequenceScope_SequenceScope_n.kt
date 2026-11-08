@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val iterator = iterator {
         yield(2)

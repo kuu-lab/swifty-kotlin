@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1930: preserve ParserResult and both generic map extensions.
 sealed interface ParserResult<out T> {
     data class Success<out T>(val value: T, val remaining: String) : ParserResult<T>

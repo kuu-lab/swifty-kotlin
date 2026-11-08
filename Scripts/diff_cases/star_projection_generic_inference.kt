@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-651: star projections must still constrain type variables of generic calls
 // (declaration-site variance projection must not swallow the `*` case).
 fun <T> firstOrDef(xs: List<T>): T? = xs.firstOrNull()

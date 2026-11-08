@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun roundTrip(value: Any?): Int = value as Int
 
 fun main() {

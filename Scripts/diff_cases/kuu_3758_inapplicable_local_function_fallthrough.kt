@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3758: an inapplicable local function must not hide an outer overload.
 // kotlinc 2.4.20 resolves `pick(true)` to the top-level `pick(Boolean)`
 // because the local `pick(Long)` is not applicable for a Boolean argument —

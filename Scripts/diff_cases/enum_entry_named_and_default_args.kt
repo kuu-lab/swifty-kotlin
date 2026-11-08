@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Named entry arguments bind by label, and defaults may refer to earlier
 // constructor parameters.
 enum class C(val r: Int, val g: Int, val b: Int = r + 1) { X(g = 1, r = 2), Y(5, 6), Z(b = 9, g = 8, r = 7) }

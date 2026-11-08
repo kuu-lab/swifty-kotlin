@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class E {
     A, B
 }

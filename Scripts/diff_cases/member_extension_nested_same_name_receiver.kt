@@ -1,3 +1,4 @@
+// DIFF_JVM
 class A {
     class A
     fun A.foo(): String {

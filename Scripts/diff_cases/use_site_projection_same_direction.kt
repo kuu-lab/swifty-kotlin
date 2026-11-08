@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1381: a use-site `in` projection on an `in`-declared parameter is
 // redundant and keeps the contravariant direction (kotlinc: warning only).
 interface Sink<in T> { fun put(t: T) }

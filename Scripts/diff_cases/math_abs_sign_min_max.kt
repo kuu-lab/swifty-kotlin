@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.math.*
 
 // KSP-635: abs / sign / min / max overload matrix and the PI/E constants,

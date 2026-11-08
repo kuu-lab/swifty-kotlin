@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1061: source-owned Iterable.iterator retains lazy, throwing dispatch.
 private var calls = 0
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun mutate(values: MutableCollection<Char>) {
     println(values.add('c'))
     println(values.remove('b'))

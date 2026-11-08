@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Tokenizer
 class DefaultTokenizer : Tokenizer()
 abstract class Grammar<out T> {

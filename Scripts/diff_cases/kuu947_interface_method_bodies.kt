@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-947: block-bodied interface methods must be executable defaults.
 interface I {
     fun f(): Int { return 1 }

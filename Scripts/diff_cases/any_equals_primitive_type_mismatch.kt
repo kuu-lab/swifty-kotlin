@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: a local `val`/`var` widened to Any (e.g. `val x: Any = 42L`)
 // must box the initializer so its runtime representation carries real type
 // info. Comparing two different boxed primitive types with the same bit

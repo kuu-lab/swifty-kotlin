@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-198: the hot built-in signed range loop must keep KSP-452 iteration
 // semantics while avoiding the generic iterator dispatch in the lowered loop.
 fun main() {

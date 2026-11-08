@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-243: An object-literal member function must capture an immutable
 // property declared by the enclosing class's primary constructor.
 interface Probe {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     open class LBase(val b: Int) { open fun d() = "LBase$b"; fun callD() = d() }
     class LDer : LBase(9) { override fun d() = "LDer(" + super.d() + ")" }

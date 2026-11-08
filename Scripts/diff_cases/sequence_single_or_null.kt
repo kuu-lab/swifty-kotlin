@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(sequenceOf(42).singleOrNull() ?: -1)
     println(emptySequence<Int>().singleOrNull() ?: -1)

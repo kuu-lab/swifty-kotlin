@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println((1..5).reversed().toList())
     println((1..10 step 2).toList())

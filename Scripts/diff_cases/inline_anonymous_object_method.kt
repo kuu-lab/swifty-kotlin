@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun foo(noinline a: Int.() -> Unit) {
     a
 }

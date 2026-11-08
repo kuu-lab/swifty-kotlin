@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1231: inferred function references expose KCallable metadata and call.
 fun topFn(a: Int) = a + 1
 

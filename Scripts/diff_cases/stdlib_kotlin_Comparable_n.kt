@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Version(val value: Int) : Comparable<Version> {
     override fun compareTo(other: Version): Int = value.compareTo(other.value)
 }

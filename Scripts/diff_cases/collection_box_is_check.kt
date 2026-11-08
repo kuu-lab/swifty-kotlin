@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun checkIterator(value: Any) {
     println(value is Iterator<*>)
     println(value is Iterable<*>)

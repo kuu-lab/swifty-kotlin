@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val extreme = Comparator<Int> { a, b -> if (a == b) 0 else if (a < b) Int.MIN_VALUE else 1 }
     println(listOf(3, 1, 2).sortedWith(extreme))

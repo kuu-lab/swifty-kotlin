@@ -1,3 +1,4 @@
+// DIFF_JVM
 class TrackedMutableSet : MutableSet<Int> {
     val backing = mutableSetOf(1, 2, 3)
     var calls = ""

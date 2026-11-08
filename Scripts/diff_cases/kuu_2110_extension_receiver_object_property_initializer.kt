@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2110: object property initializers must read the enclosing extension receiver.
 interface B { val bar: String }
 

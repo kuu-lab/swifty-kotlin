@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3620: casting an Any? backing property to a generic value-class type
 // parameter must return the erased value without recursing at runtime.
 @JvmInline

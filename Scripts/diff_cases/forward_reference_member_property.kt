@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Forward {
     fun get(): Int = value
     var value = 10

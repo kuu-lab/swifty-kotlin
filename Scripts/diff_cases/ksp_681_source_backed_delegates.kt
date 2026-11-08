@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.Delegates
 
 var observed: Int by Delegates.observable(1) { _, old, new -> println("observed:$old->$new") }

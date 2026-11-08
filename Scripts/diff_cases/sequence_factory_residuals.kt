@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T : Any> retrySource(seed: () -> T?, next: (T) -> T?): Sequence<T> =
     generateSequence(seedFunction = seed, nextFunction = next)
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface CMap<K, V> : MutableMap<K, V> {
     fun remove(key: K, value: V): Boolean
     override fun remove(key: K): V?

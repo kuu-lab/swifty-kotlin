@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3172: primitive parameters of generic-base overrides must checkcast
 // the erased argument in the dispatch bridge; wrong types must throw
 // ClassCastException while correct-type calls still dispatch.

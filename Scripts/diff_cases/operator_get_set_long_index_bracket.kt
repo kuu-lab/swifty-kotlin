@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSWIFTK-BUG: `x[i]` bracket notation against an `operator fun get/set`
 // whose index parameter is a non-Int integer primitive (Long here) must
 // contextualize the bare integer literal index to that parameter type,

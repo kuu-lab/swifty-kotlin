@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val literal = "a.b\\E[c]"
     val pattern = Regex.escape(literal)

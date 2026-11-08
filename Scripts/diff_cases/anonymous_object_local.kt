@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val local = object {
         val value = 7

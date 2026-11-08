@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2092: erased argument checks must precede the body and preserve valid calls.
 open class Token(val n: Int)
 class SubToken(n: Int) : Token(n)

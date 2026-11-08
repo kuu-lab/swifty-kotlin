@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Interface
 
 operator fun Interface.invoke(): String = "OK"

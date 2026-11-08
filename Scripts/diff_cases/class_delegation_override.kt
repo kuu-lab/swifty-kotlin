@@ -1,3 +1,4 @@
+// DIFF_JVM
 // CLASS-008: Class delegation with override — override takes precedence over delegation
 
 interface Printer {

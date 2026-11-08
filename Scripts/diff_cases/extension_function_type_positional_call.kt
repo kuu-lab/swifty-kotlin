@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSWIFTK-SEMA-0002 regression: an extension-function-typed value
 // (`Int.(Int) -> Int`) rejected a bare call with the receiver passed as an
 // ordinary leading positional argument (`ef(3, 4)`), even though

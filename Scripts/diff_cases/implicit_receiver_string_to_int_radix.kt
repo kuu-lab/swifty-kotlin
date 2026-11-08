@@ -1,3 +1,4 @@
+// DIFF_JVM
 // An implicit-receiver `toInt(radix)` / `toLong(radix)` inside a String
 // extension must call String.toInt(radix), not convert the radix argument.
 fun String.parseImplicit(radix: Int): Int = toInt(radix)

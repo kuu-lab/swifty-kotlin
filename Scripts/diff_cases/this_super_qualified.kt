@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base { open fun greet() = "Base" }
 class Derived : Base() {
     override fun greet() = "Derived(${super.greet()})"

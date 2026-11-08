@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // let: transforms value, returns lambda result
     val letResult = 42.let { it * 2 }

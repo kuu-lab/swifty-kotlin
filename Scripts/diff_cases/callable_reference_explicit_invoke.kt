@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1723: explicit invocation uses the reference's function signature.
 fun add(a: Int, b: Int): Int = a + b
 fun subtract(a: Int, b: Int): Int = a - b

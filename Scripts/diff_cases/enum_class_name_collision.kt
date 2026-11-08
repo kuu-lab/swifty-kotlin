@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Outer1 {
     enum class Color { RED, GREEN }
 }

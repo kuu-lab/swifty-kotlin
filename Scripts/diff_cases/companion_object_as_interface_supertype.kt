@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Factory<T> { fun create(): T }
 class Widget(val id: Int) {
     override fun toString() = "W$id"

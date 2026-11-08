@@ -1,3 +1,4 @@
+// DIFF_JVM
 package ch03.ex1_1_CreatingCollectionsInKotlin
 
 val set = setOf(1, 7, 53)

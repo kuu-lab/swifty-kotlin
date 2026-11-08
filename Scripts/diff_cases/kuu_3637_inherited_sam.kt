@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Nested fun interface inherited through a *class* stays constructible by
 // simple name (KUU-3637 keeps class-inherited SAM construction working while
 // rejecting the interface-inherited form, which is compile-only).

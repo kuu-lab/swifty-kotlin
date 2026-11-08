@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Box<T>
 val cond = true
 class ImplA : Box<Any?>

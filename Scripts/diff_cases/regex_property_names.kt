@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4169: java.util.regex rejects \p{...} property names that ICU accepts
 // — case variants (\p{lower}), ICU-only property keys (scx=, age=, ccc=, ...),
 // bare binary property names (\p{Any}, \p{word}), and aliases

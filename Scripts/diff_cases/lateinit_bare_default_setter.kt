@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2452: A bare default setter must not become part of a lateinit property's type.
 class App {
     val context: Context = Context()

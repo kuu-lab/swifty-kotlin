@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f(endIndex: Long): Long = endIndex
 fun g(x: Long): Long {
     val e = when (x) { -1L -> 5L; 0L -> 101; else -> x - 1 }

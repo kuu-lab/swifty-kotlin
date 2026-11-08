@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("ff".toInt(16))
     println("1010".toInt(2))

@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class D(val id: Int) { var note = 0 }
 
 fun main() {

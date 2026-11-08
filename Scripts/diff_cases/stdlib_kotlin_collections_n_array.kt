@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty: ArrayList<String?> = arrayListOf()
     empty.add(null)

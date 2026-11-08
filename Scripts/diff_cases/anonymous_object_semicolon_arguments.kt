@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface J { fun f() = 1; fun g(): Int }
 
 fun id(value: J): J = value

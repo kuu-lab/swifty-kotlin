@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.Delegates
 
 open class A {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Widening and identity numeric conversions that have no runtime callee must
 // lower on every call shape. The member-call and safe-call lowerings keep their
 // own conversion tables, and these shapes used to fall out of one of them and

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KOTLINC_FLAGS: -Xjdk-release=17
 sealed class ParseResult<out T>
 abstract class Parsed<out T> : ParseResult<T>() { abstract val value: T }

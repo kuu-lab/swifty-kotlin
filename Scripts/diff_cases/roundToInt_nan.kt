@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 

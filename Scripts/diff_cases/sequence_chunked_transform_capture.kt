@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = sequenceOf(1, 2, 3, 4, 5)
     println(s.chunked(2) { it.sum() }.toList())

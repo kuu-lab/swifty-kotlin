@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic regex operations
     val regex = Regex("[a-z]+")

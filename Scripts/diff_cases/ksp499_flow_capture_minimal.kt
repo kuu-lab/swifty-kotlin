@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Minimal reproduction for a function-valued parameter used from a suspend
 // Flow-style collector lambda.
 

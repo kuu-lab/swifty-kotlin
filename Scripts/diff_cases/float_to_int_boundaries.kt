@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Double -> Int special values
     println(Double.NaN.toInt())

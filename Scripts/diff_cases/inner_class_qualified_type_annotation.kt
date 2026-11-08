@@ -1,3 +1,4 @@
+// DIFF_JVM
 // qualified inner-class type annotations keep the qualifier's type arguments
 class Outer<V : Any>(val initial: V) {
     inner class Values(val x: Int) {

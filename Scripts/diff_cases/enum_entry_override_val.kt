@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Entry bodies can override properties; interface properties implemented by
 // enum constructor properties dispatch through the interface type.
 enum class Op {

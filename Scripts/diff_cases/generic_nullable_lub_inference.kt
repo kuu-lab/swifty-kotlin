@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-673: inferring a generic type argument from a lambda whose body mixes a
 // non-null branch (String) with a nullable receiver slot (String?) must widen to
 // the shared nullable base (String?), not all the way to Any?. A wrong lub of

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-496 follow-up: a bare `::topLevelProperty` reference used to always
 // read back the property's value type's default instead of the actual
 // value (the underlying global was never actually written to, since a

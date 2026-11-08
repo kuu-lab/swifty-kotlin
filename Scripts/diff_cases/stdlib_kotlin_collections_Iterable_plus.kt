@@ -1,3 +1,4 @@
+// DIFF_JVM
 class CountingIterable(private val values: List<Int>) : Iterable<Int> {
     var iteratorCalls: Int = 0
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(generateSequence('A') { null }.toList())
     println(generateSequence('A') { if (it == 'A') 'B' else null }.toList())

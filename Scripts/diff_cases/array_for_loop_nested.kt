@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val nested = arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))
     for (row in nested) {

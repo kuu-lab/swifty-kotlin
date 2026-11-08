@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1589: expression spreads, named vararg arrays, and source-order evaluation.
 var events = ""
 

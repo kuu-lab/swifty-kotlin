@@ -1,3 +1,4 @@
+// DIFF_JVM
 const val C = "cd"
 val plainVal = "ab"
 object O { const val OC = "oc" }

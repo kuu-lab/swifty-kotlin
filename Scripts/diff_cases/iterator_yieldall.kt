@@ -1,3 +1,4 @@
+// DIFF_JVM
 class RetryNextIterator : Iterator<Int> {
     var calls = 0
     override fun hasNext(): Boolean = calls < 2

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // MutableMap.keys/.values must be live views over the map, not snapshots
 // taken at access time (MutableMap.entries was already live).
 fun main() {

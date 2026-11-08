@@ -1,3 +1,4 @@
+// DIFF_JVM
 import java.util.Arrays.sort
 
 fun main() {

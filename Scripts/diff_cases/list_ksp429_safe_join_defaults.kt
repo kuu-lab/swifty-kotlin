@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Minimal regression for source-backed joinToString defaults through a safe call.
 fun main() {
     val values: List<String>? = listOf("one", "two")

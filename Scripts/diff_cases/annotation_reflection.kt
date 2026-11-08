@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-REFLECT-065: Annotation Reflection
 // Tests annotation metadata access via KClass reflection APIs.
 import kotlin.reflect.full.findAnnotation

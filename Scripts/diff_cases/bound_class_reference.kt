@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KClass
 
 open class BoundBase {

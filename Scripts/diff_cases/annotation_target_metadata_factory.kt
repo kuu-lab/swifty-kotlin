@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2049: metadata factories retain the enum helpers used by vararg boxing.
 import kotlin.reflect.full.findAnnotation
 

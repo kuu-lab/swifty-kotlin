@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Solver {
     private abstract class Module(val name: String, val destinations: List<String>)
     private class A : Module("a", listOf("left"))

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun pipelineFor(
     context: Int,
     subject: Int,

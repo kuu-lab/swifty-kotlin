@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4042: Result.fold's R is shared by both transforms. It must stay open
 // until both lambda bodies are analysed, so the failure transform's return
 // type is not pinned by the success transform (was: KSWIFTK-SEMA-0469 on

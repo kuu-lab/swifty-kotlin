@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2024: applicable package and member operators retain their priority.
 class Counter {
     operator fun plusAssign(value: Int) { println("member: $value") }

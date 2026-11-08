@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3311: a member extension operator is in scope inside its receiver lambda.
 var res = "FAIL"
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: a statement starting with `::` (callable reference) must not be
 // glued onto the previous statement. Kotlin only continues `.`/`?.` across a
 // newline, never `::`, so `x\n::prop` parses as `x; ::prop`, not `x::prop`.

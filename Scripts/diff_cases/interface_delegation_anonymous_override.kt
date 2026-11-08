@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1053: source-declared anonymous overrides must remain delegation targets.
 interface J {
     fun f(): Int = 1

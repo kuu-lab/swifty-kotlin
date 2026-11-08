@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Config {
     lateinit var name: String
 

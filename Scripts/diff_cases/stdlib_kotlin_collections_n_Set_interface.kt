@@ -1,3 +1,4 @@
+// DIFF_JVM
 class ProbeSet(private val values: List<Int>) : Set<Int> {
     override val size: Int
         get() = values.size

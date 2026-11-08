@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2299: expected result types reach nested lambdas through overloaded generic calls.
 // The first case reproduces JetBrains Kotlin's lambdaAsLastExpressionInLambda.kt.
 val foo: ((String) -> String) = run {

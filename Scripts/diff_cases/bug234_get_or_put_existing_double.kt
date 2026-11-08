@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val fromPairs = mutableMapOf("pair" to 2.5)
     println(fromPairs.getOrPut("pair") { 9.5 })

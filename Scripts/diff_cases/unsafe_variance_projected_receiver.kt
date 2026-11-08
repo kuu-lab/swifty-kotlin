@@ -1,3 +1,4 @@
+// DIFF_JVM
 class A<out K> {
     fun foo(x: @UnsafeVariance K): K = x
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun firstNonLocal(source: CharSequence): Char {
     source.first {
         if (it == 'x') return '!'

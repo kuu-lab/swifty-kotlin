@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-141: reading an interface's stored/abstract property through an
 // interface-typed receiver (object expression, named class, function
 // parameter, or custom getter) must dispatch to the implementing getter via

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class A {
     val initialSize = xs.size
     val initialCallSize = loadXs().size

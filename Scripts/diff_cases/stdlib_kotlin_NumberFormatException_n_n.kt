@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val noArg = NumberFormatException()
     val message = NumberFormatException("bad number")

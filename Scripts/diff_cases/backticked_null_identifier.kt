@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1267: escaped null is a name, while bare null remains a literal.
 fun read(`null`: Int): Int = `null` + 1
 

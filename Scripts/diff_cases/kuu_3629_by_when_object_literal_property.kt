@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3629: a by-when delegation inside a top-level property initializer must
 // keep the when body and the object literal body in the initializer expression.
 interface C { fun f(): String }

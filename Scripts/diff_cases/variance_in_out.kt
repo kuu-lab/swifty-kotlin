@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Producer<out T>(private val value: T) { fun get(): T = value }
 class Consumer<in T> { fun accept(value: T) = println("accepted: $value") }
 fun main() {

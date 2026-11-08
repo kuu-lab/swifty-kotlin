@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val unrelated: () -> Int = { 30 }
     fun local(): Int {

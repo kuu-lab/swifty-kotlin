@@ -1,3 +1,4 @@
+// DIFF_JVM
 sealed interface Shape
 data class Circle(val radius: Double) : Shape
 data class Rectangle(val w: Double, val h: Double) : Shape

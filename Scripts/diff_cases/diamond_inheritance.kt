@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface A {
     fun greet(): String = "A"
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> two(a: T, b: T, f1: (T) -> Comparable<*>?, f2: (T) -> Comparable<*>?): Int {
     return compareValuesBy(a, b, f1, f2)
 }

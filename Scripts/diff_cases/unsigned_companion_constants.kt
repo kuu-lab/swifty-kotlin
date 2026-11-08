@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(UInt.MAX_VALUE)
     println(UInt.MIN_VALUE)

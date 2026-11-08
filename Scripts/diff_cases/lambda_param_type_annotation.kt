@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun interface Cmp<T> {
     fun compare(a: T, b: T): Int
 }

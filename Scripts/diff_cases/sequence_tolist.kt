@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(sequenceOf(3, 1, 2, 1, 3).toList())
     println(emptySequence<Int>().toList())

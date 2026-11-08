@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2953: a bound property reference formed inside an enum entry must read
 // the entry's ordinal-backed storage, not a never-written field/global slot.
 enum class X {

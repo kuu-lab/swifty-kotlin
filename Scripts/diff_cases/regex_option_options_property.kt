@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // KSP-1438: Regex.options must decode every reordered RegexOption ordinal.
     val literal = Regex("a", RegexOption.LITERAL)

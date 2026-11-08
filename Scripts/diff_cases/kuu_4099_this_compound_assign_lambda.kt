@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Counter(var v: Int) {
     operator fun plusAssign(x: Int) { v += x }
 }

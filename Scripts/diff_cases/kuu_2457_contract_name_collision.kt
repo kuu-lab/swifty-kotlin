@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Foo(open val x: Boolean)
 class Bar : Foo(false) { val y = "OK" }
 

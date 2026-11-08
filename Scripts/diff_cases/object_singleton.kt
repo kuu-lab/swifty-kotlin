@@ -1,3 +1,4 @@
+// DIFF_JVM
 object Counter {
     var n: Int = 0
     fun increment() { n = n + 1 }

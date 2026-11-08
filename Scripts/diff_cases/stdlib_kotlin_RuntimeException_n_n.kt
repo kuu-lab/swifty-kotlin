@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val message: String? = "runtime"
     val cause: Throwable? = Exception("cause")

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression for KUU-3689. A function-value adapter param whose type is a
 // concrete non-null primitive still goes through the erased-boundary
 // checkcast; argument normalization boxes that operand, so the adapter must

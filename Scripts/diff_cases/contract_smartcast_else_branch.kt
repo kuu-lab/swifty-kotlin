@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3935: a contract smart cast (`require`) inside an `else` branch must
 // survive an intervening `check` call — the post-call contract state must not
 // re-widen the local to its pre-branch type (okio FileHandle.reposition).

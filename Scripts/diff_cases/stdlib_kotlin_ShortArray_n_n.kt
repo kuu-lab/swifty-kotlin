@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val sizeOnly = ShortArray(3)
     println(sizeOnly.size)

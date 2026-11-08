@@ -1,3 +1,4 @@
+// DIFF_JVM
 class CustomIterable(private val value: Int) : Iterable<Int> {
     override fun iterator(): Iterator<Int> = listOf(value).iterator()
 }

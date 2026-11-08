@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-274: a nested `object` (inside a class, not a companion) that inherits
 // a class must still run its lazy clinit-equivalent -- including the
 // implicit superclass constructor call -- before an *external*,

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4079: receiver-lambda DSL type inference must solve the outer type
 // variable from a member-extension call inside the lambda body
 // (kotlin-result's `binding { result.bind() }` shape). `bind`'s declared

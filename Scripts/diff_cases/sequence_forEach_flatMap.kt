@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     sequenceOf(1, 2, 3).forEach { print(it) }
     println()

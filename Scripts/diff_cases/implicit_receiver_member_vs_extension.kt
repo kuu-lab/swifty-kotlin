@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Counter(var value: Int) {
     fun compareAndSet(expected: Int, newValue: Int): Boolean {
         if (value != expected) return false

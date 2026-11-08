@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val ia = IntArray(3) { it + 1 }
     println(ia[0])

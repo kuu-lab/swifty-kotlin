@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1934: Inapplicable factories must not prevent a valid SAM constructor.
 // KOTLINC_FLAGS: -Xjdk-release=17
 fun interface Fallback { fun apply(value: Char): Int }

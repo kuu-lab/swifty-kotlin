@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class Arrays(val ints: IntArray, val strings: Array<String>)
 data class NullableArrays(val ints: IntArray?, val strings: Array<String>?)
 

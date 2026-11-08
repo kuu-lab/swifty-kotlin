@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A value class wrapping a nullable reference (String?) erases to its payload
 // type, so a non-null wrapper holding a null payload must NOT be conflated with
 // Kotlin null at V?/Any/generic boundaries: `V(null) == null` is false,

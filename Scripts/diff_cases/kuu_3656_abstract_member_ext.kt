@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3656: an abstract member extension declared on an interface must be
 // implemented by concrete implementors — member extensions and regular members
 // are distinct override families, so `Any.toString()` never satisfies an

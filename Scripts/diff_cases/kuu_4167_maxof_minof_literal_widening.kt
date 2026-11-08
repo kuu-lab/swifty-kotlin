@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4167: an unsuffixed integer literal adapts to the wider primitive
 // parameter of the selected minOf/maxOf overload, matching kotlinc.
 fun main() {

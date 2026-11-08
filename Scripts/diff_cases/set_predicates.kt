@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val set = setOf(2, 4, 6, 8)
     println(set.all { it % 2 == 0 })   // true

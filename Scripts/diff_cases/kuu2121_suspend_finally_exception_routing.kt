@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine

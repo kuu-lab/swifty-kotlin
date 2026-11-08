@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2027: Same-line, explicit, no-constructor, and supertype body controls.
 open class Base
 interface First

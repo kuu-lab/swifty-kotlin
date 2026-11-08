@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1254: synthesized value-class rendering must retain nominal identity.
 @JvmInline value class VC(val v: Int)
 @JvmInline value class VC2(val v: Int) { override fun toString() = "custom$v" }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = shortArrayOf()
     val values = shortArrayOf(1, -2, 32767, -32768)

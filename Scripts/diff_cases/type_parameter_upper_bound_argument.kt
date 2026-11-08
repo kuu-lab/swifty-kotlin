@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1287: nested upper bounds must remain available at ordinary call sites.
 class Host {
     interface Slot {

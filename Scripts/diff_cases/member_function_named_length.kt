@@ -1,3 +1,4 @@
+// DIFF_JVM
 class NameBox(val name: String?) {
     fun length() = name?.let { it.length }
 }

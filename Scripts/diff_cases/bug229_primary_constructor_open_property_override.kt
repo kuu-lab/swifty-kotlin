@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base(open val p: String)
 
 class Derived(p: String) : Base(p) {

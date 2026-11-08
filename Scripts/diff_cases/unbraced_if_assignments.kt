@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun choose(flag: Boolean): Int {
     var value = 0
     if (flag) value = 1 else value = 2

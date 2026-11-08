@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Status(val code: Int) {
     OK(200)
 }

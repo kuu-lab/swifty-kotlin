@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T, C : MutableCollection<T>> appendOne(destination: C, value: T): C {
     destination.add(value)
     return destination

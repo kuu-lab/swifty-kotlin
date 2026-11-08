@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3670: a raw write through a wrongly-parameterized generic base stores
 // the foreign value; the typed `var x: T?` read must checkcast the erased
 // getter result (kotlin/testData/codegen/box/bridges/test21.kt).

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val first = Any()
     val second = Any()

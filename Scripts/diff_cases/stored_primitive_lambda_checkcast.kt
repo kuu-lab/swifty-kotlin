@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val flag: (Boolean) -> String = { if (it) "T" else "F" }
     println(flag(true) + flag(false))

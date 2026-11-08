@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-inner-outer: an object literal nested two `inner class` levels deep
 // capturing/calling/assigning the outermost class's members -- by bare name,
 // by `this@Label`, as a method call with arguments, as an assignment target,

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Data class copy() edge cases:
 // - simple data class
 // - data class with default values

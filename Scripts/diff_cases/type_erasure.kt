@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Demonstrates Kotlin generic type erasure behaviour.
 //
 // At runtime, generic type arguments are erased.  The JVM (and this compiler)

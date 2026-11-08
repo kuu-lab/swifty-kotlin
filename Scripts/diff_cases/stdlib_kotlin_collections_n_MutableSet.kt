@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun acceptSet(values: Set<Int>): Boolean = values.contains(4) && values.size == 3
 
 fun acceptMutableCollection(values: MutableCollection<Int>): Boolean {

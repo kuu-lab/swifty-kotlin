@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun interface Parser<out T> { fun parse(source: String): T }
 class State {
     fun <T> Parser<T>.parse(): T = parse("")

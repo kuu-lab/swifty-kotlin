@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-224: comparison operators on an erased `T : Comparable<T>` receiver
 // must dispatch to `compareTo` even when the only path to it is an
 // interface's own default implementation (`Ranked` here), never overridden

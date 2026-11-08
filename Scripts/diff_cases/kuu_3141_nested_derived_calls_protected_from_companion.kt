@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3141: Adapted from Kotlin 2.3.10's pinned
 // compiler/testData/codegen/box/objects/nestedDerivedClassCallsProtectedFromCompanion.kt.
 // Upstream commit: 679366a83f99851b42f64795f10ed803ff011c73

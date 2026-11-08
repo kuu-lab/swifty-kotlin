@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A statically enum-typed value renders as its entry name when interpolated or
 // concatenated, not as the bare ordinal its KIR representation carries.
 //

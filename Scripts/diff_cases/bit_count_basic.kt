@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-643: Int/Long countOneBits / countLeadingZeroBits / countTrailingZeroBits.
 // BUG-015: the Long variants used to be dropped between Sema and KIR.
 fun main() {

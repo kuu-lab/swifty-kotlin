@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A user-defined `size` / `isEmpty` property with a custom getter must be read
 // through that getter even when referenced via the implicit receiver inside the
 // declaring class. The built-in collection shortcuts (kk_collection_size /

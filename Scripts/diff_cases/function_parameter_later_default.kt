@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1954: Parenthesized callable arguments retain positional binding when a later callable defaults.
 fun l(f: (String) -> String, g: (String) -> String = { it }) = f("x")
 fun f(x: Int, g: (Int) -> Int = { it }): Int = g(x)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 var backing: String = "init"
 
 fun assignNext(value: String) {

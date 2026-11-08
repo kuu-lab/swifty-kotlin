@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val generated = generateSequence(1) { current -> if (current >= 3) null else current + 1 }
     println(generated.take(2).toList())

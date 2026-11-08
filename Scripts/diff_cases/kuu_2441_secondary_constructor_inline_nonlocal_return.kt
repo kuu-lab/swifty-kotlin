@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun run2(block: () -> Unit) = block()
 
 class A {

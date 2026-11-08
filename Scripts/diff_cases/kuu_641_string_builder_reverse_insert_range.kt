@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-641: StringBuilder.reverse() keeps surrogate pairs, and insertRange
 // accepts a StringBuilder CharSequence without ClassCastException.
 fun main() {

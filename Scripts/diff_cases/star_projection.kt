@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Box<T>
 
 fun accept(box: Box<*>) {

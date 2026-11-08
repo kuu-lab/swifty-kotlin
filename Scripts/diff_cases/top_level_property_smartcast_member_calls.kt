@@ -1,3 +1,4 @@
+// DIFF_JVM
 val G: Any = 'A'
 
 fun main() {

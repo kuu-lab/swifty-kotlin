@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println((1..4).first())
     println((1..4).last())

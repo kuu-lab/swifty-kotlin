@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Kotlin-valid object members in an inner class super constructor argument.
 interface Callback { fun value(): String }
 open class Base(val callback: Callback)

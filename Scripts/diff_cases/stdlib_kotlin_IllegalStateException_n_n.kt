@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val noArg = IllegalStateException()
     val message = IllegalStateException("message")

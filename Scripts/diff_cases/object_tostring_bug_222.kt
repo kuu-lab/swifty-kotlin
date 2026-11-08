@@ -1,3 +1,4 @@
+// DIFF_JVM
 object Singleton {
     override fun toString(): String = "I am Singleton"
 }

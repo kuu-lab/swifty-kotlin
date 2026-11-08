@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val p = 1 to "one"
     println(p)

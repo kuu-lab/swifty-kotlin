@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-165: two or more top-level properties initialized with a branching
 // expression used to crash codegen (duplicate KIR labels injected into main).
 val a = if (1 > 2) 1 else 2

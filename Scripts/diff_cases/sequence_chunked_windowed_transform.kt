@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val seq = sequenceOf(1, 2, 3, 4, 5)
 

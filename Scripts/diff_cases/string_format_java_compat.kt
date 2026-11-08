@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("%g".format(0.0001234))
     println("%f".format(Double.NaN))

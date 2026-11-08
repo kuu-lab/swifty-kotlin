@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var counter = 1
     val increment: () -> Int = { counter++ }

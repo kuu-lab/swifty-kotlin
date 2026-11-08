@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun describe(obj: Any): String = when (obj) {
     is Int -> "Int: ${obj + 1}"
     is String -> "String of length ${obj.length}"

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = "hello world"
     println(s.slice(0..4))          // hello

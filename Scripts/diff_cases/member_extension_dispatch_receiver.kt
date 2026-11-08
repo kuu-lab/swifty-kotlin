@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Offset(private val offset: Int) {
     fun Int.plusOffset(): Int = this + offset
     fun Int.withDefault(extra: Int = offset): Int = this + extra + offset

@@ -1,3 +1,4 @@
+// DIFF_JVM
 @JvmInline value class RefValue(val ref: Holder)
 class Holder(val name: String)
 

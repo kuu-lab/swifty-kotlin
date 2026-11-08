@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3795: a call-result infix receiver (`f() op operand`) must not
 // swallow the following statement. The pending-infix parity count treated
 // `f` and `()` as two elements, so a complete `f() op x` line looked like

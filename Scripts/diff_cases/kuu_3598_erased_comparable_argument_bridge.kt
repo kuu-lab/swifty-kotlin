@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3598: an unchecked Comparable<Any> cast must still dispatch through the
 // Foo.compareTo bridge, which checks the erased argument against Foo.
 class Foo(val s: String) : Comparable<Foo> {

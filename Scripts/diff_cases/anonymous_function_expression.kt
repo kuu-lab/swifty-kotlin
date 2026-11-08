@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-B: anonymous function expressions `fun(params): RetType { body }`.
 // Unlike a lambda literal, `return` inside an anonymous function always
 // returns from the anonymous function itself (never a non-local return to

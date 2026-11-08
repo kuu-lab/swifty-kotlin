@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic associateWith on list of integers
     val numbers = listOf(1, 2, 3, 4, 5)

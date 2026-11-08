@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3771: an erased-ABI property read (`val i: T`) on a generic value class
 // must claim the unboxed payload, not re-tag the payload as the value class —
 // the KUU-3670 claim checkcast (kk_op_cast against the erased bound) then

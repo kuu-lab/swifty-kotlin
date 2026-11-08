@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val builder = StringBuilder("A\uD83D\uDE00B")
     println(builder.length)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun box() = Class().printSome()
 
 public abstract class AbstractClass<T> {

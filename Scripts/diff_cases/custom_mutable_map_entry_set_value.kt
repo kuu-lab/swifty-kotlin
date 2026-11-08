@@ -1,3 +1,4 @@
+// DIFF_JVM
 class CustomEntry(override val key: String, initial: Int) : MutableMap.MutableEntry<String, Int> {
     override val value: Int get() = stored
     private var stored: Int = initial

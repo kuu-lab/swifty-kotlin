@@ -1,3 +1,4 @@
+// DIFF_JVM
 package nullassertreference
 
 class Node(val value: Int, val next: Node?)

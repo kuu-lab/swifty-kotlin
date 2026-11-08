@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Box(var x: Int)
 
 var Box.y: Int

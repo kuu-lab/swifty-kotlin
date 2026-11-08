@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class Box
 private var calls = 0
 private fun create(): Box { calls++; return Box() }

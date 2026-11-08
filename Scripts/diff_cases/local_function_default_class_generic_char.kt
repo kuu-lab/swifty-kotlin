@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Test<T: Char>(val k: T) {
     fun test(): String {
         fun nested(x: T = k): String = "O$x"

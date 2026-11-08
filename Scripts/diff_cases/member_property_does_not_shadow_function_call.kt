@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3913: a non-callable member property never occupies the callable
 // namespace, so `name()` resolves the same-named outer-tier function
 // (ktor-http `allStatusCodes`). A function-typed member stays callable and

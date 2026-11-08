@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Shape { fun area(): Int }
 interface Named { val label: String }
 abstract class Base : Shape { override fun toString() = "Base:" + area() }

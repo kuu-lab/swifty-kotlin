@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3248: a `by`-delegated implementation satisfies abstract members with a
 // matching signature on sibling interfaces, not just on the delegated
 // interface's own closure.

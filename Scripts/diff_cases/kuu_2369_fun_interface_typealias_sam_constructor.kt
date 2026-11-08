@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun interface KRunnable {
     fun invoke()
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // DEBT-KIR-004 regression: bitwise operators must not drop an operand that
 // was bound (via a `val`) to the result of a preceding function call,
 // regardless of which side of the operator it appears on.

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Visible
 
 class Box : Visible {

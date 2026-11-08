@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3128 / KT-54645: a companion object's superclass clause resolves
 // nested classifiers inherited through the enclosing class's superclass
 // chain. The bound edge makes the companion a subtype of the inherited

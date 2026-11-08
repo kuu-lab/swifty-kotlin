@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Long: static type
     println((1L shl 40).hashCode())

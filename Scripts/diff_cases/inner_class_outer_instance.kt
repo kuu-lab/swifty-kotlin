@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Outer(val x: Int) {
     var counter = 0
 

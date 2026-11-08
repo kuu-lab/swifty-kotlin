@@ -1,3 +1,4 @@
+// DIFF_JVM
 class D(
     private val convertTo: Int.() -> String,
     private val convert: String.() -> Int

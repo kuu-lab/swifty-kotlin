@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4351: a non-null Nothing operand is a subtype of every operator
 // parameter, so kotlinc keeps only uniquely-resolvable overloads — the
 // unsigned receivers and Char's plus/compareTo accept it while signed and

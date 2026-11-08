@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3172 regression adapted from Kotlin 2.4.20 bridges/test22.kt.
 open class Base<T> {
     open fun foo(x: T): Int = 42

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class JavaClassIdentityBox(val value: Int)
 
 fun main() {

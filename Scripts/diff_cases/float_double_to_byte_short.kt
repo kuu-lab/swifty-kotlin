@@ -1,3 +1,4 @@
+// DIFF_JVM
 @file:Suppress("DEPRECATION_ERROR")
 fun main() {
     println(300.9f.toByte())

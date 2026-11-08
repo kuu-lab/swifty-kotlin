@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println('A'.plus(2))
     println('A'.minus(1))

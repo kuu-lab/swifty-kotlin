@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val r = Regex("(\\d+)-(\\d+)")
     println(r.replace("1-2 3-4") { it.groupValues[1] + "+" + it.groupValues[2] })

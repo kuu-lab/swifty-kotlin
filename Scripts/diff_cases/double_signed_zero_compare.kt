@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println((-0.0).compareTo(0.0))
     println((0.0).compareTo(-0.0))

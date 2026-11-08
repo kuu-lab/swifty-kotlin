@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Choice { FIRST, SECOND }
 data class Box(val value: Int)
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = mutableListOf(1, 2, 3, 4)
     list -= 2

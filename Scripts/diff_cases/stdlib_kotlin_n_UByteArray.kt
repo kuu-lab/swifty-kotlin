@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values = UByteArray(4) { (it + 1).toUByte() }
     println(values.size)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4089: a `;` inside a trailing lambda used as a when-branch body must
 // stay inside the lambda. A top-level-looking `;` once ended the entry early,
 // so `g { h(1); h(2) }` misparsed the `}` and the remaining entries failed.

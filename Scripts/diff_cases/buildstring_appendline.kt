@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = buildString {
         appendLine("hello")

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class ConstructorFields {
     val immutable: Int
     var mutable: Int

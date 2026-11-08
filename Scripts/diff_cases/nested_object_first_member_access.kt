@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base(val flag: Boolean, val num: Int)
 class Holder {
     object O : Base(true, 42)

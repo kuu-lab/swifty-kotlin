@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3769: a member typealias can reference a nested type declared in the
 // same class body by its unqualified name — the kotlinx-cli ArgParser.kt:215
 // pattern (`typealias OPTION_PREFIX_STYLE = OptionPrefixStyle` where

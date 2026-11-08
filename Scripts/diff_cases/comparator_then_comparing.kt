@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1302: JVM-compatible binary-lambda comparator composition.
 fun main() {
     val natural = naturalOrder<Int>()

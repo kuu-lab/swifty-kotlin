@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Zero: all 32 bits are zero
     println(0.countTrailingZeroBits())

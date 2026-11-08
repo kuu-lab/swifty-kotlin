@@ -1,3 +1,4 @@
+// DIFF_JVM
 class CovariantBox<out T>(val value: T) {
     fun accept(value: @UnsafeVariance T): T = value
 }

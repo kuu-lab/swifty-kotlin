@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-231: Static non-null numeric values whose raw bits equal the null
 // sentinel must retain their Kotlin hashCode; nullable nulls must stay zero.
 fun main() {

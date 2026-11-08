@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface InvokeTarget
 operator fun InvokeTarget.invoke(): String = "extension"
 class ExtensionTarget : InvokeTarget

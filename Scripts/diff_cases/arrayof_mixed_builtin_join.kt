@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Integer-family joins stay unified: unsuffixed literals adopt the
     // widest member, so these are not intersections on the JVM either.

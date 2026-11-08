@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Point(val x: Int, val y: Int)
 
 fun Point(value: Int): Point = Point(value, value)

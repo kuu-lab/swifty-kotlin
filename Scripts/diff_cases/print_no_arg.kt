@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     print("hello")
     println()

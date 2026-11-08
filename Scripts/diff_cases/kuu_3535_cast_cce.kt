@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3535 / KUU-3539: an erased `as T` cannot verify itself, so the
 // checkcast belongs where the erased value is claimed at a concrete type —
 // the generic call result and the FunctionN invoke bridge. A wrong-type

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-OP-031: Comparison operator overloading for custom classes
 
 class Temperature(val degrees: Double) : Comparable<Temperature> {

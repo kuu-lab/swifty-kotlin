@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Nested lambda captures
     val x = 10

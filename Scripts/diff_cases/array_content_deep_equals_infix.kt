@@ -1,3 +1,4 @@
+// DIFF_JVM
 // contentDeepEquals must be callable with infix syntax (KUU-1417).
 fun main() {
     val a1: Array<Any?> = arrayOf(arrayOf(1, 2), arrayOf(3))

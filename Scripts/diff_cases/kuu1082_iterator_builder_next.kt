@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1082: .next() on iterator {} builder results
 // (KIR verifier: expression read but never defined; exhaustion must throw
 // a catchable NoSuchElementException, not panic)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KProperty
 class ValueDelegate
 operator fun ValueDelegate.getValue(thisRef: Any?, property: KProperty<*>): Int = 1

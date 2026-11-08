@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Primary constructor parameters declared without `val`/`var` (e.g. `class Foo(seed: Int)`)
 // don't become members, so unlike val/var-backed parameters they aren't reachable through
 // classScope. Kotlin still scopes them to property initializers and `init {}` blocks in the

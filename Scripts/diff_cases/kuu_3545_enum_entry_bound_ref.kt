@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3545: a bound callable reference `::member` inside an enum entry body
 // resolves through the entry's implicit receiver. Members declared on the
 // entry's own anonymous class (extra stored properties and non-override

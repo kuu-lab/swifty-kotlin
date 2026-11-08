@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // reduce on non-empty list
     val sum = listOf(1, 2, 3, 4).reduce { acc, e -> acc + e }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1325: seeded callbacks receive the previous value and null ends traversal.
 fun nextValue(value: Int): Int? = if (value < 8) value * 2 else null
 

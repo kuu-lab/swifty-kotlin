@@ -1,3 +1,4 @@
+// DIFF_JVM
 var doubled: Int = 5
     get() = field * 2
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3592: invoking an extension-function parameter captured by an anonymous
 // object must keep the function-value invoke dispatch through its member body.
 class Bar

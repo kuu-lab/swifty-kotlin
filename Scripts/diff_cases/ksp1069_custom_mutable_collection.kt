@@ -1,3 +1,4 @@
+// DIFF_JVM
 class TrackedCollection : MutableCollection<Int> {
     val backing = mutableListOf(1, 2, 2, 3)
     var calls: String = ""

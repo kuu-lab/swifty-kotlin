@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val arr = IntArray(2)
     arr[0] = 3

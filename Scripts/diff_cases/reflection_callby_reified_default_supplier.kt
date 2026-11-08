@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.KFunction
 
 inline fun <reified T> defaultArray(supplier: () -> Array<T> = { emptyArray<T>() }): Array<T> = supplier()

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     try {
         println("Outer try")

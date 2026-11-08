@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: prefix increment/decrement results must retain their unsigned
 // value and runtime type when returned through Any?.
 private var byteProperty: UByte = 0u

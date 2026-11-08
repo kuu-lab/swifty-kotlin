@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = longArrayOf()
     val values = longArrayOf(1L, -2L, 9223372036854775807L)

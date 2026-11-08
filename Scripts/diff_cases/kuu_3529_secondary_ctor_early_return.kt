@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3529: an early `return` inside a secondary constructor must leave the
 // constructed instance, not Unit — a bare `return` used to produce a Unit
 // result, so the caller saw a garbage receiver and reading `prop` trapped.

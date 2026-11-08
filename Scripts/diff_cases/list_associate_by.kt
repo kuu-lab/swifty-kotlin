@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val words = listOf("apple", "banana", "cherry")
     println(words.associateBy { it.length })

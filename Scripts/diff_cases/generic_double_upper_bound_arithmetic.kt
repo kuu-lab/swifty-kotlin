@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T : Double> f(v: T) = v * v
 fun <T : Double> g(v: T): Double = v * 1.0
 

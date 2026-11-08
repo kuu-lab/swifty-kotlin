@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Box(var n: Int, var s: String)
 class Holder(val box: Box) {
     fun bump(): Int {

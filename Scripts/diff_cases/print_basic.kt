@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-614: kotlin.io.print / println are implemented in Kotlin
 // (Stdlib/kotlin/io/Console.kt) on top of the single __kk_print_raw bridge.
 enum class Color { RED, GREEN }

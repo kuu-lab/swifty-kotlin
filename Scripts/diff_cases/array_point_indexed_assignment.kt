@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2028: preserve the resolved Point-indexed Array.set extension.
 data class Point(val x: Int, val y: Int)
 operator fun Array<CharArray>.set(at: Point, c: Char) {

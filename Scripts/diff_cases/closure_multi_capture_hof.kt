@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Two captures in map
     val base = 100

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2267: Elvis should preserve Number as the common type of a nullable
 // type parameter and the Int fallback, while an unguarded nullable-bound call
 // remains invalid in the Sema regression test.

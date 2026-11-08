@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-441: source 実装の transform をネストさせたケース。内側の map/flatMap は
 // 外側のラムダ本体が inline 展開された後に初めて現れるため、inline lowering を
 // 1 回しか回さないと `undefined reference to 'map'` でリンクに失敗していた。

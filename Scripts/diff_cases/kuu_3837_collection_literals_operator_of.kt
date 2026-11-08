@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KOTLINC_FLAGS: -Xcollection-literals
 class MyList(val data: String) {
     companion object {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val r = Regex("a.c")
     println(r in "abc")

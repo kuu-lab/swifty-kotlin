@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1920: value-parameter annotations on secondary constructors must stay on parameters.
 @Target(AnnotationTarget.VALUE_PARAMETER)
 annotation class Language(val value: String, val prefix: String, val suffix: String)

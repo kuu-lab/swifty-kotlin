@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2434: Adapt non-suspend function values to suspend SAM parameters.
 // Source: JetBrains/Kotlin v2.3.10 at 679366a83f99851b42f64795f10ed803ff011c73,
 // compiler/testData/codegen/box/sam/constructors/suspendSamConstructorAdaptation.kt

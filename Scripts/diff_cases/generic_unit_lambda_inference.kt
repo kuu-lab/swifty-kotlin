@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-677: a generic higher-order function `fun <T> f(action: () -> T): T` must infer T
 // from the lambda body, including a Unit-valued body. Previously the unresolved type
 // parameter was pushed down as the lambda body's expected type, so a Unit-bodied lambda

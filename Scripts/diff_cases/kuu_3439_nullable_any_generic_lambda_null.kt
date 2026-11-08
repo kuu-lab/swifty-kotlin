@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3439: reading the nullable Any? payload from a value class returned via
 // a generic lambda must compare the payload with null without reboxing the class.
 @JvmInline

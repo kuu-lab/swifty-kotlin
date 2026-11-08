@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface A<T> { var v: T }
 class B : A<String> { override var v: String = "x" }
 

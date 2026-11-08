@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Holder private constructor(msb: Long, lsb: Long) {
     companion object {
         private val state: HelperState = HelperState()

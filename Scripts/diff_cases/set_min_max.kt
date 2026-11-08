@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val set = setOf(3, 1, 4, 1, 5, 9, 2, 6)
     println(set.minOrNull())  // 1

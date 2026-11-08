@@ -1,3 +1,4 @@
+// DIFF_JVM
 class P(val x: Int)
 
 fun main() {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // DIFF_LINE_PATTERN: Plain@[0-9a-f]+
 // KUU-4455: println/print on a singleton object without its own toString()
 // must render the JVM default Any.toString() identity `Name@hash`, not the

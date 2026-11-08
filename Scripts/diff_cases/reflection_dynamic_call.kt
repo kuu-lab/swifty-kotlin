@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun add(a: Int, b: Int): Int = a + b
 fun greet(name: String): String = "Hello, $name!"
 fun sum3(a: Int, b: Int, c: Int): Int = a + b + c

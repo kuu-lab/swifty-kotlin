@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-946: a same-named member only shadows extension functions while some
 // member is applicable to the call. Members with a different signature, and
 // members the caller cannot access, must not hide the extensions.

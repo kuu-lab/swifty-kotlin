@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class P {
     class Q : P()
     object O : P()

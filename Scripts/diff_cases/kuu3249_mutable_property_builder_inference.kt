@@ -1,3 +1,4 @@
+// DIFF_JVM
 class UserKlass
 
 class Buildee<T> {

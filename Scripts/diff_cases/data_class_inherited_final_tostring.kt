@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2366: a data class must inherit a final superclass toString(), while open or
 // absent implementations still allow the generated data-class representation.
 abstract class FinalBase {

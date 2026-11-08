@@ -1,3 +1,4 @@
+// DIFF_JVM
 class X {
     var value = ""
 

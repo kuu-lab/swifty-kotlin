@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val a: Array<List<Int>> = arrayOf(listOf(4, 5), listOf(6))
     println(a.size)

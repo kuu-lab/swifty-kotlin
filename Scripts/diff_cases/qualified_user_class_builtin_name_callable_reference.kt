@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4163: user-defined classifiers whose names collide with primitive or
 // builtin type names must keep their own identity in qualified type
 // positions and callable references. `foo.Int`, `Outer.Int`, and bare `Int`

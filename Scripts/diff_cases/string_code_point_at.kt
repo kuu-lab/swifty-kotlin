@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2038: String.codePointAt uses UTF-16 indices, including malformed pairs.
 import java.lang.StringIndexOutOfBoundsException
 

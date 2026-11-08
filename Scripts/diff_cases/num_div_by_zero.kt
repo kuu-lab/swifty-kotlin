@@ -1,3 +1,4 @@
+// DIFF_JVM
 // SPEC-NUM-0002: integer division/remainder by zero throws ArithmeticException.
 // Floating-point division by zero produces Infinity/NaN (IEEE 754).
 fun main() {

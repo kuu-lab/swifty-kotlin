@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3784: a boxed -0.0 stored in Any must equal an identical -0.0 under
 // `==` and `.equals` (JVM: true). Non-const top-level vals fold their
 // literal initializer into read sites; the raw -0.0 bits are the runtime

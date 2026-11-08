@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun viaIf(c: Boolean): Int {
     val x: Int
     if (c) {

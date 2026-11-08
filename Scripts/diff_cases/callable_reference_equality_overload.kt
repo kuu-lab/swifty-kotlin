@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f(value: Int): Int = 0
 fun f(value: String): String = ""
 fun g(value: Int): Int = 0

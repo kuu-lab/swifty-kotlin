@@ -1,3 +1,4 @@
+// DIFF_JVM
 val syncProp: String by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
     println("computing sync")
     "synchronized"

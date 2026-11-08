@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class UIntHolder(val value: UInt)
 data class UByteHolder(val value: UByte)
 data class UShortHolder(val value: UShort)

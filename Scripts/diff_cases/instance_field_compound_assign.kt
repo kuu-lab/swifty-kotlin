@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Counter(private var addend: Int) {
     fun bump(): Int {
         addend += 362437

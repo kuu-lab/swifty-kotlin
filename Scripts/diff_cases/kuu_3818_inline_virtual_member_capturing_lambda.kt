@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3818: an `inline` member function reached through virtual dispatch is
 // never inlined, so a capturing lambda argument must be materialized to the
 // boxed function-value ABI. Passing the raw lambda symbol across the vtable

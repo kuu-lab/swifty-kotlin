@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2091: Adapted from Kotlin 2.3.10 compiler/testData/codegen/box/bridges/test4.kt.
 interface Z {
     fun foo(): Any

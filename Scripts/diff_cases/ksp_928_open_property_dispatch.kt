@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class DirectRead {
     open val p: Int = 5
 }

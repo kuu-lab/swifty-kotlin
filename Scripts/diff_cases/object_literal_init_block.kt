@@ -1,3 +1,4 @@
+// DIFF_JVM
 // `init {}` blocks inside an object expression run at construction, interleaved
 // with property initializers in declaration order.
 interface G { fun greet(): String }

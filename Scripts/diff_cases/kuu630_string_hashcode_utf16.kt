@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-630: String.hashCode() is defined over UTF-16 code units with 32-bit
 // wrapping accumulation (h = 31*h + unit). A supplementary-plane character
 // counts as its surrogate pair (two units), and the running total must wrap

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2945: `O.P` uses `O` as a pure namespace qualifier -- the enclosing
 // object's initializer must not run when a delegated property (or a direct
 // member path) reaches the nested singleton `P`. `P`'s own initializer still

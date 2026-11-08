@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-331/564: iterator {} builder
 fun main() {
     val iter = iterator {

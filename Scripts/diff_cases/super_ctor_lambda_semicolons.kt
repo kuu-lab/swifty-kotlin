@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1171: semicolons inside superclass arguments must not end the declaration.
 abstract class Holder(val f: (Any) -> String?)
 var calls = 0

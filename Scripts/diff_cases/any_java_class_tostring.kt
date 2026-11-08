@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val text = "x"
     println(text.javaClass.kotlin.toString())

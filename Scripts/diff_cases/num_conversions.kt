@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Numeric conversions parity with kotlinc: Long->Int truncation, Double->Int/Long
 // (round-toward-zero with NaN->0 and saturation at the type bounds), Int->Byte/Short
 // narrowing, Char<->Int, and Int/Long->Float/Double widening (with precision loss).

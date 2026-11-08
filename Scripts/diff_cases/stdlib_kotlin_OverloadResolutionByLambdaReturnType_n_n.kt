@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.OverloadResolutionByLambdaReturnType
 import kotlin.experimental.ExperimentalTypeInference
 

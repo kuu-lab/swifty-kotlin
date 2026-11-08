@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Outer {
     class Nested(val v: Int)
 }

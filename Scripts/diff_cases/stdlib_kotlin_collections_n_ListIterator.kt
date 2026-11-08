@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class ProbeListIterator : ListIterator<Int> {
     private var cursor = 0
 

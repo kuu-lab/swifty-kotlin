@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("%.2f".format(1.005))
     println("%.1f".format(0.25))

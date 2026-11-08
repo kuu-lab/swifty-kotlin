@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic mapNotNull: identity on non-null list
     val values = listOf(1, 0, 2)

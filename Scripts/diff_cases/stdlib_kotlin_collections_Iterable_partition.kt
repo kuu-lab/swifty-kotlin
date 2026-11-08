@@ -1,3 +1,4 @@
+// DIFF_JVM
 class OneShotIterable(private val values: List<Int>) : Iterable<Int> {
     private val sharedIterator = values.iterator()
 

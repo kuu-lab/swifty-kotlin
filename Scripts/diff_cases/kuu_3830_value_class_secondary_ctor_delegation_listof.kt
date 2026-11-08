@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3830: a value-class secondary constructor whose delegation argument is
 // built by a collection literal must still expose the delegated primary
 // value. The lowering used to mistake the literal's internal

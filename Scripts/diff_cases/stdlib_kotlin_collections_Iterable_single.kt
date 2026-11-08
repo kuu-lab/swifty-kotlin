@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-992: generic Iterable single-family parity and short-circuit semantics.
 
 class ProbeIterator<T>(

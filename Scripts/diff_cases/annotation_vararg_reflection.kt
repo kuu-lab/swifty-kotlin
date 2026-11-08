@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.reflect.*
 
 annotation class Names(val label: String, vararg val values: String)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4037: a function value stored into an array-backed generic collection
 // used to be re-wrapped in a fresh function box on every erased-storage
 // crossing, minting a new object each time — so `===`, `contains`, `indexOf`,

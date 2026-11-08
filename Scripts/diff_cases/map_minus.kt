@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // 1. Basic: Map.minus(key)
     val base = mapOf("a" to 1, "b" to 2, "c" to 3, "d" to 4)

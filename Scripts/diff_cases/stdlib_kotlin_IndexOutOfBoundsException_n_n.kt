@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val noArg = IndexOutOfBoundsException()
     val message = IndexOutOfBoundsException("bad index")

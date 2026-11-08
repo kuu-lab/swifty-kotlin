@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2005: Lambda control for the callable-reference reproducer.
 class Expr
 class Stmt

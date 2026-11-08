@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-602: a qualified outer `this` in an object literal property initializer
 // must retain the enclosing receiver after the object receiver is installed.
 class Node(val v: Int) : Iterable<Int> {

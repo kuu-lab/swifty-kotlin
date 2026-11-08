@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1313: valid infix calls and ordinary calls of non-infix functions.
 open class InfixBase { open infix fun add(n: Int): Int = n }
 class InfixChild : InfixBase() { override fun add(n: Int): Int = n + 1 }

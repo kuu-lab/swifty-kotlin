@@ -1,3 +1,4 @@
+// DIFF_JVM
 // REFL-001: Basic type checks and class hierarchy
 open class Animal
 class Dog : Animal()

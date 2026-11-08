@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Ctor(val a: Int, val b: String = "b$a", val c: Int = a + b.length) {
     constructor(s: String) : this(s.length, s)
     override fun toString() = "Ctor($a,$b,$c)"

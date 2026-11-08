@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Test STDLIB-GEN-054: Variance generics - covariance, contravariance, invariance
 
 // Covariant (out) interface - Producer pattern

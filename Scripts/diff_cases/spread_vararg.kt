@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun sum(vararg nums: Int): Int = nums.sum()
 fun printAll(vararg items: String) { for (item in items) println(item) }
 fun main() {

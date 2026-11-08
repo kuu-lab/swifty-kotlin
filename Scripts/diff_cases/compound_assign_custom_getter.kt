@@ -1,3 +1,4 @@
+// DIFF_JVM
 class A {
     var total: Int = 0
         get() = field + 100

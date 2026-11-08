@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3555: direct object-member imports must stay writable in compound assignments.
 import Host.x
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-240: `Map`/`MutableMap` interface delegation via `by mapOf(...)` was
 // broken in two layers — delegated members did not resolve on the class and
 // MutableMap put/putAll itable slots were missing from the prebuilt stdlib

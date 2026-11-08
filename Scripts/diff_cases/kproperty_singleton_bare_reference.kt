@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-505 (KSP-496 follow-up): a bare `::member` reference to a property
 // owned by a singleton (companion object or plain top-level `object`) used
 // to crash with SIGSEGV once its type-checked as KProperty0/KMutableProperty0

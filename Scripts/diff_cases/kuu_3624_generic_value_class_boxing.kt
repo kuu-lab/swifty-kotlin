@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3624: Generic value-class payloads must keep their nominal box at erased T boundaries.
 
 import kotlin.jvm.JvmInline

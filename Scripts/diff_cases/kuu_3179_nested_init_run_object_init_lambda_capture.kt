@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3179: inline object init blocks must forward captures through enclosing lambdas.
 fun doSomething(action: () -> Unit) {
     action()

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3529: overloaded secondary constructors whose call sites rely on
 // default arguments must delegate to the resolved overload; default-argument
 // stubs and `this(...)`/`super(...)` delegation combined used to produce
