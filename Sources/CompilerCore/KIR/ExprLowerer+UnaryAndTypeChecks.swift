@@ -187,7 +187,8 @@ extension ExprLowerer {
         guard let (bound, checkType) = kirErasedGenericCallClaimCheck(
                   exprID: exprID,
                   boundType: boundType,
-                  sema: sema
+                  sema: sema,
+                  erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
               )
         else {
             return resultID
@@ -501,7 +502,8 @@ extension ExprLowerer {
         let operandCrossesErasedBoundary = kirShouldCheckErasedGenericCallResult(
             exprID: exprToCast,
             boundType: sema.bindings.exprType(for: exprToCast),
-            sema: sema
+            sema: sema,
+            erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
         )
         if let targetType = sema.bindings.castTargetType(for: exprID),
            let operandType = sema.bindings.exprType(for: exprToCast),

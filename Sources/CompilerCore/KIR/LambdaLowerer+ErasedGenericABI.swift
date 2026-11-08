@@ -96,17 +96,31 @@ extension KIRLoweringContext {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
-        if erasedGenericReturnLambdaExprIDs == nil {
-            erasedGenericReturnLambdaExprIDs = Self.collectErasedGenericReturnLambdas(ast: ast, sema: sema)
-        }
-        return erasedGenericReturnLambdaExprIDs?.contains(exprID) ?? false
+        erasedLambdaReturnClaim(for: exprID, ast: ast, sema: sema) != nil
     }
 
-    private static func collectErasedGenericReturnLambdas(
+    /// The declared return type parameter and the call-site substitution for
+    /// a lambda passed to a `() -> T`-returning parameter, when the lambda
+    /// argument is itself a literal. Erased-call claim checks inside the
+    /// body must verify the *substituted* claim: JVM specializes the
+    /// lambda's invoke() to the call-site type argument and emits the
+    /// boundary checkcast there (KUU-4496).
+    func erasedLambdaReturnClaim(
+        for exprID: ExprID,
         ast: ASTModule,
         sema: SemaModule
-    ) -> Set<ExprID> {
-        var result: Set<ExprID> = []
+    ) -> (declaredSymbol: SymbolID, substituted: TypeID)? {
+        if erasedGenericReturnLambdaClaims == nil {
+            erasedGenericReturnLambdaClaims = Self.collectErasedGenericReturnLambdaClaims(ast: ast, sema: sema)
+        }
+        return erasedGenericReturnLambdaClaims?[exprID]
+    }
+
+    private static func collectErasedGenericReturnLambdaClaims(
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> [ExprID: (declaredSymbol: SymbolID, substituted: TypeID)] {
+        var result: [ExprID: (SymbolID, TypeID)] = [:]
         for (callExprID, binding) in sema.bindings.callBindings {
             guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee),
                   let arguments = callArguments(of: callExprID, ast: ast)
@@ -122,14 +136,43 @@ extension KIRLoweringContext {
                 let argExprID = arguments[argIndex].expr
                 guard case .lambdaLiteral? = ast.arena.expr(argExprID),
                       case let .functionType(declared) = sema.types.kind(of: signature.parameterTypes[paramIndex]),
-                      case .typeParam = sema.types.kind(of: declared.returnType)
+                      case let .typeParam(parameter) = sema.types.kind(of: declared.returnType)
                 else {
                     continue
                 }
-                result.insert(argExprID)
+                let substituted = substitutedLambdaReturnType(
+                    for: argExprID,
+                    declaredReturnParameter: parameter,
+                    signature: signature,
+                    binding: binding,
+                    sema: sema
+                ) ?? declared.returnType
+                result[argExprID] = (parameter.symbol, substituted)
             }
         }
         return result
+    }
+
+    /// The type the call site substitutes for the erased return type
+    /// parameter — `Int?` in `invokeBlock { uncheckedCast<Int?>() }` — or
+    /// the lambda's own inferred return type when the binding lacks a
+    /// positional argument for the parameter.
+    private static func substitutedLambdaReturnType(
+        for lambdaExprID: ExprID,
+        declaredReturnParameter: TypeParamType,
+        signature: FunctionSignature,
+        binding: CallBinding,
+        sema: SemaModule
+    ) -> TypeID? {
+        if binding.substitutedTypeArguments.count == signature.typeParameterSymbols.count,
+           let index = signature.typeParameterSymbols.firstIndex(of: declaredReturnParameter.symbol) {
+            return binding.substitutedTypeArguments[index]
+        }
+        if let boundType = sema.bindings.exprType(for: lambdaExprID),
+           case let .functionType(functionType) = sema.types.kind(of: boundType) {
+            return functionType.returnType
+        }
+        return nil
     }
 
     private static func callArguments(of exprID: ExprID, ast: ASTModule) -> [CallArgument]? {

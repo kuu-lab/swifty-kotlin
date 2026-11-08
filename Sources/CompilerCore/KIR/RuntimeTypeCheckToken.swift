@@ -516,7 +516,8 @@ func kirIsNonReifiedErasedReturnType(_ type: TypeID, sema: SemaModule) -> Bool {
 func kirErasedGenericCallClaimCheck(
     exprID: ExprID,
     boundType: TypeID?,
-    sema: SemaModule
+    sema: SemaModule,
+    erasedLambdaReturnClaims: [(declaredSymbol: SymbolID, substituted: TypeID)]
 ) -> (bound: TypeID, checkType: TypeID?)? {
     let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee
     let propertySymbol: SymbolID? = if let chosenCallee {
@@ -548,7 +549,23 @@ func kirErasedGenericCallClaimCheck(
     let expressionBound = propertySymbol != nil
         ? sema.bindings.exprType(for: exprID) ?? boundType
         : boundType ?? sema.bindings.exprType(for: exprID)
-    let consumer = propertySymbol == nil ? sema.bindings.genericCallConsumerTypes[exprID] : nil
+    let rawConsumer = propertySymbol == nil ? sema.bindings.genericCallConsumerTypes[exprID] : nil
+    // A consumer recorded as the enclosing higher-order call's type
+    // parameter (`T`) names the *declared* shape of the slot the value
+    // flows into. When that slot is a lambda literal's own return — the
+    // lambda is lowered once per call site and specialized to the
+    // substituted type — the checkcast JVM emits inside that invoke()
+    // verifies the substituted claim, not the erased `T` (KUU-4496). A
+    // type-parameter consumer recorded for a direct call argument is the
+    // callee's erased slot instead, so only lambda-return claims rewrite.
+    let consumer: TypeID? = if let rawConsumer,
+       case let .typeParam(parameter) = sema.types.kind(of: rawConsumer),
+       let claim = erasedLambdaReturnClaims.last(where: { $0.declaredSymbol == parameter.symbol })
+    {
+        claim.substituted
+    } else {
+        rawConsumer
+    }
     guard let declaredReturnType,
           kirIsNonReifiedErasedReturnType(declaredReturnType, sema: sema),
           let target = consumer ?? expressionBound
@@ -593,7 +610,13 @@ func kirErasedGenericCallClaimCheck(
 func kirShouldCheckErasedGenericCallResult(
     exprID: ExprID,
     boundType: TypeID?,
-    sema: SemaModule
+    sema: SemaModule,
+    erasedLambdaReturnClaims: [(declaredSymbol: SymbolID, substituted: TypeID)]
 ) -> Bool {
-    kirErasedGenericCallClaimCheck(exprID: exprID, boundType: boundType, sema: sema) != nil
+    kirErasedGenericCallClaimCheck(
+        exprID: exprID,
+        boundType: boundType,
+        sema: sema,
+        erasedLambdaReturnClaims: erasedLambdaReturnClaims
+    ) != nil
 }

@@ -719,6 +719,21 @@ extension CallTypeChecker {
                             to: contextualLambdaType, signature: signature, candidate: candidate, ctx: ctx
                         )
                     }
+                    // The contextual expected type may specialize the declared
+                    // `() -> T` to `() -> Any?` through the call's own expected
+                    // result. The erased-generic claim inside the body must
+                    // still verify the *declared* parameter `T` — KIR lowering
+                    // resolves it through the call's substituted type
+                    // arguments (KUU-4496) — so keep the declared parameter
+                    // type as the value-boundary consumer.
+                    if let expectationType = expectation.type,
+                       case let .functionType(declaredFunction) = sema.types.kind(of: expectationType),
+                       case .typeParam = sema.types.kind(of: declaredFunction.returnType)
+                    {
+                        sema.bindings.bindLambdaDeclaredExpectedReturnType(
+                            argument.expr, type: declaredFunction.returnType
+                        )
+                    }
                     let perCandidateResultType = ctx.isElvisBranchExpectedTypeHint
                         ? contextualCallResultType.map { sema.types.makeNullable($0) }
                         : contextualCallResultType
@@ -1670,7 +1685,15 @@ extension CallTypeChecker {
         else {
             return false
         }
+        // The return type must be concrete too: a substituted `() -> Any?`
+        // derived from the call's own expected result is not source
+        // authority, and binding the lambda to it verbatim would erase the
+        // body's inferred return (`Int? <: T`) before overload resolution
+        // can solve the type variable (KUU-4496).
         return !declared.params.contains { typeMentionsTypeParameter($0, sema: sema) }
+            && !declared.contextReceivers.contains { typeMentionsTypeParameter($0, sema: sema) }
+            && !(declared.receiver.map { typeMentionsTypeParameter($0, sema: sema) } ?? false)
+            && !typeMentionsTypeParameter(declared.returnType, sema: sema)
     }
 
     private func isFunctionTypeLike(_ type: TypeID, sema: SemaModule) -> Bool {

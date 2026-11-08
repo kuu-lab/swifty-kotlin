@@ -255,7 +255,8 @@ extension CallLowerer {
         let preservesErasedGenericResult = kirShouldCheckErasedGenericCallResult(
             exprID: exprID,
             boundType: boundType,
-            sema: sema
+            sema: sema,
+            erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
         )
         let result = arena.appendTemporary(
             type: preservesErasedGenericResult
