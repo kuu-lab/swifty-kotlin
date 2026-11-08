@@ -598,7 +598,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             owner: nominalSymbol, module: module, sema: sema,
             existingSymbol: existingCopySymbol,
             existingFunctionSymbols: existingFunctionSymbols, interner: ctx.interner,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            cache: ctx.nominalDispatchCache
         )
         let hashCodeName = ctx.interner.intern("hashCode")
         let existingHashCodeSymbol = sema.symbols.lookupAll(fqName: nominalSymbol.fqName + [hashCodeName]).first {

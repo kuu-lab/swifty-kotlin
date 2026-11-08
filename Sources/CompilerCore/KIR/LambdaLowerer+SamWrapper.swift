@@ -332,6 +332,7 @@ extension LambdaLowerer {
             nominalSymbol: wrapperSymbol,
             driver: driver,
             sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions
@@ -366,6 +367,7 @@ extension LambdaLowerer {
             implementation: methodSymbol,
             driver: driver,
             sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions

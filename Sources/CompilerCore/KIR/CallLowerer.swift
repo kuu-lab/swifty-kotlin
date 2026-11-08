@@ -3,7 +3,7 @@ final class CallLowerer {
     /// Bitmask of object slot indices holding a data class's primary-constructor properties.
     /// Returns nil when the layout is unknown or a slot does not fit in the mask, in which case
     /// the runtime keeps comparing every stored slot.
-    func dataClassFieldSlotMask(owner ownerSymbol: SymbolID, sema: SemaModule) -> Int64? {
+    static func dataClassFieldSlotMask(owner ownerSymbol: SymbolID, sema: SemaModule) -> Int64? {
         guard sema.symbols.symbol(ownerSymbol) != nil,
               let fieldOffsets = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets
         else {

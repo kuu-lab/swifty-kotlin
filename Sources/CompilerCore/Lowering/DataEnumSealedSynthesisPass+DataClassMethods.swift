@@ -9,7 +9,8 @@ extension DataEnumSealedSynthesisPass {
         existingSymbol: SymbolID?,
         existingFunctionSymbols: Set<SymbolID>,
         interner: StringInterner,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        cache: KIRNominalDispatchCache
     ) {
         guard owner.kind == .class || owner.kind == .enumClass || owner.kind == .object,
               let functionSymbol = existingSymbol
@@ -164,6 +165,101 @@ extension DataEnumSealedSynthesisPass {
             result: allocatedObjectExpr,
             canThrow: false
         ))
+
+        // Mirror `allocateAndRegisterConstructedObject`: copy() allocates a
+        // fresh object through kk_object_new, so it must run the same
+        // per-object dispatch registrations the constructor path emits —
+        // data-class marker and field mask, supertype edges, itable/vtable
+        // slots and the `Any` toString override. Without them an `Any`-erased
+        // copy dispatches to unregistered slots (KUU-4503).
+        // `emitKClassMetadataRegistration` is intentionally skipped: KClass
+        // metadata is class-scoped (keyed by the type token) and the receiver
+        // instance's own construction already registered it.
+        let registerDataClassResult = module.arena.appendTemporary(type: intType)
+        emitNonThrowingCall(
+            callee: interner.intern("kk_runtime_register_data_class"),
+            arg: classIDExpr,
+            result: registerDataClassResult,
+            into: &body
+        )
+        if let fieldMask = CallLowerer.dataClassFieldSlotMask(owner: owner.id, sema: sema) {
+            let maskExpr = module.arena.appendExpr(.intLiteral(fieldMask), type: intType)
+            body.append(.constValue(result: maskExpr, value: .intLiteral(fieldMask)))
+            let registerFieldsResult = module.arena.appendTemporary(type: intType)
+            body.append(.call(
+                callee: interner.intern("kk_runtime_register_data_class_fields"),
+                arguments: [classIDExpr, maskExpr],
+                result: registerFieldsResult,
+                canThrow: false
+            ))
+        }
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: owner.id,
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        appendObjectItableMethodRegistrations(
+            objectValue: allocatedObjectExpr,
+            nominalSymbol: owner.id,
+            sema: sema,
+            cache: cache,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        appendObjectItablePropertyGetterRegistrations(
+            objectValue: allocatedObjectExpr,
+            nominalSymbol: owner.id,
+            sema: sema,
+            cache: cache,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        appendObjectItablePropertySetterRegistrations(
+            objectValue: allocatedObjectExpr,
+            nominalSymbol: owner.id,
+            sema: sema,
+            cache: cache,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        appendObjectVtableMethodRegistrations(
+            objectValue: allocatedObjectExpr,
+            nominalSymbol: owner.id,
+            sema: sema,
+            cache: cache,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        appendObjectAnyToStringRegistration(
+            objectValue: allocatedObjectExpr,
+            nominalSymbol: owner.id,
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        if let throwableSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"), interner.intern("Throwable"),
+        ]) {
+            let throwableType = sema.types.make(.classType(ClassType(
+                classSymbol: throwableSymbol, args: [], nullability: .nonNull
+            )))
+            if sema.types.isSubtype(receiverType, throwableType) {
+                let captureResult = module.arena.appendTemporary(type: intType)
+                emitNonThrowingCall(
+                    callee: interner.intern("__kk_throwable_captureStackTrace"),
+                    arg: allocatedObjectExpr,
+                    result: captureResult,
+                    into: &body
+                )
+            }
+        }
 
         // A local data class restores enclosing captures from its instance
         // fields inside <init>. Preserve those fields before running the new

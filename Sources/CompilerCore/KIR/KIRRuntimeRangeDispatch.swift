@@ -38,6 +38,7 @@ extension CallLowerer {
                 nominalSymbol: nominalSymbol,
                 driver: driver,
                 sema: sema,
+                cache: driver.ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 interfaceFilter: interface,
