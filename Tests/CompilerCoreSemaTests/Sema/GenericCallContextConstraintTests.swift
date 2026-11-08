@@ -237,6 +237,36 @@ struct GenericCallContextConstraintTests {
         }
     }
 
+    /// KUU-4461: a generic member's lambda argument returns a nominal subtype
+    /// mentioning the enclosing class parameter (`VQR<RowType?>`). The
+    /// expected type's `RowType?` is the caller-side rigid parameter even
+    /// though it shares a symbol with the candidate's class type parameter —
+    /// decomposing it as an inference variable bound the receiver's non-null
+    /// `RowType` and rejected `R = RowType?` with `T#R <: T#RowType`.
+    @Test
+    func genericMemberLambdaInfersNullableClassParameterFromExpectedType() throws {
+        let source = """
+        interface Cur { fun next(): QR<Boolean> }
+        interface QR<T> { val value: T }
+        class VQR<T>(override val value: T) : QR<T>
+        abstract class Q<RowType : Any> {
+            abstract fun <R> execute(mapper: (Cur) -> QR<R>): QR<R>
+            fun a(): QR<RowType?> = execute { VQR<RowType?>(null) }
+            fun b(): RowType? = execute { VQR<RowType?>(null) }.value
+            fun c(): RowType? = execute<RowType?> { VQR<RowType?>(null) }.value
+            abstract fun mapper2(c: Cur): RowType
+            fun d(): RowType? = execute { c ->
+                if (c.next().value) VQR(null) else VQR(mapper2(c))
+            }.value
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     private func call(named name: String, path: String, in ctx: CompilationContext) throws -> ExprID {
         let ast = try #require(ctx.ast)
         let calls = allExprIDs(in: ast, path: path, ctx: ctx) { _, expr in
