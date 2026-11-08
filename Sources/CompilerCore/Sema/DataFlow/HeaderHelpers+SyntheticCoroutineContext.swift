@@ -352,11 +352,24 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([coroutineContextElementSymbol], for: coroutineNameSymbol)
         }
 
-        let coroutineExceptionHandlerSymbol = ensureClassSymbol(
-            named: "CoroutineExceptionHandler",
-            in: coroutinesPkg,
-            symbols: symbols,
-            interner: interner
+        // KUU-4361: kotlinx declares `interface CoroutineExceptionHandler`,
+        // not a class — `class X : CoroutineExceptionHandler by Y` delegation
+        // and `object :` implementations reject a class symbol. Prefer an
+        // existing nominal of either kind so a source declaration still wins;
+        // the same-name factory function is filtered out by kind.
+        let coroutineExceptionHandlerFQName = coroutinesPkg + [interner.intern("CoroutineExceptionHandler")]
+        let coroutineExceptionHandlerCandidates = symbols.lookupAll(fqName: coroutineExceptionHandlerFQName)
+        let coroutineExceptionHandlerSymbol = coroutineExceptionHandlerCandidates.first(where: { id in
+            symbols.symbol(id)?.kind == .interface
+        }) ?? coroutineExceptionHandlerCandidates.first(where: { id in
+            symbols.symbol(id)?.kind == .class
+        }) ?? symbols.define(
+            kind: .interface,
+            name: interner.intern("CoroutineExceptionHandler"),
+            fqName: coroutineExceptionHandlerFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
         )
         let coroutineExceptionHandlerType = types.make(.classType(ClassType(
             classSymbol: coroutineExceptionHandlerSymbol,
@@ -455,19 +468,23 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineConstructor(
-            ownerSymbol: coroutineExceptionHandlerSymbol,
-            ownerType: coroutineExceptionHandlerType,
-            externalLinkName: "kk_exception_handler_create",
-            parameters: [(name: "handler", type: types.make(.functionType(FunctionType(
-                params: [kotlinCoroutineContextType, throwableType],
-                returnType: types.unitType,
-                isSuspend: false,
-                nullability: .nonNull
-            ))))],
-            symbols: symbols,
-            interner: interner
-        )
+        // KUU-4361: the nominal is an interface, which has no constructors —
+        // the same-name factory function above covers `CoroutineExceptionHandler(handler)`.
+        if symbols.symbol(coroutineExceptionHandlerSymbol)?.kind == .class {
+            registerSyntheticCoroutineConstructor(
+                ownerSymbol: coroutineExceptionHandlerSymbol,
+                ownerType: coroutineExceptionHandlerType,
+                externalLinkName: "kk_exception_handler_create",
+                parameters: [(name: "handler", type: types.make(.functionType(FunctionType(
+                    params: [kotlinCoroutineContextType, throwableType],
+                    returnType: types.unitType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                ))))],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let coroutineExceptionHandlerMembers = coroutineMemberRows(of: coroutineExceptionHandlerSymbol, type: coroutineExceptionHandlerType, symbols: symbols, interner: interner)
         coroutineExceptionHandlerMembers.fn(
             "handleException", "kk_exception_handler_invoke", [(name: "context", type: kotlinCoroutineContextType), (name: "exception", type: throwableType)],

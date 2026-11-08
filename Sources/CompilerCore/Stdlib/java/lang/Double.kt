@@ -13,6 +13,10 @@ public class Double private constructor() {
         public val SIZE: Int get() = 64
         public val BYTES: Int get() = 8
 
+        public fun valueOf(value: String): kotlin.Double = parseDouble(value)
+
+        public fun valueOf(value: kotlin.Double): kotlin.Double = value
+
         public fun parseDouble(value: String): kotlin.Double = value.toDouble()
 
         public fun toString(value: kotlin.Double): String = value.toString()

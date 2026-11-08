@@ -1890,7 +1890,7 @@ public func __kk_channel_send_blocking(_ handle: Int, _ value: Int) -> Int {
 /// `ChannelResult` box so closed and cancelled outcomes are observable to
 /// Kotlin source.
 @_cdecl("__kk_channel_receive_catching")
-public func __kk_channel_receive_catching(_ handle: Int) -> Int {
+public func __kk_channel_receive_catching(_ handle: Int, _ continuation: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_receive_catching received invalid channel handle")
     }
@@ -1899,7 +1899,7 @@ public func __kk_channel_receive_catching(_ handle: Int) -> Int {
     defer { runtimePopNativeGCShadowFrame(result, 0) }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     var value = 0
-    let status = channel.receive(continuation: 0, outValue: &value)
+    let status = channel.receive(continuation: continuation, outValue: &value)
     let cause = channelResultReceiveCause(channel: channel, status: status)
     result = runtimeChannelResultBox(status: status, value: value, cause: cause)
     return result

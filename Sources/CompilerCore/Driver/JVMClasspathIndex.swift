@@ -7,10 +7,19 @@ final class JVMClasspathIndex {
     var sourceClasses: [FileID: JVMClassInfo] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
+    /// Classes loaded from `lazilyInjecting` classpath entries (the Android
+    /// `android.jar`). They stay indexed for signature mapping and d8 input,
+    /// but `inject(into:)` only emits Kotlin stubs for the subset reachable
+    /// from user sources — injecting the whole framework would create
+    /// hundreds of thousands of symbols.
+    private(set) var lazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
+    /// Covered names for the `inject(into:)` run in progress; supertypes that
+    /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
+    private var activeCoveredNames: Set<String> = []
 
-    static func load(_ paths: [String]) throws -> JVMClasspathIndex {
+    static func load(_ paths: [String], lazilyInjecting lazyPaths: Set<String> = []) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         var seen: Set<String> = []
         func insert(_ bytes: [UInt8], path: String) throws {
@@ -21,6 +30,8 @@ final class JVMClasspathIndex {
             result.hierarchyClasses[info.name] = info
         }
         for path in paths {
+            let isLazy = lazyPaths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
+            let priorKeys = isLazy ? Set(result.hierarchyClasses.keys) : []
             var directory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &directory) else {
                 throw JVMFrontendError(message: "JVM classpath entry does not exist: \(path)")
@@ -41,6 +52,11 @@ final class JVMClasspathIndex {
                           !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
                     try insert(archive.contents(of: entry), path: entry.name)
                 }
+            }
+            if isLazy {
+                result.lazyClassNames.formUnion(
+                    result.hierarchyClasses.keys.filter { !priorKeys.contains($0) }
+                )
             }
         }
         result.indexInnerClasses()
@@ -103,12 +119,24 @@ final class JVMClasspathIndex {
                 continue
             }
             if info.isInterface {
-                source += indentation + visibility + "interface `\(name)`\(typeParameters) {\n"
+                source += indentation + visibility + "interface `\(name)`\(typeParameters)"
             } else {
                 let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                 let isInner = entry.access & 0x0008 == 0
-                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor() {\n"
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
             }
+            var parents: [String] = []
+            if !info.isInterface, let base = info.superclass, classes[base] != nil,
+               let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
+                parents.append(mapped + "()")
+            }
+            parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, childParams: info.classTypeParameterNames) }
+            if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+            source += " {\n"
+            // Kotlin forbids companion objects inside inner (non-static
+            // member) classes; their statics are unreachable anyway.
+            source += memberDeclarations(info: info, members: info.methods,
+                                         allowsCompanion: entry.access & 0x0008 != 0)
             source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
             source += indentation + "}\n"
         }
@@ -233,12 +261,63 @@ final class JVMClasspathIndex {
             switch name {
             case "java/lang/String": return "kotlin.String"
             case "java/lang/Object": return "kotlin.Any"
-            default: base = name.split(separator: "/").map { "`\($0)`" }.joined(separator: ".")
+            default:
+                // Mirror kotlinc's JDK->Kotlin mapped types so foreign
+                // signatures render as the Kotlin declarations users expect
+                // (and so lazy classpath entries don't need java.* stubs for
+                // types the Kotlin standard library already covers).
+                if let mapped = Self.jdkToKotlinTypeNames[name] { return mapped }
+                base = Self.dottedTypeName(name)
             }
             // Classfiles do not retain Kotlin nullability without metadata. Use
             // non-null source declarations as the current platform-type approximation.
             return base
         }
+    }
+    /// Supertype positions keep the erased JDK name: Kotlin mapped types
+    /// declare property-style members that Java method stubs cannot satisfy,
+    /// so `extends`/`implements` clauses must name the interface the
+    /// classfile actually declares. Only `java.lang.Object`/`String` still
+    /// collapse to their Kotlin aliases, and `Enum`/`Record` cannot be
+    /// extended directly.
+    func kotlinSupertypeName(_ name: String) -> String? {
+        switch name {
+        case "java/lang/Object": return "kotlin.Any"
+        case "java/lang/String": return "kotlin.String"
+        case "java/lang/Enum", "java/lang/Record": return nil
+        default:
+            // Covered classes get no stub, so an erased `java.*` supertype
+            // would not resolve. When the JDK->Kotlin mapped-type table names
+            // a provided Kotlin counterpart (kotlin.Number, kotlin.text
+            // .Appendable, ...), emit that instead; generic arguments are
+            // appended by `supertypeReference`.
+            if activeCoveredNames.contains(name),
+               let mapped = Self.jdkToKotlinTypeNames[name] {
+                return mapped.split(separator: "<").first.map(String.init) ?? mapped
+            }
+            return Self.dottedTypeName(name)
+        }
+    }
+    /// Binary names use `$` for nested classes; Kotlin source spells them
+    /// with dots (`a/b/C$D` -> `a.b.C.D`).
+    private static func dottedTypeName(_ name: String) -> String {
+        name.split(separator: "/").flatMap { $0.split(separator: "$") }
+            .map { "`\($0)`" }.joined(separator: ".")
+    }
+    /// Supertype reference with type arguments: classfiles erase generic
+    /// arguments, so the child's own type parameters are reused when the
+    /// arity matches (the usual Java convention) and `kotlin.Any` fills the
+    /// rest. `Any` keeps erased bridge members (e.g. `compare(Object, Object)`)
+    /// valid overrides, unlike star projections whose captured types cannot
+    /// be overridden at all.
+    private func supertypeReference(_ name: String, childParams: [String]) -> String? {
+        guard let base = kotlinSupertypeName(name) else { return nil }
+        let arity = hierarchyClasses[name]?.classTypeParameterNames.count ?? 0
+        guard arity > 0 else { return base }
+        let args = arity == childParams.count && arity > 0
+            ? childParams
+            : Array(repeating: "kotlin.Any", count: arity)
+        return base + "<" + args.joined(separator: ", ") + ">"
     }
     private func isSAM(_ name: String) -> Bool {
         var members: [String: JVMForeignMethod] = [:], visited: Set<String> = []
@@ -252,15 +331,52 @@ final class JVMClasspathIndex {
             }
         }
         visit(name)
-        return members.values.filter(\.isAbstract).count == 1
+        let abstracts = members.values.filter(\.isAbstract)
+        guard abstracts.count == 1, let sam = abstracts.first else { return false }
+        // Getter-shaped members are also emitted as `val` properties; when
+        // the single abstract member has that shape the `fun interface`
+        // form is rejected, so emit a plain interface instead.
+        if sam.parameters.isEmpty,
+           (sam.name.hasPrefix("get") && sam.name.count > 3
+               || sam.name.hasPrefix("is") && sam.name.count > 2 && sam.result == .boolean) {
+            return false
+        }
+        return true
     }
+    /// Binary class names the frontend already provides: bundled JVM stdlib
+    /// sources (which include the JDK platform declarations, scanned after
+    /// they are injected) plus synthetic java.* compatibility decls that
+    /// `nominalNames` cannot see, and the String/Object anchors `kotlinType`
+    /// maps onto kotlin.String/kotlin.Any. kotlin.*-mapped JDK names are
+    /// deliberately NOT covered: the Kotlin declarations are compile-time
+    /// views, so the erased classfile still has to come from a stub.
+    private func coveredClassNames(in ctx: CompilationContext) throws -> Set<String> {
+        var covered = try JVMStdlibCatalog.nominalNames(in: ctx)
+        covered.formUnion(Self.syntheticJavaNames)
+        covered.insert("java/lang/String")
+        covered.insert("java/lang/Object")
+        // kotlin.CharSequence is the mapped-type counterpart of
+        // java.lang.CharSequence; covering it keeps stub signatures and
+        // supertypes on the same Kotlin nominal.
+        covered.insert("java/lang/CharSequence")
+        return covered
+    }
+
+    private func isCovered(_ name: String, covered: Set<String>) -> Bool {
+        name.hasPrefix("kotlin/") || covered.contains(name)
+    }
+
     func inject(into ctx: CompilationContext) throws {
-        let provided = try JVMStdlibCatalog.nominalNames(in: ctx)
+        let covered = try coveredClassNames(in: ctx)
+        activeCoveredNames = covered
+        let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(into: ctx, covered: covered)
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
             guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
             // types. Importing the same erased class again would shadow them.
-            if info.name.hasPrefix("kotlin/") || provided.contains(info.name) || Self.builtinName(info.name) != nil || ["kotlin/Unit", "kotlin/Function", "kotlin/Metadata"].contains(info.name) || info.name.hasPrefix("kotlin/jvm/functions/Function") { continue }
+            if isCovered(info.name, covered: covered) { continue }
+            let isLazy = lazyClassNames.contains(info.name)
+            if isLazy, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
             guard let short = parts.last else { throw JVMClassReader.Invalid() }
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
@@ -309,55 +425,18 @@ final class JVMClasspathIndex {
                         source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
                     }
                     source += " "
-                    source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty }) ? "()" : "protected constructor()"
+                    source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected })
+                        ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
-                if !info.isInterface, let base = info.superclass, classes[base] != nil {
-                    parents.append(kotlinType(.reference(base, nullable: false)) + "()")
+                if !info.isInterface, let base = info.superclass, classes[base] != nil,
+                   let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
+                    parents.append(mapped + "()")
                 }
-                parents += info.interfaces.filter { classes[$0] != nil }.map { kotlinType(.reference($0, nullable: false)) }
+                parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, childParams: info.classTypeParameterNames) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                for method in own where method.isConstructor && !method.parameters.isEmpty {
-                    source += "constructor(" + parameters(method) + ") : this() {}\n"
-                }
-                for method in own where !method.isConstructor && !method.isStatic {
-                    let overrides = overridesParent(method, in: info, visited: [])
-                    if !info.isInterface && method.isFinal { source += "final " }
-                    source += overrides ? "override " : ""
-                    if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
-                    if method.name == "get", method.parameters.count == 1 { source += "operator " }
-                    if !info.isInterface { source += "external " }
-                    source += "fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result)
-                    if info.isInterface, !method.isAbstract {
-                        source += method.result == .unit ? " {}" : " = null!!"
-                        // A default method with a primitive result still has a
-                        // Nothing-typed stub body; it is never emitted or executed.
-                    }
-                    source += "\n"
-                }
-                for getter in own where !getter.isConstructor && !getter.isStatic && getter.parameters.isEmpty {
-                    let propertyName: String
-                    if getter.name.hasPrefix("get"), getter.name.count > 3 {
-                        let suffix = String(getter.name.dropFirst(3))
-                        propertyName = String(suffix.prefix(1)).lowercased() + suffix.dropFirst()
-                    } else if getter.name.hasPrefix("is"), getter.name.count > 2, getter.result == .boolean {
-                        propertyName = getter.name
-                    } else { continue }
-                    guard JVMProgramBuilder.isIdentifier(propertyName),
-                          !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
-                    if !info.isInterface && getter.isFinal { source += "final " }
-                    if overridesParent(getter, in: info, visited: []) { source += "override " }
-                    else if !info.isInterface && !getter.isFinal { source += "open " }
-                    source += "val `\(propertyName)`: \(kotlinType(getter.result)) get() = `\(getter.name)`()\n"
-                }
-                if !statics.isEmpty {
-                    source += "companion object {\n"
-                    for method in statics {
-                        source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
-                    }
-                    source += "}\n"
-                }
+                source += memberDeclarations(info: info, members: info.methods)
                 source += nestedClassDeclarations(of: info.name)
                 source += "}\n"
             }
@@ -367,6 +446,354 @@ final class JVMClasspathIndex {
             sourceClasses[file] = info
         }
     }
+
+    /// Member declarations shared by top-level stubs and nested-class shells:
+    /// constructors, methods, synthesized properties, and the statics
+    /// companion. Emitted without indentation; Kotlin is brace-delimited.
+    private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
+        let own = members.filter { $0.parameters.allSatisfy(expose) && expose($0.result) && ($0.isConstructor || JVMProgramBuilder.isIdentifier($0.name)) }
+        let statics = own.filter(\.isStatic)
+        // Covered Java supertypes render as Kotlin mapped types whose
+        // member names differ from the erased classfile signatures; bridge
+        // the differences explicitly (see kotlinSupertypeName).
+        let numberBridged = !info.isInterface && inheritsJavaType(info, "java/lang/Number")
+        let charSequenceBridged = inheritsJavaType(info, "java/lang/CharSequence")
+        let appendableBridged = inheritsJavaType(info, "java/lang/Appendable")
+        /// kotlin.CharSequence's `get(index: Int): Char` member: either the
+        /// classfile's own `get(int)` or a synthesized delegate over `charAt`.
+        func isCharSequenceGet(_ method: JVMForeignMethod) -> Bool {
+            method.name == "get" && method.parameters.count == 1
+                && kotlinType(method.parameters[0]) == "kotlin.Int"
+                && kotlinType(method.result) == "kotlin.Char"
+        }
+        /// The three kotlin.text.Appendable members, matched on erased
+        /// parameter types so unrelated `append` overloads stay plain.
+        func isAppendableMember(_ method: JVMForeignMethod) -> Bool {
+            let types = method.parameters.map { kotlinType($0) }
+            return (types.count == 1 && ["kotlin.Char", "kotlin.CharSequence"].contains(types[0]))
+                || (types.count == 3 && types[0] == "kotlin.CharSequence" && types[1] == "kotlin.Int" && types[2] == "kotlin.Int")
+        }
+        var source = ""
+        for method in own where method.isConstructor && !method.parameters.isEmpty {
+            source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
+        }
+        for method in own where !method.isConstructor && !method.isStatic {
+            var overrides = overridesParent(method, in: info, visited: [])
+            if charSequenceBridged, method.name == "subSequence" { overrides = true }
+            if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
+            if appendableBridged, isAppendableMember(method) { overrides = true }
+            if method.isProtected { source += "protected " }
+            if !info.isInterface && method.isFinal { source += "final " }
+            source += overrides ? "override " : ""
+            if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
+            if method.name == "get", method.parameters.count == 1 { source += "operator " }
+            if !info.isInterface { source += "external " }
+            source += "fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result)
+            if info.isInterface, !method.isAbstract {
+                source += method.result == .unit ? " {}" : " = null!!"
+                // A default method with a primitive result still has a
+                // Nothing-typed stub body; it is never emitted or executed.
+            }
+            source += "\n"
+        }
+        for getter in own where !getter.isConstructor && !getter.isStatic && getter.parameters.isEmpty {
+            let propertyName: String
+            if getter.name.hasPrefix("get"), getter.name.count > 3 {
+                let suffix = String(getter.name.dropFirst(3))
+                propertyName = String(suffix.prefix(1)).lowercased() + suffix.dropFirst()
+            } else if getter.name.hasPrefix("is"), getter.name.count > 2, getter.result == .boolean {
+                propertyName = getter.name
+            } else { continue }
+            guard JVMProgramBuilder.isIdentifier(propertyName),
+                  !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
+            if getter.isProtected { source += "protected " }
+            if !info.isInterface && getter.isFinal { source += "final " }
+            if overridesParent(getter, in: info, visited: []) { source += "override " }
+            else if !info.isInterface && !getter.isFinal { source += "open " }
+            source += "val `\(propertyName)`: \(kotlinType(getter.result)) get() = `\(getter.name)`()\n"
+        }
+        if charSequenceBridged, !own.contains(where: { isCharSequenceGet($0) && !$0.isStatic }),
+           let charAt = own.first(where: {
+               $0.name == "charAt" && $0.parameters.count == 1 && !$0.isStatic
+           }) {
+            source += "override operator fun `get`(" + parameters(charAt) + "): "
+                + kotlinType(charAt.result) + " = `charAt`(p0)\n"
+        }
+        if charSequenceBridged {
+            let hasLengthProperty = own.contains {
+                ($0.name == "getLength" || $0.name == "isLength")
+                    && $0.parameters.isEmpty && !$0.isStatic
+            }
+            if !hasLengthProperty, own.contains(where: {
+                $0.name == "length" && $0.parameters.isEmpty && !$0.isStatic && kotlinType($0.result) == "kotlin.Int"
+            }) {
+                source += "override val `length`: kotlin.Int get() = `length`()\n"
+            }
+        }
+        if numberBridged {
+            // kotlin.Number spells Java's *Value methods as to*(); each
+            // Kotlin member delegates to its erased classfile counterpart.
+            let bridges: [(String, String, String)] = [
+                ("toByte", "byteValue", "kotlin.Byte"),
+                ("toShort", "shortValue", "kotlin.Short"),
+                ("toInt", "intValue", "kotlin.Int"),
+                ("toLong", "longValue", "kotlin.Long"),
+                ("toFloat", "floatValue", "kotlin.Float"),
+                ("toDouble", "doubleValue", "kotlin.Double"),
+            ]
+            for (toName, javaName, returnType) in bridges {
+                let hasJavaMethod = own.contains {
+                    $0.name == javaName && $0.parameters.isEmpty && !$0.isStatic
+                }
+                source += "override fun `\(toName)`(): \(returnType) = "
+                    + (hasJavaMethod ? "`\(javaName)`()" : "null!!") + "\n"
+            }
+        }
+        if allowsCompanion, !statics.isEmpty {
+            source += "companion object {\n"
+            for method in statics {
+                source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
+            }
+            source += "}\n"
+        }
+        return source
+    }
+
+    // MARK: - Lazy classpath injection
+
+    /// Packages Kotlin auto-imports on the JVM. Only `java.lang` can contain
+    /// lazy classes in practice (the Android `android.jar` ships `java.*`
+    /// stubs); `kotlin.*` entries are never injected anyway.
+    private static let autoImportedPackages: Set<String> = [
+        "java.lang", "kotlin.jvm",
+    ]
+
+    /// JDK binary names that Kotlin maps onto standard-library declarations,
+    /// matching kotlinc's mapped types (java.util.List <-> kotlin.collections.List
+    /// etc.). Generic targets use star projections because classfiles carry no
+    /// type arguments. Only types whose Kotlin counterpart is provided by the
+    /// frontend's stdlib catalog belong here.
+    private static let jdkToKotlinTypeNames: [String: String] = [
+        "java/lang/CharSequence": "kotlin.CharSequence",
+        "java/lang/Comparable": "kotlin.Comparable<*>",
+        "java/lang/Cloneable": "kotlin.Cloneable",
+        "java/lang/Throwable": "kotlin.Throwable",
+        "java/lang/Exception": "kotlin.Exception",
+        "java/lang/RuntimeException": "kotlin.RuntimeException",
+        "java/lang/Error": "kotlin.Error",
+        "java/lang/Integer": "kotlin.Int",
+        "java/lang/Long": "kotlin.Long",
+        "java/lang/Double": "kotlin.Double",
+        "java/lang/Float": "kotlin.Float",
+        "java/lang/Boolean": "kotlin.Boolean",
+        "java/lang/Byte": "kotlin.Byte",
+        "java/lang/Short": "kotlin.Short",
+        "java/lang/Character": "kotlin.Char",
+        "java/lang/Void": "kotlin.Unit",
+        "java/lang/Number": "kotlin.Number",
+        "java/lang/StringBuilder": "kotlin.text.StringBuilder",
+        "java/lang/Appendable": "kotlin.text.Appendable",
+        "java/lang/Deprecated": "kotlin.Deprecated",
+        "java/lang/Enum": "kotlin.Enum<*>",
+        "java/lang/Iterable": "kotlin.collections.Iterable<*>",
+        "java/util/Iterator": "kotlin.collections.Iterator<*>",
+        "java/util/Collection": "kotlin.collections.Collection<*>",
+        "java/util/List": "kotlin.collections.List<*>",
+        "java/util/Set": "kotlin.collections.Set<*>",
+        "java/util/Map": "kotlin.collections.Map<*, *>",
+        "java/util/ListIterator": "kotlin.collections.ListIterator<*>",
+        "java/util/Map$Entry": "kotlin.collections.Map.Entry<*, *>",
+        // SequencedCollection.reversed() covariantly returns List while its
+        // own signature erases to SequencedCollection; mapping the erased
+        // name to Collection keeps the stub override return-compatible.
+        "java/util/SequencedCollection": "kotlin.collections.Collection<*>",
+        "java/util/SequencedSet": "kotlin.collections.Set<*>",
+    ]
+
+    /// java.* classpath entries that the frontend already provides through
+    /// synthetic HeaderHelpers declarations rather than bundled sources, so
+    /// `nominalNames` cannot see them. Injecting stubs for these would
+    /// redeclare the same nominal and fail semantic analysis.
+    private static let syntheticJavaNames: Set<String> = [
+        // java.io stream/file surface synthesized for kotlin.io interop
+        // (HeaderHelpers+SyntheticJavaIOStreamStubs).
+        "java/io/Closeable", "java/io/File", "java/io/InputStream",
+        "java/io/OutputStream", "java/io/ByteArrayInputStream",
+        "java/io/ByteArrayOutputStream", "java/io/BufferedInputStream",
+        "java/io/Reader", "java/io/SequenceInputStream", "java/io/Writer",
+        // java.lang compatibility anchors.
+        "java/lang/AutoCloseable", "java/lang/ClassLoader",
+        // java.util.concurrent.atomic scalar/reference family
+        // (HeaderHelpers+SyntheticAtomicResidualRegistry).
+        "java/util/concurrent/atomic/AtomicInteger",
+        "java/util/concurrent/atomic/AtomicLong",
+        "java/util/concurrent/atomic/AtomicBoolean",
+        "java/util/concurrent/atomic/AtomicReference",
+        "java/util/concurrent/atomic/AtomicReferenceArray",
+        // java.lang names that would shadow Kotlin declarations through the
+        // java.lang auto-import or same-package resolution. Other java.lang
+        // classes (CharSequence, Comparable, exceptions, ...) are still
+        // injected: stubs need them as resolvable supertypes, and Kotlin's
+        // own declarations win unqualified lookups.
+        "java/lang/Boolean", "java/lang/Byte", "java/lang/Short",
+        "java/lang/Integer", "java/lang/Long", "java/lang/Float",
+        "java/lang/Double", "java/lang/Void", "java/lang/Number",
+        "java/lang/StringBuilder", "java/lang/Appendable",
+        "java/lang/Deprecated",
+    ]
+
+    private static let identifierPattern = try! NSRegularExpression(pattern: #"[A-Za-z_][A-Za-z0-9_]*"#)
+    private static let dottedPattern = try! NSRegularExpression(pattern: #"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+"#)
+    private static let starImportPattern = try! NSRegularExpression(pattern: #"import\s+([A-Za-z_][A-Za-z0-9_.]*?)\.\*"#)
+    private static let packagePattern = try! NSRegularExpression(pattern: #"^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)"#, options: [.anchorsMatchLines])
+
+    /// Computes the set of lazy classpath classes that must be injected:
+    /// classes named by user sources (imports, qualified references,
+    /// star/auto/same-package lookups) plus the transitive closure over
+    /// supertypes and emitted method signature types.
+    private func referencedLazyClasses(into ctx: CompilationContext, covered: Set<String>) -> Set<String> {
+        // normalized dotted name -> binary class names ("a.b.C.D" may come
+        // from either a/b/C$D or a/b/C/D, so keep every candidate).
+        var normalizedToBinary: [String: [String]] = [:]
+        // "package|ShortName" -> binary names, for identifier-based lookups.
+        var byPackageAndShortName: [String: [String]] = [:]
+        var lazyTopLevelByPackage: [String: [(short: String, name: String)]] = [:]
+        for name in lazyClassNames {
+            let normalized = name.split(separator: "/")
+                .map(String.init).joined(separator: ".")
+                .replacingOccurrences(of: "$", with: ".")
+            normalizedToBinary[normalized, default: []].append(name)
+            let parts = name.split(separator: "/").map(String.init)
+            guard parts.count >= 2 else { continue }
+            let package = parts.dropLast().joined(separator: ".")
+            let short = parts.last!.split(separator: "$").last.map(String.init) ?? parts.last!
+            byPackageAndShortName[package + "|" + short, default: []].append(name)
+            if !name.contains("$") {
+                lazyTopLevelByPackage[package, default: []].append((short, name))
+            }
+        }
+
+        var matched = Set<String>()
+        func matchTokenPrefixes(_ token: String) {
+            let parts = token.split(separator: ".").map(String.init)
+            for end in 1...parts.count {
+                let prefix = parts.prefix(end).joined(separator: ".")
+                if let binaries = normalizedToBinary[prefix] { matched.formUnion(binaries) }
+            }
+        }
+        func identifierMatches(_ filePackage: String?, identifiers: Set<String>, packages: Set<String>) {
+            for package in packages {
+                for entry in lazyTopLevelByPackage[package] ?? [] where identifiers.contains(entry.short) {
+                    matched.insert(entry.name)
+                }
+            }
+            if let filePackage {
+                for entry in lazyTopLevelByPackage[filePackage] ?? [] where identifiers.contains(entry.short) {
+                    matched.insert(entry.name)
+                }
+            }
+        }
+
+        for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.origin(of: file) == .user {
+            let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
+            let range = NSRange(text.startIndex..., in: text)
+            var identifiers = Set<String>()
+            for match in Self.identifierPattern.matches(in: text, range: range) {
+                if let r = Range(match.range, in: text) { identifiers.insert(String(text[r])) }
+            }
+            var filePackage: String?
+            if let match = Self.packagePattern.firstMatch(in: text, range: range),
+               let r = Range(match.range(at: 1), in: text) {
+                filePackage = String(text[r])
+            }
+            var starPackages = Self.autoImportedPackages
+            for match in Self.starImportPattern.matches(in: text, range: range) {
+                if let r = Range(match.range(at: 1), in: text) { starPackages.insert(String(text[r])) }
+            }
+            for match in Self.dottedPattern.matches(in: text, range: range) {
+                if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+            }
+            identifierMatches(filePackage, identifiers: identifiers, packages: starPackages)
+        }
+
+        // Map every matched name (inner classes included) to its top-level
+        // owner; only top-level classes are emitted by inject(into:).
+        var needed = Set<String>()
+        var queue: [String] = []
+        func isInjected(_ name: String) -> Bool {
+            guard let info = classes[name] else { return false }
+            return !isCovered(info.name, covered: covered)
+        }
+        func markNeeded(_ name: String) {
+            var top = name
+            while let outer = innerClassMetadata[top]?.outerName { top = outer }
+            if lazyClassNames.contains(top), isInjected(top), needed.insert(top).inserted { queue.append(top) }
+        }
+        for name in matched { markNeeded(name) }
+        func signatureNames(_ type: JVMValueType) -> [String] {
+            guard let name = type.referenceName else { return [] }
+            var n = name
+            while n.hasPrefix("[") { n.removeFirst() }
+            if n.hasPrefix("L"), n.hasSuffix(";") { n = String(n.dropFirst().dropLast()) }
+            return n.contains("/") ? [n] : []
+        }
+        var edgeProcessed = Set<String>()
+        func processEdges(_ name: String) {
+            guard edgeProcessed.insert(name).inserted, let info = classes[name] else { return }
+            for parent in [info.superclass].compactMap({ $0 }) + info.interfaces {
+                // Covered supertypes render as Kotlin/platform names and need
+                // no stub; every other lazy supertype joins the closure.
+                if lazyClassNames.contains(parent), isInjected(parent) {
+                    markNeeded(parent)
+                }
+            }
+            for method in info.methods where method.parameters.allSatisfy(expose)
+                && expose(method.result)
+                && (method.isConstructor || JVMProgramBuilder.isIdentifier(method.name)) {
+                for type in method.parameters + [method.result] {
+                    for ref in signatureNames(type)
+                    where lazyClassNames.contains(ref) && isInjected(ref) {
+                        markNeeded(ref)
+                    }
+                }
+            }
+            // Nested classes are emitted inside their owner's stub but are
+            // not worklist items themselves; their signature types still
+            // need to join the closure.
+            for entry in innerClassMetadata.values where entry.outerName == name {
+                if classes[entry.name] != nil { processEdges(entry.name) }
+            }
+        }
+        // Every eagerly injected class can reference lazy types in its own
+        // emitted signatures, so their edges seed the closure as well.
+        for name in classes.keys where !lazyClassNames.contains(name) && isInjected(name) {
+            processEdges(name)
+        }
+        while let name = queue.popLast() { processEdges(name) }
+        return needed
+    }
+
+    /// Whether a classpath parent renders as a Kotlin declaration rather
+    /// than an injected stub, i.e. `kotlinSupertypeName` maps it onto a
+    /// provided kotlin.* nominal. Such parents' members cannot be matched
+    /// against erased classfile signatures for `override` purposes.
+    private func resolvesToKotlinDecl(_ name: String) -> Bool {
+        activeCoveredNames.contains(name) && Self.jdkToKotlinTypeNames[name] != nil
+    }
+
+    /// Whether `info` inherits the given Java class through its superclass
+    /// or interface chain (erased classfile names).
+    private func inheritsJavaType(_ info: JVMClassInfo, _ target: String) -> Bool {
+        var visited = Set<String>()
+        var queue = [info.superclass].compactMap { $0 } + info.interfaces
+        while let name = queue.popLast() {
+            if name == target { return true }
+            guard visited.insert(name).inserted, let parent = hierarchyClasses[name] else { continue }
+            queue.append(contentsOf: [parent.superclass].compactMap { $0 } + parent.interfaces)
+        }
+        return false
+    }
+
     private func parameters(_ method: JVMForeignMethod) -> String {
         method.parameters.enumerated().map { "p\($0.offset): " + kotlinType($0.element) }.joined(separator: ", ")
     }
@@ -375,6 +802,17 @@ final class JVMClasspathIndex {
         if ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) { return true }
         let key = method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
         for parentName in ([info.superclass].compactMap { $0 } + info.interfaces) {
+            // java.lang.Object maps to kotlin.Any, which only provides
+            // toString/hashCode/equals (already handled above). Its other
+            // members (clone, finalize, wait, ...) have no Kotlin
+            // counterpart, so treating them as overridden parents would
+            // emit `override` for declarations that resolve to nothing.
+            // The same applies to covered parents that render as Kotlin
+            // mapped types (kotlin.Number, kotlin.CharSequence,
+            // kotlin.text.Appendable): their Kotlin member sets differ
+            // from the erased classfile signatures, so memberDeclarations
+            // bridges the differences explicitly instead.
+            if parentName == "java/lang/Object" || resolvesToKotlinDecl(parentName) { continue }
             guard let parent = classes[parentName] else { continue }
             if parent.methods.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!) == key }) { return true }
             if overridesParent(method, in: parent, visited: visited.union([info.name])) { return true }

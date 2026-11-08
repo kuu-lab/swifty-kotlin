@@ -390,6 +390,42 @@ struct TypeConstraintBoundsTests {
         }
     }
 
+    /// KUU-4409: local functions parse from flat statement tokens rather than
+    /// a CST funDecl node, so the `where` clause between the return type and
+    /// the body used to be swallowed into the return type (PARSE-0024/0020).
+    @Test
+    func localFunctionWhereClauseIsAccepted() throws {
+        let ctx = makeContextFromSource("""
+        interface Marker
+        fun probe() {
+            fun <T> f(t: T): T where T : Comparable<T>, T : Marker = t
+            fun <T> g(t: T): T
+                where T : Comparable<T> {
+                return t
+            }
+            fun <T> h(t: T) where T : Comparable<T> = t
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func localFunctionWhereClauseEnforcesUpperBounds() throws {
+        let ctx = makeContextFromSource("""
+        class NotComparable
+        fun probe() {
+            fun <T> f(t: T): T where T : Comparable<T> = t
+            f(NotComparable())
+        }
+        """)
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.diagnostics.contains { $0.severity == .error },
+            "Expected a bound-constraint error, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     @Test func unconstrainedTypeParameterArraySortResolvesWithoutBoundError() throws {
         let sources = [
             """

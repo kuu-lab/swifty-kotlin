@@ -188,41 +188,6 @@ import Testing
                     class TestClass : Left, Right
 
             """,
-            // testConcreteSuperclassDefaultBeatsInterfaceConflict
-            """
-            package sample14
-
-                    open class Base {
-                        open fun method(): String = "Base"
-                    }
-                    interface Left {
-                        fun method(): String = "Left"
-                    }
-                    interface Right {
-                        fun method(): String = "Right"
-                    }
-                    class TestClass : Base(), Left, Right
-
-            """,
-            // testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity
-            """
-            package sample15
-
-                    open class Base {
-                        open fun method(): String = "Base"
-                    }
-                    interface Left {
-                        fun method(): String = "Left"
-                    }
-                    interface Right {
-                        fun method(): String = "Right"
-                    }
-                    class TestClass : Base(), Left, Right
-                    fun main() {
-                        println(TestClass().method())
-                    }
-
-            """,
             // testSignatureAwareInheritedOverloadsResolveCalls
             """
             package sample16
@@ -373,18 +338,6 @@ import Testing
                 #expect(!ctx.diagnostics.hasError)
             }
 
-            // testConcreteSuperclassDefaultBeatsInterfaceConflict
-            do {
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
-                #expect(!ctx.diagnostics.hasError)
-            }
-
-            // testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity
-            do {
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
-                #expect(!ctx.diagnostics.hasError)
-            }
-
             // testSignatureAwareInheritedOverloadsResolveCalls
             do {
                 #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
@@ -422,6 +375,36 @@ import Testing
                     class Dog : Animal
 
             """,
+            // KUU-4442: kotlinc requires an explicit override when a concrete
+            // superclass member competes with interface default implementations.
+            """
+            package sample2
+
+                    open class Base {
+                        open fun method(): String = "Base"
+                    }
+                    interface Left {
+                        fun method(): String = "Left"
+                    }
+                    interface Right {
+                        fun method(): String = "Right"
+                    }
+                    class TestClass : Base(), Left, Right
+
+            """,
+            // KUU-4442: same rule for concrete properties.
+            """
+            package sample3
+
+                    open class Base {
+                        open val value: Int = 1
+                    }
+                    interface Left {
+                        val value: Int get() = 2
+                    }
+                    class TestClass : Base(), Left
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -440,6 +423,16 @@ import Testing
             do {
                 // Dog must override the abstract name() even though sound() has a default
                 assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
+            }
+
+            // KUU-4442: superclass concrete member + interface defaults
+            do {
+                assertHasDiagnostic("KSWIFTK-SEMA-0171", in: ctx)
+            }
+
+            // KUU-4442: same for properties
+            do {
+                assertHasDiagnostic("KSWIFTK-SEMA-0171", in: ctx)
             }
         }
     }

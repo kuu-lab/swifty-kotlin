@@ -250,3 +250,13 @@ public func __kk_array_new_same_component(_ sourceRaw: Int, _ size: Int) -> Int 
     }
     return result
 }
+
+/// `Array<*>.isArrayOf<T>()`: the allocation component must be assignable to
+/// T, matching the `as? Array<T>` component check (`kk_array_op_safe_cast`).
+/// Untagged arrays answer false unless T is `Any`, mirroring the cast path's
+/// "missing metadata cannot prove a narrower component" rule.
+@_cdecl("kk_array_is_array_of")
+public func kk_array_is_array_of(_ arrayRaw: Int, _ componentType: Int) -> Int {
+    guard runtimeArrayBoxExcludingObjects(from: arrayRaw) != nil else { return 0 }
+    return runtimeArrayHasAssignableComponent(rawValue: arrayRaw, targetComponent: componentType) ? 1 : 0
+}

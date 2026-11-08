@@ -26,10 +26,11 @@ final class JVMCodegenPhase: CompilerPhase {
             let module = JVMMetadata.module(program)
             let modulePath = "META-INF/" + program.moduleName + ".kotlin_module"
             let output = URL(fileURLWithPath: ctx.options.outputPath)
-            if ctx.options.emit == .jvmJar {
+            switch ctx.options.emit {
+            case .jvmJar:
                 let archive = try JVMJarArchive.emit(className: program.internalClassName, classFile: classFile, hasMain: program.hasMain, module: (modulePath, module), classes: classes)
                 try archive.write(to: output, options: .atomic)
-            } else {
+            case .jvmClass:
                 for (name, bytes) in [(program.internalClassName + ".class", classFile)] + classes {
                     let classURL = output.appendingPathComponent(name)
                     try FileManager.default.createDirectory(at: classURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -38,7 +39,37 @@ final class JVMCodegenPhase: CompilerPhase {
                 let moduleURL = output.appendingPathComponent(modulePath)
                 try FileManager.default.createDirectory(at: moduleURL.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try module.write(to: moduleURL, options: .atomic)
+            case .dex, .apk:
+                // Classpath stubs (<kswiftk-jvm-import>) are compile-time
+                // contracts for Sema only. Dexing them would shadow the real
+                // android.jar/JDK implementations at runtime; their JVM
+                // signatures still bind calls to the framework methods.
+                let stubClassFiles = ctx.jvmImportedClassFileNames
+                let dexClasses = classes.filter { !stubClassFiles.contains($0.0) }
+                if ctx.options.emit == .dex {
+                    try AndroidPackaging.emitDex(
+                        options: ctx.options, className: program.internalClassName,
+                        classFile: classFile, hasMain: program.hasMain,
+                        module: (modulePath, module), classes: dexClasses,
+                        phaseTimer: ctx.phaseTimer
+                    )
+                } else {
+                    try AndroidPackaging.emitAPK(
+                        options: ctx.options, className: program.internalClassName,
+                        classFile: classFile, hasMain: program.hasMain,
+                        module: (modulePath, module), classes: dexClasses,
+                        phaseTimer: ctx.phaseTimer
+                    )
+                }
+            default:
+                break
             }
+        } catch let error as AndroidSDKError {
+            ctx.diagnostics.error("KSWIFTK-ANDROID-0001", error.description, range: nil)
+            throw CompilerPipelineError.outputUnavailable
+        } catch let error as AndroidPackagingError {
+            ctx.diagnostics.error("KSWIFTK-ANDROID-0002", error.description, range: nil)
+            throw CompilerPipelineError.outputUnavailable
         } catch {
             ctx.diagnostics.error("KSWIFTK-JVM-0002", "Cannot emit JVM output: \(error)", range: nil)
             throw CompilerPipelineError.outputUnavailable

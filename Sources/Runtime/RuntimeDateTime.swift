@@ -93,7 +93,7 @@ private func runtimeCalendarField(_ field: Int, box: RuntimeCalendarBox) -> Int 
     case 11: return components.hour ?? 0
     case 12: return components.minute ?? 0
     case 13: return components.second ?? 0
-    case 14: return (components.nanosecond ?? 0) / 1_000_000
+    case 14: return ((components.nanosecond ?? 0) + 500_000) / 1_000_000
     case 15: return runtimeTimeZoneRawOffset(in: box.calendar.timeZone)
     case 16: return runtimeTimeZoneOffset(milliseconds: runtimeEpochMilliseconds(box.date), in: box.calendar.timeZone)
             - runtimeTimeZoneRawOffset(in: box.calendar.timeZone)
@@ -128,6 +128,20 @@ private func runtimeCalendarSetField(_ field: Int, value: Int, box: RuntimeCalen
         return
     default:
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: Calendar.set received unsupported field \(field)")
+    }
+    // dateComponents(in:from:) also reports week-derived fields
+    // (weekOfYear/yearForWeekOfYear/weekday...). When they stay populated,
+    // Calendar.date(from:) resolves the date from the week fields and
+    // silently ignores year/month/day writes — e.g. set(YEAR) was a no-op.
+    // Week-field writes (3, 4, 7, 8) keep them; every other field drops them.
+    if field != 3 && field != 4 && field != 7 && field != 8 {
+        components.weekday = nil
+        components.weekdayOrdinal = nil
+        components.weekOfYear = nil
+        components.weekOfMonth = nil
+        components.yearForWeekOfYear = nil
+        components.quarter = nil
+        components.isLeapMonth = nil
     }
     if let updatedDate = box.calendar.date(from: components) {
         box.date = updatedDate
@@ -193,6 +207,26 @@ public func __kk_time_zone_get_offset(_ timeZoneRaw: Int, _ epochMilliseconds: I
         milliseconds: epochMilliseconds,
         in: requiredRuntimeTimeZone(timeZoneRaw, symbol: "__kk_time_zone_get_offset").timeZone
     )
+}
+
+@_cdecl("__kk_time_zone_get_display_name")
+public func __kk_time_zone_get_display_name(
+    _ timeZoneRaw: Int,
+    _ inDaylight: Int,
+    _ style: Int,
+    _ localeRaw: Int
+) -> Int {
+    let box = requiredRuntimeTimeZone(timeZoneRaw, symbol: "__kk_time_zone_get_display_name")
+    let daylight = inDaylight != 0
+    let nameStyle: Foundation.TimeZone.NameStyle
+    if style == 1 {
+        nameStyle = daylight ? .daylightSaving : .standard
+    } else {
+        nameStyle = daylight ? .shortDaylightSaving : .shortStandard
+    }
+    let locale = runtimeLocaleBox(from: localeRaw)?.locale
+    let name = box.timeZone.localizedName(for: nameStyle, locale: locale) ?? box.timeZone.identifier
+    return runtimeMakeStringRaw(name)
 }
 
 @_cdecl("__kk_calendar_create")

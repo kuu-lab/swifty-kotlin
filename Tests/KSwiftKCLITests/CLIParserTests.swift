@@ -33,7 +33,7 @@ struct CLIParserTests {
         #expect(throws: CLIParseError.missingValue("--profile")) {
             try CLIParser.parse(args: ["--profile"])
         }
-        #expect(throws: CLIParseError.incompatibleStdlibOptions("--profile minimal is not supported with --emit class or jar")) {
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("--profile minimal is not supported with --emit class, jar, dex or apk")) {
             try CLIParser.parse(args: ["--profile", "minimal", "--emit", "jar", "hello.kt"])
         }
     }
@@ -64,7 +64,7 @@ struct CLIParserTests {
         #expect(throws: CLIParseError.missingValue("-jvm-target")) {
             try CLIParser.parse(args: ["--emit", "class", "-jvm-target"])
         }
-        #expect(throws: CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class or jar")) {
+        #expect(throws: CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class, jar, dex or apk")) {
             try CLIParser.parse(args: ["-jvm-target", "21", "hello.kt"])
         }
     }
@@ -74,7 +74,72 @@ struct CLIParserTests {
         let options = try CLIParser.parse(args: ["--emit", "jar", flag, "a.jar::classes", flag, "b.jar", "hello.kt"])
         #expect(options.jvmClasspath == ["a.jar", ".", "classes", "b.jar"])
         #expect(throws: CLIParseError.missingValue(flag)) { try CLIParser.parse(args: [flag]) }
-        #expect(throws: CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class or jar")) { try CLIParser.parse(args: [flag, "a.jar", "hello.kt"]) }
+        #expect(throws: CLIParseError.incompatibleStdlibOptions("--classpath requires --emit class, jar, dex or apk")) { try CLIParser.parse(args: [flag, "a.jar", "hello.kt"]) }
+    }
+
+    @Test(arguments: ["dex", "apk"])
+    func parsesAndroidEmitModes(mode: String) throws {
+        let options = try CLIParser.parse(args: ["--emit", mode, "hello.kt"])
+        #expect(options.emit == (mode == "dex" ? .dex : .apk))
+        #expect(options.emit.isJVM)
+        #expect(options.outputPath == (mode == "dex" ? "./classes.dex.jar" : "./app.apk"))
+        #expect(!options.includeStdlib)
+        let explicit = try CLIParser.parse(args: ["-o", "custom.out", "--emit", mode, "hello.kt"])
+        #expect(explicit.outputPath == "custom.out")
+    }
+
+    @Test
+    func parsesAndroidOptions() throws {
+        let options = try CLIParser.parse(args: [
+            "--emit", "apk", "hello.kt",
+            "--android-sdk", "/opt/android-sdk",
+            "--android-build-tools=36.0.0",
+            "--android-compile-sdk", "36",
+            "--android-min-api", "24",
+            "--manifest", "app/src/main/AndroidManifest.xml",
+            "--android-res", "app/src/main/res",
+            "--android-assets", "app/src/main/assets",
+            "--android-keystore", "release.jks",
+            "--android-key-alias", "release",
+            "--android-store-pass", "store-secret",
+            "--android-key-pass", "key-secret",
+        ])
+        #expect(options.android.sdkPath == "/opt/android-sdk")
+        #expect(options.android.buildToolsVersion == "36.0.0")
+        #expect(options.android.compileSdk == "36")
+        #expect(options.android.minAPI == 24)
+        #expect(options.android.manifestPath == "app/src/main/AndroidManifest.xml")
+        #expect(options.android.resourcePath == "app/src/main/res")
+        #expect(options.android.assetPath == "app/src/main/assets")
+        #expect(options.android.keystorePath == "release.jks")
+        #expect(options.android.keyAlias == "release")
+        #expect(options.android.storePassword == "store-secret")
+        #expect(options.android.keyPassword == "key-secret")
+        #expect(throws: CLIParseError.missingValue("--android-min-api requires a positive API level")) {
+            try CLIParser.parse(args: ["--emit", "dex", "--android-min-api", "abc", "hello.kt"])
+        }
+        #expect(throws: CLIParseError.missingValue("--android-sdk")) {
+            try CLIParser.parse(args: ["--emit", "dex", "--android-sdk"])
+        }
+    }
+
+    @Test
+    func validatesAndroidOptionsAgainstEmitMode() throws {
+        #expect(throws: CLIParseError.androidOptionsRequireDEXOrAPK("--android-sdk requires --emit dex or apk")) {
+            try CLIParser.parse(args: ["--emit", "jar", "--android-sdk", "/opt/sdk", "hello.kt"])
+        }
+        #expect(throws: CLIParseError.androidOptionsRequireDEXOrAPK("--android-min-api requires --emit dex or apk")) {
+            try CLIParser.parse(args: ["hello.kt", "--android-min-api=21"])
+        }
+        // SDK-level options are allowed for dex; packaging options need apk.
+        #expect(try CLIParser.parse(args: ["--emit", "dex", "--android-min-api", "21", "hello.kt"]).android.minAPI == 21)
+        #expect(throws: CLIParseError.androidPackagingRequiresAPK("--manifest requires --emit apk")) {
+            try CLIParser.parse(args: ["--emit", "dex", "--manifest", "AndroidManifest.xml", "hello.kt"])
+        }
+        #expect(throws: CLIParseError.androidPackagingRequiresAPK("--android-keystore requires --emit apk")) {
+            try CLIParser.parse(args: ["--emit", "class", "--android-keystore", "k.jks", "hello.kt"])
+        }
+        #expect(try CLIParser.parse(args: ["--emit", "apk", "--android-res", "res", "hello.kt"]).android.resourcePath == "res")
     }
 
     @Test(arguments: ["--test", "-generate-test-runner"])

@@ -204,4 +204,14 @@ public open class Thread private constructor(
             try { return activeThreadCount } finally { countLock.unlock() }
         }
     }
+
+    /** JDK `Thread.State` — the lifecycle states reported by `Thread.getState()`. */
+    public enum class State {
+        NEW,
+        RUNNABLE,
+        BLOCKED,
+        WAITING,
+        TIMED_WAITING,
+        TERMINATED,
+    }
 }

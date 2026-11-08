@@ -316,5 +316,43 @@ struct GenericCallableReferenceInferenceTests {
         }
         #expect(inputTypeNames == ["Int?", "String?", "Boolean"])
     }
+
+    @Test(arguments: [
+        "fun <T> gen(value: T): T = value; val ref = ::gen",
+        "fun <T> unused(value: Int): Int = value; val ref = ::unused",
+        "fun <T, R> pair(first: T): R = TODO(); val ref = ::pair",
+        "class C { fun <R> make(): R = TODO() }; val ref = C()::make",
+        "fun <T> Int.plain(value: Int): Int = value; val ref = 1::plain",
+        "class Foo<T>(val x: T); val ref = ::Foo",
+        "fun <R> Int.make(): R = TODO(); val ref = 1::make",
+    ])
+    func rejectsTypeParametersThatCannotBeInferred(source: String) throws {
+        // KUU-4408: kotlinc rejects an unannotated generic callable reference
+        // whose type parameters neither the expected type nor the receiver
+        // can supply, instead of binding the reference with unresolved type
+        // variables and failing later at the call site.
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-INFER"
+        })
+    }
+
+    @Test(arguments: [
+        "fun <T> T.echo(): T = this; val ref = 1::echo",
+        "fun <T> T.echo(): T = this; val ref = Int::echo",
+        "class Box<T>(val v: T) { fun get(): T = v }; val box = Box(1); val ref = box::get",
+        "class Box<T>(val v: T) { fun get(): T = v }; val ref = Box<Int>::get",
+        "class Foo<T>(val x: T); val ref: (Int) -> Foo<Int> = ::Foo",
+        "fun <T> gen(value: T): T = value; fun use(ref: (Int) -> Int) {}; fun main() { use(::gen) }",
+        "fun <T> gen(value: T): T = value; fun <R> apply2(block: (R) -> R, value: R): R = block(value); fun main() { apply2(::gen, 5) }",
+        "import kotlin.reflect.KFunction1; fun <T> gen(value: T): T = value; val ref: KFunction1<Int, Int> = ::gen",
+    ])
+    func acceptsTypeParametersInferredFromReceiverOrContext(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors)")
+    }
 }
 #endif

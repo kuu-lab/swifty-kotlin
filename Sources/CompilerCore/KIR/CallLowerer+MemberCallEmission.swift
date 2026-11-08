@@ -1407,7 +1407,17 @@ extension CallLowerer {
                 sema: sema
             )
         } ?? false
+        // BroadcastChannel is the first source-backed SendChannel implementation;
+        // its receivers must reach tryEmitVirtualDispatch so the kk_channel_*
+        // bridges are bypassed in favour of the implementation's itable slot
+        // (KUU-4376). Mirrors the gate inside tryEmitVirtualDispatch.
+        let usesBroadcastChannelVirtualBridge =
+            receiver.type(in: sema).map {
+                isBroadcastChannelReceiverType($0, sema: sema, interner: interner)
+            } == true
+            && chosenCallee.map { isChannelRuntimeBridgeCallee($0, sema: sema) } == true
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || usesBroadcastChannelVirtualBridge
             || usesRuntimeSetContains
             || listIteratorInheritedDispatch
             || isImportedLibraryLink
@@ -1637,13 +1647,11 @@ extension CallLowerer {
         "kk_sequence_min",
         "kk_sequence_ifEmpty",
         "kk_sequence_first",
-        "kk_sequence_random",
         "kk_sequence_last",
         "kk_sequence_max",
         "kk_sequence_firstOrNull",
         "kk_sequence_single",
         "kk_sequence_singleOrNull",
-        "kk_sequence_randomOrNull",
         "kk_sequence_count",
         "kk_sequence_to_list",
         "kk_sequence_runningFoldIndexed",

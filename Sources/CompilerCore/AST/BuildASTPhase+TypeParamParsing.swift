@@ -236,7 +236,7 @@ extension BuildASTPhase {
         return nil
     }
 
-    private func parseWhereClauseEntries(
+    func parseWhereClauseEntries(
         tokens: [Token], startIndex: Int,
         interner: StringInterner, astArena: ASTArena, propertyAccessors: Bool
     ) -> [(name: InternedString, bound: TypeRefID)] {

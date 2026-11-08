@@ -11,8 +11,6 @@ extension StdlibSurfaceSpec {
         sequence("flatMap", 1, "kk_sequence_flatMap", returnStrategy: .sequence, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         sequence("flatMapIndexed", 1, "kk_sequence_flatMapIndexed", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
         sequence("plus", 1, "kk_sequence_plus", returnStrategy: .sequence, lambdaExpectation: .none),
-        sequence("random", 0, "kk_sequence_random", returnStrategy: .receiverElement, lambdaExpectation: .none),
-        sequence("randomOrNull", 0, "kk_sequence_randomOrNull", returnStrategy: .nullableReceiverElement, lambdaExpectation: .none),
         sequence("plusElement", 1, "kk_sequence_plus_element", returnStrategy: .sequence, lambdaExpectation: .none),
         sequence("contains", 1, "kk_sequence_contains", returnStrategy: .boolean, lambdaExpectation: .none),
         sequence("indexOf", 1, "kk_sequence_indexOf", returnStrategy: .int, lambdaExpectation: .none),

@@ -96,6 +96,13 @@ public external fun <T> emptyArray(): Array<T>
 @KsSymbolName("kk_array_of_nulls")
 public external fun <T> arrayOfNulls(size: Int): Array<T?>
 
+// KUU-4431: source-backed surface for the component-type check. CallLowerer
+// replaces calls to this declaration with `kk_array_is_array_of`, which
+// compares the array's allocation component against the reified T — the same
+// assignability rule `as? Array<T>` applies. The throw body is never reached.
+public inline fun <reified T : Any> Array<*>.isArrayOf(): Boolean =
+    throw IllegalStateException("isArrayOf is expanded by the compiler")
+
 // KSP-779: Keep primitive vararg packing on the raw runtime path so Int
 // elements are not boxed into a temporary container before array creation.
 @KsSymbolName("kk_array_of")

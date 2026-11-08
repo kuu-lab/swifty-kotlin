@@ -385,14 +385,19 @@ final class RuntimeSetBox {
                     _ = map.remove(key: entry.key)
                     return true
                 }
-                guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue),
-                      let entry = tryCast(pointer, to: RuntimePairBox.self),
-                      entry.mutableMapRaw == backingMapRaw,
-                      map.index(ofRawKey: entry.mutableMapKey) != nil
+                // Match contains(): accept runtime pair entries from any map
+                // and source Map.Entry implementations, and require the
+                // entry's key *and* value to equal the map's current pair
+                // (JVM EntrySet.remove uses matchValue=true).
+                guard let entry = runtimeMapEntryValues(rawValue: rawValue)
+                    ?? runtimeSourceMapEntryValues(rawValue),
+                      let index = map.index(ofRawKey: entry.key),
+                      let currentValue = map.rawValue(at: index),
+                      runtimeLookupValuesEqual(entry.value, currentValue)
                 else {
                     return false
                 }
-                _ = map.remove(key: entry.mutableMapKey)
+                _ = map.remove(key: entry.key)
                 return true
             case .keys:
                 guard map.index(ofRawKey: rawValue) != nil else {

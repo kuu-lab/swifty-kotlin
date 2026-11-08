@@ -143,6 +143,13 @@ extension DataFlowSemaPhase {
             interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
+
+        _ = registerSyntheticSequenceStub(
+            packageFQName: [interner.intern("kotlin"), interner.intern("sequences")],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 
     private func registerSyntheticRandomAccessStub(

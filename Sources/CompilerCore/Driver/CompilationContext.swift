@@ -18,6 +18,14 @@ public final class CompilationContext: @unchecked Sendable {
     public internal(set) var jvmProgram: JVMProgram?
     var jvmImports: JVMClasspathIndex?
     var jvmRuntimeClassAliases: [String: String] = [:]
+
+    /// Classfile entry names (`a/b/C.class`) of the classpath stubs injected
+    /// for Sema (`<kswiftk-jvm-import>` sources). Android packaging excludes
+    /// them from DEX output so the real android.jar/JDK implementations are
+    /// what actually run.
+    public var jvmImportedClassFileNames: Set<String> {
+        Set(jvmImports?.classes.keys.map { $0 + ".class" } ?? [])
+    }
     public internal(set) var generatedObjectPath: String?
     public internal(set) var generatedLLVMIRPath: String?
     /// Set when the wasm backend wrote a `.wasm` module for an executable emit.
