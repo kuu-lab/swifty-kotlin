@@ -1461,6 +1461,18 @@ func runtimeChannelFamilyNominalTypeID(rawValue: Int) -> Int64? {
     return nil
 }
 
+/// Nominal type IDs for the channel interfaces a channel-backed scope handle
+/// answers as (KUU-4366): `Channel` plus the `SendChannel`/`ReceiveChannel`
+/// names `registerChannelFamilyTypeEdgesOnce` links under it, so checks are
+/// independent of whether that lazy registration already ran.
+func channelSupertypeIDs() -> [Int64] {
+    [
+        runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.Channel"),
+        runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.SendChannel"),
+        runtimeStableNominalTypeID(fqName: "kotlinx.coroutines.channels.ReceiveChannel"),
+    ]
+}
+
 /// Registers the `Channel -> SendChannel` / `Channel -> ReceiveChannel`
 /// supertype edges once (mirrors `registerJobFamilyTypeEdgesOnce`, KUU-1386)
 /// so `is`/`as` checks against the channel interfaces match kotlinx's

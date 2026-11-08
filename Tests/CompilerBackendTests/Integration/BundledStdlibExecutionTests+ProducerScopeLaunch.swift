@@ -47,6 +47,37 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4366: a `produce` result is the channel itself (upstream a
+    /// `ProducerCoroutine`, which is a `Channel`), so `consumeEach` and
+    /// channel-family `is`/`as` checks must not trap with
+    /// "ProducerScope cannot be cast to Channel".
+    @Test(arguments: [true, false])
+    func testProduceConsumeEachAndChannelCasts(
+        allowDefaultStdlibLibrary: Bool
+    ) throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.*
+            import kotlinx.coroutines.channels.*
+
+            fun main() = runBlocking {
+                val p = produce<Int> { send(1); send(2) }
+                p.consumeEach { println(it) }
+                val p2 = produce<Int> { send(5) }
+                val a: Any? = p2
+                println(a is Channel<*>)
+                println(a is SendChannel<*>)
+                println(a is ReceiveChannel<*>)
+                (a as Channel<*>).cancel()
+                println("done")
+            }
+            """,
+            expectedOutput: "1\n2\ntrue\ntrue\ntrue\ndone\n",
+            moduleName: "KUU4366ProduceConsumeEach",
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        )
+    }
+
     /// Minimal reproduction from the issue: `launch` inside `callbackFlow`'s
     /// producer block plus `awaitClose` used to crash before the block ran.
     /// `channelFlow` shares the same launcher, so it is pinned alongside.
