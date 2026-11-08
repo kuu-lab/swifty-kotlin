@@ -4,7 +4,7 @@ package java.security
 // MessageDigest.digest(byte[], int, int) when the requested length is below
 // digestLength or the offset/length pair cannot hold the digest in the
 // output buffer.
-public open class DigestException : java.lang.Exception {
+public open class DigestException : GeneralSecurityException {
     public constructor() : super()
 
     public constructor(message: String?) : super(message)
