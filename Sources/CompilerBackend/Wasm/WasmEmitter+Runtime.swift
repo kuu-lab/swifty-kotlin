@@ -564,6 +564,7 @@ enum WasmRuntimeHelpers {
         "__kk_builder_set_freeze",
         "__kk_wasm_map_index_of",
         "__kk_mutable_map_putAll",
+        "__kk_map_set_access_order",
         // Reflection metadata registry: `__kk_*_register_*` append
         // kind-tagged nodes to a token-keyed record so materialized init
         // bodies can run their metadata setup without a native object
@@ -1291,6 +1292,11 @@ enum WasmRuntimeHelpers {
         case "__kk_map_freeze":
             extraLocals = 0
             emitMapFreezeBody(&code)
+        case "__kk_map_set_access_order":
+            // KUU-4500: the wasm map box has no access-order flag — the
+            // setter is a no-op and the box keeps insertion order.
+            extraLocals = 0
+            code.i64Const(0)
         case "__kk_set_freeze":
             extraLocals = 0
             code.localGet(0)

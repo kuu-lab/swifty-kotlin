@@ -83,6 +83,99 @@ struct CollectionLiteralLoweringTests {
         #expect(bodyInDecl(declID, module: module) == originalBody)
     }
 
+    /// KUU-4500: `LinkedHashMap(capacity, loadFactor, accessOrder)` must keep
+    /// its runtime tag and additionally emit `__kk_map_set_access_order` so the
+    /// box turns LRU-order, while the two-argument form stays untouched.
+    @Test(arguments: [true, false])
+    func linkedHashMapAccessOrderConstructorEmitsFlagSetter(supplyAccessOrder: Bool) throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let ownerName = ["kotlin", "collections", "LinkedHashMap"].map(interner.intern)
+        let owner = symbols.define(kind: .class, name: ownerName[2], fqName: ownerName,
+                                   declSite: nil, visibility: .public, flags: [])
+        let ownerType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+        let receiver = arena.appendTemporary(type: ownerType)
+        let result = arena.appendTemporary(type: ownerType)
+        let constructor = symbols.define(kind: .constructor, name: interner.intern("<init>"),
+                                         fqName: ownerName + [interner.intern("<init>")],
+                                         declSite: nil, visibility: .public, flags: [])
+        symbols.setParentSymbol(owner, for: constructor)
+        let boolType = types.make(.primitive(.boolean, .nonNull))
+        let capacity = arena.appendTemporary(type: types.intType)
+        let loadFactor = arena.appendTemporary(type: types.floatType)
+        // `LinkedHashMap(16, 0.75f, true)` supplies the Boolean flag;
+        // `LinkedHashMap(16, 0.75f)` ends with the Float loadFactor instead,
+        // which must not be mistaken for the flag when `this` is prepended.
+        var arguments = [receiver, capacity, loadFactor]
+        if supplyAccessOrder {
+            arguments.append(arena.appendTemporary(type: boolType))
+        }
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: [types.intType, types.floatType, boolType], returnType: ownerType
+        ), for: constructor)
+        let (module, declID) = makeModule(body: [
+            .call(symbol: constructor, callee: interner.intern("<init>"),
+                  arguments: arguments,
+                  result: result, canThrow: true),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: ctx)
+        let body = bodyInDecl(declID, module: module)
+        _ = try requireLoweringRuntimeCall(
+            try loweringRuntimeABI("linked_hash_map_of"), in: body, interner: interner
+        )
+        let setterCalls = loweringCalls(in: body).filter {
+            $0.callee == interner.intern("__kk_map_set_access_order")
+        }
+        if supplyAccessOrder {
+            let setterCall = try #require(setterCalls.first)
+            #expect(setterCall.arguments == [result, arguments.last!])
+        } else {
+            #expect(setterCalls.isEmpty, "loadFactor must not be treated as the accessOrder flag")
+        }
+    }
+
+    /// KUU-4500: HashMap has no access-order constructor — the Boolean
+    /// trailing argument must not produce a setter call for it.
+    @Test
+    func hashMapConstructorIgnoresBooleanTrailer() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
+        let ownerName = ["kotlin", "collections", "HashMap"].map(interner.intern)
+        let owner = symbols.define(kind: .class, name: ownerName[2], fqName: ownerName,
+                                   declSite: nil, visibility: .public, flags: [])
+        let ownerType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+        let receiver = arena.appendTemporary(type: ownerType)
+        let result = arena.appendTemporary(type: ownerType)
+        let constructor = symbols.define(kind: .constructor, name: interner.intern("<init>"),
+                                         fqName: ownerName + [interner.intern("<init>")],
+                                         declSite: nil, visibility: .public, flags: [])
+        symbols.setParentSymbol(owner, for: constructor)
+        let boolType = types.make(.primitive(.boolean, .nonNull))
+        let flag = arena.appendTemporary(type: boolType)
+        let capacity = arena.appendTemporary(type: types.intType)
+        let loadFactor = arena.appendTemporary(type: types.floatType)
+        symbols.setFunctionSignature(FunctionSignature(
+            parameterTypes: [types.intType, types.floatType, boolType], returnType: ownerType
+        ), for: constructor)
+        let (module, declID) = makeModule(body: [
+            .call(symbol: constructor, callee: interner.intern("<init>"),
+                  arguments: [receiver, capacity, loadFactor, flag],
+                  result: result, canThrow: true),
+            .returnUnit,
+        ], interner: interner, arena: arena)
+        try runPass(module: module, kirCtx: ctx)
+        let body = bodyInDecl(declID, module: module)
+        _ = try requireLoweringRuntimeCall(
+            try loweringRuntimeABI("hash_map_of"), in: body, interner: interner
+        )
+        #expect(!loweringCalls(in: body).contains {
+            $0.callee == interner.intern("__kk_map_set_access_order")
+        })
+    }
+
     // MARK: - Helper
 
     private func makeModuleWithCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {

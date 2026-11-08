@@ -317,6 +317,24 @@ extension CollectionLiteralConstructionLoweringPass {
             } else {
                 // 0 args, capacity arg (Int), or unknown arg type → empty map
                 loweredBody.append(.call(callee: constructorCallee, arguments: [nullExpr, nullExpr2, zeroExpr], result: result, canThrow: false))
+                // KUU-4500: `LinkedHashMap(capacity, loadFactor, accessOrder)`
+                // is java.util.LinkedHashMap's LRU-order constructor. The box
+                // starts insertion-ordered; a separate setter flips it to
+                // access-order so `__kk_map_get` / existing-key `put` reorder.
+                if mapConstructorName == lookup.linkedHashMapName,
+                   let accessOrderArgument = linkedHashMapAccessOrderArgument(
+                       symbol: symbol, arguments: arguments, module: module, ctx: ctx
+                   ),
+                   let result
+                {
+                    let flagResult = module.arena.appendTemporary(type: nil)
+                    loweredBody.append(.call(
+                        callee: ctx.interner.intern("__kk_map_set_access_order"),
+                        arguments: [result, accessOrderArgument],
+                        result: flagResult,
+                        canThrow: false
+                    ))
+                }
             }
             return true
         }

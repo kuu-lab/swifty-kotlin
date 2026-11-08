@@ -32,7 +32,34 @@ final class RuntimeMapBox {
     private(set) var comparatorRaw: Int
     private(set) var invertCompare: Bool
     private(set) var isReadOnly = false
+    /// KUU-4500: java.util.LinkedHashMap `accessOrder=true` — a successful
+    /// `get` or an existing-key `put` moves the touched entry to the tail of
+    /// the iteration order (JDK `afterNodeAccess`).
+    private(set) var accessOrder = false
     private var directModCount: Int = 0
+
+    func enableAccessOrder() {
+        accessOrder = true
+    }
+
+    /// Move the entry at `index` to the tail of the storage order, matching
+    /// the JDK's `afterNodeAccess`. Not a structural modification, so
+    /// `modCount` deliberately stays unchanged (an iterator does not see a
+    /// reorder as a concurrent modification). View boxes forward the index,
+    /// which is already a backing-storage position.
+    func recordAccess(at index: Int) {
+        if let backingMap {
+            backingMap.recordAccess(at: index)
+            return
+        }
+        guard accessOrder, !sorted,
+              keyStorage.indices.contains(index),
+              valueStorage.indices.contains(index)
+        else { return }
+        keyStorage.append(keyStorage.remove(at: index))
+        valueStorage.append(valueStorage.remove(at: index))
+        rebuildKeyIndex()
+    }
 
     func enableSorted(comparatorRaw: Int, invertCompare: Bool = false) {
         sorted = true
@@ -252,9 +279,12 @@ final class RuntimeMapBox {
         updateValue(at: index, value: RuntimeValue(raw: rawValue))
     }
 
-    func updateValue(at index: Int, value: RuntimeValue) {
+    /// `countAsAccess: false` is for `MutableEntry.setValue`: the JDK writes
+    /// `HashMap.Node.value` directly and never triggers
+    /// `LinkedHashMap.afterNodeAccess` for it, even in access-order mode.
+    func updateValue(at index: Int, value: RuntimeValue, countAsAccess: Bool = true) {
         if let backingMap {
-            backingMap.updateValue(at: index, value: value)
+            backingMap.updateValue(at: index, value: value, countAsAccess: countAsAccess)
             return
         }
         guard !isReadOnly else { return }
@@ -263,6 +293,9 @@ final class RuntimeMapBox {
             return
         }
         valueStorage[index] = value
+        if countAsAccess {
+            recordAccess(at: index)
+        }
     }
 
     func appendEntry(key: Int, value: Int) {
@@ -303,17 +336,17 @@ final class RuntimeMapBox {
     }
 
     @discardableResult
-    func put(key: RuntimeValue, value: RuntimeValue) -> RuntimeValue? {
+    func put(key: RuntimeValue, value: RuntimeValue, countAsAccess: Bool = true) -> RuntimeValue? {
         if let backingMap {
             guard acceptsInsertion(rawKey: key.legacyRawValue) else { return nil }
-            return backingMap.put(key: key, value: value)
+            return backingMap.put(key: key, value: value, countAsAccess: countAsAccess)
         }
         guard !isReadOnly else { return nil }
         if sorted {
             let position = sortedKeySearch(for: key.legacyRawValue)
             if position.found {
                 let previous = runtimeValue(at: position.index)
-                updateValue(at: position.index, value: value)
+                updateValue(at: position.index, value: value, countAsAccess: countAsAccess)
                 return previous
             }
             keyStorage.insert(key, at: position.index)
@@ -324,7 +357,7 @@ final class RuntimeMapBox {
         let runtimeKey = indexKey(key)
         if let index = keyIndex[runtimeKey] {
             let previous = runtimeValue(at: index)
-            updateValue(at: index, value: value)
+            updateValue(at: index, value: value, countAsAccess: countAsAccess)
             return previous
         }
         appendEntry(key: key, value: value)

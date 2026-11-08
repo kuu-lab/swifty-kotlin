@@ -34,10 +34,14 @@ package kotlin.collections
 // fails with KSWIFTK-SEMA-INFER regardless of target, even when the argument
 // *values* would obviously work. Only the primary constructor's inline
 // `: HashMap<K, V>(...)` header position is exempt (its substitution comes
-// from the supertype clause, not general inference), so the (), (Int) and
-// (Int, Float) forms are collapsed into one primary constructor with default
-// parameters; the copy constructor is the one secondary constructor whose
-// argument type qualifies, so it delegates via `super(original)` directly.
+// from the supertype clause, not general inference), so the (), (Int),
+// (Int, Float) and (Int, Float, Boolean) forms are collapsed into one primary
+// constructor with default parameters; the copy constructor is the one
+// secondary constructor whose argument type qualifies, so it delegates via
+// `super(original)` directly. KUU-4500: java.util.LinkedHashMap's third
+// constructor parameter is `accessOrder`; when true, get/put reorder entries
+// least-recently-used first (the runtime box implements it; see
+// `__kk_map_set_access_order` and `RuntimeMapBox.recordAccess`).
 // None of these bodies ever run for real: `HashMap(...)`/`LinkedHashMap(...)`
 // call expressions are always intercepted by name and rewritten straight to
 // runtime map-box entry points (`mutableMapConstructorNames` in
@@ -46,7 +50,8 @@ package kotlin.collections
 // KUU-1944: the JVM-compatible LinkedHashMap contract permits user subclasses.
 public open class LinkedHashMap<K, V>(
     initialCapacity: Int = 0,
-    loadFactor: Float = 1.0f
+    loadFactor: Float = 1.0f,
+    accessOrder: Boolean = false
 ) : HashMap<K, V>(initialCapacity, loadFactor) {
     constructor(original: Map<out K, V>) : super(original)
 }

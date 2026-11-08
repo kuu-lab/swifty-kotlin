@@ -50,8 +50,12 @@ public fun <K, @kotlin.internal.OnlyInputTypes V> Map<K, V>.containsValue(value:
 
 @PublishedApi
 internal fun <K, V> Map<K, V>.getOrImplicitDefault(key: K): V {
-    for (entry in this.entries) {
-        if (entry.key == key) return entry.value
+    // Route through `get` (not `entries`): matches the JVM lookup and lets an
+    // access-order LinkedHashMap count this call as an access (KUU-4500).
+    val value = this[key]
+    if (value != null || containsKey(key)) {
+        @Suppress("UNCHECKED_CAST")
+        return value as V
     }
     if (__kk_map_has_default(this)) {
         @Suppress("UNCHECKED_CAST")
@@ -63,10 +67,12 @@ internal fun <K, V> Map<K, V>.getOrImplicitDefault(key: K): V {
 public fun <K, V> Map<K, V>.getValue(key: K): V = getOrImplicitDefault(key)
 
 public fun <K, V> Map<K, V>.getOrDefault(key: K, defaultValue: V): V {
-    for (entry in this.entries) {
-        if (entry.key == key) return entry.value
-    }
-    return defaultValue
+    // Same lookup shape as java.util.Map.getOrDefault: a present key answers
+    // its value even when null, and on an access-order LinkedHashMap the
+    // `get` counts as an access (KUU-4500).
+    val value = this[key]
+    @Suppress("UNCHECKED_CAST")
+    return if (value != null || containsKey(key)) value as V else defaultValue
 }
 
 public inline fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V {

@@ -187,6 +187,15 @@ public func kk_pair_second(_ pairRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_pair_second")
     }
     if pairBox.mutableMapRaw != 0 {
+        // Read the live value without `kk_map_get`: java.util Map.Entry's
+        // getValue does not count as an access, so an access-order
+        // LinkedHashMap must not reorder here (KUU-4500).
+        if let map = runtimeMapBox(from: pairBox.mutableMapRaw),
+           let index = map.index(ofRawKey: pairBox.mutableMapKey),
+           let value = map.runtimeValue(at: index)
+        {
+            return runtimeCollectionABIValue(value)
+        }
         return kk_map_get(pairBox.mutableMapRaw, pairBox.mutableMapKey)
     }
     return pairBox.second
