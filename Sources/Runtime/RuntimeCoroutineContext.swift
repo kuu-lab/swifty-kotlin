@@ -9,6 +9,51 @@ private let runtimeEmptyCoroutineContextTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.coroutines.EmptyCoroutineContext"
 )
 
+/// KUU-4402: one slot in a context's element order. kotlinx models a
+/// composite context as a `CombinedContext` chain whose `fold`/`toString`
+/// walk elements in insertion order with the `ContinuationInterceptor`
+/// element always rightmost; the flat field model cannot recover that
+/// order, so it is tracked explicitly.
+enum RuntimeContextElementSlot: Hashable {
+    case dispatcher
+    case name
+    case exceptionHandler
+    case job
+    case extra(key: Int, element: Int)
+}
+
+struct RuntimeContextElementPair: Hashable {
+    let key: Int
+    let element: Int
+}
+
+/// Best-effort handle for the source-backed `EmptyCoroutineContext`
+/// singleton, captured whenever runtime code observes it so `minusKey`/
+/// `plus` can return the real object (and keep `===` identity) instead of
+/// an empty runtime wrapper.
+private nonisolated(unsafe) var runtimeEmptyCoroutineContextRaw: Int = 0
+
+private func runtimeNoteEmptyCoroutineContext(_ raw: Int) -> Bool {
+    guard raw != 0,
+          runtimeObjectTypeID(rawValue: raw) == runtimeEmptyCoroutineContextTypeID
+    else {
+        return false
+    }
+    runtimeEmptyCoroutineContextRaw = raw
+    return true
+}
+
+/// `kk_object_new` hook: the singleton's Kotlin `plus`/`minusKey`/`get`/
+/// `fold` overrides all short-circuit in source, so the object can be
+/// materialised without ever crossing a context bridge. Capturing it at
+/// allocation keeps `ctx.minusKey(...) === EmptyCoroutineContext` true even
+/// when no context operation ran first (KUU-4402).
+func runtimeNoteEmptyCoroutineContextClassID(_ classID: Int, raw: Int) {
+    if classID == Int(runtimeEmptyCoroutineContextTypeID) {
+        runtimeEmptyCoroutineContextRaw = raw
+    }
+}
+
 final class RuntimeCoroutineContext: @unchecked Sendable {
     var dispatcher: Int  // 0 means "inherit from parent"
     var dispatcherHandleRaw: Int
@@ -19,6 +64,9 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
     /// Source-defined elements the fixed fields cannot model, stored as
     /// ordered (key, element) handle pairs. Element order matters for `fold`.
     var extras: [(key: Int, element: Int)]
+    /// JVM fold/toString order: non-interceptor elements in insertion order,
+    /// the ContinuationInterceptor element last. See KUU-4402.
+    var elementOrder: [RuntimeContextElementSlot]
 
     /// Context operations expose the original element; scheduling uses its tag.
     var dispatcherElementHandle: Int {
@@ -38,7 +86,8 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         jobHandleRaw: Int = 0,
         nameHandleRaw: Int = 0,
         dispatcherHandleRaw: Int = 0,
-        extras: [(key: Int, element: Int)] = []
+        extras: [(key: Int, element: Int)] = [],
+        elementOrder: [RuntimeContextElementSlot]? = nil
     ) {
         self.dispatcher = dispatcher
         self.dispatcherHandleRaw = dispatcherHandleRaw
@@ -48,6 +97,110 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         self.exceptionHandler = exceptionHandler
         self.jobHandleRaw = jobHandleRaw
         self.extras = extras
+        self.elementOrder = elementOrder ?? RuntimeCoroutineContext.defaultElementOrder(
+            hasName: name != nil,
+            hasExceptionHandler: exceptionHandler != nil,
+            hasJob: jobHandleRaw != 0,
+            hasDispatcher: dispatcherHandleRaw != 0 || dispatcher != 0,
+            extras: extras
+        )
+    }
+
+    /// Field-derived order used when no explicit `+`/`minusKey` history is
+    /// known: non-interceptor slots first (name, handler, job, extras), the
+    /// interceptor (dispatcher) last — matching kotlinx's rule that the
+    /// `ContinuationInterceptor` element is always rightmost.
+    static func defaultElementOrder(
+        hasName: Bool,
+        hasExceptionHandler: Bool,
+        hasJob: Bool,
+        hasDispatcher: Bool,
+        extras: [(key: Int, element: Int)]
+    ) -> [RuntimeContextElementSlot] {
+        var slots: [RuntimeContextElementSlot] = []
+        if hasName { slots.append(.name) }
+        if hasExceptionHandler { slots.append(.exceptionHandler) }
+        if hasJob { slots.append(.job) }
+        var interceptorExtras: [RuntimeContextElementSlot] = []
+        for extra in extras {
+            if extra.key == runtimeContinuationInterceptorKeyRaw {
+                interceptorExtras.append(.extra(key: extra.key, element: extra.element))
+            } else {
+                slots.append(.extra(key: extra.key, element: extra.element))
+            }
+        }
+        if hasDispatcher { slots.append(.dispatcher) }
+        slots.append(contentsOf: interceptorExtras)
+        return slots
+    }
+
+    /// The `(key, element)` pair one order slot currently resolves to, or
+    /// nil when the backing field was cleared (e.g. by `minusKey`).
+    func elementPair(for slot: RuntimeContextElementSlot) -> RuntimeContextElementPair? {
+        switch slot {
+        case .dispatcher:
+            let handle = dispatcherElementHandle
+            return handle != 0
+                ? RuntimeContextElementPair(key: runtimeContinuationInterceptorKeyRaw, element: handle)
+                : nil
+        case .name:
+            return name != nil
+                ? RuntimeContextElementPair(key: runtimeCoroutineNameKeyRaw, element: nameHandleRaw)
+                : nil
+        case .exceptionHandler:
+            guard let handler = exceptionHandler else { return nil }
+            return RuntimeContextElementPair(
+                key: runtimeExceptionHandlerKeyRaw,
+                element: Int(bitPattern: Unmanaged.passUnretained(handler).toOpaque())
+            )
+        case .job:
+            return jobHandleRaw != 0
+                ? RuntimeContextElementPair(key: runtimeJobKeyRaw, element: jobHandleRaw)
+                : nil
+        case .extra(let key, let element):
+            return RuntimeContextElementPair(key: key, element: element)
+        }
+    }
+
+    /// Pairs derivable purely from the fields, ignoring `elementOrder` —
+    /// used to drop stale order slots after `minusKey` clears fields.
+    var memberElementPairs: Set<RuntimeContextElementPair> {
+        var pairs = Set<RuntimeContextElementPair>()
+        let dispatcherHandle = dispatcherElementHandle
+        if dispatcherHandle != 0 {
+            pairs.insert(RuntimeContextElementPair(
+                key: runtimeContinuationInterceptorKeyRaw, element: dispatcherHandle))
+        }
+        if name != nil {
+            pairs.insert(RuntimeContextElementPair(
+                key: runtimeCoroutineNameKeyRaw, element: nameHandleRaw))
+        }
+        if let handler = exceptionHandler {
+            pairs.insert(RuntimeContextElementPair(
+                key: runtimeExceptionHandlerKeyRaw,
+                element: Int(bitPattern: Unmanaged.passUnretained(handler).toOpaque())))
+        }
+        if jobHandleRaw != 0 {
+            pairs.insert(RuntimeContextElementPair(key: runtimeJobKeyRaw, element: jobHandleRaw))
+        }
+        for extra in extras {
+            pairs.insert(RuntimeContextElementPair(key: extra.key, element: extra.element))
+        }
+        return pairs
+    }
+
+    /// Elements in JVM `fold`/`toString` order.
+    var orderedElements: [RuntimeContextElementPair] {
+        let members = memberElementPairs
+        return elementOrder
+            .compactMap { elementPair(for: $0) }
+            .filter { members.contains($0) }
+    }
+
+    /// Whether this slot resolves to the `ContinuationInterceptor` element,
+    /// which kotlinx always keeps rightmost in a `CombinedContext`.
+    func isInterceptorElementSlot(_ slot: RuntimeContextElementSlot) -> Bool {
+        elementPair(for: slot)?.key == runtimeContinuationInterceptorKeyRaw
     }
 
     func extraElement(for keyRaw: Int) -> Int? {
@@ -82,7 +235,7 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
                          || pair.key == runtimeCoroutineDispatcherKeyRaw))
         }
         mergedExtras.append(contentsOf: other.extras)
-        return RuntimeCoroutineContext(
+        let merged = RuntimeCoroutineContext(
             dispatcher: otherHasDispatcher ? other.dispatcher
                 : (otherClaimsDispatcher ? 0 : self.dispatcher),
             name: other.name ?? (otherClaimsName ? nil : self.name),
@@ -95,6 +248,42 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
                 : (otherClaimsDispatcher ? 0 : self.dispatcherHandleRaw),
             extras: mergedExtras
         )
+        // KUU-4402: kotlinx's `+` appends the right-hand elements after the
+        // left ones, except that the right-hand interceptor is hoisted to
+        // the rightmost slot and a replaced same-key element moves to the
+        // end of the non-interceptor run. The flat fields cannot express
+        // that, so rebuild the order explicitly.
+        let mergedPairs = merged.memberElementPairs
+        var claimedKeys = Set(other.orderedElements.map(\.key))
+        if otherHasDispatcher {
+            // A dispatcher also shadows extras keyed by CoroutineDispatcher.Key.
+            claimedKeys.insert(runtimeCoroutineDispatcherKeyRaw)
+        }
+        var newOrder: [RuntimeContextElementSlot] = []
+        for slot in elementOrder where !isInterceptorElementSlot(slot) {
+            if let pair = elementPair(for: slot),
+               !claimedKeys.contains(pair.key),
+               mergedPairs.contains(pair) {
+                newOrder.append(slot)
+            }
+        }
+        for slot in other.elementOrder where !other.isInterceptorElementSlot(slot) {
+            newOrder.append(slot)
+        }
+        if let rightInterceptor = other.elementOrder.last(where: {
+            other.isInterceptorElementSlot($0)
+        }) {
+            newOrder.append(rightInterceptor)
+        } else if let leftInterceptor = elementOrder.last(where: {
+            isInterceptorElementSlot($0)
+        }),
+            let pair = elementPair(for: leftInterceptor),
+            !claimedKeys.contains(pair.key),
+            mergedPairs.contains(pair) {
+            newOrder.append(leftInterceptor)
+        }
+        merged.elementOrder = newOrder
+        return merged
     }
 }
 
@@ -113,6 +302,9 @@ private struct RuntimeCoroutineContextIdentity: Hashable {
     let jobHandleRaw: Int
     let extraKeys: [Int]
     let extraElements: [Int]
+    /// KUU-4402: fold/toString order is part of the context's content —
+    /// `Name + Job` and `Job + Name` are distinct contexts on the JVM.
+    var elementOrder: [RuntimeContextElementSlot]
 
     init(
         dispatcher: Int,
@@ -133,6 +325,13 @@ private struct RuntimeCoroutineContextIdentity: Hashable {
         self.jobHandleRaw = jobHandleRaw
         self.extraKeys = extras.map(\.key)
         self.extraElements = extras.map(\.element)
+        self.elementOrder = RuntimeCoroutineContext.defaultElementOrder(
+            hasName: name != nil,
+            hasExceptionHandler: exceptionHandler != nil,
+            hasJob: jobHandleRaw != 0,
+            hasDispatcher: dispatcherHandleRaw != 0 || dispatcher != 0,
+            extras: extras
+        )
     }
 
     init(_ context: RuntimeCoroutineContext) {
@@ -145,6 +344,7 @@ private struct RuntimeCoroutineContextIdentity: Hashable {
             jobHandleRaw: context.jobHandleRaw,
             extras: context.extras
         )
+        self.elementOrder = context.elementOrder
     }
 }
 
@@ -571,15 +771,27 @@ public func kk_context_plus(_ leftRaw: Int, _ rightRaw: Int) -> Int {
     // The source-backed empty singleton is the identity on either side.
     // Preserve the operand itself so `ctx + EmptyCoroutineContext` keeps the
     // exact context object (kotlinx returns the same instance).
-    if runtimeObjectTypeID(rawValue: rightRaw) == runtimeEmptyCoroutineContextTypeID {
+    if runtimeNoteEmptyCoroutineContext(rightRaw) {
         return leftRaw
     }
-    if runtimeObjectTypeID(rawValue: leftRaw) == runtimeEmptyCoroutineContextTypeID {
+    if runtimeNoteEmptyCoroutineContext(leftRaw) {
         return rightRaw
     }
     let leftCtx = resolveToCoroutineContext(leftRaw)
     let rightCtx = resolveToCoroutineContext(rightRaw)
     let merged = leftCtx.plus(rightCtx)
+    // KUU-4402: kotlinx's `+` on two elements returns the bare element
+    // (CombinedContext only exists for 2+ elements), so collapse a
+    // single-element merge the same way `minusKey` does.
+    let elements = merged.orderedElements
+    if elements.isEmpty {
+        return runtimeEmptyCoroutineContextRaw != 0
+            ? runtimeEmptyCoroutineContextRaw
+            : runtimeRegisterObject(merged)
+    }
+    if elements.count == 1 {
+        return elements[0].element
+    }
     return runtimeRegisterObject(merged)
 }
 
@@ -683,9 +895,11 @@ public func kk_context_fold(
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     let ctx = resolveToCoroutineContext(contextRaw)
     var acc = initial
-    for elementRaw in runtimeCoroutineContextElementHandles(in: ctx) {
+    // KUU-4402: fold order follows the context's recorded element order
+    // (insertion order, interceptor rightmost) like kotlinx's CombinedContext.
+    for pair in ctx.orderedElements {
         var thrown = 0
-        let result = lambda(closureRaw, acc, elementRaw, &thrown)
+        let result = lambda(closureRaw, acc, pair.element, &thrown)
         if thrown != 0 {
             outThrown?.pointee = thrown
             return acc
@@ -699,6 +913,19 @@ public func kk_context_fold(
 public func kk_context_minusKey(_ contextRaw: Int, _ keyRaw: Int) -> Int {
     let resolved = resolveToCoroutineContext(contextRaw)
     let reduced = runtimeCoroutineContextRemovingElement(for: keyRaw, from: resolved)
+    // KUU-4402: kotlinx's `minusKey` unwraps CombinedContext down to the
+    // surviving element itself — `ctx.minusKey(Job)` on a two-element
+    // context returns the remaining element (`===`-identical), an emptied
+    // context returns the EmptyCoroutineContext singleton.
+    let elements = reduced.orderedElements
+    if elements.isEmpty {
+        return runtimeEmptyCoroutineContextRaw != 0
+            ? runtimeEmptyCoroutineContextRaw
+            : runtimeRegisterObject(reduced)
+    }
+    if elements.count == 1 {
+        return elements[0].element
+    }
     return runtimeRegisterObject(reduced)
 }
 
@@ -1048,33 +1275,18 @@ private func runtimeCoroutineContextElementHandle(for keyRaw: Int, in ctx: Runti
     return nil
 }
 
-private func runtimeCoroutineContextElementHandles(in ctx: RuntimeCoroutineContext) -> [Int] {
-    var handles: [Int] = []
-    // KUU-1395: the dispatcher slot is also occupied by handle-only elements
-    // (the runBlocking event loop), and a tag-only slot folds as its
-    // dispatcher object.
-    let dispatcherHandle = ctx.dispatcherElementHandle
-    if dispatcherHandle != 0 {
-        handles.append(
-            isDispatcherTag(dispatcherHandle)
-                ? runtimeDispatcherObjectHandle(forTag: dispatcherHandle)
-                : dispatcherHandle
-        )
+private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
+    let next = runtimeCoroutineContextRemovingElementFields(for: keyRaw, from: ctx)
+    // KUU-4402: keep the surviving slots in their recorded order so the
+    // collapsed context still folds/renders like the JVM's remainder.
+    let members = next.memberElementPairs
+    next.elementOrder = next.elementOrder.filter { slot in
+        next.elementPair(for: slot).map { members.contains($0) } ?? false
     }
-    if ctx.name != nil {
-        handles.append(ctx.nameHandleRaw)
-    }
-    if let handler = ctx.exceptionHandler {
-        handles.append(Int(bitPattern: UnsafeMutableRawPointer(Unmanaged.passUnretained(handler).toOpaque())))
-    }
-    if ctx.jobHandleRaw != 0 {
-        handles.append(ctx.jobHandleRaw)
-    }
-    handles.append(contentsOf: ctx.extras.map(\.element))
-    return handles
+    return next
 }
 
-private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
+private func runtimeCoroutineContextRemovingElementFields(for keyRaw: Int, from ctx: RuntimeCoroutineContext) -> RuntimeCoroutineContext {
     let next = RuntimeCoroutineContext(
         dispatcher: ctx.dispatcher,
         name: ctx.name,
@@ -1088,7 +1300,8 @@ private func runtimeCoroutineContextRemovingElement(for keyRaw: Int, from ctx: R
                 // elements stored under the ContinuationInterceptor key.
                 && !(keyRaw == runtimeCoroutineDispatcherKeyRaw
                      && pair.key == runtimeContinuationInterceptorKeyRaw)
-        }
+        },
+        elementOrder: ctx.elementOrder
     )
     if keyRaw == runtimeCoroutineNameKeyRaw {
         next.name = nil
@@ -1179,12 +1392,13 @@ public func kk_context_get_job(_ contextRaw: Int) -> Int {
 
 /// Returns a RuntimeStringBox pointer (or 0 if no name).
 public func kk_context_get_name(_ contextRaw: Int) -> Int {
-    guard contextRaw != 0,
-          isRegisteredRuntimeObjectPointer(contextRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: contextRaw),
-          let ctx = tryCast(ptr, to: RuntimeCoroutineContext.self),
-          let name = ctx.name
-    else {
+    // KUU-4402: `plus`/`minusKey` collapse single-element results to the
+    // bare element, so resolve like the other context entry points instead
+    // of requiring a RuntimeCoroutineContext wrapper.
+    guard contextRaw != 0 else {
+        return 0
+    }
+    guard let name = resolveToCoroutineContext(contextRaw).name else {
         return 0
     }
     let resultBox = RuntimeStringBox(name)
@@ -1378,7 +1592,7 @@ private func runtimeSourceContextElementKey(_ raw: Int) -> Int? {
 
 func resolveToCoroutineContext(_ raw: Int) -> RuntimeCoroutineContext {
     // Source-backed EmptyCoroutineContext is a heap singleton, not a dispatcher.
-    if raw == 0 || runtimeObjectTypeID(rawValue: raw) == runtimeEmptyCoroutineContextTypeID {
+    if raw == 0 || runtimeNoteEmptyCoroutineContext(raw) {
         return RuntimeCoroutineContext()
     }
     if isDispatcherTag(raw) {
@@ -2155,4 +2369,32 @@ func kk_with_context_impl(
     runtimeWaitDrainingEventLoop(semaphore)
     outThrown?.pointee = resultBox.failure
     return resultBox.value
+}
+
+/// KUU-4402: kotlinx renders a composite context as
+/// `[elem1, elem2, ...]` (interceptor last), a single surviving element as
+/// the element itself, and an empty context as `EmptyCoroutineContext`.
+func runtimeCoroutineContextToString(_ context: RuntimeCoroutineContext) -> String {
+    let elements = context.orderedElements
+    if elements.isEmpty {
+        return "EmptyCoroutineContext"
+    }
+    let rendered = elements.map { runtimeCoroutineContextElementToString($0.element) }
+    return rendered.count == 1 ? rendered[0] : "[\(rendered.joined(separator: ", "))]"
+}
+
+private func runtimeCoroutineContextElementToString(_ element: Int) -> String {
+    if isDispatcherTag(element) {
+        return runtimeResolveDispatcher(from: element).displayName
+            ?? runtimeRenderAnyForPrint(element)
+    }
+    if let override = runtimeAnyToStringOverride(element),
+       let text = extractString(from: override) {
+        return text
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: element),
+       let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self) {
+        return "CoroutineName(\(nameBox.name))"
+    }
+    return runtimeRenderAnyForPrint(element)
 }
