@@ -273,6 +273,7 @@ extension ExprTypeChecker {
             rhsCtx.elvisRhsCallResultTypeHint = nonNullLhs
             rhsCtx.elvisRhsCallResultTypeHintExpr = rhsID
         }
+        let localsBeforeRhsInference = locals
         var rhs: TypeID
         if let earlyElvisRhs {
             rhs = earlyElvisRhs
@@ -479,6 +480,95 @@ extension ExprTypeChecker {
         }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
         let operatorName = operatorNames[0]
+        // An operator RHS that is itself an inferable call can depend on the
+        // desugared operator's parameter type for its own inference
+        // (`listOf<T>() + l.flatMap { getAll(it) }`). The synthetic operator
+        // call only carries the argument's inferred type, so when the first
+        // pass failed, re-infer the RHS under each viable candidate's
+        // parameter type (KUU-4464).
+        let rhsIsInferableCall: Bool = switch ast.arena.expr(rhsID) {
+        case .call, .memberCall, .safeMemberCall:
+            true
+        default:
+            false
+        }
+        if rhsIsInferableCall,
+           [.add, .subtract, .multiply, .divide, .modulo,
+            .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual].contains(op)
+        {
+            let removedFirstPassErrors = ast.arena.exprRange(rhsID).map {
+                sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+            } ?? []
+            if rhs == sema.types.errorType || !removedFirstPassErrors.isEmpty {
+                let probeCall = CallExpr(
+                    range: range,
+                    calleeName: operatorName,
+                    args: [CallArg(type: sema.types.errorType)],
+                    isOperatorCall: true
+                )
+                let retryCandidates = collectOperatorCandidates(
+                    names: operatorNames,
+                    receiverType: lhs,
+                    call: probeCall,
+                    locals: locals,
+                    ctx: ctx
+                )
+                var triedParameterTypes: [TypeID] = []
+                var retriedRhs: TypeID?
+                var retriedLocals: LocalBindings?
+                for candidate in retryCandidates {
+                    guard let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes.count == 1
+                    else {
+                        continue
+                    }
+                    let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                    let substitution = ctx.resolver.probeArgumentTypeSubstitution(
+                        signature: signature,
+                        typeVarBySymbol: typeVarBySymbol,
+                        knownArgumentTypes: [:],
+                        typeSystem: sema.types,
+                        implicitReceiverType: lhs
+                    )
+                    let parameterType = sema.types.substituteTypeParameters(
+                        in: signature.parameterTypes[0],
+                        substitution: substitution,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    guard parameterType != sema.types.errorType,
+                          !triedParameterTypes.contains(parameterType)
+                    else {
+                        continue
+                    }
+                    triedParameterTypes.append(parameterType)
+                    let checkpoint = sema.diagnostics.checkpoint()
+                    var candidateLocals = localsBeforeRhsInference
+                    let candidateRhs = driver.inferExpr(
+                        rhsID,
+                        ctx: rhsCtx,
+                        locals: &candidateLocals,
+                        expectedType: parameterType
+                    )
+                    let retryEmittedError = sema.diagnostics.diagnostics
+                        .dropFirst(checkpoint)
+                        .contains { $0.severity == .error }
+                    if candidateRhs != sema.types.errorType, !retryEmittedError {
+                        retriedRhs = candidateRhs
+                        retriedLocals = candidateLocals
+                        break
+                    }
+                    sema.diagnostics.rollback(to: checkpoint)
+                }
+                if let retriedRhs, let retriedLocals {
+                    rhs = sema.types.capturedOperatorReceiverType(of: retriedRhs)
+                    locals = retriedLocals
+                } else {
+                    for diagnostic in removedFirstPassErrors {
+                        sema.diagnostics.emit(diagnostic)
+                    }
+                }
+            }
+        }
         let nothingRangePeerType: TypeID? = {
             guard [.rangeTo, .rangeUntil, .downTo].contains(op) else { return nil }
             if lhs == sema.types.nothingType,
