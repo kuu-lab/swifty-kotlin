@@ -324,7 +324,22 @@ extension CallTypeChecker {
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
                         range: request.range
-                    )                } else {
+                    )
+                } else if diagnostic.code == "KSWIFTK-SEMA-0473",
+                          hasApplicableUnimportedBundledExtension(
+                              request,
+                              receiverType: effectiveReceiverType,
+                              preparedArgs: preparedArgs,
+                              isClassNameReceiver: isClassNameReceiver,
+                              isSuperCall: isSuperCall
+                          )
+                {
+                    request.ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0002",
+                        "No viable overload found for call.",
+                        range: request.range
+                    )
+                } else {
                     request.ctx.sema.diagnostics.emit(diagnostic)
                 }
                 return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
@@ -332,6 +347,122 @@ extension CallTypeChecker {
         }
 
         return nil
+    }
+
+    /// An unavailable bundled extension must not change resolution, but it can
+    /// explain why an otherwise visible member overload is not a viable call.
+    /// Keep that distinction in the diagnostic without making the extension a
+    /// candidate when its package has not been imported.
+    private func hasApplicableUnimportedBundledExtension(
+        _ request: MemberCallInferenceRequest,
+        receiverType: TypeID,
+        preparedArgs: PreparedCallArguments,
+        isClassNameReceiver: Bool,
+        isSuperCall: Bool
+    ) -> Bool {
+        guard !isClassNameReceiver,
+              !isSuperCall,
+              request.args.count == preparedArgs.argTypes.count,
+              preparedArgs.argTypes.allSatisfy({ $0 != request.sema.types.errorType }),
+              !request.args.contains(where: {
+                  request.ast.arena.expr($0.expr)?.isLambdaOrCallableRef == true
+              }),
+              let sourceFile = request.ctx.currentASTFile,
+              let sourceManager = request.ctx.visibilityChecker.sourceManager
+        else {
+            return false
+        }
+
+        let defaultImportPackages = TypeCheckScopeBuilder().makeDefaultImportPackages(
+            interner: request.interner
+        )
+        let visibleCandidates = Set(request.ctx.scope.lookupMergingChain(request.calleeName))
+        let callArguments = zip(request.args, preparedArgs.argTypes).map { argument, type in
+            let literal = integerArgumentValues(argument.expr, ctx: request.ctx)
+            return CallArg.source(
+                argument,
+                type: type,
+                callRange: request.range,
+                ast: request.ast,
+                signedIntegerLiteral: literal.signed,
+                unsignedIntegerLiteral: literal.unsigned
+            )
+        }
+        let call = CallExpr(
+            range: request.range,
+            calleeName: request.calleeName,
+            args: callArguments,
+            explicitTypeArgs: request.explicitTypeArgs,
+            elvisLhsExpectedTypeHint: request.ctx.isElvisBranchExpectedTypeHint,
+            elvisRhsCallResultTypeHint: request.ctx.elvisRhsCallResultTypeHint
+        )
+
+        for candidate in request.sema.symbols.lookupByShortName(request.calleeName) {
+            guard !visibleCandidates.contains(candidate),
+                  let symbol = request.sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  !request.ast.arena.isInfixCall(request.id) || symbol.flags.contains(.infixFunction),
+                  request.sema.symbols.isSourceBackedSymbol(candidate),
+                  isScopeExtensionCandidate(candidate, ctx: request.ctx),
+                  let signature = request.sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType,
+                  extensionSyntheticFallbackReceiverMatches(
+                      callSiteReceiver: receiverType,
+                      declaredReceiver: declaredReceiver,
+                      sema: request.sema
+                  ),
+                  request.ctx.visibilityChecker.isAccessible(
+                      symbol,
+                      fromFile: request.ctx.currentFileID,
+                      enclosingClass: request.ctx.enclosingClassSymbol
+                  ),
+                  !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: request.sema.symbols)
+            else {
+                continue
+            }
+
+            let isBundled = request.sema.symbols.isImportedStdlibSymbol(candidate)
+                || symbol.declSite.map {
+                    sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+                } == true
+            guard isBundled else { continue }
+
+            let package = Array(symbol.fqName.dropLast())
+            guard package != sourceFile.packageFQName,
+                  !defaultImportPackages.contains(package)
+            else {
+                continue
+            }
+            let importedByName = sourceFile.imports.contains { importDecl in
+                if importDecl.isWildcard {
+                    return importDecl.path == package
+                }
+                return importDecl.path == symbol.fqName
+                    && (importDecl.alias ?? symbol.name) == request.calleeName
+            }
+            guard !importedByName,
+                  extensionCandidateMatchesCallShape(
+                      candidate,
+                      request: request,
+                      argumentTypes: preparedArgs.argTypes,
+                      receiverType: receiverType
+                  )
+            else {
+                continue
+            }
+
+            let probe = request.ctx.resolver.probeCall(
+                candidates: [candidate],
+                call: call,
+                expectedType: request.expectedType,
+                implicitReceiverType: receiverType,
+                ctx: request.sema
+            )
+            if !probe.viableCandidates.isEmpty {
+                return true
+            }
+        }
+        return false
     }
 
     func bindChosenRegularMemberCall(

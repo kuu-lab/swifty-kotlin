@@ -139,12 +139,14 @@ struct InapplicableMemberExtensionResolutionTests {
 
         fun use(buffer: Buffer, bytes: ByteString) {
             buffer.write(bytes)
+            buffer.write("not a byte string")
         }
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" }, "Expected an unimported extension to be unavailable: \(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0473" }, "An unrelated member argument mismatch should keep its precise diagnostic: \(ctx.diagnostics.diagnostics)")
         }
     }
 
