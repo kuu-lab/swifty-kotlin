@@ -1646,6 +1646,78 @@ extension KIRLoweringDriver {
                     result: fnRegisterResult,
                     canThrow: false
                 ))
+                // KUU-4491: member handles must answer `call`/`callBy` like
+                // the unbound `Owner::name` reference — the dispatch receiver
+                // is the first argument and `parameters` leads with an
+                // INSTANCE KParameter. `__kk_kcallable_register` only fills
+                // an existing metadata entry, so seed one with the same
+                // `kk_callable_ref_tag_kfunction` call callable references
+                // use, then reuse the shared reflection registration for the
+                // invoker and parameter boxes. Member extensions and
+                // context-receiver functions keep the legacy handle: their
+                // receiver layout differs and is tracked separately.
+                // KSP-INF-011 also reparents public top-level extension
+                // functions under their receiver nominal, so `children(of:)`
+                // yields records like `CoroutineScope.async` whose fqName
+                // still belongs to the declaring package — those are not
+                // declared members and keep the legacy handle as well (their
+                // runtime-bridged bodies have no `$default` stub to call).
+                let isDeclaredNominalMember = sema.symbols.symbol(childID)
+                    .flatMap { sema.symbols.lookup(fqName: Array($0.fqName.dropLast())) }
+                    .flatMap { sema.symbols.symbol($0) }
+                    .map { [.class, .interface, .object, .enumClass, .annotationClass].contains($0.kind) }
+                    ?? false
+                if let receiverType = signature.receiverType,
+                   isDeclaredNominalMember,
+                   !childSym.flags.contains(.memberExtension),
+                   signature.contextParameterTypes.isEmpty,
+                   signature.contextReceiverTypes.isEmpty,
+                   !callLowerer.kirIsRuntimeBridgedCallee(childID, sema: sema)
+                {
+                    let memberCallableType = TypeCheckHelpers().callableFunctionType(
+                        for: signature,
+                        bindReceiver: false,
+                        unboundReceiverType: receiverType,
+                        packVarargs: true,
+                        targetSymbol: childID,
+                        interner: interner,
+                        sema: sema
+                    )
+                    if case let .functionType(memberFunctionType) = sema.types.kind(of: memberCallableType) {
+                        let memberInputs = (memberFunctionType.receiver.map { [$0] } ?? []) + memberFunctionType.params
+                        let memberParameters = Array(memberInputs.prefix(1))
+                            + memberFunctionType.contextReceivers
+                            + Array(memberInputs.dropFirst())
+                        let memberArity = Int64(memberParameters.count)
+                        let memberArityExpr = arena.appendExpr(.intLiteral(memberArity), type: intType)
+                        body.append(.constValue(result: memberArityExpr, value: .intLiteral(memberArity)))
+                        body.append(.call(
+                            callee: interner.intern("kk_callable_ref_tag_kfunction"),
+                            arguments: [kfunctionResult, fnNameExpr, retTypeExpr, memberArityExpr, isSuspendExpr],
+                            result: nil,
+                            canThrow: false
+                        ))
+                        lambdaLowerer.registerCallableReflection(
+                            value: kfunctionResult,
+                            callableSymbol: childID,
+                            callableName: lambdaLowerer.callableTargetName(for: childID, sema: sema, interner: interner),
+                            targetSymbol: childID,
+                            parameterTypes: memberParameters,
+                            returnType: memberFunctionType.returnType,
+                            captures: [],
+                            receiverCount: 1,
+                            contextParameterCount: memberFunctionType.contextReceivers.count,
+                            unboundMemberFunction: true,
+                            includeInvocation: !memberFunctionType.isSuspend
+                                && signature.reifiedTypeParameterIndices.isEmpty,
+                            ast: ast,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &body.instructions
+                        )
+                    }
+                }
                 // KUU-3947: `KClass.members`/`memberFunctions` handles are
                 // bare RuntimeKFunctionBox objects — pin the same
                 // `fun pkg.Owner.name(P): R` text callable references get so

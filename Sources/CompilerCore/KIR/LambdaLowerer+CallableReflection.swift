@@ -14,6 +14,11 @@ extension LambdaLowerer {
         receiverCount: Int,
         contextParameterCount: Int = 0,
         packedConstructorVarargs: Bool = false,
+        /// KUU-4491: `KClass.members` function handles name the member itself
+        /// as both callable and target. Routing them through the packed
+        /// member path gives the invoker virtual dispatch on the leading
+        /// receiver even when the member declares no vararg parameter.
+        unboundMemberFunction: Bool = false,
         setterSymbol: SymbolID? = nil,
         includeInvocation: Bool = true,
         ast: ASTModule?,
@@ -175,6 +180,7 @@ extension LambdaLowerer {
                 receiverCount: receiverCount,
                 contextParameterCount: contextParameterCount,
                 packedConstructorVarargs: packedConstructorVarargs || packedConstructorWrapper != nil,
+                unboundMemberFunction: unboundMemberFunction,
                 sema: sema, arena: arena, interner: interner
             )
             if let reference = arena.expr(invoker) {
@@ -384,6 +390,7 @@ extension LambdaLowerer {
         callableSymbol: SymbolID, callableName: InternedString, targetSymbol: SymbolID?,
         parameterTypes: [TypeID], captureTypes: [TypeID], returnType: TypeID,
         receiverCount: Int = 0, contextParameterCount: Int = 0, packedConstructorVarargs: Bool = false,
+        unboundMemberFunction: Bool = false,
         sema: SemaModule, arena: KIRArena, interner: StringInterner
     ) -> KIRExprID {
         let name = interner.intern("kk_reflect_invoke_\(callableSymbol.rawValue)_\(arena.declarations.count)")
@@ -407,11 +414,12 @@ extension LambdaLowerer {
         let packedFunctionTarget: SymbolID? = {
             guard let targetSymbol, let signature,
                   sema.symbols.symbol(targetSymbol)?.kind == .function,
-                  signature.valueParameterIsVararg.contains(true),
                   !signature.isSuspend, signature.contextReceiverTypes.isEmpty,
                   signature.reifiedTypeParameterIndices.isEmpty,
                   !driver.callLowerer.kirIsRuntimeBridgedCallee(targetSymbol, sema: sema)
             else { return nil }
+            if unboundMemberFunction { return targetSymbol }
+            guard signature.valueParameterIsVararg.contains(true) else { return nil }
             return targetSymbol
         }()
         let packsValueVarargs = packedConstructorVarargs || packedFunctionTarget != nil
@@ -526,14 +534,35 @@ extension LambdaLowerer {
                 // For source members the full target argument vector starts
                 // with its dispatch receiver, whether captured or unbound.
                 if signature?.receiverType != nil, captureTypes.count + receiverCount == 1,
-                   let receiver = arguments.first,
-                   let virtual = driver.callLowerer.tryEmitVirtualDispatch(
-                       chosenCallee: packedFunctionTarget, calleeName: targetName, receiverExpr: nil,
-                       loweredReceiverID: receiver, isSuperCall: false, finalArguments: arguments,
-                       result: result, sema: sema, arena: arena, interner: interner
-                   ), case let .virtualCall(symbol, callee, receiver, args, result, _, _, dispatch) = virtual {
-                    body.append(.virtualCall(symbol: symbol, callee: callee, receiver: receiver, arguments: args,
-                                             result: result, canThrow: true, dispatch: dispatch))
+                   let receiver = arguments.first {
+                    // The unpacked argument list is `Any`-typed; interface
+                    // dispatch needs the declared receiver type to pick
+                    // `itableDynamic` over a direct call to the abstract
+                    // declaration (KUU-4491). A member extension's leading
+                    // argument is its dispatch receiver while
+                    // `signature.receiverType` names the extension receiver,
+                    // so only plain members retype the leading argument.
+                    let dispatchReceiver: KIRExprID
+                    if sema.symbols.symbol(packedFunctionTarget)?.flags.contains(.memberExtension) != true,
+                       let declaredReceiverType = signature?.receiverType
+                    {
+                        let typedReceiver = arena.appendTemporary(type: declaredReceiverType)
+                        body.append(.copy(from: receiver, to: typedReceiver))
+                        dispatchReceiver = typedReceiver
+                    } else {
+                        dispatchReceiver = receiver
+                    }
+                    if let virtual = driver.callLowerer.tryEmitVirtualDispatch(
+                        chosenCallee: packedFunctionTarget, calleeName: targetName, receiverExpr: nil,
+                        loweredReceiverID: dispatchReceiver, isSuperCall: false, finalArguments: arguments,
+                        result: result, sema: sema, arena: arena, interner: interner
+                    ), case let .virtualCall(symbol, callee, receiver, args, result, _, _, dispatch) = virtual {
+                        body.append(.virtualCall(symbol: symbol, callee: callee, receiver: receiver, arguments: args,
+                                                 result: result, canThrow: true, dispatch: dispatch))
+                    } else {
+                        body.append(.call(symbol: packedFunctionTarget, callee: targetName, arguments: arguments,
+                                          result: result, canThrow: true))
+                    }
                 } else {
                     body.append(.call(symbol: packedFunctionTarget, callee: targetName, arguments: arguments,
                                       result: result, canThrow: true))
