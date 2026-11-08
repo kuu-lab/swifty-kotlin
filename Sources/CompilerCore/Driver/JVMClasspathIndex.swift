@@ -24,7 +24,12 @@ final class JVMClasspathIndex {
         var seen: Set<String> = []
         func insert(_ bytes: [UInt8], path: String) throws {
             var reader = JVMClassReader(bytes: bytes)
-            let info = try reader.read()
+            let info: JVMClassInfo
+            do {
+                info = try reader.read()
+            } catch {
+                throw JVMFrontendError(message: "Cannot read JVM class \(path) at offset \(reader.offset)/\(bytes.count): \(error)")
+            }
             guard info.name + ".class" == path else { throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)") }
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
@@ -119,7 +124,7 @@ final class JVMClasspathIndex {
                 continue
             }
             if info.isInterface {
-                source += indentation + visibility + "interface `\(name)`\(typeParameters)"
+                source += indentation + visibility + (isSAM(info.name) ? "fun interface `\(name)`" : "interface `\(name)`") + "\(typeParameters)"
             } else {
                 let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                 let isInner = entry.access & 0x0008 == 0
@@ -473,6 +478,87 @@ final class JVMClasspathIndex {
             return (types.count == 1 && ["kotlin.Char", "kotlin.CharSequence"].contains(types[0]))
                 || (types.count == 3 && types[0] == "kotlin.CharSequence" && types[1] == "kotlin.Int" && types[2] == "kotlin.Int")
         }
+        /// JavaBeans accessor shape: `getX()` -> property `x` with candidate
+        /// setter `setX`; `isX()` -> property `isX` (no setter pairing, matching
+        /// the val-only emission below).
+        func propertyShape(_ method: JVMForeignMethod) -> (name: String, setterName: String?)? {
+            if method.name.hasPrefix("get"), method.name.count > 3 {
+                let suffix = String(method.name.dropFirst(3))
+                return (String(suffix.prefix(1)).lowercased() + suffix.dropFirst(),
+                        "set" + String(suffix.prefix(1)).uppercased() + suffix.dropFirst())
+            }
+            if method.name.hasPrefix("is"), method.name.count > 2, method.result == .boolean {
+                return (method.name, nil)
+            }
+            return nil
+        }
+        /// Pairs Java `getX()`/`setX(v)` accessor pairs into Kotlin `var`
+        /// synthetic properties. The accessor `fun`s stay declared: property
+        /// accessors and same-named Java methods coexist (the stubs are
+        /// Sema-only, so no JVM signature clash is emitted), and the `var`
+        /// setter body delegates to the real `setX` method.
+        func memberKey(_ method: JVMForeignMethod) -> String { method.name + method.descriptor }
+        var pairedSetters: [String: JVMForeignMethod] = [:]
+        for getter in own where !getter.isConstructor && !getter.isStatic
+            && getter.parameters.isEmpty && getter.name.hasPrefix("get") && getter.name.count > 3 {
+            let suffix = String(getter.name.dropFirst(3))
+            let setterName = "set" + String(suffix.prefix(1)).uppercased() + suffix.dropFirst()
+            guard let setter = own.first(where: {
+                !$0.isConstructor && !$0.isStatic && $0.name == setterName
+                    && $0.parameters.count == 1
+                    && kotlinType($0.parameters[0]) == kotlinType(getter.result)
+            }) else { continue }
+            pairedSetters[memberKey(getter)] = setter
+        }
+        // Interface stubs render every accessor pair as an abstract property,
+        // so concrete classes must implement each one — including members the
+        // classfile simply lacks (android.jar's java.time stubs are
+        // incomplete). Collect the transitive interface property requirements;
+        // the getter loop consults them for mutability and a later pass emits
+        // `override` stubs for properties nothing implements.
+        struct PropertyRequirement { var type: String; var isVar: Bool }
+        var requiredProps: [String: PropertyRequirement] = [:]
+        var requiredVisited: Set<String> = []
+        func collectRequiredProperties(_ interfaceName: String) {
+            guard requiredVisited.insert(interfaceName).inserted,
+                  let iinfo = classes[interfaceName] else { return }
+            for method in iinfo.methods where !method.isStatic && !method.isConstructor
+                && method.parameters.isEmpty && expose(method.result)
+                && JVMProgramBuilder.isIdentifier(method.name) {
+                guard let shape = propertyShape(method) else { continue }
+                let isVar = shape.setterName.map { setterName in
+                    iinfo.methods.contains {
+                        !$0.isStatic && !$0.isConstructor && $0.name == setterName
+                            && $0.parameters.count == 1
+                            && kotlinType($0.parameters[0]) == kotlinType(method.result)
+                    }
+                } ?? false
+                if var existing = requiredProps[shape.name] {
+                    existing.isVar = existing.isVar || isVar
+                    requiredProps[shape.name] = existing
+                } else {
+                    requiredProps[shape.name] = PropertyRequirement(type: kotlinType(method.result), isVar: isVar)
+                }
+            }
+            for parent in iinfo.interfaces { collectRequiredProperties(parent) }
+        }
+        if !info.isInterface {
+            for interfaceName in info.interfaces { collectRequiredProperties(interfaceName) }
+        }
+        /// Whether a visible superclass chain declares `setX(v)`; the subclass
+        /// then inherits both the `fun` and the `var` mutability.
+        func ancestorHasSetter(_ setterName: String, type: String) -> Bool {
+            var visited: Set<String> = [info.name]
+            var next = info.superclass
+            while let name = next, visited.insert(name).inserted, let sup = classes[name] {
+                if sup.methods.contains(where: {
+                    !$0.isStatic && !$0.isConstructor && $0.name == setterName
+                        && $0.parameters.count == 1 && kotlinType($0.parameters[0]) == type
+                }) { return true }
+                next = sup.superclass
+            }
+            return false
+        }
         var source = ""
         for method in own where method.isConstructor && !method.parameters.isEmpty {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
@@ -497,20 +583,69 @@ final class JVMClasspathIndex {
             source += "\n"
         }
         for getter in own where !getter.isConstructor && !getter.isStatic && getter.parameters.isEmpty {
-            let propertyName: String
-            if getter.name.hasPrefix("get"), getter.name.count > 3 {
-                let suffix = String(getter.name.dropFirst(3))
-                propertyName = String(suffix.prefix(1)).lowercased() + suffix.dropFirst()
-            } else if getter.name.hasPrefix("is"), getter.name.count > 2, getter.result == .boolean {
-                propertyName = getter.name
-            } else { continue }
+            guard let shape = propertyShape(getter) else { continue }
+            let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
-            if getter.isProtected { source += "protected " }
-            if !info.isInterface && getter.isFinal { source += "final " }
-            if overridesParent(getter, in: info, visited: []) { source += "override " }
-            else if !info.isInterface && !getter.isFinal { source += "open " }
-            source += "val `\(propertyName)`: \(kotlinType(getter.result)) get() = `\(getter.name)`()\n"
+            let propertyType = kotlinType(getter.result)
+            var modifiers = ""
+            if getter.isProtected && !info.isInterface { modifiers += "protected " }
+            if !info.isInterface && getter.isFinal { modifiers += "final " }
+            if overridesParent(getter, in: info, visited: []) { modifiers += "override " }
+            else if !info.isInterface && !getter.isFinal { modifiers += "open " }
+            if info.isInterface {
+                // Abstract: a concrete interface property would make every
+                // diamond inherit two implementations (KSWIFTK-SEMA-0171).
+                source += modifiers + (pairedSetters[memberKey(getter)] != nil ? "var" : "val")
+                    + " `\(propertyName)`: \(propertyType)\n"
+                continue
+            }
+            // `var` when the class pairs its own accessors, inherits a setter
+            // from a superclass, or an interface contract demands mutability.
+            // An inherited setter resolves through Kotlin inheritance to the
+            // ancestor's `fun setX`; a contract-only var gets an empty setter.
+            var setterBody: String?
+            if let setter = pairedSetters[memberKey(getter)] {
+                setterBody = "`\(setter.name)`(value)"
+            } else if let setterName = shape.setterName,
+                      ancestorHasSetter(setterName, type: propertyType) {
+                setterBody = "`\(setterName)`(value)"
+            } else if requiredProps[propertyName]?.isVar == true {
+                setterBody = ""
+            }
+            if let body = setterBody {
+                source += modifiers + "var `\(propertyName)`: \(propertyType)"
+                    + " get() = `\(getter.name)`() set(value) { \(body) }\n"
+            } else {
+                source += modifiers + "val `\(propertyName)`: \(propertyType) get() = `\(getter.name)`()\n"
+            }
+        }
+        // Concrete classes must implement every abstract property the
+        // transitive interfaces declare; classfiles occasionally omit the
+        // accessor (android.jar java.time), so emit a stub override.
+        if !info.isInterface, info.flags & 0x0400 == 0, !requiredProps.isEmpty {
+            var implemented = Set<String>()
+            func collect(_ methods: [JVMForeignMethod]) {
+                for method in methods where !method.isConstructor && !method.isStatic
+                    && method.parameters.isEmpty && expose(method.result) {
+                    if let shape = propertyShape(method) { implemented.insert(shape.name) }
+                }
+            }
+            collect(own)
+            var visitedSup: Set<String> = [info.name]
+            var nextSup = info.superclass
+            while let supName = nextSup, visitedSup.insert(supName).inserted,
+                  let sup = classes[supName] {
+                collect(sup.methods)
+                nextSup = sup.superclass
+            }
+            for name in requiredProps.keys.sorted() where !implemented.contains(name) {
+                let requirement = requiredProps[name]!
+                source += "override " + (requirement.isVar ? "var" : "val")
+                    + " `\(name)`: \(requirement.type) get() = null!!"
+                if requirement.isVar { source += " set(value) {}" }
+                source += "\n"
+            }
         }
         if charSequenceBridged, !own.contains(where: { isCharSequenceGet($0) && !$0.isStatic }),
            let charAt = own.first(where: {
@@ -549,8 +684,48 @@ final class JVMClasspathIndex {
                     + (hasJavaMethod ? "`\(javaName)`()" : "null!!") + "\n"
             }
         }
-        if allowsCompanion, !statics.isEmpty {
+        /// `static final` fields with a `ConstantValue` attribute render as
+        /// Kotlin `const val`s inside the companion object, matching how
+        /// kotlinc exposes Java constants (e.g. `LinearLayout.VERTICAL`).
+        func constantField(_ field: JVMForeignField) -> String? {
+            guard field.isStatic, field.isFinal, field.isPublic,
+                  field.constantValue != nil, JVMProgramBuilder.isIdentifier(field.name),
+                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+                  expose(type) else { return nil }
+            let kotlin = kotlinType(type)
+            let literal: String
+            switch (field.constantValue!, kotlin) {
+            case (.int(let v), "kotlin.Boolean"): literal = v != 0 ? "true" : "false"
+            case (.int(let v), "kotlin.Char"): literal = String(format: "'\\u%04X'", UInt32(bitPattern: v))
+            case (.int(let v), let t) where ["kotlin.Byte", "kotlin.Short", "kotlin.Int"].contains(t):
+                literal = String(v)
+            case (.long(let v), "kotlin.Long"): literal = String(v)
+            case (.float(let v), "kotlin.Float") where v.isFinite:
+                literal = "\(v)f"
+            case (.double(let v), "kotlin.Double") where v.isFinite:
+                literal = "\(v)"
+            case (.string(let s), "kotlin.String"):
+                var escaped = "\""
+                for scalar in s.unicodeScalars {
+                    switch scalar {
+                    case "\\": escaped += "\\\\"
+                    case "\"": escaped += "\\\""
+                    case "\n": escaped += "\\n"
+                    case "\r": escaped += "\\r"
+                    case "\t": escaped += "\\t"
+                    case "$": escaped += "\\$"
+                    default: escaped.unicodeScalars.append(scalar)
+                    }
+                }
+                literal = escaped + "\""
+            default: return nil
+            }
+            return "const val `\(field.name)`: \(kotlin) = \(literal)\n"
+        }
+        let constantFields = info.fields.compactMap(constantField)
+        if allowsCompanion, !statics.isEmpty || !constantFields.isEmpty {
             source += "companion object {\n"
+            for declaration in constantFields { source += declaration }
             for method in statics {
                 source += "external fun `\(method.name)`(" + parameters(method) + "): " + kotlinType(method.result) + "\n"
             }
@@ -829,12 +1004,23 @@ final class JVMClasspathIndex {
             }
         }
         for symbol in sema.symbols.allSymbols() {
-            guard let site = symbol.declSite, let info = sourceClasses[site.start.file],
-                  symbol.kind == .function || symbol.kind == .constructor,
+            guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
                   let signature = sema.symbols.functionSignature(for: symbol.id) else { continue }
             let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
             let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol)
             let isTopLevel = parent?.kind == .package
+            // Nested stubs share the outer class's file, so sourceClasses
+            // alone cannot identify the declaring classfile. Walk the
+            // nominal parent chain to the nearest class that has one
+            // (a synthesized Companion object resolves to its outer class).
+            var owner: SymbolID? = sema.symbols.parentSymbol(for: symbol.id)
+            var info: JVMClassInfo?
+            while let candidate = owner, let candidateSymbol = sema.symbols.symbol(candidate),
+                  [.class, .interface, .object, .enumClass, .annotationClass].contains(candidateSymbol.kind) {
+                if let found = classes[Self.binaryName(candidate, sema: sema, ctx: ctx)] { info = found; break }
+                owner = sema.symbols.parentSymbol(for: candidate)
+            }
+            guard let info = info ?? sourceClasses[site.start.file] else { continue }
             let isExtension = hasExtensionReceiver(symbol, in: ctx)
             if isExtension { extensionSymbols.insert(symbol.id) }
             let receiverTypes = isExtension ? signature.receiverType.map { [$0] } ?? [] : []

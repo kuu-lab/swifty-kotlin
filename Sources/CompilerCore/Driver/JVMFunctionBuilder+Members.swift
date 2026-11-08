@@ -80,6 +80,22 @@ extension JVMFunctionBuilder {
         return JVMClasspathIndex.builtinName(try program.className(parent))
     }
 
+    /// Resolves the imported classfile that hosts a property's accessors.
+    /// Companion/object members have no classfile of their own, so walk up to
+    /// the enclosing nominal when the direct parent is not imported.
+    func importedPropertyOwner(parent: SymbolID) -> (name: String, info: JVMClassInfo)? {
+        var candidate = parent
+        for _ in 0..<3 {
+            if let name = try? program.className(candidate),
+               let info = context.jvmImports?.classes[name] {
+                return (name, info)
+            }
+            guard let next = program.sema.symbols.parentSymbol(for: candidate) else { return nil }
+            candidate = next
+        }
+        return nil
+    }
+
     func propertyBinding(_ id: ExprID) -> JVMProperty? {
         let sema = program.sema
         func sourceProperty(for candidate: SymbolID) -> JVMProperty? {
@@ -102,23 +118,85 @@ extension JVMFunctionBuilder {
                 ?? selected
             if let semanticSymbol = sema.symbols.symbol(symbol), semanticSymbol.kind == .property,
                let parent = sema.symbols.parentSymbol(for: symbol),
-               let owner = try? program.className(parent),
-               let info = context.jvmImports?.classes[owner],
+               let resolvedOwner = importedPropertyOwner(parent: parent),
                let propertyType = sema.symbols.propertyType(for: symbol),
                let type = try? program.type(propertyType) {
+                let owner = resolvedOwner.name
+                let info = resolvedOwner.info
                 let name = context.interner.resolve(semanticSymbol.name)
                 let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
+                // `const val` members (e.g. `LinearLayout.VERTICAL`) have no
+                // accessor method; bind them to their compile-time literal.
+                if let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
+                   case let .propertyDecl(property) = arena.decl(declaration),
+                   property.modifiers.contains(.const), let initial = property.initializer,
+                   let annotationValue = try? program.annotationConstant(initial),
+                   case let .constant(constant) = annotationValue {
+                    var field = JVMField(owner: info.name, name: name, type: type, access: 0x19)
+                    field.constantValue = constant
+                    let getter = JVMForeignMethod(
+                        owner: info.name, name: "get" + capital,
+                        descriptor: "()\(type.descriptor)", parameters: [], result: type,
+                        isStatic: true, isInterface: info.isInterface, isAbstract: false
+                    )
+                    return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
+                }
                 let names = info.flags & 0x2000 != 0 ? [name] : (name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital])
-                if let imported = info.methods.first(where: {
+                // Companion members compile to static methods on the outer
+                // classfile; instance members stay virtual.
+                let imported = info.methods.first(where: {
                     names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
-                }) {
+                }) ?? info.methods.first(where: {
+                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
+                })
+                if let imported {
                     var getter = JVMForeignMethod(
                         owner: imported.owner, name: imported.name, descriptor: imported.descriptor,
-                        parameters: imported.parameters, result: type, isStatic: false,
+                        parameters: imported.parameters, result: type, isStatic: imported.isStatic,
                         isInterface: imported.isInterface, isAbstract: imported.isAbstract
                     )
                     getter.isFinal = imported.isFinal
-                    return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+                    // `var` properties need their Java setter for writes;
+                    // resolve `setX` on the owner or its superclass chain,
+                    // falling back to a synthetic signature when the classfile
+                    // has none (contract-only vars).
+                    var setter: JVMForeignMethod?
+                    let isVar = semanticSymbol.flags.contains(.mutable)
+                    if isVar {
+                        let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
+                        let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
+                        let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
+                        var visited: Set<String> = []
+                        var nextName: String? = owner
+                        var found: JVMForeignMethod?
+                        while let current = nextName, visited.insert(current).inserted,
+                              let cinfo = context.jvmImports?.classes[current] {
+                            found = cinfo.methods.first(where: {
+                                $0.name == setterName && $0.isStatic == imported.isStatic && !$0.isConstructor
+                                    && $0.parameters.count == 1 && $0.parameters[0].descriptor == type.descriptor
+                            }) ?? cinfo.methods.first(where: {
+                                $0.name == setterName && $0.isStatic == imported.isStatic && !$0.isConstructor
+                                    && $0.parameters.count == 1
+                            })
+                            if found != nil { break }
+                            nextName = cinfo.superclass
+                        }
+                        if let method = found {
+                            setter = JVMForeignMethod(
+                                owner: method.owner, name: method.name, descriptor: method.descriptor,
+                                parameters: method.parameters, result: method.result, isStatic: method.isStatic,
+                                isInterface: method.isInterface, isAbstract: method.isAbstract
+                            )
+                            setter?.isFinal = method.isFinal
+                        } else {
+                            setter = JVMForeignMethod(
+                                owner: info.name, name: setterName,
+                                descriptor: "(\(type.descriptor))V", parameters: [type], result: .unit,
+                                isStatic: imported.isStatic, isInterface: info.isInterface, isAbstract: false
+                            )
+                        }
+                    }
+                    return JVMProperty(name: name, type: type, getter: getter, setter: setter, field: nil, modifiers: [.public])
                 }
             }
         }
