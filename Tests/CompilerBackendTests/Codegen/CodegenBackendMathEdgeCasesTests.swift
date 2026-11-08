@@ -65,5 +65,64 @@ struct CodegenBackendMathEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCodegenMathFloatPureKotlinOverloads() throws {
+        let source = """
+        import kotlin.math.*
+
+        fun main() {
+            println(sqrt(4.0f))
+            println(ceil(2.3f))
+            println(floor(2.7f))
+            println(round(2.7f))
+            println(truncate(2.7f))
+            println(sin(0.0f))
+            println(cos(0.0f))
+            println(tan(0.0f))
+            println(exp(0.0f))
+            println(ln(1.0f))
+            println(log10(100.0f))
+            println(log2(8.0f))
+            println(hypot(3.0f, 4.0f))
+            println(2.0f.pow(3.0f))
+            println(2.0f.pow(3))
+            println(7.0f.IEEErem(3.0f))
+            println(sinh(0.0f))
+            println(cosh(0.0f))
+            println(tanh(0.0f))
+            println(cbrt(27.0f))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MathFloatPureKotlin",
+            expected:
+                """
+                2.0
+                3.0
+                2.0
+                3.0
+                2.0
+                0.0
+                1.0
+                0.0
+                1.0
+                0.0
+                2.0
+                3.0
+                5.0
+                8.0
+                8.0
+                1.0
+                0.0
+                1.0
+                0.0
+                3.0
+                """
+                + "\n"
+        )
+    }
+
 }
 #endif

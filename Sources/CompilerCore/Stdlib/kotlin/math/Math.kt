@@ -92,18 +92,6 @@ internal external fun __kkMathRound(x: Double): Double
 @KsSymbolName("__kk_math_truncate")
 internal external fun __kkMathTruncate(x: Double): Double
 
-@KsSymbolName("__kk_math_ceil_float")
-internal external fun __kkMathCeilFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_floor_float")
-internal external fun __kkMathFloorFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_round_float")
-internal external fun __kkMathRoundFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_truncate_float")
-internal external fun __kkMathTruncateFloat(x: Float): Float
-
 public fun ceil(x: Double): Double = __kkMathCeil(x)
 
 public fun floor(x: Double): Double = __kkMathFloor(x)
@@ -112,13 +100,13 @@ public fun round(x: Double): Double = __kkMathRound(x)
 
 public fun truncate(x: Double): Double = __kkMathTruncate(x)
 
-public fun ceil(x: Float): Float = __kkMathCeilFloat(x)
+public fun ceil(x: Float): Float = ceil(x.toDouble()).toFloat()
 
-public fun floor(x: Float): Float = __kkMathFloorFloat(x)
+public fun floor(x: Float): Float = floor(x.toDouble()).toFloat()
 
-public fun round(x: Float): Float = __kkMathRoundFloat(x)
+public fun round(x: Float): Float = round(x.toDouble()).toFloat()
 
-public fun truncate(x: Float): Float = __kkMathTruncateFloat(x)
+public fun truncate(x: Float): Float = truncate(x.toDouble()).toFloat()
 
 public fun Double.withSign(sign: Double): Double {
     val xBits = this.toRawBits()
@@ -153,26 +141,14 @@ public fun Float.withSign(sign: Int): Float =
 @KsSymbolName("__kk_math_sqrt")
 internal external fun __kkMathSqrt(x: Double): Double
 
-@KsSymbolName("__kk_math_sqrt_float")
-internal external fun __kkMathSqrtFloat(x: Float): Float
-
 @KsSymbolName("__kk_math_pow")
 internal external fun __kkMathPow(x: Double, y: Double): Double
-
-@KsSymbolName("__kk_math_pow_float")
-internal external fun __kkMathPowFloat(x: Float, y: Float): Float
 
 @KsSymbolName("__kk_math_pow_int")
 internal external fun __kkMathPowInt(x: Double, n: Int): Double
 
-@KsSymbolName("__kk_math_pow_float_int")
-internal external fun __kkMathPowFloatInt(x: Float, n: Int): Float
-
 @KsSymbolName("__kk_math_IEEErem")
 internal external fun __kkMathIEEErem(x: Double, divisor: Double): Double
-
-@KsSymbolName("__kk_math_IEEErem_float")
-internal external fun __kkMathIEEEremFloat(x: Float, divisor: Float): Float
 
 @KsSymbolName("__kk_math_nextTowards")
 internal external fun __kkMathNextTowards(x: Double, to: Double): Double
@@ -245,72 +221,6 @@ internal external fun __kkMathCbrt(x: Double): Double
 
 @KsSymbolName("__kk_math_hypot")
 internal external fun __kkMathHypot(x: Double, y: Double): Double
-
-@KsSymbolName("__kk_math_sin_float")
-internal external fun __kkMathSinFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_cos_float")
-internal external fun __kkMathCosFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_tan_float")
-internal external fun __kkMathTanFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_asin_float")
-internal external fun __kkMathAsinFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_acos_float")
-internal external fun __kkMathAcosFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_atan_float")
-internal external fun __kkMathAtanFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_atan2_float")
-internal external fun __kkMathAtan2Float(y: Float, x: Float): Float
-
-@KsSymbolName("__kk_math_exp_float")
-internal external fun __kkMathExpFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_expm1_float")
-internal external fun __kkMathExpm1Float(x: Float): Float
-
-@KsSymbolName("__kk_math_ln_float")
-internal external fun __kkMathLnFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_ln1p_float")
-internal external fun __kkMathLn1pFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_log2_float")
-internal external fun __kkMathLog2Float(x: Float): Float
-
-@KsSymbolName("__kk_math_log10_float")
-internal external fun __kkMathLog10Float(x: Float): Float
-
-@KsSymbolName("__kk_math_log_float")
-internal external fun __kkMathLogFloat(x: Float, base: Float): Float
-
-@KsSymbolName("__kk_math_sinh_float")
-internal external fun __kkMathSinhFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_cosh_float")
-internal external fun __kkMathCoshFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_tanh_float")
-internal external fun __kkMathTanhFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_acosh_float")
-internal external fun __kkMathAcoshFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_asinh_float")
-internal external fun __kkMathAsinhFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_atanh_float")
-internal external fun __kkMathAtanhFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_cbrt_float")
-internal external fun __kkMathCbrtFloat(x: Float): Float
-
-@KsSymbolName("__kk_math_hypot_float")
-internal external fun __kkMathHypotFloat(x: Float, y: Float): Float
 
 @KsSymbolName("__kk_float_roundToInt")
 internal external fun __kkFloatRoundToInt(x: Float): Int
@@ -396,59 +306,59 @@ public fun cbrt(x: Double): Double = __kkMathCbrt(x)
 
 public fun hypot(x: Double, y: Double): Double = __kkMathHypot(x, y)
 
-public fun sqrt(x: Float): Float = __kkMathSqrtFloat(x)
+public fun sqrt(x: Float): Float = sqrt(x.toDouble()).toFloat()
 
-public fun Float.pow(x: Float): Float = __kkMathPowFloat(this, x)
+public fun Float.pow(x: Float): Float = this.toDouble().pow(x.toDouble()).toFloat()
 
-public fun Float.pow(n: Int): Float = __kkMathPowFloatInt(this, n)
+public fun Float.pow(n: Int): Float = this.toDouble().pow(n).toFloat()
 
-public fun Float.IEEErem(divisor: Float): Float = __kkMathIEEEremFloat(this, divisor)
+public fun Float.IEEErem(divisor: Float): Float = this.toDouble().IEEErem(divisor.toDouble()).toFloat()
 
 public fun Float.nextTowards(to: Float): Float = __kkMathNextTowardsFloat(this, to)
 
-public fun sin(x: Float): Float = __kkMathSinFloat(x)
+public fun sin(x: Float): Float = sin(x.toDouble()).toFloat()
 
-public fun cos(x: Float): Float = __kkMathCosFloat(x)
+public fun cos(x: Float): Float = cos(x.toDouble()).toFloat()
 
-public fun tan(x: Float): Float = __kkMathTanFloat(x)
+public fun tan(x: Float): Float = tan(x.toDouble()).toFloat()
 
-public fun asin(x: Float): Float = __kkMathAsinFloat(x)
+public fun asin(x: Float): Float = asin(x.toDouble()).toFloat()
 
-public fun acos(x: Float): Float = __kkMathAcosFloat(x)
+public fun acos(x: Float): Float = acos(x.toDouble()).toFloat()
 
-public fun atan(x: Float): Float = __kkMathAtanFloat(x)
+public fun atan(x: Float): Float = atan(x.toDouble()).toFloat()
 
-public fun atan2(y: Float, x: Float): Float = __kkMathAtan2Float(y, x)
+public fun atan2(y: Float, x: Float): Float = atan2(y.toDouble(), x.toDouble()).toFloat()
 
-public fun exp(x: Float): Float = __kkMathExpFloat(x)
+public fun exp(x: Float): Float = exp(x.toDouble()).toFloat()
 
-public fun expm1(x: Float): Float = __kkMathExpm1Float(x)
+public fun expm1(x: Float): Float = expm1(x.toDouble()).toFloat()
 
-public fun ln(x: Float): Float = __kkMathLnFloat(x)
+public fun ln(x: Float): Float = ln(x.toDouble()).toFloat()
 
-public fun ln1p(x: Float): Float = __kkMathLn1pFloat(x)
+public fun ln1p(x: Float): Float = ln1p(x.toDouble()).toFloat()
 
-public fun log2(x: Float): Float = __kkMathLog2Float(x)
+public fun log2(x: Float): Float = log2(x.toDouble()).toFloat()
 
-public fun log10(x: Float): Float = __kkMathLog10Float(x)
+public fun log10(x: Float): Float = log10(x.toDouble()).toFloat()
 
-public fun log(x: Float, base: Float): Float = __kkMathLogFloat(x, base)
+public fun log(x: Float, base: Float): Float = log(x.toDouble(), base.toDouble()).toFloat()
 
-public fun sinh(x: Float): Float = __kkMathSinhFloat(x)
+public fun sinh(x: Float): Float = sinh(x.toDouble()).toFloat()
 
-public fun cosh(x: Float): Float = __kkMathCoshFloat(x)
+public fun cosh(x: Float): Float = cosh(x.toDouble()).toFloat()
 
-public fun tanh(x: Float): Float = __kkMathTanhFloat(x)
+public fun tanh(x: Float): Float = tanh(x.toDouble()).toFloat()
 
-public fun acosh(x: Float): Float = __kkMathAcoshFloat(x)
+public fun acosh(x: Float): Float = acosh(x.toDouble()).toFloat()
 
-public fun asinh(x: Float): Float = __kkMathAsinhFloat(x)
+public fun asinh(x: Float): Float = asinh(x.toDouble()).toFloat()
 
-public fun atanh(x: Float): Float = __kkMathAtanhFloat(x)
+public fun atanh(x: Float): Float = atanh(x.toDouble()).toFloat()
 
-public fun cbrt(x: Float): Float = __kkMathCbrtFloat(x)
+public fun cbrt(x: Float): Float = cbrt(x.toDouble()).toFloat()
 
-public fun hypot(x: Float, y: Float): Float = __kkMathHypotFloat(x, y)
+public fun hypot(x: Float, y: Float): Float = hypot(x.toDouble(), y.toDouble()).toFloat()
 
 public fun Float.roundToInt(): Int = __kkFloatRoundToInt(this)
 
