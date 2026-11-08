@@ -1984,9 +1984,18 @@ extension OverloadResolver {
                     types: typeSystem
                 ) ?? arg.type)
                 : arg.type
-            let argType = !arg.isSpread
+            var argType = !arg.isSpread
                 ? (typeSystem.functionArgumentConversionType(from: inferredArgType, to: paramType) ?? inferredArgType)
                 : inferredArgType
+            // A literal lambda can adopt a receiver-function expected type
+            // (`Ck<T>.() -> Unit`); function *values* cannot (KUU-4456).
+            if arg.isLambdaLiteral, !arg.isSpread,
+               let converted = typeSystem.lambdaLiteralReceiverConversionType(
+                   from: argType, to: paramType
+               )
+            {
+                argType = converted
+            }
 
             if arg.label != nil, isVarargParameter {
                 // A named vararg argument supplies the whole array, even without `*`.
