@@ -445,7 +445,6 @@ extension CallTypeChecker {
                 if let expectedType = expectedTypeOverrides[index],
                    isInferableNestedCallExpr(argument.expr, ast: ast)
                 {
-                    let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
                     var contextualLocals = locals
                     var contextualContext = argumentCtx
                     if expectedTypeHintIndices.contains(index) {
@@ -462,6 +461,11 @@ extension CallTypeChecker {
                     let removedDiagnostics = argumentRange.map {
                         sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
                     } ?? []
+                    // Checkpoint after the range removal: the removed
+                    // diagnostics shift later entries down, so a checkpoint
+                    // taken beforehand would misalign `emittedError` and
+                    // `rollback` with the diagnostics this pass appends.
+                    let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
                     let contextualType = driver.inferExpr(
                         argument.expr,
                         ctx: contextualContext,
@@ -484,10 +488,22 @@ extension CallTypeChecker {
                         )
                         continue
                     }
-                    locals = contextualLocals
                     if contextualType == sema.types.errorType || emittedError {
+                        // The override is only a contextual hint: an argument
+                        // that cannot be inferred under it may still resolve
+                        // plainly, letting an inapplicable member fall through
+                        // to an extension overload (KUU-4188). Roll back the
+                        // failed pass's diagnostics and re-infer without the
+                        // hint, the same recovery the hint indices above use.
+                        sema.diagnostics.rollback(to: diagnosticsCheckpoint)
                         removedDiagnostics.forEach { sema.diagnostics.emit($0) }
+                        discardedExpectedTypeHintIndices.insert(index)
+                        inferredNonLambdaArgTypes[index] = driver.inferExpr(
+                            argument.expr, ctx: argumentCtx, locals: &locals
+                        )
+                        continue
                     }
+                    locals = contextualLocals
                     inferredNonLambdaArgTypes[index] = contextualType
                     continue
                 }
