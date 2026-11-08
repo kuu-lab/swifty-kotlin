@@ -60,11 +60,18 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
         finalDirectMembers.append(contentsOf: forwardingPropertyDeclIDs)
+        let parcelizeDeclIDs = synthesizeParcelizeMethods(
+            classDecl: classDecl,
+            classSymbol: symbol,
+            shared: shared
+        )
+        finalDirectMembers.append(contentsOf: parcelizeDeclIDs)
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: finalDirectMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDeclIDs)
         declIDs.append(contentsOf: forwardingPropertyDeclIDs)
+        declIDs.append(contentsOf: parcelizeDeclIDs)
         declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
             ownerName: classDecl.name,
@@ -1392,5 +1399,75 @@ extension KIRLoweringDriver {
         default:
             return nil
         }
+    }
+
+    /// Synthesizes KIR bodies for Parcelize compiler-plugin generated methods
+    /// (`describeContents` and `writeToParcel`).
+    func synthesizeParcelizeMethods(
+        classDecl _: ClassDecl,
+        classSymbol: SymbolID,
+        shared: KIRLoweringSharedContext
+    ) -> [KIRDeclID] {
+        guard let info = shared.sema.parcelizeClasses[classSymbol] else { return [] }
+        var declIDs: [KIRDeclID] = []
+        let arena = shared.arena
+        let sema = shared.sema
+        let interner = shared.interner
+
+        // 1. describeContents(): Int -> returns 0
+        if let describeContentsSymbol = info.describeContentsMethod,
+           arena.function(for: describeContentsSymbol) == nil {
+            if let signature = sema.symbols.functionSignature(for: describeContentsSymbol) {
+                var body: [KIRInstruction] = []
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                body.append(.returnValue(zeroExpr))
+
+                let receiverType = signature.receiverType ?? sema.types.anyType
+                let kirFunc = KIRFunction(
+                    symbol: describeContentsSymbol,
+                    name: interner.intern("describeContents"),
+                    params: [KIRParameter(symbol: classSymbol, type: receiverType)],
+                    returnType: sema.types.intType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+                declIDs.append(arena.appendDecl(.function(kirFunc)))
+            }
+        }
+
+        // 2. writeToParcel(dest: Parcel, flags: Int): Unit -> returns Unit
+        if let writeToParcelSymbol = info.writeToParcelMethod,
+           arena.function(for: writeToParcelSymbol) == nil {
+            if let signature = sema.symbols.functionSignature(for: writeToParcelSymbol) {
+                var body: [KIRInstruction] = []
+                body.append(.returnUnit)
+
+                let receiverType = signature.receiverType ?? sema.types.anyType
+                var params: [KIRParameter] = [
+                    KIRParameter(symbol: classSymbol, type: receiverType)
+                ]
+                for (idx, paramType) in signature.parameterTypes.enumerated() {
+                    let paramSym = signature.valueParameterSymbols.indices.contains(idx)
+                        ? signature.valueParameterSymbols[idx]
+                        : classSymbol
+                    params.append(KIRParameter(symbol: paramSym, type: paramType))
+                }
+
+                let kirFunc = KIRFunction(
+                    symbol: writeToParcelSymbol,
+                    name: interner.intern("writeToParcel"),
+                    params: params,
+                    returnType: sema.types.unitType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+                declIDs.append(arena.appendDecl(.function(kirFunc)))
+            }
+        }
+
+        return declIDs
     }
 }

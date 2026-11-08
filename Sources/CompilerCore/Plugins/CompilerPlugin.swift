@@ -89,6 +89,7 @@ enum CompilerPluginRegistry {
     static let builtins: [any CompilerPlugin] = [
         AllOpenPlugin(),
         NoArgPlugin(),
+        ParcelizePlugin(),
     ]
 
     static func semaContext(
