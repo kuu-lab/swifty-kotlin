@@ -294,7 +294,7 @@ extension OverloadResolverTests {
         #expect(resolved.chosenCallee == fn)
     }
 
-    @Test func testResolveCallSkipsTypeParamWithoutSubstitution() {
+    @Test func testResolveCallRejectsTypeParamWithoutSubstitution() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
 
         let intType = types.make(.primitive(.int, .nonNull))
@@ -321,7 +321,10 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
-        #expect(resolved.chosenCallee == fn)
+        // KUU-4466: kotlinc rejects `cannot infer type for type parameter 'U'`
+        // even when `U` is unused, so the candidate must not be chosen.
+        #expect(resolved.chosenCallee == nil)
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-INFER")
     }
 
     @Test func testResolveCallForwardsConstraintFailureDiagnostic() {
