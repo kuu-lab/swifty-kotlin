@@ -16,7 +16,8 @@ struct RuntimeArrayTypeTests {
         #expect(kk_op_is(copy, nominalTypeToken(for: "kotlin.IntArray")) == 1)
     }
 
-    // Floating-point arrays render contents under the KUU-1048 policy.
+    // KUU-4436: floating-point arrays inherit Any.toString() on the JVM, so
+    // they spell the same `[D@hash`/`[F@hash` identity as every other array.
     // KUU-4001: identity toString spells the JVM array descriptor
     // (`[I`, `[Ljava.lang.Object;`), not `kotlin.*Array`.
     @Test(arguments: [
@@ -24,6 +25,8 @@ struct RuntimeArrayTypeTests {
         ("BooleanArray", "[Z"),
         ("ByteArray", "[B"),
         ("CharArray", "[C"),
+        ("DoubleArray", "[D"),
+        ("FloatArray", "[F"),
         ("IntArray", "[I"),
         ("LongArray", "[J"),
         ("ShortArray", "[S"),

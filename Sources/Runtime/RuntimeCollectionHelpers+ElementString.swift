@@ -133,7 +133,6 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         return runtimeUnsignedArrayToString(elem, box: arrayBox)
-            ?? runtimeFloatingPointArrayToString(elem, box: arrayBox)
             ?? runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {

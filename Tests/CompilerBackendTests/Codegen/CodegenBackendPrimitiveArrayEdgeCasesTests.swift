@@ -123,6 +123,11 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         """ + "\n")
     }
 
+    /// KUU-4436: DoubleArray/FloatArray inherit Any.toString() on the JVM,
+    /// which spells the `[D@hash`/`[F@hash` identity in every Any context —
+    /// direct calls, interpolation, collection elements, and data-class
+    /// property rendering through the deep-content path is the only place
+    /// element values appear.
     @Test
     func testFloatingPointArrayToStringAcrossAnyContexts() throws {
         let source = """
@@ -132,17 +137,19 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         fun main() {
             val d = doubleArrayOf(1.0, 2.5, -0.5)
             val f = floatArrayOf(1.0f, 2.5f)
-            println(d.toString())
-            println(f.toString())
-            println(d)
-            println(f)
-            println("$d $f")
-            println(render(d))
-            println(render(f))
-            println(listOf(d, f))
-            println(setOf(d))
-            println(mapOf("f" to f))
-            println(arrayOf<Any>(d, f).contentToString())
+            val dId = d.toString()
+            val fId = f.toString()
+            println(dId.startsWith("[D@"))
+            println(fId.startsWith("[F@"))
+            println(d.toString() == dId)
+            println(f.toString() == fId)
+            println("$d $f" == "$dId $fId")
+            println(render(d) == dId)
+            println(render(f) == fId)
+            println(listOf(d, f).toString() == "[$dId, $fId]")
+            println(setOf(d).toString() == "[$dId]")
+            println(mapOf("f" to f).toString() == "{f=$fId}")
+            println(arrayOf<Any>(d, f).contentToString() == "[$dId, $fId]")
             println(Arrays(d, f).toString())
             println(Arrays(d, f))
             println(NullableArrays(d, f))
@@ -151,17 +158,17 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "FloatingPointArrayToString", expected: """
-        [1.0, 2.5, -0.5]
-        [1.0, 2.5]
-        [1.0, 2.5, -0.5]
-        [1.0, 2.5]
-        [1.0, 2.5, -0.5] [1.0, 2.5]
-        [1.0, 2.5, -0.5]
-        [1.0, 2.5]
-        [[1.0, 2.5, -0.5], [1.0, 2.5]]
-        [[1.0, 2.5, -0.5]]
-        {f=[1.0, 2.5]}
-        [[1.0, 2.5, -0.5], [1.0, 2.5]]
+        true
+        true
+        true
+        true
+        true
+        true
+        true
+        true
+        true
+        true
+        true
         Arrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
         Arrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
         NullableArrays(d=[1.0, 2.5, -0.5], f=[1.0, 2.5])
@@ -191,35 +198,38 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         """ + "\n")
     }
 
+    /// KUU-4436: identity rendering covers every allocation path — factory
+    /// copies, `copyOf`, sized constructors, and init lambdas — while
+    /// contentToString keeps rendering the element values.
     @Test
     func testFloatingPointArrayToStringSpecialValuesAndCopies() throws {
         let source = """
         fun main() {
             val d = doubleArrayOf(0.0, -0.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.MIN_VALUE)
             val f = floatArrayOf(0.0f, -0.0f, Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.MIN_VALUE)
-            println(d)
-            println(f)
-            println(d.copyOf())
-            println(f.copyOf())
-            println(DoubleArray(2))
-            println(FloatArray(2))
-            println(DoubleArray(2) { it + 0.5 })
-            println(FloatArray(2) { it.toFloat() + 0.5f })
-            println(doubleArrayOf())
-            println(floatArrayOf())
+            println(d.toString().startsWith("[D@"))
+            println(f.toString().startsWith("[F@"))
+            println(d.copyOf().toString().startsWith("[D@"))
+            println(f.copyOf().toString().startsWith("[F@"))
+            println(DoubleArray(2).toString().startsWith("[D@"))
+            println(FloatArray(2).toString().startsWith("[F@"))
+            println(DoubleArray(2) { it + 0.5 }.contentToString())
+            println(FloatArray(2) { it.toFloat() + 0.5f }.contentToString())
+            println(doubleArrayOf().contentToString())
+            println(floatArrayOf().contentToString())
             d[0] = 2.5
             f[0] = 1.5f
-            println(d)
-            println(f)
+            println(d.contentToString())
+            println(f.contentToString())
         }
         """
         try assertKotlinOutput(source, moduleName: "FloatingPointArrayToStringSpecialValues", expected: """
-        [0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
-        [0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
-        [0.0, -0.0, NaN, Infinity, -Infinity, 4.9E-324]
-        [0.0, -0.0, NaN, Infinity, -Infinity, 1.4E-45]
-        [0.0, 0.0]
-        [0.0, 0.0]
+        true
+        true
+        true
+        true
+        true
+        true
         [0.5, 1.5]
         [0.5, 1.5]
         []
