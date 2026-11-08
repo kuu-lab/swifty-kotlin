@@ -462,6 +462,8 @@ func runSuspendEntryLoopWithContinuation(
         var burstThrown = 0
         defer { runtimePopNativeGCShadowFrame(burstResult, burstThrown) }
         RuntimeCoroutineDebugProbes.shared.markRunning(continuation: continuation)
+        RuntimeBurstJobStack.current.push(contState?.jobHandle)
+        defer { RuntimeBurstJobStack.current.pop() }
         // Run every burst -- the initial one kicked off below and each resumed
         // one -- with the bound event loop installed, so a `launch{}` inside
         // the body and the pending-launch flush at the bottom queue onto it

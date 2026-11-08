@@ -13,10 +13,30 @@ final class RuntimeTimeZoneBox {
     }
 }
 
+// Week-derived field values captured when the calendar was last
+// materialized (any read, setTimeInMillis, or creation). java.util.Calendar
+// keeps these as computed field values until the next complete(); week-field
+// writes that arrive before any read must resolve against this snapshot
+// rather than the pending date, matching JDK stamp-based field selection.
+struct RuntimeCalendarWeekSnapshot {
+    var weekday: Int
+    var weekOfYear: Int
+    var yearForWeekOfYear: Int
+    var weekOfMonth: Int
+    var weekdayOrdinal: Int
+}
+
 final class RuntimeCalendarBox {
     var calendar: Foundation.Calendar
     var date: Date
     var timeZoneIdentifier: String
+    var weekSnapshot: RuntimeCalendarWeekSnapshot?
+    var pendingWeekFields: [Int: Int] = [:]
+    // Calendar field id (WEEK_OF_YEAR/WEEK_OF_MONTH/DAY_OF_WEEK_IN_MONTH) of
+    // the week-field group most recently written via set(); DAY_OF_WEEK
+    // writes resolve within that group. 0 selects the default
+    // WEEK_OF_MONTH group, matching java.util.Calendar's stamp ordering.
+    var weekFieldGroup = 0
 
     init(calendar: Foundation.Calendar, date: Date = Date(), timeZoneIdentifier: String? = nil) {
         self.calendar = calendar
@@ -102,18 +122,90 @@ private func runtimeCalendarField(_ field: Int, box: RuntimeCalendarBox) -> Int 
     }
 }
 
+private func runtimeCalendarMaterializeWeekFields(_ box: RuntimeCalendarBox) {
+    let components = runtimeCalendarComponents(box)
+    box.weekSnapshot = RuntimeCalendarWeekSnapshot(
+        weekday: components.weekday ?? 1,
+        weekOfYear: components.weekOfYear ?? 1,
+        yearForWeekOfYear: components.yearForWeekOfYear ?? components.year ?? 1970,
+        weekOfMonth: components.weekOfMonth ?? 1,
+        weekdayOrdinal: components.weekdayOrdinal ?? 1
+    )
+    box.pendingWeekFields.removeAll()
+    box.weekFieldGroup = 0
+}
+
+private func runtimeCalendarClearWeekComponents(_ components: inout DateComponents) {
+    components.weekday = nil
+    components.weekdayOrdinal = nil
+    components.weekOfYear = nil
+    components.weekOfMonth = nil
+    components.yearForWeekOfYear = nil
+    components.quarter = nil
+    components.isLeapMonth = nil
+}
+
+private func runtimeCalendarPendingWeekValue(_ field: Int, box: RuntimeCalendarBox) -> Int? {
+    if let pending = box.pendingWeekFields[field] {
+        return pending
+    }
+    guard let snapshot = box.weekSnapshot else {
+        return nil
+    }
+    switch field {
+    case 3: return snapshot.weekOfYear
+    case 4: return snapshot.weekOfMonth
+    case 7: return snapshot.weekday
+    case 8: return snapshot.weekdayOrdinal
+    default: return nil
+    }
+}
+
 private func runtimeCalendarSetField(_ field: Int, value: Int, box: RuntimeCalendarBox) {
     var components = runtimeCalendarComponents(box)
     switch field {
     case 0: components.era = value
     case 1: components.year = value
     case 2: components.month = value + 1
-    case 3: components.weekOfYear = value
-    case 4: components.weekOfMonth = value
+    case 3, 4, 7, 8:
+        let group = field == 7 ? (box.weekFieldGroup == 0 ? 4 : box.weekFieldGroup) : field
+        switch group {
+        case 3:
+            components.yearForWeekOfYear = components.year
+            components.weekOfYear = field == 3 ? value : (runtimeCalendarPendingWeekValue(3, box: box) ?? components.weekOfYear)
+            components.weekday = field == 7 ? value : (runtimeCalendarPendingWeekValue(7, box: box) ?? components.weekday)
+            components.year = nil
+            components.month = nil
+            components.day = nil
+            components.weekOfMonth = nil
+            components.weekdayOrdinal = nil
+            components.quarter = nil
+            components.isLeapMonth = nil
+        case 8:
+            components.weekdayOrdinal = field == 8 ? value : (runtimeCalendarPendingWeekValue(8, box: box) ?? components.weekdayOrdinal)
+            components.weekday = field == 7 ? value : (runtimeCalendarPendingWeekValue(7, box: box) ?? components.weekday)
+            components.day = nil
+            components.weekOfYear = nil
+            components.yearForWeekOfYear = nil
+            components.weekOfMonth = nil
+            components.quarter = nil
+            components.isLeapMonth = nil
+        default:
+            components.weekOfMonth = field == 4 ? value : (runtimeCalendarPendingWeekValue(4, box: box) ?? components.weekOfMonth)
+            components.weekday = field == 7 ? value : (runtimeCalendarPendingWeekValue(7, box: box) ?? components.weekday)
+            components.day = nil
+            components.weekOfYear = nil
+            components.yearForWeekOfYear = nil
+            components.weekdayOrdinal = nil
+            components.quarter = nil
+            components.isLeapMonth = nil
+        }
+        if field != 7 {
+            box.weekFieldGroup = field
+        }
+        box.pendingWeekFields[field] = value
     case 5: components.day = value
     case 6: components.day = value
-    case 7: components.weekday = value
-    case 8: components.weekdayOrdinal = value
     case 9:
         let hour = components.hour ?? 0
         components.hour = (hour % 12) + value * 12
@@ -133,15 +225,10 @@ private func runtimeCalendarSetField(_ field: Int, value: Int, box: RuntimeCalen
     // (weekOfYear/yearForWeekOfYear/weekday...). When they stay populated,
     // Calendar.date(from:) resolves the date from the week fields and
     // silently ignores year/month/day writes — e.g. set(YEAR) was a no-op.
-    // Week-field writes (3, 4, 7, 8) keep them; every other field drops them.
+    // Week-field writes (3, 4, 7, 8) keep the sibling fields of their own
+    // group and drop the rest above; every other field drops them here.
     if field != 3 && field != 4 && field != 7 && field != 8 {
-        components.weekday = nil
-        components.weekdayOrdinal = nil
-        components.weekOfYear = nil
-        components.weekOfMonth = nil
-        components.yearForWeekOfYear = nil
-        components.quarter = nil
-        components.isLeapMonth = nil
+        runtimeCalendarClearWeekComponents(&components)
     }
     if let updatedDate = box.calendar.date(from: components) {
         box.date = updatedDate
@@ -235,10 +322,9 @@ public func __kk_calendar_create(_ timeZoneRaw: Int) -> Int {
     var calendar = Foundation.Calendar(identifier: .gregorian)
     calendar.locale = Locale.current
     calendar.timeZone = timeZoneBox.timeZone
-    return registerRuntimeObject(
-        RuntimeCalendarBox(calendar: calendar, timeZoneIdentifier: timeZoneBox.identifier),
-        typeID: runtimeCalendarNominalTypeID
-    )
+    let box = RuntimeCalendarBox(calendar: calendar, timeZoneIdentifier: timeZoneBox.identifier)
+    runtimeCalendarMaterializeWeekFields(box)
+    return registerRuntimeObject(box, typeID: runtimeCalendarNominalTypeID)
 }
 
 /// Atomically builds a calendar for explicit wall-clock fields so intermediate
@@ -272,25 +358,50 @@ public func __kk_calendar_create_fields(
     components.second = second
     components.nanosecond = 0
     let date = calendar.date(from: components) ?? Date(timeIntervalSince1970: 0)
-    return registerRuntimeObject(
-        RuntimeCalendarBox(calendar: calendar, date: date, timeZoneIdentifier: timeZoneBox.identifier),
-        typeID: runtimeCalendarNominalTypeID
-    )
+    let box = RuntimeCalendarBox(calendar: calendar, date: date, timeZoneIdentifier: timeZoneBox.identifier)
+    runtimeCalendarMaterializeWeekFields(box)
+    return registerRuntimeObject(box, typeID: runtimeCalendarNominalTypeID)
 }
 
 @_cdecl("__kk_calendar_get_time_in_millis")
 public func __kk_calendar_get_time_in_millis(_ calendarRaw: Int) -> Int {
-    runtimeEpochMilliseconds(requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_time_in_millis").date)
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_time_in_millis")
+    runtimeCalendarMaterializeWeekFields(box)
+    return runtimeEpochMilliseconds(box.date)
 }
 
 @_cdecl("__kk_calendar_set_time_in_millis")
 public func __kk_calendar_set_time_in_millis(_ calendarRaw: Int, _ value: Int) {
-    requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_set_time_in_millis").date = runtimeDate(milliseconds: value)
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_set_time_in_millis")
+    box.date = runtimeDate(milliseconds: value)
+    runtimeCalendarMaterializeWeekFields(box)
+}
+
+@_cdecl("__kk_calendar_set_week_date")
+public func __kk_calendar_set_week_date(_ calendarRaw: Int, _ weekYear: Int, _ weekOfYear: Int, _ dayOfWeek: Int) {
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_set_week_date")
+    var components = runtimeCalendarComponents(box)
+    components.yearForWeekOfYear = weekYear
+    components.weekOfYear = weekOfYear
+    components.weekday = dayOfWeek
+    components.year = nil
+    components.month = nil
+    components.day = nil
+    components.weekOfMonth = nil
+    components.weekdayOrdinal = nil
+    components.quarter = nil
+    components.isLeapMonth = nil
+    if let updatedDate = box.calendar.date(from: components) {
+        box.date = updatedDate
+    }
+    runtimeCalendarMaterializeWeekFields(box)
 }
 
 @_cdecl("__kk_calendar_get_field")
 public func __kk_calendar_get_field(_ calendarRaw: Int, _ field: Int) -> Int {
-    runtimeCalendarField(field, box: requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_field"))
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_field")
+    runtimeCalendarMaterializeWeekFields(box)
+    return runtimeCalendarField(field, box: box)
 }
 
 @_cdecl("__kk_calendar_set_field")
@@ -304,10 +415,12 @@ public func __kk_calendar_set_field(_ calendarRaw: Int, _ field: Int, _ value: I
 
 @_cdecl("__kk_calendar_add_field")
 public func __kk_calendar_add_field(_ calendarRaw: Int, _ field: Int, _ amount: Int) {
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_add_field")
+    runtimeCalendarMaterializeWeekFields(box)
     runtimeCalendarAddField(
         field,
         amount: amount,
-        box: requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_add_field")
+        box: box
     )
 }
 
@@ -548,7 +661,8 @@ public func __kk_calendar_get_least_maximum(_ calendarRaw: Int, _ field: Int) ->
 
 @_cdecl("__kk_calendar_get_actual_minimum")
 public func __kk_calendar_get_actual_minimum(_ calendarRaw: Int, _ field: Int) -> Int {
-    _ = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_actual_minimum")
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_actual_minimum")
+    runtimeCalendarMaterializeWeekFields(box)
     // JDK GregorianCalendar returns getMinimum(field) for every field except
     // DAY_OF_MONTH inside the 1582 cutover year (this runtime is proleptic
     // Gregorian and has no cutover), so the minimum table is authoritative.
@@ -557,8 +671,17 @@ public func __kk_calendar_get_actual_minimum(_ calendarRaw: Int, _ field: Int) -
     )
 }
 
+@_cdecl("__kk_calendar_get_week_year")
+public func __kk_calendar_get_week_year(_ calendarRaw: Int) -> Int {
+    let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_week_year")
+    runtimeCalendarMaterializeWeekFields(box)
+    let components = runtimeCalendarComponents(box)
+    return components.yearForWeekOfYear ?? components.year ?? 1970
+}
+
 @_cdecl("__kk_calendar_get_actual_maximum")
 public func __kk_calendar_get_actual_maximum(_ calendarRaw: Int, _ field: Int) -> Int {
     let box = requiredRuntimeCalendar(calendarRaw, symbol: "__kk_calendar_get_actual_maximum")
+    runtimeCalendarMaterializeWeekFields(box)
     return runtimeCalendarActualMaximum(field, box: box)
 }
