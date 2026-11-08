@@ -143,7 +143,11 @@ final class LinkPhase: CompilerPhase {
             args.append(contentsOf: ["-o", ctx.options.outputPath])
             args.append(contentsOf: linkerDriverArgs(for: ctx.options.target))
             ctx.options.libraryPaths.forEach { args.append("-L\($0)") }
-            ctx.options.linkLibraries.forEach { args.append("-l\($0)") }
+            // `-l` names resolved to `.kklib` bundles already contribute
+            // their objects via `effectiveLibrarySearchPaths`; forwarding
+            // them would make `ld` search for a nonexistent `lib<name>.a`
+            // (KUU-4460).
+            ctx.options.nativeLinkLibraries.forEach { args.append("-l\($0)") }
             let swiftcPath = CommandRunner.resolveExecutable("swiftc", fallback: "/usr/bin/swiftc")
             if ctx.options.target.vendor == "apple", ctx.options.target.os == "macosx",
                !ctx.options.debugInfo,
@@ -178,7 +182,7 @@ final class LinkPhase: CompilerPhase {
                     executable: plan.executable,
                     arguments: plan.linkArguments(
                         inputs: finalInputs, output: ctx.options.outputPath,
-                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.linkLibraries,
+                        libraryPaths: ctx.options.libraryPaths, libraries: ctx.options.nativeLinkLibraries,
                         droppingForceLoads: dropForceLoads
                     ),
                     phaseTimer: ctx.phaseTimer, subPhaseName: "Link/clang"

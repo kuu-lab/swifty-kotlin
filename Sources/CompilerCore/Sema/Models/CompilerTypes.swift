@@ -303,6 +303,40 @@ public struct CompilerOptions: Equatable {
         return result
     }
 
+    /// `-l` names that resolve to a `.kklib` bundle under the kklib search
+    /// paths are consumed as Kotlin libraries: their metadata and objects
+    /// already reach Sema and the linker through
+    /// `effectiveLibrarySearchPaths`. Passing the same name to the native
+    /// linker makes `ld` look for `lib<name>.a/.dylib`, which does not
+    /// exist (KUU-4460). Only unresolved names are forwarded to `ld`.
+    public var nativeLinkLibraries: [String] {
+        linkLibraries.filter { !isKotlinLinkLibrary($0) }
+    }
+
+    /// Whether `-l<name>` resolves to `lib<name>.kklib` or `<name>.kklib`
+    /// under the kklib search paths — either as a search path itself or a
+    /// bundle inside a searched directory.
+    public func isKotlinLinkLibrary(_ name: String) -> Bool {
+        guard !name.isEmpty, !name.contains("/") else { return false }
+        let candidates = ["lib\(name).kklib", "\(name).kklib"]
+        for rawPath in effectiveLibrarySearchPaths {
+            let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
+            if candidates.contains((path as NSString).lastPathComponent) {
+                return true
+            }
+            for candidate in candidates {
+                var isDirectory = ObjCBool(false)
+                let fullPath = path + "/" + candidate
+                if FileManager.default.fileExists(atPath: fullPath, isDirectory: &isDirectory),
+                   isDirectory.boolValue
+                {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     /// Optional path to a prebuilt stdlib `.kklib` used as a fallback when a
     /// compilation requests bundled stdlib. Test support sets this once per
     /// process to share a single compiled stdlib artifact across many tests.
