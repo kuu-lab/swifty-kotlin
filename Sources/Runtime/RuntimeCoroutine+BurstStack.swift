@@ -19,13 +19,7 @@ import Foundation
 final class RuntimeBurstJobStack: @unchecked Sendable {
     static let shared = RuntimeBurstJobStack()
 
-    private static let pthreadKey: pthread_key_t = {
-        var key = pthread_key_t()
-        pthread_key_create(&key) { ptr in
-            Unmanaged<RuntimeBurstJobStack>.fromOpaque(ptr).release()
-        }
-        return key
-    }()
+    private static let pthreadKey = makePthreadKey()
 
     private let lock = NSLock()
     private var jobs: [RuntimeJobHandle?] = []
