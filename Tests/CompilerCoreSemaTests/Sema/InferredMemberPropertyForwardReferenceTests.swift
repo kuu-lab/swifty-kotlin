@@ -316,5 +316,28 @@ struct InferredMemberPropertyForwardReferenceTests {
         try runSema(badCtx)
         #expect(badCtx.diagnostics.hasError)
     }
+
+    @Test
+    func elvisThrowOnInheritedGetterPropertyUsesPublishedType() throws {
+        // KUU-4197 (kotlinx.coroutines ConflatedBroadcastChannel.cancelImpl):
+        // `throw closeCause ?: IllegalStateException(...)` reads the
+        // forward-published `closeCause: Throwable?` from the later-checked
+        // base class; the authoritative elvis join must yield `Throwable`
+        // for `throw` to accept it instead of degrading to `Any`.
+        let ctx = makeContextFromSource("""
+        class Derived : Base() {
+            fun cancel() {
+                throw closeCause ?: IllegalStateException("closed")
+            }
+        }
+
+        open class Base {
+            private var cause: Any? = null
+            protected val closeCause get() = cause as Throwable?
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif
