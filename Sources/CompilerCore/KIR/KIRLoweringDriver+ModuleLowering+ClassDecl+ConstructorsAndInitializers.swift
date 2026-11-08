@@ -1351,6 +1351,33 @@ extension KIRLoweringDriver {
                 canThrow: false
             ))
 
+            // KUU-4374: pin the JVM-style `fun `<init>`(P): C` text on the
+            // constructor handle — `KClass.primaryConstructor`/`constructors`
+            // return these bare RuntimeKConstructorBox objects, which would
+            // otherwise render `<object 0x…>`.
+            let ctorFunctionType = sema.types.make(.functionType(FunctionType(
+                contextReceivers: signature.contextReceiverTypes,
+                receiver: signature.receiverType,
+                params: signature.parameterTypes,
+                returnType: signature.returnType,
+                isSuspend: signature.isSuspend
+            )))
+            lambdaLowerer.emitFunctionDescription(
+                value: registrationResult,
+                description: lambdaLowerer.functionReferenceDescription(
+                    name: ctorNameInterned,
+                    type: ctorFunctionType,
+                    targetSymbol: ctorSymbol,
+                    sema: sema,
+                    interner: interner
+                ),
+                identity: false,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+
             let reflectedParameterTypes = (ownerInfo.kind == .enumClass
                 ? [sema.types.stringType, sema.types.intType]
                 : []) + signature.parameterTypes

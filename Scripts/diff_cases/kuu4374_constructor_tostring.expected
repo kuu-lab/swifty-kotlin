@@ -1,0 +1,5 @@
+fun `<init>`(kotlin.Int): C
+[fun `<init>`(kotlin.Int): C]
+val C.x: kotlin.Int
+<init>
+fun C.df(kotlin.Int): kotlin.Int
