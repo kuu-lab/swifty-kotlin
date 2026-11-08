@@ -1483,5 +1483,104 @@ struct CodegenBackendAtomicExtendedEdgeCasesTests {
         )
     }
 
+    @Test
+    func testCodegenAtomicPureKotlinDerivedOperations() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        @file:Suppress("DEPRECATION_ERROR")
+        import kotlin.concurrent.atomics.AtomicInt
+        import kotlin.concurrent.atomics.AtomicLong
+        import kotlin.concurrent.atomics.AtomicIntArray
+        import kotlin.concurrent.atomics.AtomicLongArray
+        import kotlin.native.concurrent.AtomicInt as NativeAtomicInt
+        import kotlin.native.concurrent.AtomicLong as NativeAtomicLong
+        import kotlin.native.concurrent.getAndIncrement
+        import kotlin.native.concurrent.getAndDecrement
+        import kotlin.native.concurrent.increment
+        import kotlin.native.concurrent.decrement
+
+        fun main() {
+            // kotlin.concurrent.atomics.AtomicInt
+            val ai = AtomicInt(10)
+            println(ai.addAndFetch(5))       // 15
+            println(ai.fetchAndIncrement())  // 15
+            println(ai.load())               // 16
+            println(ai.fetchAndDecrement())  // 16
+            println(ai.load())               // 15
+
+            // kotlin.concurrent.atomics.AtomicLong
+            val al = AtomicLong(20L)
+            println(al.addAndFetch(5L))      // 25
+            println(al.fetchAndIncrement())  // 25
+            println(al.load())               // 26
+            println(al.fetchAndDecrement())  // 26
+            println(al.load())               // 25
+
+            // Native concurrent atomics
+            val nai = NativeAtomicInt(30)
+            println(nai.getAndIncrement())   // 30
+            println(nai.getAndDecrement())   // 31
+            nai.increment()
+            println(nai.value)               // 31
+            nai.decrement()
+            println(nai.value)               // 30
+
+            val nal = NativeAtomicLong(40L)
+            println(nal.getAndIncrement())   // 40
+            println(nal.getAndDecrement())   // 41
+            println(nal.addAndGet(5))        // 45
+            nal.increment()
+            println(nal.value)               // 46
+            nal.decrement()
+            println(nal.value)               // 45
+
+            // Arrays
+            val aia = AtomicIntArray(2)
+            aia.storeAt(0, 100)
+            println(aia.addAndFetchAt(0, 7)) // 107
+            println(aia.incrementAndFetchAt(0)) // 108
+            println(aia.decrementAndFetchAt(0)) // 107
+
+            val ala = AtomicLongArray(2)
+            ala.storeAt(0, 200L)
+            println(ala.addAndFetchAt(0, 7L)) // 207
+            println(ala.incrementAndFetchAt(0)) // 208
+            println(ala.decrementAndFetchAt(0)) // 207
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "AtomicPureKotlinDerivedOps",
+            expected:
+                """
+                15
+                15
+                16
+                16
+                15
+                25
+                25
+                26
+                26
+                25
+                30
+                31
+                31
+                30
+                40
+                41
+                45
+                46
+                45
+                107
+                108
+                107
+                207
+                208
+                207
+                """ + "\n"
+        )
+    }
+
 }
 #endif

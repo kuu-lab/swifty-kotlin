@@ -13,9 +13,6 @@ import kotlin.internal.KsSymbolName
 // The canonical atomics type is a distinct source-backed class whose payload
 // uses the same runtime atomic box. Keep the runtime entry points private and
 // expose the public API as source-backed receiver declarations.
-@KsSymbolName("__kk_atomic_int_addAndFetch")
-private external fun AtomicInt.__kkAtomicIntAddAndFetch(delta: Int): Int
-
 @KsSymbolName("__kk_atomic_int_compareAndExchange")
 private external fun AtomicInt.__kkAtomicIntCompareAndExchange(
     expectedValue: Int,
@@ -28,12 +25,6 @@ private external fun AtomicInt.__kkAtomicIntExchange(newValue: Int): Int
 @KsSymbolName("__kk_atomic_int_fetchAndAdd")
 private external fun AtomicInt.__kkAtomicIntFetchAndAdd(delta: Int): Int
 
-@KsSymbolName("__kk_atomic_int_fetchAndDecrement")
-private external fun AtomicInt.__kkAtomicIntFetchAndDecrement(): Int
-
-@KsSymbolName("__kk_atomic_int_fetchAndIncrement")
-private external fun AtomicInt.__kkAtomicIntFetchAndIncrement(): Int
-
 @KsSymbolName("__kk_atomic_int_load")
 private external fun AtomicInt.__kkAtomicIntLoad(): Int
 
@@ -43,7 +34,7 @@ private external fun AtomicInt.__kkAtomicIntStore(value: Int): Int
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicInt.addAndFetch(delta: Int): Int =
-    __kkAtomicIntAddAndFetch(delta)
+    fetchAndAdd(delta) + delta
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
@@ -63,12 +54,12 @@ public fun AtomicInt.fetchAndAdd(delta: Int): Int =
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicInt.fetchAndDecrement(): Int =
-    __kkAtomicIntFetchAndDecrement()
+    fetchAndAdd(-1)
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")
 public fun AtomicInt.fetchAndIncrement(): Int =
-    __kkAtomicIntFetchAndIncrement()
+    fetchAndAdd(1)
 
 @ExperimentalAtomicApi
 @SinceKotlin("2.1")

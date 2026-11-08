@@ -21,9 +21,6 @@ private external fun AtomicLongArray.__kk_compareAndExchange(index: Int, expecte
 @KsSymbolName("__kk_atomic_long_array_fetchAndAdd")
 private external fun AtomicLongArray.__kk_fetchAndAdd(index: Int, delta: Long): Long
 
-@KsSymbolName("__kk_atomic_long_array_addAndFetch")
-private external fun AtomicLongArray.__kk_addAndFetch(index: Int, delta: Long): Long
-
 private fun AtomicLongArray.checkIndex(index: Int) {
     val size = this.size
     if (index < 0 || index >= size) {
@@ -61,10 +58,8 @@ public fun AtomicLongArray.fetchAndAddAt(index: Int, delta: Long): Long {
     return __kk_fetchAndAdd(index, delta)
 }
 
-public fun AtomicLongArray.addAndFetchAt(index: Int, delta: Long): Long {
-    checkIndex(index)
-    return __kk_addAndFetch(index, delta)
-}
+public fun AtomicLongArray.addAndFetchAt(index: Int, delta: Long): Long =
+    fetchAndAddAt(index, delta) + delta
 
 public fun AtomicLongArray.fetchAndIncrementAt(index: Int): Long = fetchAndAddAt(index, 1L)
 
