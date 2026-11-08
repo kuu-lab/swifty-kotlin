@@ -43,6 +43,9 @@ DIFF_ENGINE="${DIFF_ENGINE:-node}"
 DIFF_JVM_STDLIB_JAR="${DIFF_JVM_STDLIB_JAR:-}"
 JVM_STDLIB_JAR=""
 JVM_STDLIB_REQUIRED=0
+DIFF_WASM_STDLIB="${DIFF_WASM_STDLIB:-}"
+WASM_STDLIB=""
+WASM_STDLIB_REQUIRED=0
 DIFF_WASM_TARGET="${DIFF_WASM_TARGET:-wasm32-wasi}"
 NODE_BIN="${NODE_BIN:-node}"
 WASMTIME_BIN="${WASMTIME_BIN:-wasmtime}"
@@ -222,6 +225,9 @@ Environment:
   DIFF_JVM_STDLIB_JAR
                      Reuse an existing kswiftc JVM stdlib jar for
                      DIFF_BACKEND=jvm instead of building one under
+                     DIFF_ARTIFACT_ROOT
+  DIFF_WASM_STDLIB   Reuse an existing wasm32 .kklib for
+                     DIFF_BACKEND=wasm instead of building one under
                      DIFF_ARTIFACT_ROOT
   DIFF_WASM_TARGET   kswiftc --target for DIFF_BACKEND=wasm
                      (default: wasm32-wasi)
@@ -925,8 +931,12 @@ if [[ "$DIFF_BACKEND" != "jvm" && -n "$DIFF_JVM_STDLIB_JAR" ]]; then
   echo "warning: DIFF_JVM_STDLIB_JAR is only used with DIFF_BACKEND=jvm" >&2
 fi
 
+if [[ "$DIFF_BACKEND" != "wasm" && -n "$DIFF_WASM_STDLIB" ]]; then
+  echo "warning: DIFF_WASM_STDLIB is only used with DIFF_BACKEND=wasm" >&2
+fi
+
 # --stdlib-library prebuilds the native .kklib; jvm and wasm lanes resolve
-# their own stdlib (shared jar / bundled sources) and ignore it.
+# their own stdlib (shared jar / target kklib) and ignore it.
 if [[ "$DIFF_BACKEND" != "native" && -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "warning: --stdlib-library/DIFF_STDLIB_LIBRARY is only used with DIFF_BACKEND=native" >&2
 fi
@@ -951,15 +961,16 @@ while IFS= read -r test_case; do
   if is_master_candidate_only_case "$test_case" || should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED" || is_candidate_only_from_source_case "$test_case"; then
     continue
   fi
-  # Non-native backend lanes only need toolchains for marked cases; the wasm
-  # lane prebuilds nothing (bundled stdlib compiles inline per case), while
-  # the jvm lane needs its shared stdlib jar.
+  # Non-native backend lanes only need toolchains for marked cases; the
+  # jvm lane needs its shared stdlib jar and the wasm lane a target .kklib,
+  # each built once per run instead of per case.
   if backend_lane_skips_case "$test_case"; then
     continue
   fi
   if [[ "$DIFF_BACKEND" != "native" ]]; then
     REFERENCE_CASES_REQUIRED=1
     [[ "$DIFF_BACKEND" == "jvm" ]] && JVM_STDLIB_REQUIRED=1
+    [[ "$DIFF_BACKEND" == "wasm" ]] && WASM_STDLIB_REQUIRED=1
     break
   fi
   if [[ "$CANDIDATE_ONLY_EXPECTED" -eq 1 ]] || is_pr_candidate_only_case "$test_case"; then
@@ -1144,6 +1155,11 @@ fi
 if [[ "$JVM_STDLIB_REQUIRED" -eq 1 ]]; then
   build_jvm_stdlib_jar || exit 1
   echo "JVM stdlib jar: $JVM_STDLIB_JAR"
+fi
+
+if [[ "$WASM_STDLIB_REQUIRED" -eq 1 ]]; then
+  build_wasm_stdlib_kklib || exit 1
+  echo "WASM stdlib kklib: $WASM_STDLIB"
 fi
 
 if [[ "$CANDIDATE_ONLY" -eq 1 ]]; then

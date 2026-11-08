@@ -294,7 +294,7 @@ run_case() {
       ;;
     wasm)
       local cand_wasm="$tmp_dir/candidate.wasm"
-      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$cand_src" -o "$cand_wasm" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
+      "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" --no-stdlib --stdlib-library "$WASM_STDLIB" "${KSWIFTC_ARGS[@]}" $kswiftc_extra_flags "$cand_src" -o "$cand_wasm" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
       if [[ $cand_compile_exit -eq 0 ]]; then
         if needs_stdin_eof "$kt_file"; then
           "$TIMEOUT_CMD" "$RUN_TIMEOUT" "${WASM_RUN_CMD[@]}" "$cand_wasm" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
