@@ -420,8 +420,7 @@ public func kk_kproperty_stub_set_delegate(_ handle: Int, _ delegateRaw: Int) ->
     return 0
 }
 
-@_cdecl("__kk_kproperty_stub_is_lateinit")
-public func kk_kproperty_stub_is_lateinit(_ handle: Int) -> Int {
+func kk_kproperty_stub_is_lateinit(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
@@ -431,8 +430,7 @@ public func kk_kproperty_stub_is_lateinit(_ handle: Int) -> Int {
     return stub.isLateinit ? 1 : 0
 }
 
-@_cdecl("__kk_kproperty_stub_is_const")
-public func kk_kproperty_stub_is_const(_ handle: Int) -> Int {
+func kk_kproperty_stub_is_const(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
           runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)

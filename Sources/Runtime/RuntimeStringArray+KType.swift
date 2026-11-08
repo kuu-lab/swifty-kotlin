@@ -294,24 +294,21 @@ public func __kk_ktype_create(_ classifierRaw: Int, _ argsRaw: Int, _ isNullable
     runtimeKTypeCreate(classifierRaw, argsRaw, isNullable)
 }
 
-@_cdecl("__kk_ktype_classifier")
-public func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
+func __kk_ktype_classifier(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return runtimeNullSentinelInt
     }
     return box.classifierRaw
 }
 
-@_cdecl("__kk_ktype_arguments")
-public func __kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
+func __kk_ktype_arguments(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     return registerRuntimeObject(RuntimeListBox(elements: box.argumentRaws))
 }
 
-@_cdecl("__kk_ktype_isMarkedNullable")
-public func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
+func __kk_ktype_isMarkedNullable(_ ktypeRaw: Int) -> Int {
     guard let box = runtimeKTypeBox(from: ktypeRaw) else {
         return 0
     }

@@ -364,8 +364,7 @@ private func runtimeKFunctionBox(from raw: Int) -> RuntimeKFunctionBox? {
 ///     (has a default value), bit1 = isVararg.
 ///   - kind: internal kind encoding — 0 = INSTANCE, 1 = EXTENSION_RECEIVER,
 ///     2 = VALUE (see RuntimeKParameterBox.kind).
-@_cdecl("__kk_kparameter_create")
-public func __kk_kparameter_create(
+func __kk_kparameter_create(
     _ index: Int,
     _ nameRaw: Int,
     _ typeRaw: Int,
@@ -734,8 +733,7 @@ public func __kk_kfunction_get_type(_ kfunctionRaw: Int) -> Int {
 }
 
 
-@_cdecl("__kk_kfunction_call_0")
-public func __kk_kfunction_call_0(
+func __kk_kfunction_call_0(
     _ kfunctionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
@@ -764,8 +762,7 @@ public func __kk_kfunction_call_0(
 }
 
 
-@_cdecl("__kk_kfunction_call_1")
-public func __kk_kfunction_call_1(
+func __kk_kfunction_call_1(
     _ kfunctionRaw: Int,
     _ arg: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
@@ -795,8 +792,7 @@ public func __kk_kfunction_call_1(
 }
 
 
-@_cdecl("__kk_kfunction_call_2")
-public func __kk_kfunction_call_2(
+func __kk_kfunction_call_2(
     _ kfunctionRaw: Int,
     _ arg1: Int,
     _ arg2: Int,
@@ -827,8 +823,7 @@ public func __kk_kfunction_call_2(
 }
 
 
-@_cdecl("__kk_kfunction_call_3")
-public func __kk_kfunction_call_3(
+func __kk_kfunction_call_3(
     _ kfunctionRaw: Int,
     _ arg1: Int,
     _ arg2: Int,
@@ -860,8 +855,7 @@ public func __kk_kfunction_call_3(
 }
 
 
-@_cdecl("__kk_kfunction_call_vararg")
-public func __kk_kfunction_call_vararg(
+func __kk_kfunction_call_vararg(
     _ kfunctionRaw: Int,
     _ argsListRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?

@@ -7,7 +7,6 @@ public extension RuntimeABISpec {
         // (bit0 = isOptional, bit1 = isVararg) — the signature is unchanged
         // so older artifacts keep passing 0/1 and simply lack the vararg bit.
         abi.nt("__kk_kparameter_create_typed", "index nameRaw typeRaw flags kind typeToken callableOwner"),
-        abi.nt("__kk_kparameter_create", "index nameRaw typeRaw flags kind"),
         abi.nt("__kk_kparameter_set_type", "parameterRaw typeRaw"),
         abi.nt("__kk_kparameter_get_index", "handle"),
         abi.nt("__kk_kparameter_get_name", "handle"),
@@ -60,11 +59,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_kfunction_get_parameters", "handle"),
         abi.nt("__kk_kfunction_get_value_parameters", "handle"),
         abi.nt("__kk_kfunction_get_type", "handle"),
-        abi.th("__kk_kfunction_call_0", "handle outThrown"),
-        abi.th("__kk_kfunction_call_1", "handle arg outThrown"),
-        abi.th("__kk_kfunction_call_2", "handle arg1 arg2 outThrown"),
-        abi.th("__kk_kfunction_call_3", "handle arg1 arg2 arg3 outThrown"),
-        abi.th("__kk_kfunction_call_vararg", "handle argsListRaw outThrown"),
         abi.th("__kk_kconstructor_create", "nameRaw arity returnTypeRaw fnPtr isPrimary visibilityRaw declaringClassRaw"),
         abi.nt("__kk_kconstructor_set_parameter_type", "constructorRaw index typeToken"),
         abi.nt("__kk_kconstructor_set_jvm_visibility", "constructorRaw visibilityOrdinal"),
