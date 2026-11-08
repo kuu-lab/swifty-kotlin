@@ -386,6 +386,7 @@ directory and downloads JVM reference jars from Maven Central:
 | `kotlinx.io` | `kotlinx-io-core-jvm` | 0.9.1 |
 | `kotlinx.io.bytestring` | Both io core and `kotlinx-io-bytestring-jvm` | 0.9.1 |
 | `kotlinx.atomicfu` | `atomicfu-jvm` | 0.33.0 |
+| `kotlinx.serialization` | `kotlinx-serialization-json-jvm` + `kotlinx-serialization-core-jvm` | 1.9.0 |
 
 Cases using multiple libraries receive all their dependencies, including
 atomicfu wildcard, individual, and alias imports. This import

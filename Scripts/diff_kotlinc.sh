@@ -64,6 +64,11 @@ KOTLINC_KOTLINX_IO_BYTESTRING_JAR="${KOTLINC_KOTLINX_IO_BYTESTRING_JAR:-$KOTLINC
 KOTLINC_ATOMICFU_VERSION="${KOTLINC_ATOMICFU_VERSION:-0.33.0}"
 KOTLINC_ATOMICFU_SHA256="${KOTLINC_ATOMICFU_SHA256:-}"
 KOTLINC_ATOMICFU_JAR="${KOTLINC_ATOMICFU_JAR:-$KOTLINC_DEP_DIR/atomicfu-jvm-$KOTLINC_ATOMICFU_VERSION.jar}"
+KOTLINC_SERIALIZATION_VERSION="${KOTLINC_SERIALIZATION_VERSION:-1.9.0}"
+KOTLINC_SERIALIZATION_SHA256="${KOTLINC_SERIALIZATION_SHA256:-}"
+KOTLINC_SERIALIZATION_JAR="${KOTLINC_SERIALIZATION_JAR:-$KOTLINC_DEP_DIR/kotlinx-serialization-json-jvm-$KOTLINC_SERIALIZATION_VERSION.jar}"
+KOTLINC_SERIALIZATION_CORE_SHA256="${KOTLINC_SERIALIZATION_CORE_SHA256:-}"
+KOTLINC_SERIALIZATION_CORE_JAR="${KOTLINC_SERIALIZATION_CORE_JAR:-$KOTLINC_DEP_DIR/kotlinx-serialization-core-jvm-$KOTLINC_SERIALIZATION_VERSION.jar}"
 # Reference jars are cached across runs by default. Set to empty
 # (KOTLINC_REF_CACHE_DIR=) to disable; `${VAR-...}` (no colon) keeps an
 # explicitly empty value as "disabled" instead of re-applying the default.
@@ -222,6 +227,12 @@ Environment:
   KOTLINC_ATOMICFU_VERSION / KOTLINC_ATOMICFU_SHA256 / KOTLINC_ATOMICFU_JAR
                      atomicfu-jvm reference dependency (default: pinned 0.33.0);
                      custom versions require an explicit SHA-256
+  KOTLINC_SERIALIZATION_VERSION / KOTLINC_SERIALIZATION_SHA256 /
+  KOTLINC_SERIALIZATION_JAR / KOTLINC_SERIALIZATION_CORE_SHA256 /
+  KOTLINC_SERIALIZATION_CORE_JAR
+                     kotlinx-serialization-json/core-jvm reference
+                     dependencies (default: pinned 1.9.0); custom versions
+                     require explicit SHA-256 values
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
@@ -480,10 +491,35 @@ requires_atomicfu() {
   target_matches_import "$1" '^[[:space:]]*import[[:space:]]+kotlinx\.atomicfu\.'
 }
 
+# kotlinx-serialization's package root is `kotlinx.serialization`, which also
+# covers `kotlinx.serialization.json` / `.csv` / `.protobuf` subpackages. The
+# json-jvm artifact depends on core-jvm, so both jars go on the classpath.
+requires_kotlinx_serialization() {
+  target_matches_import "$1" 'import[[:space:]]+kotlinx\.serialization'
+}
+
 # Pin the real Maven artifact; unknown versions need an explicit checksum.
 known_atomicfu_sha256() {
   case "$1" in
     0.33.0) printf 'cdc94bfe4f739a0121860e61977d5c1e6a3d53c21f2471493393ba9e900d394e' ;;
+    *) printf '' ;;
+  esac
+}
+
+# Known checksums per kotlinx-serialization version (json-jvm / core-jvm).
+# For other versions, set KOTLINC_SERIALIZATION_SHA256 /
+# KOTLINC_SERIALIZATION_CORE_SHA256 explicitly — otherwise the download is
+# refused rather than silently skipping verification.
+known_serialization_sha256() {
+  case "$1" in
+    1.9.0) printf 'd94cc34cae39246a1af74fda63f9c4812ce12216ef641d5fa3bbbb539a6922d8' ;;
+    *) printf '' ;;
+  esac
+}
+
+known_serialization_core_sha256() {
+  case "$1" in
+    1.9.0) printf '1f0afa172110e45a7231ef1b44ae8fd84c1ebaff96f3fc3ad68ef8c48120b59c' ;;
     *) printf '' ;;
   esac
 }
@@ -663,6 +699,20 @@ ensure_atomicfu_jar() {
     "$KOTLINC_ATOMICFU_VERSION" "$KOTLINC_ATOMICFU_JAR" "$KOTLINC_ATOMICFU_SHA256" known_atomicfu_sha256
 }
 
+ensure_serialization_jar() {
+  ensure_maven_jar \
+    "kotlinx-serialization-json-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-serialization-json-jvm/${KOTLINC_SERIALIZATION_VERSION}/kotlinx-serialization-json-jvm-${KOTLINC_SERIALIZATION_VERSION}.jar" \
+    "$KOTLINC_SERIALIZATION_VERSION" "$KOTLINC_SERIALIZATION_JAR" "$KOTLINC_SERIALIZATION_SHA256" known_serialization_sha256
+}
+
+ensure_serialization_core_jar() {
+  ensure_maven_jar \
+    "kotlinx-serialization-core-jvm" \
+    "org/jetbrains/kotlinx/kotlinx-serialization-core-jvm/${KOTLINC_SERIALIZATION_VERSION}/kotlinx-serialization-core-jvm-${KOTLINC_SERIALIZATION_VERSION}.jar" \
+    "$KOTLINC_SERIALIZATION_VERSION" "$KOTLINC_SERIALIZATION_CORE_JAR" "$KOTLINC_SERIALIZATION_CORE_SHA256" known_serialization_core_sha256
+}
+
 ensure_kotlinc_classpath() {
   if [[ -n "$KOTLINC_CLASSPATH" ]]; then
     return 0
@@ -688,6 +738,12 @@ ensure_kotlinc_classpath() {
   if requires_atomicfu "$TARGET"; then
     ensure_atomicfu_jar || return 1
     jars+=("$KOTLINC_ATOMICFU_JAR")
+  fi
+
+  if requires_kotlinx_serialization "$TARGET"; then
+    ensure_serialization_jar || return 1
+    ensure_serialization_core_jar || return 1
+    jars+=("$KOTLINC_SERIALIZATION_JAR" "$KOTLINC_SERIALIZATION_CORE_JAR")
   fi
 
   if [[ ${#jars[@]} -eq 0 ]]; then
