@@ -82,7 +82,13 @@ public final class TypeSystem {
 
     /// Preserves informative upper bounds when a star projection crosses a
     /// nominal substitution. Trivial or dependent bounds fall back to `Any?`.
-    func capturedTypeForStarProjection(parameter: SymbolID, ownerTypeParameters: [SymbolID]) -> TypeID {
+    /// `origin` ties the minted capture to a projected receiver so reads
+    /// through the same receiver denote the same captured type (KUU-4362).
+    func capturedTypeForStarProjection(
+        parameter: SymbolID,
+        ownerTypeParameters: [SymbolID],
+        origin: CapturedTypeOrigin? = nil
+    ) -> TypeID {
         let upperBounds = declaredUpperBounds(for: parameter)
         let hasDependentUpperBound = upperBounds.contains { bound in
             ownerTypeParameters.contains { typeContainsTypeParam(bound, symbol: $0) }
@@ -98,7 +104,7 @@ public final class TypeSystem {
         } else {
             upperBound = make(.intersection(upperBounds))
         }
-        return makeCapturedType(parameter: parameter, lower: nothingType, upper: upperBound)
+        return makeCapturedType(parameter: parameter, lower: nothingType, upper: upperBound, origin: origin)
     }
     private var kindToID: [TypeKind: TypeID] = [:]
     private var idToKind: [TypeKind] = []

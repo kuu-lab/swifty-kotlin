@@ -120,6 +120,34 @@ struct StarProjectedMemberPropertyReadTests {
         #expect(nullableErrors.allSatisfy { $0.code == "KSWIFTK-SEMA-0026" })
     }
 
+    // KUU-4362: member reads through the same star-projected receiver share
+    // one captured type, so a single generic parameter can be inferred from
+    // two positions at once — `Captured[Nothing..Any]` must unify with itself
+    // (Kodein-DI `DI.Key(ctx.anyType, ..., ctx.value)` pattern).
+    @Test func starProjectedMembersShareCaptureAcrossReads() throws {
+        let ctx = makeContextWithoutStdlib("""
+        interface TT<T>
+        interface Ctx<C : Any> { val type: TT<in C>; val value: C }
+        interface Cont { fun <C : Any> f(t: TT<in C>, v: C): C }
+        fun g(cont: Cont, ctx: Ctx<*>): Any = cont.f(ctx.type, ctx.value)
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    // The shared capture still enforces its bounds: `ctx.type` is a
+    // `TT<in C>` nominal, not a `C`, and cannot feed the `v: C` position.
+    @Test func starProjectedMembersRejectUnrelatedShape() throws {
+        let ctx = makeContextWithoutStdlib("""
+        interface TT<T>
+        interface Ctx<C : Any> { val type: TT<in C>; val value: C }
+        interface Cont { fun <C : Any> f(t: TT<in C>, v: C): C }
+        fun g(cont: Cont, ctx: Ctx<*>): Any = cont.f(ctx.type, ctx.type)
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected TT<in C> to be rejected at the C position")
+    }
+
     private func makeContextWithoutStdlib(_ source: String) -> CompilationContext {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kt").path
