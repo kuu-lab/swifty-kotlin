@@ -1512,9 +1512,17 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
+                // Key the capture on the receiver type so `ctx.type` and
+                // `ctx.value` read through one star projection denote the same
+                // captured type and can drive one inference variable (KUU-4362).
                 substitution[typeVar] = sema.types.capturedTypeForStarProjection(
                     parameter: typeParamSymbol,
-                    ownerTypeParameters: ownerTypeParamSymbols
+                    ownerTypeParameters: ownerTypeParamSymbols,
+                    origin: CapturedTypeOrigin(
+                        receiverType: nonNullReceiver,
+                        parameter: typeParamSymbol,
+                        argumentIndex: index
+                    )
                 )
             }
         }
