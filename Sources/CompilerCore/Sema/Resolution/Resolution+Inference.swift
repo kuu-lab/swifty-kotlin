@@ -48,31 +48,19 @@ extension OverloadResolver {
             guard resolved == nil || resolved == typeSystem.errorType else {
                 continue
             }
-            // Only report for type parameters that actually appear in the
-            // return type or parameter types. Unused type parameters
-            // (e.g. `fun <T, U> foo(x: T): T` where U is never used)
-            // are silently ignored.
-            let usedInReturn = containsTypeVariable(
-                signature.returnType,
-                typeVarBySymbol: [typeParamSymbol: typeVar],
-                typeSystem: typeSystem
+            // Every declared type parameter must be inferable for the
+            // candidate to be applicable — kotlinc rejects even parameters
+            // that appear in neither the parameter nor the return type
+            // (`fun <T, U> foo(x: T): T` cannot infer `U`, and
+            // `fun <T> f(d: D? = null)` loses to a non-generic overload
+            // because `T` is uninferable; KUU-4466).
+            return Diagnostic(
+                severity: .error,
+                code: "KSWIFTK-SEMA-INFER",
+                message: "Cannot infer type argument from the call arguments and expected type; provide explicit type arguments or an explicit expected type.",
+                primaryRange: range,
+                secondaryRanges: []
             )
-            let usedInParams = signature.parameterTypes.contains {
-                containsTypeVariable(
-                    $0,
-                    typeVarBySymbol: [typeParamSymbol: typeVar],
-                    typeSystem: typeSystem
-                )
-            }
-            if usedInReturn || usedInParams {
-                return Diagnostic(
-                    severity: .error,
-                    code: "KSWIFTK-SEMA-INFER",
-                    message: "Cannot infer type argument from the call arguments and expected type; provide explicit type arguments or an explicit expected type.",
-                    primaryRange: range,
-                    secondaryRanges: []
-                )
-            }
         }
         return nil
     }
