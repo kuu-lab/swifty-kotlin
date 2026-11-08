@@ -15,7 +15,7 @@ struct TypeCheckScopeBuilder {
         // asks the symbol table for `<package> + name`, which drains the
         // compact index for that name only instead of pre-collecting every
         // imported package member here.
-        let defaultImportScope = PackageMembersScope(parent: nil, symbols: sema.symbols)
+        let defaultImportScope = DefaultImportScope(parent: nil, symbols: sema.symbols)
         for packagePath in defaultImportPackages {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
                 if shouldSkipDefaultImport(importedSymbol, sema: sema)
@@ -35,7 +35,7 @@ struct TypeCheckScopeBuilder {
         var fileScopes: [Int32: FileScope] = [:]
 
         for file in ast.sortedFiles {
-            let wildcardImportScope = PackageMembersScope(parent: defaultImportScope, symbols: sema.symbols)
+            let wildcardImportScope = WildcardImportScope(parent: defaultImportScope, symbols: sema.symbols)
             let explicitImportScope = ExplicitImportScope(parent: wildcardImportScope, symbols: sema.symbols)
             populateImportScopes(
                 for: file,
