@@ -424,8 +424,12 @@ extension LocalDeclTypeChecker {
     ) -> (CallBinding, TypeID)? {
         let sema = ctx.sema
         let call = CallExpr(range: range, calleeName: names[0], args: args, isOperatorCall: true)
+        // Indexed element operators have no AST receiver expression, so KIR
+        // lowering cannot yet emit the member-extension dispatch receiver;
+        // keep them on the member/package-extension paths for now.
         var candidates = driver.exprChecker.collectOperatorCandidates(
-            names: names, receiverType: elementType, call: call, locals: locals, ctx: ctx
+            names: names, receiverType: elementType, call: call, locals: locals, ctx: ctx,
+            allowsImplicitReceiverMemberExtensionOperators: false
         )
         if candidates.isEmpty, let valueType = args.first?.type,
            sema.types.makeNonNullable(elementType) == sema.types.charType

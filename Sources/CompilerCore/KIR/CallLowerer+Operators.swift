@@ -663,6 +663,22 @@ extension CallLowerer {
                 )
                 var finalArguments = normalizedResult.arguments
                 finalArguments.insert(lhsID, at: 0)
+                // Member extensions (`fun T.op(...)` declared inside a nominal)
+                // take the dispatch receiver ahead of the extension receiver;
+                // virtual dispatch targets it, not the extension receiver
+                // (KUU-4420, mirrors the compound-assignment lowering).
+                let memberExtensionDispatchReceiver = self.memberExtensionDispatchReceiver(
+                    for: callBinding.chosenCallee,
+                    callExprID: exprID,
+                    dispatchReceiverSymbol: callBinding.dispatchReceiverSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                if let memberExtensionDispatchReceiver {
+                    finalArguments.insert(memberExtensionDispatchReceiver, at: 0)
+                }
                 if !signature.contextParameterTypes.isEmpty {
                     let contextArguments = contextArgumentValues(
                         for: signature,
@@ -671,11 +687,13 @@ extension CallLowerer {
                         sema: sema,
                         arena: arena
                     )
-                    // The callee ABI is `[receiver] + [contextParams] + [valueParams]`:
-                    // `lhsID` (the receiver) stays first and context arguments
-                    // slot in ahead of the value arguments, matching how member
-                    // calls and compound assignments place them.
-                    finalArguments.insert(contentsOf: contextArguments, at: min(1, finalArguments.count))
+                    // The callee ABI is `[dispatch?] + [receiver] + [contextParams] + [valueParams]`:
+                    // `lhsID` always occupies the receiver slot, so context
+                    // arguments slot in after it (and after the member
+                    // extension's dispatch receiver when present), matching
+                    // how member calls and compound assignments place them.
+                    let receiverCount = 1 + (memberExtensionDispatchReceiver == nil ? 0 : 1)
+                    finalArguments.insert(contentsOf: contextArguments, at: min(receiverCount, finalArguments.count))
                 }
                 appendReifiedTypeTokens(
                     chosenCallee: callBinding.chosenCallee,
@@ -732,8 +750,8 @@ extension CallLowerer {
                        let virtualInstruction = tryEmitVirtualDispatch(
                            chosenCallee: callBinding.chosenCallee,
                            calleeName: loweredCalleeName,
-                           receiverExpr: lhs,
-                           loweredReceiverID: lhsID,
+                           receiverExpr: memberExtensionDispatchReceiver == nil ? lhs : nil,
+                           loweredReceiverID: memberExtensionDispatchReceiver ?? lhsID,
                            isSuperCall: false,
                            finalArguments: finalArguments,
                            result: callResult,

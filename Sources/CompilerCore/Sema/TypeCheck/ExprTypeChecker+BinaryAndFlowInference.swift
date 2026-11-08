@@ -514,6 +514,7 @@ extension ExprTypeChecker {
                     range: range,
                     calleeName: operatorName,
                     args: [CallArg(type: sema.types.errorType)],
+                    dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
                     isOperatorCall: true
                 )
                 let retryCandidates = collectOperatorCandidates(
@@ -627,6 +628,7 @@ extension ExprTypeChecker {
                 signedIntegerLiteral: rhsIntegerLiteral.signed,
                 unsignedIntegerLiteral: rhsIntegerLiteral.unsigned
             )],
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
             isOperatorCall: reportsAsOperatorConvention
         )
         var collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
@@ -1066,6 +1068,23 @@ extension ExprTypeChecker {
                 locals: &locals
             )
             let returnType = driver.callChecker.bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+            // A member-extension operator binds its dispatch receiver from the
+            // implicit-receiver tower; record which entry supplied it so KIR
+            // lowering can materialize `this@Owner` ahead of the operand
+            // (KUU-4420, mirrors the unary operator path).
+            if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
+                let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
+                    driver.helpers.allNominalSymbols(
+                        of: entry.type,
+                        types: sema.types,
+                        symbols: sema.symbols
+                    ).contains(dispatchOwner)
+                }
+                sema.bindings.markImplicitReceiverMember(id, name: operatorName)
+                if let symbol = dispatchReceiver?.symbol {
+                    sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: symbol)
+                }
+            }
             // compareTo desugaring: comparison operators (<, <=, >, >=) that resolve
             // to a compareTo method should produce Bool, not the compareTo return type (Int).
             // The KIR lowerer will emit: compareTo(a, b) <op> 0
