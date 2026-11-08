@@ -147,13 +147,16 @@ extension OverloadResolverTests {
             for: fn
         )
 
-        // Pass Int arg but expect Bool return → T can't be both Int and Bool
+        // An explicit type argument pins T = Boolean, so the Int argument
+        // violates the instantiated parameter type. (The expected type alone
+        // no longer vetoes: it is only an inference hint.)
         let call = CallExpr(
             range: makeRange(start: 766, end: 780),
             calleeName: interner.intern("multiConflict"),
-            args: [CallArg(type: intType)]
+            args: [CallArg(type: intType)],
+            explicitTypeArgs: [boolType]
         )
-        let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: boolType, ctx: ctx)
+        let resolved = resolver.resolveCall(candidates: [fn], call: call, expectedType: nil, ctx: ctx)
         #expect(resolved.chosenCallee == nil)
         #expect(resolved.diagnostic != nil)
     }

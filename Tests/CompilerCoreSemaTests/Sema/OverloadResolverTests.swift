@@ -13,7 +13,6 @@ struct OverloadResolverTests {
     @Test func testResolveCallReturnsNoViableDiagnosticAfterAllCandidateFilters() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
-        let boolType = types.make(.primitive(.boolean, .nonNull))
         let call = CallExpr(
             range: makeRange(start: 10, end: 20),
             calleeName: interner.intern("foo"),
@@ -40,6 +39,8 @@ struct OverloadResolverTests {
         )
         candidates.append(noSignature)
 
+        // A zero-parameter signature rejects the call's argument count during
+        // argument mapping, before any constraint diagnostics are produced.
         let wrongArity = defineSymbol(
             kind: .function,
             name: "foo",
@@ -48,41 +49,33 @@ struct OverloadResolverTests {
             interner: interner
         )
         symbols.setFunctionSignature(
-            FunctionSignature(parameterTypes: [intType, intType], returnType: intType),
+            FunctionSignature(parameterTypes: [], returnType: intType),
             for: wrongArity
         )
         candidates.append(wrongArity)
 
-        let typeMismatch = defineSymbol(
+        // An extension function is inapplicable without an implicit receiver.
+        let extensionWithoutReceiver = defineSymbol(
             kind: .function,
             name: "foo",
-            suffix: "typeMismatch",
+            suffix: "extension",
             symbols: symbols,
             interner: interner
         )
         symbols.setFunctionSignature(
-            FunctionSignature(parameterTypes: [boolType], returnType: intType),
-            for: typeMismatch
+            FunctionSignature(
+                receiverType: types.stringType,
+                parameterTypes: [intType],
+                returnType: intType
+            ),
+            for: extensionWithoutReceiver
         )
-        candidates.append(typeMismatch)
-
-        let expectedTypeMismatch = defineSymbol(
-            kind: .function,
-            name: "foo",
-            suffix: "expectedMismatch",
-            symbols: symbols,
-            interner: interner
-        )
-        symbols.setFunctionSignature(
-            FunctionSignature(parameterTypes: [intType], returnType: intType),
-            for: expectedTypeMismatch
-        )
-        candidates.append(expectedTypeMismatch)
+        candidates.append(extensionWithoutReceiver)
 
         let resolved = resolver.resolveCall(
             candidates: candidates,
             call: call,
-            expectedType: boolType,
+            expectedType: types.make(.primitive(.boolean, .nonNull)),
             ctx: ctx
         )
 
@@ -90,6 +83,43 @@ struct OverloadResolverTests {
         #expect(resolved.substitutedTypeArguments == [:])
         #expect(resolved.parameterMapping == [:])
         #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+    }
+
+    /// KUU-4141: a candidate whose concrete return type mismatches the
+    /// expected type is not vetoed during resolution — the enclosing context
+    /// performs the subtype check after the call resolves, so kotlinc-style
+    /// position-specific diagnostics (initializer/return/argument) survive.
+    @Test func testResolveCallKeepsConcreteReturnTypeMismatchForCallerCheck() {
+        let (resolver, types, symbols, interner, ctx) = makeEnv()
+        let intType = types.make(.primitive(.int, .nonNull))
+        let boolType = types.make(.primitive(.boolean, .nonNull))
+        let fn = defineSymbol(
+            kind: .function,
+            name: "foo",
+            suffix: "concreteReturn",
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [intType], returnType: intType),
+            for: fn
+        )
+
+        let call = CallExpr(
+            range: makeRange(start: 10, end: 20),
+            calleeName: interner.intern("foo"),
+            args: [CallArg(type: intType)]
+        )
+        let resolved = resolver.resolveCall(
+            candidates: [fn],
+            call: call,
+            expectedType: boolType,
+            ctx: ctx
+        )
+
+        #expect(resolved.chosenCallee == fn)
+        #expect(resolved.diagnostic == nil)
+        #expect(resolved.parameterMapping == [0: 0])
     }
 
     @Test func testResolveCallReturnsAmbiguousDiagnosticForMultipleViableCandidates() {
@@ -298,15 +328,20 @@ struct OverloadResolverTests {
             for: generic
         )
 
+        // An explicit type argument pins T = Boolean, so the Int argument
+        // violates the instantiated parameter type and fails constraint
+        // solving. (The expected type alone no longer vetoes: it is only an
+        // inference hint — see testResolveCallKeepsConcreteReturnTypeMismatchForCallerCheck.)
         let call = CallExpr(
             range: makeRange(start: 64, end: 69),
             calleeName: interner.intern("id"),
-            args: [CallArg(type: intType)]
+            args: [CallArg(type: intType)],
+            explicitTypeArgs: [boolType]
         )
         let resolved = resolver.resolveCall(
             candidates: [generic],
             call: call,
-            expectedType: boolType,
+            expectedType: nil,
             ctx: ctx
         )
 

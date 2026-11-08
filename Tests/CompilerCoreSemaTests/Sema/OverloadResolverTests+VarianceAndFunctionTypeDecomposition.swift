@@ -40,7 +40,7 @@ extension OverloadResolverTests {
         #expect(resolved.diagnostic != nil)
     }
 
-    // MARK: - Coverage: incompatible variance (.out vs .in) triggers invariant fallback
+    // MARK: - Coverage: incompatible variance triggers invariant fallback
 
     @Test func testUnifiedInference_IncompatibleVarianceFallsBackToInvariant() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
@@ -48,16 +48,19 @@ extension OverloadResolverTests {
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "ivar_T", symbols: symbols, interner: interner)
         let tType = types.make(.typeParam(TypeParamType(symbol: tSym)))
         let pairSym = defineSymbol(kind: .class, name: "Pair", suffix: "ivar_Pair", symbols: symbols, interner: interner)
-        // Parameter type: Pair<in T> (contravariant)
-        let pairOfInT = types.make(.classType(ClassType(classSymbol: pairSym, args: [.in(tType)])))
-        // Argument type: Pair<out Int> (covariant) – incompatible variance with .in
+        // Parameter type: Pair<T> — an invariant type argument. A projected
+        // argument cannot decompose against it positionally, so the solver
+        // falls back to treating both sides as invariant. (`.out` vs `.in`
+        // has dedicated capture semantics and never reaches this fallback.)
+        let pairOfT = types.make(.classType(ClassType(classSymbol: pairSym, args: [.invariant(tType)])))
+        // Argument type: Pair<out Int> (covariant projection)
         let pairOfOutInt = types.make(.classType(ClassType(classSymbol: pairSym, args: [.out(intType)])))
 
         let fn = defineSymbol(kind: .function, name: "mixVar", suffix: "ivar_mixVar", symbols: symbols, interner: interner)
         let paramSym = defineSymbol(kind: .valueParameter, name: "p", suffix: "ivar_p", symbols: symbols, interner: interner)
         symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: [pairOfInT],
+                parameterTypes: [pairOfT],
                 returnType: tType,
                 valueParameterSymbols: [paramSym],
                 typeParameterSymbols: [tSym]
@@ -226,7 +229,7 @@ extension OverloadResolverTests {
             #expect(resolved.substitutedTypeArguments[TypeVarID(rawValue: 0)] == intType)
         } else {
             #expect(resolved.chosenCallee == nil)
-            #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+            #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0473")
         }
     }
 
