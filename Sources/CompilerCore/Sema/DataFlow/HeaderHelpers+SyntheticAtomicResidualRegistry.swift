@@ -284,7 +284,8 @@ extension DataFlowSemaPhase {
             interner: interner,
             constructorLinkName: "kk_atomic_ref_create",
             externalLinkPrefix: "__kk_atomic_ref",
-            includeGetAndSetAlias: true
+            includeGetAndSetAlias: true,
+            typeParameterNullability: .platformType
         )
         // The int/long array runtime bridges are `__kk_atomic_*_array_load`/
         // `store`/`exchange`/`compareAndExchange`/`fetchAndAdd`/`addAndFetch`

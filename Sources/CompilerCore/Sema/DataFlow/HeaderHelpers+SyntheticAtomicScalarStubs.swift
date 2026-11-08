@@ -222,6 +222,10 @@ extension DataFlowSemaPhase {
     /// Registers `kotlin.concurrent.AtomicReference<T>` (and the shared
     /// `kotlin.concurrent.atomics.AtomicReference<T>` surface via its caller),
     /// backed by `kk_atomic_ref_*` ABI functions. CAS uses identity semantics.
+    /// `typeParameterNullability` is `.platformType` for the
+    /// `java.util.concurrent.atomic` surface: Java type variables are
+    /// flexible, so `AtomicReference<Any>(null)` and `set(null)` are legal
+    /// (KUU-4412). Kotlin-declared surfaces keep `.nonNull`.
     func registerAtomicReferenceStubs(
         ownerPackage: [InternedString],
         ownerPackageSymbol: SymbolID,
@@ -231,7 +235,8 @@ extension DataFlowSemaPhase {
         constructorLinkName: String,
         externalLinkPrefix: String,
         includeGetAndSetAlias: Bool = false,
-        includeValueProperty: Bool = true
+        includeValueProperty: Bool = true,
+        typeParameterNullability: Nullability = .nonNull
     ) {
         let atomicRefSymbol = ensureClassSymbol(
             named: "AtomicReference",
@@ -251,7 +256,7 @@ extension DataFlowSemaPhase {
         )
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol,
-            nullability: .nonNull
+            nullability: typeParameterNullability
         )))
         let atomicRefType = types.make(.classType(ClassType(
             classSymbol: atomicRefSymbol,
