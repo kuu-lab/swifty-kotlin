@@ -62,7 +62,22 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.bindings.bindExprType(id, type: sema.types.booleanType)
                 return sema.types.booleanType
             }
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.anyType)
+            // KUU-4493: containsAll's parameter is `Collection<T>`; passing the
+            // element type lets a bare nested factory (`emptyList()`) infer its
+            // type variable instead of collapsing to SEMA-INFER.
+            let containsAllExpectedType: TypeID = {
+                if let collectionSymbol = lookupStdlibSymbol(
+                    "Collection", symbols: sema.symbols, interner: interner
+                ) {
+                    return sema.types.make(.classType(ClassType(
+                        classSymbol: collectionSymbol,
+                        args: [.invariant(collectionElementType)],
+                        nullability: .nonNull
+                    )))
+                }
+                return sema.types.anyType
+            }()
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: containsAllExpectedType)
             // KUU-4318: containsAll's only overloads take a Collection
             // parameter; a range expression or other non-Collection argument
             // must reach regular overload resolution so the mismatch is

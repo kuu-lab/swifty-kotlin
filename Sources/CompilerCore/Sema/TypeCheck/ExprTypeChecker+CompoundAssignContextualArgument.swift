@@ -12,8 +12,12 @@ extension ExprTypeChecker {
     ) -> TypeID {
         let sema = ctx.sema
         let checker = driver.callChecker
+        // KUU-4493: a bare generic factory can also collapse to errorType when
+        // the call resolves against a precompiled stdlib artifact (no bundled
+        // source factory path runs), so accept that shape for recovery too.
+        let originalIsError = originalType == sema.types.errorType
         guard checker.isInferableNestedCallExpr(valueExpr, ast: ctx.ast),
-              checker.typeContainsNothingType(originalType, sema: sema)
+              originalIsError || checker.typeContainsNothingType(originalType, sema: sema)
         else { return originalType }
 
         let names = operatorFunctionNames(for: op, interner: ctx.interner)
@@ -50,20 +54,29 @@ extension ExprTypeChecker {
                 parameterType,
                 typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols),
                 typeSystem: sema.types
-            ), let expectedType = checker.concreteNestedCallExpectedType(
-                originalArgumentType: originalType, boundType: parameterType, sema: sema
             ) else { continue }
-            guard case let .classType(originalClass) = sema.types.kind(of: originalType),
-                  case let .classType(expectedClass) = sema.types.kind(of: expectedType),
-                  zip(originalClass.args, expectedClass.args).allSatisfy({ original, expected in
-                      switch original {
-                      case let .invariant(type), let .in(type), let .out(type):
-                          checker.typeContainsNothingType(type, sema: sema) || original == expected
-                      case .star:
-                          original == expected
-                      }
-                  })
-            else { continue }
+            let expectedType: TypeID
+            if originalIsError {
+                // Without a first-pass nominal head there is nothing to
+                // re-parameterize; the operator's own parameter type is the
+                // best concrete expectation available.
+                expectedType = parameterType
+            } else {
+                guard let concreteExpectedType = checker.concreteNestedCallExpectedType(
+                    originalArgumentType: originalType, boundType: parameterType, sema: sema
+                ), case let .classType(originalClass) = sema.types.kind(of: originalType),
+                   case let .classType(expectedClass) = sema.types.kind(of: concreteExpectedType),
+                   zip(originalClass.args, expectedClass.args).allSatisfy({ original, expected in
+                       switch original {
+                       case let .invariant(type), let .in(type), let .out(type):
+                           checker.typeContainsNothingType(type, sema: sema) || original == expected
+                       case .star:
+                           original == expected
+                       }
+                   })
+                else { continue }
+                expectedType = concreteExpectedType
+            }
             expectedTypes.insert(expectedType)
         }
         // Nominal compatibility distinguishes element and iterable overloads;
@@ -71,6 +84,32 @@ extension ExprTypeChecker {
         guard expectedTypes.count == 1, let expectedType = expectedTypes.first else {
             return originalType
         }
-        return driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: expectedType)
+        // The eager first pass already reported SEMA-INFER (or a resolution
+        // failure) inside the value expression; that diagnostic is stale once
+        // a concrete operator-derived expectation exists, so drop it before
+        // re-inferring — the same recovery the nested-call argument machinery
+        // performs for call arguments (KUU-3750).
+        let valueRange = ctx.ast.arena.exprRange(valueExpr)
+        let removedDiagnostics = valueRange.map {
+            sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+        } ?? []
+        let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+        let recoveredType = driver.inferExpr(
+            valueExpr, ctx: ctx, locals: &locals, expectedType: expectedType
+        )
+        let retryEmittedError = sema.diagnostics.diagnostics
+            .dropFirst(diagnosticsCheckpoint)
+            .contains { $0.severity == .error }
+        if !retryEmittedError,
+           recoveredType == sema.types.errorType || checker.typeContainsErrorType(recoveredType, sema: sema),
+           !removedDiagnostics.isEmpty
+        {
+            // The retry left the expression in the error state without
+            // explaining why; restore the first pass's genuine failures.
+            for diagnostic in removedDiagnostics {
+                sema.diagnostics.emit(diagnostic)
+            }
+        }
+        return recoveredType
     }
 }
