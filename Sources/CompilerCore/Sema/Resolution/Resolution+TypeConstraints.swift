@@ -1078,6 +1078,41 @@ extension OverloadResolver {
             }
             let superEffectiveParams = superFunc.contextReceivers
                 + (superFunc.receiver.map { [$0] } ?? []) + superFunc.params
+            // A caller-side type parameter whose declared bounds include a
+            // function type (`F : (T) -> R, F : KCallable<R>`) satisfies a
+            // function-typed parameter through that bound: decompose the
+            // bound's shape against the expected type so its components bind
+            // the inference variables (KUU-4457). Only an unambiguous single
+            // function bound qualifies — multiple matches stay with the
+            // opaque fallback below.
+            if case let .typeParam(subParameter) = subtypeKind,
+               subParameter.capture == nil
+            {
+                let functionBounds = typeSystem.declaredUpperBounds(for: subParameter.symbol)
+                    .filter { bound in
+                        guard case let .functionType(boundFunction) = typeSystem.kind(of: bound)
+                        else { return false }
+                        let boundParams = boundFunction.contextReceivers
+                            + (boundFunction.receiver.map { [$0] } ?? []) + boundFunction.params
+                        return boundParams.count == superEffectiveParams.count
+                            && (superFunc.isSuspend || !boundFunction.isSuspend)
+                            && !(superFunc.isCallableReference && !boundFunction.isCallableReference)
+                            && typeSystem.nullabilitySubtype(
+                                boundFunction.nullability, superFunc.nullability
+                            )
+                    }
+                if functionBounds.count == 1, let bound = functionBounds.first {
+                    return decomposeSubtypeConstraintImpl(
+                        subtype: bound, supertype: supertype,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: blameRange,
+                        depth: depth + 1,
+                        rigidSubtypeTypeParameters: rigidSubtypeTypeParameters,
+                        rigidSupertypeTypeParameters: rigidSupertypeTypeParameters
+                    )
+                }
+            }
             if case let .functionType(subFunc) = subtypeKind,
                effectiveParams.count == superEffectiveParams.count,
                // A non-suspend function is usable wherever a suspend one is

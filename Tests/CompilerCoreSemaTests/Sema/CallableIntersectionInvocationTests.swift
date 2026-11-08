@@ -71,6 +71,41 @@ struct CallableIntersectionInvocationTests {
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
     }
 
+    // KUU-4457: a `where`-bounded type variable passes through its function
+    // bound. `F : (T) -> R, F : KCallable<R>` must satisfy a `(T) -> R`
+    // parameter, binding T and R through the bound's components.
+    @Test
+    func multiBoundTypeParameterSatisfiesFunctionBound() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KCallable
+
+        class Assert<T>(val v: T)
+        fun <T, R> Assert<T>.having(name: String?, callable: (T) -> R): Assert<R> = Assert(callable(v))
+
+        fun <T, R, F> Assert<T>.having(callable: F): Assert<R> where F : (T) -> R, F : KCallable<R> =
+            having(callable.name, callable)
+
+        fun checked(): Assert<Int> = Assert(1).having(Int::inc)
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    // The bound's components keep full contravariance/covariance: a bound
+    // `(T) -> R` cannot satisfy a differently shaped `(T, T) -> R` parameter.
+    @Test
+    func multiBoundTypeParameterRejectsMismatchedFunctionShape() throws {
+        let ctx = makeContextFromSource("""
+        import kotlin.reflect.KCallable
+
+        fun <T, R> takesPair(callable: (T, T) -> R) = Unit
+        fun <T, R, F> use(callable: F) where F : (T) -> R, F : KCallable<R> =
+            takesPair(callable)
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "(T) -> R bound must not satisfy (T, T) -> R")
+    }
+
     @Test(arguments: [
         """
         fun render(value: Boolean): String = value.toString()
