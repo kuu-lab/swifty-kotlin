@@ -36,19 +36,6 @@ struct RuntimeFileIOTests {
         }
     }
 
-    @Test func testStringByteInputStreamFlatExplicitCharsetYieldsEncodedBytes() {
-        withFlatString("AB") { data, length, byteCount, hash in
-            let streamRaw = __kk_string_byteInputStream_charset_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                __kk_charset_utf_16be()
-            )
-            #expect(readInputStreamBytes(streamRaw) == [0, 65, 0, 66])
-        }
-    }
-
     @Test func testByteArrayInputStreamRangeValid() {
         let array = makeByteArray([10, 20, 30, 40, 50])
         var thrown = 0

@@ -13,10 +13,6 @@ enum CharsetTag: Int {
     case utf32le = 8
 }
 
-func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -> Int {
-    __kk_string_toByteArray_charset(runtimeMakeStringRaw(source), charsetTag)
-}
-
 private func runtimeSignedByteValue(_ value: Int) -> Int {
     Int(Int8(bitPattern: UInt8(truncatingIfNeeded: value)))
 }

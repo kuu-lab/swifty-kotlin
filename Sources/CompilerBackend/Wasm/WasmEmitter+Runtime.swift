@@ -841,7 +841,6 @@ enum WasmRuntimeHelpers {
         // `kotlin.text` scalar conversions (bypasses the member routing).
         "__kk_string_toInt_flat", "__kk_string_toIntOrNull_flat",
         "__kk_string_toLong_flat", "__kk_string_toLongOrNull_flat",
-        "__kk_string_toBoolean_flat",
         "__kk_string_toDouble_flat", "__kk_string_toDoubleOrNull_flat",
         "__kk_string_toFloat_flat", "__kk_string_toFloatOrNull_flat",
         // `kotlin.error`/`kotlin.TODO` — IllegalStateException through the
@@ -2510,7 +2509,7 @@ enum WasmRuntimeHelpers {
             extraLocals = 6
             emitStringParseIntBody(&code, ctx: ctx, wide: true, orNull: true,
                                    argumentCount: argumentCount)
-        case "__kk_wasm_string_to_boolean", "__kk_string_toBoolean_flat":
+        case "__kk_wasm_string_to_boolean":
             extraLocals = 2
             emitStringToBooleanBody(&code, argumentCount: argumentCount)
         case "__kk_wasm_string_to_double", "__kk_string_toDouble_flat":

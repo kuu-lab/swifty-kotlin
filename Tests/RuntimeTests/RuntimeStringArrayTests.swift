@@ -29,47 +29,6 @@ typealias RuntimeFlatStringReturnWithIntEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
-typealias RuntimeFlatStringReturnWithIntCharEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-typealias RuntimeFlatStringReturnWithThreeIntsEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
-typealias RuntimeFlatStringReturnWithTwoStringsBoolEntry = (
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    UnsafePointer<UInt8>?,
-    Int,
-    Int,
-    Int,
-    Int,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?,
-    UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>?
 typealias RuntimeFlatStringReturnWithLeadingIntAndIntEntry = (
     Int,
     UnsafePointer<UInt8>?,
@@ -192,38 +151,6 @@ struct RuntimeStringArrayTests {
 
     func flatStringReturnValue(
         _ value: String,
-        firstIntArg: Int,
-        secondIntArg: Int,
-        thirdIntArg: Int,
-        using call: RuntimeFlatStringReturnWithThreeIntsEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = call(
-                data,
-                length,
-                byteCount,
-                hash,
-                firstIntArg,
-                secondIntArg,
-                thirdIntArg,
-                &outLength,
-                &outByteCount,
-                &outHash
-            )
-            return flatStringValue(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
-    func flatStringReturnValue(
-        _ value: String,
         leadingIntArg: Int,
         trailingIntArg: Int,
         using call: RuntimeFlatStringReturnWithLeadingIntAndIntEntry,
@@ -245,68 +172,6 @@ struct RuntimeStringArrayTests {
                 &outHash,
                 outThrown
             )
-            return flatStringValue(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
-    func flatStringReturnValue(
-        _ value: String,
-        first: String,
-        second: String,
-        ignoreCase: Bool,
-        using call: RuntimeFlatStringReturnWithTwoStringsBoolEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(first) { firstData, firstLength, firstByteCount, firstHash in
-                withFlatString(second) { secondData, secondLength, secondByteCount, secondHash in
-                    var outLength = 0
-                    var outByteCount = 0
-                    var outHash = 0
-                    let outData = call(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        firstData,
-                        firstLength,
-                        firstByteCount,
-                        firstHash,
-                        secondData,
-                        secondLength,
-                        secondByteCount,
-                        secondHash,
-                        ignoreCase ? 1 : 0,
-                        &outLength,
-                        &outByteCount,
-                        &outHash
-                    )
-                    return flatStringValue(
-                        data: outData.map { UnsafePointer($0) },
-                        length: outLength,
-                        byteCount: outByteCount,
-                        hash: outHash
-                    )
-                }
-            }
-        }
-    }
-
-    func flatStringReturnValue(
-        _ value: String,
-        intArg: Int,
-        charArg: Int,
-        using call: RuntimeFlatStringReturnWithIntCharEntry
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = call(data, length, byteCount, hash, intArg, charArg, &outLength, &outByteCount, &outHash)
             return flatStringValue(
                 data: outData.map { UnsafePointer($0) },
                 length: outLength,

@@ -280,23 +280,6 @@ public func __kk_string_get_flat(
     return Int(unit)
 }
 
-@_cdecl("__kk_string_getOrNull_flat")
-public func __kk_string_getOrNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ indexRaw: Int
-) -> Int {
-    let lookup = runtimeFlatStringCodeUnit(
-        data: data, length: length, byteCount: byteCount, hash: hash, index: indexRaw
-    )
-    guard let unit = lookup.unit else {
-        return runtimeNullSentinelInt
-    }
-    return Int(unit)
-}
-
 @_cdecl("__kk_string_compareTo_member")
 public func __kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)

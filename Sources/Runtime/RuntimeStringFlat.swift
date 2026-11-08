@@ -72,57 +72,6 @@ func runtimeFlatStringBoundaryCodeUnits(
     return (first, last, hasMultipleUnits)
 }
 
-@_cdecl("kk_string_trim_flat")
-public func kk_string_trim_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringTrimWhitespace(
-            kk_string_from_flat(data, length, byteCount, hash),
-            trimLeading: true,
-            trimTrailing: true
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-@_cdecl("kk_string_trim_predicate_flat")
-public func kk_string_trim_predicate_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringTrimWithPredicate(
-            kk_string_from_flat(data, length, byteCount, hash),
-            fnPtr,
-            closureRaw,
-            outThrown,
-            trimLeading: true,
-            trimTrailing: true,
-            context: "trim predicate"
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
 @_cdecl("kk_string_lowercase_flat")
 public func kk_string_lowercase_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -223,50 +172,6 @@ public func __kk_string_single_flat(
 // KSP-410: find/findLast are bundled Kotlin source (StringHOF.kt); their flat runtime
 // bridges were removed.
 
-@_cdecl("kk_string_isEmpty_flat")
-public func kk_string_isEmpty_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return source.isEmpty ? 1 : 0
-}
-
-@_cdecl("kk_string_isNotEmpty_flat")
-public func kk_string_isNotEmpty_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return source.isEmpty ? 0 : 1
-}
-
-@_cdecl("kk_string_isBlank_flat")
-public func kk_string_isBlank_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0
-}
-
-@_cdecl("kk_string_isNotBlank_flat")
-public func kk_string_isNotBlank_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1
-}
-
 @_cdecl("__kk_string_firstOrNull_flat")
 public func __kk_string_firstOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -301,56 +206,6 @@ public func __kk_string_singleOrNull_flat(
     let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let unit = boundary.first, !boundary.hasMultipleUnits else { return runtimeNullSentinelInt }
     return Int(unit)
-}
-
-@_cdecl("__kk_string_toBoolean_flat")
-public func __kk_string_toBoolean_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0
-}
-
-@_cdecl("__kk_string_toBooleanStrict_flat")
-public func __kk_string_toBooleanStrict_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    switch source {
-    case "true":
-        return 1
-    case "false":
-        return 0
-    default:
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "The string doesn't represent a boolean value: \(source)"))
-        return 0
-    }
-}
-
-@_cdecl("__kk_string_toBooleanStrictOrNull_flat")
-public func __kk_string_toBooleanStrictOrNull_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    switch source {
-    case "true":
-        return 1
-    case "false":
-        return 0
-    default:
-        return runtimeNullSentinelInt
-    }
 }
 
 @_cdecl("__kk_string_toInt_flat")
@@ -529,109 +384,8 @@ public func __kk_string_toUIntOrNull_radix_flat(
     __kk_string_toUIntOrNull_radix(kk_string_from_flat(data, length, byteCount, hash), radix, outThrown)
 }
 
-@_cdecl("kk_string_trimStart_flat")
-public func kk_string_trimStart_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringTrimWhitespace(
-            kk_string_from_flat(data, length, byteCount, hash),
-            trimLeading: true,
-            trimTrailing: false
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-@_cdecl("kk_string_trimStart_predicate_flat")
-public func kk_string_trimStart_predicate_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringTrimWithPredicate(
-            kk_string_from_flat(data, length, byteCount, hash),
-            fnPtr,
-            closureRaw,
-            outThrown,
-            trimLeading: true,
-            trimTrailing: false,
-            context: "trimStart predicate"
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-@_cdecl("kk_string_trimEnd_flat")
-public func kk_string_trimEnd_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringTrimWhitespace(
-            kk_string_from_flat(data, length, byteCount, hash),
-            trimLeading: false,
-            trimTrailing: true
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-@_cdecl("kk_string_trimEnd_predicate_flat")
-public func kk_string_trimEnd_predicate_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringTrimWithPredicate(
-            kk_string_from_flat(data, length, byteCount, hash),
-            fnPtr,
-            closureRaw,
-            outThrown,
-            trimLeading: false,
-            trimTrailing: true,
-            context: "trimEnd predicate"
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-// KSP-404: kk_string_endsWith_flat removed; endsWith is bundled Kotlin source.
+// trim/trimStart/trimEnd (whitespace and predicate variants) are bundled
+// Kotlin source; their flat runtime bridges were removed.
 
 // KSP-406: substring/subSequence flat bridges removed with the bundled Kotlin
 // source migration (StringSubstringSlice.kt).
@@ -669,83 +423,10 @@ public func kk_string_replace_flat(
     )
 }
 
-@_cdecl("kk_string_replace_char_flat")
-public func kk_string_replace_char_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ oldCharRaw: Int,
-    _ newCharRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringReplaceChar(kk_string_from_flat(data, length, byteCount, hash), oldCharRaw, newCharRaw),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
+// replace(oldChar,newChar) / replace(oldValue,newValue,ignoreCase) /
+// replace(oldChar,newChar,ignoreCase) are bundled Kotlin source; their flat
+// runtime bridges were removed.
 
-@_cdecl("kk_string_replace_ignoreCase_flat")
-public func kk_string_replace_ignoreCase_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ oldData: UnsafePointer<UInt8>?,
-    _ oldLength: Int,
-    _ oldByteCount: Int,
-    _ oldHash: Int,
-    _ newData: UnsafePointer<UInt8>?,
-    _ newLength: Int,
-    _ newByteCount: Int,
-    _ newHash: Int,
-    _ ignoreCaseRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringReplaceIgnoreCase(
-            kk_string_from_flat(data, length, byteCount, hash),
-            kk_string_from_flat(oldData, oldLength, oldByteCount, oldHash),
-            kk_string_from_flat(newData, newLength, newByteCount, newHash),
-            ignoreCaseRaw
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
-
-@_cdecl("kk_string_replace_char_ignoreCase_flat")
-public func kk_string_replace_char_ignoreCase_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ oldCharRaw: Int,
-    _ newCharRaw: Int,
-    _ ignoreCaseRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    runtimeRegisterFlatStringResult(
-        runtimeStringReplaceCharIgnoreCase(
-            kk_string_from_flat(data, length, byteCount, hash),
-            oldCharRaw,
-            newCharRaw,
-            ignoreCaseRaw
-        ),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
 // KSP-413: contentEquals / equals(ignoreCase) are bundled Kotlin source
 // (Stdlib/kotlin/text/StringComparison.kt); the kk_string_contentEquals_flat /
 // kk_string_contentEquals_ignoreCase_flat / kk_string_equalsIgnoreCase_flat

@@ -216,7 +216,6 @@ struct BuildKIRRegressionTests {
         #expect(!callees.contains(runtime[.legacyStringLength]))
     }
     @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeOrSourceCalls() throws {
-        let runtime = try RuntimeNames()
         let ctx = try sharedBuildKIRCtx()
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
@@ -227,7 +226,6 @@ struct BuildKIRRegressionTests {
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(callsSymbol(expectedSymbol, in: body))
             #expect(callees == [ctx.interner.resolve(expected.name)])
-            #expect(!callees.contains(runtime[.legacyStringTrim]))
         }
     }
     @Test func testBuildKIRLowersImplicitReceiverSubstringWithReceiverArgument() throws {

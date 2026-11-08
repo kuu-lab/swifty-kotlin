@@ -41,7 +41,6 @@ public extension RuntimeABISpec {
         abi.th("__kk_bytearray_inputStream", "arrayRaw outThrown"),
         abi.th("__kk_bytearray_inputStream_range", "arrayRaw offsetRaw lengthRaw outThrown"),
         abi.nt("__kk_string_byteInputStream_flat", "receiverData:nullableConstUInt8Pointer receiverLength receiverByteCount receiverHash"),
-        abi.nt("__kk_string_byteInputStream_charset_flat", "receiverData:nullableConstUInt8Pointer receiverLength receiverByteCount receiverHash charsetTag"),
         abi.th("__kk_input_stream_read", "streamRaw outThrown"),
         abi.th("__kk_input_stream_available", "streamRaw"),
         abi.th("__kk_input_stream_skip", "streamRaw countRaw outThrown"),

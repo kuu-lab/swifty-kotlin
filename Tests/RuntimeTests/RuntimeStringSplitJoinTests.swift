@@ -47,26 +47,11 @@ struct RuntimeStringSplitJoinTests {
     }
 
     private func splitToSequence(_ value: String, delimiter: String) -> Int {
-        withFlatStrings(value, delimiter) { data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
-            kk_string_splitToSequence_flat(data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash)
-        }
+        __kk_string_splitToSequence(runtimeMakeStringRaw(value), runtimeMakeStringRaw(delimiter))
     }
 
     private func splitLimit(_ value: String, delimiter: String, ignoreCase: Int, limit: Int) -> Int {
-        withFlatStrings(value, delimiter) { data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
-            kk_string_split_limit_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                delimiterData,
-                delimiterLength,
-                delimiterByteCount,
-                delimiterHash,
-                ignoreCase,
-                limit
-            )
-        }
+        __kk_string_split_limit(runtimeMakeStringRaw(value), runtimeMakeStringRaw(delimiter), ignoreCase, limit)
     }
 
     // MARK: - joinToString tests

@@ -544,7 +544,7 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let functions = try abiFunctions(
-                ["string_byteInputStream_flat", "string_byteInputStream_charset_flat"],
+                ["string_byteInputStream_flat"],
                 in: RuntimeABISpec.fileIOFunctions,
                 privateBridge: true
             )
@@ -557,7 +557,7 @@ struct BuildKIRCodegenRegressionTests {
     @Test
     func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() throws {
         expectNonThrowingCallees(try abiFunctions(
-            ["string_byteInputStream_flat", "string_byteInputStream_charset_flat"],
+            ["string_byteInputStream_flat"],
             in: RuntimeABISpec.fileIOFunctions,
             privateBridge: true
         ))
@@ -772,7 +772,7 @@ struct BuildKIRCodegenRegressionTests {
             }
             try expectDeclaredCallees(in: body, context: ctx)
             let sourceOnlyRuntimeAlternatives = try abiFunctions([
-                "string_split_flat", "string_isNullOrEmpty_flat", "string_isNullOrBlank_flat",
+                "string_split_flat",
             ], in: RuntimeABISpec.stringFunctions)
             #expect(sourceOnlyRuntimeAlternatives.allSatisfy { throwFlags[$0.name] == nil })
             #expect(importedFlags("split") != nil)

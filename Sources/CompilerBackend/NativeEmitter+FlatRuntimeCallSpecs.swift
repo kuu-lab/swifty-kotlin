@@ -68,42 +68,6 @@ extension NativeEmitter {
                 extraArgumentCount: 0,
                 canThrow: false
             ),
-            "kk_string_trim_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_trim_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0,
-                canThrow: false
-            ),
-            "kk_string_trim_predicate_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_trim_predicate_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 2,
-                canThrow: true
-            ),
-            "kk_string_trimStart_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_trimStart_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0,
-                canThrow: false
-            ),
-            "kk_string_trimStart_predicate_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_trimStart_predicate_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 2,
-                canThrow: true
-            ),
-            "kk_string_trimEnd_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_trimEnd_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0,
-                canThrow: false
-            ),
-            "kk_string_trimEnd_predicate_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_trimEnd_predicate_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 2,
-                canThrow: true
-            ),
             "kk_string_lowercase_flat": FlatStringReturnCallSpec(
                 flatName: "kk_string_lowercase_flat",
                 stringArgumentCount: 1,
@@ -134,12 +98,6 @@ extension NativeEmitter {
                 extraArgumentCount: 1,
                 canThrow: false
             ),
-            "kk_string_orEmpty_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_orEmpty_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0,
-                canThrow: false
-            ),
             // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt);
             // no flat emission spec.
             // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
@@ -164,24 +122,6 @@ extension NativeEmitter {
                 flatName: "kk_string_replace_flat",
                 stringArgumentCount: 3,
                 extraArgumentCount: 0,
-                canThrow: false
-            ),
-            "kk_string_replace_char_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_replace_char_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 2,
-                canThrow: false
-            ),
-            "kk_string_replace_ignoreCase_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_replace_ignoreCase_flat",
-                stringArgumentCount: 3,
-                extraArgumentCount: 1,
-                canThrow: false
-            ),
-            "kk_string_replace_char_ignoreCase_flat": FlatStringReturnCallSpec(
-                flatName: "kk_string_replace_char_ignoreCase_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 3,
                 canThrow: false
             ),
             "kk_string_replaceFirst_flat": FlatStringReturnCallSpec(
@@ -244,16 +184,6 @@ extension NativeEmitter {
             ),
             "kk_string_split_flat": FlatScalarReturnCallSpec(
                 flatName: "kk_string_split_flat",
-                stringArgumentCount: 2,
-                extraArgumentCount: 0
-            ),
-            "kk_string_split_limit_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_split_limit_flat",
-                stringArgumentCount: 2,
-                extraArgumentCount: 2
-            ),
-            "kk_string_splitToSequence_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_splitToSequence_flat",
                 stringArgumentCount: 2,
                 extraArgumentCount: 0
             ),
@@ -398,36 +328,6 @@ extension NativeEmitter {
                 stringArgumentCount: 2,
                 extraArgumentCount: 0
             ),
-            "kk_string_isEmpty_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_isEmpty_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
-            "kk_string_isNotEmpty_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_isNotEmpty_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
-            "kk_string_isBlank_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_isBlank_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
-            "kk_string_isNotBlank_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_isNotBlank_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
-            "kk_string_isNullOrEmpty_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_isNullOrEmpty_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
-            "kk_string_isNullOrBlank_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_isNullOrBlank_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
             "__kk_string_first_flat": FlatScalarReturnCallSpec(
                 flatName: "__kk_string_first_flat",
                 stringArgumentCount: 1,
@@ -461,11 +361,6 @@ extension NativeEmitter {
                 stringArgumentCount: 1,
                 extraArgumentCount: 0
             ),
-            "__kk_string_getOrNull_flat": FlatScalarReturnCallSpec(
-                flatName: "__kk_string_getOrNull_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 1
-            ),
             "__kk_string_get_flat": FlatScalarReturnCallSpec(
                 flatName: "__kk_string_get_flat",
                 stringArgumentCount: 1,
@@ -480,22 +375,6 @@ extension NativeEmitter {
             // KSP-410: sumBy/sumByDouble/reduceOrNull/reduceRightIndexed/
             // reduceRightIndexedOrNull/reduceRightOrNull are bundled
             // Kotlin source (StringHOF.kt); no flat emission spec.
-            "__kk_string_toBoolean_flat": FlatScalarReturnCallSpec(
-                flatName: "__kk_string_toBoolean_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
-            "__kk_string_toBooleanStrict_flat": FlatScalarReturnCallSpec(
-                flatName: "__kk_string_toBooleanStrict_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0,
-                canThrow: true
-            ),
-            "__kk_string_toBooleanStrictOrNull_flat": FlatScalarReturnCallSpec(
-                flatName: "__kk_string_toBooleanStrictOrNull_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 0
-            ),
             "__kk_string_toInt_flat": FlatScalarReturnCallSpec(
                 flatName: "__kk_string_toInt_flat",
                 stringArgumentCount: 1,
@@ -639,11 +518,6 @@ extension NativeEmitter {
                 flatName: "__kk_string_byteInputStream_flat",
                 stringArgumentCount: 1,
                 extraArgumentCount: 0
-            ),
-            "__kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
-                flatName: "__kk_string_byteInputStream_charset_flat",
-                stringArgumentCount: 1,
-                extraArgumentCount: 1
             ),
         ]
         for spec in Array(specs.values)
