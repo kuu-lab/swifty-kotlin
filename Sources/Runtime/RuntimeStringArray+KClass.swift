@@ -1,7 +1,6 @@
 import Foundation
 
-@_cdecl("__kk_type_token_simple_name")
-public func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+func __kk_type_token_simple_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     // KUU-1084: function-type names derive from the token payload itself so
@@ -100,8 +99,7 @@ private func runtimeKClassQualifiedName(_ name: String) -> String {
 
 /// For nominal (user-defined) types registered metadata takes precedence over
 /// the compiler-supplied qualified name hint.
-@_cdecl("__kk_type_token_qualified_name")
-public func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
+func __kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
     let base = token & RuntimeTypeTokenEncoding.baseMask
     let payload = (token >> RuntimeTypeTokenEncoding.payloadShift) & RuntimeTypeTokenEncoding.payloadMask
@@ -398,8 +396,7 @@ public func __kk_kclass_register_metadata(
 ///   bit 7=abstract, bit 8=final, bit 9=open,
 ///   bit 10=inner, bit 11=companion, bit 12=funInterface, bit 13=local,
 ///   bit 14=anonymous (object literal).
-@_cdecl("__kk_kclass_register_metadata_v2")
-public func __kk_kclass_register_metadata_v2(
+func __kk_kclass_register_metadata_v2(
     _ typeToken: Int,
     _ qualifiedNameRaw: Int,
     _ simpleNameRaw: Int,

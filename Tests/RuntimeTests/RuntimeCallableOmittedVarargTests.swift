@@ -51,7 +51,11 @@ struct RuntimeCallableOmittedVarargTests {
             #expect(observed.elements.count == 2)
             let array = try #require(runtimeArrayBox(from: observed.elements[0]))
             #expect(array.elements.isEmpty)
-            #expect(runtimeArrayTypeIDs(rawValue: observed.elements[0]) == [runtimeStableNominalTypeID(fqName: typeName)])
+            let nominalTypeID = runtimeStableNominalTypeID(fqName: typeName)
+            let expectedTypeIDs: Set<Int64> = runtimeCloneableArrayTypeIDs.contains(nominalTypeID)
+                ? [nominalTypeID, runtimeCloneableNominalTypeID]
+                : [nominalTypeID]
+            #expect(runtimeArrayTypeIDs(rawValue: observed.elements[0]) == expectedTypeIDs)
             #expect(kk_unbox_int(observed.elements[1]) == 0)
         }
     }

@@ -10,7 +10,5 @@ public extension RuntimeABISpec {
         abi.nt("__kk_kproperty_stub_set_delegate", "handle delegateRaw"),
         abi.th("__kk_kproperty0_get", "raw interfaceTypeID methodSlot outThrown"),
         abi.th("__kk_kproperty_get_delegate", "raw interfaceTypeID methodSlot arg0 arg1 arity outThrown"),
-        abi.th("__kk_kproperty_stub_is_lateinit", "handle"),
-        abi.th("__kk_kproperty_stub_is_const", "handle"),
     ]
 }

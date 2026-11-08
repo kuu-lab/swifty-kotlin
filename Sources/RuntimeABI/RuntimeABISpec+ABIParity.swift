@@ -649,18 +649,6 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
             p("memberRaw", .intptr),
         ]),
-        abiParitySpec("__kk_kclass_register_metadata_v2", parameters: [
-            p("typeToken", .intptr),
-            p("qualifiedNameRaw", .intptr),
-            p("simpleNameRaw", .intptr),
-            p("supertypeNameRaw", .intptr),
-            p("flags", .intptr),
-            p("fieldCount", .intptr),
-            p("memberCount", .intptr),
-            p("constructorCount", .intptr),
-            p("visibilityRaw", .intptr),
-            p("typeParameterCount", .intptr),
-        ]),
         abiParitySpec("__kk_kclass_supertypes", parameters: [
             p("kclassRaw", .intptr),
         ],
