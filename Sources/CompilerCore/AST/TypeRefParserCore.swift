@@ -444,6 +444,14 @@ enum TypeRefParserCore {
 
         var next = start
         var contextReceivers: [TypeRefID] = []
+        var isSuspend = false
+
+        // Kotlin orders the modifiers `suspend context(R) () -> A`; the
+        // reverse `context(R) suspend` order is also still accepted.
+        if next < tokens.count, isSuspendModifierToken(tokens[next].kind) {
+            isSuspend = true
+            next += 1
+        }
 
         if let parsedContext = parseContextFunctionTypeParams(
             tokens,
@@ -458,18 +466,9 @@ enum TypeRefParserCore {
             next = parsedContext.next
         }
 
-        var isSuspend = false
-
-        if next < tokens.count {
-            if case .keyword(.suspend) = tokens[next].kind {
-                isSuspend = true
-                next += 1
-            } else if case let .softKeyword(keyword) = tokens[next].kind,
-                      keyword.rawValue == "suspend"
-            {
-                isSuspend = true
-                next += 1
-            }
+        if !isSuspend, next < tokens.count, isSuspendModifierToken(tokens[next].kind) {
+            isSuspend = true
+            next += 1
         }
 
         // `suspend` is one of Kotlin's type modifiers, so annotations may
@@ -683,6 +682,16 @@ enum TypeRefParserCore {
             case .named, .intersection:
                 return false
             }
+        }
+        return false
+    }
+
+    private static func isSuspendModifierToken(_ kind: TokenKind) -> Bool {
+        if case .keyword(.suspend) = kind {
+            return true
+        }
+        if case let .softKeyword(keyword) = kind {
+            return keyword.rawValue == "suspend"
         }
         return false
     }

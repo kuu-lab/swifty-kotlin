@@ -58,5 +58,25 @@ struct IndexedSetExpectedTypeInferenceTests {
             #expect(inferredType.args == [.invariant(sema.types.stringType)])
         }
     }
+
+    @Test
+    func ifExpressionIndexParsesAsIndexedSet() throws {
+        // KUU-4458: the `<` inside the if condition used to leak angle depth,
+        // hiding the top-level `=` from the assignment scan. The statement then
+        // fell back to expression parsing, where the else branch swallowed
+        // `] = v` as a local assignment (SEMA-0014) and the leftover get-index
+        // failed the Int constraint (SEMA-0473).
+        let ctx = makeContextFromSource("""
+        class Box {
+            operator fun set(index: Int, value: Int) {}
+        }
+        fun check(x: Int) {
+            val box = Box()
+            box[if (x < 0) 0 else x] = 9
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

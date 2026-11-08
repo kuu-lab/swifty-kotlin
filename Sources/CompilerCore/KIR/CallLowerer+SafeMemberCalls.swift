@@ -100,6 +100,44 @@ extension CallLowerer {
             shared: shared, emit: &instructions
         )
 
+        // KUU-4431: `a?.isArrayOf<T>()` takes the safe-call path; route it to
+        // the same component check as the member-call spelling and keep the
+        // null receiver on the null branch. See CallLowerer+MemberCalls.swift.
+        if let binding = sema.bindings.callBindings[exprID],
+           let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
+           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+        {
+            let resultType = boundType ?? sema.types.makeNullable(sema.types.booleanType)
+            let result = arena.appendTemporary(type: resultType)
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+            let nullValue = arena.appendExpr(.unit, type: resultType)
+            instructions.append(.constValue(result: nullValue, value: .null))
+            instructions.append(.copy(from: nullValue, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            let componentToken = runtimeArrayComponentTypeExpr(
+                for: binding.substitutedTypeArguments.first ?? sema.types.anyType,
+                useReifiedToken: false,
+                context: driver.ctx,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions
+            )
+            let nonNullResult = arena.appendTemporary(type: sema.types.booleanType)
+            instructions.append(.call(
+                callee: interner.intern("kk_array_is_array_of"),
+                arguments: [loweredReceiverID, componentToken],
+                result: nonNullResult,
+                canThrow: false
+            ))
+            instructions.append(.copy(from: nonNullResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if let numberConversionResult = tryLowerNumberConversion(
             exprID,
             receiverExpr: receiverExpr,
@@ -2137,6 +2175,21 @@ private func resolveVtableDispatchKind(
     layout: NominalLayout,
     sema: SemaModule
 ) -> KIRDispatchKind? {
+    // kotlin.Any's toString/hashCode/equals must never use vtable slots: the
+    // kk_any_member_* bridges dispatch through the runtime override registry,
+    // which is the only mechanism that works across module boundaries.
+    // Subclass vtables do not share a consistent slot for these members —
+    // nominals rooted at an empty-vtable superclass (e.g. bundled-stdlib
+    // kotlinx.serialization.json.JsonElement) number their own members from
+    // slot 0, so a slot resolved from Any's layout indexes an unrelated
+    // method on the concrete receiver (KUU-4487).
+    if let linkName = sema.symbols.externalLinkName(for: callee),
+       linkName == "kk_any_member_to_string"
+           || linkName == "kk_any_member_hashCode"
+           || linkName == "kk_any_member_equals"
+    {
+        return nil
+    }
     // Open and abstract classes can acquire subtypes in a later compilation
     // unit. Their method bodies must retain virtual dispatch when a library
     // is compiled in isolation, even without currently known subtypes.

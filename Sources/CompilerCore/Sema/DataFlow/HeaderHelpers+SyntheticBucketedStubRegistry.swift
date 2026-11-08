@@ -48,7 +48,7 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 bundledIndex: context.bundledIndex
             )
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Collections") { phase, symbols, types, interner, context in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Collections") { phase, symbols, types, interner, context in
             phase.registerSyntheticCollectionStubs(
                 symbols: symbols,
                 types: types,
@@ -66,12 +66,12 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "KTypeParameterUpperBoundsPatch") { phase, symbols, types, interner, _ in
             phase.patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Comparable") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Comparable") { phase, symbols, types, interner, _ in
             if types.comparableInterfaceSymbol == nil {
                 phase.registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
             }
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "String") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "String") { phase, symbols, types, interner, _ in
             phase.registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Char") { phase, symbols, types, interner, _ in
@@ -95,8 +95,8 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Exception") { phase, symbols, types, interner, context in
             phase.registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Duration") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Duration") { phase, symbols, types, interner, _ in
+            phase.registerSyntheticDurationStubs(symbols: symbols, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "InstantRuntimeBridges") { phase, symbols, types, interner, _ in
             phase.registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
@@ -106,13 +106,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalTimeAnchors") { phase, symbols, types, interner, context in
             phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "SequenceResiduals") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticSequenceResidualMembers(
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativePlatformFallbacks") { phase, symbols, types, interner, context in
             phase.registerSyntheticNativePlatformStubs(
@@ -178,7 +171,7 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "Enum") { phase, symbols, types, interner in
             phase.registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Atomic") { phase, symbols, types, interner in
+        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "Atomic") { phase, symbols, types, interner in
             phase.registerSyntheticAtomicResidualStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in

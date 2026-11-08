@@ -1265,11 +1265,30 @@ extension KIRLoweringDriver {
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
         body.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
+        // The interned KClass box is shared with `T::class` literals and
+        // `KType.classifier` results, so its name hint must be the qualified
+        // name — the same spelling `T::class` passes. This initializer runs
+        // during module init for every nominal, so a simple-name hint would
+        // win the intern race and degrade `qualifiedName` to the simple name
+        // for any type that never gets a literal site (e.g. a supertype
+        // classifier reached only through `KClass.supertypes`).
+        let ownerType = sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol, args: [], nullability: .nonNull
+        )))
+        let qualifiedName = RuntimeTypeCheckToken.qualifiedName(
+            of: ownerType, sema: sema, interner: interner
+        ) ?? RuntimeTypeCheckToken.reflectionQualifiedName(
+            of: ownerInfo, sema: sema, interner: interner
+        )
+        let qualifiedInterned = interner.intern(qualifiedName)
+        let qualifiedExpr = arena.appendExpr(.stringLiteral(qualifiedInterned), type: intType)
+        body.append(.constValue(result: qualifiedExpr, value: .stringLiteral(qualifiedInterned)))
+
         let kclassExpr = arena.appendTemporary(type: sema.types.makeKClassType(argument: sema.types.anyType)
         )
         body.append(.call(
             callee: interner.intern("__kk_kclass_create"),
-            arguments: [typeTokenExpr, simpleNameExpr],
+            arguments: [typeTokenExpr, qualifiedExpr],
             result: kclassExpr,
             canThrow: false
         ))
@@ -1537,7 +1556,13 @@ extension KIRLoweringDriver {
                 sema: sema,
                 interner: interner
             )
-            guard !childSym.flags.contains(.synthetic) || isDataClassComponent else { continue }
+            let isDataClassCopy = isSyntheticDataClassCopy(
+                childSym,
+                owner: ownerInfo,
+                sema: sema,
+                interner: interner
+            )
+            guard !childSym.flags.contains(.synthetic) || isDataClassComponent || isDataClassCopy else { continue }
             // KUU-4064: member extensions (`val String.x` / `fun String.f()`
             // declared inside a class) register into the same member list so
             // `members` keeps listing them, but are flagged so the JVM-shaped
@@ -1771,5 +1796,26 @@ extension KIRLoweringDriver {
             return false
         }
         return true
+    }
+
+    /// The data-class `copy` member is synthetic like `componentN` but carries
+    /// the primary-constructor parameters, so the component predicate (which
+    /// requires an empty parameter list) rejects it. The JVM lists `copy` in
+    /// `KClass.members`/`memberFunctions`, so it must register here too
+    /// (KUU-4413).
+    private func isSyntheticDataClassCopy(
+        _ symbol: SemanticSymbol,
+        owner: SemanticSymbol,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard owner.flags.contains(.dataType),
+              symbol.kind == .function,
+              symbol.flags.contains(.synthetic),
+              sema.symbols.functionSignature(for: symbol.id) != nil
+        else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "copy"
     }
 }

@@ -45,6 +45,46 @@ extension ExprTypeChecker {
         ))
     }
 
+    /// A callable reference keeps its own function type, but an expected
+    /// function type can demand a different return ABI: `(P) -> Int` used as
+    /// `(P) -> Comparable<*>?` must box the primitive result for the erased
+    /// reference return (mirrors `functionValueBoxedReturnType` on the KIR
+    /// side). Returns true when the reference's value-type result needs
+    /// boxing for the expected return type.
+    private func callableReferenceReturnRequiresBoxing(
+        resultType: TypeID,
+        expectedFunctionType: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard case let .functionType(result) = sema.types.kind(of: resultType),
+              case let .functionType(expected) = sema.types.kind(of: expectedFunctionType),
+              result.isSuspend == expected.isSuspend
+        else {
+            return false
+        }
+        let isValueRepresentation = switch sema.types.kind(of: result.returnType) {
+        case .unit, .primitive(_, .nonNull), .stringStruct(.nonNull):
+            true
+        default:
+            false
+        }
+        guard isValueRepresentation else {
+            return false
+        }
+        let expectedKind = sema.types.kind(of: expected.returnType)
+        if case .typeParam = expectedKind {
+            return true
+        }
+        if sema.types.makeNonNullable(expected.returnType) == sema.types.anyType {
+            return true
+        }
+        guard case let .classType(classType) = expectedKind else {
+            return false
+        }
+        return !(classType.nullability == .nonNull
+            && sema.symbols.symbol(classType.classSymbol)?.kind == .enumClass)
+    }
+
     /// Enum `valueOf` is exposed through the enum class name even though its
     /// synthetic declaration is owned by the companion object. Kotlin binds
     /// that singleton receiver implicitly for `EnumType::valueOf`.
@@ -128,6 +168,55 @@ extension ExprTypeChecker {
         }
         guard !candidates.isEmpty else { return nil }
         return (companionType, candidates)
+    }
+
+    /// A top-level extension on a companion object becomes a bare `::name`
+    /// target only through an explicit `import Owner.Companion.name` (or a
+    /// named companion's `import Owner.Factory.name`): kotlinc binds the
+    /// singleton companion as the receiver, so `::failure` has type
+    /// `(Throwable) -> Result<T>` rather than the unbound
+    /// `Result.Companion.(Throwable) -> Result<T>` form (KUU-4364). Wildcard
+    /// and class-elided imports do not qualify — kotlinc rejects both.
+    /// Returns the companion object symbol to bind as the dispatch receiver.
+    private func importedCompanionExtensionReceiverSymbol(
+        for candidate: SymbolID,
+        member: InternedString,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        guard let file = ctx.currentASTFile,
+              let signature = sema.symbols.functionSignature(for: candidate),
+              let declaredReceiver = signature.receiverType,
+              driver.helpers.declaresExtensionReceiver(
+                  candidate, sema: sema, interner: interner
+              ),
+              let receiverSymbol = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(declaredReceiver),
+                  types: sema.types
+              )
+        else {
+            return nil
+        }
+        let companionSymbol = sema.symbols.actualSymbol(for: receiverSymbol) ?? receiverSymbol
+        guard let receiverInfo = ctx.cachedSymbol(companionSymbol),
+              receiverInfo.kind == .object,
+              let ownerClass = sema.symbols.parentSymbol(for: companionSymbol),
+              sema.symbols.companionObjectSymbol(for: ownerClass) == companionSymbol
+        else {
+            return nil
+        }
+        return file.imports.contains { importDecl in
+            guard !importDecl.isWildcard,
+                  (importDecl.alias ?? importDecl.path.last) == member,
+                  importDecl.path.count > 1,
+                  sema.symbols.lookupAll(fqName: Array(importDecl.path.dropLast()))
+                      .contains(companionSymbol)
+            else {
+                return false
+            }
+            return true
+        } ? companionSymbol : nil
     }
 
     /// In value position a bare class name denotes its companion object, so
@@ -1504,15 +1593,22 @@ extension ExprTypeChecker {
                     }
                     // A bare `::name` cannot reference an extension function —
                     // kotlinc reports `unresolved reference`; only `Type::ext`,
-                    // `obj::ext`, and the implicit-receiver bound form (handled
-                    // via `implicitMemberCandidates`) reach extensions.
+                    // `obj::ext`, the implicit-receiver bound form (handled
+                    // via `implicitMemberCandidates`), and a companion
+                    // extension reached through `import Owner.Companion.name`
+                    // (bound to the companion singleton, KUU-4364) qualify.
                     return symbol.kind == .constructor
                         || (symbol.kind == .function
-                            && !driver.helpers.declaresExtensionReceiver(
+                            && (!driver.helpers.declaresExtensionReceiver(
                                 symbolID,
                                 sema: sema,
                                 interner: interner
-                            ))
+                            )
+                                || importedCompanionExtensionReceiverSymbol(
+                                    for: symbolID,
+                                    member: member,
+                                    ctx: ctx
+                                ) != nil))
                 }
                 : localFunctionCandidates
             if candidates.isEmpty,
@@ -1752,11 +1848,24 @@ extension ExprTypeChecker {
         // lookup, which already selected its own receiver above.
         var importedObjectCallableReferenceReceiver: (symbol: SymbolID, type: TypeID)?
         if receiver == nil, !isImplicitlyBoundMember, !candidates.isEmpty {
-            let importedObjectReceivers = driver.callChecker.importedObjectDispatchReceiverOwners(
+            var importedObjectReceivers = driver.callChecker.importedObjectDispatchReceiverOwners(
                 named: member,
                 candidates: candidates,
                 ctx: ctx
             )
+            // Companion extensions imported via `Owner.Companion.name` bind
+            // the companion singleton the same way object-member imports do;
+            // their package-level parent keeps them out of the dispatch-owner
+            // lookup above (KUU-4364).
+            for candidate in candidates where importedObjectReceivers[candidate] == nil {
+                if let companion = importedCompanionExtensionReceiverSymbol(
+                    for: candidate,
+                    member: member,
+                    ctx: ctx
+                ) {
+                    importedObjectReceivers[candidate] = companion
+                }
+            }
             let receiverSymbols = Set(candidates.compactMap { importedObjectReceivers[$0] })
             if importedObjectReceivers.count == candidates.count,
                receiverSymbols.count == 1,
@@ -2005,6 +2114,7 @@ extension ExprTypeChecker {
                 postponedReturnTypeParameter: postponedReturnParameter,
                 interner: interner,
                 availableContextReceiverTypes: availableContextReceiverTypes,
+                enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                 sema: sema
             )
         }
@@ -2291,6 +2401,7 @@ extension ExprTypeChecker {
                         postponedReturnTypeParameter: postponedReturnParameter,
                         interner: interner,
                         availableContextReceiverTypes: availableContextReceiverTypes,
+                        enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -2312,6 +2423,7 @@ extension ExprTypeChecker {
                               postponedReturnTypeParameter: postponedReturnParameter,
                               interner: interner,
                               availableContextReceiverTypes: availableContextReceiverTypes,
+                              enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                               sema: sema
                           ) {
                     inferredType = specialization.functionType
@@ -2326,6 +2438,7 @@ extension ExprTypeChecker {
                         expectedFunctionType: expectedFunctionType,
                         interner: interner,
                         availableContextReceiverTypes: availableContextReceiverTypes,
+                        enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                         sema: sema
                     ) {
                         inferredType = specialization.functionType
@@ -2365,6 +2478,7 @@ extension ExprTypeChecker {
                               postponedReturnTypeParameter: postponedReturnParameter,
                               interner: interner,
                               availableContextReceiverTypes: availableContextReceiverTypes,
+                              enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                               sema: sema
                           )
                 {
@@ -2398,6 +2512,7 @@ extension ExprTypeChecker {
                            postponedReturnTypeParameter: postponedReturnParameter,
                            interner: interner,
                            availableContextReceiverTypes: availableContextReceiverTypes,
+                           enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                            sema: sema
                        )
                     {
@@ -2415,6 +2530,7 @@ extension ExprTypeChecker {
                                   postponedReturnTypeParameter: postponedReturnParameter,
                                   interner: interner,
                                   availableContextReceiverTypes: availableContextReceiverTypes,
+                                  enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                                   sema: sema
                               )
                     {
@@ -2436,6 +2552,7 @@ extension ExprTypeChecker {
                                   postponedReturnTypeParameter: postponedReturnParameter,
                                   interner: interner,
                                   availableContextReceiverTypes: availableContextReceiverTypes,
+                                  enclosingInferenceParameters: ctx.callableReferenceInferenceParameters,
                                   sema: sema
                               )
                     {
@@ -2497,6 +2614,44 @@ extension ExprTypeChecker {
                         )
                     }
                 }
+                // KUU-4408: without a contextual function type the callee's
+                // type parameters must be inferable from the receiver —
+                // kotlinc rejects `val r = ::gen` with "cannot infer type for
+                // type parameter 'T'" instead of binding `(T) -> T` and
+                // failing later at the call site. A successful contextual
+                // binding above already solved every type parameter, and a
+                // failed one already reported an error.
+                if contextualSpecialization == nil && signature.reifiedTypeParameterIndices.isEmpty {
+                    let declaredReceiver = signature.receiverType
+                    let receiverSuppliesParameters = boundReceiverType != nil && declaredReceiver != nil
+                    for (index, typeParameter) in signature.typeParameterSymbols.enumerated() {
+                        // Constructor references have no receiver that could
+                        // supply class type arguments, so any type parameter
+                        // still present in the built function type is
+                        // uninferrable. For other references only the callee's
+                        // own type parameters need receiver evidence — class
+                        // type parameters are bound through the receiver's
+                        // class type arguments.
+                        let requiresReceiverEvidence = !isConstructorReference
+                            && index >= signature.classTypeParameterCount
+                        let solvedByReceiver = requiresReceiverEvidence && receiverSuppliesParameters
+                            && declaredReceiver.map {
+                                sema.types.typeContainsTypeParam($0, symbol: typeParameter)
+                            } == true
+                        guard sema.types.typeContainsTypeParam(inferredType, symbol: typeParameter)
+                            || (requiresReceiverEvidence && !solvedByReceiver)
+                        else {
+                            continue
+                        }
+                        let parameterName = (sema.symbols.symbol(typeParameter)?.name)
+                            .map(interner.resolve) ?? "?"
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-INFER",
+                            "Cannot infer type for type parameter '\(parameterName)'. Specify it explicitly.",
+                            range: range
+                        )
+                    }
+                }
                 resultType = inferredType
             }
             // BUG-164: A callable reference passed to a fun-interface parameter
@@ -2519,6 +2674,21 @@ extension ExprTypeChecker {
                 return function.isSuspend != signature.isSuspend
                     || (function.returnType == sema.types.unitType && signature.returnType != sema.types.unitType)
             }()
+            // KUU-1209: an expected function type can demand a boxed return
+            // ABI that the reference's own type does not provide
+            // (`(P) -> Int` used as `(P) -> Comparable<*>?`). Record the
+            // expected type so KIR materializes the value with the expected
+            // signature instead of the reference's narrower one.
+            if let expectedFunctionType,
+               expectedSamInterfaceType == nil,
+               callableReferenceReturnRequiresBoxing(
+                   resultType: resultType,
+                   expectedFunctionType: expectedFunctionType,
+                   sema: sema
+               )
+            {
+                sema.bindings.bindFunctionValueExpectedType(id, type: expectedFunctionType)
+            }
             if let contextualSpecialization,
                contextualSpecialization.requiresAdapter || !contextualSpecialization.typeArguments.isEmpty
                    || requiresFunctionConversion
@@ -2528,6 +2698,20 @@ extension ExprTypeChecker {
                     requiresFunctionConversion: requiresFunctionConversion,
                     dispatchReceiverSymbol: importedObjectCallableReferenceReceiver?.symbol
                 )
+            }
+            // An imported singleton receiver must reach KIR lowering even
+            // when the reference needs no signature adaptation — otherwise
+            // the generated thunk calls the member without its receiver
+            // (KUU-4364).
+            if importedObjectCallableReferenceReceiver != nil,
+               sema.bindings.callableReferenceBinding(for: id) == nil
+            {
+                sema.bindings.bindCallableReference(id, binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: [],
+                    parameterMapping: [:],
+                    dispatchReceiverSymbol: importedObjectCallableReferenceReceiver?.symbol
+                ))
             }
             sema.bindings.bindIdentifier(id, symbol: chosen)
             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

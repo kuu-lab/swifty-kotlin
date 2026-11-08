@@ -625,7 +625,6 @@ extension CallLowerer {
             let toListName = interner.intern("toList")
             let flatMapName = interner.intern("flatMap")
             let flatMapIndexedName = interner.intern("flatMapIndexed")
-            let takeLastWhileName = interner.intern("takeLastWhile")
             let sortedName = interner.intern("sorted")
             let sortedByName = interner.intern("sortedBy")
             let sortedByDescendingName = interner.intern("sortedByDescending")
@@ -641,8 +640,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_map")
             case filterName:
                 return interner.intern("kk_sequence_filter")
-            case interner.intern("takeLast"):
-                return interner.intern("kk_sequence_takeLast")
             case toListName:
                 return interner.intern("kk_sequence_to_list")
             case interner.intern("constrainOnce"):
@@ -651,8 +648,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_flatMap")
             case flatMapIndexedName:
                 return interner.intern("kk_sequence_flatMapIndexed")
-            case takeLastWhileName:
-                return interner.intern("kk_sequence_takeLastWhile")
             case sortedName:
                 return interner.intern("kk_sequence_sorted")
             case sortedByName:
@@ -708,8 +703,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_filterNotNull")
             case interner.intern("requireNoNulls"):
                 return interner.intern("kk_sequence_requireNoNulls")
-            case interner.intern("reversed"):
-                return interner.intern("kk_sequence_reversed")
             case interner.intern("mapIndexed"):
                 return interner.intern("kk_sequence_mapIndexed")
             case interner.intern("filterIndexed"):
@@ -730,10 +723,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_first")
             case firstOrNullName:
                 return interner.intern("kk_sequence_firstOrNull")
-            case interner.intern("random"):
-                return interner.intern("kk_sequence_random")
-            case interner.intern("randomOrNull"):
-                return interner.intern("kk_sequence_randomOrNull")
             case lastName:
                 return interner.intern("kk_sequence_last")
             case interner.intern("lastOrNull"):

@@ -1,6 +1,85 @@
 // swiftlint:disable function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// Infers a `flatMap*` transform argument, seeding its expected return
+    /// type from the call's expected result when possible:
+    /// `listOf<T>() + list.flatMap { .. }` fixes the transform's `R` to `T`,
+    /// so the lambda body sees `Iterable<T>`/`Sequence<T>` instead of `Any`
+    /// and a nested generic call can infer its own type arguments (KUU-4464).
+    func inferFlatMapTransformArgument(
+        _ argumentExpr: ExprID,
+        parameterTypes: [TypeID],
+        expectedCallResultType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        var returnCandidates: [TypeID] = []
+        if let expectedCallResultType {
+            let nonNullExpected = sema.types.makeNonNullable(expectedCallResultType)
+            let elementType = extractIterableOrSequenceElementType(
+                nonNullExpected, sema: sema, interner: interner
+            )
+            if elementType != sema.types.anyType {
+                let expectedIsSequence = isSequenceLikeType(
+                    nonNullExpected, sema: sema, interner: interner
+                )
+                let iterableType = lookupStdlibSymbol(
+                    "Iterable", symbols: sema.symbols, interner: interner
+                ).map {
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: $0,
+                        args: [.invariant(elementType)],
+                        nullability: .nonNull
+                    )))
+                }
+                let sequenceType = lookupStdlibSymbol(
+                    "Sequence", symbols: sema.symbols, interner: interner
+                ).map {
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: $0,
+                        args: [.invariant(elementType)],
+                        nullability: .nonNull
+                    )))
+                }
+                let ordered = expectedIsSequence
+                    ? [sequenceType, iterableType]
+                    : [iterableType, sequenceType]
+                returnCandidates = ordered.compactMap { $0 }
+            }
+        }
+        returnCandidates.append(sema.types.anyType)
+        for returnType in returnCandidates {
+            let checkpoint = sema.diagnostics.checkpoint()
+            var attemptLocals = locals
+            let functionType = sema.types.make(.functionType(FunctionType(
+                params: parameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(
+                argumentExpr, ctx: ctx, locals: &attemptLocals, expectedType: functionType
+            )
+            let emittedError = sema.diagnostics.diagnostics
+                .dropFirst(checkpoint)
+                .contains { $0.severity == .error }
+            if !emittedError {
+                locals = attemptLocals
+                return
+            }
+            if returnType == sema.types.anyType {
+                // The `Any` fallback is the historical unconditional
+                // inference: keep its diagnostics and bindings so genuine
+                // lambda errors still surface.
+                locals = attemptLocals
+                return
+            }
+            sema.diagnostics.rollback(to: checkpoint)
+        }
+    }
+
     func tryInferMemberCallEarlyReceiverSpecials(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
@@ -38,16 +117,16 @@ extension CallTypeChecker {
             let lambdaParameterTypes: [TypeID] = flatMapMemberName == "flatMapIndexed"
                 ? [sema.types.intType, receiverElementType]
                 : [receiverElementType]
-            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: lambdaParameterTypes,
-                returnType: sema.types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
             if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             }
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+            inferFlatMapTransformArgument(
+                args[0].expr,
+                parameterTypes: lambdaParameterTypes,
+                expectedCallResultType: request.expectedType,
+                ctx: ctx,
+                locals: &locals
+            )
             let lambdaBodyType = inferredLambdaReturnType(
                 argExpr: args[0].expr,
                 ast: ast,
@@ -170,16 +249,16 @@ extension CallTypeChecker {
                 let lambdaParameterTypes: [TypeID] = flatMapMemberName == "flatMapIndexed"
                     ? [sema.types.intType, receiverElementType]
                     : [receiverElementType]
-                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: lambdaParameterTypes,
-                    returnType: sema.types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                inferFlatMapTransformArgument(
+                    args[0].expr,
+                    parameterTypes: lambdaParameterTypes,
+                    expectedCallResultType: request.expectedType,
+                    ctx: ctx,
+                    locals: &locals
+                )
                 let lambdaBodyType = inferredLambdaReturnType(
                     argExpr: args[0].expr,
                     ast: ast,

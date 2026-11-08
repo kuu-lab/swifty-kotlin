@@ -75,9 +75,17 @@ final class OperatorLoweringPass: LoweringPass {
             checkedOperand = operand
         } else {
             checkedOperand = notNullResult
-            newBody.append(
-                .call(callee: interner.intern("kk_op_notnull"), arguments: [operand], result: notNullResult, canThrow: true)
-            )
+            if let message = arena.platformNullAssertMessages[result] {
+                let messageExpr = arena.appendExpr(.stringLiteral(message), type: types?.intType)
+                newBody.append(.constValue(result: messageExpr, value: .stringLiteral(message)))
+                newBody.append(
+                    .call(callee: interner.intern("kk_op_notnull_msg"), arguments: [operand, messageExpr], result: notNullResult, canThrow: true)
+                )
+            } else {
+                newBody.append(
+                    .call(callee: interner.intern("kk_op_notnull"), arguments: [operand], result: notNullResult, canThrow: true)
+                )
+            }
         }
 
         guard let types, let resultType = arena.exprType(result) else {

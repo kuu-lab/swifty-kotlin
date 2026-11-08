@@ -110,6 +110,8 @@ open class BaseScope: Scope {
             var current: BaseScope? = self
             var reachedFileScope = false
             var fileLevelMatches: [SymbolID] = []
+            var defaultImportMatches: [SymbolID] = []
+            var starImportMatches: [SymbolID] = []
             while let scope = current {
                 let matches = scope.candidates(for: name).filter(predicate)
                 if !reachedFileScope && !(scope is FileScope) {
@@ -122,13 +124,33 @@ open class BaseScope: Scope {
                         if !matches.isEmpty {
                             return matches
                         }
+                    } else if scope is DefaultImportScope {
+                        // Kotlin ranks default imports (kotlin.* and friends)
+                        // above user star imports for classifier lookup, so
+                        // `Function` resolves to `kotlin.Function` even under
+                        // `import java.util.function.*` (KUU-4424). Callables
+                        // keep the opposite order: star imports outrank
+                        // implicit stdlib imports during overload resolution.
+                        if defaultImportMatches.isEmpty {
+                            defaultImportMatches = matches
+                        }
+                    } else if scope is WildcardImportScope {
+                        if starImportMatches.isEmpty {
+                            starImportMatches = matches
+                        }
                     } else if fileLevelMatches.isEmpty {
                         fileLevelMatches = matches
                     }
                 }
                 current = scope.parent as? BaseScope
             }
-            return fileLevelMatches
+            if !fileLevelMatches.isEmpty {
+                return fileLevelMatches
+            }
+            if !defaultImportMatches.isEmpty {
+                return defaultImportMatches
+            }
+            return starImportMatches
         }
     }
 
@@ -188,7 +210,7 @@ class ImportScope: BaseScope {}
 /// for the queried name only. Each `(path, include)` pair reproduces one of
 /// the filters the eager package mapping applied (default-import skips,
 /// wildcard accessibility, same-file-private routing).
-final class PackageMembersScope: BaseScope {
+class PackageMembersScope: BaseScope {
     private var memberSources: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
     private let symbols: SymbolTable
 
@@ -278,6 +300,16 @@ final class PackageMembersScope: BaseScope {
         }
     }
 }
+
+/// The shared scope holding default-imported (`kotlin.*` and friends)
+/// members. `lookupClassifier` ranks this tier above user star imports
+/// (KUU-4424); the marker lets it tell the tier apart from the per-file
+/// wildcard and same-package `PackageMembersScope`s.
+final class DefaultImportScope: PackageMembersScope {}
+
+/// The per-file scope holding `import foo.*` star-imported members.
+final class WildcardImportScope: PackageMembersScope {}
+
 /// The scope holding a file's single-type and alias imports. Kotlin ranks
 /// this tier above same-package declarations for classifier lookup, so
 /// `lookupClassifier` needs to tell it apart from wildcard/default scopes.

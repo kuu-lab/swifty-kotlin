@@ -339,6 +339,21 @@ extension CallTypeChecker {
         return true
     }
 
+    /// Selector lambdas for the comparison helpers return `Comparable<*>?` per
+    /// their Kotlin signatures. Typing them as `Any?` boxes results into `Any`,
+    /// which then fails the `as Comparable<Any>` check inside `compareValues`.
+    private func comparisonSelectorReturnType(sema: SemaModule, interner: StringInterner) -> TypeID {
+        let comparableFQName = [interner.intern("kotlin"), interner.intern("Comparable")]
+        guard let comparableSymbol = sema.symbols.lookup(fqName: comparableFQName) else {
+            return sema.types.nullableAnyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.star],
+            nullability: .nullable
+        )))
+    }
+
     func resolveCompareBySelectorArguments(
         calleeName: InternedString?,
         args: [CallArgument],
@@ -414,7 +429,7 @@ extension CallTypeChecker {
             }
             let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [elementType],
-                returnType: sema.types.nullableAnyType,
+                returnType: comparisonSelectorReturnType(sema: sema, interner: interner),
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -599,7 +614,7 @@ extension CallTypeChecker {
             }
             let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [elementType],
-                returnType: sema.types.nullableAnyType,
+                returnType: comparisonSelectorReturnType(sema: sema, interner: interner),
                 isSuspend: false,
                 nullability: .nonNull
             )))
@@ -687,7 +702,7 @@ extension CallTypeChecker {
                 }
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],
-                    returnType: sema.types.nullableAnyType,
+                    returnType: comparisonSelectorReturnType(sema: sema, interner: interner),
                     isSuspend: false,
                     nullability: .nonNull
                 )))
@@ -908,7 +923,7 @@ extension CallTypeChecker {
                     ?? (elementCandidates.isEmpty ? sema.types.anyType : sema.types.lub(elementCandidates))
                 let selectorExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [elementType],
-                    returnType: sema.types.nullableAnyType,
+                    returnType: comparisonSelectorReturnType(sema: sema, interner: interner),
                     isSuspend: false,
                     nullability: .nonNull
                 )))

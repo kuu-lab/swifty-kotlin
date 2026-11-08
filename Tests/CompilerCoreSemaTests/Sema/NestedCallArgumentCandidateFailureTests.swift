@@ -122,6 +122,44 @@ struct NestedCallArgumentCandidateFailureTests {
     }
 
     @Test
+    func namedGenericConstructorArgumentFallsThroughToApplicableExtension() throws {
+        // KUU-4188: `invokeOnCompletion(handler = ResumeAwaitOnCompletion(cont))`
+        // — the members agree on a function-type parameter while the internal
+        // `JobNode` extension is the real target. The nested generic
+        // constructor must not keep the members' function-type expectation:
+        // its failed contextual pass used to leak KSWIFTK-TYPE-0001 even
+        // though the extension fallback resolved the call.
+        let context = makeContext("""
+        interface DisposableHandle { fun dispose() }
+        open class JobNode { open operator fun invoke(cause: Throwable?) {} }
+        interface Job {
+            fun invokeOnCompletion(handler: (Throwable?) -> Unit): DisposableHandle
+            fun invokeOnCompletion(onCancelling: Boolean, invokeImmediately: Boolean, handler: (Throwable?) -> Unit): DisposableHandle
+        }
+        internal fun Job.invokeOnCompletion(
+            invokeImmediately: Boolean = true,
+            handler: JobNode,
+        ): DisposableHandle = object : DisposableHandle { override fun dispose() {} }
+        class AwaitContinuation<T>
+        private class ResumeAwaitOnCompletion<T>(val continuation: AwaitContinuation<T>) : JobNode()
+        class JobSupport : Job {
+            override fun invokeOnCompletion(handler: (Throwable?) -> Unit): DisposableHandle =
+                object : DisposableHandle { override fun dispose() {} }
+            override fun invokeOnCompletion(onCancelling: Boolean, invokeImmediately: Boolean, handler: (Throwable?) -> Unit): DisposableHandle =
+                object : DisposableHandle { override fun dispose() {} }
+            fun <T> awaitSuspend(cont: AwaitContinuation<T>) {
+                invokeOnCompletion(handler = ResumeAwaitOnCompletion(cont))
+            }
+        }
+        fun main() {}
+        """)
+
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func inapplicableMemberAllowsApplicableExtensionFallback() throws {
         let context = makeContext("""
         fun <T : String> value(): T = "x" as T
@@ -203,8 +241,8 @@ struct NestedCallArgumentCandidateFailureTests {
     func unresolvedMemberCallArgumentsDoNotCascadeAmbiguity() throws {
         let context = makeContext("""
         fun main() {
-            println(arrayOf("a").isNotEmpty())
-            println(Throwable().stackTrace.joinToString("\\n"))
+            println(arrayOf("a").missingMember())
+            println(Throwable().missingProperty.joinToString("\\n"))
         }
         """)
 
@@ -264,7 +302,10 @@ struct NestedCallArgumentCandidateFailureTests {
         let sema = try #require(context.sema)
         let ast = try #require(context.ast)
         let chooseCall = try #require(nameRefCallExprID(named: "choose", in: ast, interner: context.interner))
-        #expect(sema.bindings.callBinding(for: chooseCall) == nil)
+        // Rejection is carried by the diagnostic; error recovery still records
+        // the lone inapplicable candidate as a best-effort binding.
+        let chosen = try #require(sema.bindings.callBinding(for: chooseCall)?.chosenCallee)
+        #expect(sema.symbols.symbol(chosen)?.fqName.map(context.interner.resolve) == ["choose"])
     }
 
     @Test

@@ -221,6 +221,10 @@ public final class KIRArena {
     public private(set) var exprTypes: [KIRExprID: TypeID] = [:]
     public private(set) var lambdaCaptureArgsBySymbol: [SymbolID: [KIRExprID]] = [:]
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
+    /// JVM `checkNotNullExpressionValue` diagnostic (`"<call>(...) must not be
+    /// null"`) for platform null assertions, keyed by the `.nullAssert` result
+    /// temporary. Assertions without an entry keep the message-less `!!` NPE.
+    public private(set) var platformNullAssertMessages: [KIRExprID: InternedString] = [:]
     /// Lambda symbols lowered with the receiver-first coroutine-launcher ABI;
     /// copied from the lowering context for post-build passes
     /// (see `KIRLoweringContext.receiverFirstLauncherLambdaSymbols`).
@@ -300,6 +304,16 @@ public final class KIRArena {
             return
         }
         expressions[index] = expr
+    }
+
+    public func bindPlatformNullAssertMessage(_ result: KIRExprID, message: InternedString) {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            defer { parallelLock.unlock() }
+            platformNullAssertMessages[result] = message
+            return
+        }
+        platformNullAssertMessages[result] = message
     }
 
     public func decl(_ id: KIRDeclID) -> KIRDecl? {

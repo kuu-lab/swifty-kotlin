@@ -8,4 +8,6 @@ public interface CompletionStage<T> {
     public fun <U> thenCompose(action: (T) -> CompletionStage<U>): CompletionStage<U>
 
     public fun whenComplete(action: (T?, Throwable?) -> Unit): CompletionStage<T>
+
+    public fun thenAccept(action: (T) -> Unit): CompletionStage<Unit>
 }

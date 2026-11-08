@@ -1564,4 +1564,74 @@ struct WasmCodegenTests {
         #expect(run?.status == 0)
         #expect(run?.stdout == "OVR\n1\n")
     }
+
+    /// KUU-4385: flat String boxes ({data, length, byteCount, hash} + header)
+    /// carry no itable map — `CharSequence` itableDynamic dispatch on a String
+    /// receiver must resolve get=0/subSequence=1/length=2 straight to the
+    /// string helpers instead of walking string bytes as a map count.
+    /// Also covers `kk_op_is` for the wide primitive bases (char/long/double/
+    /// float/ulong): raw i64 values must match like the native unboxed
+    /// fallback — `'C' as Char?` previously failed for odd code units.
+    @Test
+    func runsCharSequenceItableAndWidePrimitiveIsUnderNodeWASI() throws {
+        guard nodePath() != nil else { return }
+        let arena = KIRArena()
+        let mainSymbol = SymbolID(rawValue: 1)
+        func e(_ kind: KIRExprKind = .unit) -> KIRExprID { arena.appendExpr(kind) }
+        let str = e(), len = e(), idx = e(), ch = e()
+        let isChar = e(), isLong = e()
+        let csID = WasmRuntimeHelpers.stableNominalTypeID("kotlin.CharSequence")
+        var body: [KIRInstruction] = []
+        func const(_ v: Int64) -> KIRExprID {
+            let id = e()
+            body.append(.constValue(result: id, value: .intLiteral(v)))
+            return id
+        }
+        func call(_ name: String, _ args: [KIRExprID], result: KIRExprID? = nil) {
+            body.append(.call(symbol: nil, callee: interner.intern(name),
+                              arguments: args, result: result,
+                              canThrow: false, thrownResult: nil))
+        }
+        func printRaw(_ arg: KIRExprID) {
+            call("__kk_println_raw", [arg])
+        }
+        func printViaToString(_ arg: KIRExprID) {
+            let s = e()
+            call("kk_any_to_string", [arg], result: s)
+            printRaw(s)
+        }
+        body.append(.constValue(result: str, value: .stringLiteral(interner.intern("BC|AD"))))
+        // CharSequence.length (itable slot 2) on a flat String → 5.
+        body.append(.virtualCall(
+            symbol: nil, callee: interner.intern("length"),
+            receiver: str, arguments: [], result: len,
+            canThrow: false, thrownResult: nil,
+            dispatch: .itableDynamic(interfaceTypeID: csID, methodSlot: 2)
+        ))
+        printViaToString(len)
+        // CharSequence.get (itable slot 0) → 'C' = 67.
+        body.append(.constValue(result: idx, value: .intLiteral(1)))
+        body.append(.virtualCall(
+            symbol: nil, callee: interner.intern("get"),
+            receiver: str, arguments: [idx], result: ch,
+            canThrow: false, thrownResult: nil,
+            dispatch: .itableDynamic(interfaceTypeID: csID, methodSlot: 0)
+        ))
+        printViaToString(ch)
+        // kk_op_is(67, Char? token) → 1 (was 0: odd raw values fell through).
+        call("kk_op_is", [const(67), const(14 | 0x100)], result: isChar)
+        printViaToString(isChar)
+        // kk_op_is(5, Long token) → 1.
+        call("kk_op_is", [const(5), const(11)], result: isLong)
+        printViaToString(isLong)
+        body.append(.returnUnit)
+        let main = makeFunction(symbol: mainSymbol, name: "main", params: [], body: body)
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [arena.appendDecl(.function(main))])],
+            arena: arena
+        )
+        let run = try runUnderNode(try emit(module, entry: mainSymbol))
+        #expect(run?.status == 0)
+        #expect(run?.stdout == "5\n67\n1\n1\n")
+    }
 }

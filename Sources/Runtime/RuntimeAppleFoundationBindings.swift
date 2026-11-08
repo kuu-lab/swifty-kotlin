@@ -8,55 +8,64 @@ import Glibc
 
 @_cdecl("__kk_foundation_attach")
 public func __kk_foundation_attach(_ owner: Int, _ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeForeignResourceAttach(handle, owner: owner) else {
-        runtimeForeignResourceDiscardUnattached(handle)
-        return foundationFailure("Foreign SDK lease needs a live, unique Kotlin owner", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard runtimeForeignResourceAttach(handle, owner: owner) else {
+            runtimeForeignResourceDiscardUnattached(handle)
+            try throwFoundationFailure("Foreign SDK lease needs a live, unique Kotlin owner")
+        }
+        return 0
     }
-    return 0
 }
 
 @_cdecl("__kk_foundation_object_create")
 public func __kk_foundation_object_create(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSObject())
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSObject())
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_object_kind")
 public func __kk_foundation_object_kind(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let object = runtimeForeignResource(handle, as: NSObject.self) else { return foundationFailure("Invalid SDK handle", outThrown) }
-    switch object {
-    case is NSMutableData: return 7
-    case is NSData: return 1
-    case is NSError: return 2
-    case is InputStream: return 3
-    case is OutputStream: return 4
-    case is RunLoop: return 5
-    case is Thread: return 6
-    case is NSDate: return 8
-    case is DateFormatter: return 9
-    case is NSTimeZone: return 10
-    case is NSLocale: return 11
-    case is UserDefaults: return 12
-    case is NSUUID: return 13
-    default: return 0
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let object = runtimeForeignResource(handle, as: NSObject.self) else {
+            try throwFoundationFailure("Invalid SDK handle")
+        }
+        switch object {
+        case is NSMutableData: return 7
+        case is NSData: return 1
+        case is NSError: return 2
+        case is InputStream: return 3
+        case is OutputStream: return 4
+        case is RunLoop: return 5
+        case is Thread: return 6
+        case is NSDate: return 8
+        case is DateFormatter: return 9
+        case is NSTimeZone: return 10
+        case is NSLocale: return 11
+        case is UserDefaults: return 12
+        case is NSUUID: return 13
+        default: return 0
+        }
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_object_equals")
 public func __kk_foundation_object_equals(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let a = runtimeForeignResource(lhs, as: NSObject.self), let b = runtimeForeignResource(rhs, as: NSObject.self) else { return foundationFailure("Invalid SDK equality receiver", outThrown) }
-    return a.isEqual(b) ? 1 : 0
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard let a = runtimeForeignResource(lhs, as: NSObject.self),
+              let b = runtimeForeignResource(rhs, as: NSObject.self) else {
+            try throwFoundationFailure("Invalid SDK equality receiver")
+        }
+        return a.isEqual(b) ? 1 : 0
+    }
 }
 
 @_cdecl("__kk_foundation_object_hash")

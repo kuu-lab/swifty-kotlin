@@ -873,7 +873,18 @@ extension CallLowerer {
         if let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
            !externalLinkName.isEmpty
         {
-            return nil
+            // A source-backed BroadcastChannel overrides the runtime channel
+            // property bridges; keep the read on the interface itable path so
+            // the override's getter runs instead of kk_channel_* (KUU-4376).
+            let isBroadcastChannelBridgeRead =
+                (externalLinkName.hasPrefix("kk_channel_")
+                    || externalLinkName.hasPrefix("__kk_channel_"))
+                && isBroadcastChannelReceiverType(
+                    receiverType, sema: sema, interner: interner
+                )
+            if !isBroadcastChannelBridgeRead {
+                return nil
+            }
         }
 
         // An enum-typed receiver is still a raw ordinal here. If an entry
@@ -1025,7 +1036,17 @@ extension CallLowerer {
             // imported Kotlin getters with kk_fn_* links remain on the dynamic
             // itable path below.
             let getterUsesRuntimeBridge = kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
-            if isSuperQualifiedReceiver || ownerInfo.kind != .interface || getterUsesRuntimeBridge {
+            // A source-backed BroadcastChannel overrides the runtime channel
+            // property bridges; route the read through the interface itable
+            // below so the override's getter runs (KUU-4376).
+            let isBroadcastChannelBridgeRead = getterUsesRuntimeBridge
+                && sema.symbols.externalLinkName(for: propertySymbol).map {
+                    $0.hasPrefix("kk_channel_") || $0.hasPrefix("__kk_channel_")
+                } == true
+                && isBroadcastChannelReceiverType(receiverType, sema: sema, interner: interner)
+            if isSuperQualifiedReceiver || ownerInfo.kind != .interface
+                || (getterUsesRuntimeBridge && !isBroadcastChannelBridgeRead)
+            {
                 let result = arena.appendTemporary(type: propertyCallResultType)
                 appendPropertyGetterCall(
                     getterSymbol: getterSymbol,
@@ -1183,6 +1204,19 @@ extension CallLowerer {
         else {
             return nil
         }
+        // KUU-4454: an implicit-receiver read of an interface property
+        // declared on an *enclosing* class must dispatch on the `$outer`
+        // instance, not the inner `this`. Resolve only after the
+        // applicability guard so speculative callers never emit stray
+        // `$outer` hops for properties this path will not handle.
+        let loweredReceiverID = resolvePropertyOwnerReceiver(
+            loweredReceiverID,
+            ownerOf: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: ownerSymbol, sema: sema, interner: interner
         )
@@ -1648,6 +1682,22 @@ extension CallLowerer {
             return nil
         }
 
+        // A source-backed BroadcastChannel overrides the runtime channel
+        // property bridges; defer to the stored-member path, which dispatches
+        // through the interface itable (KUU-4376).
+        if kirIsRuntimeBridgedCallee(getterSymbol, sema: sema),
+           (sema.symbols.externalLinkName(for: propertySymbol).map {
+               $0.hasPrefix("kk_channel_") || $0.hasPrefix("__kk_channel_")
+           } == true),
+           isBroadcastChannelReceiverType(
+               sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
+               sema: sema,
+               interner: interner
+           )
+        {
+            return nil
+        }
+
         appendPropertyGetterCall(
             getterSymbol: getterSymbol,
             receiver: loweredReceiverID,
@@ -1805,6 +1855,19 @@ extension CallLowerer {
               let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
               !externalLinkName.isEmpty
         else {
+            return nil
+        }
+
+        // A source-backed BroadcastChannel implementation overrides the
+        // runtime channel property bridges; defer to normal dispatch so the
+        // override's getter runs instead of kk_channel_* (KUU-4376).
+        if (externalLinkName.hasPrefix("kk_channel_") || externalLinkName.hasPrefix("__kk_channel_")),
+           isBroadcastChannelReceiverType(
+               sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType,
+               sema: sema,
+               interner: interner
+           )
+        {
             return nil
         }
 

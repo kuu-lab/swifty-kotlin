@@ -289,8 +289,8 @@ extension CompanionObjectTests {
                 let sampleDiags = diagnosticsForPath(sample6Path, in: ctx)
 
                         #expect(
-                            !sampleDiags.hasError,
-                            "Nested objects currently share the enclosing class's private access rules"
+                            sampleDiags.hasError,
+                            "A non-companion nested object has no outer instance; the access is unresolved like kotlinc"
                         )
 
             }

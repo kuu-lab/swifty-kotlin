@@ -165,6 +165,29 @@ extension LocalDeclTypeChecker {
         }
 
         if !getCandidates.isEmpty {
+            // A forward-declared `get` operator can still carry the header's
+            // inferred-return placeholder. Select by receiver and indices
+            // first, infer the chosen callee's return type, then resolve
+            // against the updated signature (KUU-4479).
+            let hasUninferredGetReturn = getCandidates.contains { candidate in
+                driver.inferredReturnFunctions[candidate] != nil
+                    && !driver.checkedInferredReturnFunctions.contains(candidate)
+                    && !driver.checkingInferredReturnFunctions.contains(candidate)
+            }
+            if hasUninferredGetReturn {
+                let inputSelection = ctx.resolver.resolveCall(
+                    candidates: getCandidates,
+                    call: getCall,
+                    expectedType: nil,
+                    implicitReceiverType: receiverType,
+                    ctx: ctx.sema
+                )
+                if inputSelection.diagnostic == nil,
+                   let chosen = inputSelection.chosenCallee
+                {
+                    driver.inferFunctionReturnTypesIfNeeded(for: [chosen])
+                }
+            }
             let resolved = ctx.resolver.resolveCall(
                 candidates: getCandidates,
                 call: getCall,

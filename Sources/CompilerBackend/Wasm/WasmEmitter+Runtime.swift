@@ -694,7 +694,7 @@ enum WasmRuntimeHelpers {
         "__kk_function_set_enclosing_class",
         "kk_iterable_iterator", "__kk_collection_size",
         "kk_string_from_flat", "kk_string_to_flat",
-        "kk_op_notnull", "kk_op_elvis",
+        "kk_op_notnull", "kk_op_notnull_msg", "kk_op_elvis",
         // Double/Float primitive boxes (`RuntimeBoxing.swift` equivalents):
         // a real heap object `{typeID@-16, bits@16}` so `is`/generic-element
         // dispatch reads the nominal tag — the raw i64 ABI stays in force for
@@ -875,7 +875,7 @@ enum WasmRuntimeHelpers {
             emitIsAssignableBody(&code, ctx: ctx)
         case "__kk_wasm_itable_lookup":
             extraLocals = 6
-            emitItableLookupBody(&code)
+            emitItableLookupBody(&code, ctx: ctx)
         case "kk_object_new":
             extraLocals = 1
             emitObjectNewBody(&code, ctx: ctx)
@@ -2002,6 +2002,25 @@ enum WasmRuntimeHelpers {
             code.i64Const(L.nullSentinel)
             code.call(ctx.emittedHelperIndex(
                 for: "__kk_null_pointer_exception_new", argumentCount: 1
+            ))
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+            code.localGet(0)
+        case "kk_op_notnull_msg":
+            // Platform `T!` in a non-null position — JVM
+            // `checkNotNullExpressionValue`: nullSentinel →
+            // NPE("<call>(...) must not be null") through thrownGlobal
+            // (KUU-4452); else pass the value through.
+            extraLocals = 0
+            code.localGet(0)
+            code.i64Const(L.nullSentinel)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            code.localGet(1)
+            code.call(ctx.emittedHelperIndex(
+                for: "__kk_null_pointer_exception_new_message", argumentCount: 1
             ))
             code.globalSet(ctx.thrownGlobal)
             code.i64Const(0)
@@ -3635,8 +3654,62 @@ enum WasmRuntimeHelpers {
 
     /// `obj, interfaceTypeID, methodSlot -> i64`: resolve a dynamic itable
     /// dispatch: find ifaceSlot in the map, then read the vtable entry.
-    private static func emitItableLookupBody(_ code: inout WasmCode) {
-        // locals: 3=map, 4=count, 5=i, 6=ifaceSlot
+    private static func emitItableLookupBody(_ code: inout WasmCode, ctx: WasmModuleContext) {
+        // locals: 3=map, 4=count, 5=i, 6=ifaceSlot, 7=vt, 8=it
+        //
+        // KUU-4385: flat String boxes ({data, length, byteCount, hash}) carry
+        // no object header — body slot 0 is the UTF-8 data pointer, not an
+        // iface map, so the generic path below would read string bytes as a
+        // map count and walk off the end of linear memory. Every String
+        // shares one CharSequence implementation, so resolve those slots
+        // straight to the string helpers (same contract as the native
+        // runtime's `runtimeRegisterCharSequenceItable`: get=0,
+        // subSequence=1, length getter=2). Any other interface on a flat box
+        // is a clean miss (0 → trap at the call site) rather than a wild read.
+        let getSlot = ctx.module.tableSlot(forFunction: ctx.emittedHelperIndex(
+            for: "kk_string_get", argumentCount: 2
+        ))
+        let subSequenceSlot = ctx.module.tableSlot(forFunction: ctx.emittedHelperIndex(
+            for: "__kk_wasm_string_substring_to", argumentCount: 3
+        ))
+        let lengthSlot = ctx.module.tableSlot(forFunction: ctx.emittedHelperIndex(
+            for: "kk_string_length", argumentCount: 1
+        ))
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(L.stringTypeID)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(1)
+        code.i64Const(Self.stableNominalTypeID("kotlin.CharSequence"))
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.localGet(2)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.i64Const(Int64(getSlot))
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(2)
+        code.i64Const(1)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.i64Const(Int64(subSequenceSlot))
+        code.op(WasmOpcode.return)
+        code.end()
+        code.localGet(2)
+        code.i64Const(2)
+        code.op(WasmOpcode.i64Eq)
+        code.openIf()
+        code.i64Const(Int64(lengthSlot))
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
+        code.i64Const(0)
+        code.op(WasmOpcode.return)
+        code.end()
         emitLoadAt(&code, baseLocal: 0, byteOffset: 0)
         code.localTee(3)
         code.op(WasmOpcode.i64Eqz)
@@ -3939,7 +4012,50 @@ enum WasmRuntimeHelpers {
         // returned; swallow it so the enclosing void `if` balances.
         code.op(WasmOpcode.drop)
         code.end()
-        // Remaining bases (long/double/float/char/function/...): tagged values
+        // KUU-4385: ulong(8)/long(11)/char(14) stay raw i64 on wasm
+        // (`kk_box_*` is identity) and double(12)/float(13) travel as raw
+        // bits unless boxed — mirror the native kk_op_is fallback where an
+        // unboxed value can't be distinguished and matches. Heap objects only
+        // match double/float through their nominal numeric boxes.
+        var widePrimitiveTest = false
+        for base: Int64 in [8, 11, 12, 13, 14] {
+            code.localGet(2)
+            code.i64Const(base)
+            code.op(WasmOpcode.i64Eq)
+            if widePrimitiveTest { code.op(WasmOpcode.i32Or) }
+            widePrimitiveTest = true
+        }
+        code.openIf()
+        code.localGet(4)
+        code.i64Truthy()
+        code.openIf(result: .i64)
+        code.localGet(2)
+        code.i64Const(12) // doubleBase
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Double"))
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        code.localGet(2)
+        code.i64Const(13) // floatBase
+        code.op(WasmOpcode.i64Eq)
+        code.openIf(result: .i64)
+        emitLoadAt(&code, baseLocal: 0, byteOffset: L.typeIDOffset)
+        code.i64Const(Self.stableNominalTypeID("kotlin.Float"))
+        code.op(WasmOpcode.i64Eq)
+        code.i64ExtendFromComparison()
+        code.elseBranch()
+        code.i64Const(0)
+        code.end()
+        code.end()
+        code.elseBranch()
+        code.i64Const(1)
+        code.end()
+        code.op(WasmOpcode.return)
+        code.end()
+        // Remaining bases (function/...): tagged values
         // can't be distinguished → 0; heap objects → 0; raw evens → 1.
         code.localGet(0)
         code.i64Const(1)

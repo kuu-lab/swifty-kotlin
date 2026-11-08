@@ -133,5 +133,44 @@ struct CrossFileInferredMemberDependencyTests {
             #expect(sema.symbols.functionSignature(for: sizeOf)?.returnType == sema.types.intType)
         }
     }
+
+    /// KUU-4479: operator desugars (`o[i]`, `o + x`, `-o`, `o[i] += v`) must
+    /// infer a forward-declared operator member's expression-body return type
+    /// on demand instead of reading the header's `Any` placeholder, which used
+    /// to surface as KSWIFTK-SEMA-0469 against the caller's declared return.
+    @Test
+    func forwardDeclaredOperatorMembersInferReturnTypesForOperatorSyntax() throws {
+        let uses = """
+        package sample
+        fun selGet(o: OpBox, i: Int): Int = o[i]
+        fun selPlus(o: OpBox, x: Int): Int = o + x
+        fun selMinus(o: OpBox, x: Int): Int = o - x
+        fun selNeg(o: OpBox): Int = -o
+        fun selSet(o: OpBox, i: Int, v: Int) { o[i] = v }
+        fun selInvoke(o: OpBox): Int = o()
+        fun selCompare(o: OpBox, x: OpBox): Boolean = o < x
+        fun selContains(o: OpBox, i: Int): Boolean = i in o
+        fun selCompound(o: OpBox, i: Int) { o[i] += 5 }
+        """
+        let declarations = """
+        package sample
+        class OpBox(val x: Int) {
+            operator fun get(i: Int) = i
+            operator fun set(i: Int, v: Int) {}
+            operator fun plus(v: Int) = v
+            operator fun minus(v: Int) = v
+            operator fun unaryMinus() = -x
+            operator fun compareTo(o: OpBox) = x - o.x
+            operator fun contains(i: Int) = i == x
+            operator fun invoke() = 7
+        }
+        """
+
+        for sources in [[uses + "\n" + declarations], [uses, declarations], [declarations, uses]] {
+            _ = try SemaFixture(
+                surface: "forward-declared operator member inferred returns"
+            ).make(sources: sources)
+        }
+    }
 }
 #endif

@@ -1,0 +1,25 @@
+import java.util.Calendar
+
+fun main() {
+    val c = Calendar.getInstance()
+    c.set(2020, 0, 15)
+    println(c.get(Calendar.YEAR))
+    println(c.get(Calendar.MONTH))
+    println(c.get(Calendar.DATE))
+    c.set(2021, 5, 10, 13, 30, 45)
+    println(c.get(Calendar.HOUR_OF_DAY))
+    println(c.get(Calendar.MINUTE))
+    println(c.get(Calendar.SECOND))
+    println(StrictMath.max(1, 2))
+    println(StrictMath.min(3, 7))
+    println(StrictMath.sqrt(16.0))
+    println(StrictMath.abs(-5))
+    println(java.sql.Types.INTEGER)
+    println(java.sql.Types.VARCHAR)
+    println(java.sql.Types.TIMESTAMP)
+    println(java.sql.ResultSet.TYPE_FORWARD_ONLY)
+    println(java.sql.ResultSet.TYPE_SCROLL_INSENSITIVE)
+    println(java.sql.ResultSet.CONCUR_READ_ONLY)
+    println(java.sql.ResultSet.CONCUR_UPDATABLE)
+    println(java.sql.ResultSet.FETCH_FORWARD)
+}

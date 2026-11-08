@@ -1108,8 +1108,14 @@ extension DeclTypeChecker {
         }
         // An extension function's name doubles as the label of its receiver:
         // `fun Buffer.snapshot() = build { this@snapshot.size }` refers to the
-        // extension receiver from inside a lambda with its own receiver.
-        if let extensionReceiverType = signature.receiverType {
+        // extension receiver from inside a lambda with its own receiver. Plain
+        // member functions get no function-name `this` label on the JVM —
+        // kotlinc rejects `this@member` as an unresolved label, so only
+        // extension/context receivers register the function name here.
+        let isPlainMemberFunction = function.receiverType == nil
+            && function.contextReceivers.isEmpty
+            && ctx.enclosingClassSymbol != nil
+        if let extensionReceiverType = signature.receiverType, !isPlainMemberFunction {
             functionCtx = functionCtx.withOuterReceiver(
                 label: function.name,
                 type: extensionReceiverType,

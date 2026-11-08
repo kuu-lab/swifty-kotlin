@@ -769,6 +769,87 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.symbol(id)
     }
 
+    /// Instance members of a nominal owner are only meaningful when that
+    /// owner is reachable through the implicit receiver tower. Scope lookup
+    /// can still surface them through an enclosing class's member scope after
+    /// the tower dropped the instance — e.g. inside a companion object or a
+    /// non-inner nested class (KUU-4388). Singleton-object owners stay visible
+    /// unconditionally: their members behave like top-level declarations, and
+    /// enum entries are static members of their enum class.
+    func isScopeMemberVisibleFromReceivers(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = cachedSymbol(symbolID) else { return true }
+        switch symbol.kind {
+        case .property, .field, .backingField:
+            break
+        default:
+            return true
+        }
+        guard let ownerID = sema.symbols.parentSymbol(for: symbolID),
+              let owner = sema.symbols.symbol(ownerID)
+        else {
+            return true
+        }
+        switch owner.kind {
+        case .object, .package:
+            return true
+        case .class, .interface, .enumClass, .annotationClass:
+            break
+        default:
+            return true
+        }
+        if sema.symbols.enumOwnerSymbol(for: symbol) != nil {
+            return true
+        }
+        var companionSeeds: Set<SymbolID> = []
+        for entry in implicitReceiverMemberLookupEntries() {
+            guard case let .classType(classType) = sema.types.kind(of: entry.type) else {
+                continue
+            }
+            if sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerID) {
+                return true
+            }
+            companionSeeds.insert(classType.classSymbol)
+        }
+        // Companion shorthand inserts the companion's inherited members into
+        // the class scope, so the receiver that actually supplies `symbol`
+        // is a companion object — possibly reached through a class supertype
+        // — that is a nominal subtype of the member's owner. Probe the
+        // companions of every receiver and every lexically enclosing
+        // nominal (KUU-4488).
+        var lexical: SymbolID? = enclosingClassSymbol
+        while let current = lexical {
+            companionSeeds.insert(current)
+            guard let parent = sema.symbols.parentSymbol(for: current),
+                  let parentKind = sema.symbols.symbol(parent)?.kind,
+                  parentKind == .class || parentKind == .object
+                      || parentKind == .enumClass || parentKind == .interface
+            else {
+                break
+            }
+            lexical = parent
+        }
+        var visitedCompanionOwners: Set<SymbolID> = []
+        var queue = Array(companionSeeds)
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visitedCompanionOwners.insert(current).inserted,
+                  sema.symbols.symbol(current)?.kind == .class
+            else {
+                continue
+            }
+            for companion in [
+                sema.symbols.companionObjectSymbol(for: current),
+                sema.symbols.companionBlockObjectSymbol(for: current, interner: interner),
+            ].compactMap({ $0 }) where sema.types.isNominalSubtypeSymbol(companion, of: ownerID) {
+                return true
+            }
+            queue.append(contentsOf: sema.symbols.directSupertypes(for: current).filter {
+                sema.symbols.symbol($0)?.kind == .class
+            })
+        }
+        return false
+    }
+
     /// `expect`/`actual` pairs are intentionally allowed to coexist in the same
     /// scope (KSwiftK has no separate common/platform module compilation), so a
     /// linked `expect` declaration is filtered out here once its `actual` is
@@ -791,6 +872,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
         }
     }
 
@@ -804,6 +886,22 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
+        }
+    }
+
+    /// Merging-chain variant of `cachedScopeLookup`: collects candidates from
+    /// every lexical scope instead of stopping at the first scope that binds
+    /// the name. Callers must only consult it after the nearest scope's
+    /// candidates all proved inapplicable — Kotlin shadows an outer
+    /// declaration only while the inner one remains a viable candidate
+    /// (KUU-4462).
+    func cachedScopeLookupMergingChain(_ name: InternedString) -> [SymbolID] {
+        let results = scope.lookupMergingChain(name)
+        return results.filter {
+            !isExpectDeclarationSupersededByActual($0, among: results)
+                && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
         }
     }
 
@@ -831,7 +929,8 @@ struct TypeInferenceContext: CustomStringConvertible {
             return bound.filter { symbolID in
                 guard let symbol = cachedSymbol(symbolID),
                       !isExpectDeclarationSupersededByActual(symbolID, among: bound),
-                      !isImportedSymbolShadowedBySource(symbolID)
+                      !isImportedSymbolShadowedBySource(symbolID),
+                      isScopeMemberVisibleFromReceivers(symbolID)
                 else { return false }
                 let isClassifier = switch symbol.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias: true

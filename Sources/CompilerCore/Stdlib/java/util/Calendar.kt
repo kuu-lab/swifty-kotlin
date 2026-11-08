@@ -24,9 +24,53 @@ public open class Calendar internal constructor(private val rawHandle: Long) {
         calendarSetField(rawHandle, field, value)
     }
 
+    /** JDK `set(year, month, date)`: sets YEAR, MONTH and DAY_OF_MONTH. */
+    public fun set(year: Int, month: Int, dayOfMonth: Int) {
+        set(YEAR, year)
+        set(MONTH, month)
+        set(DATE, dayOfMonth)
+    }
+
+    /** JDK `set(year, month, date, hourOfDay, minute)`. */
+    public fun set(year: Int, month: Int, dayOfMonth: Int, hourOfDay: Int, minute: Int) {
+        set(year, month, dayOfMonth)
+        set(HOUR_OF_DAY, hourOfDay)
+        set(MINUTE, minute)
+    }
+
+    /** JDK `set(year, month, date, hourOfDay, minute, second)`. */
+    public fun set(
+        year: Int,
+        month: Int,
+        dayOfMonth: Int,
+        hourOfDay: Int,
+        minute: Int,
+        second: Int
+    ) {
+        set(year, month, dayOfMonth, hourOfDay, minute)
+        set(SECOND, second)
+    }
+
     public fun add(field: Int, amount: Int) {
         calendarAddField(rawHandle, field, amount)
     }
+
+    /** JDK `setWeekDate(year, weekOfYear, dayOfWeek)`; resolves atomically. */
+    public fun setWeekDate(year: Int, weekOfYear: Int, dayOfWeek: Int) {
+        if (dayOfWeek < SUNDAY || dayOfWeek > SATURDAY) {
+            throw IllegalArgumentException("invalid dayOfWeek: $dayOfWeek")
+        }
+        calendarSetWeekDate(rawHandle, year, weekOfYear, dayOfWeek)
+    }
+
+    /** JDK `isWeekDateSupported`: this calendar supports week-date fields. */
+    public fun isWeekDateSupported(): Boolean = true
+
+    /** JDK `getWeekYear`: the week-based year of the current date. */
+    public fun getWeekYear(): Int = calendarGetWeekYear(rawHandle)
+
+    /** JDK `getWeeksInWeekYear`: weeks in the current week year (52 or 53). */
+    public fun getWeeksInWeekYear(): Int = getActualMaximum(WEEK_OF_YEAR)
 
     /** JDK `getMinimum`: structural minimum for the field (Gregorian bounds). */
     public fun getMinimum(field: Int): Int = calendarGetFieldMinimum(rawHandle, field)
@@ -144,6 +188,12 @@ private external fun calendarGetField(calendarRaw: Long, field: Int): Int
 
 @KsSymbolName("__kk_calendar_set_field")
 private external fun calendarSetField(calendarRaw: Long, field: Int, value: Int)
+
+@KsSymbolName("__kk_calendar_set_week_date")
+private external fun calendarSetWeekDate(calendarRaw: Long, year: Int, weekOfYear: Int, dayOfWeek: Int)
+
+@KsSymbolName("__kk_calendar_get_week_year")
+private external fun calendarGetWeekYear(calendarRaw: Long): Int
 
 @KsSymbolName("__kk_calendar_add_field")
 private external fun calendarAddField(calendarRaw: Long, field: Int, amount: Int)

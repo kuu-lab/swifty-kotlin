@@ -1,13 +1,41 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// KUU-4209: returns a `this` expression addressing the innermost
+    /// function-typed receiver on the implicit-receiver tower — the active
+    /// receiver first, then labeled outer receivers. Extension receivers
+    /// keep their function-name label, so `this@name` reaches them from a
+    /// nested lambda with its own receiver (`flow { emit(invoke()) }`
+    /// inside `(() -> T).asFlow()`).
+    private func functionTypeInvokeThisRef(
+        range: SourceRange,
+        ctx: TypeInferenceContext
+    ) -> ExprID? {
+        let sema = ctx.sema
+        if let receiverType = ctx.implicitReceiverType,
+           case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        {
+            return ctx.ast.arena.appendExpr(.thisRef(label: nil, range))
+        }
+        for entry in ctx.outerReceiverTypes.reversed() {
+            guard case .functionType = sema.types.kind(of: sema.types.makeNonNullable(entry.type)),
+                  let resolved = ctx.resolveQualifiedThis(label: entry.label),
+                  case .functionType = sema.types.kind(of: sema.types.makeNonNullable(resolved))
+            else {
+                continue
+            }
+            return ctx.ast.arena.appendExpr(.thisRef(label: entry.label, range))
+        }
+        return nil
+    }
+
     /// KUU-2173/KUU-4271: an unqualified `invoke(...)` on a function-typed
     /// implicit receiver (`((A) -> T).foo() = { invoke(x) }`, or an extension
     /// on a function-type alias such as kotlinx-coroutines'
     /// `OnUndeliveredElement`) is the implicit-receiver form of
     /// `this.invoke(...)`. Scope-level `invoke` candidates that fail overload
     /// resolution must not hide it. Returns nil when the callee is not
-    /// `invoke` or the implicit receiver is not function-typed.
+    /// `invoke` or no receiver on the tower is function-typed.
     func inferImplicitReceiverFunctionTypeInvokeCall(
         _ id: ExprID,
         calleeName: InternedString,
@@ -21,12 +49,10 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard calleeName == knownNames.invoke,
-              let receiverType = ctx.implicitReceiverType,
-              case .functionType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+              let thisExpr = functionTypeInvokeThisRef(range: range, ctx: ctx)
         else {
             return nil
         }
-        let thisExpr = ctx.ast.arena.appendExpr(.thisRef(label: nil, range))
         let returnType = inferMemberCallExpr(
             id, receiverID: thisExpr, calleeName: calleeName,
             args: args, range: range, ctx: ctx, locals: &locals,

@@ -11,8 +11,12 @@ private external fun __methodIsSynthetic(method: Method): kotlin.Boolean
 @KsSymbolName("__kk_java_method_get_return_type")
 private external fun __methodGetReturnType(method: Method): Class<*>
 
+@KsSymbolName("__kk_java_method_get_parameter_types")
+private external fun __methodGetParameterTypes(method: Method): Array<Class<*>>
+
 public class Method internal constructor() {
     public fun getName(): String = __methodGetName(this)
+    public fun getParameterTypes(): Array<Class<*>> = __methodGetParameterTypes(this)
 
     public fun isSynthetic(): kotlin.Boolean = __methodIsSynthetic(this)
 

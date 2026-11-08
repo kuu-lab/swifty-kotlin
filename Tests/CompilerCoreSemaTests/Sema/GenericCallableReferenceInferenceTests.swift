@@ -246,6 +246,46 @@ struct GenericCallableReferenceInferenceTests {
         #expect(errors.isEmpty, "Expected generic constructor reference to infer from the call, got: \(errors)")
     }
 
+    @Test(arguments: [
+        // KUU-4467: `Byp`'s supertype arguments contain `Nothing` literals
+        // and variance annotations, so the rigid check against the
+        // enclosing call's unsolved inference parameters cannot succeed.
+        // The reference reports a legal upper-bound instantiation and the
+        // call solver verifies the argument type (MVIKotlin
+        // `executorFactory = ::BypassExecutor`).
+        """
+        interface Ex<in I : Any, in A : Any, in S : Any, out M : Any, out L : Any>
+        private class Byp<I : Any, in S : Any> : Ex<I, Nothing, S, I, Nothing>
+        interface SF {
+            fun <I : Any, A : Any, S : Any, M : Any, L : Any> create(
+                name: String? = null,
+                ef: () -> Ex<I, A, S, M, L>
+            ): Any = Any()
+        }
+        fun <I : Any, S : Any> SF.c2(s: S): Any = create(ef = ::Byp)
+        """,
+        // Explicit type arguments leave only rigid lexical parameters in
+        // the expected type, which the reference specializes against
+        // directly.
+        """
+        interface Ex<in I : Any, in A : Any, in S : Any, out M : Any, out L : Any>
+        private class Byp<I : Any, in S : Any> : Ex<I, Nothing, S, I, Nothing>
+        interface SF {
+            fun <I : Any, A : Any, S : Any, M : Any, L : Any> create(
+                name: String? = null,
+                ef: () -> Ex<I, A, S, M, L>
+            ): Any = Any()
+        }
+        fun <I : Any, S : Any> SF.c2(s: S): Any = create<I, Nothing, S, I, Nothing>(ef = ::Byp)
+        """,
+    ])
+    func defersGenericConstructorReferenceToEnclosingCallInference(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Expected constructor reference to defer to enclosing call inference, got: \(errors)")
+    }
+
     @Test
     func stillRejectsAmbiguousConstructorReferenceWithoutExpectedType() throws {
         // `::C` with multiple constructors and no expected function type must
@@ -315,6 +355,76 @@ struct GenericCallableReferenceInferenceTests {
             sema.types.displayName(of: $0, symbols: sema.symbols, interner: ctx.interner)
         }
         #expect(inputTypeNames == ["Int?", "String?", "Boolean"])
+    }
+
+    @Test(arguments: [
+        "fun <T> gen(value: T): T = value; val ref = ::gen",
+        "fun <T> unused(value: Int): Int = value; val ref = ::unused",
+        "fun <T, R> pair(first: T): R = TODO(); val ref = ::pair",
+        "class C { fun <R> make(): R = TODO() }; val ref = C()::make",
+        "fun <T> Int.plain(value: Int): Int = value; val ref = 1::plain",
+        "class Foo<T>(val x: T); val ref = ::Foo",
+        "fun <R> Int.make(): R = TODO(); val ref = 1::make",
+    ])
+    func rejectsTypeParametersThatCannotBeInferred(source: String) throws {
+        // KUU-4408: kotlinc rejects an unannotated generic callable reference
+        // whose type parameters neither the expected type nor the receiver
+        // can supply, instead of binding the reference with unresolved type
+        // variables and failing later at the call site.
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains {
+            $0.severity == .error && $0.code == "KSWIFTK-SEMA-INFER"
+        })
+    }
+
+    @Test(arguments: [
+        "fun <T> T.echo(): T = this; val ref = 1::echo",
+        "fun <T> T.echo(): T = this; val ref = Int::echo",
+        "class Box<T>(val v: T) { fun get(): T = v }; val box = Box(1); val ref = box::get",
+        "class Box<T>(val v: T) { fun get(): T = v }; val ref = Box<Int>::get",
+        "class Foo<T>(val x: T); val ref: (Int) -> Foo<Int> = ::Foo",
+        "fun <T> gen(value: T): T = value; fun use(ref: (Int) -> Int) {}; fun main() { use(::gen) }",
+        "fun <T> gen(value: T): T = value; fun <R> apply2(block: (R) -> R, value: R): R = block(value); fun main() { apply2(::gen, 5) }",
+        "import kotlin.reflect.KFunction1; fun <T> gen(value: T): T = value; val ref: KFunction1<Int, Int> = ::gen",
+    ])
+    func acceptsTypeParametersInferredFromReceiverOrContext(source: String) throws {
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors)")
+    }
+
+    @Test
+    func boundMemberReferenceInsideGenericClassKeepsOwnerTypeArguments() throws {
+        // KUU-4468: a bound reference to a member whose signature mentions the
+        // owner's type parameters substituted errorType for them when the
+        // receiver was the generic self type (`this: Outer<T>`), because the
+        // receiver constraint degenerated to `T <: T` with no concrete bound.
+        let ctx = makeContextFromSource("""
+        interface Observer<in T>
+        class Ser<E>(val cb: (E) -> Unit) {
+            fun onNext(e: E) = cb(e)
+        }
+        class Outer<T> {
+            private val ser = Ser(::onEvent)
+            fun subscribe(observer: Observer<T>, d: Int) {
+                ser.onNext(Ev.Sub(observer, d))
+            }
+            private fun onEvent(e: Ev<T>) {}
+            private sealed class Ev<out T> {
+                class Sub<T>(val observer: Observer<T>, val d: Int) : Ev<T>()
+            }
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors)")
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let ser = try #require(sema.symbols.lookup(fqName: ["Outer", "ser"].map(interner.intern)))
+        let serType = try #require(sema.symbols.propertyType(for: ser))
+        #expect(!sema.types.renderType(serType).contains("<error>"))
     }
 }
 #endif

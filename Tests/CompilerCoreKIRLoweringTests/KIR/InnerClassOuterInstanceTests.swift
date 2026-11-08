@@ -306,5 +306,78 @@ struct InnerClassOuterInstanceTests {
         let stores = kirCalls(to: .arraySet, in: show, interner: ctx.interner)
         #expect(stores.count == 2, "Expected plain assignment and compound assignment to store the outer property.")
     }
+
+    /// KUU-4454: an inner class reading an *enclosing* class's property with
+    /// a custom getter must dispatch the accessor on the `$outer` instance,
+    /// not on the inner `this` — otherwise the getter applies the owner's
+    /// field offsets to the wrong object (garbage reads, or a
+    /// `kk_array_get_inbounds` panic when the offset exceeds the inner
+    /// instance's slot count, as in `ReentrantLock.ConditionObject`).
+    @Test func testInnerClassOuterCustomGetterReceivesOuterInstance() throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            private var x = 10
+            val doubled: Int get() = x * 2
+            inner class Inner {
+                fun read(): Int = doubled
+            }
+        }
+        fun main() {
+            val i = Outer().Inner()
+            val v = i.read()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError,
+                       "Expected inner-class program to lower to KIR without errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "read", in: module, interner: ctx.interner)
+        let hopResults = Set(kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).compactMap(\.result))
+        let getCall = try #require(
+            kirCalls(in: body).first { ctx.interner.resolve($0.callee) == "get" },
+            "expected a `get` accessor call in Inner.read(), got: \(extractCallees(from: body, interner: ctx.interner))"
+        )
+        #expect(
+            hopResults.contains(getCall.arguments[0]),
+            "the getter must receive the $outer-hopped receiver, not the inner `this`"
+        )
+    }
+
+    /// KUU-4454: the write side of the same bug — a bare assignment to an
+    /// enclosing class's setter-backed property inside an inner class must
+    /// invoke the setter on the `$outer` instance.
+    @Test func testInnerClassOuterCustomSetterReceivesOuterInstance() throws {
+        let ctx = makeContextFromSource("""
+        class Outer {
+            private var x = 10
+            var doubled: Int
+                get() = x * 2
+                set(v) { x = v / 2 }
+            inner class Inner {
+                fun bump() { doubled = 30 }
+            }
+        }
+        fun main() {
+            val i = Outer().Inner()
+            i.bump()
+        }
+        """)
+        try runToKIR(ctx)
+        #expect(!ctx.diagnostics.hasError,
+                       "Expected inner-class program to lower to KIR without errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "bump", in: module, interner: ctx.interner)
+        let hopResults = Set(kirCalls(to: .arrayGetInbounds, in: body, interner: ctx.interner).compactMap(\.result))
+        let setCall = try #require(
+            kirCalls(in: body).first { ctx.interner.resolve($0.callee) == "set" },
+            "expected a `set` accessor call in Inner.bump(), got: \(extractCallees(from: body, interner: ctx.interner))"
+        )
+        #expect(
+            hopResults.contains(setCall.arguments[0]),
+            "the setter must receive the $outer-hopped receiver, not the inner `this`"
+        )
+    }
 }
 #endif

@@ -2288,6 +2288,30 @@ final class ExprTypeChecker {
         let displayOperatorName = interner.resolve(operatorNames[0])
 
         if !operatorCandidates.isEmpty {
+            // A forward-declared operator member can still carry the header's
+            // inferred-return placeholder. Select by receiver first, infer the
+            // chosen callee's return type, then resolve against the updated
+            // signature — the same pre-pass binary operators already run
+            // (KUU-4479).
+            let hasUninferredOperatorReturn = operatorCandidates.contains { candidate in
+                driver.inferredReturnFunctions[candidate] != nil
+                    && !driver.checkedInferredReturnFunctions.contains(candidate)
+                    && !driver.checkingInferredReturnFunctions.contains(candidate)
+            }
+            if hasUninferredOperatorReturn {
+                let inputSelection = ctx.resolver.resolveCall(
+                    candidates: operatorCandidates,
+                    call: operatorCall,
+                    expectedType: nil,
+                    implicitReceiverType: operandType,
+                    ctx: sema
+                )
+                if inputSelection.diagnostic == nil,
+                   let chosen = inputSelection.chosenCallee
+                {
+                    driver.inferFunctionReturnTypesIfNeeded(for: [chosen])
+                }
+            }
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: operatorCall,

@@ -241,6 +241,7 @@ public enum StdlibSpecialCallKind: Equatable, Codable {
     case atomicIntArrayFactory
     case atomicLongArrayFactory
     case suspendCoroutineUninterceptedOrReturn
+    case suspendLambdaLiteral
     case enumValues
     case enumValueOf
     case enumEntries

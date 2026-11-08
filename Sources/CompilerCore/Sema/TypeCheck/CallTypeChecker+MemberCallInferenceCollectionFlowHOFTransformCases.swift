@@ -430,7 +430,22 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                if calleeStr == "flatMap" || calleeStr == "flatMapIndexed" {
+                    // flatMap's transform returns a nested Iterable/Sequence
+                    // whose element the enclosing expected result fixes
+                    // (`listOf<T>() + list.flatMap { .. }`), so the lambda's
+                    // expected return is seeded from `expectedType` instead
+                    // of the `Any` placeholder (KUU-4464).
+                    checker.inferFlatMapTransformArgument(
+                        args[0].expr,
+                        parameterTypes: lambdaParameterTypes,
+                        expectedCallResultType: expectedType,
+                        ctx: ctx,
+                        locals: &locals
+                    )
+                } else {
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                }
 
                 switch calleeStr {
                 case "map", "mapNotNull":
@@ -605,16 +620,16 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                         }
                     }
                 case "flatMapIndexed":
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [sema.types.intType, collectionElementType],
-                        returnType: sema.types.anyType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    checker.inferFlatMapTransformArgument(
+                        args[0].expr,
+                        parameterTypes: [sema.types.intType, collectionElementType],
+                        expectedCallResultType: expectedType,
+                        ctx: ctx,
+                        locals: &locals
+                    )
                     let lambdaBodyType = inferredLambdaReturnType(
                         argExpr: args[0].expr, ast: ast, sema: sema
                     )

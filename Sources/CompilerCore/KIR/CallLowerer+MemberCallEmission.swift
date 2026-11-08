@@ -1273,7 +1273,6 @@ extension CallLowerer {
         if loweredCalleeText == "kk_sequence_firstNotNullOf"
             || loweredCalleeText == "kk_sequence_firstNotNullOfOrNull"
             || loweredCalleeText == "kk_sequence_indexOfFirst"
-            || loweredCalleeText == "kk_sequence_takeLastWhile"
             || loweredCalleeText == "kk_sequence_indexOfLast",
            finalArguments.count == 2
         {
@@ -1351,6 +1350,7 @@ extension CallLowerer {
         }
         if loweredCalleeText == "kk_channel_send"
             || loweredCalleeText == "kk_channel_receive"
+            || loweredCalleeText == "__kk_channel_receive_catching"
             || loweredCalleeText == "kk_mutex_lock"
             || loweredCalleeText == "__kk_mutex_lock_owner"
             || loweredCalleeText == "kk_semaphore_acquire"
@@ -1407,7 +1407,17 @@ extension CallLowerer {
                 sema: sema
             )
         } ?? false
+        // BroadcastChannel is the first source-backed SendChannel implementation;
+        // its receivers must reach tryEmitVirtualDispatch so the kk_channel_*
+        // bridges are bypassed in favour of the implementation's itable slot
+        // (KUU-4376). Mirrors the gate inside tryEmitVirtualDispatch.
+        let usesBroadcastChannelVirtualBridge =
+            receiver.type(in: sema).map {
+                isBroadcastChannelReceiverType($0, sema: sema, interner: interner)
+            } == true
+            && chosenCallee.map { isChannelRuntimeBridgeCallee($0, sema: sema) } == true
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || usesBroadcastChannelVirtualBridge
             || usesRuntimeSetContains
             || listIteratorInheritedDispatch
             || isImportedLibraryLink
@@ -1571,7 +1581,6 @@ extension CallLowerer {
         "kk_iterable_iterator",
         "kk_iterator_next",
         "kk_list_iterator_next",
-        "kk_sequence_takeLast",
         "__kk_iterable_firstNotNullOf",
         "__kk_iterable_firstNotNullOfOrNull",
         "__kk_iterable_any",
@@ -1622,7 +1631,6 @@ extension CallLowerer {
         "kk_sequence_runningReduceIndexed",
         "kk_sequence_sortedBy",
         "kk_sequence_sortedByDescending",
-        "kk_sequence_takeLastWhile",
         "kk_sequence_firstNotNullOf",
         "kk_sequence_firstNotNullOfOrNull",
         "kk_sequence_indexOfFirst",
@@ -1637,13 +1645,11 @@ extension CallLowerer {
         "kk_sequence_min",
         "kk_sequence_ifEmpty",
         "kk_sequence_first",
-        "kk_sequence_random",
         "kk_sequence_last",
         "kk_sequence_max",
         "kk_sequence_firstOrNull",
         "kk_sequence_single",
         "kk_sequence_singleOrNull",
-        "kk_sequence_randomOrNull",
         "kk_sequence_count",
         "kk_sequence_to_list",
         "kk_sequence_runningFoldIndexed",

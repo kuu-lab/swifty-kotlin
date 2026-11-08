@@ -246,6 +246,15 @@ public extension RuntimeABISpec {
                     ("outThrown", .nullableIntptrPointer),
                 ]
             ),
+            bridgeSpec(
+                "kk_op_notnull_msg",
+                section: "Operator",
+                typedParams: [
+                    ("value", .intptr),
+                    ("messageRaw", .intptr),
+                    ("outThrown", .nullableIntptrPointer),
+                ]
+            ),
         ]
         + [
             "kk_nullable_primitive_eq",

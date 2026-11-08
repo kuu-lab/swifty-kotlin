@@ -59,6 +59,48 @@ struct GenericSuspendNullableReturnInferenceTests {
         }
     }
 
+    @Test
+    func withContextInfersBlockResultType() throws {
+        let source = """
+        import kotlinx.coroutines.*
+        fun main() = runBlocking {
+            val typed: String = withContext(Dispatchers.Default) { "x" }
+            val explicit: Int = withContext<Int>(Dispatchers.Default) { 1 }
+            val nullable: String? = withContext(Dispatchers.Default) { null as String? }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let ast = try #require(ctx.ast)
+            let sourceFile = try #require(ctx.sourceManager.fileID(forPath: path))
+            var checked = Set<String>()
+            for index in ast.arena.exprs.indices {
+                let expr = ExprID(rawValue: Int32(index))
+                guard case let .localDecl(name, _, _, initializer, _, _, _) = ast.arena.expr(expr),
+                      let initializer,
+                      ast.arena.exprRange(expr)?.start.file == sourceFile else { continue }
+                let text = ctx.interner.resolve(name)
+                switch text {
+                case "typed":
+                    #expect(sema.bindings.exprType(for: initializer) == sema.types.stringType)
+                    checked.insert(text)
+                case "explicit":
+                    #expect(sema.bindings.exprType(for: initializer) == sema.types.intType)
+                    checked.insert(text)
+                case "nullable":
+                    #expect(sema.bindings.exprType(for: initializer) == sema.types.makeNullable(sema.types.stringType))
+                    checked.insert(text)
+                default:
+                    break
+                }
+            }
+            #expect(checked == ["typed", "explicit", "nullable"])
+        }
+    }
+
     @Test(arguments: [
         "val result: String = withTimeout(5000) { withTimeoutOrNull(50L) { \"x\" } }",
         "val result: Int? = withTimeout(5000) { withTimeoutOrNull(50L) { \"x\" } }",

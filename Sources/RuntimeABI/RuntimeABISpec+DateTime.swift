@@ -8,6 +8,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_calendar_set_time_in_millis", "calendarRaw value", ret: .void),
         abi.nt("__kk_calendar_get_field", "calendarRaw field"),
         abi.nt("__kk_calendar_set_field", "calendarRaw field value", ret: .void),
+        abi.nt("__kk_calendar_set_week_date", "calendarRaw year weekOfYear dayOfWeek", ret: .void),
+        abi.nt("__kk_calendar_get_week_year", "calendarRaw"),
         abi.nt("__kk_calendar_add_field", "calendarRaw field amount", ret: .void),
         abi.nt("__kk_calendar_get_time_zone", "calendarRaw"),
         abi.nt("__kk_calendar_set_time_zone", "calendarRaw timeZoneRaw", ret: .void),
@@ -22,5 +24,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_time_zone_get_id", "timeZoneRaw"),
         abi.nt("__kk_time_zone_get_raw_offset", "timeZoneRaw"),
         abi.nt("__kk_time_zone_get_offset", "timeZoneRaw epochMilliseconds"),
+        abi.nt("__kk_time_zone_get_display_name", "timeZoneRaw inDaylight style localeRaw"),
     ]
 }

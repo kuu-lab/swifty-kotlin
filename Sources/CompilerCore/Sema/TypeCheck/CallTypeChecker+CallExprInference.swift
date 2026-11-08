@@ -249,6 +249,18 @@ extension CallTypeChecker {
             return inferred
         }
 
+        if let inferred = inferSuspendLambdaLiteralCall(
+            id,
+            args: args,
+            ctx: ctx,
+            locals: &locals,
+            expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs,
+            calleeName: calleeName
+        ) {
+            return inferred
+        }
+
         if let inferred = inferFlowBuilderCall(
             id,
             args: args,

@@ -212,7 +212,9 @@ extension ExprTypeChecker {
                 // the class around an object literal) binds to its receiver
                 // parameter symbol so capture analysis stores it and KIR
                 // reads the captured value instead of the innermost receiver.
+                var boundReceiverSymbol: SymbolID?
                 if let receiverSymbol = ctx.resolveQualifiedThisReceiverSymbol(label: label) {
+                    boundReceiverSymbol = receiverSymbol
                     sema.bindings.bindIdentifier(id, symbol: receiverSymbol)
                 } else if let currentDeclSymbol = ctx.currentDeclSymbol,
                           let currentDecl = sema.symbols.symbol(currentDeclSymbol),
@@ -224,9 +226,10 @@ extension ExprTypeChecker {
                     // reference to the same synthetic receiver symbol used by KIR
                     // so nested receiver lambdas capture the outer receiver rather
                     // than accidentally reading their own receiver.
+                    boundReceiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
                     sema.bindings.bindIdentifier(
                         id,
-                        symbol: SyntheticSymbolScheme.receiverParameterSymbol(for: currentDeclSymbol)
+                        symbol: boundReceiverSymbol!
                     )
                 } else if case let .classType(objectType) = sema.types.kind(of: qualifiedType),
                           sema.symbols.symbol(objectType.classSymbol)?.kind == .object
@@ -236,10 +239,22 @@ extension ExprTypeChecker {
                     // singleton load — including from nested-class supertype
                     // arguments, where no implicit receiver is active and the
                     // fallback would read the not-yet-initialized `this`.
+                    boundReceiverSymbol = objectType.classSymbol
                     sema.bindings.bindIdentifier(id, symbol: objectType.classSymbol)
                 }
-                sema.bindings.bindExprType(id, type: qualifiedType)
-                return qualifiedType
+                // `this@func` inside `func` denotes the same receiver as the
+                // unqualified `this`, so it must observe the same flow-narrowed
+                // type (`this@func is T && this@func.member`).
+                let resultType = if let boundReceiverSymbol,
+                                    let thisLocal = locals[ctx.interner.intern("this")],
+                                    thisLocal.symbol == boundReceiverSymbol
+                {
+                    thisLocal.type
+                } else {
+                    qualifiedType
+                }
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
             }
             let labelStr = ctx.interner.resolve(label)
             ctx.sema.diagnostics.error(

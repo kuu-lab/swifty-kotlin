@@ -286,4 +286,32 @@ struct RuntimeCoroutineScopeAsyncTests {
         _ = kk_coroutine_state_exit(continuation, 0)
     }
 
+    @Test
+    func asyncContextJobBecomesDeferredParent() throws {
+        let scope = kk_coroutine_scope_new_with_context(0)
+        let parentRaw = kk_job_new()
+        let continuation = kk_coroutine_continuation_new(9650)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 41)
+        let entry = unsafeBitCast(scopeAsyncCapture as Entry, to: Int.self)
+        let handle = kk_coroutine_scope_async_with_cont(scope, parentRaw, 1, entry, continuation, 1)
+        #expect(__kk_job_parent(handle) == parentRaw)
+        let children = try #require(runtimeListBox(from: __kk_job_children(parentRaw)))
+        #expect(children.elements.contains(handle))
+        #expect(kk_kxmini_async_await(handle, 0) == 42)
+        _ = kk_coroutine_scope_wait(scope)
+    }
+
+    @Test
+    func asyncClosureContextJobBecomesDeferredParent() throws {
+        let scope = kk_coroutine_scope_new_with_context(0)
+        let parentRaw = kk_job_new()
+        let entry = unsafeBitCast(scopeAsyncClosure as ClosureEntry, to: Int.self)
+        let handle = kk_coroutine_scope_async(scope, parentRaw, 1, entry, 41)
+        #expect(__kk_job_parent(handle) == parentRaw)
+        let children = try #require(runtimeListBox(from: __kk_job_children(parentRaw)))
+        #expect(children.elements.contains(handle))
+        #expect(kk_kxmini_async_await(handle, 0) == 42)
+        _ = kk_coroutine_scope_wait(scope)
+    }
+
 }

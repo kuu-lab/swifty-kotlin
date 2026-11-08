@@ -195,7 +195,7 @@ public extension RuntimeABISpec {
         // variants return a `RuntimeChannelResultBox` handle.
         abi.nt("__kk_channel_try_receive", "handle"),
         abi.nt("__kk_channel_try_send", "handle value"),
-        abi.nt("__kk_channel_receive_catching", "handle"),
+        abi.nt("__kk_channel_receive_catching", "handle continuation"),
         abi.nt("__kk_channel_send_blocking", "handle value"),
         abi.nt("__kk_channel_result_status", "boxRaw"),
         abi.nt("__kk_channel_result_value_or_null", "boxRaw"),
@@ -217,6 +217,7 @@ public extension RuntimeABISpec {
         abi.nt("__kk_coroutine_scope_launch_context", "scope context start entryPointRaw closureRaw"),
         abi.nt("__kk_coroutine_scope_launch_context_with_cont", "scope context start entryPointRaw continuation scopeSlot"),
         abi.nt("kk_coroutine_scope_new"),
+        abi.nt("kk_coroutine_scope_new_detached"),
         abi.nt("kk_coroutine_scope_cancel", "scopeHandle"),
         abi.nt("kk_coroutine_scope_fail", "scopeHandle exception"),
         abi.nt("kk_coroutine_scope_wait", "scopeHandle"),

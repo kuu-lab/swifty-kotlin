@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(Glibc)
+import Glibc
+#endif
+
 // Locale constructors allocate runtime-owned boxes rather than nominal objects.
 private let runtimeLocaleNominalTypeID = runtimeStableNominalTypeID(fqName: "java.util.Locale")
 
@@ -145,9 +149,63 @@ private func makeRuntimeLocaleBox(locale: Locale) -> RuntimeLocaleBox {
     )
 }
 
-private func runtimeDefaultLocaleBox() -> RuntimeLocaleBox {
-    runtimeLocaleDefaultState.get() ?? makeRuntimeLocaleBox(locale: Locale.current)
+private final class RuntimeHostDefaultLocaleCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cached: RuntimeLocaleBox?
+
+    func get() -> RuntimeLocaleBox {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached { return cached }
+        let resolved = runtimeHostDefaultLocaleBox()
+        cached = resolved
+        return resolved
+    }
 }
+
+private let runtimeHostDefaultLocaleCache = RuntimeHostDefaultLocaleCache()
+
+private func runtimeDefaultLocaleBox() -> RuntimeLocaleBox {
+    runtimeLocaleDefaultState.get() ?? runtimeHostDefaultLocaleCache.get()
+}
+
+private func runtimeHostDefaultLocaleBox() -> RuntimeLocaleBox {
+    #if os(Linux)
+    if let locale = runtimeLinuxDefaultLocaleBox() {
+        return locale
+    }
+    #endif
+    return makeRuntimeLocaleBox(locale: Locale.current)
+}
+
+#if os(Linux)
+/// Resolves the process default locale like the JDK's Unix `locale.cpp`:
+/// `setlocale(LC_ALL, "")` applies the LC_ALL > LC_xxx > LANG environment
+/// per category and validates it against installed locales, then the
+/// LC_MESSAGES name feeds the same `ParseLocale` remap — an exact
+/// "C"/"POSIX" becomes en_US, while a codeset- or modifier-suffixed name
+/// ("C.UTF-8") becomes a bare "en" because `language_names` maps C/POSIX
+/// to en with no country. Returns nil for ordinary locales, which
+/// corelibs' `Locale.current` already resolves like the JDK — except that
+/// it falls back to en_GB for the C/POSIX family, diverging from the JVM's
+/// en/en_US (currency "¤" vs "£", US vs UK date patterns). The C locale is
+/// restored immediately; only the resolved name is needed.
+private func runtimeLinuxDefaultLocaleBox() -> RuntimeLocaleBox? {
+    guard let savedPtr = setlocale(LC_ALL, nil) else { return nil }
+    let saved = String(cString: savedPtr)
+    _ = setlocale(LC_ALL, "")
+    let resolved = setlocale(LC_MESSAGES, nil).map { String(cString: $0) } ?? "C"
+    _ = saved.withCString { setlocale(LC_ALL, $0) }
+
+    var name = resolved
+    if let dot = name.firstIndex(of: ".") { name = String(name[..<dot]) }
+    if let at = name.firstIndex(of: "@") { name = String(name[..<at]) }
+    guard name == "C" || name == "POSIX" else { return nil }
+    return name == resolved
+        ? makeRuntimeLocaleBox(language: "en", country: "US")
+        : makeRuntimeLocaleBox(language: "en", country: "")
+}
+#endif
 
 func runtimeLocaleToString(_ box: RuntimeLocaleBox) -> String {
     var result = box.language

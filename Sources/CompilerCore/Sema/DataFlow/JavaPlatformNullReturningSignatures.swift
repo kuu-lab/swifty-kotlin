@@ -90,7 +90,11 @@ extension DataFlowSemaPhase {
         ["java", "util", "Objects"]: ["toString"],
         ["java", "util", "regex", "Matcher"]: ["group"],
         ["java", "util", "concurrent", "ConcurrentLinkedQueue"]: ["peek", "poll"],
-        ["java", "util", "concurrent", "ConcurrentMap"]: ["putIfAbsent", "replace"],
-        ["java", "util", "concurrent", "ConcurrentHashMap"]: ["computeIfAbsent", "putIfAbsent", "replace"],
+        // kotlinc sees `ConcurrentMap.putIfAbsent`/`replace(K, V)` as `V?`,
+        // not `V!`: the Kotlin compiler's JDK nullability data marks the
+        // conditional-update returns nullable, so `map.putIfAbsent(k, v)`
+        // flows into `println(Any?)` and prints "null" instead of raising the
+        // platform null assertion (KUU-3059).
+        ["java", "util", "concurrent", "ConcurrentHashMap"]: ["computeIfAbsent"],
     ]
 }

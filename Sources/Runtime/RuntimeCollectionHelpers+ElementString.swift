@@ -27,6 +27,11 @@ func runtimeElementToString(_ elem: Int) -> String {
        let name = dispatcher.displayName {
         return name
     }
+    // KUU-4402: CoroutineName.toString() is "CoroutineName(name)" — the
+    // runtime box has no itable for the Kotlin override to dispatch through.
+    if let nameBox = tryCast(ptr, to: RuntimeCoroutineNameBox.self) {
+        return "CoroutineName(\(nameBox.name))"
+    }
     if let range = tryCast(ptr, to: RuntimeRangeBox.self) {
         return runtimeRangeToString(range)
     }
@@ -128,7 +133,6 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
         return runtimeUnsignedArrayToString(elem, box: arrayBox)
-            ?? runtimeFloatingPointArrayToString(elem, box: arrayBox)
             ?? runtimeArrayIdentityToString(elem)
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
@@ -175,6 +179,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     // override checks so a declared override still wins.
     if let rendered = runtimeJobWrapperDebugString(elem) {
         return rendered
+    }
+    // KUU-4402: coroutine contexts inside collections render with the same
+    // `[elem, elem]` shape as top-level printing.
+    if let context = tryCast(ptr, to: RuntimeCoroutineContext.self) {
+        return runtimeCoroutineContextToString(context)
     }
     if let rendered = runtimeDefaultObjectIdentityToString(elem) {
         return rendered
