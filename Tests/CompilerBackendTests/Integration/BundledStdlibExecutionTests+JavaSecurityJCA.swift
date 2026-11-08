@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 extension BundledStdlibExecutionTests {
@@ -62,6 +63,44 @@ extension BundledStdlibExecutionTests {
             jwt
 
             """
+        )
+    }
+
+    @Test
+    func testJavaSecurityPKCS12StoreRoundTrip() throws {
+        let fixtureURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/java_security_jca.p12")
+        let fixtureBase64 = try Data(contentsOf: fixtureURL).base64EncodedString()
+        try compileAndRunKotlin(
+            """
+            import java.io.ByteArrayInputStream
+            import java.io.ByteArrayOutputStream
+            import java.security.KeyStore
+            import java.util.Base64
+
+            fun main() {
+                val password = charArrayOf('s', 't', 'o', 'r', 'e', 'p', 'a', 's', 's')
+                val fixture = Base64.getDecoder().decode("\(fixtureBase64)")
+                val source = KeyStore.getInstance("PKCS12")
+                source.load(ByteArrayInputStream(fixture), password)
+                println(source.aliases().nextElement())
+                println(source.getKey("JCA-FIXTURE", password)!!.algorithm)
+                println(source.getCertificateChain("jca-fixture")!!.size)
+
+                val encoded = ByteArrayOutputStream()
+                source.store(encoded, password)
+                val restored = KeyStore.getInstance("PKCS12")
+                restored.load(ByteArrayInputStream(encoded.toByteArray()), password)
+                println(restored.aliases().nextElement())
+                println(restored.size())
+                println(restored.getKey("jca-fixture", password)!!.algorithm)
+                println(restored.getCertificateChain("jca-fixture")!!.size)
+            }
+            """,
+            expectedOutput: "jca-fixture\nRSA\n1\njca-fixture\n1\nRSA\n1\n",
+            moduleName: "KUU4438JavaSecurityPKCS12"
         )
     }
 }
