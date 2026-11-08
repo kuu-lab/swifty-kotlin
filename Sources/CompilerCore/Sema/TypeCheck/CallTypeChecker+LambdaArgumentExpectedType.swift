@@ -223,6 +223,108 @@ extension CallTypeChecker {
         )
     }
 
+    /// Substitutes an extension function's own type parameters that the
+    /// call-site receiver determines through the declared receiver type,
+    /// e.g. `T` in `fun <T> CancellableContinuation<T>.resume(value: T)`
+    /// when the receiver is `CancellableContinuation<ChannelResult<E>>`.
+    /// Only invariant and contravariant receiver-argument positions qualify:
+    /// a covariant position leaves the variable a lower bound that the other
+    /// arguments may widen (`Array<out T>` accepts `Array<IntArray>` with any
+    /// `T :> IntArray`), so it must stay open just like the class type
+    /// parameters `applyReceiverClassTypeArgs` leaves untouched.
+    func applyReceiverBoundFunctionTypeArgs(
+        to parameterType: TypeID,
+        signature: FunctionSignature,
+        candidate: SymbolID,
+        receiverType: TypeID?,
+        sema: SemaModule
+    ) -> TypeID {
+        guard sema.symbols.symbol(candidate)?.kind != .constructor,
+              signature.classTypeParameterCount < signature.typeParameterSymbols.count,
+              let callSiteReceiverType = receiverType,
+              let declaredReceiver = signature.receiverType,
+              let declaredClass = resolveClassType(declaredReceiver, sema: sema)
+        else {
+            return parameterType
+        }
+        let callSiteClass = resolveClassType(callSiteReceiverType, sema: sema)
+            ?? receiverClassTypeFromUpperBounds(
+                callSiteReceiverType, matching: declaredClass.classSymbol, sema: sema
+            )
+        guard let callSiteClass else { return parameterType }
+
+        let declaredClassArgs: [TypeArg]
+        let concreteClassArgs: [TypeArg]
+        if callSiteClass.classSymbol == declaredClass.classSymbol,
+           callSiteClass.args.count == declaredClass.args.count {
+            declaredClassArgs = declaredClass.args
+            concreteClassArgs = callSiteClass.args
+        } else if sema.types.isNominalSubtypeSymbol(callSiteClass.classSymbol, of: declaredClass.classSymbol),
+                  let lifted = sema.types.liftedNominalSupertypeArgs(
+                      from: callSiteClass.classSymbol,
+                      childArgs: callSiteClass.args,
+                      to: declaredClass.classSymbol
+                  ),
+                  lifted.count == declaredClass.args.count {
+            declaredClassArgs = declaredClass.args
+            concreteClassArgs = lifted
+        } else {
+            return parameterType
+        }
+
+        let functionTypeParameterSymbols = Set(
+            signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)
+        )
+        guard !functionTypeParameterSymbols.isEmpty else { return parameterType }
+        let variances = sema.types.normalizedNominalVariances(
+            for: declaredClass.classSymbol, arity: declaredClassArgs.count
+        )
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for index in 0 ..< declaredClassArgs.count {
+            let declaredVariance = index < variances.count ? variances[index] : .invariant
+            let projection = sema.types.composedProjection(
+                declarationVariance: declaredVariance, useSite: declaredClassArgs[index]
+            )
+            let declaredArg: TypeID
+            switch projection {
+            case let .invariant(type), let .in(type):
+                declaredArg = type
+            case .out, .star, .invalid:
+                continue
+            }
+            guard case let .typeParam(declaredTypeParam) = sema.types.kind(of: declaredArg),
+                  functionTypeParameterSymbols.contains(declaredTypeParam.symbol),
+                  let typeVar = typeVarBySymbol[declaredTypeParam.symbol]
+            else {
+                continue
+            }
+            var concreteType: TypeID
+            switch concreteClassArgs[index] {
+            case let .invariant(type), let .out(type), let .in(type):
+                concreteType = type
+            case .star:
+                let bounds = sema.symbols.typeParameterUpperBounds(for: declaredTypeParam.symbol)
+                concreteType = bounds.isEmpty ? sema.types.nullableAnyType : sema.types.glb(bounds)
+            }
+            if declaredTypeParam.nullability == .nullable {
+                let bounds = sema.symbols.typeParameterUpperBounds(for: declaredTypeParam.symbol)
+                if !bounds.isEmpty,
+                   bounds.allSatisfy({ sema.types.nullability(of: $0) == .nonNull })
+                {
+                    concreteType = sema.types.makeNonNullable(concreteType)
+                }
+            }
+            substitution[typeVar] = concreteType
+        }
+        guard !substitution.isEmpty else { return parameterType }
+        return sema.types.substituteTypeParameters(
+            in: parameterType,
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
+    }
+
     /// Keeping the bound's own arguments preserves enclosing type-parameter
     /// identity while allowing callback expectations to substitute the
     /// candidate's receiver type parameters.

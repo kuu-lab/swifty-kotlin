@@ -120,12 +120,18 @@ extension CallTypeChecker {
                 // concrete `Result<Int>`; a `Gun<TSubject>` receiver keeps the
                 // rigid `Result<TSubject>`, which still binds a nested call's
                 // return-only type variable such as `Result.failure`'s `T`.
-                let parameterType = applyReceiverClassTypeArgs(
-                    to: declaredParameterType,
+                let parameterType = applyReceiverBoundFunctionTypeArgs(
+                    to: applyReceiverClassTypeArgs(
+                        to: declaredParameterType,
+                        signature: signature,
+                        candidate: candidate,
+                        receiverType: receiverType,
+                        classTypeParametersOnly: true,
+                        sema: ctx.sema
+                    ),
                     signature: signature,
                     candidate: candidate,
                     receiverType: receiverType,
-                    classTypeParametersOnly: true,
                     sema: ctx.sema
                 )
                 let allTypeVarBySymbol = ctx.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)

@@ -104,5 +104,46 @@ struct OverloadedGenericCallExpectedTypeTests {
             )
         }
     }
+
+    @Test
+    func extensionReceiverTypeParameterSuppliesNestedCallExpectedType() throws {
+        // KUU-4199: `cont.resume(closed(closeCause))` on
+        // `CancellableContinuation<in T>` — the extension's own type
+        // parameter sits at a contravariant receiver-argument position, so
+        // the receiver pins it to `ChannelResult<E>` and the nested generic
+        // factory can infer its result-only variable. The member
+        // `resume(value, onCancellation)` overload is arity-inapplicable and
+        // must not block the extension candidate.
+        try withTemporaryFile(contents: """
+        class ChannelResult<out T> {
+            companion object {
+                fun <E> closed(cause: Throwable?): ChannelResult<E> = ChannelResult()
+                fun <E> success(value: E): ChannelResult<E> = ChannelResult()
+            }
+        }
+        interface CancellableContinuation<in T> {
+            fun resume(value: T, onCancellation: ((cause: Throwable) -> Unit)?)
+        }
+        fun <T> CancellableContinuation<T>.resume(
+            value: T,
+            onCancellation: ((cause: Throwable) -> Unit)? = null
+        ) {}
+        class Chan<E> {
+            fun resumeClosed(cont: CancellableContinuation<ChannelResult<E>>, cause: Throwable?) {
+                cont.resume(ChannelResult.closed(cause))
+            }
+            fun resumeSuccess(cont: CancellableContinuation<ChannelResult<E>>, element: E) {
+                cont.resume(ChannelResult.success(element))
+            }
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Expected the nested `closed` call to infer through the extension receiver, got: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
 }
 #endif
