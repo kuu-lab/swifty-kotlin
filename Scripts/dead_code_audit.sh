@@ -296,7 +296,6 @@ FIXTURES=(
   "kk_cvar_int_load|dead_A.txt|absent|Synthetic CVariable getter uses a tuple linkPrefix"
   "kk_cvar_int_store|dead_A.txt|absent|Synthetic CVariable prefix covers generated load and store links"
   "kk_cvar_bool_store|dead_A.txt|absent|Synthetic property assignment derives _store from getterLinkName"
-  "kk_http_response_errorMessage|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
   "__kk_mutable_map_iterator_hasNext|dead_A.txt|absent|Runtime calls its unique Swift-name alias"
   "kk_transfer_object|dead_B.txt|present|A comment-only Runtime mention is not an internal call"
 )
