@@ -32,6 +32,10 @@ final class CoroutineLoweringPass: LoweringPass {
             ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
             ctx.interner.intern("<suspendCoroutineUninterceptedOrReturn>"),
             ctx.interner.intern("kk_await_cancellation"),
+            // `CoroutineStart.isLazy` reads lower to this external name even
+            // in modules with no other coroutine machinery; the read still
+            // folds to a Boolean constant here.
+            ctx.interner.intern("kk_coroutine_start_is_lazy"),
             // Mutex/Channel bridges already carry a placeholder continuation from KIR.
             ctx.interner.intern("kk_channel_send"),
             ctx.interner.intern("__kk_channel_receive_catching"),
