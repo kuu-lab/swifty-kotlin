@@ -53,6 +53,19 @@ public class PreparedStatement internal constructor(rawHandle: Long) : Statement
 }
 
 public class ResultSet internal constructor(private val rawHandle: Long) : AutoCloseable {
+    public companion object {
+        public const val TYPE_FORWARD_ONLY: Int = 1003
+        public const val TYPE_SCROLL_INSENSITIVE: Int = 1004
+        public const val TYPE_SCROLL_SENSITIVE: Int = 1005
+        public const val CONCUR_READ_ONLY: Int = 1007
+        public const val CONCUR_UPDATABLE: Int = 1008
+        public const val HOLD_CURSORS_OVER_COMMIT: Int = 1
+        public const val CLOSE_CURSORS_AT_COMMIT: Int = 2
+        public const val FETCH_FORWARD: Int = 1000
+        public const val FETCH_REVERSE: Int = 1001
+        public const val FETCH_UNKNOWN: Int = 1002
+    }
+
     public val isClosed: Boolean
         get() = jdbcResultSetIsClosed(rawHandle)
 
@@ -69,6 +82,49 @@ public class ResultSet internal constructor(private val rawHandle: Long) : AutoC
     override fun close() {
         jdbcResultSetClose(rawHandle)
     }
+}
+
+/** JDBC column-type codes, mirroring `java.sql.Types`. */
+public object Types {
+    public const val BIT: Int = -7
+    public const val TINYINT: Int = -6
+    public const val SMALLINT: Int = 5
+    public const val INTEGER: Int = 4
+    public const val BIGINT: Int = -5
+    public const val FLOAT: Int = 6
+    public const val REAL: Int = 7
+    public const val DOUBLE: Int = 8
+    public const val NUMERIC: Int = 2
+    public const val DECIMAL: Int = 3
+    public const val CHAR: Int = 1
+    public const val VARCHAR: Int = 12
+    public const val LONGVARCHAR: Int = -1
+    public const val BOOLEAN: Int = 16
+    public const val BINARY: Int = -2
+    public const val VARBINARY: Int = -3
+    public const val LONGVARBINARY: Int = -4
+    public const val DATE: Int = 91
+    public const val TIME: Int = 92
+    public const val TIMESTAMP: Int = 93
+    public const val TIME_WITH_TIMEZONE: Int = 2013
+    public const val TIMESTAMP_WITH_TIMEZONE: Int = 2014
+    public const val NULL: Int = 0
+    public const val OTHER: Int = 1111
+    public const val JAVA_OBJECT: Int = 2000
+    public const val DISTINCT: Int = 2001
+    public const val STRUCT: Int = 2002
+    public const val ARRAY: Int = 2003
+    public const val BLOB: Int = 2004
+    public const val CLOB: Int = 2005
+    public const val REF: Int = 2006
+    public const val DATALINK: Int = 70
+    public const val ROWID: Int = -8
+    public const val NCHAR: Int = -15
+    public const val NVARCHAR: Int = -9
+    public const val LONGNVARCHAR: Int = -16
+    public const val NCLOB: Int = 2011
+    public const val SQLXML: Int = 2009
+    public const val REF_CURSOR: Int = 2012
 }
 
 public class SQLException : Exception {

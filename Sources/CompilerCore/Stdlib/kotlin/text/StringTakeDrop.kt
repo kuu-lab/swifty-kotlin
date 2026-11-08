@@ -59,3 +59,13 @@ public fun String.dropWhile(predicate: (Char) -> Boolean): String {
     }
     return ""
 }
+
+public fun String.dropLastWhile(predicate: (Char) -> Boolean): String {
+    val chars = this.toString().toList()
+    var index = chars.size - 1
+    while (index >= 0) {
+        if (!predicate(chars[index])) return this.substring(0, index + 1)
+        index--
+    }
+    return ""
+}

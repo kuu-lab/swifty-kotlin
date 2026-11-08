@@ -769,6 +769,48 @@ struct TypeInferenceContext: CustomStringConvertible {
         return sema.symbols.symbol(id)
     }
 
+    /// Instance members of a nominal owner are only meaningful when that
+    /// owner is reachable through the implicit receiver tower. Scope lookup
+    /// can still surface them through an enclosing class's member scope after
+    /// the tower dropped the instance — e.g. inside a companion object or a
+    /// non-inner nested class (KUU-4388). Singleton-object owners stay visible
+    /// unconditionally: their members behave like top-level declarations, and
+    /// enum entries are static members of their enum class.
+    func isScopeMemberVisibleFromReceivers(_ symbolID: SymbolID) -> Bool {
+        guard let symbol = cachedSymbol(symbolID) else { return true }
+        switch symbol.kind {
+        case .property, .field, .backingField:
+            break
+        default:
+            return true
+        }
+        guard let ownerID = sema.symbols.parentSymbol(for: symbolID),
+              let owner = sema.symbols.symbol(ownerID)
+        else {
+            return true
+        }
+        switch owner.kind {
+        case .object, .package:
+            return true
+        case .class, .interface, .enumClass, .annotationClass:
+            break
+        default:
+            return true
+        }
+        if sema.symbols.enumOwnerSymbol(for: symbol) != nil {
+            return true
+        }
+        for entry in implicitReceiverMemberLookupEntries() {
+            guard case let .classType(classType) = sema.types.kind(of: entry.type) else {
+                continue
+            }
+            if sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: ownerID) {
+                return true
+            }
+        }
+        return false
+    }
+
     /// `expect`/`actual` pairs are intentionally allowed to coexist in the same
     /// scope (KSwiftK has no separate common/platform module compilation), so a
     /// linked `expect` declaration is filtered out here once its `actual` is
@@ -791,6 +833,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
         }
     }
 
@@ -804,6 +847,7 @@ struct TypeInferenceContext: CustomStringConvertible {
         return results.filter {
             !isExpectDeclarationSupersededByActual($0, among: results)
                 && !isImportedSymbolShadowedBySource($0)
+                && isScopeMemberVisibleFromReceivers($0)
         }
     }
 
@@ -831,7 +875,8 @@ struct TypeInferenceContext: CustomStringConvertible {
             return bound.filter { symbolID in
                 guard let symbol = cachedSymbol(symbolID),
                       !isExpectDeclarationSupersededByActual(symbolID, among: bound),
-                      !isImportedSymbolShadowedBySource(symbolID)
+                      !isImportedSymbolShadowedBySource(symbolID),
+                      isScopeMemberVisibleFromReceivers(symbolID)
                 else { return false }
                 let isClassifier = switch symbol.kind {
                 case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias: true
@@ -880,22 +925,33 @@ struct TypeInferenceContext: CustomStringConvertible {
         return (fileLevelMatches, inheritedInterfaces)
     }
 
-    /// A source declaration shadows an imported-library declaration at the
-    /// same FQ name — e.g. upstream `kotlinx.io`/`kotlinx.coroutines` sources
-    /// vendored over the bundled stdlib copy. Callables shadow when their
-    /// erased signatures match; nominal classifiers shadow on a same-kind,
-    /// same-FQ-name pair. Keeping both as candidates merges two declarations
-    /// that must behave as one: type references already prefer the source
-    /// nominal (`sourceFirstThenID` in Helpers.swift), so an imported twin
-    /// left in expression position binds enum entries and qualifier members
-    /// of the library-side type while signatures expect the source type —
-    /// the split surfaces as initializer mismatches and "no viable overload"
-    /// errors (KUU-4274).
+    /// A source declaration shadows a bundled declaration at the same FQ
+    /// name — an imported-library twin (e.g. upstream `kotlinx.io`/
+    /// `kotlinx.coroutines` sources vendored over the bundled stdlib copy) or
+    /// a synthetic stand-in such as the coroutine launcher stubs. Callables
+    /// shadow when their erased signatures match; nominal classifiers shadow
+    /// on a same-kind, same-FQ-name pair. Keeping both as candidates merges
+    /// two declarations that must behave as one: type references already
+    /// prefer the source nominal (`sourceFirstThenID` in Helpers.swift), so
+    /// a bundled twin left in expression position binds enum entries and
+    /// qualifier members of the library-side type while signatures expect
+    /// the source type — the split surfaces as initializer mismatches and
+    /// "no viable overload" errors (KUU-4274).
     func isImportedSymbolShadowedBySource(_ id: SymbolID) -> Bool {
-        guard let symbol = cachedSymbol(id),
-              symbol.flags.contains(.importedLibrary)
-        else {
+        guard let symbol = cachedSymbol(id) else {
             return false
+        }
+        // A synthetic stand-in yields only to a genuine source declaration:
+        // another synthetic at the same FQName is a distinct stub, not the
+        // declaration it stands in for (KUU-4240).
+        let isSyntheticStandIn = symbol.flags.contains(.synthetic)
+            && !symbol.flags.contains(.importedLibrary)
+        guard symbol.flags.contains(.importedLibrary) || isSyntheticStandIn else {
+            return false
+        }
+        func isSourceShadower(_ otherSymbol: SemanticSymbol) -> Bool {
+            !otherSymbol.flags.contains(.importedLibrary)
+                && !(isSyntheticStandIn && otherSymbol.flags.contains(.synthetic))
         }
         switch symbol.kind {
         case .function, .constructor:
@@ -905,7 +961,7 @@ struct TypeInferenceContext: CustomStringConvertible {
             return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
                 guard other != id,
                       let otherSymbol = cachedSymbol(other),
-                      !otherSymbol.flags.contains(.importedLibrary),
+                      isSourceShadower(otherSymbol),
                       otherSymbol.kind == symbol.kind,
                       let otherSignature = sema.symbols.functionSignature(for: other)
                 else {
@@ -917,7 +973,7 @@ struct TypeInferenceContext: CustomStringConvertible {
             return sema.symbols.lookupAll(fqName: symbol.fqName).contains { other in
                 guard other != id,
                       let otherSymbol = cachedSymbol(other),
-                      !otherSymbol.flags.contains(.importedLibrary),
+                      isSourceShadower(otherSymbol),
                       otherSymbol.kind == symbol.kind
                 else {
                     return false
@@ -954,6 +1010,33 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
     }
 
+    /// True when `expectSymbol` is an `expect` class and a typealias declared
+    /// at the same FQName expands to `otherClassSymbol` — the shape an
+    /// imported signature takes when the alias stands in for the expect's
+    /// actual declaration.
+    private func expectClassMatchesTypeAliasTarget(
+        expectSymbol: SemanticSymbol?,
+        otherClassSymbol: SymbolID
+    ) -> Bool {
+        guard let expectSymbol,
+              expectSymbol.flags.contains(.expectDeclaration),
+              expectSymbol.kind == .class || expectSymbol.kind == .interface
+        else {
+            return false
+        }
+        return sema.symbols.lookupAll(fqName: expectSymbol.fqName).contains { candidate in
+            guard sema.symbols.symbol(candidate)?.kind == .typeAlias,
+                  let underlying = sema.symbols.typeAliasUnderlyingType(for: candidate),
+                  case let .classType(underlyingType) = sema.types.kind(
+                      of: sema.types.makeNonNullable(underlying)
+                  )
+            else {
+                return false
+            }
+            return underlyingType.classSymbol == otherClassSymbol
+        }
+    }
+
     /// Erased type equality across the source/imported boundary: nominal types
     /// compare by FQ name (the shadowing pair has different symbols), type
     /// parameters by position within each signature.
@@ -966,8 +1049,21 @@ struct TypeInferenceContext: CustomStringConvertible {
         switch (sema.types.kind(of: sema.types.makeNonNullable(lhs)),
                 sema.types.kind(of: sema.types.makeNonNullable(rhs))) {
         case let (.classType(lhsType), .classType(rhsType)):
-            return sema.symbols.symbol(lhsType.classSymbol)?.fqName
-                == sema.symbols.symbol(rhsType.classSymbol)?.fqName
+            let lhsSymbol = sema.symbols.symbol(lhsType.classSymbol)
+            let rhsSymbol = sema.symbols.symbol(rhsType.classSymbol)
+            if lhsSymbol?.fqName == rhsSymbol?.fqName {
+                return true
+            }
+            // An `expect` class and the bundled typealias standing in for its
+            // actual share the expect's FQName while their expanded class
+            // symbols differ: a vendored-source signature names the expect
+            // decl, the imported twin's serialized signature names the
+            // alias target (KUU-4185).
+            return expectClassMatchesTypeAliasTarget(
+                expectSymbol: lhsSymbol, otherClassSymbol: rhsType.classSymbol
+            ) || expectClassMatchesTypeAliasTarget(
+                expectSymbol: rhsSymbol, otherClassSymbol: lhsType.classSymbol
+            )
         case let (.typeParam(lhsParam), .typeParam(rhsParam)):
             guard let lhsIndex = lhsSignature.typeParameterSymbols.firstIndex(of: lhsParam.symbol),
                   let rhsIndex = rhsSignature.typeParameterSymbols.firstIndex(of: rhsParam.symbol)

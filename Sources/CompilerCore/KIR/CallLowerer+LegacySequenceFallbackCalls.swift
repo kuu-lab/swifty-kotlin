@@ -12,7 +12,6 @@ extension CallLowerer {
         "kk_sequence_none",
         "kk_sequence_indexOfFirst", "kk_sequence_indexOfLast",
         "kk_sequence_mapNotNull", "kk_sequence_mapIndexedNotNull",
-        "kk_sequence_random", "kk_sequence_randomOrNull",
         "kk_sequence_mapIndexed", "kk_sequence_filterIndexed",
         "kk_sequence_onEach", "kk_sequence_onEachIndexed",
         "kk_sequence_reduceOrNull", "kk_sequence_reduce",
@@ -91,8 +90,6 @@ extension CallLowerer {
             case "none": runtimeCallee = "kk_sequence_none"
             case "mapNotNull": runtimeCallee = "kk_sequence_mapNotNull"
             case "mapIndexedNotNull": runtimeCallee = "kk_sequence_mapIndexedNotNull"
-            case "random": runtimeCallee = "kk_sequence_random"
-            case "randomOrNull": runtimeCallee = "kk_sequence_randomOrNull"
             case "requireNoNulls": runtimeCallee = "kk_sequence_requireNoNulls"
             case "reversed": runtimeCallee = "kk_sequence_reversed"
             case "mapIndexed": runtimeCallee = "kk_sequence_mapIndexed"

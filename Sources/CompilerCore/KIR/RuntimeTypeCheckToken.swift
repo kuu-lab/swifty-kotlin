@@ -561,9 +561,13 @@ func kirErasedGenericCallClaimCheck(
     let bound = isPlatformResult ? (expressionBound ?? target) : target
     // Calls coerced to Unit evaluate for side effects and discard their
     // erased result, so no cast of that result is observable in Kotlin.
-    // Property reads retain their own platform-Unit behavior.
+    // Property reads retain their own platform-Unit behavior. The claim
+    // type (`target`) is what the checkcast verifies, so a Unit consumer
+    // must skip the cast even when the platform-typed expression bound
+    // keeps `bound` non-Unit (KUU-4393).
     if propertySymbol == nil,
-       (bound == sema.types.unitType || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
+       (bound == sema.types.unitType || target == sema.types.unitType
+        || sema.bindings.unitReturnCoercionExprs.contains(exprID)) {
         return nil
     }
     guard let checkType = kirCheckableCastErasure(of: target, sema: sema),

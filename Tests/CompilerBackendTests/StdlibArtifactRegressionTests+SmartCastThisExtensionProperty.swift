@@ -19,10 +19,16 @@ extension StdlibArtifactRegressionTests {
                 if (this is KFooQux) return qux
                 return "FAIL"
             }
+            fun fooInferred(): String {
+                if (this is KFooQux) return quxInferred
+                return "FAIL"
+            }
         }
         class KFooQux : KFoo()
         val KFooQux.qux: String get() = "OK"
+        val KFooQux.quxInferred get() = "OK2"
         fun box(): String = KFooQux().foo()
+        fun boxInferred(): String = KFooQux().fooInferred()
 
         open class Base {
             fun read(): String {
@@ -41,6 +47,7 @@ extension StdlibArtifactRegressionTests {
 
         fun main() {
             println(box())
+            println(boxInferred())
             println(Child().read())
             println(Child().explicitRead())
             println(concreteRead(Child()))
@@ -65,6 +72,6 @@ extension StdlibArtifactRegressionTests {
         let result = try CommandRunner.run(executable: output, arguments: [])
         #expect(result.exitCode == 0, "Execution stderr: \(result.stderr)")
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout == "OK\nOK\nOK\nOK\n")
+        #expect(result.stdout == "OK\nOK2\nOK\nOK\nOK\n")
     }
 }

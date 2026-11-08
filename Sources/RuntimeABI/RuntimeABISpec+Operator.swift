@@ -57,6 +57,8 @@ public extension RuntimeABISpec {
         abiReflection.nt("__kk_kclass_get_annotations", "kclassRaw"),
         abiReflection.nt("__kk_kclass_find_associated_object", "kclassRaw keyNameRaw"),
         abiReflection.nt("__kk_kclass_register_single_annotation", "typeToken fqNameRaw argsEncodedRaw argCount"),
+        abiReflection.nt("__kk_annotation_mark_reflection_materialized", "raw"),
+        abiReflection.nt("__kk_annotation_reflection_materialized", "raw"),
         abi.th("__kk_kclass_isInstance", "kclassRaw valueRaw"),
         abi.nt("__kk_java_class_isInstance", "classRaw valueRaw"),
         abi.nt("__kk_java_class_is_assignable_from", "classRaw otherClassRaw"),

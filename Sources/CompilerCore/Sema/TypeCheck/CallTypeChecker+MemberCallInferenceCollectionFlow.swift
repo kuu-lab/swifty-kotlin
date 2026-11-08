@@ -93,6 +93,15 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        // `recv.name` without parentheses is property-access syntax: it can
+        // only bind a property (or accessor), never one of the collection
+        // functions this fast path models. A same-named extension property
+        // must win over `first()`/`last()`/`count()` here, and when no
+        // property applies regular resolution still binds the function so
+        // enforceFunctionInvocationSyntax reports SEMA-0309 (KUU-4387).
+        if args.isEmpty, !ast.arena.isExplicitCall(id) {
+            return nil
+        }
         // Primitive-array source members are bundled Kotlin extensions, not collection or
         // sequence operations. Unsigned arrays currently also classify as
         // synthetic sequences, so let exact primitive-array source lookup run

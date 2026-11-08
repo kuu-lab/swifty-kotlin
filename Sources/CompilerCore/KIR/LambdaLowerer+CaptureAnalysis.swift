@@ -276,6 +276,19 @@ extension LambdaLowerer {
         {
             referenced.append(receiverSymbol)
         }
+        // KUU-4209: an unqualified `invoke(...)` resolved against an outer
+        // function-typed receiver stores a synthesized `this@label` in
+        // `implicitInvokeReceiverExpr`. That expression is not an AST child,
+        // so the receiver parameter it binds must be collected here or the
+        // lambda never captures it and lowering reads the innermost `this`.
+        if let implicitInvokeReceiver = sema.bindings.callableValueCalls[exprID]?.implicitInvokeReceiverExpr,
+           case .thisRef(.some, _) = ast.arena.expr(implicitInvokeReceiver)
+        {
+            collectBoundIdentifierSymbols(
+                in: implicitInvokeReceiver, ast: ast, sema: sema,
+                referenced: &referenced, seen: &seen
+            )
+        }
         for binding in [sema.bindings.callBindings[exprID], sema.bindings.extensionPropertyGetterCalls[exprID], sema.bindings.callableReferenceBinding(for: exprID)].compactMap({ $0 }) {
             guard let signature = sema.symbols.functionSignature(for: binding.chosenCallee) else { continue }
             for index in signature.reifiedTypeParameterIndices.sorted()

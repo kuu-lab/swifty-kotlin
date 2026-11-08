@@ -26,8 +26,17 @@ extension CallTypeChecker {
             && ["and", "or", "xor", "inv", "shl", "shr", "ushr"].contains(interner.resolve(calleeName))
         // A nearer property is a separate callable namespace. Keep explicitly
         // imported function aliases available while comparing invocation tiers.
+        // An imported-library extension whose source twin is compiled into
+        // this module (e.g. vendored kotlinx-coroutines over the bundled
+        // stdlib copy) must not survive as a second candidate: scope lookup
+        // below bypasses `cachedScopeLookup`'s shadowing filter, so apply it
+        // here (KUU-4249).
+        func notShadowedBySource(_ candidate: SymbolID) -> Bool {
+            !ctx.isImportedSymbolShadowedBySource(candidate)
+        }
         func receiverMatches(_ candidate: SymbolID) -> Bool {
-            guard let symbol = ctx.cachedSymbol(candidate),
+            guard notShadowedBySource(candidate),
+                  let symbol = ctx.cachedSymbol(candidate),
                   symbol.kind == .function,
                   !requiresInfix || symbol.flags.contains(.infixFunction),
                   let signature = sema.symbols.functionSignature(for: candidate) else { return false }
@@ -106,7 +115,8 @@ extension CallTypeChecker {
             extensionReceiverType: nonNullReceiverForScope,
             ctx: ctx
         ).filter { candidate in
-            !requiresInfix || sema.symbols.symbol(candidate)?.flags.contains(.infixFunction) == true
+            notShadowedBySource(candidate)
+                && (!requiresInfix || sema.symbols.symbol(candidate)?.flags.contains(.infixFunction) == true)
         }
         if !dispatchMembers.isEmpty {
             scopeCandidates = dispatchMembers
@@ -142,7 +152,8 @@ extension CallTypeChecker {
             let nonNullReceiver = sema.types.makeNonNullable(memberLookupType)
             let scopedCandidates = Set(ctx.scope.lookupMergingChain(calleeName))
             scopeCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
+                guard notShadowedBySource(candidate),
+                      let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
                       !requiresInfix || symbol.flags.contains(.infixFunction),
                       let signature = sema.symbols.functionSignature(for: candidate),
@@ -302,7 +313,8 @@ extension CallTypeChecker {
         if scopeCandidates.isEmpty {
             let nonNullReceiverForChain = sema.types.makeNonNullable(memberLookupType)
             scopeCandidates = ctx.scope.lookupMergingChain(calleeName).filter { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
+                guard notShadowedBySource(candidate),
+                      let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       !requiresInfix || symbol.flags.contains(.infixFunction),
                       let signature = sema.symbols.functionSignature(for: candidate),
@@ -335,7 +347,10 @@ extension CallTypeChecker {
                 sourceFile: ctx.currentASTFile,
                 sema: sema,
                 interner: interner
-            ).filter { !requiresInfix || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true }
+            ).filter {
+                notShadowedBySource($0)
+                    && (!requiresInfix || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true)
+            }
         }
         if scopeCandidates.count == 1,
            let candidate = scopeCandidates.first,
@@ -348,7 +363,51 @@ extension CallTypeChecker {
         {
             ctx.builderInference?.constraints.append(contentsOf: constraints)
         }
-        return scopeCandidates
+        return shadowFilteredExtensionCandidates(scopeCandidates, ctx: ctx, sema: sema)
+    }
+
+    /// A user-source declaration shadows a bundled-stdlib declaration with
+    /// an identical signature: compiling e.g. kotlinx-coroutines sources
+    /// against the bundled stdlib must not see each extension twice.
+    private func shadowFilteredExtensionCandidates(
+        _ candidates: [SymbolID],
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> [SymbolID] {
+        func sameCallableSignature(_ lhs: SymbolID, _ rhs: SymbolID) -> Bool {
+            guard let lhsSymbol = sema.symbols.symbol(lhs),
+                  let rhsSymbol = sema.symbols.symbol(rhs),
+                  lhsSymbol.fqName == rhsSymbol.fqName,
+                  let lhsSignature = sema.symbols.functionSignature(for: lhs),
+                  let rhsSignature = sema.symbols.functionSignature(for: rhs)
+            else {
+                return false
+            }
+            return lhsSignature.receiverType == rhsSignature.receiverType
+                && lhsSignature.parameterTypes == rhsSignature.parameterTypes
+                && lhsSignature.returnType == rhsSignature.returnType
+                && lhsSignature.typeParameterSymbols.count == rhsSignature.typeParameterSymbols.count
+                && lhsSignature.isSuspend == rhsSignature.isSuspend
+        }
+        func isBundledStdlibDecl(_ symbol: SymbolID) -> Bool {
+            if sema.symbols.isImportedStdlibSymbol(symbol) {
+                return true
+            }
+            guard let file = sema.symbols.symbol(symbol)?.declSite?.start.file else {
+                return false
+            }
+            return driver.sourceManager?.origin(of: file)?.isBundledStdlib == true
+        }
+        return candidates.filter { candidate in
+            guard isBundledStdlibDecl(candidate) else {
+                return true
+            }
+            return !candidates.contains { other in
+                other != candidate
+                    && !isBundledStdlibDecl(other)
+                    && sameCallableSignature(candidate, other)
+            }
+        }
     }
 
     /// KUU-946: Kotlin admits extension functions as call candidates whenever

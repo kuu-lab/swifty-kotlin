@@ -22,5 +22,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_time_zone_get_id", "timeZoneRaw"),
         abi.nt("__kk_time_zone_get_raw_offset", "timeZoneRaw"),
         abi.nt("__kk_time_zone_get_offset", "timeZoneRaw epochMilliseconds"),
+        abi.nt("__kk_time_zone_get_display_name", "timeZoneRaw inDaylight style localeRaw"),
     ]
 }

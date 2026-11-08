@@ -1,11 +1,30 @@
 package java.lang
 
-public class Integer private constructor() {
+public class Integer(private val value: Int) {
+    public constructor(value: String) : this(value.toInt())
+
+    override fun toString(): String = value.toString()
+
+    public fun intValue(): Int = value
+
+    override fun equals(other: Any?): kotlin.Boolean {
+        val o = other as? Integer ?: return false
+        return o.value == value
+    }
+
+    override fun hashCode(): Int = value
+
     public companion object {
         public val MAX_VALUE: Int get() = 2147483647
         public val MIN_VALUE: Int get() = -2147483648
         public val SIZE: Int get() = 32
         public val BYTES: Int get() = 4
+
+        public fun valueOf(value: String): Int = parseInt(value)
+
+        public fun valueOf(value: String, radix: Int): Int = parseInt(value, radix)
+
+        public fun valueOf(value: Int): Int = value
 
         public fun parseInt(value: String): Int = value.toInt()
 
@@ -14,6 +33,12 @@ public class Integer private constructor() {
         public fun parseUnsignedInt(value: String): Int = value.toUInt().toInt()
 
         public fun parseUnsignedInt(value: String, radix: Int): Int = value.toUInt(radix).toInt()
+
+        public fun valueOf(value: Int): Int = value
+
+        public fun valueOf(value: String): Int = parseInt(value)
+
+        public fun valueOf(value: String, radix: Int): Int = parseInt(value, radix)
 
         public fun toString(value: Int): String = value.toString()
 

@@ -75,6 +75,14 @@ fun main() {
     println("bbbbbb".takeLastWhile { it == 'b' } + "|")
     println("".takeLastWhile { it == 'b' } + "|")
 
+    // dropLastWhile: all / none / partial, String-typed result
+    println("aaabbb".dropLastWhile { it == 'b' } + "|")
+    println("aaabbb".dropLastWhile { it == 'z' } + "|")
+    println("bbbbbb".dropLastWhile { it == 'b' } + "|")
+    println("".dropLastWhile { it == 'b' } + "|")
+    val droppedLast: String = "123abc".dropLastWhile { it.isDigit() }
+    println(droppedLast + "|")
+
     // chaining
     println("hello world".drop(6).take(3))
     println("  trimmed  ".takeWhile { it == ' ' }.length)

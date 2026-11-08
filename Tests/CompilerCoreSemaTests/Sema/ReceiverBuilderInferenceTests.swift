@@ -513,6 +513,25 @@ struct ReceiverBuilderInferenceTests {
         assertHasDiagnostic("KSWIFTK-SEMA-INFER", in: ctx)
     }
 
+    @Test func nonBuilderLambdaArgumentKeepsExpectedTypeFromEarlierArguments() throws {
+        TestStdlibCache.shared.prepare()
+        let ctx = makeContextFromSource("""
+        interface Collector<R> { fun emit(value: R) }
+
+        internal fun <R, T> Collector<R>.probe(
+            flows: Array<out T>,
+            arrayFactory: () -> Array<T?>?,
+            transform: Collector<R>.(Array<T>) -> Unit
+        ): Unit { }
+
+        fun Collector<Int>.driver(flows: Array<out String>) {
+            probe(flows, { arrayOfNulls(flows.size) }, { emit(1) })
+        }
+        """, allowDefaultStdlibLibrary: true)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     private func expectIntResult(_ source: String, callee: String = "build", callCount: Int = 1) throws {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])

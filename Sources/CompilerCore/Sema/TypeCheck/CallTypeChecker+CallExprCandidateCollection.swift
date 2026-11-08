@@ -141,7 +141,7 @@ extension CallTypeChecker {
                     named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                 )
                 if memberCandidates.isEmpty {
-                    memberCandidates = collectWorkerExecuteMemberCandidates(
+                    memberCandidates = collectWorkerMemberCandidates(
                         named: calleeName, receiverType: receiverType, sema: sema, interner: interner
                     )
                 }
@@ -240,7 +240,7 @@ extension CallTypeChecker {
                             interner: interner
                         )
                         if members.isEmpty {
-                            members = collectWorkerExecuteMemberCandidates(
+                            members = collectWorkerMemberCandidates(
                                 named: calleeName,
                                 receiverType: entry.type,
                                 sema: sema,

@@ -2,8 +2,10 @@
 
 package java.util.concurrent
 
+import java.util.function.Supplier
 import kotlinx.atomicfu.locks.ParkingSupport
 import kotlin.coroutines.cancellation.CancellationException
+import platform.Foundation.NSThread
 
 public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
     private var result: T? = null
@@ -129,6 +131,23 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
         return dependent
     }
 
+    public override fun thenAccept(action: (T) -> Unit): CompletableFuture<Unit> {
+        val dependent = CompletableFuture<Unit>()
+        addCompletionHandler { value, failure ->
+            if (failure != null) {
+                dependent.propagateFailure(failure)
+            } else {
+                try {
+                    action(value as T)
+                    dependent.complete(Unit)
+                } catch (thrown: Throwable) {
+                    dependent.completeExceptionally(thrown)
+                }
+            }
+        }
+        return dependent
+    }
+
     private fun addCompletionHandler(handler: (T?, Throwable?) -> Unit) {
         if (isCompleted) {
             handler(result, exception)
@@ -154,6 +173,18 @@ public open class CompletableFuture<T> : Future<T>, CompletionStage<T> {
     }
 
     public companion object {
+        public fun <U> supplyAsync(supplier: Supplier<U>): CompletableFuture<U> {
+            val future = CompletableFuture<U>()
+            NSThread {
+                try {
+                    future.complete(supplier.get())
+                } catch (thrown: Throwable) {
+                    future.completeExceptionally(thrown)
+                }
+            }.start()
+            return future
+        }
+
         public fun <U> completedFuture(value: U): CompletableFuture<U> {
             val cf = CompletableFuture<U>()
             cf.complete(value)

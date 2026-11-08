@@ -48,6 +48,18 @@ struct TypeCheckScopeBuilder {
                 sourceManager: sourceManager
             )
 
+            // Files suppressing invisible-access diagnostics keep the
+            // unfiltered same-package candidates so the suppressed use site
+            // still resolves (KUU-4232).
+            let suppressesInvisibleAccess = file.annotations.contains { annotation in
+                KnownCompilerAnnotation.suppress.matches(annotation.name)
+                    && annotation.arguments.contains { argument in
+                        let code = argument.filter { $0 != "\"" && $0 != "'" }
+                        return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                    }
+            }
+            let checkInternalModuleVisibility = !suppressesInvisibleAccess
+
             let packageScope = PackageMembersScope(parent: explicitImportScope, symbols: sema.symbols)
             let fileScope = FileScope(parent: packageScope, symbols: sema.symbols)
             for packageSymbol in topLevelSymbolsByPackage[file.packageFQName] ?? [] {
@@ -64,6 +76,19 @@ struct TypeCheckScopeBuilder {
                     continue
                 }
                 let packageSymbolInfo = sema.symbols.symbol(packageSymbol)
+                if checkInternalModuleVisibility,
+                   let packageSymbolInfo,
+                   !isInternalVisibleFromFileModule(
+                       packageSymbolInfo, file: file, sema: sema, sourceManager: sourceManager
+                   )
+                {
+                    // Kotlin `internal` visibility is module-scoped: an
+                    // internal declaration from the other module (bundled
+                    // stdlib vs user sources) is not a same-package
+                    // candidate and must not shadow a visible
+                    // wildcard-imported alternative (KUU-4232).
+                    continue
+                }
                 let isFilePrivate = packageSymbolInfo?.visibility == .private
                 let declaredInThisFile = packageSymbolInfo != nil
                     && (sema.symbols.sourceFileID(for: packageSymbol)
@@ -84,13 +109,16 @@ struct TypeCheckScopeBuilder {
                     packageScope.insert(packageSymbol)
                 }
             }
-            packageScope.addPackage(file.packageFQName) { [self, sema, file] symbolID in
+            packageScope.addPackage(file.packageFQName) { [self, sema, file, sourceManager, checkInternalModuleVisibility] symbolID in
                 !shouldSkipRootCancellationCompatibilityAlias(
                     symbolID,
                     file: file,
                     sema: sema,
                     interner: interner
-                ) && isPackageMemberVisibleFromFile(symbolID, file: file, sema: sema)
+                ) && isPackageMemberVisibleFromFile(
+                    symbolID, file: file, sema: sema, sourceManager: sourceManager,
+                    checkInternalModuleVisibility: checkInternalModuleVisibility
+                )
             }
 
             fileScopes[file.fileID.rawValue] = fileScope
@@ -109,14 +137,50 @@ struct TypeCheckScopeBuilder {
     /// Whether `symbolID` may be a same-package candidate for `file` through
     /// the deferred package-member path. File-private top-level declarations
     /// declared in another file are invisible here and must be skipped so a
-    /// visible alternative can win (KUU-4312).
+    /// visible alternative can win (KUU-4312), as are `internal` declarations
+    /// from the other module (KUU-4232).
     private func isPackageMemberVisibleFromFile(
         _ symbolID: SymbolID,
         file: ASTFile,
-        sema: SemaModule
+        sema: SemaModule,
+        sourceManager: SourceManager?,
+        checkInternalModuleVisibility: Bool
     ) -> Bool {
         guard let symbol = sema.symbols.symbol(symbolID) else { return true }
-        return sema.symbols.isFilePrivateTopLevelVisible(symbol, fileID: file.fileID)
+        guard sema.symbols.isFilePrivateTopLevelVisible(symbol, fileID: file.fileID) else {
+            return false
+        }
+        guard checkInternalModuleVisibility else { return true }
+        return isInternalVisibleFromFileModule(
+            symbol, file: file, sema: sema, sourceManager: sourceManager
+        )
+    }
+
+    /// Whether `symbol` is visible to `file` under Kotlin's module-scoped
+    /// `internal` rule. The bundled stdlib and user sources are separate
+    /// modules, so an `internal` declaration is a resolution candidate only
+    /// for files in the same module; without this filter an invisible
+    /// same-package declaration wins its tier over a visible
+    /// wildcard-imported alternative and the use site then fails with
+    /// SEMA-0044 (KUU-4232). Internal declarations imported from a library
+    /// artifact belong to that artifact's module and are never candidates
+    /// here. Symbols whose declaring file or origin cannot be determined
+    /// stay visible.
+    private func isInternalVisibleFromFileModule(
+        _ symbol: SemanticSymbol,
+        file: ASTFile,
+        sema: SemaModule,
+        sourceManager: SourceManager?
+    ) -> Bool {
+        guard symbol.visibility == .internal else { return true }
+        if symbol.flags.contains(.importedLibrary) { return false }
+        guard let sourceManager else { return true }
+        let fileIsBundledStdlib = sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+        let declFileID = sema.symbols.sourceFileID(for: symbol.id) ?? symbol.declSite?.start.file
+        guard let declFileID,
+              let declOrigin = sourceManager.origin(of: declFileID)
+        else { return true }
+        return declOrigin.isBundledStdlib == fileIsBundledStdlib
     }
 
     private func shouldSkipRootCancellationCompatibilityAlias(

@@ -15,9 +15,13 @@ public class StringJoiner(
     }
 
     public fun merge(other: StringJoiner): StringJoiner {
-        if (other.elements.isNotEmpty()) {
-            for (element in other.elements) elements.add(element)
+        if (other.elements.isEmpty()) return this
+        val merged = if (other.elements.size == 1) {
+            other.elements[0]
+        } else {
+            other.elements.joinToString(other.delimiter)
         }
+        elements.add(merged)
         return this
     }
 

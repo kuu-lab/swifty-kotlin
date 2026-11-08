@@ -101,5 +101,37 @@ struct GenericFunctionLambdaInputInferenceTests {
         #expect(selectedOverload != nil)
         #expect(nullableTypeArgument == sema.types.longType)
     }
+
+    @Test
+    func nonLambdaArgumentPinsReturnOnlyVariableInSiblingLambda() throws {
+        let fixture = try checkSources([
+            """
+            package flows.internal
+
+            interface Collector<R> { fun emit(value: R) }
+
+            fun <R, T> Collector<R>.combineProbe(
+                flows: Array<out T>,
+                arrayFactory: () -> Array<T?>?,
+                transform: Collector<R>.(Array<T>) -> Unit
+            ): Unit { }
+            """,
+            """
+            import flows.internal.*
+
+            fun <X> nulls(size: Int): Array<X?>? = null
+
+            fun Collector<Int>.driver(flows: Array<out String>) {
+                combineProbe(flows, { nulls(flows.size) }, { emit(1) })
+            }
+            """,
+        ])
+        let errors = diagnosticsForPath(fixture.paths[1], in: fixture.context)
+            .filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Expected the factory lambda's expected type to carry T bound from `flows`, got: \(errors)"
+        )
+    }
 }
 #endif

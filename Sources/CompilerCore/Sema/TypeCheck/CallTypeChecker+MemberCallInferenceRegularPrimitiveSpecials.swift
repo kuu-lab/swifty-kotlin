@@ -92,6 +92,25 @@ extension CallTypeChecker {
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
+            // kotlinc exposes six compareTo overloads on each signed primitive
+            // receiver, so `i.compareTo(TODO())` is ambiguous there. KSwiftK
+            // binds the single Comparable<T> member instead and must report the
+            // ambiguity itself (KUU-4351). Unsigned primitives keep their
+            // unique resolution, matching kotlinc.
+            if interner.resolve(calleeName) == "compareTo",
+               case .nothing(.nonNull) = sema.types.kind(of: argTypes[0]),
+               receiverForCheck == byteType || receiverForCheck == shortType
+                   || receiverForCheck == intType || receiverForCheck == longType
+                   || receiverForCheck == floatType || receiverForCheck == doubleType
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0003",
+                    "Ambiguous overload resolution.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             // Range expressions use their scalar element type as the lowering
             // type. Keep them out of the numeric fast path so range extensions
             // such as Iterable.plus/minus can be resolved from the source-level
@@ -134,6 +153,24 @@ extension CallTypeChecker {
                 }
                 return false
             }()
+            // KUU-4351: operator `compareTo` calls take the member-call path
+            // too, but a non-null `Nothing` argument makes every primitive
+            // overload applicable and kotlinc reports the signed and
+            // floating-point sets as ambiguous. Char and the unsigned types
+            // keep a unique winner and fall through to normal resolution.
+            if interner.resolve(calleeName) == "compareTo",
+               isNonNullNothingOperand,
+               receiverForCheck == byteType || receiverForCheck == shortType
+                   || receiverForCheck == intType || receiverForCheck == longType
+                   || receiverForCheck == floatType || receiverForCheck == doubleType
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0003",
+                    "Ambiguous overload resolution.",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
             // KUU-3954: Kotlin's primitive arithmetic members take only
             // non-null numeric operands — `x.plus(xn)` where xn: Int? is
             // rejected by kotlinc — but the fast path used to strip operand

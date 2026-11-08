@@ -1,6 +1,19 @@
 package java.lang
 
-public class Byte private constructor() {
+public class Byte(private val value: kotlin.Byte) {
+    public constructor(value: String) : this(value.toByte())
+
+    override fun toString(): String = value.toString()
+
+    public fun byteValue(): kotlin.Byte = value
+
+    override fun equals(other: Any?): kotlin.Boolean {
+        val o = other as? Byte ?: return false
+        return o.value == value
+    }
+
+    override fun hashCode(): Int = value.toInt()
+
     public companion object {
         public val MAX_VALUE: kotlin.Byte get() = 127
         public val MIN_VALUE: kotlin.Byte get() = -128

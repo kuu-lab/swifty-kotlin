@@ -460,6 +460,23 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: coroutineContextType)
             return coroutineContextType
         }
+        // A `Nothing` receiver is a subtype of every operator receiver type,
+        // so kotlinc keeps `TODO() + x` ambiguous among the primitive and
+        // extension overloads. KSwiftK's candidate resolution picks a winner
+        // instead; report the ambiguity directly for the arithmetic
+        // conventions (KUU-4351).
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+           lhs == sema.types.nothingType,
+           rhs != sema.types.errorType
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous overload resolution.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let operatorNames = operatorFunctionNames(for: op, interner: interner)
         let operatorName = operatorNames[0]
         let nothingRangePeerType: TypeID? = {
@@ -785,6 +802,29 @@ extension ExprTypeChecker {
             }
         }
         if !operatorCandidates.isEmpty {
+            // KUU-4351: a `Nothing` receiver has no member operators, so every
+            // "applicable" candidate is a generic extension whose inference
+            // collapses to errorType silently. kotlinc rejects arithmetic and
+            // comparison operators with a Nothing lhs outright.
+            let isNothingReceiverOperator: Bool = switch op {
+            case .add, .subtract, .multiply, .divide, .modulo,
+                 .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+            if isNothingReceiverOperator,
+               lhs != sema.types.errorType, rhs != sema.types.errorType,
+               case .nothing(.nonNull) = sema.types.kind(of: lhs)
+            {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
             let isComparisonOperator: Bool = switch op {
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 true
@@ -961,6 +1001,59 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: effectiveType)
             return effectiveType
         }
+        // KUU-4351: a non-null `Nothing` operand is a subtype of every operator
+        // parameter type, so kotlinc keeps only uniquely-resolvable overloads —
+        // the unsigned receivers and Char's plus/compareTo accept it, signed
+        // and floating-point receivers are ambiguous, and a `Nothing` receiver
+        // has no member operators (the remaining extension set is ambiguous as
+        // well). Range operators keep the Nothing-peer handling above; equality
+        // never reaches this path.
+        let isNonNullNothingType: (TypeID) -> Bool = { candidate in
+            if case .nothing(.nonNull) = sema.types.kind(of: candidate) {
+                return true
+            }
+            return false
+        }
+        let isNothingOperandOperator: Bool = switch op {
+        case .add, .subtract, .multiply, .divide, .modulo,
+             .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+            true
+        default:
+            false
+        }
+        if isNothingOperandOperator,
+           lhs != sema.types.errorType, rhs != sema.types.errorType,
+           isNonNullNothingType(lhs) || isNonNullNothingType(rhs)
+        {
+            let isNothingOperandComparison: Bool = switch op {
+            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
+                true
+            default:
+                false
+            }
+            let resultType: TypeID? = if isNonNullNothingType(lhs) {
+                nil
+            } else if sema.types.isUnsigned(lhs) {
+                isNothingOperandComparison ? boolType : (lhs == ulongType ? ulongType : uintType)
+            } else if lhs == charType, op == .add {
+                charType
+            } else if lhs == charType, isNothingOperandComparison {
+                boolType
+            } else {
+                nil
+            }
+            if let resultType {
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
+            }
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0002",
+                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         let isRelationalComparison: Bool = switch op {
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
             true
@@ -990,11 +1083,23 @@ extension ExprTypeChecker {
             )
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }
+        // A `Nothing` operand is a subtype of every parameter type, so it must
+        // not satisfy the text-addition check: `c + TODO()` is not a string
+        // concatenation (KUU-4351).
+        let isNothingOperand: (TypeID) -> Bool = { operand in
+            sema.types.nullability(of: operand) != .nullable
+                && {
+                    if case .nothing = sema.types.kind(of: operand) { return true }
+                    return false
+                }()
+        }
+        let lhsIsNothingOperand = isNothingOperand(lhs)
+        let rhsIsNothingOperand = isNothingOperand(rhs)
         let hasInvalidTextAddition = op == .add && (
             sema.types.isString(rhs)
-                || driver.callChecker.syntheticCharSequenceType(sema: sema).map {
+                || (!rhsIsNothingOperand && driver.callChecker.syntheticCharSequenceType(sema: sema).map {
                     sema.types.isSubtype(sema.types.makeNonNullable(rhs), $0)
-                } == true
+                } == true)
         )
         // The switch below implements only the built-in numeric and range
         // operators. Restrict it to builtin arithmetic operands (numeric
@@ -1012,6 +1117,23 @@ extension ExprTypeChecker {
             ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
                 "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                range: range
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
+        // kotlinc keeps `x + TODO()` ambiguous among the primitive operator
+        // overloads unless a single member applies: `Char.plus(Int)` for `+`,
+        // or the unsigned operators for every arithmetic op (KUU-4351).
+        if [.add, .subtract, .multiply, .divide, .modulo].contains(op),
+           lhs != sema.types.errorType, rhs != sema.types.errorType,
+           (lhsIsNothingOperand || rhsIsNothingOperand)
+               && !(op == .add && !lhsIsNothingOperand && rhsIsNothingOperand && lhs == charType)
+               && !(rhsIsNothingOperand && !lhsIsNothingOperand && sema.types.isUnsigned(lhs))
+        {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0003",
+                "Ambiguous overload resolution.",
                 range: range
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -1067,7 +1189,7 @@ extension ExprTypeChecker {
 
         switch op {
         case .add:
-            if lhs == charType && rhs == intType {
+            if lhs == charType && (rhs == intType || rhsIsNothingOperand) {
                 type = charType
             } else if lhs == doubleType || rhs == doubleType {
                 type = doubleType

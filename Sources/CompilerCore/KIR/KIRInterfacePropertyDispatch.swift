@@ -145,6 +145,13 @@ func kirInterfacePropertyGetterSlots(
             let isContinuationContext = interfaceInfo.fqName == [
                 interner.intern("kotlin"), interner.intern("coroutines"), interner.intern("Continuation"),
             ] && property.name == interner.intern("context")
+            // SendChannel.isClosedForSend is runtime-bridged for raw channel
+            // handles, but BroadcastChannel is a source-backed implementation
+            // whose override must stay reachable through the itable (KUU-4376).
+            let isSendChannelClosedForSend = interfaceInfo.fqName == [
+                interner.intern("kotlinx"), interner.intern("coroutines"),
+                interner.intern("channels"), interner.intern("SendChannel"),
+            ] && property.name == interner.intern("isClosedForSend")
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `length`) are read through their external link, not an
             // itable slot — leave them out of the property getter table.
@@ -157,7 +164,9 @@ func kirInterfacePropertyGetterSlots(
                 }
             // Imported properties can carry the bridge on their getter instead
             // of the property symbol. Preserve the source-side slot layout.
-            if hasRuntimeLink, !isSyntheticMapProperty, !isSyntheticCollectionSize, !isContinuationContext {
+            if hasRuntimeLink, !isSyntheticMapProperty, !isSyntheticCollectionSize,
+               !isContinuationContext, !isSendChannelClosedForSend
+            {
                 return nil
             }
             // Likewise for synthetic runtime members registered on an otherwise

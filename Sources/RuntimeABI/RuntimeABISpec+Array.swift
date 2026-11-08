@@ -9,6 +9,7 @@ public extension RuntimeABISpec {
         abi.nt("kk_array_new", "length"),
         abi.th("kk_array_new_checked", "length outThrown"),
         abi.nt("kk_array_tag_type", "arrayRaw typeID"),
+        abi.nt("kk_array_is_array_of", "arrayRaw componentType", raw: true),
         abi.th("kk_array_of_nulls", "length outThrown"),
         abi.nt("kk_object_new", "length classId"),
         abi.nt("kk_runtime_register_data_class", "classID"),

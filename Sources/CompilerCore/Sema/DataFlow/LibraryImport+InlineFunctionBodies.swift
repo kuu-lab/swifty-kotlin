@@ -350,6 +350,25 @@ extension DataFlowSemaPhase {
         // the materialized bodies join the module as ordinary decls. Globals
         // they touch (the singleton handle, `$initialized` flags) need slots
         // owned by this compilation too.
+        func canEmitStandaloneBody(_ function: KIRFunction, symbol: SymbolID) -> Bool {
+            // `inline` records keep the expansion contract: reified type
+            // parameters arrive as extra token arguments only an expansion
+            // can supply, and suspend bodies ship pre-coroutine-lowering.
+            // Non-inline records — including `kk_fn_` link-name shells,
+            // which only exist for bodies shipped without a metadata symbol —
+            // are regular functions the wasm backend can call directly.
+            guard !function.isSuspend,
+                  symbols.symbol(symbol)?.flags.contains(.inlineFunction) != true
+            else { return false }
+            return !function.body.contains {
+                switch $0 {
+                case .nonLocalReturn, .beginNonLocalReturnScope, .resumeNonLocalReturn:
+                    return true
+                default:
+                    return false
+                }
+            }
+        }
         if materializeInitBodiesForWasm {
             var seenFunctions: Set<SymbolID> = []
             var seenGlobals: Set<SymbolID> = []
@@ -360,11 +379,33 @@ extension DataFlowSemaPhase {
                 default: break
                 }
             }
-            for symbol in scannedSymbols {
+            for symbol in scannedSymbols.sorted(by: { $0.rawValue < $1.rawValue }) {
                 guard let function = state.importedInlineFunctions.functions[symbol]
                 else { continue }
-                if isInitBodySymbol(symbol), !seenFunctions.contains(symbol) {
-                    _ = module.arena.appendDecl(.function(function))
+                if seenFunctions.contains(symbol) {
+                    // Already an ordinary decl in this module.
+                } else if isInitBodySymbol(symbol), canEmitStandaloneBody(function, symbol: symbol) {
+                    // Materialized init/link-name bodies become ordinary
+                    // module functions: wasm has no object linker, so calls
+                    // must reach a real emitted body instead of expanding
+                    // the whole transitive closure into each caller (which
+                    // overflows the expansion budget and the wasm
+                    // validator's local-count limit). Dropping the
+                    // expansion-table entries keeps the symbol from counting
+                    // as a bodyless callee that every call site must expand.
+                    _ = module.arena.appendDecl(.function(KIRFunction(
+                        symbol: function.symbol,
+                        name: function.name,
+                        params: function.params,
+                        returnType: function.returnType,
+                        body: function.body,
+                        isSuspend: function.isSuspend,
+                        isInline: false,
+                        isTailrec: function.isTailrec,
+                        sourceRange: function.sourceRange,
+                        instructionLocations: function.instructionLocations
+                    )))
+                    state.importedInlineFunctions.removeMaterializedFunction(for: symbol)
                 }
                 // Globals reach this module two ways: appended init decls
                 // read/write them directly, and inlined callee bodies embed

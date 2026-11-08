@@ -222,6 +222,27 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
     }
 
     @Test
+    func sameNamedCharExtensionCallBypassesCharCodeBridge() throws {
+        try withTemporaryFile(contents: """
+        fun Char.code(): Int = this.code + 10
+        fun main() {
+            println('a'.code())
+        }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let calls = body.compactMap { instruction -> String? in
+                if case let .call(_, callee, _, _, _, _, _, _) = instruction { return ctx.interner.resolve(callee) }
+                return nil
+            }
+            #expect(calls.filter { $0 == "kk_char_code" }.isEmpty)
+        }
+    }
+
+    @Test
     func localExtensionFunctionOnInterfaceReceiverIsInvocable() throws {
         // KUU-3023: a local extension declared inside a body resolves through
         // the lexical function-value path when invoked on an interface-typed
@@ -334,6 +355,34 @@ struct ExplicitReceiverFunctionInvocationSyntaxTests {
 
         let found = diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0309" }
         #expect(found, "Expected SEMA-0309 for user java.* class, got: \(diagnostics.diagnostics.map(\.code))")
+    }
+
+    @Test
+    func extensionPropertyNamedLikeCollectionFunctionIsAccepted() throws {
+        // KUU-4387: `var MutableList<Int>.last` shares its name with the
+        // bundled `last()` collection function. Property-access syntax must
+        // bind the property — the collection member-call fast path only
+        // models invocations and must not claim `recv.name` first.
+        let diagnostics = try compileAndCollectDiagnostics("""
+        var MutableList<Int>.last: Int
+            get() = this[size - 1]
+            set(v) { this[size - 1] = v }
+
+        val List<Int>.first: Int
+            get() = this[0]
+
+        fun main() {
+            val l = mutableListOf(1, 2, 3)
+            println(l.last)
+            l.last = 9
+            println(l)
+            println(l.first)
+            println(l.last())
+        }
+        """)
+
+        let errors = diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors for colliding extension property: \(errors)")
     }
 
     @Test

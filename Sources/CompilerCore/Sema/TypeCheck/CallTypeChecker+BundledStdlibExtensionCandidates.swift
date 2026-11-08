@@ -3,16 +3,19 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
-    /// Worker.execute is a Kotlin/Native member represented by a bundled
-    /// package extension. Recover it before contextualizing producer/job lambdas.
-    func collectWorkerExecuteMemberCandidates(
+    /// Kotlin/Native Worker receiver APIs are members represented by bundled
+    /// package extensions. Recover them before contextualizing call arguments;
+    /// KIR lowering already maps every name below to its runtime ABI entry.
+    func collectWorkerMemberCandidates(
         named name: InternedString,
         receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
         let package = ["kotlin", "native", "concurrent"].map(interner.intern)
-        guard name == interner.intern("execute"),
+        let memberNames = Set(["asCPointer", "execute", "executeAfter", "park",
+                               "processQueue", "requestTermination"].map(interner.intern))
+        guard memberNames.contains(name),
               let owner = driver.helpers.nominalSymbol(
                   of: sema.types.makeNonNullable(receiverType), types: sema.types
               ),

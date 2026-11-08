@@ -1265,11 +1265,30 @@ extension KIRLoweringDriver {
         let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleNameInterned), type: intType)
         body.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleNameInterned)))
 
+        // The interned KClass box is shared with `T::class` literals and
+        // `KType.classifier` results, so its name hint must be the qualified
+        // name — the same spelling `T::class` passes. This initializer runs
+        // during module init for every nominal, so a simple-name hint would
+        // win the intern race and degrade `qualifiedName` to the simple name
+        // for any type that never gets a literal site (e.g. a supertype
+        // classifier reached only through `KClass.supertypes`).
+        let ownerType = sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol, args: [], nullability: .nonNull
+        )))
+        let qualifiedName = RuntimeTypeCheckToken.qualifiedName(
+            of: ownerType, sema: sema, interner: interner
+        ) ?? RuntimeTypeCheckToken.reflectionQualifiedName(
+            of: ownerInfo, sema: sema, interner: interner
+        )
+        let qualifiedInterned = interner.intern(qualifiedName)
+        let qualifiedExpr = arena.appendExpr(.stringLiteral(qualifiedInterned), type: intType)
+        body.append(.constValue(result: qualifiedExpr, value: .stringLiteral(qualifiedInterned)))
+
         let kclassExpr = arena.appendTemporary(type: sema.types.makeKClassType(argument: sema.types.anyType)
         )
         body.append(.call(
             callee: interner.intern("__kk_kclass_create"),
-            arguments: [typeTokenExpr, simpleNameExpr],
+            arguments: [typeTokenExpr, qualifiedExpr],
             result: kclassExpr,
             canThrow: false
         ))

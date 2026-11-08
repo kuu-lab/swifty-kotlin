@@ -584,6 +584,48 @@ struct RuntimeAnyEqualityTests {
         #expect(ordinaryEntries.contains(rawValue: source))
     }
 
+    // KUU-4447: MutableMap.entries.remove must match contains() — an entry
+    // equal by key+value removes the pair even when the entry object comes
+    // from a different map (JVM EntrySet.remove uses matchValue=true).
+    @Test
+    func testEntriesRemoveMatchesEquivalentEntryByKeyAndValue() throws {
+        let keyB = registerRuntimeObject(RuntimeStringBox("b"))
+        let keyC = registerRuntimeObject(RuntimeStringBox("c"))
+        let map = registerRuntimeObject(RuntimeMapBox(keys: [keyB, keyC], values: [3, 4]))
+        let entriesRaw = kk_map_entries(map)
+        let entries = try #require(runtimeSetBox(from: entriesRaw))
+
+        // An equivalent entry minted by a different map removes the pair.
+        let foreignKeyC = registerRuntimeObject(RuntimeStringBox("c"))
+        let foreign = registerRuntimeObject(RuntimeMapBox(keys: [foreignKeyC], values: [4]))
+        let foreignEntry = try #require(
+            runtimeSetBox(from: kk_map_entries(foreign))?.elements.first
+        )
+        var thrown = 0
+        #expect(kk_mutable_set_remove(entriesRaw, foreignEntry, &thrown) == 1)
+        #expect(thrown == 0)
+        #expect(runtimeMapBox(from: map)?.index(ofRawKey: keyC) == nil)
+        #expect(runtimeMapBox(from: map)?.index(ofRawKey: keyB) != nil)
+
+        // Same key with a different value must not remove (matchValue).
+        let mismatchKey = registerRuntimeObject(RuntimeStringBox("b"))
+        let mismatchValue = registerRuntimeObject(RuntimeStringBox("nope"))
+        let mismatchForeign = registerRuntimeObject(
+            RuntimeMapBox(keys: [mismatchKey], values: [mismatchValue])
+        )
+        let mismatchEntry = try #require(
+            runtimeSetBox(from: kk_map_entries(mismatchForeign))?.elements.first
+        )
+        #expect(kk_mutable_set_remove(entriesRaw, mismatchEntry, &thrown) == 0)
+        #expect(runtimeMapBox(from: map)?.index(ofRawKey: keyB) != nil)
+
+        // A detached immutable Map.Entry (mutableMapRaw == 0) also removes.
+        let detachedKey = registerRuntimeObject(RuntimeStringBox("b"))
+        let detachedEntry = runtimeMapEntryNew(key: detachedKey, value: 3)
+        #expect(kk_mutable_set_remove(entriesRaw, detachedEntry, &thrown) == 1)
+        #expect(runtimeMapBox(from: map)?.isEmpty == true)
+    }
+
     // Pairs the runtime allocates for its own plumbing (comparator pairs and
     // the like) stay untagged and keep reference identity, so they never look
     // like a Kotlin `Pair` to `is`/`==`.

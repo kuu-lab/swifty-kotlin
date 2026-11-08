@@ -155,9 +155,66 @@ extension CallTypeChecker {
             }
         }
 
-        return enforceFunctionInvocationSyntax(
+        let result = enforceFunctionInvocationSyntax(
             request,
             result: inferMemberCallOnReceiver(request, receiverType: receiverType, locals: &locals)
+        )
+        checkObjectQualifierOptInCoverage(request)
+        return result
+    }
+
+    /// `inferNameRefExpr(isQualifier:)` skips the opt-in check for a plain
+    /// object used purely as a member-call qualifier on the assumption that
+    /// the resolved callee re-checks the same markers — true for members
+    /// (owner propagation) and for extensions whose declared receiver type
+    /// carries the marker, but false for e.g. `GlobalScope.launch {}` where
+    /// `launch` is an extension on `CoroutineScope` and the
+    /// `@DelicateCoroutinesApi` marker lives only on the `GlobalScope`
+    /// object (KUU-4426). After resolution, emit the qualifier object's
+    /// requirements that the chosen callee does not already cover.
+    private func checkObjectQualifierOptInCoverage(_ request: MemberCallInferenceRequest) {
+        let sema = request.ctx.sema
+        guard !request.safeCall,
+              case .nameRef = request.ctx.ast.arena.expr(request.receiverID),
+              let qualifier = sema.bindings.identifierSymbol(for: request.receiverID),
+              sema.symbols.symbol(qualifier)?.kind == .object,
+              !sema.symbols.children(of: qualifier).contains(where: { child in
+                  switch sema.symbols.symbol(child)?.kind {
+                  case .class, .interface, .enumClass, .object, .annotationClass, .typeAlias:
+                      return true
+                  default:
+                      return false
+                  }
+              }),
+              let chosen = sema.bindings.callBinding(for: request.id)?.chosenCallee
+                  ?? sema.bindings.identifierSymbol(for: request.id).flatMap({ symbol in
+                      switch sema.symbols.symbol(symbol)?.kind {
+                      case .function, .property:
+                          return symbol
+                      default:
+                          return nil
+                      }
+                  })
+        else {
+            return
+        }
+        let qualifierRequirements = driver.helpers.resolvedOptInRequirements(for: qualifier, ctx: request.ctx)
+        guard !qualifierRequirements.isEmpty else { return }
+        let coveredMarkers = Set(driver.helpers.resolvedOptInRequirements(
+            for: chosen,
+            ctx: request.ctx
+        ).map(\.markerSymbol))
+        let uncovered = qualifierRequirements.filter { !coveredMarkers.contains($0.markerSymbol) }
+        guard !uncovered.isEmpty,
+              let receiverRange = request.ctx.ast.arena.exprRange(request.receiverID)
+        else {
+            return
+        }
+        driver.helpers.emitOptInRequirements(
+            uncovered,
+            ctx: request.ctx,
+            range: receiverRange,
+            diagnostics: sema.diagnostics
         )
     }
 
@@ -280,7 +337,7 @@ extension CallTypeChecker {
     /// is a facade only for those exact modeled properties — user,
     /// member, or other bundled functions keep Kotlin's
     /// invocation-syntax requirement.
-    private func isBundledPropertyStyleFacadeFunction(
+    func isBundledPropertyStyleFacadeFunction(
         _ candidate: SymbolID,
         ctx: TypeInferenceContext
     ) -> Bool {
@@ -318,7 +375,15 @@ extension CallTypeChecker {
                 interner.intern("kotlin"), interner.intern("jvm"), interner.intern("java"),
             ] else { return false }
         case "code", "category", "directionality":
-            guard signature.receiverType == sema.types.charType else {
+            // The signature key alone cannot tell the facade apart from a
+            // user extension with the same name and receiver: both produce
+            // the same (owner, name, arity) member key. Pin the declaration
+            // to the `kotlin.text` package the stubs are registered under.
+            guard signature.receiverType == sema.types.charType,
+                  symbol.fqName == [
+                      interner.intern("kotlin"), interner.intern("text"), symbol.name,
+                  ]
+            else {
                 return false
             }
             allowsSyntheticStub = true

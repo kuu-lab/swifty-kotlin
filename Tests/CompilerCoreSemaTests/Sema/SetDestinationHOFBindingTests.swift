@@ -84,10 +84,15 @@ struct SetDestinationHOFBindingTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
             let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
-            #expect(errors.count == 2, "Expected both Map.filter*To list-destination calls to be rejected, got \(errors)")
-            for error in errors {
-                #expect(error.code == "KSWIFTK-SEMA-0473", "Expected destination type-mismatch, got \(error)")
-            }
+            // Each call reports the bare-factory inference failure
+            // (KSWIFTK-SEMA-INFER, KUU-4002) and the destination bound
+            // mismatch — the same pair kotlinc emits.
+            #expect(errors.count == 4, "Expected both Map.filter*To list-destination calls to be rejected, got \(errors)")
+            #expect(
+                errors.filter { $0.code == "KSWIFTK-SEMA-INFER" }.count == 2
+                    && errors.filter { $0.code == "KSWIFTK-SEMA-0473" }.count == 2,
+                "Expected inference + destination type-mismatch pairs, got \(errors)"
+            )
         }
     }
 }

@@ -123,6 +123,15 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
     public fun divide(divisor: BigDecimal, scale: Int, roundingMode: Int): BigDecimal =
         __kk_bignum_divideAtScale(divisor, scale, roundingMode)
 
+    /**
+     * Returns a `BigDecimal` whose value is `(this % divisor)`. Like the JDK,
+     * the result is `this - divideToIntegralValue(divisor) * divisor`, so its
+     * sign follows this value and its scale is `max(this.scale(),
+     * divisor.scale())` adjusted by the subtraction.
+     */
+    public fun remainder(divisor: BigDecimal): BigDecimal =
+        subtract(divide(divisor, 0, RoundingMode.DOWN).multiply(divisor))
+
     public fun setScale(newScale: Int): BigDecimal =
         __kk_bignum_setScale(newScale, RoundingMode.UNNECESSARY.runtimeCode())
 
@@ -134,6 +143,9 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
         __kk_bignum_setScale(newScale, roundingMode)
 
     public fun scale(): Int = __kk_bignum_scale()
+
+    /** Returns the number of digits in the unscaled value of this `BigDecimal`. */
+    public fun precision(): Int = unscaledValue().abs().toString().length
 
     /**
      * Returns a `BigDecimal` whose value is `(this^n)`, computed exactly.
@@ -188,6 +200,25 @@ public class BigDecimal : Number(), Comparable<BigDecimal> {
      */
     public fun toBigIntegerExact(): BigInteger =
         BigInteger(setScale(0, RoundingMode.UNNECESSARY).toString())
+
+    /**
+     * Returns a `BigDecimal` which is numerically equal to this value but with
+     * any trailing zeros removed from the unscaled value. Like the JDK, the
+     * scale may become negative (e.g. `BigDecimal("1000")` becomes `1E+3`), and
+     * zero returns `BigDecimal.ZERO`.
+     */
+    public fun stripTrailingZeros(): BigDecimal {
+        val unscaled = unscaledValue()
+        if (unscaled.signum() == 0) return ZERO
+        var stripped = unscaled
+        var newScale = scale()
+        while (stripped.remainder(BigInteger.TEN).signum() == 0) {
+            stripped = stripped.divide(BigInteger.TEN)
+            newScale--
+        }
+        if (newScale == scale()) return this
+        return BigDecimal(stripped.toString() + "E" + (-newScale.toLong()))
+    }
 
     public operator fun plus(other: BigDecimal): BigDecimal = add(other)
 

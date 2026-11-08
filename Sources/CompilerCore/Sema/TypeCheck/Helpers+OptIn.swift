@@ -24,12 +24,12 @@ final class OptInResolutionCache {
 }
 
 extension TypeCheckHelpers {
-    fileprivate enum OptInLevel {
+    enum OptInLevel {
         case warning
         case error
     }
 
-    fileprivate struct OptInRequirement {
+    struct OptInRequirement {
         let markerSymbol: SymbolID
         let markerName: String
         let message: String
@@ -43,6 +43,31 @@ extension TypeCheckHelpers {
         range: SourceRange?,
         diagnostics: DiagnosticEngine
     ) {
+        emitOptInRequirements(
+            resolvedOptInRequirements(
+                for: symbolID,
+                constructorTypeAlias: constructorTypeAlias,
+                ctx: ctx,
+                range: range
+            ),
+            ctx: ctx,
+            range: range,
+            diagnostics: diagnostics
+        )
+    }
+
+    /// The full opt-in requirement set `checkOptIn` would report for a
+    /// symbol: its own markers, constructor-alias owner markers, member
+    /// owner propagation, and markers carried by signature types. Member-call
+    /// inference uses this to tell whether a resolved callee already covers
+    /// the markers of an object qualifier whose own check was skipped
+    /// (KUU-4426).
+    func resolvedOptInRequirements(
+        for symbolID: SymbolID,
+        constructorTypeAlias: SymbolID? = nil,
+        ctx: TypeInferenceContext,
+        range: SourceRange? = nil
+    ) -> [OptInRequirement] {
         var requirements = requiredOptInRequirements(for: symbolID, ctx: ctx)
         var isAnnotationConstruction = false
         if ctx.sema.symbols.symbol(symbolID)?.kind == .constructor,
@@ -96,10 +121,10 @@ extension TypeCheckHelpers {
             signatureTypes.append(contentsOf: signature.parameterTypes)
         }
         requirements.append(contentsOf: requiredOptInRequirements(forTypes: signatureTypes, ctx: ctx))
-        emitOptInRequirements(requirements, ctx: ctx, range: range, diagnostics: diagnostics)
+        return requirements
     }
 
-    private func emitOptInRequirements(
+    func emitOptInRequirements(
         _ requirements: [OptInRequirement],
         ctx: TypeInferenceContext,
         range: SourceRange?,

@@ -81,4 +81,57 @@ struct BundledStdlibWildcardVisibilityTests {
             #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == helper })
         }
     }
+
+    /// KUU-4232: an `internal` declaration in the bundled stdlib module must
+    /// not win the same-package classifier tier over a visible
+    /// wildcard-imported declaration. The bundled stdlib keeps internal
+    /// classifiers such as `kotlinx.coroutines.flow.ChannelFlowImpl`;
+    /// upstream-style sources declare their own same-named classifier in a
+    /// subpackage and import it with a wildcard, as `ChannelAsFlow` does in
+    /// kotlinx-coroutines Channels.kt.
+    @Test
+    func samePackageInternalStdlibDeclDoesNotShadowWildcardImport() throws {
+        try withTemporaryFiles(contents: [
+            """
+            package kotlinx.coroutines.flow.internal
+            internal open class ChannelFlowImpl<T>
+            """,
+            """
+            package kotlinx.coroutines.flow
+            import kotlinx.coroutines.flow.internal.*
+            class ChannelAsFlow<T> : ChannelFlowImpl<T>()
+            fun take(flow: ChannelFlowImpl<*>): String = "ok"
+            """,
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .executable)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+            let sema = try #require(ctx.sema)
+            let owner = try #require(sema.symbols.lookup(
+                fqName: ["kotlinx", "coroutines", "flow", "ChannelAsFlow"].map(ctx.interner.intern)
+            ))
+            let supertypes = sema.symbols.directSupertypes(for: owner)
+            #expect(supertypes.count == 1)
+            let superSymbol = try #require(supertypes.first.flatMap { sema.symbols.symbol($0) })
+            #expect(superSymbol.fqName.map(ctx.interner.resolve)
+                == ["kotlinx", "coroutines", "flow", "internal", "ChannelFlowImpl"])
+        }
+    }
+
+    /// KUU-4232: skipping invisible internal candidates must not swallow the
+    /// visibility diagnostic when no visible alternative exists — kotlinc
+    /// still resolves the inaccessible classifier and reports the access
+    /// error.
+    @Test
+    func internalStdlibDeclWithoutAlternativeStillReportsInvisibleAccess() throws {
+        try withTemporaryFile(contents: """
+        package kotlinx.coroutines.flow
+        class ChannelAsFlow<T> : ChannelFlowImpl<T>()
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .executable)
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0044" },
+                    "\(ctx.diagnostics.diagnostics)")
+        }
+    }
 }

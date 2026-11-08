@@ -46,6 +46,15 @@ private external fun __classGetDeclaredMethod(
 @KsSymbolName("__kk_java_class_get_declared_field")
 private external fun __classGetDeclaredField(type: Class<*>, name: String): Field
 
+@KsSymbolName("__kk_java_class_get_field")
+private external fun __classGetField(type: Class<*>, name: String): Field
+
+@KsSymbolName("__kk_java_class_get_modifiers")
+private external fun __classGetModifiers(type: Class<*>): Int
+
+@KsSymbolName("__kk_java_class_identity_token")
+private external fun __classIdentityToken(type: Class<*>): Int
+
 @KsSymbolName("__kk_java_class_get_name")
 private external fun __classGetName(type: Class<*>): String
 
@@ -113,6 +122,7 @@ public class Class<T> {
     public val methods: Array<Method>
         get() = __classGetMethods(this)
 
+    /**
      * Kotlin view of `getInterfaces()`: the interfaces directly implemented by
      * this class, or directly extended by this interface. Empty for classes
      * with no direct interfaces, for primitives, and for `java.lang.Object`;
@@ -159,11 +169,47 @@ public class Class<T> {
         __classGetDeclaredMethod(this, name, parameterTypes)
 
     /**
+     * JVM `getMethod`: finds a public method by name and parameter types,
+     * including inherited ones. Panics with `java.lang.NoSuchMethodException`
+     * when no match exists.
+     */
+    public fun getMethod(name: String, vararg parameterTypes: Class<*>): Method {
+        for (method in getMethods()) {
+            if (method.getName() != name) continue
+            val params = method.getParameterTypes()
+            if (params.size != parameterTypes.size) continue
+            var match = true
+            for (index in params.indices) {
+                if (__classIdentityToken(params[index]) != __classIdentityToken(parameterTypes[index])) {
+                    match = false
+                    break
+                }
+            }
+            if (match) return method
+        }
+        throw NoSuchMethodException(name)
+    }
+
+    /**
      * Returns an enum entry field declared by this class.
      * The native runtime panics with `java.lang.NoSuchFieldException` when the
      * name is absent or names a field outside the supported enum-entry surface.
      */
     public fun getDeclaredField(name: String): Field = __classGetDeclaredField(this, name)
+
+    /**
+     * JVM `getField`: finds a public field by name, including inherited ones.
+     * The native runtime panics with `java.lang.NoSuchFieldException` when the
+     * name is absent.
+     */
+    public fun getField(name: String): Field = __classGetField(this, name)
+
+    /**
+     * JVM `getModifiers`: Java access/behavior modifier bits for this class.
+     * Derived from bundled class metadata; classes without metadata report
+     * `Modifier.PUBLIC` plus interface/abstract/final bits where detectable.
+     */
+    public fun getModifiers(): Int = __classGetModifiers(this)
 
     @KsSymbolName("__kk_enum_set_values")
     private external fun __enumConstants(): Array<T>?

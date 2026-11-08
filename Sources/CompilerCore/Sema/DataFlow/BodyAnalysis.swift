@@ -219,7 +219,42 @@ extension DataFlowSemaPhase {
                 // while source annotations use the default-imported kotlin name.
                 candidates = [symbol]
             }
-            if let resolved = candidates.first(where: { isNominalTypeSymbol($0.kind) }) {
+            // Kotlin `internal` visibility is module-scoped: an internal
+            // declaration from another module (bundled stdlib vs user
+            // sources, or an imported library artifact) is not a resolution
+            // candidate and must not shadow a visible alternative
+            // (KUU-4232). When every nominal candidate is invisible the first
+            // one still wins so the use site reports the visibility
+            // diagnostic below; files suppressing invisible-access
+            // diagnostics keep the unfiltered order.
+            let nominalCandidates = candidates.filter { isNominalTypeSymbol($0.kind) }
+            let useSiteFileID = usageRange?.start.file
+            let useSiteIsBundledStdlib = useSiteFileID
+                .flatMap { sourceManager?.origin(of: $0)?.isBundledStdlib } == true
+            let suppressesInvisibleAccess = useSiteFileID
+                .flatMap { ast.file(for: $0) }
+                .map { file in
+                    file.annotations.contains { annotation in
+                        KnownCompilerAnnotation.suppress.matches(annotation.name)
+                            && annotation.arguments.contains { argument in
+                                let code = argument.filter { $0 != "\"" && $0 != "'" }
+                                return code == "INVISIBLE_MEMBER" || code == "INVISIBLE_REFERENCE"
+                            }
+                    }
+                } == true
+            let resolvedNominal = nominalCandidates.first(where: { candidate in
+                guard !suppressesInvisibleAccess,
+                      candidate.visibility == .internal
+                else { return true }
+                if candidate.flags.contains(.importedLibrary) { return false }
+                guard let sourceManager,
+                      let declarationFileID = symbols.sourceFileID(for: candidate.id)
+                          ?? candidate.declSite?.start.file,
+                      let origin = sourceManager.origin(of: declarationFileID)
+                else { return true }
+                return origin.isBundledStdlib == useSiteIsBundledStdlib
+            }) ?? nominalCandidates.first
+            if let resolved = resolvedNominal {
                 let isBundledDeclaration = (symbols.sourceFileID(for: resolved.id) ?? resolved.declSite?.start.file)
                     .map { sourceManager?.origin(of: $0)?.isBundledStdlib == true } == true
                 // Header resolution has no enclosing-class context here. The
