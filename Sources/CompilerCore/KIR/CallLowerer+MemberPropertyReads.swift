@@ -1204,6 +1204,19 @@ extension CallLowerer {
         else {
             return nil
         }
+        // KUU-4454: an implicit-receiver read of an interface property
+        // declared on an *enclosing* class must dispatch on the `$outer`
+        // instance, not the inner `this`. Resolve only after the
+        // applicability guard so speculative callers never emit stray
+        // `$outer` hops for properties this path will not handle.
+        let loweredReceiverID = resolvePropertyOwnerReceiver(
+            loweredReceiverID,
+            ownerOf: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
         let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: ownerSymbol, sema: sema, interner: interner
         )

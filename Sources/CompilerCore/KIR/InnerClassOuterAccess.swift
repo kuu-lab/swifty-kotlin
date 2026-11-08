@@ -192,6 +192,38 @@ func resolveOuterChainValue(
     }
 }
 
+/// Resolves the receiver for a member-property accessor (getter or setter)
+/// reached through the implicit receiver tower. When the property is
+/// declared on an *enclosing* class of an `inner class`, the active
+/// implicit receiver is the inner instance, but the accessor must dispatch
+/// on the enclosing instance reached through the `$outer` chain — the same
+/// hop the backing-field read/write paths already perform. Returns
+/// `receiver` unchanged for non-class owners or when the chain cannot
+/// reach the owner.
+func resolvePropertyOwnerReceiver(
+    _ receiver: KIRExprID,
+    ownerOf propertySymbol: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) -> KIRExprID {
+    guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+          let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
+          ownerKind == .class || ownerKind == .interface
+    else {
+        return receiver
+    }
+    return resolveOuterChainValue(
+        from: receiver,
+        to: ownerSymbol,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    ) ?? receiver
+}
+
 /// Loads the immediate enclosing instance stored in an inner class's `$outer` field.
 /// Unlike `resolveOuterChainValue`, this does not treat a superclass relationship as
 /// a match: during `super(...)` argument evaluation the subclass instance is not initialized.
