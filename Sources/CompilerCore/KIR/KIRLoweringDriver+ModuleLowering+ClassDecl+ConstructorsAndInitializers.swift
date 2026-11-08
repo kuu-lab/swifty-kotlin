@@ -1556,7 +1556,13 @@ extension KIRLoweringDriver {
                 sema: sema,
                 interner: interner
             )
-            guard !childSym.flags.contains(.synthetic) || isDataClassComponent else { continue }
+            let isDataClassCopy = isSyntheticDataClassCopy(
+                childSym,
+                owner: ownerInfo,
+                sema: sema,
+                interner: interner
+            )
+            guard !childSym.flags.contains(.synthetic) || isDataClassComponent || isDataClassCopy else { continue }
             // KUU-4064: member extensions (`val String.x` / `fun String.f()`
             // declared inside a class) register into the same member list so
             // `members` keeps listing them, but are flagged so the JVM-shaped
@@ -1790,5 +1796,26 @@ extension KIRLoweringDriver {
             return false
         }
         return true
+    }
+
+    /// The data-class `copy` member is synthetic like `componentN` but carries
+    /// the primary-constructor parameters, so the component predicate (which
+    /// requires an empty parameter list) rejects it. The JVM lists `copy` in
+    /// `KClass.members`/`memberFunctions`, so it must register here too
+    /// (KUU-4413).
+    private func isSyntheticDataClassCopy(
+        _ symbol: SemanticSymbol,
+        owner: SemanticSymbol,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard owner.flags.contains(.dataType),
+              symbol.kind == .function,
+              symbol.flags.contains(.synthetic),
+              sema.symbols.functionSignature(for: symbol.id) != nil
+        else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "copy"
     }
 }
