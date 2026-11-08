@@ -180,5 +180,77 @@ struct CollectionBuilderExpectedTypeTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError, "\(declaration) must stay a type error")
     }
+
+    /// KUU-4417: `add`/`put` reached through nested parameter lambdas
+    /// (`run`, `forEach`, ...) still targets the builder receiver, so the
+    /// mutation scan must descend into them instead of leaving the builder
+    /// type variables unresolved (SEMA-0473).
+    @Test
+    func nestedLambdaReceiverCallsInferBuilderTypes() throws {
+        let ctx = makeContextFromSource("""
+        interface Attr<T>
+        fun probe(a: Attr<*>, v: Any?) {
+            val m = buildMap {
+                put(a, v)
+                run { put(a, v) }
+                listOf(1).forEach { put(a, v) }
+            }
+            val l = buildList {
+                listOf(1).forEach { add(v) }
+            }
+            val s = buildSet {
+                listOf(1).map { add(v) }
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-4417: receiver lambdas install their own `this`; `add` inside
+    /// `xs.apply`/`with(xs)`/`xs.run` binds that receiver when it is a
+    /// collection, so it must not widen the outer builder's element type.
+    @Test(arguments: [
+        "xs.apply { add(1) }",
+        "with(xs) { add(1) }",
+        "xs.run { add(1) }",
+    ])
+    func receiverLambdaMutationDoesNotLeakIntoOuterBuilder(receiverCall: String) throws {
+        let ctx = makeContextFromSource("""
+        fun probe() {
+            val xs = mutableListOf(1, 2)
+            val l = buildList {
+                \(receiverCall)
+                add("s")
+            }
+            val element: String = l[0]
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(receiverCall): \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// KUU-4417: a nested `buildList`/`buildMap` installs its own mutable
+    /// receiver; its `add`/`put` calls belong to the inner builder and must
+    /// not constrain the outer one.
+    @Test
+    func nestedSameNamespaceBuilderDoesNotLeakIntoOuterBuilder() throws {
+        let ctx = makeContextFromSource("""
+        fun probe() {
+            val l = buildList {
+                buildList { add(1) }
+                add("s")
+            }
+            val element: String = l[0]
+            val m = buildMap {
+                buildMap { put(1, 2) }
+                put("k", "v")
+            }
+            val key: String = m.keys.first()
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
 }
 #endif

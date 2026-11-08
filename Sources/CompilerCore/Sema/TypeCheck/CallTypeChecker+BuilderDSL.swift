@@ -856,23 +856,56 @@ extension CallTypeChecker {
             return
         }
 
+        // A nested builder installs its own MutableList/MutableSet/MutableMap
+        // receiver, so `add`/`put` calls inside its lambda bind to the inner
+        // collection and must not feed the outer builder's inference. Only
+        // same-namespace builders shadow: `put` inside a nested `buildList`
+        // still falls through to an outer `buildMap` receiver because
+        // MutableList has no `put` member. Receiver lambdas (`x.apply { }`,
+        // `with(x) { }`, `x.run { }`) install an arbitrary `this` that may
+        // itself declare `add`/`put` (e.g. `list.apply { add(1) }`), so their
+        // bodies are skipped for the same reason; parameter lambdas such as
+        // `forEach`/`let` keep the builder receiver reachable and are scanned.
+        func shadowsBuilderReceiver(_ name: String, explicitReceiver: Bool) -> Bool {
+            switch kind {
+            case .buildList, .buildSet:
+                if name == "buildList" || name == "buildSet" { return true }
+            case .buildMap:
+                if name == "buildMap" { return true }
+            }
+            if explicitReceiver {
+                return name == "apply" || name == "run"
+            }
+            return name == "with"
+        }
+        func isLambdaArgument(_ argument: CallArgument) -> Bool {
+            if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                return true
+            }
+            return false
+        }
+
         switch expr {
         case let .call(callee, _, args, _):
-            if case let .nameRef(name, _) = ast.arena.expr(callee),
-               isMatchingBuilderDSLFunctionName(interner.resolve(name), kind: kind)
-            {
-                if kind == .buildList || kind == .buildSet, let first = args.first {
-                    unary.append(first.expr)
-                } else if kind == .buildMap, args.count >= 2 {
-                    keyed.append((args[0].expr, args[1].expr))
+            var calleeName: String?
+            if case let .nameRef(name, _) = ast.arena.expr(callee) {
+                calleeName = interner.resolve(name)
+                if isMatchingBuilderDSLFunctionName(calleeName ?? "", kind: kind) {
+                    if kind == .buildList || kind == .buildSet, let first = args.first {
+                        unary.append(first.expr)
+                    } else if kind == .buildMap, args.count >= 2 {
+                        keyed.append((args[0].expr, args[1].expr))
+                    }
                 }
             }
+            let nestedBuilder = calleeName.map { shadowsBuilderReceiver($0, explicitReceiver: false) } ?? false
             collectBuilderDSLArgumentExprs(in: callee, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
-            for argument in args {
+            for argument in args where !(nestedBuilder && isLambdaArgument(argument)) {
                 collectBuilderDSLArgumentExprs(in: argument.expr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
         case let .memberCall(receiver, callee, _, args, _):
-            if isMatchingBuilderDSLFunctionName(interner.resolve(callee), kind: kind),
+            let resolvedCallee = interner.resolve(callee)
+            if isMatchingBuilderDSLFunctionName(resolvedCallee, kind: kind),
                case .thisRef = ast.arena.expr(receiver)
             {
                 if kind == .buildList || kind == .buildSet, let first = args.first {
@@ -881,13 +914,15 @@ extension CallTypeChecker {
                     keyed.append((args[0].expr, args[1].expr))
                 }
             }
+            let nestedBuilder = shadowsBuilderReceiver(resolvedCallee, explicitReceiver: true)
             collectBuilderDSLArgumentExprs(in: receiver, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
-            for argument in args {
+            for argument in args where !(nestedBuilder && isLambdaArgument(argument)) {
                 collectBuilderDSLArgumentExprs(in: argument.expr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
-        case let .safeMemberCall(receiver, _, _, args, _):
+        case let .safeMemberCall(receiver, callee, _, args, _):
+            let nestedBuilder = shadowsBuilderReceiver(interner.resolve(callee), explicitReceiver: true)
             collectBuilderDSLArgumentExprs(in: receiver, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
-            for argument in args {
+            for argument in args where !(nestedBuilder && isLambdaArgument(argument)) {
                 collectBuilderDSLArgumentExprs(in: argument.expr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
         case let .blockExpr(statements, trailingExpr, _):
@@ -897,6 +932,20 @@ extension CallTypeChecker {
             if let trailingExpr {
                 collectBuilderDSLArgumentExprs(in: trailingExpr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
+        case let .lambdaLiteral(_, body, _, _):
+            // `add`/`put` inside a nested lambda still targets the builder
+            // receiver unless a nearer receiver shadows it (KUU-4417).
+            collectBuilderDSLArgumentExprs(in: body, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+        case let .forExpr(_, iterable, body, _, _),
+             let .forDestructuringExpr(_, iterable, body, _, _):
+            collectBuilderDSLArgumentExprs(in: iterable, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            collectBuilderDSLArgumentExprs(in: body, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+        case let .whileExpr(condition, body, _, _):
+            collectBuilderDSLArgumentExprs(in: condition, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            collectBuilderDSLArgumentExprs(in: body, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+        case let .doWhileExpr(body, condition, _, _):
+            collectBuilderDSLArgumentExprs(in: body, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            collectBuilderDSLArgumentExprs(in: condition, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
         case let .ifExpr(condition, thenExpr, elseExpr, _):
             collectBuilderDSLArgumentExprs(in: condition, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             collectBuilderDSLArgumentExprs(in: thenExpr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
@@ -935,17 +984,56 @@ extension CallTypeChecker {
         case let .unaryExpr(_, operand, _),
              let .nullAssert(operand, _),
              let .throwExpr(operand, _),
+             let .isCheck(operand, _, _, _),
+             let .asCast(operand, _, _, _),
              let .returnExpr(operand?, _, _):
             collectBuilderDSLArgumentExprs(in: operand, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
         case let .localDecl(_, _, _, initializer, _, _, _):
             if let initializer {
                 collectBuilderDSLArgumentExprs(in: initializer, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
             }
+        case let .localFunDecl(_, _, _, _, body, _, _, _, _):
+            switch body {
+            case let .block(statements, _):
+                for statement in statements {
+                    collectBuilderDSLArgumentExprs(in: statement, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+                }
+            case let .expr(bodyExpr, _):
+                collectBuilderDSLArgumentExprs(in: bodyExpr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            case .unit:
+                break
+            }
         case let .localAssign(_, value, _),
-             let .memberAssign(_, _, value, _),
-             let .safeMemberAssign(_, _, value, _),
-             let .memberCompoundAssign(_, _, _, value, _):
+             let .compoundAssign(_, _, value, _),
+             let .destructuringDecl(_, _, value, _):
             collectBuilderDSLArgumentExprs(in: value, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+        case let .memberAssign(receiver, _, value, _),
+             let .safeMemberAssign(receiver, _, value, _),
+             let .memberCompoundAssign(_, receiver, _, value, _):
+            collectBuilderDSLArgumentExprs(in: receiver, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            collectBuilderDSLArgumentExprs(in: value, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+        case let .indexedAssign(receiver, indices, value, _),
+             let .indexedCompoundAssign(_, receiver, indices, value, _):
+            collectBuilderDSLArgumentExprs(in: receiver, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            for index in indices {
+                collectBuilderDSLArgumentExprs(in: index, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            }
+            collectBuilderDSLArgumentExprs(in: value, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+        case let .indexedAccess(receiver, indices, _):
+            collectBuilderDSLArgumentExprs(in: receiver, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            for index in indices {
+                collectBuilderDSLArgumentExprs(in: index, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            }
+        case let .stringTemplate(parts, _):
+            for part in parts {
+                if case let .expression(partExpr) = part {
+                    collectBuilderDSLArgumentExprs(in: partExpr, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+                }
+            }
+        case let .callableRef(receiver, _, _):
+            if let receiver {
+                collectBuilderDSLArgumentExprs(in: receiver, kind: kind, ast: ast, interner: interner, unary: &unary, keyed: &keyed)
+            }
         default:
             break
         }
