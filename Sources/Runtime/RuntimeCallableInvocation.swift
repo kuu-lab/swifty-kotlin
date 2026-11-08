@@ -42,10 +42,49 @@ public func __kk_kcallable_register(
 
 @_cdecl("__kk_kcallable_register_return_type")
 public func __kk_kcallable_register_return_type(_ raw: Int, _ returnTypeKTypeRaw: Int) -> Int {
+    var updatedMetadata = false
     runtimeStorage.withDelegateLock { state in
         guard var metadata = state.callableRefMetadataByValue[raw] else { return }
         metadata.returnTypeKTypeRaw = returnTypeKTypeRaw
         state.callableRefMetadataByValue[raw] = metadata
+        updatedMetadata = true
+    }
+    // KUU-4423: member handles (`KClass.members` KFunction boxes and
+    // member-property stubs) have no callable metadata — pin the KType on
+    // the box itself so `returnType` keeps its classifier.
+    if !updatedMetadata {
+        if let box = runtimeReflectionObject(from: raw, as: RuntimeKFunctionBox.self) {
+            box.returnTypeKTypeRaw = returnTypeKTypeRaw
+        } else if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) {
+            stub.returnTypeKTypeRaw = returnTypeKTypeRaw
+        }
+    }
+    return raw
+}
+
+/// KUU-4423: pins `KCallable.visibility` (PUBLIC=0, PROTECTED=1,
+/// INTERNAL=2, PRIVATE=3 — the ordinal order `__kk_kcallable_get_metadata`
+/// member 2 and `RuntimeCallableRefMetadata.visibility` already use) on
+/// runtime member handles. Callable-reference metadata wins when present;
+/// `RuntimeKFunctionBox`/`RuntimeKPropertyStub` member handles keep the
+/// ordinal on the box for the metadata getter's fallback.
+@_cdecl("__kk_kcallable_set_visibility")
+public func __kk_kcallable_set_visibility(_ raw: Int, _ visibilityOrdinal: Int) -> Int {
+    guard (0..<4).contains(visibilityOrdinal) else { return raw }
+    var updatedMetadata = false
+    runtimeStorage.withDelegateLock { state in
+        if var metadata = state.callableRefMetadataByValue[raw] {
+            metadata.visibility = visibilityOrdinal
+            state.callableRefMetadataByValue[raw] = metadata
+            updatedMetadata = true
+        }
+    }
+    if !updatedMetadata {
+        if let box = runtimeReflectionObject(from: raw, as: RuntimeKFunctionBox.self) {
+            box.visibilityOrdinal = visibilityOrdinal
+        } else if let stub = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) {
+            stub.visibilityOrdinal = visibilityOrdinal
+        }
     }
     return raw
 }
@@ -68,7 +107,15 @@ public func __kk_kcallable_get_metadata(_ raw: Int, _ member: Int) -> Int {
     case 0: return metadata?.parameters ?? __kk_kfunction_get_parameters(raw)
     case 1: return metadata?.typeParameters ?? registerRuntimeObject(RuntimeListBox(elements: []))
     case 2:
-        guard let ordinal = metadata?.visibility, (0..<4).contains(ordinal) else { return runtimeNullSentinelInt }
+        var visibilityOrdinal = metadata?.visibility
+        if visibilityOrdinal == nil || !(0..<4).contains(visibilityOrdinal!) {
+            // KUU-4423: runtime member handles (KClass.members KFunction /
+            // member-property stubs) carry no callable metadata — read the
+            // ordinal the compiler pinned on the box itself.
+            visibilityOrdinal = runtimeReflectionObject(from: raw, as: RuntimeKFunctionBox.self)?.visibilityOrdinal
+                ?? runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self)?.visibilityOrdinal
+        }
+        guard let ordinal = visibilityOrdinal, (0..<4).contains(ordinal) else { return runtimeNullSentinelInt }
         let name = ["PUBLIC", "PROTECTED", "INTERNAL", "PRIVATE"][ordinal]
         return kk_enum_box_ordinal(ordinal, runtimeMakeStringRaw(name), Int(runtimeStableNominalTypeID(fqName: "kotlin.reflect.KVisibility")))
     case 3: return (metadata?.flags ?? 1) & 1 != 0 ? 1 : 0

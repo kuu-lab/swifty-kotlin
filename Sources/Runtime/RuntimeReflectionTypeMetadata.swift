@@ -270,6 +270,8 @@ public func __kk_kcallable_get_return_type(_ callableRaw: Int) -> Int {
         returnTypeKTypeRaw = metadata.returnTypeKTypeRaw
     } else if let property = runtimeReflectionObject(from: callableRaw, as: RuntimeKPropertyStub.self) {
         returnTypeKTypeRaw = property.returnTypeKTypeRaw
+    } else if let function = runtimeReflectionObject(from: callableRaw, as: RuntimeKFunctionBox.self) {
+        returnTypeKTypeRaw = function.returnTypeKTypeRaw
     } else {
         returnTypeKTypeRaw = nil
     }
@@ -304,7 +306,10 @@ public func __kk_kcallable_get_return_type(_ callableRaw: Int) -> Int {
 
     // The metadata fields predate RuntimeKTypeBox and store a KKString
     // descriptor. Box that descriptor at the KCallable boundary so the
-    // source-level return type is an actual KType value.
+    // source-level return type is an actual KType value. Route through the
+    // KType overload so the box registers its interface itable — the
+    // typeID-tagged generic registration leaves `classifier`/`arguments`/
+    // `isMarkedNullable` dispatch unresolvable (KUU-4423).
     let typeName = extractString(from: UnsafeMutableRawPointer(bitPattern: returnTypeRaw)) ?? ""
     let box = RuntimeKTypeBox(
         classifierRaw: __kk_kclass_create(0, returnTypeRaw),
@@ -313,5 +318,5 @@ public func __kk_kcallable_get_return_type(_ callableRaw: Int) -> Int {
         typeNameRaw: returnTypeRaw
     )
     registerReflectionRuntimeTypeMetadata()
-    return registerRuntimeObject(box, typeID: kTypeRuntimeTypeID)
+    return registerRuntimeObject(box)
 }

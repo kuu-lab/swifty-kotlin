@@ -5,7 +5,7 @@ final class RuntimeKPropertyStub {
     let returnType: Int // intptr_t to a KKString (return type signature)
     let isLateinit: Bool
     let isConst: Bool
-    let returnTypeKTypeRaw: Int
+    var returnTypeKTypeRaw: Int
     let isMutable: Bool
     /// KUU-2947: a `val/var x by Delegate()` declared inside a function hands
     /// getValue/setValue a KProperty0-shaped stub (KMutableProperty0 for `var`)
@@ -20,6 +20,11 @@ final class RuntimeKPropertyStub {
     /// mutable slot repointed per call — and stays 0 (read as `null`) for
     /// local delegated properties, matching the JVM's PropertyReference0Impl.
     var delegateRaw: Int = 0
+    /// KUU-4423: `KCallable.visibility` ordinal (PUBLIC=0, PROTECTED=1,
+    /// INTERNAL=2, PRIVATE=3) pinned by `__kk_kcallable_set_visibility`.
+    /// Member stubs carry no `RuntimeCallableRefMetadata`, so the metadata
+    /// getter falls back to this field.
+    var visibilityOrdinal: Int = 0
 
     init(
         name: Int,

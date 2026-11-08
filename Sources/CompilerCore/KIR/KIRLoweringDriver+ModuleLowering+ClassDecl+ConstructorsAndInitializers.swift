@@ -1,3 +1,15 @@
+/// Runtime `KCallable.visibility` ordinal (PUBLIC=0, PROTECTED=1,
+/// INTERNAL=2, PRIVATE=3) — the order `__kk_kcallable_get_metadata`
+/// member 2 and `RuntimeCallableRefMetadata.visibility` already use
+/// (KUU-4423).
+private func runtimeKCallableVisibilityOrdinal(_ visibility: Visibility) -> Int64 {
+    switch visibility {
+    case .public: return 0
+    case .protected: return 1
+    case .internal: return 2
+    case .private: return 3
+    }
+}
 
 extension KIRLoweringDriver {
 
@@ -1293,6 +1305,18 @@ extension KIRLoweringDriver {
             canThrow: false
         ))
 
+        // KUU-4423: `KConstructor.returnType` is the constructed class —
+        // lower its KType once and pin it on every constructor handle so
+        // `returnType.classifier` resolves instead of falling back to the
+        // `java.lang.Void` token-0 metadata.
+        let ctorReturnTypeKType: KIRExprID? = ctorSymbols.isEmpty ? nil : lowerKTypeExpr(
+            for: ownerType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
+
         let ctorNameInterned = interner.intern("<init>")
         let ctorNameExpr = arena.appendExpr(.stringLiteral(ctorNameInterned), type: intType)
         body.append(.constValue(result: ctorNameExpr, value: .stringLiteral(ctorNameInterned)))
@@ -1350,6 +1374,28 @@ extension KIRLoweringDriver {
                 result: nil,
                 canThrow: false
             ))
+            // KUU-4423: `KConstructor.visibility` reads the callable
+            // metadata ordinal — the constructor box seeds PUBLIC by
+            // default, so pin the declared Kotlin visibility here.
+            let kotlinVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(
+                constructorInfo?.visibility ?? .public
+            )
+            let kotlinVisibilityExpr = arena.appendExpr(.intLiteral(kotlinVisibilityOrdinal), type: intType)
+            body.append(.constValue(result: kotlinVisibilityExpr, value: .intLiteral(kotlinVisibilityOrdinal)))
+            body.append(.call(
+                callee: interner.intern("__kk_kcallable_set_visibility"),
+                arguments: [registrationResult, kotlinVisibilityExpr],
+                result: nil,
+                canThrow: false
+            ))
+            if let ctorReturnTypeKType {
+                body.append(.call(
+                    callee: interner.intern("__kk_kcallable_register_return_type"),
+                    arguments: [registrationResult, ctorReturnTypeKType],
+                    result: nil,
+                    canThrow: false
+                ))
+            }
 
             // KUU-4374: pin the JVM-style `fun `<init>`(P): C` text on the
             // constructor handle — `KClass.primaryConstructor`/`constructors`
@@ -1667,6 +1713,7 @@ extension KIRLoweringDriver {
                     .flatMap { sema.symbols.symbol($0) }
                     .map { [.class, .interface, .object, .enumClass, .annotationClass].contains($0.kind) }
                     ?? false
+                var memberCallableMetadataRegistered = false
                 if let receiverType = signature.receiverType,
                    isDeclaredNominalMember,
                    !childSym.flags.contains(.memberExtension),
@@ -1716,7 +1763,43 @@ extension KIRLoweringDriver {
                             interner: interner,
                             instructions: &body.instructions
                         )
+                        memberCallableMetadataRegistered = true
                     }
+                }
+                // KUU-4423: `KCallable.visibility` on member handles reads
+                // the ordinal pinned here — member handles that skipped the
+                // callable-metadata registration above carry no metadata for
+                // the getter to consult, and the box field covers both cases.
+                let fnVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(childSym.visibility)
+                let fnVisibilityExpr = arena.appendExpr(.intLiteral(fnVisibilityOrdinal), type: intType)
+                body.append(.constValue(result: fnVisibilityExpr, value: .intLiteral(fnVisibilityOrdinal)))
+                body.append(.call(
+                    callee: interner.intern("__kk_kcallable_set_visibility"),
+                    arguments: [kfunctionResult, fnVisibilityExpr],
+                    result: nil,
+                    canThrow: false
+                ))
+                // KUU-4423: pin a real KType for `returnType` on handles that
+                // skipped callable-metadata registration — the string
+                // descriptor fallback builds a classifier-less KType that
+                // resolves to `java.lang.Void`. Reified signatures keep the
+                // legacy path: their type tokens live in per-call captures
+                // this initializer does not have.
+                if !memberCallableMetadataRegistered,
+                   signature.reifiedTypeParameterIndices.isEmpty {
+                    let returnTypeKType = lowerKTypeExpr(
+                        for: signature.returnType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body.instructions
+                    )
+                    body.append(.call(
+                        callee: interner.intern("__kk_kcallable_register_return_type"),
+                        arguments: [kfunctionResult, returnTypeKType],
+                        result: nil,
+                        canThrow: false
+                    ))
                 }
                 // KUU-3947: `KClass.members`/`memberFunctions` handles are
                 // bare RuntimeKFunctionBox objects — pin the same
@@ -1812,6 +1895,35 @@ extension KIRLoweringDriver {
                     result: propRegisterResult,
                     canThrow: false
                 ))
+                // KUU-4423: same visibility pin as the function branch —
+                // member property stubs carry no callable metadata.
+                let propVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(childSym.visibility)
+                let propVisibilityExpr = arena.appendExpr(.intLiteral(propVisibilityOrdinal), type: intType)
+                body.append(.constValue(result: propVisibilityExpr, value: .intLiteral(propVisibilityOrdinal)))
+                body.append(.call(
+                    callee: interner.intern("__kk_kcallable_set_visibility"),
+                    arguments: [kpropResult, propVisibilityExpr],
+                    result: nil,
+                    canThrow: false
+                ))
+                // KUU-4423: pin a real KType for `returnType` — the stub's
+                // string descriptor fallback loses the classifier the same
+                // way bare function handles did.
+                if let propTypeID = sema.symbols.propertyType(for: childID) {
+                    let propReturnTypeKType = lowerKTypeExpr(
+                        for: propTypeID,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body.instructions
+                    )
+                    body.append(.call(
+                        callee: interner.intern("__kk_kcallable_register_return_type"),
+                        arguments: [kpropResult, propReturnTypeKType],
+                        result: nil,
+                        canThrow: false
+                    ))
+                }
                 // KUU-3947: the memberProperties handle is a bare
                 // RuntimeKPropertyStub — pin the JVM-style
                 // `val pkg.Owner.name: kotlin.T` text so it renders like a

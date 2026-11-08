@@ -609,6 +609,17 @@ final class RuntimeKFunctionBox {
     let parameterRaws: [Int]
     /// Function type string as a KKString raw handle (e.g. "(Int, Int) -> Int").
     let typeStringRaw: Int
+    /// KUU-4423: `KCallable.visibility` ordinal (PUBLIC=0, PROTECTED=1,
+    /// INTERNAL=2, PRIVATE=3) pinned by `__kk_kcallable_set_visibility`.
+    /// Member handles carry no `RuntimeCallableRefMetadata`, so the
+    /// metadata getter falls back to this field.
+    var visibilityOrdinal: Int = 0
+    /// KUU-4423: full `KType` box for `returnType`, pinned by
+    /// `__kk_kcallable_register_return_type` when the handle has no
+    /// callable metadata. Without it the getter falls back to the
+    /// `returnTypeRaw` string descriptor and builds a classifier-less
+    /// KType that resolves to `java.lang.Void`.
+    var returnTypeKTypeRaw: Int = 0
 
     var isSuspend: Bool { (flags & RuntimeKFunctionFlags.suspend) != 0 }
 

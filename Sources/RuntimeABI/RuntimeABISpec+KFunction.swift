@@ -39,6 +39,7 @@ public extension RuntimeABISpec {
             }, returnType: .intptr, section: "Reflection", isThrowing: false
         ),
         abi.nt("__kk_kcallable_register_return_type", "raw returnTypeKTypeRaw"),
+        abi.nt("__kk_kcallable_set_visibility", "raw visibilityOrdinal"),
         abi.nt("__kk_kcallable_is_runtime", "raw"),
         abi.nt("__kk_kcallable_get_metadata", "raw member"),
         abi.th("__kk_kcallable_call", "raw arguments outThrown"),
