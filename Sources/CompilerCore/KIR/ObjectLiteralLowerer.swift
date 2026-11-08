@@ -287,6 +287,7 @@ final class ObjectLiteralLowerer {
             nominalSymbol: objectSymbol,
             driver: driver,
             sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions
@@ -296,6 +297,7 @@ final class ObjectLiteralLowerer {
             nominalSymbol: objectSymbol,
             driver: driver,
             sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions
@@ -1383,6 +1385,7 @@ final class ObjectLiteralLowerer {
             nominalSymbol: symbols.nominalSymbol,
             driver: driver,
             sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &body

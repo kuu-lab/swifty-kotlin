@@ -317,7 +317,7 @@ func allocateAndRegisterConstructedObject(
             result: registerDataClassResult,
             into: &instructions
         )
-        if let fieldMask = driver.callLowerer.dataClassFieldSlotMask(owner: ownerNominalSymbol, sema: sema) {
+        if let fieldMask = CallLowerer.dataClassFieldSlotMask(owner: ownerNominalSymbol, sema: sema) {
             let maskExpr = arena.appendExpr(.intLiteral(fieldMask), type: intType)
             instructions.append(.constValue(result: maskExpr, value: .intLiteral(fieldMask)))
             let registerFieldsResult = arena.appendTemporary(type: intType)
@@ -346,6 +346,7 @@ func allocateAndRegisterConstructedObject(
         nominalSymbol: ownerNominalSymbol,
         driver: driver,
         sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
         instructions: &instructions
@@ -373,6 +374,7 @@ func allocateAndRegisterConstructedObject(
         nominalSymbol: ownerNominalSymbol,
         driver: driver,
         sema: sema,
+        cache: driver.ctx.nominalDispatchCache,
         arena: arena,
         interner: interner,
         instructions: &instructions

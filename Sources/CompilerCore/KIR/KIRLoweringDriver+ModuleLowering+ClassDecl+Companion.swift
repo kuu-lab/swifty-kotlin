@@ -89,6 +89,7 @@ extension KIRLoweringDriver {
                 nominalSymbol: companionSymbol,
                 driver: self,
                 sema: sema,
+                cache: ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &body.instructions
@@ -98,6 +99,7 @@ extension KIRLoweringDriver {
                 nominalSymbol: companionSymbol,
                 driver: self,
                 sema: sema,
+                cache: ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &body.instructions
@@ -107,6 +109,7 @@ extension KIRLoweringDriver {
                 nominalSymbol: companionSymbol,
                 driver: self,
                 sema: sema,
+                cache: ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &body.instructions

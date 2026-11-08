@@ -105,6 +105,7 @@ extension CallLowerer {
             nominalSymbol: nominalSymbol,
             driver: driver,
             sema: sema,
+            cache: driver.ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions
@@ -179,6 +180,7 @@ extension CallLowerer {
                 nominalSymbol: owner,
                 driver: driver,
                 sema: sema,
+                cache: driver.ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions
@@ -192,6 +194,7 @@ extension CallLowerer {
                 nominalSymbol: owner,
                 driver: driver,
                 sema: sema,
+                cache: driver.ctx.nominalDispatchCache,
                 arena: arena,
                 interner: interner,
                 instructions: &instructions

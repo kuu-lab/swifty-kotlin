@@ -240,13 +240,14 @@ private func kirVtableSlotImplementationSymbol(for symbol: SymbolID, sema: SemaM
 func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
 ) where C.Element == KIRInstruction {
-    let implementations = driver.ctx.nominalDispatchCache.vtableImplementations(
+    let implementations = cache.vtableImplementations(
         for: nominalSymbol,
         sema: sema
     )
@@ -299,7 +300,7 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         nominalSymbol: nominalSymbol,
         driver: driver,
         sema: sema,
-        cache: driver.ctx.nominalDispatchCache,
+        cache: cache,
         arena: arena,
         interner: interner,
         instructions: &instructions
@@ -308,7 +309,7 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
-        cache: driver.ctx.nominalDispatchCache,
+        cache: cache,
         arena: arena,
         interner: interner,
         instructions: &instructions
@@ -317,7 +318,7 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
-        cache: driver.ctx.nominalDispatchCache,
+        cache: cache,
         arena: arena,
         interner: interner,
         instructions: &instructions
@@ -433,8 +434,9 @@ func appendSamWrapperAnyEqualsHashCodeOverrideRegistrations<C: RangeReplaceableC
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     implementation: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     instructions: inout C
@@ -454,7 +456,7 @@ func appendSamWrapperAnyEqualsHashCodeOverrideRegistrations<C: RangeReplaceableC
               let anyMember = sema.symbols.lookupAll(
                   fqName: anyFQName + [memberName]
               ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol }),
-              driver.ctx.nominalDispatchCache.itableImplementation(
+              cache.itableImplementation(
                   for: anyMember,
                   in: nominalSymbol,
                   sema: sema,
@@ -662,7 +664,7 @@ func anyToStringBridgeSymbolForImplementation(
 func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -705,7 +707,7 @@ func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
 func appendValueClassAnyToStringRegistration<C: RangeReplaceableCollection>(
     nominalSymbol: SymbolID,
     classID: Int64,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
@@ -835,7 +837,7 @@ func kirVtablePropertyAccessorImplementations(
 func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
     cache: KIRNominalDispatchCache,
     arena: KIRArena,
@@ -947,22 +949,34 @@ func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollecti
 private func throwableMessageGetterBridgeSymbol(
     getter: SymbolID,
     nominalSymbol: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     arena: KIRArena,
     sema: SemaModule,
     interner: StringInterner
 ) -> SymbolID {
-    if let cached = driver.ctx.throwableMessageBridgeSymbolsByGetter[getter] {
+    if let cached = driver?.ctx.throwableMessageBridgeSymbolsByGetter[getter] {
         return cached
     }
-    let bridgeSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-    driver.ctx.throwableMessageBridgeSymbolsByGetter[getter] = bridgeSymbol
+    let bridgeFQName = [interner.intern("$throwableMessageBridge"), interner.intern(String(getter.rawValue))]
+    if driver == nil, let cached = sema.symbols.lookup(fqName: bridgeFQName),
+       arena.function(for: cached) != nil {
+        return cached
+    }
+    let bridgeSymbol = driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+        kind: .function, name: bridgeFQName[1], fqName: bridgeFQName,
+        declSite: nil, visibility: .private, flags: [.synthetic]
+    )
+    driver?.ctx.throwableMessageBridgeSymbolsByGetter[getter] = bridgeSymbol
 
     let receiverType = sema.types.make(.classType(ClassType(
         classSymbol: nominalSymbol, args: [], nullability: .nonNull
     )))
     let receiverParam = KIRParameter(
-        symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+        symbol: driver?.ctx.allocateSyntheticGeneratedSymbol() ?? sema.symbols.define(
+            kind: .valueParameter, name: interner.intern("receiver"),
+            fqName: bridgeFQName + [interner.intern("receiver")],
+            declSite: nil, visibility: .private, flags: [.synthetic]
+        ),
         type: receiverType
     )
     let receiverExpr = arena.appendExpr(.symbolRef(receiverParam.symbol), type: receiverType)
@@ -990,7 +1004,13 @@ private func throwableMessageGetterBridgeSymbol(
         isSuspend: false,
         isInline: false
     )))
-    driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    driver?.ctx.appendGeneratedCallableDecl(bridgeDecl)
+    if driver == nil {
+        sema.symbols.setFunctionSignature(FunctionSignature(
+            receiverType: receiverType, parameterTypes: [], returnType: sema.types.intType,
+            isSuspend: false, canThrow: false
+        ), for: bridgeSymbol)
+    }
     return bridgeSymbol
 }
 
@@ -1721,8 +1741,9 @@ func appendNominalSupertypeEdgeRegistrations<C: RangeReplaceableCollection>(
 func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
-    driver: KIRLoweringDriver,
+    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
+    cache: KIRNominalDispatchCache,
     arena: KIRArena,
     interner: StringInterner,
     interfaceFilter: SymbolID? = nil,
@@ -1735,7 +1756,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     }
 
     let intType = sema.types.intType
-    let interfaceSupertypes = driver.ctx.nominalDispatchCache.transitiveInterfaceSupertypes(
+    let interfaceSupertypes = cache.transitiveInterfaceSupertypes(
         of: nominalSymbol,
         sema: sema
     )
@@ -1781,7 +1802,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
             sema: sema,
             interner: interner
         ) {
-            let implementationSymbol = driver.ctx.nominalDispatchCache.itableImplementation(
+            let implementationSymbol = cache.itableImplementation(
                 for: methodSymbol,
                 in: nominalSymbol,
                 sema: sema,
@@ -1837,7 +1858,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
-        cache: driver.ctx.nominalDispatchCache,
+        cache: cache,
         arena: arena,
         interner: interner,
         interfaceFilter: interfaceFilter,
@@ -1849,7 +1870,7 @@ func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
         objectValue: objectValue,
         nominalSymbol: nominalSymbol,
         sema: sema,
-        cache: driver.ctx.nominalDispatchCache,
+        cache: cache,
         arena: arena,
         interner: interner,
         interfaceFilter: interfaceFilter,

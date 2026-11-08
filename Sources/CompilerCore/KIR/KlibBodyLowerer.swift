@@ -1607,7 +1607,8 @@ final class KlibBodyLowerer {
         )
         appendObjectItableMethodRegistrations(
             objectValue: allocated, nominalSymbol: classSymbol,
-            driver: driver, sema: sema, arena: arena, interner: interner,
+            driver: driver, sema: sema, cache: driver.ctx.nominalDispatchCache,
+            arena: arena, interner: interner,
             instructions: &body.instructions
         )
         appendObjectItablePropertyGetterRegistrations(
@@ -1622,8 +1623,8 @@ final class KlibBodyLowerer {
         )
         appendObjectVtableMethodRegistrations(
             objectValue: allocated, nominalSymbol: classSymbol,
-            driver: driver, sema: sema, arena: arena,
-            interner: interner, instructions: &body.instructions
+            driver: driver, sema: sema, cache: driver.ctx.nominalDispatchCache,
+            arena: arena, interner: interner, instructions: &body.instructions
         )
         appendObjectAnyToStringRegistration(
             objectValue: allocated, nominalSymbol: classSymbol,
