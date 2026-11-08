@@ -1,72 +1,5 @@
 import Foundation
 
-func runtimeStringTrimWhitespace(_ strRaw: Int, trimLeading: Bool, trimTrailing: Bool) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    if trimLeading && trimTrailing {
-        return runtimeMakeStringRaw(source.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-    if trimLeading {
-        return runtimeMakeStringRaw(String(source.drop { $0.isWhitespace }))
-    }
-    if trimTrailing {
-        return runtimeMakeStringRaw(String(source.reversed().drop { $0.isWhitespace }.reversed()))
-    }
-    return strRaw
-}
-
-func runtimeStringTrimWithPredicate(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?,
-    trimLeading: Bool,
-    trimTrailing: Bool,
-    context: String
-) -> Int {
-    outThrown?.pointee = 0
-    let units = runtimeStringUTF16CodeUnits(strRaw)
-    guard fnPtr != 0 else {
-        return strRaw
-    }
-
-    func shouldTrim(_ unit: UInt16) -> Bool? {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(unit),
-            outThrown: &thrown
-        )
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: context)
-            return nil
-        }
-        return maybeUnbox(result) != 0
-    }
-
-    var start = 0
-    var end = units.count
-    if trimLeading {
-        while start < end {
-            guard let matches = shouldTrim(units[start]) else {
-                return runtimeMakeStringRaw("")
-            }
-            guard matches else { break }
-            start += 1
-        }
-    }
-    if trimTrailing {
-        while end > start {
-            guard let matches = shouldTrim(units[end - 1]) else {
-                return runtimeMakeStringRaw("")
-            }
-            guard matches else { break }
-            end -= 1
-        }
-    }
-    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(Array(units[start ..< end])))
-}
-
 @_cdecl("__kk_string_intern")
 public func __kk_string_intern(_ strRaw: Int) -> Int {
     runtimeInternString(strRaw)
@@ -281,54 +214,11 @@ public func __kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCase
     kk_string_split_limit(strRaw, delimRaw, ignoreCaseRaw, limitRaw)
 }
 
-@_cdecl("kk_string_split_limit_flat")
-public func kk_string_split_limit_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ delimData: UnsafePointer<UInt8>?,
-    _ delimLength: Int,
-    _ delimByteCount: Int,
-    _ delimHash: Int,
-    _ ignoreCaseRaw: Int,
-    _ limitRaw: Int
-) -> Int {
-    kk_string_split_limit(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(delimData, delimLength, delimByteCount, delimHash),
-        ignoreCaseRaw,
-        limitRaw
-    )
-}
-
-
 func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
     let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
     return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue))
-}
-
-func runtimeStringReplaceChar(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let oldStr = runtimeCharacterFromRaw(oldCharRaw)
-    let newStr = runtimeCharacterFromRaw(newCharRaw)
-    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldStr, new: newStr))
-}
-
-func runtimeStringReplaceIgnoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
-    let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldValue, new: newValue, ignoreCase: ignoreCaseRaw != 0))
-}
-
-func runtimeStringReplaceCharIgnoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let oldStr = runtimeCharacterFromRaw(oldCharRaw)
-    let newStr = runtimeCharacterFromRaw(newCharRaw)
-    return runtimeMakeStringRaw(runtimeReplacingStringCodeUnits(source, old: oldStr, new: newStr, ignoreCase: ignoreCaseRaw != 0))
 }
 
 // KSP-406: substring / subSequence / slice are bundled Kotlin source

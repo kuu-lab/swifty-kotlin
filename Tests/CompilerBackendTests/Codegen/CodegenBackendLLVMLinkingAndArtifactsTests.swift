@@ -664,18 +664,12 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let rightExpr = arena.appendExpr(.stringLiteral(right), type: types.stringType)
         let concatResult = arena.appendExpr(.temporary(0), type: types.stringType)
         let paddedExpr = arena.appendExpr(.stringLiteral(padded), type: types.stringType)
-        let trimResult = arena.appendExpr(.temporary(12), type: types.stringType)
-        let trimStartResult = arena.appendExpr(.temporary(28), type: types.stringType)
-        let trimEndResult = arena.appendExpr(.temporary(29), type: types.stringType)
         let lowercaseResult = arena.appendExpr(.temporary(31), type: types.stringType)
         let uppercaseResult = arena.appendExpr(.temporary(32), type: types.stringType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
-        let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
         let compareLocaleResult = arena.appendExpr(.temporary(30), type: types.intType)
         let localeRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
         let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
-        let isNullOrEmptyResult = arena.appendExpr(.temporary(23), type: types.booleanType)
-        let isNullOrBlankResult = arena.appendExpr(.temporary(24), type: types.booleanType)
         let equalsResult = arena.appendExpr(.temporary(42), type: types.booleanType)
         let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
         let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
@@ -702,19 +696,13 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .constValue(result: rightExpr, value: .stringLiteral(right)),
                 .call(callee: interner.intern(try runtimeLinkName("string_concat_flat")), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false),
                 .constValue(result: paddedExpr, value: .stringLiteral(padded)),
-                .call(callee: interner.intern(try runtimeLinkName("string_trim_flat")), arguments: [paddedExpr], result: trimResult, canThrow: false),
-                .call(callee: interner.intern(try runtimeLinkName("string_trimStart_flat")), arguments: [paddedExpr], result: trimStartResult, canThrow: false),
-                .call(callee: interner.intern(try runtimeLinkName("string_trimEnd_flat")), arguments: [paddedExpr], result: trimEndResult, canThrow: false),
                 .call(callee: interner.intern(try runtimeLinkName("string_lowercase_flat")), arguments: [paddedExpr], result: lowercaseResult, canThrow: false),
                 .call(callee: interner.intern(try runtimeLinkName("string_uppercase_flat")), arguments: [paddedExpr], result: uppercaseResult, canThrow: false),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
-                .call(callee: interner.intern(try runtimeLinkName("string_isBlank_flat")), arguments: [trimResult], result: isBlankResult, canThrow: false),
                 .constValue(result: localeRaw, value: .intLiteral(0)),
-                .call(callee: interner.intern(try runtimeLinkName("string_compareTo_locale_flat")), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_compareTo_locale_flat")), arguments: [lowercaseResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false),
                 .constValue(result: nullStringExpr, value: .null),
-                .call(callee: interner.intern(try runtimeLinkName("string_isNullOrEmpty_flat")), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false),
-                .call(callee: interner.intern(try runtimeLinkName("string_isNullOrBlank_flat")), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false),
-                .call(callee: interner.intern(try runtimeLinkName("string_equals_flat")), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false),
+                .call(callee: interner.intern(try runtimeLinkName("string_equals_flat")), arguments: [lowercaseResult, nullStringExpr], result: equalsResult, canThrow: false),
                 .call(callee: interner.intern(try runtimeLinkName("print_raw")), arguments: [concatResult], result: nil, canThrow: false),
                 .call(callee: interner.intern(try runtimeLinkName("coroutine_suspended")), arguments: [], result: suspendedResult, canThrow: false),
                 .constValue(result: labelValue, value: .intLiteral(7)),
@@ -825,8 +813,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let arena = KIRArena()
-        let nullableStringType = types.makeNullable(types.stringType)
-        let nullableBoolType = types.makeNullable(types.booleanType)
         let nullableIntType = types.makeNullable(types.intType)
         let nullableLongType = types.makeNullable(types.longType)
         let nullableFloatType = types.makeNullable(types.floatType)
@@ -838,7 +824,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         let text = interner.intern("ff")
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
-        let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
         let radixExpr = arena.appendExpr(.intLiteral(16), type: types.intType)
 
         var nextTemp: Int32 = 100
@@ -849,7 +834,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         var body: [KIRInstruction] = [
             .constValue(result: textExpr, value: .stringLiteral(text)),
-            .constValue(result: nullStringExpr, value: .null),
             .constValue(result: radixExpr, value: .intLiteral(16)),
         ]
 
@@ -870,9 +854,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendParsingCall(try runtimeLinkName("string_toBoolean_flat"), arguments: [nullStringExpr], resultType: types.booleanType)
-        appendParsingCall(try runtimeLinkName("string_toBooleanStrict_flat"), arguments: [textExpr], resultType: types.booleanType, canThrow: true)
-        appendParsingCall(try runtimeLinkName("string_toBooleanStrictOrNull_flat"), arguments: [textExpr], resultType: nullableBoolType)
         appendParsingCall(try runtimeLinkName("string_toInt_flat"), arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall(try runtimeLinkName("string_toInt_radix_flat"), arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall(try runtimeLinkName("string_toIntOrNull_flat"), arguments: [textExpr], resultType: nullableIntType)
@@ -1175,7 +1156,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         appendSelectionCall(try runtimeLinkName("string_lastOrNull_flat"), arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall(try runtimeLinkName("string_singleOrNull_flat"), arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall(try runtimeLinkName("string_get_flat"), arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall(try runtimeLinkName("string_getOrNull_flat"), arguments: [textExpr, indexExpr], resultType: nullableCharType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1237,8 +1217,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendPredicateCall(try runtimeLinkName("string_isNotEmpty_flat"))
-        appendPredicateCall(try runtimeLinkName("string_isNotBlank_flat"))
         appendPredicateCall(try runtimeLinkName("string_isNormalized_flat"), arguments: [textExpr, formTagExpr])
         body.append(.returnUnit)
 
@@ -1323,8 +1301,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         }
 
         appendScalarCall(try runtimeLinkName("string_split_flat"), [textExpr, delimiterExpr])
-        appendScalarCall(try runtimeLinkName("string_split_limit_flat"), [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
-        appendScalarCall(try runtimeLinkName("string_splitToSequence_flat"), [textExpr, delimiterExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1392,7 +1368,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         appendByteArrayCall(try runtimeLinkName("string_encodeToByteArray_range_flat"), [textExpr, startExpr, endExpr])
         appendByteArrayCall(try runtimeLinkName("string_encodeToByteArray_charset_flat"), [textExpr, charsetExpr])
         appendByteArrayCall(try runtimeLinkName("string_byteInputStream_flat"), [textExpr])
-        appendByteArrayCall(try runtimeLinkName("string_byteInputStream_charset_flat"), [textExpr, charsetExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(

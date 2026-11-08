@@ -42,7 +42,6 @@ extension BuildKIRRegressionTests {
         case rangeNext = "__kk_range_next"
         case legacyStringSplit = "kk_string_split_flat"
         case legacyStringLength = "kk_string_struct_get_length"
-        case legacyStringTrim = "kk_string_trim_flat"
         case structuralNotEqual = "kk_structural_ne"
         case isCancellation = "kk_throwable_is_cancellation"
         case unboxInt = "kk_unbox_int"

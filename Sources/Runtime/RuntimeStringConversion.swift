@@ -469,50 +469,6 @@ public func __kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
     return kk_box_float(runtimeFloatBitsToInt(parsed))
 }
 
-@_cdecl("__kk_string_toBoolean")
-public func __kk_string_toBoolean(_ strRaw: Int) -> Int {
-    if strRaw == runtimeNullSentinelInt {
-        return kk_box_bool(0)
-    }
-    guard let rawPointer = UnsafeMutableRawPointer(bitPattern: strRaw),
-          let source = extractString(from: rawPointer)
-    else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0)
-}
-
-@_cdecl("__kk_string_toBooleanStrict")
-public func __kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    switch source {
-    case "true":
-        return kk_box_bool(1)
-    case "false":
-        return kk_box_bool(0)
-    default:
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "The string doesn't represent a boolean value: \(source)")
-        )
-        return 0
-    }
-}
-
-@_cdecl("__kk_string_toBooleanStrictOrNull")
-public func __kk_string_toBooleanStrictOrNull(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    switch source {
-    case "true":
-        return 1
-    case "false":
-        return 0
-    default:
-        return runtimeNullSentinelInt
-    }
-}
-
 @_cdecl("__kk_string_toShort")
 public func __kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

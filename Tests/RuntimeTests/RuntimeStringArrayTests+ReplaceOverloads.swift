@@ -10,77 +10,10 @@ import Foundation
 #endif
 
 extension RuntimeStringArrayTests {
-    // MARK: - STDLIB-TEXT-FN-055: replace overloads
-
-    @Test
-    func testStringReplaceCharReplacesAllOccurrences() {
-        let replaced = flatStringReturnValue(
-            "hello world",
-            intArg: kk_box_char(Int("l".unicodeScalars.first!.value)),
-            charArg: kk_box_char(Int("r".unicodeScalars.first!.value)),
-            using: kk_string_replace_char_flat
-        )
-        #expect(replaced == "herro worrd")
-    }
-
-    @Test
-    func testStringReplaceCharHandlesNoMatch() {
-        let replaced = flatStringReturnValue(
-            "hello",
-            intArg: kk_box_char(Int("z".unicodeScalars.first!.value)),
-            charArg: kk_box_char(Int("x".unicodeScalars.first!.value)),
-            using: kk_string_replace_char_flat
-        )
-        #expect(replaced == "hello")
-    }
-
-    @Test
-    func testStringReplaceIgnoreCaseCaseSensitiveMatch() {
-        let replaced = flatStringReturnValue(
-            "Hello World",
-            first: "hello",
-            second: "Hi",
-            ignoreCase: true,
-            using: kk_string_replace_ignoreCase_flat
-        )
-        #expect(replaced == "Hi World")
-    }
-
-    @Test
-    func testStringReplaceIgnoreCaseCaseSensitiveFalse() {
-        let replaced = flatStringReturnValue(
-            "Hello World",
-            first: "hello",
-            second: "Hi",
-            ignoreCase: false,
-            using: kk_string_replace_ignoreCase_flat
-        )
-        #expect(replaced == "Hello World")
-    }
-
-    @Test
-    func testStringReplaceCharIgnoreCaseReplaces() {
-        let replaced = flatStringReturnValue(
-            "Hello World",
-            firstIntArg: kk_box_char(Int("h".unicodeScalars.first!.value)),
-            secondIntArg: kk_box_char(Int("J".unicodeScalars.first!.value)),
-            thirdIntArg: 1,
-            using: kk_string_replace_char_ignoreCase_flat
-        )
-        #expect(replaced == "Jello World")
-    }
-
-    @Test
-    func testStringReplaceCharIgnoreCaseFalseIsCaseSensitive() {
-        let replaced = flatStringReturnValue(
-            "Hello World",
-            firstIntArg: kk_box_char(Int("h".unicodeScalars.first!.value)),
-            secondIntArg: kk_box_char(Int("J".unicodeScalars.first!.value)),
-            thirdIntArg: 0,
-            using: kk_string_replace_char_ignoreCase_flat
-        )
-        #expect(replaced == "Hello World")
-    }
+    // replace(oldChar,newChar) / replace(oldValue,newValue,ignoreCase)
+    // / replace(oldChar,newChar,ignoreCase) are bundled Kotlin source; their
+    // flat runtime bridges and direct tests were removed. Coverage now lives
+    // in Scripts/diff_cases via diff_kotlinc.sh.
 
     @Test
     func testStringToIntSuccessAndFailure() {

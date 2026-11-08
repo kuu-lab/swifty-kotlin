@@ -970,31 +970,9 @@ public func __kk_string_byteInputStream_flat(
     return runtimeStringByteInputStream(source)
 }
 
-@_cdecl("__kk_string_byteInputStream_charset_flat")
-public func __kk_string_byteInputStream_charset_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ charsetTag: Int
-) -> Int {
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    return runtimeStringByteInputStream(source, charsetTag: charsetTag)
-}
-
 private func runtimeStringByteInputStream(_ source: String) -> Int {
     let bytes = KotlinStringSurrogateEncoding.unicodeString(source).utf8.map { UInt8($0) }
     return runtimeRegisterIoStream(RuntimeInputStreamBox(data: Data(bytes), closeIsNoOp: true), fqName: "java.io.ByteArrayInputStream", input: true)
-}
-
-private func runtimeStringByteInputStream(_ source: String, charsetTag: Int) -> Int {
-    let bytesRaw = runtimeStringToByteArrayWithCharsetRaw(source, charsetTag: charsetTag)
-    guard let bytes = runtimeByteArrayBytes(from: bytesRaw) else {
-        // Fall back to UTF-8 if the encoded bytes cannot be retrieved (should not happen)
-        return runtimeStringByteInputStream(source)
-    }
-    let unsignedBytes = bytes.map { UInt8(truncatingIfNeeded: $0) }
-    return runtimeRegisterIoStream(RuntimeInputStreamBox(data: Data(unsignedBytes), closeIsNoOp: true), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 @_cdecl("__kk_input_stream_read")

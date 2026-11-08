@@ -12,70 +12,16 @@ import Foundation
 extension RuntimeStringArrayTests {
     // MARK: - STDLIB-006 string runtime ABI
 
-    @Test
-    func testFlatStringTrimRemovesLeadingAndTrailingWhitespace() {
-        #expect(flatStringReturnValue("  hello  ", using: kk_string_trim_flat) == "hello")
-    }
+    // trim/trimStart/trimEnd (whitespace and predicate variants),
+    // isEmpty/isNotEmpty/isBlank/isNotBlank/isNullOrEmpty/isNullOrBlank,
+    // orEmpty, getOrNull, and toBoolean* flat bridges are bundled Kotlin
+    // source; their direct tests were removed. Coverage now lives in
+    // Scripts/diff_cases via diff_kotlinc.sh.
 
     @Test
-    func testFlatStringTrimReturnsFlattenedStringFields() {
-        withFlatString("  hello  ") { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = kk_string_trim_flat(data, length, byteCount, hash, &outLength, &outByteCount, &outHash)
-            #expect(flatStringValue(
-                    data: outData.map { UnsafePointer($0) },
-                    length: outLength,
-                    byteCount: outByteCount,
-                    hash: outHash
-                ) == "hello")
-        }
+    func testFlatStringCaseConversionReturnsFlattenedStringFields() {
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat) == "kswiftk")
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat) == "KSWIFTK")
-    }
-
-    @Test
-    func testFlatStringTrimStartAndTrimEndReturnFlattenedStringFields() {
-        withFlatString("  hello  ") { data, length, byteCount, hash in
-            var startLength = 0
-            var startByteCount = 0
-            var startHash = 0
-            let startData = kk_string_trimStart_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                &startLength,
-                &startByteCount,
-                &startHash
-            )
-            #expect(flatStringValue(
-                    data: startData.map { UnsafePointer($0) },
-                    length: startLength,
-                    byteCount: startByteCount,
-                    hash: startHash
-                ) == "hello  ")
-
-            var endLength = 0
-            var endByteCount = 0
-            var endHash = 0
-            let endData = kk_string_trimEnd_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                &endLength,
-                &endByteCount,
-                &endHash
-            )
-            #expect(flatStringValue(
-                    data: endData.map { UnsafePointer($0) },
-                    length: endLength,
-                    byteCount: endByteCount,
-                    hash: endHash
-                ) == "  hello")
-        }
     }
 
     @Test
@@ -93,34 +39,18 @@ extension RuntimeStringArrayTests {
                         needleHash
                     ) < 0)
             }
-            #expect(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)) == 1)
-        }
-        withFlatString("  \n\t") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(kk_string_isBlank_flat(data, length, byteCount, hash)) == 1)
-            #expect(kk_unbox_bool(kk_string_isNotBlank_flat(data, length, byteCount, hash)) == 0)
-        }
-        withFlatString("") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)) == 0)
         }
     }
 
     @Test
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
-        #expect(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)) == 1)
-        #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)) == 1)
         #expect(kk_unbox_bool(__kk_string_equals_flat(nil, 0, 0, 0, nil, 0, 0, 0)) == 1)
 
         withFlatString("") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)) == 1)
             #expect(kk_unbox_bool(__kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
         }
 
-        withFlatString("  \n\t") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)) == 1)
-        }
-
         withFlatString("KSwiftK") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)) == 0)
             #expect(kk_unbox_bool(__kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)) == 0)
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
                 #expect(kk_unbox_bool(
@@ -154,72 +84,7 @@ extension RuntimeStringArrayTests {
     }
 
     @Test
-    func testFlatStringBooleanRuntimeAPIsReturnRawScalars() {
-        #expect(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0) == 1)
-        #expect(kk_string_isNullOrBlank_flat(nil, 0, 0, 0) == 1)
-        #expect(__kk_string_toBoolean_flat(nil, 0, 0, 0) == 0)
-
-        withFlatString("KSwiftK") { data, length, byteCount, hash in
-            #expect(kk_string_isEmpty_flat(data, length, byteCount, hash) == 0)
-            #expect(kk_string_isNotEmpty_flat(data, length, byteCount, hash) == 1)
-            #expect(kk_string_isBlank_flat(data, length, byteCount, hash) == 0)
-            #expect(kk_string_isNotBlank_flat(data, length, byteCount, hash) == 1)
-            #expect(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash) == 0)
-            #expect(kk_string_isNullOrBlank_flat(data, length, byteCount, hash) == 0)
-
-            withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
-                #expect(__kk_string_equals_flat(
-                        data,
-                        length,
-                        byteCount,
-                        hash,
-                        otherData,
-                        otherLength,
-                        otherByteCount,
-                        otherHash
-                    ) == 0)
-            }
-        }
-
-        withFlatString("true") { data, length, byteCount, hash in
-            #expect(__kk_string_toBoolean_flat(data, length, byteCount, hash) == 1)
-            #expect(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 1)
-        }
-
-        withFlatString("false") { data, length, byteCount, hash in
-            #expect(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil) == 0)
-        }
-    }
-
-    @Test
-    func testFlatStringOrEmptyUsesDataNull() {
-        var nullLength = -1
-        var nullByteCount = -1
-        var nullHash = -1
-        let nullData = kk_string_orEmpty_flat(nil, 0, 0, 0, &nullLength, &nullByteCount, &nullHash)
-        #expect(nullData != nil)
-        #expect(flatStringValue(
-                data: nullData.map { UnsafePointer($0) },
-                length: nullLength,
-                byteCount: nullByteCount,
-                hash: nullHash
-            ) == "")
-        #expect(nullLength == 0)
-        #expect(nullByteCount == 0)
-
-        #expect(flatStringReturnValue("hi", using: kk_string_orEmpty_flat) == "hi")
-    }
-
-    @Test
     func testFlatStringParseScalarRuntimeAPIsUseFlattenedStringFields() {
-        #expect(kk_unbox_bool(__kk_string_toBoolean_flat(nil, 0, 0, 0)) == 0)
-
-        withFlatString("true") { data, length, byteCount, hash in
-            #expect(kk_unbox_bool(__kk_string_toBoolean_flat(data, length, byteCount, hash)) == 1)
-            #expect(kk_unbox_bool(__kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil)) == 1)
-            #expect(__kk_string_toBooleanStrictOrNull_flat(data, length, byteCount, hash) == 1)
-        }
-
         withFlatString("42") { data, length, byteCount, hash in
             var thrown = 0
             #expect(__kk_string_toInt_flat(data, length, byteCount, hash, &thrown) == 42)
@@ -306,9 +171,6 @@ extension RuntimeStringArrayTests {
             #expect(__kk_string_lastOrNull_flat(data, length, byteCount, hash) == 99)
             #expect(__kk_string_get_flat(data, length, byteCount, hash, 1, &thrown) == 98)
             #expect(thrown == 0)
-            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == 98)
-            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, -1) == runtimeNullSentinelInt)
-            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 3) == runtimeNullSentinelInt)
 
             thrown = 0
             #expect(__kk_string_get_flat(data, length, byteCount, hash, 3, &thrown) == 0)
@@ -353,12 +215,6 @@ extension RuntimeStringArrayTests {
         #expect(kk_unbox_char(kk_string_getOrNull(stringRaw, 0)) == Int(expectedCodeUnits[0]))
         #expect(kk_unbox_char(kk_string_getOrNull(stringRaw, 1)) == Int(expectedCodeUnits[1]))
         #expect(kk_string_getOrNull(stringRaw, 2) == runtimeNullSentinelInt)
-
-        withFlatString("🥦") { data, length, byteCount, hash in
-            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 0) == Int(expectedCodeUnits[0]))
-            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == Int(expectedCodeUnits[1]))
-            #expect(__kk_string_getOrNull_flat(data, length, byteCount, hash, 2) == runtimeNullSentinelInt)
-        }
     }
 
     // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).

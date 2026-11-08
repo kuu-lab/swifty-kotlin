@@ -602,68 +602,6 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringReplaceCharFlatSignature() throws {
-        let spec = try requireSpec(RuntimeABISpec.stringReplaceCharFlatSpec)
-        #expect(spec.returnType == .nullableUInt8Pointer)
-        #expect(spec.parameters.count == 9)
-        #expect(spec.parameters.map(\.type) == [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-    }
-
-    @Test
-    func kkStringReplaceIgnoreCaseFlatSignature() throws {
-        let spec = try requireSpec(RuntimeABISpec.stringReplaceIgnoreCaseFlatSpec)
-        #expect(spec.returnType == .nullableUInt8Pointer)
-        #expect(spec.parameters.count == 16)
-        #expect(spec.parameters.map(\.type) == [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-    }
-
-    @Test
-    func kkStringReplaceCharIgnoreCaseFlatSignature() throws {
-        let spec = try requireSpec(RuntimeABISpec.stringReplaceCharIgnoreCaseFlatSpec)
-        #expect(spec.returnType == .nullableUInt8Pointer)
-        #expect(spec.parameters.count == 10)
-        #expect(spec.parameters.map(\.type) == [
-            .nullableConstUInt8Pointer,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .intptr,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-            .nullableIntptrPointer,
-        ])
-    }
-
-    @Test
     func kkStringReplaceFirstRangePointerABIRemoved() {
         let legacyNames = [
             "replaceFirst",
@@ -766,32 +704,6 @@ struct ABIMismatchTests {
                 !(RuntimeABISpec.allFunctions.contains { legacyName.matches($0.name) }),
                 "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
             )
-        }
-    }
-
-    @Test
-    func kkStringTrimPredicateFlatSignatures() throws {
-        let names = [
-            RuntimeABISpec.stringTrimPredicateFlatSpec,
-            RuntimeABISpec.stringTrimStartPredicateFlatSpec,
-            RuntimeABISpec.stringTrimEndPredicateFlatSpec,
-        ]
-        for name in names {
-            let spec = try requireSpec(name)
-            #expect(spec.returnType == .nullableUInt8Pointer)
-            #expect(spec.parameters.count == 10)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
         }
     }
 

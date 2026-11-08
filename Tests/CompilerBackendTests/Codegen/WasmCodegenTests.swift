@@ -1287,7 +1287,7 @@ struct WasmCodegenTests {
         printInt(call("kk_structural_eq",
                       [call("__kk_string_toDoubleOrNull_flat", [lit("x")]), nullS])) // 1
         printInt(call("__kk_string_toInt_flat", [lit("42")])) // 42
-        printInt(call("__kk_string_toBoolean_flat", [lit("true")])) // 1
+        printInt(call("__kk_wasm_string_to_boolean", [lit("true")])) // 1
         printStr(call("__kk_wasm_string_substring_after_char",
                       [lit("a=b=c"), int(0x3D)])) // "b=c"
         printStr(call("__kk_wasm_string_substring_before_last_char",

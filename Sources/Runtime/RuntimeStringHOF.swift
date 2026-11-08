@@ -63,20 +63,3 @@ public func __kk_string_joinToString(
     let elements = runtimeListBox(from: listRaw)?.values.map(runtimeElementToString) ?? []
     return runtimeMakeStringRaw(prefix + elements.joined(separator: separator) + postfix)
 }
-
-@_cdecl("kk_string_splitToSequence_flat")
-public func kk_string_splitToSequence_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ delimData: UnsafePointer<UInt8>?,
-    _ delimLength: Int,
-    _ delimByteCount: Int,
-    _ delimHash: Int
-) -> Int {
-    kk_string_splitToSequence(
-        kk_string_from_flat(data, length, byteCount, hash),
-        kk_string_from_flat(delimData, delimLength, delimByteCount, delimHash)
-    )
-}
