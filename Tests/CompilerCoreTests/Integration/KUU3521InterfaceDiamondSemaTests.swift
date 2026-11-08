@@ -235,6 +235,30 @@ struct KUU3521InterfaceDiamondSemaTests {
     }
 
     @Test
+    func privateMembersDoNotParticipateInDiamondConflicts() throws {
+        // KUU-4494: private members are not inherited, so a private
+        // declaration in a sibling interface or superclass must not count
+        // as a competing implementation (kt2477 / KT-2477 semantics).
+        let source = """
+        interface A { val c: String get() = "OK" }
+        interface B { private val c: String get() = "FAIL" }
+        open class C { private val c: String = "FAIL" }
+        class D : C(), A, B { val b = c }
+
+        interface P { private fun foo(): String = "FAIL" }
+        interface Q { private fun foo(): String = "FAIL" }
+        class E : P, Q
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" }))
+        }
+    }
+
+    @Test
     func localClassAndAnonymousObjectRequireDiamondOverride() throws {
         let source = """
         interface I1 { fun g(): Int }
