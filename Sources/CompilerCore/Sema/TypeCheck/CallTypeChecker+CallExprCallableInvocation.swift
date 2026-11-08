@@ -165,6 +165,17 @@ extension CallTypeChecker {
                 )
             } ?? false
             if preferImplicitProperty, let property = implicitProperty {
+                // A bare `handler()` read through a nullable implicit
+                // receiver is an unsafe member access (KUU-4501).
+                if sema.types.nullability(of: property.receiver.type) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
                 guard let propertySymbol = sema.symbols.symbol(property.symbol) else {
                     return nil
                 }

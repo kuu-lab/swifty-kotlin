@@ -452,10 +452,13 @@ extension CallTypeChecker {
     ) -> Bool {
         // A nullable receiver cannot supply a non-null extension receiver:
         // Kotlin requires a safe call there, so the call-site nullability
-        // must survive the non-null normalization below (KUU-4495).
-        guard sema.types.nullabilitySubtype(
-            sema.types.nullability(of: callSiteReceiver),
-            sema.types.nullability(of: declaredReceiver)
+        // must survive the non-null normalization below (KUU-4495). A
+        // declared receiver type parameter whose bounds admit null still
+        // matches — `T` binds `String?` (KUU-4501).
+        guard implicitReceiverEntryNullabilityCompatible(
+            callSiteReceiver: callSiteReceiver,
+            declaredReceiver: declaredReceiver,
+            sema: sema
         ) else {
             return false
         }

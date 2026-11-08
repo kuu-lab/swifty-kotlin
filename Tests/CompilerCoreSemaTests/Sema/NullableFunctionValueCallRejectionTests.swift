@@ -31,8 +31,11 @@ struct NullableFunctionValueCallRejectionTests {
         }
         """)
 
-        let found = diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0024" }
-        #expect(found, "Expected SEMA-0024 for non-safe invoke on nullable function value, got: \(diagnostics.diagnostics.map(\.code))")
+        // A non-safe `x.invoke` on a nullable function value is rejected as
+        // an unsafe call on a nullable receiver (KUU-4138), not through the
+        // function-value path that emits SEMA-0024.
+        let found = diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0026" }
+        #expect(found, "Expected SEMA-0026 for non-safe invoke on nullable function value, got: \(diagnostics.diagnostics.map(\.code))")
     }
 
     @Test

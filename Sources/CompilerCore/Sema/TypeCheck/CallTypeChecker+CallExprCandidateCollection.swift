@@ -56,14 +56,32 @@ extension CallTypeChecker {
             // farther receivers marked with the same annotation. Scope
             // candidates must not bind to those hidden receivers.
             let dslHiddenReceiverTypes = ctx.dslHiddenImplicitReceiverTypes()
-            let matchingReceiverEntry = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
+            let matchingReceiverEntries = ctx.implicitReceiverMemberLookupEntries().filter { entry in
                 !dslHiddenReceiverTypes.contains(entry.type)
                     && allCallCandidates.contains { candidate in
                         callCandidateDeclaredReceiver(
                             candidate, matchesTowerEntryType: entry.type, ctx: ctx
                         )
                     }
-            })
+            }
+            // A nullable nearer entry can supply the call only when it does
+            // not make the call unsafe; otherwise the declared receiver must
+            // come from a farther compatible tower entry, so a nullable
+            // `with` receiver cannot shadow a valid outer receiver
+            // (KUU-4501). Keep the lenient first match when nothing is
+            // compatible so resolution still points at the unsafe receiver
+            // for diagnostics.
+            let matchingReceiverEntry = matchingReceiverEntries.first { entry in
+                allCallCandidates.contains { candidate in
+                    !isUnsafeNullableImplicitReceiverCall(
+                        candidate,
+                        supplyingReceiverType: entry.type,
+                        argCount: args.count,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
+            } ?? matchingReceiverEntries.first
             if let matchingReceiverEntry {
                 callImplicitReceiverType = matchingReceiverEntry.type
             } else if let companion = allCallCandidates.compactMap({
