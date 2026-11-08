@@ -298,14 +298,18 @@ extension CallTypeChecker {
             }
             return nil
         }
-        if index >= 0, index < signature.parameterTypes.count {
-            return index
-        }
+        // A vararg claims every positional argument from its own index on:
+        // parameters declared after it are reachable only by name, so an
+        // index that still falls inside `parameterTypes` belongs to the
+        // vararg, not to that later parameter (KUU-4449).
         if let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true),
            index >= varargIndex,
            varargIndex < signature.parameterTypes.count
         {
             return varargIndex
+        }
+        if index >= 0, index < signature.parameterTypes.count {
+            return index
         }
         return nil
     }
@@ -345,9 +349,9 @@ extension CallTypeChecker {
         guard !nestedArgumentIndices.isEmpty else {
             return nil
         }
-
         var expectedTypesByCandidate: [SymbolID: [Int: TypeID]] = [:]
         var erasedExpectedIndicesByCandidate: [SymbolID: Set<Int>] = [:]
+        var inapplicableCandidates: Set<SymbolID> = []
         for candidate in candidates {
             guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else {
                 return nil
@@ -403,6 +407,7 @@ extension CallTypeChecker {
             }
 
             var candidateExpectedTypes: [Int: TypeID] = [:]
+            var candidateCannotMapArgument = false
             for index in nestedArgumentIndices {
                 guard let parameterIndex = parameterIndexForCallArgument(
                     at: index,
@@ -410,7 +415,16 @@ extension CallTypeChecker {
                     in: signature,
                     sema: ctx.sema
                 ), parameterIndex < signature.parameterTypes.count else {
-                    return nil
+                    // The argument binds no parameter of this overload —
+                    // e.g. a `maxOf(a, b)` overload next to
+                    // `maxOf(a, b, comparator)`, where the trailing
+                    // `compareBy` argument has no slot. That makes only the
+                    // candidate inapplicable; abandoning the whole
+                    // reinference would keep sibling overloads that do take
+                    // the argument from ever seeing their expected type
+                    // (KUU-4449).
+                    candidateCannotMapArgument = true
+                    break
                 }
                 let expectedType: TypeID
                 if let existingOverride = originalExpectedTypeOverrides[index] {
@@ -529,6 +543,10 @@ extension CallTypeChecker {
                     erasedExpectedIndicesByCandidate[candidate, default: []].insert(index)
                 }
             }
+            if candidateCannotMapArgument {
+                inapplicableCandidates.insert(candidate)
+                continue
+            }
             expectedTypesByCandidate[candidate] = candidateExpectedTypes
         }
 
@@ -592,8 +610,7 @@ extension CallTypeChecker {
         }
 
         var argumentTypesByCandidate: [SymbolID: [Int: TypeID]] = [:]
-        var inapplicableCandidates: Set<SymbolID> = []
-        for candidate in candidates {
+        for candidate in candidates where !inapplicableCandidates.contains(candidate) {
             guard let candidateExpectedTypes = expectedTypesByCandidate[candidate] else {
                 return nil
             }
