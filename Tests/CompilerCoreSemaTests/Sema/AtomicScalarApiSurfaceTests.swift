@@ -155,6 +155,53 @@ struct AtomicScalarApiSurfaceTests {
         }
     }
 
+    // KUU-4412: java.util.concurrent.atomic.AtomicReference is a Java class,
+    // so its type variable is flexible — `AtomicReference<Any>(null)` and
+    // `set(null)` are legal for any type argument. Kotlin-declared surfaces
+    // (`kotlin.concurrent`, `kotlin.concurrent.atomics`) stay strict.
+    @Test
+    func javaAtomicReferenceAcceptsNullForFlexibleTypeArgument() throws {
+        let source = """
+        import java.util.concurrent.atomic.AtomicReference
+        import kotlin.concurrent.AtomicReference as LegacyReference
+        fun main() {
+            val ref = AtomicReference<Any>(null)
+            ref.set(null)
+            println(ref.get())
+            val s = AtomicReference<String>("a")
+            s.set(null)
+            println(s.get())
+            val n = AtomicReference<Any?>(null)
+            n.set(42)
+            println(n.get())
+            val legacy = LegacyReference("k")
+            println(legacy.get())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
+    func kotlinAtomicReferenceRejectsNullForNonNullTypeArgument() throws {
+        let source = """
+        import kotlin.concurrent.AtomicReference
+        fun main() {
+            val ref = AtomicReference<Any>(null)
+            println(ref.get())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.contains { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors)")
+        }
+    }
+
     @Test
     func javaAndLegacyAliasesAndUserExtensionsRemainCallable() throws {
         let source = """
