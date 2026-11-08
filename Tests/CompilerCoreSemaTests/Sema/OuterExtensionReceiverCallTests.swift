@@ -178,6 +178,55 @@ struct OuterExtensionReceiverCallTests {
         #expect(resolved.chosenCallee != nil)
     }
 
+    /// KUU-4495: a `with(null as String?)` receiver is nearer than the outer
+    /// `String` extension receiver but cannot supply a `String` extension —
+    /// Kotlin resolves the call on the outer receiver instead.
+    @Test func nullableReceiverScopeFallsThroughToOuterExtensionReceiver() throws {
+        let ctx = makeContext("""
+        interface Reader { fun read(): Int }
+        fun <T, R> scopeOf(receiver: T, block: T.() -> R): R = receiver.block()
+        fun String.firstCode(): Int = 1
+        fun String.viaNullable(): Int = scopeOf(null as String?) { firstCode() }
+        fun String.viaObjectLiteral(): Reader = scopeOf(null as String?) {
+            object : Reader {
+                override fun read(): Int = firstCode()
+            }
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        let sema = try #require(ctx.sema)
+        let callee = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("firstCode")]))
+        let caller = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("viaNullable")]))
+        let expectedReceiver = SyntheticSymbolScheme.receiverParameterSymbol(for: caller)
+        #expect(sema.bindings.callBindings.contains { binding in
+            binding.value.chosenCallee == callee
+                && sema.bindings.implicitReceiverOuterReceiver(for: binding.key) == expectedReceiver
+        })
+    }
+
+    /// The fall-through only rejects nullability mismatches: a nullable
+    /// extension receiver is still supplied by a nullable implicit receiver.
+    @Test func nullableReceiverStillMatchesNullableExtension() throws {
+        let ctx = makeContext("""
+        fun <T, R> scopeOf(receiver: T, block: T.() -> R): R = receiver.block()
+        fun String?.firstCode(): Int = 1
+        fun viaNullable(): Int = scopeOf(null as String?) { firstCode() }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
+    /// Qualified calls on a nullable receiver still require a safe call.
+    @Test func explicitNullableReceiverStillRejectsNonNullExtension() throws {
+        let ctx = makeContext("""
+        fun String.firstCode(): Int = 1
+        fun viaNullable(s: String?): Int = s.firstCode()
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+    }
+
     // These fixtures isolate receiver resolution; the diff case covers the full stdlib path.
     private func makeContext(_ source: String) -> CompilationContext {
         let path = "/virtual/outer-extension-receiver.kt"

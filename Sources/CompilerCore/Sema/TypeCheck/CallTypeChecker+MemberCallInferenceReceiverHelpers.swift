@@ -450,6 +450,15 @@ extension CallTypeChecker {
         declaredReceiver: TypeID,
         sema: SemaModule
     ) -> Bool {
+        // A nullable receiver cannot supply a non-null extension receiver:
+        // Kotlin requires a safe call there, so the call-site nullability
+        // must survive the non-null normalization below (KUU-4495).
+        guard sema.types.nullabilitySubtype(
+            sema.types.nullability(of: callSiteReceiver),
+            sema.types.nullability(of: declaredReceiver)
+        ) else {
+            return false
+        }
         let actual = sema.types.makeNonNullable(callSiteReceiver)
         let declared = sema.types.makeNonNullable(declaredReceiver)
         if sema.types.isSubtype(actual, declared) {

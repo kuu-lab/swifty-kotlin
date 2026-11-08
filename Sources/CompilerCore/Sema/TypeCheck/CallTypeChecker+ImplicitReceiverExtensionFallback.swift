@@ -1,5 +1,13 @@
 extension CallTypeChecker {
     func implicitMemberExtensionReceiverMatches(_ actual: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
+        // Same nullability contract as `extensionSyntheticFallbackReceiverMatches`:
+        // a nullable receiver cannot supply a non-null member-extension receiver.
+        guard sema.types.nullabilitySubtype(
+            sema.types.nullability(of: actual),
+            sema.types.nullability(of: declared)
+        ) else {
+            return false
+        }
         let actual = sema.types.makeNonNullable(actual)
         let declared = sema.types.makeNonNullable(declared)
         if sema.types.isSubtype(actual, declared) { return true }
