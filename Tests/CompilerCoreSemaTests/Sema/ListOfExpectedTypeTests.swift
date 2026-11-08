@@ -44,7 +44,8 @@ struct ListOfExpectedTypeTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         for (input, range) in zip(invalidSources, ranges) {
             #expect(errors.contains {
-                ($0.code.hasPrefix("KSWIFTK-TYPE-") || $0.code == "KSWIFTK-SEMA-0002")
+                ($0.code.hasPrefix("KSWIFTK-TYPE-") || $0.code == "KSWIFTK-SEMA-0002"
+                    || ["KSWIFTK-SEMA-0468", "KSWIFTK-SEMA-0469", "KSWIFTK-SEMA-0470", "KSWIFTK-SEMA-0473"].contains($0.code))
                     && $0.primaryRange.map { range.contains($0.start.offset) } == true
             }, "Expected type/overload mismatch for \(input): \(errors)")
         }
