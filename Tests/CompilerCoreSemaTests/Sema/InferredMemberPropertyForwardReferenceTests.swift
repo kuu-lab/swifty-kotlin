@@ -160,6 +160,28 @@ struct InferredMemberPropertyForwardReferenceTests {
     }
 
     @Test
+    func aliasedDefaultImportConstructorPublishesType() throws {
+        // KUU-4502: `IllegalStateException` binds both the `kotlin` class and
+        // the `java.lang` typealias that aliases it (both default imports),
+        // so the raw scope lookup yields two candidates for one nominal. The
+        // precheck must still publish the getter's type — otherwise the
+        // earlier `throw sendException` sees the `Any?` placeholder.
+        let ctx = makeContextFromSource("""
+        class Derived : Base() {
+            fun send() {
+                if (true) throw sendException
+            }
+        }
+
+        open class Base {
+            protected val sendException get() = IllegalStateException("closed")
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
     func unresolvedGetterBodyStaysOnNormalPass() throws {
         // The intrinsic array fallback must not invent a type for a body that
         // genuinely does not resolve — `size` here has no receiver and no
