@@ -203,8 +203,8 @@ struct NestedCallArgumentCandidateFailureTests {
     func unresolvedMemberCallArgumentsDoNotCascadeAmbiguity() throws {
         let context = makeContext("""
         fun main() {
-            println(arrayOf("a").isNotEmpty())
-            println(Throwable().stackTrace.joinToString("\\n"))
+            println(arrayOf("a").missingMember())
+            println(Throwable().missingProperty.joinToString("\\n"))
         }
         """)
 
@@ -264,7 +264,10 @@ struct NestedCallArgumentCandidateFailureTests {
         let sema = try #require(context.sema)
         let ast = try #require(context.ast)
         let chooseCall = try #require(nameRefCallExprID(named: "choose", in: ast, interner: context.interner))
-        #expect(sema.bindings.callBinding(for: chooseCall) == nil)
+        // Rejection is carried by the diagnostic; error recovery still records
+        // the lone inapplicable candidate as a best-effort binding.
+        let chosen = try #require(sema.bindings.callBinding(for: chooseCall)?.chosenCallee)
+        #expect(sema.symbols.symbol(chosen)?.fqName.map(context.interner.resolve) == ["choose"])
     }
 
     @Test
