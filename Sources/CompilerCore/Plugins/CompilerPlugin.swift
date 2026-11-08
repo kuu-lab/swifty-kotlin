@@ -1,0 +1,128 @@
+/// Built-in compiler plugin support — the KSwiftK equivalent of kotlinc's
+/// `-Xplugin` mechanism. Plugins are compiled into the compiler and run at
+/// fixed pipeline hook points. Configuration uses the kotlinc-compatible
+/// `plugin:<pluginID>:<option>=<value>` convention, supplied through `-P`
+/// CLI arguments (stored as frontend flags) or `-Xfrontend`.
+///
+/// This is the built-in half of the plugin story: the protocol and hook
+/// points are deliberately phase-oriented so a future dynamic plugin
+/// loader can adapt external binaries onto the same surface without
+/// changing call sites.
+protocol CompilerPlugin: Sendable {
+    /// Stable plugin identifier, e.g. `org.jetbrains.kotlin.allopen`.
+    var id: String { get }
+
+    /// Sema-phase transform, run after declaration annotations have been
+    /// canonicalized to FQ names and before validation passes consume
+    /// symbol flags (modality, overrides, inheritance checks).
+    func applySemaTransform(_ context: CompilerPluginSemaContext)
+
+    /// Lowering passes contributed by this plugin. They run before the
+    /// standard pipeline so generated KIR flows through every built-in
+    /// desugaring/ABI pass.
+    var loweringPasses: [any LoweringPass] { get }
+}
+
+extension CompilerPlugin {
+    var loweringPasses: [any LoweringPass] { [] }
+}
+
+/// Everything a Sema-phase plugin transform may inspect or mutate.
+struct CompilerPluginSemaContext {
+    let ast: ASTModule
+    let symbols: SymbolTable
+    let types: TypeSystem
+    let bindings: BindingTable
+    let diagnostics: DiagnosticEngine
+    let interner: StringInterner
+    let options: CompilerOptions
+    let pluginConfig: CompilerPluginConfig
+}
+
+/// Parsed `plugin:<id>:<key>=<value>` frontend flags. Repeatable options
+/// accumulate values in declaration order.
+struct CompilerPluginConfig {
+    /// pluginID -> option name -> values
+    private(set) var values: [String: [String: [String]]] = [:]
+
+    static func parse(frontendFlags: [String]) -> CompilerPluginConfig {
+        var config = CompilerPluginConfig()
+        for flag in frontendFlags where flag.hasPrefix("plugin:") {
+            // plugin:<id>:<key>=<value>; the value may itself contain '='.
+            let rest = flag.dropFirst("plugin:".count)
+            guard let idEnd = rest.firstIndex(of: ":") else { continue }
+            let id = String(rest[..<idEnd])
+            let optionPart = rest[rest.index(after: idEnd)...]
+            guard let eq = optionPart.firstIndex(of: "=") else { continue }
+            let key = String(optionPart[..<eq])
+            let value = String(optionPart[optionPart.index(after: eq)...])
+            config.values[id, default: [:]][key, default: []].append(value)
+        }
+        return config
+    }
+
+    var isEmpty: Bool { values.isEmpty }
+
+    func optionValues(for pluginID: String, key: String) -> [String] {
+        values[pluginID]?[key] ?? []
+    }
+}
+
+/// Registry of compiler plugins compiled into the compiler.
+enum CompilerPluginRegistry {
+    /// Built-in plugins in execution order. Each plugin self-gates on its
+    /// configuration and on whether its trigger annotations are present.
+    static let builtins: [any CompilerPlugin] = [
+        AllOpenPlugin(),
+    ]
+
+    static func semaContext(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        options: CompilerOptions
+    ) -> CompilerPluginSemaContext {
+        CompilerPluginSemaContext(
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            bindings: bindings,
+            diagnostics: diagnostics,
+            interner: interner,
+            options: options,
+            pluginConfig: CompilerPluginConfig.parse(frontendFlags: options.frontendFlags)
+        )
+    }
+}
+
+extension DataFlowSemaPhase {
+    /// Runs every built-in plugin's Sema transform. Invoked after
+    /// `canonicalizeDeclarationAnnotations` so trigger annotations are
+    /// already resolved to canonical FQ names, and before inheritance /
+    /// override validation so flag changes take effect.
+    func runCompilerPluginTransforms(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        ctx: CompilationContext
+    ) {
+        let pluginCtx = CompilerPluginRegistry.semaContext(
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            bindings: bindings,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
+            options: ctx.options
+        )
+        // Every plugin self-gates: configured plugins check their options,
+        // fixed-trigger plugins check whether their annotation resolved.
+        for plugin in CompilerPluginRegistry.builtins {
+            plugin.applySemaTransform(pluginCtx)
+        }
+    }
+}
