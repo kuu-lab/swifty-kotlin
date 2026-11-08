@@ -111,10 +111,18 @@ final class KIRLoweringContext {
     /// Runtime scope handles have no Kotlin CoroutineScope property itable.
     /// ExprIDs are arena-unique; retain their provenance across nested captures.
     var runtimeCoroutineScopeReceiverExprIDs: Set<KIRExprID> = []
-    /// Lambda literals whose contextual parameter type declares a type
-    /// parameter as its return type. `nil` until the first lookup builds it
-    /// (see `lambdaReturnsErasedGeneric(for:ast:sema:)`).
-    var erasedGenericReturnLambdaExprIDs: Set<ExprID>?
+    /// Per erased-return lambda (see `erasedLambdaReturnClaim(for:ast:sema:)`):
+    /// the declared return type parameter symbol and the call-site
+    /// substitution the lambda's own invoke() is specialized to. `nil` until
+    /// the first lookup builds it.
+    var erasedGenericReturnLambdaClaims: [ExprID: (declaredSymbol: SymbolID, substituted: TypeID)]?
+    /// While lowering a lambda body that returns into an erased generic
+    /// position, the declared `T` symbol and its per-call-site substitution.
+    /// A generic call tail whose recorded consumer is that `T` must be
+    /// checked against the substituted type — JVM specializes the lambda's
+    /// invoke() to it and emits the boundary checkcast there (KUU-4496) —
+    /// while the raw `T` would erase to `Any` and skip the check.
+    var erasedLambdaReturnClaimStack: [(declaredSymbol: SymbolID, substituted: TypeID)] = []
     var syntheticObjectLiteralSymbolsByExprID: [ExprID: (nominalSymbol: SymbolID, constructorSymbol: SymbolID, constructorName: InternedString)] = [:]
     var emittedObjectLiteralExprIDs: Set<ExprID> = []
     /// Caches itable ABI bridge symbols keyed by the interface/implementation pair.
@@ -411,6 +419,18 @@ final class KIRLoweringContext {
     ) rethrows -> T {
         contextReceiverValueStack.append(values)
         defer { _ = contextReceiverValueStack.popLast() }
+        return try body()
+    }
+
+    func withErasedLambdaReturnClaim<T>(
+        _ claim: (declaredSymbol: SymbolID, substituted: TypeID)?,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        guard let claim else {
+            return try body()
+        }
+        erasedLambdaReturnClaimStack.append(claim)
+        defer { _ = erasedLambdaReturnClaimStack.popLast() }
         return try body()
     }
 

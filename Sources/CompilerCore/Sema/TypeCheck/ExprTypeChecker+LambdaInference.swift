@@ -541,8 +541,15 @@ extension ExprTypeChecker {
             isStatementContext: lambdaUsesUnitCoercion || lambdaTailIsElselessIf || lambdaTailIsWhenWithoutElse
                 || lambdaTailIsTry
         )
+        // The declared `T` of `() -> T` — not the contextually substituted
+        // `Any?` — is the ABI slot the tail value actually flows into: KIR
+        // lowering resolves `T` through the call's substituted type
+        // arguments when deciding the erased-generic boundary check
+        // (KUU-4496).
+        let consumerReturnType = sema.bindings.lambdaDeclaredExpectedReturnTypes[id]
+            ?? expectedLambdaReturnType
         driver.recordGenericCallConsumer(
-            body, type: expectedLambdaReturnType == sema.types.unitType ? nil : expectedLambdaReturnType
+            body, type: consumerReturnType == sema.types.unitType ? nil : consumerReturnType
         )
         // A bare `ClassName` as the lambda's result denotes the companion
         // object; keep the companion value type in the inferred return type

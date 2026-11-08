@@ -702,7 +702,8 @@ extension CallLowerer {
                                                 kirShouldCheckErasedGenericCallResult(
                                                     exprID: callExprID,
                                                     boundType: resultType,
-                                                    sema: sema
+                                                    sema: sema,
+                                                    erasedLambdaReturnClaims: driver.ctx.erasedLambdaReturnClaimStack
                                                 )
         {
             sema.types.nullableAnyType

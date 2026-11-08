@@ -274,6 +274,7 @@ final class LambdaLowerer {
         // concrete type, so box on the way out.
         let returnsErasedGeneric = !needsClosureParam && !isSamConversion
             && driver.ctx.lambdaReturnsErasedGeneric(for: exprID, ast: ast, sema: sema)
+        let erasedLambdaReturnClaim = driver.ctx.erasedLambdaReturnClaim(for: exprID, ast: ast, sema: sema)
         let lambdaReturnType = erasedLambdaReturnType(
             substitutedReturnType,
             returnsErasedGeneric: returnsErasedGeneric,
@@ -303,6 +304,7 @@ final class LambdaLowerer {
                 lambdaReturnType: lambdaReturnType,
                 substitutedReturnType: substitutedReturnType,
                 returnsErasedGeneric: returnsErasedGeneric,
+                erasedLambdaReturnClaim: erasedLambdaReturnClaim,
                 functionType: functionType,
                 isSamConversion: isSamConversion,
                 boundType: boundType,
@@ -549,15 +551,19 @@ final class LambdaLowerer {
                 return KIRLoweringContext.ContextReceiverValue(type: type, exprID: value)
             }
         let loweredBody = driver.ctx.withContextReceiverValues(contextReceiverValues) {
-            driver.lowerExpr(
-                bodyExpr,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &lambdaBody
-            )
+            driver.ctx.withErasedLambdaReturnClaim(
+                returnsErasedGeneric ? erasedLambdaReturnClaim : nil
+            ) {
+                driver.lowerExpr(
+                    bodyExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &lambdaBody
+                )
+            }
         }
         if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
             let returnedBody = boxErasedReturnValue(
@@ -819,6 +825,7 @@ final class LambdaLowerer {
         lambdaReturnType: TypeID,
         substitutedReturnType: TypeID,
         returnsErasedGeneric: Bool,
+        erasedLambdaReturnClaim: (declaredSymbol: SymbolID, substituted: TypeID)?,
         functionType: FunctionType?,
         isSamConversion: Bool,
         boundType: TypeID?,
@@ -889,15 +896,19 @@ final class LambdaLowerer {
                 return KIRLoweringContext.ContextReceiverValue(type: type, exprID: value)
             }
         let loweredBody = driver.ctx.withContextReceiverValues(contextReceiverValues) {
-            driver.lowerExpr(
-                bodyExpr,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &lambdaBody
-            )
+            driver.ctx.withErasedLambdaReturnClaim(
+                returnsErasedGeneric ? erasedLambdaReturnClaim : nil
+            ) {
+                driver.lowerExpr(
+                    bodyExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &lambdaBody
+                )
+            }
         }
         if !driver.controlFlowLowerer.isTerminatedExpr(loweredBody, arena: arena, sema: sema) {
             let returnedBody = boxErasedReturnValue(

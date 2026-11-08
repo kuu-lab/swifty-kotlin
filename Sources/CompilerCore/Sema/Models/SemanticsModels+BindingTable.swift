@@ -30,6 +30,16 @@ public final class BindingTable {
     public func bindGenericCallConsumerType(_ expr: ExprID, type: TypeID?) {
         genericCallConsumerTypes[expr] = type
     }
+    /// The declared, pre-substitution expected return type parameter for a
+    /// lambda literal argument — `T` in `invokeBlock(block: () -> T)`. The
+    /// erased-generic boundary check inside the body must verify the
+    /// *substituted* type, which KIR lowering recovers through this
+    /// declaration parameter (KUU-4496).
+    public private(set) var lambdaDeclaredExpectedReturnTypes: [ExprID: TypeID] = [:]
+
+    public func bindLambdaDeclaredExpectedReturnType(_ expr: ExprID, type: TypeID?) {
+        lambdaDeclaredExpectedReturnTypes[expr] = type
+    }
     /// Flow-refined receiver types for local compound assignments. Their
     /// result is usually `Unit`, so the LHS type cannot be recovered from
     /// `exprTypes` during KIR lowering.
@@ -308,6 +318,7 @@ public final class BindingTable {
     public func removeExprBindings(_ expr: ExprID) {
         exprTypes.removeValue(forKey: expr)
         genericCallConsumerTypes.removeValue(forKey: expr)
+        lambdaDeclaredExpectedReturnTypes.removeValue(forKey: expr)
         compoundAssignReceiverTypes.removeValue(forKey: expr)
         platformNullAssertionTypes.removeValue(forKey: expr)
         unitReturnCoercionExprs.remove(expr)
@@ -522,6 +533,7 @@ public final class BindingTable {
         worker.primaryConstructorPropertyAnnotations = primaryConstructorPropertyAnnotations
         worker.exprTypes = exprTypes
         worker.genericCallConsumerTypes = genericCallConsumerTypes
+        worker.lambdaDeclaredExpectedReturnTypes = lambdaDeclaredExpectedReturnTypes
         worker.compoundAssignReceiverTypes = compoundAssignReceiverTypes
         worker.platformNullAssertionTypes = platformNullAssertionTypes
         worker.whenExhaustiveness = whenExhaustiveness
