@@ -553,18 +553,30 @@ private func runtimeBindProducerScope(
         )
         runtimeRegisterObjectType(rawValue: channelHandle, classID: actorScopeTypeID)
         runtimeRegisterTypeEdge(childTypeID: actorScopeTypeID, parentTypeID: coroutineScopeTypeID)
+        // KUU-4366: the actor scope handle is the channel itself (upstream
+        // `ActorScope<E> : CoroutineScope, ReceiveChannel<E>`), so `as
+        // Channel`/`as ReceiveChannel` checks — `ActorScope.channel` returns
+        // the handle under a `Channel` static type — must not trap.
+        for parent in channelSupertypeIDs() {
+            runtimeRegisterTypeEdge(childTypeID: actorScopeTypeID, parentTypeID: parent)
+        }
     } else {
         let producerScopeTypeID = runtimeStableNominalTypeID(
             fqName: "kotlinx.coroutines.channels.ProducerScope"
         )
         runtimeRegisterObjectType(rawValue: channelHandle, classID: producerScopeTypeID)
         runtimeRegisterTypeEdge(childTypeID: producerScopeTypeID, parentTypeID: coroutineScopeTypeID)
-        runtimeRegisterTypeEdge(
-            childTypeID: producerScopeTypeID,
-            parentTypeID: runtimeStableNominalTypeID(
-                fqName: "kotlinx.coroutines.channels.SendChannel"
-            )
-        )
+        // KUU-4366: the produce handle is the channel itself (upstream the
+        // object is a `ProducerCoroutine`, which is a `Channel`), so `as
+        // Channel` checks inside `consumeEach`/`consume` and `is Channel` /
+        // `is ReceiveChannel` queries must not trap. `Channel` and
+        // `ReceiveChannel` are registered explicitly rather than relying on
+        // `registerChannelFamilyTypeEdgesOnce`, which only runs when a
+        // channel handle reaches the family fallback in the `is` walk —
+        // bound handles answer through `runtimeObjectTypeID` instead.
+        for parent in channelSupertypeIDs() {
+            runtimeRegisterTypeEdge(childTypeID: producerScopeTypeID, parentTypeID: parent)
+        }
     }
     let scope = RuntimeCoroutineScope(context: context)
     scope.adoptJob(job)
