@@ -1503,6 +1503,74 @@ extension OverloadResolver {
             )))
         }
 
+        // KUU-4463: a variable solved to a nullable type — for example a
+        // caller's `T : Any` forwarded through `Lazy<T?>` — records `T?` as
+        // its value even though the non-null core `T` satisfies every
+        // constraint and the declared bounds. Prefer the non-null core when
+        // it re-verifies against all constraints and declared upper bounds;
+        // otherwise keep the solved type so genuine violations still fail.
+        for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+            guard let typeVar = typeVarBySymbol[typeParamSymbol],
+                  let solved = substitution[typeVar],
+                  solved != ctx.types.errorType,
+                  ctx.types.nullability(of: solved) == .nullable
+            else {
+                continue
+            }
+            let nonNullSolved = ctx.types.makeNonNullable(solved)
+            guard nonNullSolved != solved else { continue }
+
+            var trialSubstitution = substitution
+            trialSubstitution[typeVar] = nonNullSolved
+
+            var verified = true
+            for constraint in constraints where constraint.left == .variable(typeVar)
+                || constraint.right == .variable(typeVar)
+            {
+                func resolveOperand(_ operand: ConstraintOperand) -> TypeID? {
+                    switch operand {
+                    case let .type(type): return type
+                    case let .variable(variable): return trialSubstitution[variable]
+                    }
+                }
+                guard let left = resolveOperand(constraint.left),
+                      let right = resolveOperand(constraint.right)
+                else {
+                    verified = false
+                    break
+                }
+                let satisfied = switch constraint.kind {
+                case .subtype: ctx.types.isSubtype(left, right)
+                case .equal: ctx.types.isSubtype(left, right) && ctx.types.isSubtype(right, left)
+                case .supertype: ctx.types.isSubtype(right, left)
+                }
+                if !satisfied {
+                    verified = false
+                    break
+                }
+            }
+            guard verified else { continue }
+
+            let signatureBounds: [TypeID] = index < signature.typeParameterUpperBoundsList.count
+                ? signature.typeParameterUpperBoundsList[index]
+                : []
+            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+            for bound in signatureBounds + symbolBounds where !signatureBounds.contains(bound) {
+                let substitutedBound = ctx.types.substituteTypeParameters(
+                    in: bound,
+                    substitution: trialSubstitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                if !ctx.types.isSubtype(nonNullSolved, substitutedBound) {
+                    verified = false
+                    break
+                }
+            }
+            if verified {
+                substitution[typeVar] = nonNullSolved
+            }
+        }
+
         guard satisfiesOnlyInputTypes(
             signature: signature,
             substitution: substitution,
