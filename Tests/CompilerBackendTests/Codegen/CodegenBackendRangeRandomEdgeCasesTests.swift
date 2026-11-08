@@ -127,5 +127,65 @@ struct CodegenBackendRangeRandomEdgeCasesTests {
             #expect(FileManager.default.fileExists(atPath: objectPath))
         }
     }
+
+    @Test
+    func testCodegenRangeRandomOrNullAndEmptyExceptions() throws {
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            val r = Random(42)
+            println((1..0).randomOrNull() == null)
+            println((1..0).randomOrNull(r) == null)
+            println((1L..0L).randomOrNull() == null)
+            println((1L..0L).randomOrNull(r) == null)
+            println(('b'..'a').randomOrNull() == null)
+            println(('b'..'a').randomOrNull(r) == null)
+            println((2u..1u).randomOrNull() == null)
+            println((2u..1u).randomOrNull(r) == null)
+            println((2uL..1uL).randomOrNull() == null)
+            println((2uL..1uL).randomOrNull(r) == null)
+
+            try {
+                (1..0).random()
+            } catch (e: NoSuchElementException) {
+                println("empty-int-caught")
+            }
+
+            try {
+                ('b'..'a').random()
+            } catch (e: NoSuchElementException) {
+                println("empty-char-caught")
+            }
+
+            try {
+                (2u..1u).random()
+            } catch (e: NoSuchElementException) {
+                println("empty-uint-caught")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "RangeRandomOrNullAndEmptyExceptions",
+            expected:
+                """
+                true
+                true
+                true
+                true
+                true
+                true
+                true
+                true
+                true
+                true
+                empty-int-caught
+                empty-char-caught
+                empty-uint-caught
+                """ + "\n"
+        )
+    }
 }
 #endif
