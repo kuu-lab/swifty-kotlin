@@ -224,9 +224,14 @@ public struct ProbedCallCandidate {
 
 public struct ProbedCallResult {
     public let viableCandidates: [ProbedCallCandidate]
+    /// Diagnostics from candidates that matched the call shape but failed
+    /// constraint solving (e.g. `KSWIFTK-SEMA-INFER` when a type variable stays
+    /// uninferred). Rejected candidates contribute no diagnostic.
+    public let failureDiagnostics: [Diagnostic]
 
-    public init(viableCandidates: [ProbedCallCandidate]) {
+    public init(viableCandidates: [ProbedCallCandidate], failureDiagnostics: [Diagnostic] = []) {
         self.viableCandidates = viableCandidates
+        self.failureDiagnostics = failureDiagnostics
     }
 }
 

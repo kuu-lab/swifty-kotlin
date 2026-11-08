@@ -458,21 +458,29 @@ extension CollectionLiteralConstructionLoweringPass {
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        if lookup.mutableListConstructorNames.contains(callee) {
-            return true
-        }
-        guard let symbol,
-              let resolved = ctx.sema?.symbols.symbol(symbol),
-              resolved.kind == .constructor
-        else {
-            return false
-        }
-        return resolved.fqName == [
+        let stdlibOwnerFQName = [
             lookup.kotlinName,
             ctx.interner.intern("collections"),
             lookup.arrayListName,
-            lookup.initName,
         ]
+        // KUU-4448: resolved ctor calls keep the source callee name
+        // (`ArrayList`), so the bare name alone cannot discriminate — a user
+        // class that merely shares the simple name would otherwise lose its
+        // object allocation to the runtime list factory. A resolved symbol is
+        // authoritative; the bare name only covers calls that never bound a
+        // symbol (the synthetic collection-constructor path).
+        if let symbol,
+           let resolved = ctx.sema?.symbols.symbol(symbol) {
+            switch resolved.kind {
+            case .constructor:
+                return resolved.fqName == stdlibOwnerFQName + [lookup.initName]
+            case .class, .typeAlias:
+                return resolved.fqName == stdlibOwnerFQName
+            default:
+                return false
+            }
+        }
+        return lookup.mutableListConstructorNames.contains(callee)
     }
 
     func isStdlibArrayFactoryCall(
