@@ -1,3 +1,13 @@
+/// Describes a constructor synthesized by a compiler plugin so KIR lowering
+/// can emit its plugin-specific body instead of the source path.
+struct PluginGeneratedConstructorInfo {
+    /// Whether the generated body runs property initializers and `init`
+    /// blocks (kotlinc no-arg `invokeInitializers`); when false the
+    /// constructor performs only the super-constructor delegation, leaving
+    /// fields at their JVM-default values.
+    var runsInitializers: Bool
+}
+
 public final class SemaModule {
     var independentBodyCount = 0
 
@@ -62,6 +72,13 @@ public final class SemaModule {
     /// spelling that can resolve to an intrinsic — an alias binds the same
     /// SymbolID — while keeping the common case O(1).
     var enumIntrinsicAliasNamesByFile: [FileID: Set<InternedString>] = [:]
+
+    /// Constructors synthesized by compiler plugins (e.g. the no-arg
+    /// plugin), keyed by the generated constructor symbol. KIR lowering
+    /// consults this to emit the plugin-specific body — a bare
+    /// super-constructor delegation — instead of the source-constructor
+    /// path that runs property initializers and `init` blocks.
+    var pluginGeneratedConstructors: [SymbolID: PluginGeneratedConstructorInfo] = [:]
 
     public init(
         symbols: SymbolTable,

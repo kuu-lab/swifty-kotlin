@@ -158,36 +158,47 @@ extension KIRLoweringDriver {
         )
         // Seed `lateinit` and explicit-null storage before delegation so
         // superclass `init` sees the correct sentinel and virtual writes survive.
-        emitLateinitFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
-        emitNullInitializerFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
+        // Plugin-generated constructors that skip initializer execution leave
+        // every field at its JVM default instead (kotlinc no-arg semantics).
+        if sema.pluginGeneratedConstructors[ctorSymbol]?.runsInitializers != false {
+            emitLateinitFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
+            emitNullInitializerFieldSentinels(classDecl: classDecl, shared: shared, body: &body)
+        }
         let constructorDeclSite = sema.symbols.symbol(ctorSymbol)?.declSite
         let isSecondary = classDecl.secondaryConstructors.contains { constructor in
             constructor.range == constructorDeclSite
         }
-        if !isSecondary {
+        let pluginCtorInfo = sema.pluginGeneratedConstructors[ctorSymbol]
+        if pluginCtorInfo != nil || !isSecondary {
+            // Plugin-generated constructors delegate `super()` with no
+            // arguments — the class header's supertype arguments belong to
+            // the primary constructor's delegation only.
             emitSuperConstructorDelegation(
                 classDecl: classDecl, ctorSymbol: ctorSymbol, ownerSymbol: ownerSymbol,
-                shared: shared, body: &body
+                shared: shared, body: &body,
+                superArgsOverride: pluginCtorInfo != nil ? [] : nil
             )
-            emitPrimaryConstructorPropertyInitializers(
-                classDecl: classDecl,
-                ownerSymbol: ownerSymbol,
-                shared: shared,
-                body: &body
-            )
-            // Enum entries are ordinal-backed and initialized inside
-            // $enumEnsureInit$; their delegate handles are stored there by
-            // emitEnumEntryConstructorInitialization instead.
-            if sema.symbols.symbol(ownerSymbol)?.kind != .enumClass {
-                emitClassDelegationInitializers(
+            if pluginCtorInfo?.runsInitializers != false {
+                emitPrimaryConstructorPropertyInitializers(
+                    classDecl: classDecl,
                     ownerSymbol: ownerSymbol,
-                    receiverID: ctx.activeImplicitReceiverExprID()!,
-                    shared: shared, body: &body
+                    shared: shared,
+                    body: &body
+                )
+                // Enum entries are ordinal-backed and initialized inside
+                // $enumEnsureInit$; their delegate handles are stored there by
+                // emitEnumEntryConstructorInitialization instead.
+                if sema.symbols.symbol(ownerSymbol)?.kind != .enumClass {
+                    emitClassDelegationInitializers(
+                        ownerSymbol: ownerSymbol,
+                        receiverID: ctx.activeImplicitReceiverExprID()!,
+                        shared: shared, body: &body
+                    )
+                }
+                emitClassBodyInitializers(
+                    classDecl: classDecl, shared: shared, body: &body
                 )
             }
-            emitClassBodyInitializers(
-                classDecl: classDecl, shared: shared, body: &body
-            )
         }
         if isSecondary {
             emitSecondaryConstructorBody(
@@ -216,7 +227,8 @@ extension KIRLoweringDriver {
         ctorSymbol: SymbolID,
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
-        body: inout KIRLoweringEmitContext
+        body: inout KIRLoweringEmitContext,
+        superArgsOverride: [CallArgument]? = nil
     ) {
         let sema = shared.sema
         let arena = shared.arena
@@ -269,7 +281,9 @@ extension KIRLoweringDriver {
         let isSourceBackedTimeSource =
             resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
                 || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
-        let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
+        let superArgs = superArgsOverride
+            ?? classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs
+            ?? []
         if !isSourceBackedTimeSource,
            isRuntimeThrowableSuperConstructor(superCtorSymbol, sema: sema)
         {

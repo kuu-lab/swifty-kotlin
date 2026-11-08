@@ -17,6 +17,14 @@ protocol CompilerPlugin: Sendable {
     /// symbol flags (modality, overrides, inheritance checks).
     func applySemaTransform(_ context: CompilerPluginSemaContext)
 
+    /// Sema-phase transform, run after `bindInheritanceEdges` has populated
+    /// `directSupertypes`/`supertypeTypeArgs` and the bundled-supertype
+    /// patches have settled, but before override/sealed/delegation
+    /// validation. Plugins that must inspect a declaration's resolved
+    /// supertypes (e.g. no-arg's superclass constructor check) implement
+    /// this hook instead of `applySemaTransform`.
+    func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext)
+
     /// Lowering passes contributed by this plugin. They run before the
     /// standard pipeline so generated KIR flows through every built-in
     /// desugaring/ABI pass.
@@ -24,6 +32,8 @@ protocol CompilerPlugin: Sendable {
 }
 
 extension CompilerPlugin {
+    func applySemaTransform(_ context: CompilerPluginSemaContext) {}
+    func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {}
     var loweringPasses: [any LoweringPass] { [] }
 }
 
@@ -37,6 +47,10 @@ struct CompilerPluginSemaContext {
     let interner: StringInterner
     let options: CompilerOptions
     let pluginConfig: CompilerPluginConfig
+    /// The owning sema module. Plugins that synthesize declarations record
+    /// them here (e.g. `sema.pluginGeneratedConstructors`) so later phases
+    /// can recognize plugin-generated symbols.
+    let sema: SemaModule
 }
 
 /// Parsed `plugin:<id>:<key>=<value>` frontend flags. Repeatable options
@@ -74,6 +88,7 @@ enum CompilerPluginRegistry {
     /// configuration and on whether its trigger annotations are present.
     static let builtins: [any CompilerPlugin] = [
         AllOpenPlugin(),
+        NoArgPlugin(),
     ]
 
     static func semaContext(
@@ -83,7 +98,8 @@ enum CompilerPluginRegistry {
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        options: CompilerOptions
+        options: CompilerOptions,
+        sema: SemaModule
     ) -> CompilerPluginSemaContext {
         CompilerPluginSemaContext(
             ast: ast,
@@ -93,7 +109,8 @@ enum CompilerPluginRegistry {
             diagnostics: diagnostics,
             interner: interner,
             options: options,
-            pluginConfig: CompilerPluginConfig.parse(frontendFlags: options.frontendFlags)
+            pluginConfig: CompilerPluginConfig.parse(frontendFlags: options.frontendFlags),
+            sema: sema
         )
     }
 }
@@ -108,6 +125,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         bindings: BindingTable,
+        sema: SemaModule,
         ctx: CompilationContext
     ) {
         let pluginCtx = CompilerPluginRegistry.semaContext(
@@ -117,12 +135,40 @@ extension DataFlowSemaPhase {
             bindings: bindings,
             diagnostics: ctx.diagnostics,
             interner: ctx.interner,
-            options: ctx.options
+            options: ctx.options,
+            sema: sema
         )
         // Every plugin self-gates: configured plugins check their options,
         // fixed-trigger plugins check whether their annotation resolved.
         for plugin in CompilerPluginRegistry.builtins {
             plugin.applySemaTransform(pluginCtx)
+        }
+    }
+
+    /// Runs every built-in plugin's post-inheritance Sema transform.
+    /// Invoked after `bindInheritanceEdges` and the bundled-supertype
+    /// patches so `directSupertypes`/`supertypeTypeArgs` are populated,
+    /// and before override/sealed/delegation validation.
+    func runCompilerPluginPostInheritanceTransforms(
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        bindings: BindingTable,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) {
+        let pluginCtx = CompilerPluginRegistry.semaContext(
+            ast: ast,
+            symbols: symbols,
+            types: types,
+            bindings: bindings,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
+            options: ctx.options,
+            sema: sema
+        )
+        for plugin in CompilerPluginRegistry.builtins {
+            plugin.applyPostInheritanceSemaTransform(pluginCtx)
         }
     }
 }
