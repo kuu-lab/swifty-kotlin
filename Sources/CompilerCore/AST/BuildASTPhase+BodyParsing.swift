@@ -444,7 +444,7 @@ extension BuildASTPhase {
         // Deliberately ignores `depth.angle`: an unmatched `<`/`>` from a
         // generic or comparison in the previous group must not affect the
         // merge decision, unlike `BracketDepth.isAtTopLevel`.
-        return depth.paren > 0 || depth.bracket > 0 || depth.brace > 0
+        return depth.paren > 0 || depth.bracket > 0 || depth.brace > 0 || depth.template > 0
     }
 
     /// Whether a `{` that starts the next statement line continues the
@@ -685,7 +685,7 @@ extension BuildASTPhase {
         var current: [Token] = []
         var depth = BracketDepth()
         for (idx, token) in tokens.enumerated() {
-            if depth.isBracketBraceParenTopLevel {
+            if depth.isBracketBraceParenTopLevel, depth.template == 0 {
                 if token.kind == .symbol(.semicolon) {
                     if !current.isEmpty {
                         groups.append(current)
