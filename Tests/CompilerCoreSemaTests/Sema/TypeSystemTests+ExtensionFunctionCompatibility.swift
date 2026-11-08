@@ -51,10 +51,9 @@ extension TypeSystemTests {
         )))
         // Since KUU-3175 context receivers and a receiver fold into leading
         // function parameters, `context(Int) String.() -> Int` has the same
-        // effective shape as `(Int, String) -> Int`; use a mismatched
-        // parameter order for the negative assertions.
+        // effective shape as `(Int, String) -> Int`.
         let noContext = types.make(.functionType(FunctionType(
-            params: [types.stringType, int], returnType: int, isSuspend: true
+            params: [int, types.stringType], returnType: int, isSuspend: true
         )))
         #expect(types.isSubtype(extensionType, ordinaryType))
         #expect(types.isSubtype(ordinaryType, extensionType))
@@ -65,6 +64,14 @@ extension TypeSystemTests {
         // (verified against kotlinc 2.4.20; KUU-3175, KUU-4061).
         #expect(types.isSubtype(extensionType, noContext))
         #expect(types.isSubtype(noContext, extensionType))
+
+        // A mismatched parameter order is a different shape: the fold is
+        // positional, so `(String, Int) -> Int` is not interchangeable.
+        let mismatchedOrder = types.make(.functionType(FunctionType(
+            params: [types.stringType, int], returnType: int, isSuspend: true
+        )))
+        #expect(!types.isSubtype(extensionType, mismatchedOrder))
+        #expect(!types.isSubtype(mismatchedOrder, extensionType))
 
         // Folding must not drop the context slot: a plain type missing the
         // leading Int parameter has a different arity and must not match.
