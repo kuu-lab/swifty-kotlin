@@ -182,6 +182,15 @@ final class CoroutineLoweringPass: LoweringPass {
                 && symbol.flags.contains(.suspendFunction)
             {
                 suspendFunctionSymbols.insert(symbol.id)
+                // KUU-4427: a kklib suspend function's `$default` stub is a
+                // separate synthetic symbol (not itself an importedLibrary
+                // symbol), but call sites invoke it with the same suspend ABI.
+                // Without this, an omitted-default call inside a suspend body
+                // skips the suspend-call protocol and leaks COROUTINE_SUSPENDED.
+                let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
+                if sema.symbols.externalLinkName(for: stubSymbol)?.isEmpty == false {
+                    suspendFunctionSymbols.insert(stubSymbol)
+                }
             }
         }
         let suspendFunctionNames = Set(suspendFunctions.map(\.name))
