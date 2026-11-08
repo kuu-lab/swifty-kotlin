@@ -131,6 +131,35 @@ struct TypeParameterUpperBoundArgumentTests {
         }
     }
 
+    /// KUU-4463: a caller type variable with a non-null bound (`T : Any`)
+    /// satisfies the same bound on the callee — plain forwarding, generic
+    /// return-type propagation, reified forwarding, and expected-type-driven
+    /// member calls all resolve without KSWIFTK-SEMA-BOUND.
+    @Test func typeVariableWithNonNullBoundSatisfiesCalleeBound() throws {
+        let source = """
+        class Box<out T>(val v: T?)
+        fun <T : Any> g(): T? = null
+        fun <T : Any> f(): T? = g()
+        fun <T : Any> gBox(): Box<T?> = Box(null)
+        fun <T : Any> fBox(): Box<T?> = gBox()
+
+        inline fun <reified T : Any> gRei(): T? = null
+        inline fun <reified T : Any> fRei(): T? = gRei()
+
+        class Inner { fun <T : Any> getP(key: Int): T? = null }
+        fun <T : Any> dflt(): T = null as T
+        class Outer {
+            val inner = Inner()
+            fun <T : Any> getProperty(key: Int): T = inner.getP(key) ?: dflt()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     @Test func explicitTypeArgumentsCanForwardNullableDependentUpperBounds() throws {
         // The reported failure occurs with the bundled stdlib loaded from its .kklib.
         TestStdlibCache.shared.prepare()
