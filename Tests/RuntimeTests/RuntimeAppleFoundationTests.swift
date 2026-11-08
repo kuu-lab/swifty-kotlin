@@ -33,7 +33,8 @@ private final class FoundationGetBufferPointerProbe: InputStream {
     }
 }
 
-@Suite(.serialized)
+// Foundation bridge handles share GC state and must not race with runtime resets.
+@Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeAppleFoundationTests {
     @Test func foundationPointersRetainTheirCPointerType() throws {
         let array = kk_array_new(3)
