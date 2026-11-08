@@ -433,6 +433,98 @@ struct NestedCallArgumentCandidateFailureTests {
         }
     }
 
+    @Test
+    func maxOfPropagatesComparatorElementIntoInlineCompareBy() throws {
+        // `maxOf`/`minOf` declare `comparator: Comparator<in T>` alongside
+        // same-name overloads that lack the comparator parameter
+        // (`maxOf(a, b)`, `maxOf(a, b, c)`, vararg forms). An overload that
+        // cannot even map the nested argument must drop out on its own —
+        // abandoning the reinference for the whole overload set left the
+        // `compareBy` selector's element at `Any` and the call rejected or
+        // trapping at runtime (KUU-4449).
+        let context = makeContext("""
+        fun main() {
+            println(maxOf(1, 2, compareBy { -it }))
+            println(minOf("a", "bb", compareBy { it.length }))
+            println(maxOf(1, 2, 3, compareBy { -it }))
+        }
+        """)
+
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let comparatorSymbol = try #require(
+            sema.symbols.lookup(fqName: [
+                context.interner.intern("kotlin"),
+                context.interner.intern("Comparator"),
+            ])
+        )
+        var compareByCallIDs: [ExprID] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .call(calleeExprID, _, _, _) = expr,
+                  let calleeExpr = ast.arena.expr(calleeExprID),
+                  case let .nameRef(calleeName, _) = calleeExpr,
+                  context.interner.resolve(calleeName) == "compareBy"
+            else {
+                continue
+            }
+            compareByCallIDs.append(exprID)
+        }
+        #expect(compareByCallIDs.count == 3)
+        let expectedElements = [sema.types.intType, sema.types.stringType, sema.types.intType]
+        for (callExprID, expectedElement) in zip(compareByCallIDs, expectedElements) {
+            let resultType = try #require(sema.bindings.exprType(for: callExprID))
+            guard case let .classType(comparatorType) = sema.types.kind(of: resultType),
+                  comparatorType.classSymbol == comparatorSymbol,
+                  case let .invariant(elementType) = comparatorType.args.first
+            else {
+                Issue.record("Expected compareBy to produce Comparator, got \(sema.types.renderType(resultType))")
+                continue
+            }
+            #expect(
+                elementType == expectedElement,
+                "Expected compareBy's element to bind to \(sema.types.renderType(expectedElement)), got \(sema.types.renderType(resultType))"
+            )
+            #expect(sema.bindings.callBinding(for: callExprID)?.substitutedTypeArguments == [expectedElement])
+        }
+    }
+
+    @Test
+    func nestedGenericCallInsideLargeOverloadSetPicksNaturalMatch() throws {
+        // Re-inferring a generic nested call under each candidate's expected
+        // type makes the call viable for sibling parameters the literal could
+        // steer into (`Int` and `Long` both accept `identity(5)`). On a
+        // specificity tie, kotlinc prefers the candidate the argument fits
+        // without steering — `println(identity(5))` picks `println(Int)`
+        // (KUU-4449).
+        let context = makeContext("""
+        fun <T> identity(x: T): T = x
+        fun show(x: Long) = println("long")
+        fun show(x: Int) = println("int")
+        fun show(x: Any?) = println("any")
+        fun main() {
+            println(identity(5))
+            show(identity(5))
+        }
+        """)
+
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        let showCall = try #require(nameRefCallExprID(named: "show", in: ast, interner: context.interner))
+        let chosen = try #require(sema.bindings.callBinding(for: showCall)?.chosenCallee)
+        #expect(
+            sema.symbols.functionSignature(for: chosen)?.parameterTypes == [sema.types.intType],
+            "Expected show(Int) to win the specificity tie, got \(chosen)"
+        )
+    }
+
     private func makeContext(_ source: String) -> CompilationContext {
         TestStdlibCache.shared.prepare()
         return makeContextFromSource(source, allowDefaultStdlibLibrary: true)

@@ -2424,6 +2424,51 @@ extension OverloadResolver {
         // singleton members are independently bound callables, not duplicate
         // supertype paths, even when their value parameter types are equal.
         let tied = winners.isEmpty ? candidates : winners
+        // An argument re-inferred under a candidate's expected type can make
+        // that candidate viable even though the argument's own first-pass
+        // type does not satisfy the parameter — `identity(5)` reaches
+        // `println(Long)` only because `Long` steers the literal. kotlinc
+        // still admits the steered candidate (it can even win by parameter
+        // specificity alone, as `println(Any?)` loses to `println(Long)`),
+        // but a specificity *tie* is broken in favour of candidates the
+        // argument satisfies without steering: `println(identity(5))` among
+        // `Int`/`Long`/`Any?` picks `println(Int)` (KUU-4449).
+        if tied.count > 1 {
+            let naturallySatisfied = tied.filter { candidate in
+                call.args.indices.allSatisfy { argIndex in
+                    guard let parameterIndex = candidate.parameterMapping[argIndex],
+                          candidate.instantiatedParameterTypes.indices.contains(parameterIndex),
+                          candidate.signature.valueParameterIsVararg.indices.contains(parameterIndex),
+                          !candidate.signature.valueParameterIsVararg[parameterIndex]
+                    else {
+                        return true
+                    }
+                    let argumentType = call.args[argIndex].type
+                    guard argumentType != typeSystem.errorType else {
+                        return true
+                    }
+                    return typeSystem.isSubtype(
+                        argumentType,
+                        candidate.instantiatedParameterTypes[parameterIndex]
+                    )
+                }
+            }
+            if !naturallySatisfied.isEmpty, naturallySatisfied.count < tied.count {
+                let naturalWinners = naturallySatisfied.filter { candidate in
+                    for other in naturallySatisfied where other.symbol != candidate.symbol {
+                        if !isMoreSpecificCandidate(
+                            candidate, than: other, call: call, typeSystem: typeSystem
+                        ) {
+                            return false
+                        }
+                    }
+                    return true
+                }
+                if naturalWinners.count == 1 {
+                    return naturalWinners[0]
+                }
+            }
+        }
         if tied.count > 1,
            tied.allSatisfy({ !call.boundObjectDispatchReceiverCandidates.contains($0.symbol) }),
            (!preserveMemberExtensionAmbiguity || tied.allSatisfy({
