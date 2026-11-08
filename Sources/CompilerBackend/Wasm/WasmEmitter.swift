@@ -1504,10 +1504,17 @@ public struct WasmEmitter {
             ))
             code.call(ctx.emittedHelperIndex(for: "__kk_printStderr", argumentCount: 1))
             code.op(WasmOpcode.drop)
+            // Check-failure markers (small ints, not heap objects) would
+            // crash __kk_throwable_toString; only stringify real objects.
+            code.localGet(0)
+            code.globalGet(ctx.dataEndGlobal)
+            code.op(WasmOpcode.i64GeU)
+            code.openIf()
             code.localGet(0)
             code.call(ctx.emittedHelperIndex(for: "__kk_throwable_toString", argumentCount: 1))
             code.call(ctx.emittedHelperIndex(for: "$__kk_println_stderr", argumentCount: 1))
             code.op(WasmOpcode.drop)
+            code.end()
             code.i32Const(70) // EX_SOFTWARE
             code.call(ctx.wasmImportProcExit())
         }
