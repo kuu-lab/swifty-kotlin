@@ -2,7 +2,6 @@ extension CallLowerer {
 
     private static let throwingSequenceSingleArgCallees: Set<String> = [
         "kk_sequence_sortedBy", "kk_sequence_sortedByDescending",
-        "kk_sequence_takeLastWhile", "kk_sequence_takeLast",
         "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
         "kk_sequence_elementAt", "kk_sequence_elementAtOrElse",
         "kk_sequence_last", "__kk_iterable_last",
@@ -23,7 +22,6 @@ extension CallLowerer {
 
     private static let lambdaSplitSequenceSingleArgCallees: Set<String> = [
         "kk_sequence_firstNotNullOf", "kk_sequence_firstNotNullOfOrNull",
-        "kk_sequence_takeLastWhile",
         "kk_sequence_reduceOrNull",
         "kk_sequence_indexOfFirst",
         "kk_sequence_reduceRightIndexed", "kk_sequence_reduceRightOrNull",
@@ -62,10 +60,8 @@ extension CallLowerer {
             switch interner.resolve(calleeName) {
             case "map": runtimeCallee = "kk_sequence_map"
             case "filter": runtimeCallee = "kk_sequence_filter"
-            case "takeLast": runtimeCallee = "kk_sequence_takeLast"
             case "flatMap": runtimeCallee = "kk_sequence_flatMap"
             case "flatMapIndexed": runtimeCallee = "kk_sequence_flatMapIndexed"
-            case "takeLastWhile": runtimeCallee = "kk_sequence_takeLastWhile"
             case "sortedBy": runtimeCallee = "kk_sequence_sortedBy"
             case "sortedByDescending": runtimeCallee = "kk_sequence_sortedByDescending"
             case "firstNotNullOf": runtimeCallee = "kk_sequence_firstNotNullOf"
@@ -91,7 +87,6 @@ extension CallLowerer {
             case "mapNotNull": runtimeCallee = "kk_sequence_mapNotNull"
             case "mapIndexedNotNull": runtimeCallee = "kk_sequence_mapIndexedNotNull"
             case "requireNoNulls": runtimeCallee = "kk_sequence_requireNoNulls"
-            case "reversed": runtimeCallee = "kk_sequence_reversed"
             case "mapIndexed": runtimeCallee = "kk_sequence_mapIndexed"
             case "onEach": runtimeCallee = "kk_sequence_onEach"
             case "onEachIndexed": runtimeCallee = "kk_sequence_onEachIndexed"

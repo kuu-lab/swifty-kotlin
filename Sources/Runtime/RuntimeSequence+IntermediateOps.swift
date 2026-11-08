@@ -50,27 +50,6 @@ public func kk_sequence_take(_ seqRaw: Int, _ count: Int, _ outThrown: UnsafeMut
     return registerRuntimeObject(newSeq)
 }
 
-@_cdecl("kk_sequence_takeLast")
-public func kk_sequence_takeLast(_ seqRaw: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if count < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Requested element count \(count) is less than zero."
-        )
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    var elements: [Int] = []
-    _ = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        elements.append(elem)
-        return true
-    }
-    if let outThrown, outThrown.pointee != 0 {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
-    }
-    let clamped = max(0, min(count, elements.count))
-    return registerRuntimeObject(RuntimeListBox(elements: Array(elements.suffix(clamped))))
-}
-
 @_cdecl("kk_sequence_drop")
 public func kk_sequence_drop(_ seqRaw: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -144,38 +123,6 @@ public func kk_sequence_takeWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     newSteps.append(.takeWhileStep(fnPtr: fnPtr, closureRaw: closureRaw))
     let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
     return registerRuntimeObject(newSeq)
-}
-
-@_cdecl("kk_sequence_takeLastWhile")
-public func kk_sequence_takeLastWhile(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    var elements: [Int] = []
-    _ = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        elements.append(elem)
-        return true
-    }
-    if let outThrown, outThrown.pointee != 0 {
-        return runtimeExceptionCaughtSentinel
-    }
-    let predicate = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var count = 0
-    for elem in elements.reversed() {
-        var thrown = 0
-        let predicateResult = predicate(closureRaw, elem, &thrown)
-        if thrown != 0 {
-            return handleCollectionLambdaThrow(thrown, outThrown)
-        }
-        if maybeUnbox(predicateResult) == 0 {
-            break
-        }
-        count += 1
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(elements.suffix(count))))
 }
 
 @_cdecl("kk_sequence_filterNot")
@@ -339,15 +286,6 @@ public func kk_sequence_requireNoNulls(_ seqRaw: Int) -> Int {
     var newSteps = seq.steps
     newSteps.append(.requireNoNullsStep)
     let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
-    return registerRuntimeObject(newSeq)
-}
-
-@_cdecl("kk_sequence_reversed")
-public func kk_sequence_reversed(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    let newSeq = RuntimeSequenceBox(steps: [
-        .source(elements: Array(elements.reversed())),
-    ])
     return registerRuntimeObject(newSeq)
 }
 
