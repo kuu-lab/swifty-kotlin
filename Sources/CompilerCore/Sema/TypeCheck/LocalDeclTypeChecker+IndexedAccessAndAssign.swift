@@ -96,6 +96,60 @@ extension LocalDeclTypeChecker {
         }
     }
 
+    /// Preserves the source element type for an integer literal written
+    /// directly through an unchecked `Array<Any>` view. The JVM compiler
+    /// contextualizes this literal from the cast operand's `Array<Byte>`,
+    /// `Array<Short>`, `Array<Int>`, or `Array<Long>` type; an array view
+    /// returned across a function boundary has no such source expression.
+    func uncheckedArrayViewIntegerLiteralExpectedType(
+        receiverExpr: ExprID,
+        receiverType: TypeID,
+        valueExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard driver.callChecker.isContextualizableIntegerLiteral(valueExpr, ast: ast),
+              case let .asCast(operand, _, isSafe, _) = ast.arena.expr(receiverExpr),
+              !isSafe,
+              let sourceType = sema.bindings.exprType(for: operand),
+              let (sourceArray, sourceSymbol) = resolveClassTypeSymbol(sourceType, sema: sema),
+              sourceSymbol.fqName == KnownCompilerNames(interner: interner).kotlinArrayFQName,
+              let sourceElementType = sourceArray.args.first.flatMap({ argument -> TypeID? in
+                  switch argument {
+                  case let .invariant(type), let .out(type), let .in(type):
+                      return type
+                  case .star:
+                      return nil
+                  }
+              }),
+              let (viewArray, viewSymbol) = resolveClassTypeSymbol(receiverType, sema: sema),
+              viewSymbol.fqName == KnownCompilerNames(interner: interner).kotlinArrayFQName,
+              let viewElementType = viewArray.args.first.flatMap({ argument -> TypeID? in
+                  switch argument {
+                  case let .invariant(type), let .out(type), let .in(type):
+                      return type
+                  case .star:
+                      return nil
+                  }
+              }),
+              sema.types.makeNonNullable(viewElementType) == sema.types.anyType
+        else {
+            return nil
+        }
+
+        let nonNullSourceElementType = sema.types.makeNonNullable(sourceElementType)
+        guard case let .primitive(primitive, _) = sema.types.kind(of: nonNullSourceElementType) else {
+            return nil
+        }
+        switch primitive {
+        case .byte, .short, .int, .long:
+            return nonNullSourceElementType
+        default:
+            return nil
+        }
+    }
+
     func inferIndexedAccessExpr(
         _ id: ExprID,
         receiverExpr: ExprID,
@@ -567,7 +621,7 @@ extension LocalDeclTypeChecker {
         // Pass concrete contextual numeric types for literal narrowing, and
         // fully-substituted function or class types for nested calls. A
         // setter's unresolved type parameter must not influence other values.
-        let valueExpectedType: TypeID? = {
+        let resolvedValueExpectedType: TypeID? = {
             guard let setValueExpectedType else { return nil }
             let nonNull = sema.types.makeNonNullable(setValueExpectedType)
             switch sema.types.kind(of: nonNull) {
@@ -597,6 +651,16 @@ extension LocalDeclTypeChecker {
                 return nil
             }
         }()
+
+        let uncheckedArrayViewExpectedType = uncheckedArrayViewIntegerLiteralExpectedType(
+            receiverExpr: receiverExpr,
+            receiverType: receiverType,
+            valueExpr: valueExpr,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        )
+        let valueExpectedType = uncheckedArrayViewExpectedType ?? resolvedValueExpectedType
 
         let valueType = driver.inferExpr(valueExpr, ctx: ctx, locals: &locals, expectedType: valueExpectedType)
 
@@ -671,6 +735,17 @@ extension LocalDeclTypeChecker {
                 driver.callChecker.contextualizeResolvedIntegerArguments(
                     args: argumentExprs.map { CallArgument(expr: $0) }, resolved: resolved, ctx: ctx, locals: &locals
                 )
+                // The resolved Array<Any?> setter would re-infer this literal
+                // as Int. Restore the JVM-compatible source-array context,
+                // which is available only on this direct unchecked cast view.
+                if let uncheckedArrayViewExpectedType {
+                    _ = driver.inferExpr(
+                        valueExpr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: uncheckedArrayViewExpectedType
+                    )
+                }
                 // Record the resolved call so KIR lowering can dispatch correctly
                 sema.bindings.bindCall(
                     id,
