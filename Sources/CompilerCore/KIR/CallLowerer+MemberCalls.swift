@@ -41,6 +41,39 @@ extension CallLowerer {
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
 
+        // KUU-4431: `Array<*>.isArrayOf<T>()` resolves to the bundled
+        // signature carrier; the check itself is the allocation component's
+        // assignability to the reified T — the same rule `as? Array<T>` uses.
+        if let binding = sema.bindings.callBindings[exprID],
+           let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
+           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+        {
+            let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
+            // kotlinc's `isArrayOf` is a non-inline reified function: a
+            // reified caller type parameter reaches it only through its
+            // upper bound, so `useReifiedToken` stays off to keep the
+            // `a.isArrayOf<T>()`-inside-`reified T` erasure semantics.
+            let componentToken = runtimeArrayComponentTypeExpr(
+                for: binding.substitutedTypeArguments.first ?? sema.types.anyType,
+                useReifiedToken: false,
+                context: driver.ctx,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions
+            )
+            let result = arena.appendTemporary(
+                type: sema.bindings.exprType(for: exprID) ?? sema.types.booleanType
+            )
+            instructions.instructions.append(.call(
+                callee: interner.intern("kk_array_is_array_of"),
+                arguments: [receiver, componentToken],
+                result: result,
+                canThrow: false
+            ))
+            return result
+        }
+
         if let entrySymbol = sema.bindings.enumEntryInvokeReceiverSymbol(for: exprID) {
             let receiverType = sema.symbols.propertyType(for: entrySymbol) ?? sema.types.anyType
             let entryValue = arena.appendExpr(.symbolRef(entrySymbol), type: receiverType)

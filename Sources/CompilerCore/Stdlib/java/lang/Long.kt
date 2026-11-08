@@ -1,11 +1,31 @@
 package java.lang
 
-public class Long private constructor() {
+public class Long(private val value: kotlin.Long) {
+    public constructor(value: String) : this(value.toLong())
+
+    override fun toString(): String = value.toString()
+
+    public fun longValue(): kotlin.Long = value
+
+    override fun equals(other: Any?): kotlin.Boolean {
+        val o = other as? Long ?: return false
+        return o.value == value
+    }
+
+    override fun hashCode(): Int = (value xor (value ushr 32)).toInt()
+
     public companion object {
         public val MAX_VALUE: kotlin.Long get() = kotlin.Long.MAX_VALUE
         public val MIN_VALUE: kotlin.Long get() = kotlin.Long.MIN_VALUE
         public val SIZE: Int get() = 64
         public val BYTES: Int get() = 8
+
+        public fun valueOf(value: String): kotlin.Long = parseLong(value)
+
+        public fun valueOf(value: String, radix: Int): kotlin.Long =
+            parseLong(value, radix)
+
+        public fun valueOf(value: kotlin.Long): kotlin.Long = value
 
         public fun parseLong(value: String): kotlin.Long = value.toLong()
 
@@ -17,6 +37,12 @@ public class Long private constructor() {
 
         public fun parseUnsignedLong(value: String, radix: Int): kotlin.Long =
             value.toULong(radix).toLong()
+
+        public fun valueOf(value: kotlin.Long): kotlin.Long = value
+
+        public fun valueOf(value: String): kotlin.Long = parseLong(value)
+
+        public fun valueOf(value: String, radix: Int): kotlin.Long = parseLong(value, radix)
 
         public fun toString(value: kotlin.Long): String = value.toString()
 

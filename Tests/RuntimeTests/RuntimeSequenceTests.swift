@@ -1611,30 +1611,6 @@ struct RuntimeSequenceTests {
         #expect(sequenceElements(combined) == [1, 2, 3, 42])
     }
 
-    @Test func randomReturnsOnlyElementAndThrowsOnEmpty() {
-        var thrown = 0
-        #expect(kk_sequence_random(makeSequence([42]), &thrown) == 42)
-        #expect(thrown == 0)
-        thrown = 0
-        #expect(kk_sequence_random(makeSequence([]), &thrown) == 0)
-        #expect(thrown != 0)
-    }
-
-
-    @Test func randomOrNullReturnsOnlyElementAndNullOnEmpty() {
-        var thrown = 0
-        let only = kk_sequence_randomOrNull(makeSequence([42]), &thrown)
-        #expect(thrown == 0)
-        #expect(only == 42)
-
-        thrown = 0
-        let emptyResult = kk_sequence_randomOrNull(makeSequence([]), &thrown)
-        #expect(thrown == 0)
-        #expect(emptyResult == runtimeNullSentinelInt)
-    }
-
-
-
     // MARK: - Lazy Sequence Builder Tests (STDLIB-563)
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {

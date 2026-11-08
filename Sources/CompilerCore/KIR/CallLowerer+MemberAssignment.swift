@@ -32,7 +32,7 @@ extension CallLowerer {
     /// its value boxed, like a generic method argument: an override's vtable
     /// bridge checkcasts and unboxes it, and a raw `-0.0` or `Long.MIN_VALUE`
     /// would read as the null sentinel there.
-    private func erasedVirtualSetterValue(
+    func erasedVirtualSetterValue(
         _ value: KIRExprID,
         propertySymbol: SymbolID,
         sema: SemaModule,
@@ -536,7 +536,44 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        return lowerMemberCompoundAssignExpr(
+            exprID,
+            op: op,
+            receiverID: receiverID,
+            receiverType: sema.bindings.exprTypes[receiverExpr],
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            valueExpr: valueExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
 
+    /// Receiver-pre-lowered core of `lowerMemberCompoundAssignExpr`, shared
+    /// with bare-name compound assignments (`count++`, `count += v`) whose
+    /// property resolves through an implicit receiver (KUU-4437). When
+    /// `receiverExpr` is nil the receiver is implicit: it can be neither a
+    /// `super` reference nor a range box, so accessor dispatch resolves
+    /// straight from the property symbol.
+    func lowerMemberCompoundAssignExpr(
+        _ exprID: ExprID,
+        op: CompoundAssignOp,
+        receiverID: KIRExprID,
+        receiverType: TypeID?,
+        receiverExpr: ExprID?,
+        calleeName: InternedString,
+        valueExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
         let propertySymbol = sema.bindings.identifierSymbol(for: exprID)
         let declaredPropType = propertySymbol.flatMap { sema.symbols.propertyType(for: $0) }
             ?? sema.bindings.exprTypes[exprID]
@@ -547,7 +584,7 @@ extension CallLowerer {
         // itable/vtable accessor boundary the same way a plain read does.
         let propType: TypeID = {
             guard let propertySymbol,
-                  let receiverType = sema.bindings.exprTypes[receiverExpr],
+                  let receiverType,
                   let specialized = TypeCheckHelpers().lookupMemberPropertyForWrite(
                       named: calleeName,
                       receiverType: sema.types.makeNonNullable(receiverType),
@@ -663,23 +700,37 @@ extension CallLowerer {
         // (`=`) assignment. Resolved once up front since both the load and
         // store sections below need it.
         let virtualGetterDispatch = propertySymbol.flatMap { propertySymbol in
-            tryResolvePropertyAccessorVirtualDispatch(
+            if let receiverExpr {
+                return tryResolvePropertyAccessorVirtualDispatch(
+                    propertySymbol: propertySymbol,
+                    receiverExpr: receiverExpr,
+                    accessorKind: .getter,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner
+                )
+            }
+            return resolvePropertyAccessorVirtualDispatch(
                 propertySymbol: propertySymbol,
-                receiverExpr: receiverExpr,
                 accessorKind: .getter,
-                ast: ast,
-                sema: sema,
-                interner: interner
+                sema: sema
             )
         }
         let virtualSetterDispatch = propertySymbol.flatMap { propertySymbol in
-            tryResolvePropertyAccessorVirtualDispatch(
+            if let receiverExpr {
+                return tryResolvePropertyAccessorVirtualDispatch(
+                    propertySymbol: propertySymbol,
+                    receiverExpr: receiverExpr,
+                    accessorKind: .setter,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner
+                )
+            }
+            return resolvePropertyAccessorVirtualDispatch(
                 propertySymbol: propertySymbol,
-                receiverExpr: receiverExpr,
                 accessorKind: .setter,
-                ast: ast,
-                sema: sema,
-                interner: interner
+                sema: sema
             )
         }
 
@@ -799,10 +850,11 @@ extension CallLowerer {
             let getterName = loweredMemberCalleeName(
                 chosenCallee: nil,
                 fallback: calleeName,
-                receiverExpr: receiverExpr,
+                receiverExpr: receiverExpr ?? exprID,
                 argumentCount: 1,
                 sema: sema,
-                interner: interner
+                interner: interner,
+                receiverTypeOverride: receiverType
             )
             let result = arena.appendTemporary(type: propType)
             emitNonThrowingCall(
@@ -1076,10 +1128,11 @@ extension CallLowerer {
                 let setterName = loweredMemberCalleeName(
                     chosenCallee: nil,
                     fallback: calleeName,
-                    receiverExpr: receiverExpr,
+                    receiverExpr: receiverExpr ?? exprID,
                     argumentCount: 2,
                     sema: sema,
-                    interner: interner
+                    interner: interner,
+                    receiverTypeOverride: receiverType
                 )
                 let setterResult = arena.appendTemporary(type: sema.types.unitType)
                 instructions.append(.call(callee: setterName, arguments: [receiverID, newValue], result: setterResult, canThrow: false))

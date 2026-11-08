@@ -195,7 +195,7 @@ public extension RuntimeABISpec {
         // variants return a `RuntimeChannelResultBox` handle.
         abi.nt("__kk_channel_try_receive", "handle"),
         abi.nt("__kk_channel_try_send", "handle value"),
-        abi.nt("__kk_channel_receive_catching", "handle"),
+        abi.nt("__kk_channel_receive_catching", "handle continuation"),
         abi.nt("__kk_channel_send_blocking", "handle value"),
         abi.nt("__kk_channel_result_status", "boxRaw"),
         abi.nt("__kk_channel_result_value_or_null", "boxRaw"),

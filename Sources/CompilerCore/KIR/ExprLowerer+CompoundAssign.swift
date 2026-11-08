@@ -432,6 +432,18 @@ extension ExprLowerer {
                           instructions: &instructions
                       ),
                       driver.callLowerer.memberPropertyUsesSetterAccessor(symbol, ast: ast, sema: sema),
+                      // KUU-4437: an open/override property whose accessors
+                      // dispatch through the vtable must not take the direct
+                      // setter call below — a subclass override would be
+                      // bypassed. Those cases fall through to the member
+                      // compound-assign delegation, which emits virtualCall
+                      // for both halves (BUG-227 ordering).
+                      !(driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+                          propertySymbol: symbol, accessorKind: .getter, sema: sema
+                      ) != nil
+                          && driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+                              propertySymbol: symbol, accessorKind: .setter, sema: sema
+                          ) != nil),
                       let read = lowerImplicitPropertyCompoundRead(
                           propertySymbol: symbol, receiver: receiverExprID, callExprID: exprID,
                           ast: ast, sema: sema, arena: arena, interner: interner,
@@ -627,6 +639,56 @@ extension ExprLowerer {
                     storeGlobalResult(resultID)
                     rememberIncrementDecrementResult(resultID)
                 }
+            } else if let symInfo = sema.symbols.symbol(symbol),
+                      symInfo.kind == .property,
+                      let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
+                      let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                      (ownerInfo.kind == .class || ownerInfo.kind == .interface),
+                      // KUU-4437: a member property with no per-instance field
+                      // storage (abstract `var`, accessor-only `var`) cannot
+                      // use the field-offset read-modify-write below — there
+                      // is no slot to store into, so the write was silently
+                      // dropped. An open/override `var` has storage but a
+                      // subclass override shadows this declaration's slot, so
+                      // it must dispatch through the accessors too (the same
+                      // BUG-227 rule `lowerMemberAssignExpr` applies to `=`).
+                      sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                          sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
+                      ] == nil
+                          || (driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+                              propertySymbol: symbol, accessorKind: .getter, sema: sema
+                          ) != nil
+                              && driver.callLowerer.resolvePropertyAccessorVirtualDispatch(
+                                  propertySymbol: symbol, accessorKind: .setter, sema: sema
+                              ) != nil),
+                      let receiverExprID = driver.objectLiteralLowerer.implicitReceiverExprID(
+                          forProperty: symbol,
+                          sema: sema,
+                          arena: arena,
+                          interner: interner,
+                          instructions: &instructions
+                      )
+            {
+                // Delegate to the explicit-receiver compound-assign lowering
+                // with the implicit receiver, which resolves each half
+                // independently: itable/vtable accessor dispatch when the
+                // property is interface-owned, abstract, or overridable, and
+                // the field-offset read-modify-write otherwise.
+                return driver.callLowerer.lowerMemberCompoundAssignExpr(
+                    exprID,
+                    op: op,
+                    receiverID: receiverExprID,
+                    receiverType: arena.exprType(receiverExprID),
+                    receiverExpr: nil,
+                    calleeName: symInfo.name,
+                    valueExpr: valueExpr,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
             } else if let symInfo = sema.symbols.symbol(symbol),
                       symInfo.kind == .property || symInfo.kind == .field,
                       let ownerSymbol = sema.symbols.parentSymbol(for: symbol),

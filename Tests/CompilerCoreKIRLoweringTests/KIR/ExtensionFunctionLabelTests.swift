@@ -88,5 +88,34 @@ struct ExtensionFunctionLabelTests {
         try runSema(ctx)
         assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
     }
+
+    /// KUU-4367: `this@func` inside the extension function `func` smart-casts
+    /// like the unqualified `this`, so members of the narrowed type resolve.
+    @Test
+    func extensionReceiverLabelSmartCast() throws {
+        let ctx = makeContextFromSource("""
+        sealed interface E<out A, out B>
+        data class L<out A>(val value: A) : E<A, Nothing>
+        fun <A, B> E<A, B>.g(p: (A) -> Boolean): Boolean =
+            this@g is L<A> && p(value)
+        fun <A, B> E<A, B>.h(): Int =
+            if (this@h is L<*>) this@h.value.hashCode() else -1
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics.map(\.message))")
+    }
+
+    /// KUU-4367: plain member functions have no function-name `this` label on
+    /// the JVM — `this@bar` inside `fun bar()` is an unresolved label.
+    @Test
+    func memberFunctionNameLabelIsRejected() throws {
+        let ctx = makeContextFromSource("""
+        class D {
+            fun bar(): D = this@bar
+        }
+        """)
+        try runSema(ctx)
+        assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
+    }
 }
 #endif

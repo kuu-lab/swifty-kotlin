@@ -30,7 +30,22 @@ public class TimeZone internal constructor(internal val rawHandle: Long) {
     public val rawOffset: Int
         get() = getRawOffset()
 
+    public fun inDaylightTime(date: Date): Boolean = getOffset(date.getTime()) != getRawOffset()
+
+    public fun getDisplayName(): String = getDisplayName(useDaylightTime(), SHORT, Locale.getDefault())
+
+    public fun getDisplayName(locale: Locale): String = getDisplayName(useDaylightTime(), SHORT, locale)
+
+    public fun getDisplayName(inDaylight: Boolean, style: Int): String =
+        getDisplayName(inDaylight, style, Locale.getDefault())
+
+    public fun getDisplayName(inDaylight: Boolean, style: Int, locale: Locale): String =
+        timeZoneGetDisplayName(rawHandle, inDaylight, style, locale)
+
     public companion object {
+        public const val SHORT: Int = 0
+        public const val LONG: Int = 1
+
         public fun getDefault(): TimeZone = TimeZone(timeZoneGetDefault())
 
         public fun getTimeZone(id: String): TimeZone = TimeZone(timeZoneFromID(id))
@@ -51,3 +66,11 @@ private external fun timeZoneGetRawOffset(timeZoneRaw: Long): Int
 
 @KsSymbolName("__kk_time_zone_get_offset")
 private external fun timeZoneGetOffset(timeZoneRaw: Long, epochMilliseconds: Long): Int
+
+@KsSymbolName("__kk_time_zone_get_display_name")
+private external fun timeZoneGetDisplayName(
+    timeZoneRaw: Long,
+    inDaylight: Boolean,
+    style: Int,
+    locale: Locale
+): String

@@ -12,6 +12,7 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KProperty2
 import kotlin.reflect.KType
+import kotlin.reflect.companionObject
 
 @SinceKotlin("1.1")
 @Suppress("UNCHECKED_CAST")
@@ -106,3 +107,26 @@ public val <T : Any> KClass<T>.memberExtensionFunctions: Collection<KFunction<*>
 @SinceKotlin("1.1")
 public val <T : Any> KClass<T>.declaredMemberExtensionFunctions: Collection<KFunction<*>>
     get() = __kk_kclass_declared_member_extension_functions(this)
+
+/**
+ * JVM `kotlin.reflect.full.companionObjectInstance`: the singleton instance of
+ * this class's companion object, or null when there is none.
+ */
+@SinceKotlin("1.1")
+public val KClass<*>.companionObjectInstance: Any?
+    get() = companionObject?.objectInstance
+
+/**
+ * JVM `kotlin.reflect.full.superclasses`: direct supertypes of this class as
+ * [KClass]es — interfaces and `Any` included, matching kotlin-reflect.
+ */
+@SinceKotlin("1.1")
+public val KClass<*>.superclasses: List<KClass<*>>
+    get() {
+        val result = mutableListOf<KClass<*>>()
+        for (supertype in supertypes) {
+            val classifier = (supertype as KType).classifier as? KClass<*> ?: continue
+            result.add(classifier)
+        }
+        return result
+    }

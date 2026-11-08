@@ -100,6 +100,44 @@ extension CallLowerer {
             shared: shared, emit: &instructions
         )
 
+        // KUU-4431: `a?.isArrayOf<T>()` takes the safe-call path; route it to
+        // the same component check as the member-call spelling and keep the
+        // null receiver on the null branch. See CallLowerer+MemberCalls.swift.
+        if let binding = sema.bindings.callBindings[exprID],
+           let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
+           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+        {
+            let resultType = boundType ?? sema.types.makeNullable(sema.types.booleanType)
+            let result = arena.appendTemporary(type: resultType)
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: nonNullLabel))
+            let nullValue = arena.appendExpr(.unit, type: resultType)
+            instructions.append(.constValue(result: nullValue, value: .null))
+            instructions.append(.copy(from: nullValue, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            let componentToken = runtimeArrayComponentTypeExpr(
+                for: binding.substitutedTypeArguments.first ?? sema.types.anyType,
+                useReifiedToken: false,
+                context: driver.ctx,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions.instructions
+            )
+            let nonNullResult = arena.appendTemporary(type: sema.types.booleanType)
+            instructions.append(.call(
+                callee: interner.intern("kk_array_is_array_of"),
+                arguments: [loweredReceiverID, componentToken],
+                result: nonNullResult,
+                canThrow: false
+            ))
+            instructions.append(.copy(from: nonNullResult, to: result))
+            instructions.append(.label(endLabel))
+            return result
+        }
+
         if let numberConversionResult = tryLowerNumberConversion(
             exprID,
             receiverExpr: receiverExpr,

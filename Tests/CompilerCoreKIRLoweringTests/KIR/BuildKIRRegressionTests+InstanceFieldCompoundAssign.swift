@@ -94,5 +94,123 @@ extension BuildKIRRegressionTests {
         #expect(storeOffsets.count == 2, "Expected two field stores (one per field), got \(storeOffsets.count)")
         #expect(Set(storeOffsets).count == 2, "Expected the two field stores to target distinct offsets, got \(storeOffsets)")
     }
+
+    // KUU-4437: `count++` / `count += v` on an abstract or interface member
+    // property has no backing-field slot to store into. The bare-name
+    // compound-assign path used to fall through to the local-value cache and
+    // silently drop the write; it must now delegate to the member
+    // compound-assign lowering, which reads and writes through the
+    // itable/vtable accessors.
+
+    @Test func testCompoundAssignOnInterfacePropertyDispatchesThroughItable() throws {
+        let source = """
+        interface Counter {
+            var count: Int
+            fun inc() { count++ }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "inc", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+
+        #expect(virtualCallees.filter { $0 == "get" }.count == 1,
+                "Expected the compound assign to read through the itable getter, got: \(virtualCallees)")
+        #expect(virtualCallees.filter { $0 == "set" }.count == 1,
+                "Expected the compound assign to write through the itable setter, got: \(virtualCallees)")
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.arraySet)),
+                "An interface property has no field offset to store through")
+    }
+
+    @Test func testCompoundAssignOnAbstractClassPropertyDispatchesThroughVtable() throws {
+        let source = """
+        abstract class Counter {
+            abstract var count: Int
+            fun inc() { count += 1 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "inc", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+
+        #expect(virtualCallees.filter { $0 == "get" }.count == 1,
+                "Expected the compound assign to read through the vtable getter, got: \(virtualCallees)")
+        #expect(virtualCallees.filter { $0 == "set" }.count == 1,
+                "Expected the compound assign to write through the vtable setter, got: \(virtualCallees)")
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.arraySet)),
+                "An abstract property has no field offset to store through")
+    }
+
+    @Test func testAssignOnAbstractClassPropertyDispatchesThroughVtableSetter() throws {
+        let source = """
+        abstract class Counter {
+            abstract var count: Int
+            fun reset() { count = 0 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "reset", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+
+        #expect(virtualCallees.filter { $0 == "set" }.count == 1,
+                "Expected the assignment to write through the vtable setter, got: \(virtualCallees)")
+    }
+
+    // KUU-4437 follow-up: an `open var` has backing storage, but a subclass
+    // override shadows this declaration's field slot. Bare-name writes must
+    // dispatch through the vtable accessors exactly like the explicit-
+    // receiver path (BUG-227), not store at the declaring class's offset.
+
+    @Test func testCompoundAssignOnOpenPropertyWithOverrideDispatchesVirtually() throws {
+        let source = """
+        open class Base {
+            open var count = 0
+            fun inc() { count++ }
+        }
+        class Sub : Base() { override var count = 100 }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "inc", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+
+        #expect(virtualCallees.filter { $0 == "get" }.count == 1,
+                "Expected the compound assign to read through the vtable getter, got: \(virtualCallees)")
+        #expect(virtualCallees.filter { $0 == "set" }.count == 1,
+                "Expected the compound assign to write through the vtable setter, got: \(virtualCallees)")
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.arraySet)),
+                "An overridable property must not store at the declaring class's field offset")
+    }
+
+    @Test func testAssignOnOpenPropertyWithOverrideDispatchesThroughVtableSetter() throws {
+        let source = """
+        open class Base {
+            open var count = 0
+            fun reset() { count = 0 }
+        }
+        class Sub : Base() { override var count = 100 }
+        """
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "reset", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+
+        #expect(virtualCallees.filter { $0 == "set" }.count == 1,
+                "Expected the assignment to write through the vtable setter, got: \(virtualCallees)")
+        #expect(!extractCallees(from: body, interner: ctx.interner).contains(runtimeCallee(.arraySet)),
+                "An overridable property must not store at the declaring class's field offset")
+    }
 }
 #endif

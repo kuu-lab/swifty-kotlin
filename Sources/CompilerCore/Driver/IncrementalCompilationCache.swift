@@ -579,7 +579,7 @@ public final class IncrementalCompilationCache {
             outputPath(base: options.outputPath, defaultExtension: "o")
         case .executable:
             options.outputPath
-        case .jvmClass, .jvmJar:
+        case .jvmClass, .jvmJar, .dex, .apk:
             options.outputPath
         case .library:
             options.outputPath.hasSuffix(".kklib") ? options.outputPath : options.outputPath + ".kklib"

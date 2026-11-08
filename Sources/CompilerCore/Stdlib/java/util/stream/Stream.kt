@@ -1,9 +1,11 @@
 package java.util.stream
 
 import java.util.Comparator
+import java.util.Optional
 import java.util.function.Consumer
 import java.util.function.Function
 import java.util.function.Predicate
+import java.util.function.Supplier
 import java.util.function.ToDoubleFunction
 import java.util.function.ToIntFunction
 import java.util.function.ToLongFunction
@@ -96,6 +98,47 @@ public class Stream<T> private constructor(private val values: Sequence<T>) {
         return result
     }
 
+    public fun reduce(accumulator: java.util.function.BinaryOperator<T>): Optional<T> {
+        val iterator = consume().iterator()
+        if (!iterator.hasNext()) return Optional.empty()
+        var result = iterator.next()
+        while (iterator.hasNext()) result = accumulator.apply(result, iterator.next())
+        return streamOptionalOf(result)
+    }
+
+    public fun max(comparator: Comparator<in T>): Optional<T> {
+        val iterator = consume().iterator()
+        if (!iterator.hasNext()) return Optional.empty()
+        var best = iterator.next()
+        while (iterator.hasNext()) {
+            val candidate = iterator.next()
+            if (comparator.compare(candidate, best) > 0) best = candidate
+        }
+        return streamOptionalOf(best)
+    }
+
+    public fun min(comparator: Comparator<in T>): Optional<T> {
+        val iterator = consume().iterator()
+        if (!iterator.hasNext()) return Optional.empty()
+        var best = iterator.next()
+        while (iterator.hasNext()) {
+            val candidate = iterator.next()
+            if (comparator.compare(candidate, best) < 0) best = candidate
+        }
+        return streamOptionalOf(best)
+    }
+
+    public fun findFirst(): Optional<T> {
+        val iterator = consume().iterator()
+        return if (iterator.hasNext()) streamOptionalOf(iterator.next()) else Optional.empty()
+    }
+
+    public fun findAny(): Optional<T> = findFirst()
+
+    public fun toArray(): Array<T> = consume().toList().toTypedArray()
+
+    public fun iterator(): Iterator<T> = consume().iterator()
+
     public fun mapToInt(mapper: ToIntFunction<T>): IntStream =
         IntStream.fromSequence(consume().map { mapper.applyAsInt(it) })
 
@@ -156,9 +199,38 @@ public class Stream<T> private constructor(private val values: Sequence<T>) {
                 }
             })
 
+        public fun <T> ofNullable(value: T?): Stream<T> =
+            if (value == null) empty() else of(value)
+
+        public fun <T> concat(first: Stream<T>, second: Stream<T>): Stream<T> =
+            Stream(first.values + second.values)
+
+        public fun <T> generate(supplier: Supplier<T>): Stream<T> =
+            Stream(streamSequence {
+                object : Iterator<T> {
+                    override fun hasNext(): Boolean = true
+                    override fun next(): T = supplier.get()
+                }
+            })
+
+        public fun <T> builder(): Builder<T> = Builder()
+
         internal fun <T> fromIterable(values: Iterable<T>): Stream<T> =
             Stream(streamSequence { values.iterator() })
 
         internal fun <T> fromSequence(values: Sequence<T>): Stream<T> = Stream(values)
+    }
+
+    public class Builder<T> internal constructor() {
+        private val values = mutableListOf<T>()
+
+        public fun add(value: T): Builder<T> {
+            values.add(value)
+            return this
+        }
+
+        public fun accept(value: T): Builder<T> = add(value)
+
+        public fun build(): Stream<T> = fromIterable(values)
     }
 }

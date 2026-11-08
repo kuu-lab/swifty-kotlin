@@ -894,10 +894,17 @@ public class MessageFormat {
         if (country.isNotEmpty()) {
             NUMBER_LOCALE_EXACT["${language}_$country"]?.let { return it }
         }
+        // A region-less `en` has no currency on the JVM — the generic
+        // currency sign is used, unlike en_US ($) or en_GB (£). This is
+        // also the JDK's default locale under a POSIX/C.UTF-8 environment.
+        if (language == "en" && country.isEmpty()) {
+            return NUMBER_LOCALE_EN_NO_COUNTRY
+        }
         return NUMBER_LOCALE_LANG[language] ?: NUMBER_LOCALE_EN
     }
 
     private val NUMBER_LOCALE_EN = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "$")
+    private val NUMBER_LOCALE_EN_NO_COUNTRY = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "¤")
     private val NUMBER_LOCALE_EN_GB = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "£")
     private val NUMBER_LOCALE_JA = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0", "￥")
     private val NUMBER_LOCALE_ZH = JavaTextNumberLocale(",", ".", "", "%", "¤#,##0.00", "¥")

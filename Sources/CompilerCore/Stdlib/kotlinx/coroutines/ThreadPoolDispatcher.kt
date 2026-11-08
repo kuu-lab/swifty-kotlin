@@ -6,15 +6,15 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("__kk_coroutine_new_thread_pool_executor")
 private external fun newNativeThreadPoolExecutor(nThreads: Int, name: String, scheduled: Boolean): ExecutorService
 
-public fun newSingleThreadContext(name: String): CoroutineDispatcher =
+public fun newSingleThreadContext(name: String): ExecutorCoroutineDispatcher =
     ExecutorCoroutineDispatcherImpl(newNativeThreadPoolExecutor(1, name, false))
 
-public fun newFixedThreadPoolContext(nThreads: Int, name: String): CoroutineDispatcher {
+public fun newFixedThreadPoolContext(nThreads: Int, name: String): ExecutorCoroutineDispatcher {
     require(nThreads > 0) { "Expected at least one thread, but got $nThreads" }
     return ExecutorCoroutineDispatcherImpl(newNativeThreadPoolExecutor(nThreads, name, false))
 }
 
-public fun newScheduledThreadPoolContext(nThreads: Int, name: String): CoroutineDispatcher {
+public fun newScheduledThreadPoolContext(nThreads: Int, name: String): ExecutorCoroutineDispatcher {
     require(nThreads > 0) { "Expected at least one thread, but got $nThreads" }
     return ExecutorCoroutineDispatcherImpl(newNativeThreadPoolExecutor(nThreads, name, true))
 }

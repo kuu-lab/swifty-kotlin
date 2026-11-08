@@ -71,3 +71,9 @@ fun append(value: Double): StringBuilder = this
 fun appendLine(value: Double): StringBuilder = this
 fun insert(index: Int, value: Double): StringBuilder = this
 }
+
+interface Appendable {
+    fun append(value: Char): Appendable
+    fun append(value: CharSequence): Appendable
+    fun append(value: CharSequence, startIndex: Int, endIndex: Int): Appendable
+}

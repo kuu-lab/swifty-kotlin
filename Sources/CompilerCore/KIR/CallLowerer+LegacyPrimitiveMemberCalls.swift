@@ -457,11 +457,21 @@ extension CallLowerer {
         interner: StringInterner,
         loweredReceiverID: KIRExprID,
         result: KIRExprID,
+        chosenCallee: SymbolID?,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         // KSP-662: bundled Kotlin (kotlin.text.CharConversions) resolves
         // digitToInt / digitToIntOrNull, so no lowering special case is needed.
         if args.isEmpty, calleeNameStr == "code" {
+            // Sema resolves `'a'.code()` to a same-named user extension when
+            // one is in scope; only the kotlin.text property facade (and
+            // unbound name-based lookups) may become the kk_char_code read.
+            if let chosenCallee,
+               let chosenSymbol = sema.symbols.symbol(chosenCallee),
+               chosenSymbol.fqName.map({ interner.resolve($0) }) != ["kotlin", "text", "code"]
+            {
+                return nil
+            }
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if sema.types.makeNonNullable(receiverType) == sema.types.charType {
                 instructions.append(.call(callee: interner.intern("kk_char_code"), arguments: [loweredReceiverID], result: result, canThrow: false))

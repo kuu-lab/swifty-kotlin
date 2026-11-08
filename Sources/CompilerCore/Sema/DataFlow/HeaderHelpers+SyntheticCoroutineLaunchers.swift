@@ -275,6 +275,17 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        let withContextFunctionFQName = coroutinesPkg + [interner.intern("withContext")]
+        let withContextTypeParameterSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: withContextFunctionFQName + [interner.intern("$synthetic")],
+            symbols: symbols,
+            interner: interner
+        )
+        let withContextResultType = types.make(.typeParam(TypeParamType(
+            symbol: withContextTypeParameterSymbol,
+            nullability: .nonNull
+        )))
         registerSyntheticCoroutineTopLevelFunction(
             named: "withContext",
             packageFQName: coroutinesPkg,
@@ -283,12 +294,13 @@ extension DataFlowSemaPhase {
                 (name: "block", type: types.make(.functionType(FunctionType(
                     receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.nullableAnyType,
+                    returnType: withContextResultType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
             ],
-            returnType: types.anyType,
+            returnType: withContextResultType,
+            explicitTypeParameterSymbols: [withContextTypeParameterSymbol],
             symbols: symbols,
             interner: interner
         )
@@ -319,6 +331,17 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
         // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
+        let withContextFunctionFQName = coroutinesPkg + [interner.intern("withContext")]
+        let withContextTypeParameterSymbol = ensureSyntheticTypeParameterSymbol(
+            named: "T",
+            in: withContextFunctionFQName + [interner.intern("$synthetic")],
+            symbols: symbols,
+            interner: interner
+        )
+        let withContextResultType = types.make(.typeParam(TypeParamType(
+            symbol: withContextTypeParameterSymbol,
+            nullability: .nonNull
+        )))
         registerSyntheticCoroutineTopLevelFunction(
             named: "withContext",
             packageFQName: coroutinesPkg,
@@ -327,12 +350,13 @@ extension DataFlowSemaPhase {
                 (name: "block", type: types.make(.functionType(FunctionType(
                     receiver: coroutineScopeType,
                     params: [],
-                    returnType: types.nullableAnyType,
+                    returnType: withContextResultType,
                     isSuspend: true,
                     nullability: .nonNull
                 )))),
             ],
-            returnType: types.anyType,
+            returnType: withContextResultType,
+            explicitTypeParameterSymbols: [withContextTypeParameterSymbol],
             symbols: symbols,
             interner: interner
         )

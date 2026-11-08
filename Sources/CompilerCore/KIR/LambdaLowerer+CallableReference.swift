@@ -896,6 +896,30 @@ extension LambdaLowerer {
             // reference: its wrapper forwards the captured extension receiver
             // before the explicit arguments.
             captureArguments.append(implicitReceiver)
+        } else if !isUnbound,
+                  let dispatchReceiverSymbol = callableReferenceBinding?.dispatchReceiverSymbol,
+                  sema.symbols.symbol(dispatchReceiverSymbol)?.kind == .object
+        {
+            // `import Owner.f` / `import Owner.Companion.f` binds the named
+            // singleton as the callable reference's receiver (KUU-4364). The
+            // reference has no syntax receiver to lower, so materialize the
+            // object instance here — without it the generated thunk calls the
+            // member with a missing receiver argument.
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: dispatchReceiverSymbol,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+            let receiverType = sema.types.make(.classType(ClassType(
+                classSymbol: dispatchReceiverSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let receiver = arena.appendExpr(.symbolRef(dispatchReceiverSymbol), type: receiverType)
+            instructions.append(.constValue(result: receiver, value: .symbolRef(dispatchReceiverSymbol)))
+            captureArguments.append(receiver)
         }
 
         // BUG-B: a bare `::name` reference to a LOCAL function that itself
@@ -1628,6 +1652,13 @@ extension LambdaLowerer {
         // `FunctionN.invoke` (e.g. `call(f: Any)` / `f as Function1`) reaches
         // kk_function_invoke's flat-entry path and calls the synthetic lambda
         // with the wrong signature (KUU-3674).
+        let functionValueType = sema.bindings.functionValueExpectedType(for: exprID)
+            .flatMap { typeID -> FunctionType? in
+                guard case let .functionType(expectedType) = sema.types.kind(of: typeID) else {
+                    return nil
+                }
+                return expectedType
+            }
         let callableValue: KIRExprID
         if case let .functionType(functionType) = sema.types.kind(of: callableType),
            let materialized = materializeEscapingCallableValue(
@@ -1635,7 +1666,7 @@ extension LambdaLowerer {
                lambdaSymbol: callableSymbol,
                lambdaName: callableName,
                lambdaReturnType: functionType.returnType,
-               functionType: functionType,
+               functionType: functionValueType ?? functionType,
                captureArguments: captureArguments,
                sema: sema,
                arena: arena,

@@ -118,6 +118,23 @@ public func __kk_kclass_get_annotations_typed(_ kclassRaw: Int, _ outThrown: Uns
     return runtimeAnnotationList(records, materializeFactories: true, outThrown: outThrown)
 }
 
+@_cdecl("__kk_annotation_mark_reflection_materialized")
+public func __kk_annotation_mark_reflection_materialized(_ raw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          let box = tryCast(ptr, to: RuntimeObjectBox.self)
+    else { return 0 }
+    box.annotationReflectionMaterialized = true
+    return 0
+}
+
+@_cdecl("__kk_annotation_reflection_materialized")
+public func __kk_annotation_reflection_materialized(_ raw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          let box = tryCast(ptr, to: RuntimeObjectBox.self)
+    else { return 0 }
+    return box.annotationReflectionMaterialized ? 1 : 0
+}
+
 func runtimeAnnotationValue(_ record: RuntimeAnnotationRecord, materializeFactory: Bool,
                             outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if materializeFactory, record.factory != 0 {

@@ -36,6 +36,10 @@ fun main() {
     println(nums.count { it % 2 == 1 })
     println(nums.joinToString("-"))
     println(nums.joinToString("-", "[", "]") { "x$it" })
+    println(nums.joinToString(separator = ";", limit = 3, truncated = ".."))
+    println(nums.joinToString(prefix = "[", postfix = "]", limit = 2))
+    println(nums.joinToString(limit = 4) { (it * 10).toString() })
+    println(nums.joinToString(", ", transform = { "n$it" }))
     println(nums.asSequence().map { it + 1 }.toList())
 
     var sum = 0

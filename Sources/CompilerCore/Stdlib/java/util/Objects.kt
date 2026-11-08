@@ -45,6 +45,16 @@ public object Objects {
         return value
     }
 
+    // JDK semantics: the fallback is itself required to be non-null, so
+    // requireNonNullElse(null, null) throws NullPointerException.
+    public fun <T> requireNonNullElse(value: T?, defaultObj: T?): T {
+        return if (value != null) value else requireNonNull(defaultObj)
+    }
+
+    public fun <T> requireNonNullElseGet(value: T?, supplier: Supplier<out T>): T {
+        return if (value != null) value else requireNonNull(supplier.get())
+    }
+
     public fun isNull(value: Any?): Boolean = value == null
 
     public fun nonNull(value: Any?): Boolean = value != null

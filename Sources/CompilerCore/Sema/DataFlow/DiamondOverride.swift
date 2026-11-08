@@ -10,6 +10,9 @@ extension DataFlowSemaPhase {
         let contextParameterTypes: [TypeID]
         let parameterTypes: [TypeID]
         let isSuspend: Bool
+        /// Properties and functions share a name but never collide in JVM
+        /// dispatch; keep them in separate key spaces.
+        let isProperty: Bool
 
         var description: String {
             return "\(name):\(parameterTypes.count)"
@@ -27,6 +30,10 @@ extension DataFlowSemaPhase {
     private struct DiamondConflict {
         let key: DiamondDispatchKey
         let providerIDs: [SymbolID]
+        /// True when a concrete superclass member competes with an interface
+        /// implementation; kotlinc reports "inherits multiple implementations"
+        // instead of "inherits multiple interface methods" in that case.
+        let involvesSuperclassImplementation: Bool
     }
 
     func validateDiamondOverrides(
@@ -204,12 +211,16 @@ extension DataFlowSemaPhase {
             .filter { symbols.symbol($0)?.kind == .interface }
             .sorted(by: { $0.rawValue < $1.rawValue })
 
-        guard interfaceSupertypes.count >= 2 else { return [] }
-
-        let concreteSuperclassKeys = collectConcreteSuperclassDispatchKeys(
+        let concreteSuperclassMembers = collectConcreteSuperclassMembers(
             for: symbol,
             symbols: symbols
         )
+
+        // A single direct interface still conflicts when a concrete superclass
+        // member supplies a competing implementation for the same signature.
+        guard !interfaceSupertypes.isEmpty,
+              interfaceSupertypes.count >= 2 || !concreteSuperclassMembers.isEmpty
+        else { return [] }
 
         var mostSpecificImpls: [DiamondDispatchKey: [DiamondImplementation]] = [:]
 
@@ -224,7 +235,7 @@ extension DataFlowSemaPhase {
 
                 for childID in symbols.declaredChildren(of: currentInterfaceID) {
                     guard let childSym = symbols.symbol(childID),
-                          childSym.kind == .function
+                          childSym.kind == .function || childSym.kind == .property
                     else { continue }
 
                     let key = makeDiamondDispatchKey(for: childID, symbols: symbols)
@@ -263,10 +274,6 @@ extension DataFlowSemaPhase {
 
         var conflicts: [DiamondConflict] = []
         for (key, implementations) in mostSpecificImpls {
-            guard !concreteSuperclassKeys.contains(key) else {
-                continue
-            }
-
             // A declaration in a subinterface replaces the matching default
             // inherited from its parent, even when the class also lists that
             // parent interface directly. Such candidates are one override
@@ -285,14 +292,42 @@ extension DataFlowSemaPhase {
             }
             guard !effectiveImplementations.isEmpty else { continue }
 
+            let superclassMembers = concreteSuperclassMembers[key] ?? []
+            // A superclass member that itself overrides the interface
+            // declaration already resolves that implementation; only
+            // uncovered interface defaults still compete with the class side.
+            let uncoveredImplementations = effectiveImplementations.filter { implementation in
+                !isCoveredBySuperclassImplementation(
+                    implementation,
+                    superclassMembers: superclassMembers,
+                    symbols: symbols
+                )
+            }
+
             // Depth 0 means the direct interface provides the implementation,
             // which is more specific than defaults inherited from ancestors.
-            let minDepth = effectiveImplementations.map(\.inheritanceDepth).min() ?? 0
-            let mostSpecific = effectiveImplementations.filter { $0.inheritanceDepth == minDepth }
+            let minDepth = uncoveredImplementations.map(\.inheritanceDepth).min() ?? 0
+            let mostSpecific = uncoveredImplementations.filter { $0.inheritanceDepth == minDepth }
 
             var implGroups: [SymbolID: Set<SymbolID>] = [:]
             for implementation in mostSpecific {
                 implGroups[implementation.implementationID, default: []].insert(implementation.directInterfaceID)
+            }
+
+            // A concrete superclass member plus any uncovered concrete
+            // interface implementation is the "inherits multiple
+            // implementations" case; it replaces the interface-methods
+            // diagnostic for the same signature (kotlinc reports only the
+            // former).
+            let involvesSuperclassImplementation = !superclassMembers.isEmpty
+                && uncoveredImplementations.contains(where: \.isConcrete)
+            if involvesSuperclassImplementation {
+                conflicts.append(DiamondConflict(
+                    key: key,
+                    providerIDs: superclassMembers + uncoveredImplementations.map(\.implementationID),
+                    involvesSuperclassImplementation: true
+                ))
+                continue
             }
 
             if implGroups.count > 1 {
@@ -306,7 +341,8 @@ extension DataFlowSemaPhase {
                    mostSpecific.contains(where: \.isConcrete) {
                     conflicts.append(DiamondConflict(
                         key: key,
-                        providerIDs: conflictingInterfaces.sorted(by: { $0.rawValue < $1.rawValue })
+                        providerIDs: conflictingInterfaces.sorted(by: { $0.rawValue < $1.rawValue }),
+                        involvesSuperclassImplementation: false
                     ))
                 }
             }
@@ -369,8 +405,11 @@ extension DataFlowSemaPhase {
                 continue
             }
             let memberName = interner.resolve(conflict.key.name)
+            let reason = conflict.involvesSuperclassImplementation
+                ? "inherits multiple implementations for it."
+                : "inherits multiple interface methods for it."
             let msg = "\(kindKeyword) '\(className)' must override '\(memberName)' "
-                + "because it inherits multiple interface methods for it."
+                + "because it \(reason)"
             diagnostics.error("KSWIFTK-SEMA-0171", msg, range: declRange)
         }
     }
@@ -431,25 +470,37 @@ extension DataFlowSemaPhase {
         var overriddenKeys: Set<DiamondDispatchKey> = []
 
         let memberFunctions: [DeclID]
+        let memberProperties: [DeclID]
         switch decl {
         case let .classDecl(classDecl):
             memberFunctions = classDecl.memberFunctions
+            memberProperties = classDecl.memberProperties
         case let .objectDecl(objectDecl):
             memberFunctions = objectDecl.memberFunctions
+            memberProperties = objectDecl.memberProperties
         case let .interfaceDecl(interfaceDecl):
             memberFunctions = interfaceDecl.memberFunctions
+            memberProperties = interfaceDecl.memberProperties
         default:
             return overriddenKeys
         }
 
-        for memberDeclID in memberFunctions {
+        for memberDeclID in memberFunctions + memberProperties {
             guard let memberDecl = ast.arena.decl(memberDeclID),
-                  case let .funDecl(funDecl) = memberDecl,
-                  funDecl.modifiers.contains(.override),
                   let memberSymbol = bindings.declSymbols[memberDeclID]
             else {
                 continue
             }
+            let hasOverrideModifier: Bool
+            switch memberDecl {
+            case let .funDecl(funDecl):
+                hasOverrideModifier = funDecl.modifiers.contains(.override)
+            case let .propertyDecl(propertyDecl):
+                hasOverrideModifier = propertyDecl.modifiers.contains(.override)
+            default:
+                hasOverrideModifier = false
+            }
+            guard hasOverrideModifier else { continue }
             overriddenKeys.insert(makeDiamondDispatchKey(for: memberSymbol, symbols: symbols))
         }
 
@@ -488,11 +539,11 @@ extension DataFlowSemaPhase {
         return overriddenKeys
     }
 
-    private func collectConcreteSuperclassDispatchKeys(
+    private func collectConcreteSuperclassMembers(
         for symbol: SymbolID,
         symbols: SymbolTable
-    ) -> Set<DiamondDispatchKey> {
-        var keys: Set<DiamondDispatchKey> = []
+    ) -> [DiamondDispatchKey: [SymbolID]] {
+        var members: [DiamondDispatchKey: [SymbolID]] = [:]
         var visited: Set<SymbolID> = [symbol]
         var queue = symbols.directSupertypes(for: symbol)
             .filter {
@@ -510,12 +561,16 @@ extension DataFlowSemaPhase {
 
             for childID in symbols.declaredChildren(of: current) {
                 guard let childSym = symbols.symbol(childID),
-                      childSym.kind == .function,
-                      !childSym.flags.contains(.abstractType)
+                      (childSym.kind == .function || childSym.kind == .property),
+                      !childSym.flags.contains(.abstractType),
+                      childSym.visibility != .private
                 else {
                     continue
                 }
-                keys.insert(makeDiamondDispatchKey(for: childID, symbols: symbols))
+                let key = makeDiamondDispatchKey(for: childID, symbols: symbols)
+                if !(members[key] ?? []).contains(childID) {
+                    members[key, default: []].append(childID)
+                }
             }
 
             let nextSuperclasses = symbols.directSupertypes(for: current).filter {
@@ -525,7 +580,58 @@ extension DataFlowSemaPhase {
             queue.append(contentsOf: nextSuperclasses)
         }
 
-        return keys
+        return members
+    }
+
+    /// A superclass member resolves an interface implementation when it is
+    /// itself an `override` whose owner inherits that interface — the same
+    /// situation kotlinc accepts without a further override on the class
+    /// (e.g. `open class S : ID { override fun f() }` then `class C : S(), ID`).
+    private func isCoveredBySuperclassImplementation(
+        _ implementation: DiamondImplementation,
+        superclassMembers: [SymbolID],
+        symbols: SymbolTable
+    ) -> Bool {
+        guard !superclassMembers.isEmpty else { return false }
+        for memberID in superclassMembers {
+            guard let memberSym = symbols.symbol(memberID),
+                  memberSym.flags.contains(.overrideMember),
+                  let ownerID = symbols.parentSymbol(for: memberID)
+            else {
+                continue
+            }
+            if transitiveInterfaceSupertypes(of: ownerID, symbols: symbols)
+                .contains(implementation.ownerInterfaceID) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// All interfaces reachable through the full supertype graph. Unlike
+    /// `inheritedInterfaceIDs` this keeps traversing through class supertypes,
+    /// which matters when the override's owner inherits the interface via a
+    /// superclass rather than declaring it directly.
+    private func transitiveInterfaceSupertypes(
+        of symbol: SymbolID,
+        symbols: SymbolTable
+    ) -> Set<SymbolID> {
+        var visited: Set<SymbolID> = [symbol]
+        var queue = symbols.directSupertypes(for: symbol)
+        var inherited: Set<SymbolID> = []
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted,
+                  let info = symbols.symbol(current)
+            else {
+                continue
+            }
+            if info.kind == .interface {
+                inherited.insert(current)
+            }
+            queue.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+        return inherited
     }
 
     private func makeDiamondDispatchKey(
@@ -543,7 +649,8 @@ extension DataFlowSemaPhase {
             contextReceiverTypes: signature?.contextReceiverTypes ?? [],
             contextParameterTypes: signature?.contextParameterTypes ?? [],
             parameterTypes: signature?.parameterTypes ?? [],
-            isSuspend: signature?.isSuspend ?? false
+            isSuspend: signature?.isSuspend ?? false,
+            isProperty: symbols.symbol(methodSymbol)?.kind == .property
         )
     }
 

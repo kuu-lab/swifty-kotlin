@@ -280,7 +280,13 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        let usesBroadcastChannelVirtualBridge =
+            receiverTypeForDispatch.map {
+                isBroadcastChannelReceiverType($0, sema: sema, interner: interner)
+            } == true
+            && isChannelRuntimeBridgeCallee(chosenCallee, sema: sema)
         guard listIteratorInheritedDispatch != nil
+            || usesBroadcastChannelVirtualBridge
             || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
             || usesIteratorRuntimeVirtualBridge
@@ -289,6 +295,28 @@ extension CallLowerer {
             || usesBoxedCollectionVirtualBridge
             || usesJavaIOStreamVirtualBridge
         else { return nil }
+        // A source-backed BroadcastChannel implements the runtime-bridged
+        // SendChannel property surface; those getters have no ordinary
+        // virtual dispatch target and must use the interface's property
+        // itable slot instead (KUU-4376).
+        if let receiverTypeForDispatch,
+           let propertyDispatch = broadcastChannelInterfacePropertyGetterDispatch(
+               callee: dispatchCallee,
+               receiverType: receiverTypeForDispatch,
+               sema: sema,
+               interner: interner
+           )
+        {
+            return .virtualCall(
+                symbol: propertyDispatch.getterSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                dispatch: propertyDispatch.kind
+            )
+        }
         guard !isRuntimeRangeReceiver,
               let dispatchKind = resolveVirtualDispatch(
             callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
@@ -517,6 +545,9 @@ extension CallLowerer {
                 ) {
                     return collectionProperty
                 }
+                if isBroadcastChannelReceiverType(receiverType, sema: sema, interner: interner) {
+                    return fallback
+                }
                 return interner.intern(externalLinkName)
             }
             if sema.symbols.isSourceBackedSymbol(chosenCallee) {
@@ -636,6 +667,81 @@ extension CallLowerer {
         }
         return symbol.kind == .interface
             && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
+    }
+
+    /// `BroadcastChannel` is the first source-backed `SendChannel` implementation.
+    /// Its receivers must dispatch through the itable so Kotlin overrides run;
+    /// the `kk_channel_*`/`__kk_channel_*` bridges expect a runtime channel
+    /// handle and would misinterpret the object pointer (KUU-4376).
+    func isBroadcastChannelReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.fqName.map(interner.resolve) == [
+            "kotlinx", "coroutines", "channels", "BroadcastChannel",
+        ]
+    }
+
+    func isChannelRuntimeBridgeCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        guard let linkName = sema.symbols.externalLinkName(for: callee) else {
+            return false
+        }
+        return linkName.hasPrefix("kk_channel_") || linkName.hasPrefix("__kk_channel_")
+    }
+
+    /// A source-backed `BroadcastChannel` implements the runtime-bridged
+    /// `SendChannel`/`Channel` property surface (`isClosedForSend`, ...).
+    /// Those getters have no ordinary virtual dispatch target — the interface
+    /// excludes runtime-linked properties from its method itable — so the
+    /// read must go through the interface's *property* itable slot instead
+    /// (KUU-4376). Returns the getter symbol and dispatch kind, or nil when
+    /// `callee` is not a channel-bridged interface property accessor.
+    func broadcastChannelInterfacePropertyGetterDispatch(
+        callee: SymbolID,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (getterSymbol: SymbolID, kind: KIRDispatchKind)? {
+        guard isBroadcastChannelReceiverType(receiverType, sema: sema, interner: interner)
+        else {
+            return nil
+        }
+        let calleeInfo = sema.symbols.symbol(callee)
+        let propertySymbol = sema.symbols.accessorOwnerProperty(for: callee)
+            ?? (calleeInfo?.kind == .property ? callee : nil)
+        guard let propertySymbol,
+              let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerSymbol)?.kind == .interface,
+              isChannelRuntimeBridgeName(sema.symbols.externalLinkName(for: propertySymbol))
+                  || isChannelRuntimeBridgeCallee(callee, sema: sema),
+              let methodSlot = kirInterfacePropertyGetterSlot(
+                  interfaceProperty: propertySymbol,
+                  interfaceSymbol: ownerSymbol,
+                  sema: sema,
+                  interner: interner,
+                  cache: driver.ctx.nominalDispatchCache
+              )
+        else {
+            return nil
+        }
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: ownerSymbol, sema: sema, interner: interner
+        )
+        let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+        return (getterSymbol, .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot))
+    }
+
+    private func isChannelRuntimeBridgeName(_ linkName: String?) -> Bool {
+        guard let linkName else { return false }
+        return linkName.hasPrefix("kk_channel_") || linkName.hasPrefix("__kk_channel_")
     }
 
 
