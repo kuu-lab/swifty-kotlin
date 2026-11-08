@@ -235,7 +235,11 @@ extension DataFlowSemaPhase {
 
                 for childID in symbols.declaredChildren(of: currentInterfaceID) {
                     guard let childSym = symbols.symbol(childID),
-                          childSym.kind == .function || childSym.kind == .property
+                          childSym.kind == .function || childSym.kind == .property,
+                          // Private interface members are not inherited, so
+                          // they never compete in the diamond rule — same
+                          // exclusion the superclass side already applies.
+                          childSym.visibility != .private
                     else { continue }
 
                     let key = makeDiamondDispatchKey(for: childID, symbols: symbols)
