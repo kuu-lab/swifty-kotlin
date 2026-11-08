@@ -1273,7 +1273,6 @@ extension CallLowerer {
         if loweredCalleeText == "kk_sequence_firstNotNullOf"
             || loweredCalleeText == "kk_sequence_firstNotNullOfOrNull"
             || loweredCalleeText == "kk_sequence_indexOfFirst"
-            || loweredCalleeText == "kk_sequence_takeLastWhile"
             || loweredCalleeText == "kk_sequence_indexOfLast",
            finalArguments.count == 2
         {
@@ -1582,7 +1581,6 @@ extension CallLowerer {
         "kk_iterable_iterator",
         "kk_iterator_next",
         "kk_list_iterator_next",
-        "kk_sequence_takeLast",
         "__kk_iterable_firstNotNullOf",
         "__kk_iterable_firstNotNullOfOrNull",
         "__kk_iterable_any",
@@ -1633,7 +1631,6 @@ extension CallLowerer {
         "kk_sequence_runningReduceIndexed",
         "kk_sequence_sortedBy",
         "kk_sequence_sortedByDescending",
-        "kk_sequence_takeLastWhile",
         "kk_sequence_firstNotNullOf",
         "kk_sequence_firstNotNullOfOrNull",
         "kk_sequence_indexOfFirst",

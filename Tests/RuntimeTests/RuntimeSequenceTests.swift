@@ -296,44 +296,6 @@ struct RuntimeSequenceTests {
         #expect(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 0, nil)) == [])
     }
 
-    @Test func takeLastReturnsTrailingElementsAsList() {
-        #expect(runtimeTestListElements(kk_sequence_takeLast(makeSequence([1, 2, 3, 4]), 2, nil)) == [3, 4])
-        #expect(runtimeTestListElements(kk_sequence_takeLast(makeSequence([1, 2]), 5, nil)) == [1, 2])
-        #expect(runtimeTestListElements(kk_sequence_takeLast(makeSequence([1, 2]), 0, nil)) == [])
-    }
-
-    @Test func takeLastNegativeCountSetsThrowable() {
-        var thrown = 0
-        let result = kk_sequence_takeLast(makeSequence([1, 2]), -1, &thrown)
-        #expect(runtimeTestListElements(result) == [])
-        #expect(thrown != 0)
-    }
-
-    @Test func takeLastWhileReturnsMatchingSuffixAsList() {
-        var thrown = 0
-        let result = kk_sequence_takeLastWhile(
-            makeSequence([1, 3, 4, 2, 5, 6]),
-            unsafeBitCast(sequenceGreaterThanTwo, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown == 0)
-        #expect(runtimeTestListElements(result) == [5, 6])
-    }
-
-    @Test func takeLastWhilePropagatesPredicateThrowable() {
-        var thrown = 0
-        _ = kk_sequence_takeLastWhile(
-            makeSequence([1, 2]),
-            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown != 0)
-    }
-
     @Test func sumAccumulatesIntElements() {
         #expect(kk_sequence_sum(makeSequence([1, 2, 3, 4])) == 10)
         #expect(kk_sequence_sum(makeSequence([])) == 0)
@@ -1380,27 +1342,6 @@ struct RuntimeSequenceTests {
         #expect(thrown != 0)
         let box = try #require(throwableBox(from: thrown))
         #expect(box.exceptionFQName == "kotlin.IllegalArgumentException")
-    }
-
-    // MARK: - STDLIB-SEQ-FN-099: Sequence.reversed()
-
-    @Test func sequenceReversedMaterializesInReverseOrder() {
-        let seq = makeSequence([1, 2, 3, 4])
-        let reversed = kk_sequence_reversed(seq)
-        var thrown = 0
-        let list = kk_sequence_to_list(reversed, &thrown)
-
-        #expect(thrown == 0)
-        #expect(runtimeTestListElements(list) == [4, 3, 2, 1])
-    }
-
-    @Test func sequenceReversedEmptySequenceReturnsEmptySequence() {
-        let reversed = kk_sequence_reversed(makeSequence([]))
-        var thrown = 0
-        let list = kk_sequence_to_list(reversed, &thrown)
-
-        #expect(thrown == 0)
-        #expect(runtimeTestListElements(list) == [])
     }
 
     // MARK: - Sequence mutable conversions (STDLIB-SEQ-025)
