@@ -135,5 +135,46 @@ extension BuildKIRRegressionTests {
             "the runtime Any.toString member should stay registered for the slot"
         )
     }
+
+    // KUU-4487: explicit Any-member calls on a base-typed receiver must use
+    // the kk_any_member_* bridges (the runtime override registry), never a
+    // vtable slot. Subclass vtables do not share a consistent slot for
+    // kotlin.Any members — nominals rooted at an empty-vtable superclass
+    // (e.g. bundled-stdlib kotlinx.serialization.json.JsonElement) number
+    // their own members from slot 0, so a slot resolved from Any's layout
+    // indexes an unrelated method on the concrete receiver.
+    @Test
+    func anyMemberCallsOnBaseReceiverUseBridgeNotVtable() throws {
+        TestStdlibCache.shared.prepare()
+        let context = makeContextFromSource("""
+        abstract class Base
+        class Impl(val v: Int) : Base() {
+            override fun toString(): String = "I$v"
+            override fun hashCode(): Int = v
+            override fun equals(other: Any?): Boolean = other is Impl && other.v == v
+        }
+        fun probeToString(b: Base): String = b.toString()
+        fun probeHashCode(b: Base): Int = b.hashCode()
+        fun probeEquals(b: Base, o: Any?): Boolean = b.equals(o)
+        """, allowDefaultStdlibLibrary: true)
+        try runToKIR(context)
+        #expect(!context.diagnostics.hasError)
+        let module = try #require(context.kir)
+        let interner = context.interner
+
+        for name in ["probeToString", "probeHashCode", "probeEquals"] {
+            let body = try findKIRFunctionBody(named: name, in: module, interner: interner)
+            let virtualCallees = extractVirtualCallees(from: body, interner: interner)
+            #expect(
+                !virtualCallees.contains { $0.hasPrefix("kk_any_member_") },
+                "\(name) must not vtable-dispatch an Any member; virtualCallees: \(virtualCallees)"
+            )
+            let callees = extractCallees(from: body, interner: interner)
+            #expect(
+                callees.contains { $0.hasPrefix("kk_any_member_") },
+                "\(name) must call the Any-member bridge directly; callees: \(callees)"
+            )
+        }
+    }
 }
 #endif

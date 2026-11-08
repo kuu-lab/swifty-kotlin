@@ -2175,6 +2175,21 @@ private func resolveVtableDispatchKind(
     layout: NominalLayout,
     sema: SemaModule
 ) -> KIRDispatchKind? {
+    // kotlin.Any's toString/hashCode/equals must never use vtable slots: the
+    // kk_any_member_* bridges dispatch through the runtime override registry,
+    // which is the only mechanism that works across module boundaries.
+    // Subclass vtables do not share a consistent slot for these members —
+    // nominals rooted at an empty-vtable superclass (e.g. bundled-stdlib
+    // kotlinx.serialization.json.JsonElement) number their own members from
+    // slot 0, so a slot resolved from Any's layout indexes an unrelated
+    // method on the concrete receiver (KUU-4487).
+    if let linkName = sema.symbols.externalLinkName(for: callee),
+       linkName == "kk_any_member_to_string"
+           || linkName == "kk_any_member_hashCode"
+           || linkName == "kk_any_member_equals"
+    {
+        return nil
+    }
     // Open and abstract classes can acquire subtypes in a later compilation
     // unit. Their method bodies must retain virtual dispatch when a library
     // is compiled in isolation, even without currently known subtypes.
