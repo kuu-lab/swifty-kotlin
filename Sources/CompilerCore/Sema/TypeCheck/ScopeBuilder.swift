@@ -16,6 +16,11 @@ struct TypeCheckScopeBuilder {
         // compact index for that name only instead of pre-collecting every
         // imported package member here.
         let defaultImportScope = DefaultImportScope(parent: nil, symbols: sema.symbols)
+        let builtinClassifierFQNames = kotlinBuiltinClassifierFQNames(interner: interner)
+        defaultImportScope.isKotlinBuiltinClassifier = { [sema] symbolID in
+            guard let fqName = sema.symbols.symbol(symbolID)?.fqName else { return false }
+            return builtinClassifierFQNames.contains(fqName)
+        }
         for packagePath in defaultImportPackages {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
                 if shouldSkipDefaultImport(importedSymbol, sema: sema)
@@ -949,5 +954,58 @@ struct TypeCheckScopeBuilder {
         return packages.map { segments in
             segments.map { interner.intern($0) }
         }
+    }
+
+    /// FQ names of Kotlin's builtin classifiers — the `KotlinBuiltIns`
+    /// package contents (function types, primitives and their arrays, the
+    /// mapped `kotlin.collections` interfaces, ranges and progressions,
+    /// `kotlin.sequences`, and the builtin annotation/text types). During
+    /// classifier lookup these resolve above user star imports, while
+    /// ordinary default imports rank below them: under `import java.util.*`
+    /// `Iterator` still binds `kotlin.collections.Iterator` but
+    /// `ArrayDeque` binds `java.util.ArrayDeque` (KUU-4509).
+    private func kotlinBuiltinClassifierFQNames(interner: StringInterner) -> Set<[InternedString]> {
+        let names: [[String]] = [
+            ["kotlin", "Any"], ["kotlin", "Nothing"], ["kotlin", "Unit"],
+            ["kotlin", "Boolean"], ["kotlin", "Char"], ["kotlin", "String"],
+            ["kotlin", "CharSequence"], ["kotlin", "Comparable"], ["kotlin", "Comparator"],
+            ["kotlin", "Throwable"], ["kotlin", "Enum"], ["kotlin", "Annotation"],
+            ["kotlin", "Number"], ["kotlin", "Function"], ["kotlin", "Result"],
+            ["kotlin", "Cloneable"], ["kotlin", "EnumEntries"], ["kotlin", "DeepRecursiveFunction"],
+            ["kotlin", "Byte"], ["kotlin", "Short"], ["kotlin", "Int"],
+            ["kotlin", "Long"], ["kotlin", "Float"], ["kotlin", "Double"],
+            ["kotlin", "UByte"], ["kotlin", "UShort"], ["kotlin", "UInt"], ["kotlin", "ULong"],
+            ["kotlin", "Array"], ["kotlin", "BooleanArray"], ["kotlin", "ByteArray"],
+            ["kotlin", "CharArray"], ["kotlin", "ShortArray"], ["kotlin", "IntArray"],
+            ["kotlin", "LongArray"], ["kotlin", "FloatArray"], ["kotlin", "DoubleArray"],
+            ["kotlin", "UByteArray"], ["kotlin", "UShortArray"],
+            ["kotlin", "UIntArray"], ["kotlin", "ULongArray"],
+            ["kotlin", "collections", "Iterator"], ["kotlin", "collections", "MutableIterator"],
+            ["kotlin", "collections", "Iterable"], ["kotlin", "collections", "MutableIterable"],
+            ["kotlin", "collections", "Collection"], ["kotlin", "collections", "MutableCollection"],
+            ["kotlin", "collections", "List"], ["kotlin", "collections", "MutableList"],
+            ["kotlin", "collections", "ListIterator"], ["kotlin", "collections", "MutableListIterator"],
+            ["kotlin", "collections", "Set"], ["kotlin", "collections", "MutableSet"],
+            ["kotlin", "collections", "Map"], ["kotlin", "collections", "MutableMap"],
+            ["kotlin", "collections", "Map", "Entry"],
+            ["kotlin", "collections", "MutableMap", "MutableEntry"],
+            ["kotlin", "ranges", "ClosedRange"], ["kotlin", "ranges", "ClosedFloatingPointRange"],
+            ["kotlin", "ranges", "OpenEndRange"], ["kotlin", "ranges", "CharRange"],
+            ["kotlin", "ranges", "IntRange"], ["kotlin", "ranges", "LongRange"],
+            ["kotlin", "ranges", "UIntRange"], ["kotlin", "ranges", "ULongRange"],
+            ["kotlin", "ranges", "CharProgression"], ["kotlin", "ranges", "IntProgression"],
+            ["kotlin", "ranges", "LongProgression"], ["kotlin", "ranges", "UIntProgression"],
+            ["kotlin", "ranges", "ULongProgression"],
+            ["kotlin", "sequences", "Sequence"],
+            ["kotlin", "annotation", "AnnotationTarget"], ["kotlin", "annotation", "AnnotationRetention"],
+            ["kotlin", "annotation", "Target"], ["kotlin", "annotation", "Retention"],
+            ["kotlin", "annotation", "Repeatable"], ["kotlin", "annotation", "MustBeDocumented"],
+            ["kotlin", "text", "CharCategory"], ["kotlin", "text", "Regex"],
+            ["kotlin", "text", "MatchResult"], ["kotlin", "text", "MatchGroup"],
+            ["kotlin", "text", "MatchGroupCollection"], ["kotlin", "text", "MatchNamedGroupCollection"],
+            ["kotlin", "text", "StringBuilder"], ["kotlin", "text", "Appendable"],
+            ["kotlin", "text", "Typography"],
+        ]
+        return Set(names.map { $0.map(interner.intern) })
     }
 }

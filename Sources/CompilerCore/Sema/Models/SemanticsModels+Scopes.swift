@@ -110,6 +110,7 @@ open class BaseScope: Scope {
             var current: BaseScope? = self
             var reachedFileScope = false
             var fileLevelMatches: [SymbolID] = []
+            var builtinMatches: [SymbolID] = []
             var defaultImportMatches: [SymbolID] = []
             var starImportMatches: [SymbolID] = []
             while let scope = current {
@@ -124,15 +125,25 @@ open class BaseScope: Scope {
                         if !matches.isEmpty {
                             return matches
                         }
-                    } else if scope is DefaultImportScope {
-                        // Kotlin ranks default imports (kotlin.* and friends)
-                        // above user star imports for classifier lookup, so
-                        // `Function` resolves to `kotlin.Function` even under
-                        // `import java.util.function.*` (KUU-4424). Callables
-                        // keep the opposite order: star imports outrank
-                        // implicit stdlib imports during overload resolution.
-                        if defaultImportMatches.isEmpty {
-                            defaultImportMatches = matches
+                    } else if let defaultImportScope = scope as? DefaultImportScope {
+                        // Kotlin ranks its builtin types (kotlin.Function,
+                        // the mapped kotlin.collections interfaces,
+                        // primitives, ...) above user star imports, but
+                        // ordinary default imports below them: under
+                        // `import java.util.*`, `Iterator` still binds
+                        // kotlin.collections.Iterator while `ArrayDeque`
+                        // binds java.util.ArrayDeque (KUU-4509). Callables
+                        // keep the plain order: star imports outrank
+                        // implicit stdlib imports during overload
+                        // resolution (KUU-4424).
+                        if builtinMatches.isEmpty && defaultImportMatches.isEmpty {
+                            for match in matches {
+                                if defaultImportScope.isKotlinBuiltinClassifier(match) {
+                                    builtinMatches.append(match)
+                                } else {
+                                    defaultImportMatches.append(match)
+                                }
+                            }
                         }
                     } else if scope is WildcardImportScope {
                         if starImportMatches.isEmpty {
@@ -147,10 +158,13 @@ open class BaseScope: Scope {
             if !fileLevelMatches.isEmpty {
                 return fileLevelMatches
             }
-            if !defaultImportMatches.isEmpty {
-                return defaultImportMatches
+            if !builtinMatches.isEmpty {
+                return builtinMatches
             }
-            return starImportMatches
+            if !starImportMatches.isEmpty {
+                return starImportMatches
+            }
+            return defaultImportMatches
         }
     }
 
@@ -302,10 +316,18 @@ class PackageMembersScope: BaseScope {
 }
 
 /// The shared scope holding default-imported (`kotlin.*` and friends)
-/// members. `lookupClassifier` ranks this tier above user star imports
-/// (KUU-4424); the marker lets it tell the tier apart from the per-file
-/// wildcard and same-package `PackageMembersScope`s.
-final class DefaultImportScope: PackageMembersScope {}
+/// members. `lookupClassifier` splits this tier: Kotlin builtin types
+/// outrank user star imports while ordinary default imports rank below
+/// them (KUU-4509); the marker lets the lookup tell the tier apart from
+/// the per-file wildcard and same-package `PackageMembersScope`s.
+final class DefaultImportScope: PackageMembersScope {
+    /// Whether a default-imported classifier is one of Kotlin's builtin
+    /// types (the `KotlinBuiltIns` set: `kotlin.Function`, the mapped
+    /// collection interfaces, primitives, ranges, ...). Populated once by
+    /// `TypeCheckScopeBuilder`, which owns the interner the FQ names are
+    /// interned with.
+    var isKotlinBuiltinClassifier: (SymbolID) -> Bool = { _ in false }
+}
 
 /// The per-file scope holding `import foo.*` star-imported members.
 final class WildcardImportScope: PackageMembersScope {}
