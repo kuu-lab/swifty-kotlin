@@ -788,6 +788,22 @@ final class RuntimeJobHandle: @unchecked Sendable {
             return value
         }
         lock.unlock()
+        // KUU-4477: if this job's body burst is an ancestor frame on the
+        // calling thread, the job cannot reach a terminal state until this
+        // stack unwinds past the join — neither parking on the semaphore nor
+        // draining the event loop can satisfy the wait, so waiting here
+        // deadlocks. Return the current terminal snapshot instead; the job
+        // still completes during the unwind. This can only fire when the
+        // join is nested inside the joined job's own call stack (e.g. a
+        // `coroutineScope` child-wait resumed beneath a `flow` emitter's
+        // synchronous suspend loop parked inside the produce body), where
+        // the alternative is a guaranteed hang.
+        if RuntimeBurstJobStack.isBurstingOnCurrentThread(self) {
+            lock.lock()
+            let value = terminalValueForJoinLocked()
+            lock.unlock()
+            return value
+        }
         if let loop = RuntimeEventLoop.current {
             // The caller is draining a runBlocking event loop, and this job's
             // body very likely sits in that same queue (`coroutineScope`'s wait
