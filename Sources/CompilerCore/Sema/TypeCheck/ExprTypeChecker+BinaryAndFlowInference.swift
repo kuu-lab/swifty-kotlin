@@ -825,21 +825,16 @@ extension ExprTypeChecker {
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
             }
-            let isComparisonOperator: Bool = switch op {
-            case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
-                true
-            default:
-                false
-            }
             let hasUninferredOperatorReturn = operatorCandidates.contains { candidate in
                 driver.inferredReturnFunctions[candidate] != nil
                     && !driver.checkedInferredReturnFunctions.contains(candidate)
                     && !driver.checkingInferredReturnFunctions.contains(candidate)
             }
-            if isComparisonOperator, hasUninferredOperatorReturn {
+            if hasUninferredOperatorReturn {
                 // Select by receiver and operand types before inferring a return
                 // type, so an unselected overload cannot create a false cycle.
-                // The final resolution below then enforces compareTo's Int result.
+                // The final resolution below then enforces compareTo's Int result
+                // for comparisons and the declared signature otherwise.
                 let inputSelection = ctx.resolver.resolveCall(
                     candidates: operatorCandidates,
                     call: operatorCall,
