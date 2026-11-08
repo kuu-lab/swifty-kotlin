@@ -1033,6 +1033,12 @@ extension KotlinParser {
         var paren = 0
         var bracket = 0
         var brace = 0
+        /// Open `${ ... }` string-template groups. A newline inside a template
+        /// expression is never a statement boundary, so boundary checks gate
+        /// on `template == 0` — but `isTopLevel` deliberately excludes it: a
+        /// `{` inside a template must still reach the block/`when`-body
+        /// parser like one inside `(`.
+        var template = 0
 
         var isTopLevel: Bool {
             paren == 0 && bracket == 0 && brace == 0
@@ -1048,6 +1054,8 @@ extension KotlinParser {
             case .symbol(.rBracket): bracket = max(0, bracket - 1)
             case .symbol(.lBrace): brace += 1
             case .symbol(.rBrace): brace = max(0, brace - 1)
+            case .templateExprStart: template += 1
+            case .templateExprEnd: template = max(0, template - 1)
             default: break
             }
         }

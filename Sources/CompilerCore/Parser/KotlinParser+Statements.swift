@@ -147,6 +147,7 @@ extension KotlinParser {
                !children.isEmpty,
                depth.paren == 0,
                depth.bracket == 0,
+               depth.template == 0,
                hasLeadingNewline(token),
                shouldSplitStatementOnNewline(token.kind),
                !canContinueWithSymbol,
@@ -156,17 +157,23 @@ extension KotlinParser {
             {
                 break
             }
-            if case .keyword(.if) = token.kind {
-                sawIfOrTryKeyword = true
-            } else if case .keyword(.try) = token.kind {
-                sawIfOrTryKeyword = true
+            // An `if`/`try` inside a `${ ... }` template arms `else`-like
+            // continuations only for the template's own expression, never
+            // for the statement that follows the closing `}`.
+            if depth.template == 0 {
+                if case .keyword(.if) = token.kind {
+                    sawIfOrTryKeyword = true
+                } else if case .keyword(.try) = token.kind {
+                    sawIfOrTryKeyword = true
+                }
             }
             let closesTopLevelExpressionBrace: Bool = if case .symbol(.rBrace) = token.kind {
                 !inBlock && depth.brace > 0
             } else {
                 false
             }
-            if shouldStopStatementBefore(token, inBlock: inBlock), !closesTopLevelExpressionBrace {
+            if depth.template == 0,
+               shouldStopStatementBefore(token, inBlock: inBlock), !closesTopLevelExpressionBrace {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock {
@@ -188,7 +195,7 @@ extension KotlinParser {
             if case .symbol(.semicolon) = token.kind {
                 break
             }
-            if !inBlock, hasLeadingNewline(stream.peek()) {
+            if !inBlock, depth.template == 0, hasLeadingNewline(stream.peek()) {
                 break
             }
         }
@@ -410,18 +417,22 @@ extension KotlinParser {
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
-            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock) { break }
-            if stopBeforeElse, atTopLevel,
+            // `atBodyBoundary` is the top level *outside* any `${ ... }`
+            // template: `else`/`catch`/`finally`/`,`/newline inside a template
+            // belong to the template's own expression and never end this body.
+            let atBodyBoundary = atTopLevel && depth.template == 0
+            if atBodyBoundary, shouldStopStatementBefore(token, inBlock: inBlock) { break }
+            if stopBeforeElse, atBodyBoundary,
                token.kind == .keyword(.else) { break }
-            if stopBeforeTopLevelComma, atTopLevel,
+            if stopBeforeTopLevelComma, atBodyBoundary,
                token.kind == .symbol(.comma) { break }
-            if stopBeforeCatchFinally, atTopLevel {
+            if stopBeforeCatchFinally, atBodyBoundary {
                 if case .keyword(.catch) = token.kind { break }
                 if case .keyword(.finally) = token.kind { break }
             }
             if inBlock,
                children.count > startChildCount,
-               atTopLevel,
+               atBodyBoundary,
                hasLeadingNewline(token),
                shouldSplitStatementOnNewline(token.kind)
             {
@@ -441,9 +452,9 @@ extension KotlinParser {
             depth.track(token.kind)
             // Outside a block, braces are consumed flat, so a `;` inside a
             // lambda body (`0 -> run { a(); b }`) must not end the entry.
-            if token.kind == .symbol(.semicolon), atTopLevel { return }
+            if token.kind == .symbol(.semicolon), atBodyBoundary { return }
             if !inBlock, hasLeadingNewline(stream.peek()) {
-                let stillGrouped = !depth.isTopLevel
+                let stillGrouped = !depth.isTopLevel || depth.template > 0
                 if stillGrouped {
                     continue
                 }
@@ -599,7 +610,7 @@ extension KotlinParser {
 
         while !stream.atEOF() {
             let token = stream.peek()
-            if depth.paren == 0, depth.bracket == 0, depth.brace == 0 {
+            if depth.paren == 0, depth.bracket == 0, depth.brace == 0, depth.template == 0 {
                 if token.kind == .symbol(.comma) || token.kind == .symbol(.arrow) || token.kind == .symbol(.rBrace) {
                     break
                 }
@@ -1182,11 +1193,10 @@ extension KotlinParser {
         var functionTypeNameAfterAnnotation = false
         var delegateBraceTracker = DelegateExpressionBraceTracker()
         var depth = BracketDepth()
-        var templateExpressionDepth = 0
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = depth.isTopLevel
-                && templateExpressionDepth == 0
+                && depth.template == 0
             // A same-line `field:` clause belongs to the property, not its declared type.
             if allowsPropertyDelegation, atTopLevel, depth.angle == 0, !sawAssignment,
                isExplicitBackingFieldStart(token),
@@ -1343,20 +1353,12 @@ extension KotlinParser {
             progress = true
             delegateBraceTracker.note(consumedToken.kind, atTopLevel: atTopLevel)
             depth.track(token.kind)
-            switch token.kind {
-            case .templateExprStart:
-                templateExpressionDepth += 1
-            case .templateExprEnd:
-                templateExpressionDepth = max(0, templateExpressionDepth - 1)
-            default:
-                break
-            }
             if case .symbol(.semicolon) = token.kind, atTopLevel {
                 break
             }
             if !inBlock, hasLeadingNewline(stream.peek()) {
                 let stillGrouped = !depth.isTopLevel
-                    || templateExpressionDepth > 0
+                    || depth.template > 0
                 if stillGrouped {
                     continue
                 }

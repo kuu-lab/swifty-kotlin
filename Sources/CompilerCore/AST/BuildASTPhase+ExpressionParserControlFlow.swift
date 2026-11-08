@@ -91,7 +91,9 @@ extension BuildASTPhase.ExpressionParser {
         var nestedIfs = 0
         for offset in 0 ..< end {
             let token = tokens[offset]
-            if depth.isAtTopLevel {
+            // `if`/`else` inside a `${ ... }` template belong to the
+            // template's own expression, not to this statement's structure.
+            if depth.isAtTopLevel, depth.template == 0 {
                 if token.kind == .keyword(.if) {
                     nestedIfs += 1
                 } else if token.kind == .keyword(.else) {
@@ -505,13 +507,14 @@ extension BuildASTPhase.ExpressionParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        var templateDepth = 0
         var sawToken = false
         var sawIfKeyword = false
 
         while scan < tokens.endIndex {
             let token = tokens[scan]
 
-            if parenDepth == 0, bracketDepth == 0, braceDepth == 0 {
+            if parenDepth == 0, bracketDepth == 0, braceDepth == 0, templateDepth == 0 {
                 // A guard `if` — and the expression it introduces — may span
                 // newlines (`cond\nif g ->`, `cond if\ng ->`). The condition
                 // list itself may also span lines everywhere the entry parser
@@ -554,6 +557,10 @@ extension BuildASTPhase.ExpressionParser {
                 braceDepth += 1
             case .symbol(.rBrace):
                 braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart:
+                templateDepth += 1
+            case .templateExprEnd:
+                templateDepth = max(0, templateDepth - 1)
             default:
                 break
             }
@@ -574,9 +581,10 @@ extension BuildASTPhase.ExpressionParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        var templateDepth = 0
         while scan < tokens.endIndex {
             let token = tokens[scan]
-            if parenDepth == 0, bracketDepth == 0, braceDepth == 0 {
+            if parenDepth == 0, bracketDepth == 0, braceDepth == 0, templateDepth == 0 {
                 switch token.kind {
                 case .symbol(.arrow):
                     return true
@@ -602,6 +610,10 @@ extension BuildASTPhase.ExpressionParser {
             case .symbol(.rBrace):
                 if braceDepth == 0 { return false }
                 braceDepth -= 1
+            case .templateExprStart:
+                templateDepth += 1
+            case .templateExprEnd:
+                templateDepth = max(0, templateDepth - 1)
             default:
                 break
             }
@@ -1213,7 +1225,7 @@ extension BuildASTPhase.ExpressionParser {
         var sawBodyToken = false
         while scan < tokens.endIndex {
             let token = tokens[scan]
-            if token.kind == .keyword(.while), depth.isAtTopLevel, sawBodyToken {
+            if token.kind == .keyword(.while), depth.isAtTopLevel, depth.template == 0, sawBodyToken {
                 return scan
             }
             depth.track(token.kind)

@@ -5,6 +5,11 @@ extension BuildASTPhase {
         var paren: Int = 0
         var bracket: Int = 0
         var brace: Int = 0
+        /// Open `${ ... }` string-template groups. Kept out of both top-level
+        /// checks for the same reason as `angle`: boundary sites opt in with
+        /// `template == 0`, so a newline inside a template expression never
+        /// splits a statement.
+        var template: Int = 0
 
         var isAtTopLevel: Bool {
             angle == 0 && paren == 0 && bracket == 0 && brace == 0
@@ -31,6 +36,8 @@ extension BuildASTPhase {
             case .symbol(.rBracket): bracket = max(0, bracket - 1)
             case .symbol(.lBrace): brace += 1
             case .symbol(.rBrace): brace = max(0, brace - 1)
+            case .templateExprStart: template += 1
+            case .templateExprEnd: template = max(0, template - 1)
             default: break
             }
         }
@@ -532,6 +539,7 @@ extension BuildASTPhase {
             guard hasLeadingNewline else { return true }
             var parenDepth = 0
             var bracketDepth = 0
+            var templateDepth = 0
             var cursor = tokens.startIndex
             while cursor < index {
                 switch tokens[cursor].kind {
@@ -539,11 +547,13 @@ extension BuildASTPhase {
                 case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
                 case .symbol(.lBracket): bracketDepth += 1
                 case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
+                case .templateExprStart: templateDepth += 1
+                case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
                 default: break
                 }
                 cursor = tokens.index(after: cursor)
             }
-            return parenDepth > 0 || bracketDepth > 0
+            return parenDepth > 0 || bracketDepth > 0 || templateDepth > 0
         }
 
         /// A `++`/`--` left over after an expression can never be legal Kotlin:

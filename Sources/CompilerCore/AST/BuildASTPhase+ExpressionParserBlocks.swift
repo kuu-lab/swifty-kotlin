@@ -205,9 +205,13 @@ extension BuildASTPhase.ExpressionParser {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
+        var templateDepth = 0
         var unpairedTopLevelIfCount = 0
         for (idx, token) in tokens.enumerated() {
+            // `${ ... }` interiors are expression context: a newline, `;`, or
+            // `if`/`else` inside one never marks a statement boundary here.
             let isTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
+                && templateDepth == 0
             if isTopLevel {
                 if token.kind == .symbol(.semicolon) {
                     // Kotlin permits a statement separator between an unbraced
@@ -254,6 +258,8 @@ extension BuildASTPhase.ExpressionParser {
             case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
             case .symbol(.lBrace): braceDepth += 1
             case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
+            case .templateExprStart: templateDepth += 1
+            case .templateExprEnd: templateDepth = max(0, templateDepth - 1)
             default: break
             }
             lastTokenIndex = idx
