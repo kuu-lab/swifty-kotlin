@@ -84,6 +84,35 @@ struct NullableExpectedNestedLambdaTests {
         )
     }
 
+    @Test func nestedLambdaThroughSafeCallPropertyInitializerGetsParameterTypes() {
+        // KUU-4201 (kotlinx.coroutines BufferedChannel): the same
+        // `receiver?.let { ... }` shape sits in a *property initializer*
+        // whose declared type is a nullable function type, and the let
+        // block is an annotated lambda returning an unannotated inner
+        // lambda whose parameters must come from the expected type —
+        // otherwise the call's result fails its upper bound with
+        // TYPE-0001.
+        for includeStdlib in [false, true] {
+            let ctx = runSemaOn("""
+            fun <T, R> T.myLet(block: (T) -> R): R = block(this)
+            typealias Ctor = (Int, Any?, Any?) -> (Any?, Boolean, Any?) -> Unit
+            class Holder(val hook: (() -> Unit)?) {
+                val ctor: Ctor? = hook?.myLet {
+                    { a: Int, _: Any?, element: Any? ->
+                        { _, _, _ ->
+                            if (element != null) hook()
+                        }
+                    }
+                }
+            }
+            """, includeStdlib: includeStdlib)
+            #expect(
+                !ctx.diagnostics.hasError,
+                "includeStdlib=\(includeStdlib) diagnostics: \(ctx.diagnostics.diagnostics.filter { $0.severity == .error })"
+            )
+        }
+    }
+
     @Test func unannotatedLambdaWithoutExpectedTypeStillRejects() {
         // Parity with kotlinc: `val g = { unannotated, params -> ... }`
         // inside a lambda body carries no expected type, so every compiler
