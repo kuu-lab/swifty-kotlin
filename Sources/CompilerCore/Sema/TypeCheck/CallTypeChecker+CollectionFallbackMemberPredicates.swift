@@ -670,4 +670,61 @@ extension CallTypeChecker {
         }
         return true
     }
+
+    /// KUU-4435: `shuffled(random:)` binds synthetically without consulting
+    /// its real `kotlin.random.Random` parameter signature, so
+    /// `list.shuffled(42)` compiled and reached the runtime bridge with an
+    /// Int where a Random object was expected (vtable panic). Validate the
+    /// single non-lambda argument against `kotlin.random.Random` and return
+    /// false when it provably cannot conform, so the call falls through to
+    /// regular overload resolution which reports the mismatch like kotlinc.
+    func collectionFallbackShuffledArgumentIsAdmissible(
+        args: [CallArgument],
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> Bool {
+        guard args.count == 1, !args[0].isSpread else {
+            return true
+        }
+        let argumentExpr = args[0].expr
+        if ctx.ast.arena.expr(argumentExpr)?.isLambdaOrCallableRef == true {
+            return true
+        }
+        let sema = ctx.sema
+        let interner = ctx.interner
+        if sema.bindings.exprTypes[argumentExpr] == nil {
+            var argumentCtx = ctx
+            argumentCtx.callArgumentExprBeingInferred = argumentExpr
+            _ = driver.inferExpr(argumentExpr, ctx: argumentCtx, locals: &locals)
+        }
+        let inferredArgumentType = sema.bindings.exprTypes[argumentExpr] ?? sema.types.anyType
+        // KUU-569: restore the nominal range type for scalar-marked range
+        // expressions so conformance is checked against the source-level
+        // type rather than the runtime handle.
+        let argumentType = sourceLevelRangeArgumentType(
+            argumentExpr,
+            inferredType: inferredArgumentType,
+            ctx: ctx
+        )
+        let nonNullArgumentType = sema.types.makeNonNullable(argumentType)
+        guard nonNullArgumentType != sema.types.anyType,
+              !typeContainsErrorType(nonNullArgumentType, sema: sema)
+        else {
+            return true
+        }
+        let randomFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("random"),
+            interner.intern("Random"),
+        ]
+        guard let randomSymbol = sema.symbols.lookup(fqName: randomFQName) else {
+            return true
+        }
+        let randomType = sema.types.make(.classType(ClassType(
+            classSymbol: randomSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(argumentType, randomType)
+    }
 }

@@ -1,0 +1,12 @@
+Scripts/diff_cases/kuu4435_shuffled_random_reject.kt:8:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    println(listOf(1, 2, 3).shuffled(42))
+            ^
+Scripts/diff_cases/kuu4435_shuffled_random_reject.kt:9:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    println(sequenceOf(1, 2, 3).shuffled(42))
+            ^
+Scripts/diff_cases/kuu4435_shuffled_random_reject.kt:10:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    println(mutableListOf(1, 2, 3).shuffled("x"))
+            ^
+Scripts/diff_cases/kuu4435_shuffled_random_reject.kt:11:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    println(setOf(1, 2, 3).shuffled(1.5))
+            ^
