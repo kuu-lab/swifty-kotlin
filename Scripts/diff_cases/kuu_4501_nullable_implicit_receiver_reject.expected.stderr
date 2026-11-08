@@ -1,0 +1,9 @@
+Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:12:65: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    fun viaNullableMemberExtension(s: String?): Int = with(s) { innerCode() }
+                                                                ^
+Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:15:55: error KSWIFTK-SEMA-0002: No viable overload found for call.
+fun viaNullableExtension(s: String?): Int = with(s) { firstCode() }
+                                                      ^
+Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:16:55: error KSWIFTK-TYPE-0001: Type constraint could not be satisfied.
+fun viaNullableMemberFn(s: String?): Char = with(s) { get(0) }
+                                                      ^

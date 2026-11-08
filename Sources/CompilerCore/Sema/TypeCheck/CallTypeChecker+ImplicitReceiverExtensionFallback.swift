@@ -509,8 +509,11 @@ extension CallTypeChecker {
             {
                 return false
             }
+            // Match against the original receiver type, not its non-null
+            // core: a nullable implicit receiver must not satisfy a non-null
+            // extension declaration (KUU-4501).
             return extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullReceiver,
+                callSiteReceiver: receiverType,
                 declaredReceiver: receiver,
                 sema: sema
             )
@@ -542,7 +545,7 @@ extension CallTypeChecker {
                   let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
             else { return false }
             return extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullReceiver, declaredReceiver: receiver, sema: sema
+                callSiteReceiver: receiverType, declaredReceiver: receiver, sema: sema
             )
         }
         candidates.append(contentsOf: visibleExtensions.filter {
@@ -588,7 +591,7 @@ extension CallTypeChecker {
                 dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
             ),
             expectedType: overloadResolutionExpectedType(from: expectedType, sema: sema),
-            implicitReceiverType: nonNullReceiver,
+            implicitReceiverType: receiverType,
             ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
