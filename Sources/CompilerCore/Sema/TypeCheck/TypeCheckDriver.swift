@@ -678,6 +678,23 @@ final class TypeCheckDriver {
                                 in: inferCtx.with(currentDeclSymbol: symbol)
                             )
                             publishedInferredPropertyDecls.insert(declID)
+                        } else if !publishedInferredPropertyDecls.contains(declID),
+                                  declChecker.canPublishInferredGetterPropertyType(
+                                      property,
+                                      in: inferCtx
+                                  )
+                        {
+                            // A getter-only `val x get() = ...` derives its
+                            // type from the accessor body; publish the probed
+                            // type while the header placeholder is in place.
+                            // The source-order pass re-checks the whole
+                            // declaration, accessor included (KUU-4193).
+                            declChecker.publishInferredGetterPropertyType(
+                                property,
+                                symbol: symbol,
+                                in: inferCtx.with(currentDeclSymbol: symbol)
+                            )
+                            publishedInferredPropertyDecls.insert(declID)
                         }
                     case let .classDecl(classDecl):
                         declChecker.precheckIndependentClassMemberProperties(

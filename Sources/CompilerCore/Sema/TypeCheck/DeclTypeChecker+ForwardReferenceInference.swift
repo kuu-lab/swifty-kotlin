@@ -355,6 +355,28 @@ extension DeclTypeChecker {
                     driver.publishedInferredPropertyDecls.insert(declID)
                     didPrecheckProperty = true
                 }
+                // A getter-only `val x get() = ...` derives its type from the
+                // accessor body, so the initializer paths above never apply.
+                // When that body probes to a concrete type, publish it while
+                // the header placeholder is in place; the source-order pass
+                // still re-checks the whole declaration, accessor included
+                // (KUU-4193).
+                if !driver.publishedInferredPropertyDecls.contains(declID),
+                   canPublishInferredGetterPropertyType(
+                       property,
+                       in: ctx,
+                       initialLocals: initialLocals
+                   )
+                {
+                    publishInferredGetterPropertyType(
+                        property,
+                        symbol: propertySymbol,
+                        in: ctx,
+                        initialLocals: initialLocals
+                    )
+                    driver.publishedInferredPropertyDecls.insert(declID)
+                    didPrecheckProperty = true
+                }
             }
         } while didPrecheckProperty
     }
@@ -422,6 +444,68 @@ extension DeclTypeChecker {
         )
     }
 
+    /// A member `val x get() = ...` has no initializer, so its type can only
+    /// come from probing the accessor body. When that probe reaches a concrete
+    /// type, the property may publish it ahead of source order; the
+    /// authoritative pass still rechecks the accessor body itself (KUU-4193).
+    func canPublishInferredGetterPropertyType(
+        _ property: PropertyDecl,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) -> Bool {
+        guard property.type == nil,
+              property.explicitBackingField == nil,
+              property.receiverType == nil,
+              property.delegateExpression == nil,
+              !property.isVar,
+              property.initializer == nil,
+              property.contextReceivers.isEmpty,
+              property.typeParams.isEmpty,
+              property.setter == nil,
+              let getter = property.getter,
+              getter.returnType == nil,
+              case let .expr(bodyExpr, _) = getter.body
+        else {
+            return false
+        }
+        let previousFlag = requiresSafePrecheckCastOperands
+        requiresSafePrecheckCastOperands = false
+        defer { requiresSafePrecheckCastOperands = previousFlag }
+        guard let type = safePrecheckExpressionType(bodyExpr, in: ctx, locals: initialLocals)
+        else {
+            return false
+        }
+        return type != ctx.sema.types.nullableNothingType
+    }
+
+    func publishInferredGetterPropertyType(
+        _ property: PropertyDecl,
+        symbol: SymbolID,
+        in ctx: TypeInferenceContext,
+        initialLocals: LocalBindings = [:]
+    ) {
+        guard let getter = property.getter,
+              case let .expr(bodyExpr, _) = getter.body,
+              driver.checkingInferredProperties.insert(symbol).inserted
+        else {
+            return
+        }
+        defer { driver.checkingInferredProperties.remove(symbol) }
+        let previousFlag = requiresSafePrecheckCastOperands
+        requiresSafePrecheckCastOperands = false
+        defer { requiresSafePrecheckCastOperands = previousFlag }
+        guard let type = safePrecheckExpressionType(bodyExpr, in: ctx, locals: initialLocals),
+              type != ctx.sema.types.nullableNothingType,
+              type != ctx.sema.types.errorType
+        else {
+            return
+        }
+        ctx.sema.symbols.setPropertyType(
+            exposedAnonymousType(type, symbol: symbol, range: property.range, ctx: ctx),
+            for: symbol
+        )
+    }
+
     func canSafelyPrecheckExplicitBackingFieldProperty(
         _ property: PropertyDecl,
         in ctx: TypeInferenceContext,
@@ -482,8 +566,13 @@ extension DeclTypeChecker {
         // while probing (KUU-4280). The publish-type-only paths below keep the
         // lenient probe and still surface the pinned type.
         let previousFlag = requiresSafePrecheckCallArguments
+        let previousCastFlag = requiresSafePrecheckCastOperands
         requiresSafePrecheckCallArguments = true
-        defer { requiresSafePrecheckCallArguments = previousFlag }
+        requiresSafePrecheckCastOperands = true
+        defer {
+            requiresSafePrecheckCallArguments = previousFlag
+            requiresSafePrecheckCastOperands = previousCastFlag
+        }
         return canSafelyPrecheckInferredPropertyProbing(
             property,
             symbol: symbol,
@@ -705,6 +794,11 @@ extension DeclTypeChecker {
                 return nil
             }
             return types.booleanType
+        case let .asCast(operand, typeRefID, isSafe, range):
+            return safePrecheckCastType(
+                operand: operand, typeRefID: typeRefID, isSafe: isSafe, range: range,
+                in: ctx, locals: locals
+            )
         case let .nullAssert(operand, _):
             // `expr!!` keeps the operand's type minus nullability — the same
             // narrowing the authoritative pass records, so an inferred member
@@ -731,6 +825,66 @@ extension DeclTypeChecker {
             // left on the normal declaration-order path.
             return nil
         }
+    }
+
+    /// `as`/`as?` result types come from the cast target alone — the
+    /// authoritative pass computes the same type even when the operand fails
+    /// to resolve — so only the target has to resolve here. Type-publication
+    /// probes may therefore skip an unsafe operand (a legitimate `Any?` read
+    /// such as `_closeCause.value as Throwable?`, KUU-4193); the full-check
+    /// gate raises `requiresSafePrecheckCastOperands` so the real inference
+    /// never runs against operand types the probe declined to validate.
+    private func safePrecheckCastType(
+        operand: ExprID,
+        typeRefID: TypeRefID,
+        isSafe: Bool,
+        range: SourceRange,
+        in ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let operandType = safePrecheckExpressionType(operand, in: ctx, locals: locals)
+        if requiresSafePrecheckCastOperands, operandType == nil {
+            return nil
+        }
+        var targetType = driver.helpers.resolveTypeRef(
+            typeRefID,
+            ast: ctx.ast,
+            sema: ctx.sema,
+            interner: ctx.interner,
+            scope: ctx.scope,
+            diagnostics: nil,
+            inferenceContext: ctx,
+            usageRange: range,
+            allowBareGenericTypeAliasProjection: true
+        )
+        guard targetType != ctx.sema.types.errorType else { return nil }
+        // A bare generic target borrows its arguments from a class-typed
+        // operand in the authoritative pass; without that operand type the
+        // result cannot be pinned, so keep the normal pass.
+        if case let .classType(targetClass) = ctx.sema.types.kind(of: targetType),
+           targetClass.args.isEmpty,
+           !ctx.sema.types.nominalTypeParameterSymbols(for: targetClass.classSymbol).isEmpty
+        {
+            guard let operandType,
+                  case let .classType(sourceClass) = ctx.sema.types.kind(
+                      of: ctx.sema.types.makeNonNullable(operandType)
+                  ),
+                  let inferredArgs = ctx.sema.types.narrowedSubtypeArgs(
+                      forSubtype: targetClass.classSymbol,
+                      givenSupertype: sourceClass.classSymbol,
+                      supertypeArgs: sourceClass.args
+                  )
+            else {
+                return nil
+            }
+            targetType = ctx.sema.types.make(.classType(ClassType(
+                classSymbol: targetClass.classSymbol,
+                args: inferredArgs,
+                nullability: targetClass.nullability
+            )))
+        }
+        let resultType = isSafe ? ctx.sema.types.makeNullable(targetType) : targetType
+        return isSafePrecheckValueType(resultType, in: ctx) ? resultType : nil
     }
 
     private func safePrecheckNameReference(

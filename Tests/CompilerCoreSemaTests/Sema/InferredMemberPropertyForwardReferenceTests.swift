@@ -171,5 +171,83 @@ struct InferredMemberPropertyForwardReferenceTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)
     }
+
+    @Test
+    func castGetterPropertyPublishesTypeForInheritedArgument() throws {
+        // KUU-4193 (kotlinx.coroutines BroadcastChannel): `closeCause` is a
+        // protected getter-only property whose body is an `as` cast over an
+        // `Any?` atomic read, declared in `BufferedChannel` while the
+        // `s.close(closeCause)` call site lives in the earlier-checked
+        // `BroadcastChannelImpl`. The cast result type comes from the target
+        // alone, so the precheck must publish `Throwable?` before that body
+        // observes the `Any?` header placeholder — getter-only properties
+        // cannot resolve on demand, so the placeholder otherwise survives
+        // into overload resolution and the call is rejected with
+        // KSWIFTK-SEMA-0473.
+        let ctx = makeContextFromSource("""
+        interface SendChannel<E> {
+            fun close(cause: Throwable? = null): Boolean
+        }
+
+        class BroadcastChannelImpl<E> : BufferedChannel<E>() {
+            fun openSubscription(): BufferedChannel<E> {
+                val s = SubscriberBuffered<E>()
+                if (closeCause != null) {
+                    s.close(closeCause)
+                    return s
+                }
+                return s
+            }
+        }
+
+        class SubscriberBuffered<E> : BufferedChannel<E>()
+
+        open class BufferedChannel<E> : SendChannel<E> {
+            private val box: Any? = null
+            protected val closeCause get() = box as Throwable?
+            override fun close(cause: Throwable?): Boolean = cause != null
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func safeCastGetterPropertyPublishesNullableType() throws {
+        // The `as?` variant must publish the nullable target type so a
+        // nullable parameter accepts the argument.
+        let ctx = makeContextFromSource("""
+        class Derived : Base() {
+            fun openSub(): Boolean = close(cause)
+        }
+
+        open class Base {
+            private val box: Any? = null
+            protected val cause get() = box as? Throwable
+            fun close(c: Throwable?): Boolean = true
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func castGetterPropertyPublishesRealTypeNotWildcard() throws {
+        // Publishing must surface the cast target itself: an `Int` getter
+        // argument still mismatches a `Throwable?` parameter.
+        let ctx = makeContextFromSource("""
+        class Derived : Base() {
+            fun openSub(): Boolean = close(cause)
+        }
+
+        open class Base {
+            private val box: Any? = null
+            protected val cause get() = box as Int
+            fun close(c: Throwable?): Boolean = true
+        }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError)
+    }
 }
 #endif

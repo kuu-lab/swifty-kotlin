@@ -12,6 +12,12 @@ final class DeclTypeChecker {
     /// pinned type can still be published ahead of the arguments' own pass
     /// (KUU-4280).
     var requiresSafePrecheckCallArguments = false
+    /// `as`/`as?` result types come from the cast target alone, so type
+    /// publication probes may skip the operand. When the probe decides whether
+    /// a whole declaration can run the authoritative check early, the operand
+    /// must still be safe — the real inference would otherwise meet the same
+    /// placeholder types the probe declined to validate (KUU-4193).
+    var requiresSafePrecheckCastOperands = false
 
     init(driver: TypeCheckDriver) {
         self.driver = driver
