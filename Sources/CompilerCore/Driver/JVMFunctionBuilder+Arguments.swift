@@ -40,7 +40,9 @@ extension JVMFunctionBuilder {
     /// Missing values are placeholders; the callee's default bridge evaluates
     /// defaults in declaration order after all explicit expressions have run.
     func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
+        let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
+            ?? signature?.valueParameterIsVararg.firstIndex(of: true)
         let varargElement = try varargIndex.map { try specializedVarargElement(at: $0, erased: parameters[$0], binding: binding) }
         var supplied: [Int: JVMValue] = [:]
         var varargValues: [(JVMValue, Bool)] = []

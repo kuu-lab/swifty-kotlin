@@ -250,6 +250,7 @@ public struct JVMForeignMethod {
     public let isAbstract: Bool
     public var isFinal: Bool = false
     public var isSpecial: Bool = false
+    public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
     public var isConstructor: Bool { name == "<init>" }
