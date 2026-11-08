@@ -380,6 +380,20 @@ extension CallTypeChecker {
             return nil
         }
 
+        // KUU-4435: shuffled(random:) binds synthetically below without
+        // consulting its real `Random` parameter signature; decline arguments
+        // that provably cannot conform so regular overload resolution
+        // reports the mismatch like kotlinc instead of letting an Int reach
+        // the runtime bridge and crash on vtable dispatch.
+        if calleeName == knownNames.shuffled,
+           !collectionFallbackShuffledArgumentIsAdmissible(
+               args: args,
+               ctx: ctx,
+               locals: &locals
+           ) {
+            return nil
+        }
+
         // flatten() is only valid on List<List<T>>. Reject when the element type
         // is a KNOWN non-collection (e.g. Int).  If the element type is Any we
         // cannot be sure — it may be List<Any> wrapping real lists at runtime,
