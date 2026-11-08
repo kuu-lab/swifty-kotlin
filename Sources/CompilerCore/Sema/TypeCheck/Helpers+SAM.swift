@@ -1,3 +1,15 @@
+/// A single abstract-member requirement a `fun interface` still owes, seen
+/// from the interface itself. Members sharing a name, kind and substituted
+/// signature form one requirement — an inherited abstract override and the
+/// base declaration it re-abstracts count once, as does the same signature
+/// arriving through a diamond (KUU-4360).
+private struct SamRequirementKey: Hashable {
+    let name: InternedString
+    let kind: SymbolKind
+    let parameterTypes: [TypeID]
+    let extensionReceiverType: TypeID?
+    let isSuspend: Bool
+}
 
 extension TypeCheckHelpers {
     func samMethodSignature(
@@ -10,7 +22,7 @@ extension TypeCheckHelpers {
         else {
             return nil
         }
-        guard let method = effectiveSamAbstractMethod(for: interfaceSymbol, symbols: sema.symbols) else {
+        guard let method = effectiveSamAbstractMethod(for: interfaceSymbol, symbols: sema.symbols, types: sema.types) else {
             return nil
         }
         return sema.symbols.functionSignature(for: method)
@@ -22,36 +34,73 @@ extension TypeCheckHelpers {
     /// such function exists. Abstract properties make the interface non-SAM.
     func effectiveSamAbstractMethod(
         for interfaceSymbol: SymbolID,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        types: TypeSystem
     ) -> SymbolID? {
         guard symbols.symbol(interfaceSymbol) != nil else { return nil }
-        var ownNames: Set<InternedString> = []
+        var coveredKeys: Set<SamRequirementKey> = []
         var candidates: [SymbolID] = []
         for childID in symbols.declaredChildren(of: interfaceSymbol) {
             guard let child = symbols.symbol(childID),
                   child.kind == .function || child.kind == .property
             else { continue }
-            ownNames.insert(child.name)
             if child.flags.contains(.abstractType) {
                 candidates.append(childID)
+            } else if let key = samRequirementKey(
+                for: childID, interface: interfaceSymbol, symbols: symbols, types: types
+            ) {
+                // A concrete own member leaves no remaining abstract
+                // requirement for the same signature (KUU-4360).
+                coveredKeys.insert(key)
             }
         }
-        for inherited in collectInheritedAbstractMembers(for: interfaceSymbol, symbols: symbols) {
-            guard let member = symbols.symbol(inherited),
-                  !ownNames.contains(member.name)
-            else { continue }
-            candidates.append(inherited)
-        }
-        var functions: [SymbolID] = []
+        candidates.append(contentsOf: collectInheritedAbstractMembers(
+            for: interfaceSymbol, symbols: symbols
+        ))
+
+        var requirements: [SamRequirementKey: SymbolID] = [:]
         for candidate in candidates {
             guard let member = symbols.symbol(candidate) else { continue }
-            if member.kind == .property { return nil }
-            if symbols.functionSignature(for: candidate) != nil {
-                functions.append(candidate)
+            guard let key = samRequirementKey(
+                for: candidate, interface: interfaceSymbol, symbols: symbols, types: types
+            ) else {
+                if member.kind == .property { return nil }
+                continue
             }
+            if coveredKeys.contains(key) { continue }
+            if member.kind == .property { return nil }
+            if let existing = requirements[key],
+               let existingOwner = symbols.parentSymbol(for: existing),
+               let newOwner = symbols.parentSymbol(for: candidate),
+               !types.isNominalSubtypeSymbol(newOwner, of: existingOwner)
+            {
+                continue
+            }
+            requirements[key] = candidate
         }
+        let functions = requirements.values
         guard functions.count == 1 else { return nil }
-        return functions[0]
+        return functions.first
+    }
+
+    private func samRequirementKey(
+        for memberID: SymbolID,
+        interface: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem
+    ) -> SamRequirementKey? {
+        guard let member = symbols.symbol(memberID),
+              let view = abstractMemberViewFromClass(
+                  memberID, for: interface, symbols: symbols, types: types
+              )
+        else { return nil }
+        return SamRequirementKey(
+            name: member.name,
+            kind: member.kind,
+            parameterTypes: view.parameterTypes,
+            extensionReceiverType: view.extensionReceiverType,
+            isSuspend: view.isSuspend
+        )
     }
 
     private func ancestorTypeArgs(
@@ -126,14 +175,14 @@ extension TypeCheckHelpers {
         guard let interface = sema.symbols.symbol(classType.classSymbol),
               interface.kind == .interface,
               interface.flags.contains(.funInterface),
-              let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols),
+              let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols, types: sema.types),
               let signature = sema.symbols.functionSignature(for: method)
         else {
             return nil
         }
         var ownerSymbol = classType.classSymbol
         var ownerArgs = classType.args
-        if let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols),
+        if let method = effectiveSamAbstractMethod(for: classType.classSymbol, symbols: sema.symbols, types: sema.types),
            let owner = sema.symbols.parentSymbol(for: method),
            owner != classType.classSymbol
         {

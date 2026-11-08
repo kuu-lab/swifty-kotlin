@@ -74,7 +74,7 @@ extension JVMFunctionBuilder {
                source.type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true,
                case let .classType(target) = program.sema.types.kind(of: signature.parameterTypes[index]),
                program.sema.symbols.symbol(target.classSymbol)?.flags.contains(.funInterface) == true,
-               TypeCheckHelpers().effectiveSamAbstractMethod(for: target.classSymbol, symbols: program.sema.symbols) != nil {
+               TypeCheckHelpers().effectiveSamAbstractMethod(for: target.classSymbol, symbols: program.sema.symbols, types: program.sema.types) != nil {
                 source = try adaptSAM(source, target: signature.parameterTypes[index], at: arg.expr)
             }
             if index == varargIndex {
