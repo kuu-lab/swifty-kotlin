@@ -2629,6 +2629,17 @@ extension DeclTypeChecker {
             return safePrecheckNumericBinaryType(op, lhs: lhsType, rhs: rhsType, in: ctx)
         case .subtract, .multiply, .divide, .modulo:
             return safePrecheckNumericBinaryType(op, lhs: lhsType, rhs: rhsType, in: ctx)
+        case .elvis:
+            // `lhs ?: rhs` joins the definitely-non-null lhs with the rhs —
+            // the same lub the authoritative pass computes — so a getter-only
+            // property such as `sendException get() = closeCause ?:
+            // ClosedSendChannelException(...)` can publish a concrete type
+            // ahead of source order (KUU-4194).
+            let result = types.lub([
+                types.definitelyNonNullForm(of: lhsType),
+                rhsType,
+            ])
+            return isSafePrecheckValueType(result, in: ctx) ? result : nil
         default:
             return nil
         }
