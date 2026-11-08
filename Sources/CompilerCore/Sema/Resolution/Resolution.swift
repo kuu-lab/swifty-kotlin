@@ -41,7 +41,7 @@ extension OverloadResolver {
         ctx: SemaModule
     ) -> ProbedCallResult {
         ctx.types.attribution?.increment(.probeCallAttempts)
-        let (viable, _) = withAttributionTiming(.resolveCall, attribution: ctx.types.attribution) {
+        let (viable, failures) = withAttributionTiming(.resolveCall, attribution: ctx.types.attribution) {
             evaluateCandidates(
                 candidates,
                 call: call,
@@ -54,7 +54,8 @@ extension OverloadResolver {
             )
         }
         return ProbedCallResult(
-            viableCandidates: viable.map { $0.toProbedCallCandidate() }
+            viableCandidates: viable.map { $0.toProbedCallCandidate() },
+            failureDiagnostics: failures
         )
     }
 

@@ -1,0 +1,15 @@
+Scripts/diff_cases/kuu4448_collection_ctor_reject.kt:9:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val a = HashMap<String, Int>("x", 1.5, true)
+            ^
+Scripts/diff_cases/kuu4448_collection_ctor_reject.kt:10:13: error KSWIFTK-SEMA-0002: No viable overload found for call.
+    val b = ArrayList<Int>("x", "y")
+            ^
+Scripts/diff_cases/kuu4448_collection_ctor_reject.kt:11:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    val c = HashSet<Int>("x")
+            ^
+Scripts/diff_cases/kuu4448_collection_ctor_reject.kt:12:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    val d = LinkedHashSet<Int>("x")
+            ^
+Scripts/diff_cases/kuu4448_collection_ctor_reject.kt:13:13: error KSWIFTK-SEMA-0473: Argument type mismatch.
+    val f = ArrayList<String>("x")
+            ^

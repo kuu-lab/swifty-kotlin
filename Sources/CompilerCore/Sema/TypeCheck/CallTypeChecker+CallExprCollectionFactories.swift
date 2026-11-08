@@ -642,6 +642,43 @@ extension CallTypeChecker {
             }) {
                 return nil
             }
+            // KUU-4448: the synthetic result typing below bypasses constructor
+            // overload resolution, so calls with mismatched arity or argument
+            // types would be silently accepted as empty collections. Probe the
+            // collected candidates the way ordinary resolution does; when none
+            // is viable, decline the shortcut so normal resolution reports the
+            // mismatch. A `KSWIFTK-SEMA-INFER` failure still means some
+            // constructor accepted the arguments — only its type variables
+            // stayed unresolved, which the synthetic typing below supplies
+            // itself (e.g. `ArrayList()` inside a generic bound).
+            if let callRange = ctx.ast.arena.exprRange(id) {
+                let callArgs = zip(args, argTypes).map { argument, type in
+                    let literal = integerLiteralValues(argument.expr, ast: ctx.ast)
+                    return CallArg(
+                        label: argument.label, isSpread: argument.isSpread, type: type,
+                        signedIntegerLiteral: literal.signed, unsignedIntegerLiteral: literal.unsigned,
+                        isTrailingLambda: argument.isTrailingLambda
+                    )
+                }
+                // Viability here means "some constructor accepts these
+                // arguments" — the assignment-context expected type must not
+                // participate, or calls like `LinkedHashMap()` inside a
+                // generic bound would be rejected before the shortcut can
+                // infer the type arguments itself.
+                let probe = ctx.resolver.probeCall(
+                    candidates: candidates,
+                    call: CallExpr(
+                        range: callRange, calleeName: calleeName, args: callArgs,
+                        explicitTypeArgs: explicitTypeArgs
+                    ),
+                    expectedType: nil, ctx: sema
+                )
+                let argumentsFitConstructor = !probe.viableCandidates.isEmpty
+                    || probe.failureDiagnostics.contains { $0.code == "KSWIFTK-SEMA-INFER" }
+                guard argumentsFitConstructor else {
+                    return nil
+                }
+            }
             let expectedCollectionArgs: [TypeID] = if let expectedType,
                                                        expectedType != sema.types.errorType,
                                                        case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
