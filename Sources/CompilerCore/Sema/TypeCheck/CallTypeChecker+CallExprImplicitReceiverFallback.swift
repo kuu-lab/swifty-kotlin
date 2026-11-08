@@ -372,10 +372,7 @@ extension CallTypeChecker {
                         continue
                     }
                     guard let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                        sema.types.isSubtype(
-                            sema.types.makeNonNullable(entry.type),
-                            sema.types.makeNonNullable(declaredReceiver)
-                        )
+                        implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                     })
                     else { continue }
                     if let groupIndex = innermostMemberExtensionGroups.firstIndex(where: {
@@ -495,6 +492,17 @@ extension CallTypeChecker {
                 if regularMemberCandidates.count == 1,
                    let bestCandidate = regularMemberCandidates.first,
                    let sig = sema.symbols.functionSignature(for: bestCandidate),
+                   // The lenient bind installs an identity parameter mapping
+                   // and cannot express a receiver mismatch, so it must not
+                   // fire when the implicit receiver's nullability cannot
+                   // supply the declared extension receiver — `String?` must
+                   // not bind a `String` extension (KUU-4501).
+                   sig.receiverType.map({
+                       sema.types.nullabilitySubtype(
+                           sema.types.nullability(of: receiverType),
+                           sema.types.nullability(of: $0)
+                       )
+                   }) ?? true,
                    !(sema.symbols.parentSymbol(for: bestCandidate).flatMap {
                        sema.symbols.symbol($0)?.kind
                    } == .object
@@ -567,10 +575,7 @@ extension CallTypeChecker {
                     guard let signature = sema.symbols.functionSignature(for: candidate),
                           let declaredReceiver = signature.receiverType,
                           let picked = ctx.implicitReceiverMemberLookupEntries().first(where: { entry in
-                              sema.types.isSubtype(
-                                  sema.types.makeNonNullable(entry.type),
-                                  sema.types.makeNonNullable(declaredReceiver)
-                              )
+                              implicitMemberExtensionReceiverMatches(entry.type, declared: declaredReceiver, sema: sema)
                           })
                     else { continue }
                     outerMemberExtensionCandidates.append((candidate, picked.type))
@@ -690,7 +695,7 @@ extension CallTypeChecker {
                 }
             }
             if let fallbackType = tryBindImplicitReceiverSyntheticExtensionCall(
-                id, calleeName: calleeName, receiverType: nonNullReceiver, args: args,
+                id, calleeName: calleeName, receiverType: receiverType, args: args,
                 range: range, ctx: ctx, locals: &locals, expectedType: expectedType,
                 explicitTypeArgs: explicitTypeArgs
             ) { return fallbackType }

@@ -229,5 +229,35 @@ import Testing
             ])
         }
     }
+
+    /// KUU-4501: an unqualified call inside a nullable-receiver scope must
+    /// not bind a non-null extension — kotlinc rejects it. The implicit
+    /// receiver fallback previously matched on the non-null core and bound
+    /// the nullable value unsoundly.
+    @Test func nullableImplicitReceiverRejectsNonNullExtension() throws {
+        let ctx = makeContextFromSource("""
+        fun <T, R> scopeOf(receiver: T, block: T.() -> R): R = receiver.block()
+        fun String.firstCode(): Int = 1
+        fun viaNullable(s: String?): Int = scopeOf(s) { firstCode() }
+        """)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+    }
+
+    /// The same fallback must keep resolving receivers whose nullability
+    /// does satisfy the declared extension receiver.
+    @Test func nullableImplicitReceiverStillResolvesCompatibleExtensions() throws {
+        let ctx = makeContextFromSource("""
+        fun <T, R> scopeOf(receiver: T, block: T.() -> R): R = receiver.block()
+        fun String.firstCode(): Int = 1
+        fun String?.safeCode(): Int = 2
+        fun viaNullableExt(): Int = scopeOf(null as String?) { safeCode() }
+        fun viaNonNull(): Int = scopeOf("ab") { firstCode() }
+        fun String.outer(): Int = scopeOf(null as String?) { firstCode() }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+    }
 }
 #endif
