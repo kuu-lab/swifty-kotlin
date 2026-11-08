@@ -858,13 +858,48 @@ extension ExprTypeChecker {
                 expectedType
             }
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
-            let resolved = ctx.resolver.resolveCall(
+            var resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: operatorCall,
                 expectedType: operatorExpectedType,
                 implicitReceiverType: operatorReceiverType,
                 ctx: ctx.sema
             )
+            // Kotlin consults outer scopes for operator extensions only when
+            // the nearest scope's candidates are all inapplicable: a
+            // file-level `plus` extension that rejects the argument must not
+            // hide the bundled `Iterable.plus` overloads (KUU-4462).
+            // Ambiguity (SEMA-0003) means the inner scope already produced
+            // viable candidates, so it stays an error without the retry.
+            if resolved.chosenCallee == nil,
+               resolved.diagnostic?.code != "KSWIFTK-SEMA-0003"
+            {
+                let outerExtensionCandidates = collectScopedOperatorExtensionCandidates(
+                    names: operatorNames,
+                    receiverType: operatorReceiverType,
+                    mergeChain: true,
+                    ctx: ctx
+                ).filter { !operatorCandidates.contains($0) }
+                if !outerExtensionCandidates.isEmpty {
+                    let widenedCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+                        operatorCandidates + outerExtensionCandidates,
+                        receiverType: operatorReceiverType,
+                        argumentTypes: [operatorArgumentType],
+                        sema: sema,
+                        interner: interner
+                    )
+                    let retried = ctx.resolver.resolveCall(
+                        candidates: widenedCandidates,
+                        call: operatorCall,
+                        expectedType: operatorExpectedType,
+                        implicitReceiverType: operatorReceiverType,
+                        ctx: ctx.sema
+                    )
+                    if retried.chosenCallee != nil {
+                        resolved = retried
+                    }
+                }
+            }
             if isSeqLhs, resolved.chosenCallee == nil {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)
@@ -1421,10 +1456,11 @@ extension ExprTypeChecker {
         names: [InternedString],
         receiverType: TypeID,
         argumentType: TypeID? = nil,
+        mergeChain: Bool = false,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         names.flatMap { name in
-            ctx.cachedScopeLookup(name).filter { candidate in
+            (mergeChain ? ctx.cachedScopeLookupMergingChain(name) : ctx.cachedScopeLookup(name)).filter { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       symbol.flags.contains(.operatorFunction),
