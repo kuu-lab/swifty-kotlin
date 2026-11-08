@@ -55,7 +55,10 @@ extension CoroutineLoweringPass {
             interner.intern("kk_mutex_lock"),
             interner.intern("__kk_mutex_lock_owner"),
         ]
-        let placeholderContinuationCallees = mutexLockCallees.union([interner.intern("kk_channel_send")])
+        let placeholderContinuationCallees = mutexLockCallees.union([
+            interner.intern("kk_channel_send"),
+            interner.intern("__kk_channel_receive_catching"),
+        ])
         // CORO-004: runtime suspend callees that take the caller continuation as a
         // trailing argument so they can resume the awaiting coroutine without blocking.
         let continuationConsumingRuntimeCallees: Set<InternedString> = [
