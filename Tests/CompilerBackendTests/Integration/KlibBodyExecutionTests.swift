@@ -148,4 +148,58 @@ struct KlibBodyExecutionTests {
             }
         }
     }
+
+    /// KUU-4427: a kklib suspend function's `$default` stub is a synthetic
+    /// symbol outside the importedLibrary suspend set, so an omitted-default
+    /// call inside a suspend body used to skip the suspend-call protocol and
+    /// leak COROUTINE_SUSPENDED as the result.
+    @Test
+    func importedKlibSuspendDefaultArgumentsPreserveSuspendProtocol() throws {
+        let librarySource = """
+        package suspenddefaults
+        import kotlin.coroutines.CoroutineContext
+        import kotlin.coroutines.EmptyCoroutineContext
+        import kotlinx.coroutines.delay
+
+        public suspend fun <T> pick(
+            context: CoroutineContext = EmptyCoroutineContext,
+            block: () -> T
+        ): T {
+            delay(1)
+            return block()
+        }
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "KUU4427SuspendDefaults") { library in
+            try withTemporaryFile(contents: """
+            import kotlinx.coroutines.runBlocking
+            import kotlin.coroutines.EmptyCoroutineContext
+            import suspenddefaults.pick
+
+            fun main() = runBlocking {
+                println(pick { "x" })
+                println(pick(EmptyCoroutineContext) { "y" })
+                println(pick(context = EmptyCoroutineContext) { "z" })
+            }
+            """) { sourcePath in
+                let outputBase = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                defer { try? FileManager.default.removeItem(atPath: outputBase) }
+                let options = CompilerOptions(
+                    moduleName: "KlibSuspendDefaultArguments",
+                    inputs: [sourcePath],
+                    outputPath: outputBase,
+                    emit: .executable,
+                    searchPaths: [library],
+                    target: defaultTargetTriple()
+                )
+                let result = makeTestDriver().runForTesting(options: options)
+                try assertCompilationSucceeded(result, context: "KUU-4427 imported Klib suspend default compilation")
+
+                let runResult = try CommandRunner.run(executable: outputBase, arguments: [])
+                #expect(runResult.exitCode == 0, "\(runResult.stderr)")
+                #expect(runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "x\ny\nz\n")
+            }
+        }
+    }
 }
