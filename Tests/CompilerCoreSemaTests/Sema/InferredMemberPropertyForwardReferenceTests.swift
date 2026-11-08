@@ -249,5 +249,72 @@ struct InferredMemberPropertyForwardReferenceTests {
         try runSema(ctx)
         #expect(ctx.diagnostics.hasError)
     }
+
+    @Test
+    func elvisGetterPropertyPublishesTypeForInheritedThrow() throws {
+        // KUU-4194 (kotlinx.coroutines BufferedChannel): `sendException` is a
+        // getter-only property `closeCause ?: ClosedSendChannelException(...)`
+        // declared in the later-checked `BufferedChannel` base class, while
+        // `BroadcastChannelImpl.send` throws it from the earlier-checked
+        // file. The elvis probe must join the non-null lhs with the rhs so
+        // the published type is `Throwable`, not the `Any?` header
+        // placeholder — `throw sendException` otherwise reports
+        // KSWIFTK-SEMA-0414.
+        let ctx = makeContextFromSource("""
+        class Derived : Base() {
+            fun send() {
+                if (true) throw sendException
+            }
+        }
+
+        open class Base {
+            private var cause: Any? = null
+            protected val closeCause get() = cause as Throwable?
+            protected val sendException get() = closeCause ?: SendClosed()
+        }
+
+        class SendClosed : Exception("closed")
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
+    @Test
+    func elvisGetterPropertyPublishesJoinedTypeNotWildcard() throws {
+        // The published type is the lhs/rhs join: reading the getter where a
+        // `String` is required must still fail, and reading it as `Throwable`
+        // must succeed — together they pin the published type to `Throwable`.
+        let okCtx = makeContextFromSource("""
+        class Derived : Base() {
+            fun readIt(): Throwable = sendException
+        }
+
+        open class Base {
+            private var cause: Any? = null
+            protected val closeCause get() = cause as Throwable?
+            protected val sendException get() = closeCause ?: SendClosed()
+        }
+
+        class SendClosed : Exception("closed")
+        """)
+        try runSema(okCtx)
+        #expect(!okCtx.diagnostics.hasError, "\(okCtx.diagnostics.diagnostics)")
+
+        let badCtx = makeContextFromSource("""
+        class Derived : Base() {
+            fun readIt(): String = sendException
+        }
+
+        open class Base {
+            private var cause: Any? = null
+            protected val closeCause get() = cause as Throwable?
+            protected val sendException get() = closeCause ?: SendClosed()
+        }
+
+        class SendClosed : Exception("closed")
+        """)
+        try runSema(badCtx)
+        #expect(badCtx.diagnostics.hasError)
+    }
 }
 #endif
