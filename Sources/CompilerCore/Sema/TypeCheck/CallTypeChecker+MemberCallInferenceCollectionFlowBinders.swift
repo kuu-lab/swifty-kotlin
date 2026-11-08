@@ -696,7 +696,7 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
               args.isEmpty else {
             return false
         }
-        guard interner.resolve(calleeName) == "asSequence" else {
+        guard calleeName == knownNames.asSequence else {
             return false
         }
         // KSP-1003: Map.asSequence() has its own source-backed overload.

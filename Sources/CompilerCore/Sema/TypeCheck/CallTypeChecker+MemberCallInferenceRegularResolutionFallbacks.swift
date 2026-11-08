@@ -19,17 +19,10 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let sema = request.sema, interner = request.interner
 
         if let diagnostic = resolved.diagnostic {
             if diagnostic.code == "KSWIFTK-SEMA-BOUND" {
@@ -359,16 +352,11 @@ extension CallTypeChecker {
         typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
         let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
 
         guard let chosen = resolved.chosenCallee else {
             if isClassNameReceiver,
@@ -541,7 +529,7 @@ extension CallTypeChecker {
                 }
             }?.symbol
         }
-        let projectionReceiverType: TypeID = if interner.resolve(calleeName) == "receive",
+        let projectionReceiverType: TypeID = if calleeName == knownNames.receive,
                                                 let channelBoundReceiverType = ReceiverClassifier(
                                                     sema: sema,
                                                     interner: interner

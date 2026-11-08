@@ -535,6 +535,7 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         guard !isClassNameReceiver else {
             return nil
         }
@@ -542,9 +543,9 @@ extension CallTypeChecker {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         guard let (_, owner) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
               owner.fqName.count == 3,
-              interner.resolve(owner.fqName[0]) == "java",
-              interner.resolve(owner.fqName[1]) == "io",
-              interner.resolve(owner.fqName[2]) == "File"
+              owner.fqName[0] == knownNames.java,
+              owner.fqName[1] == knownNames.io,
+              owner.fqName[2] == knownNames.file
         else {
             return nil
         }
@@ -578,11 +579,12 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         guard !isClassNameReceiver,
               args.isEmpty,
               explicitTypeArgs.count == 1,
               let typeArg = resolvedExplicitTypeArgument(at: 0, in: explicitTypeArgs),
-              interner.resolve(calleeName) == "alloc"
+              calleeName == knownNames.alloc
         else {
             return nil
         }
@@ -646,9 +648,10 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         guard !isClassNameReceiver,
               args.isEmpty,
-              interner.resolve(calleeName) == "readValue"
+              calleeName == knownNames.readValue
         else {
             return nil
         }

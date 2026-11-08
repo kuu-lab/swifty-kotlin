@@ -24,4 +24,9 @@ extension CallTypeChecker {
         default: nil
         }
     }
+
+    /// `jvmSourceCollectionCalls` lives on `KnownCompilerNames` as a
+    /// per-interner `Set<InternedString>`; these APIs have complete JVM
+    /// support declarations and keep their real receiver, generic, default,
+    /// and inline/crossinline contracts in Sema.
 }

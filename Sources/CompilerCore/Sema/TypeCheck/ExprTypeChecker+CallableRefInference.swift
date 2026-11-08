@@ -268,6 +268,7 @@ extension ExprTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         let availableContextReceiverTypes = ctx.contextReceiverTypes
             + ctx.implicitReceiverStack.map(\.type)
             + ctx.outerReceiverTypes.map(\.type)
@@ -279,7 +280,7 @@ extension ExprTypeChecker {
             sema.bindings.bindNominalFunctionExpectedType(id, type: expectedType)
         }
 
-        if member == KnownCompilerNames(interner: interner).className,
+        if member == knownNames.className,
            let receiverTypeRef = ast.arena.callableRefReceiverTypeRef(for: id)
         {
             return inferExplicitArrayClassRef(
@@ -287,7 +288,7 @@ extension ExprTypeChecker {
             )
         }
 
-        if member == KnownCompilerNames(interner: interner).className,
+        if member == knownNames.className,
            let receiver,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiver),
            locals[receiverName] == nil
@@ -300,7 +301,7 @@ extension ExprTypeChecker {
             }
         }
 
-        if member == KnownCompilerNames(interner: interner).className,
+        if member == knownNames.className,
            let receiver
         {
             if let result = inferQualifiedClassRefExpr(
@@ -1980,7 +1981,7 @@ extension ExprTypeChecker {
         // kotlinc picks the overload matching the expected function type;
         // synthesize the missing one.
         if let unboundClassType,
-           interner.resolve(member) == "toString",
+           member == knownNames.toString,
            let expectedFunctionType,
            case let .functionType(expectedFT) = sema.types.kind(of: expectedFunctionType),
            expectedFT.params.count == 1,
@@ -3055,7 +3056,8 @@ extension ExprTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        guard interner.resolve(member) == "not",
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard member == knownNames.not,
               let primitive = driver.builtinTypeNamesCache.primitiveType(for: receiverName)
         else {
             return nil

@@ -419,7 +419,7 @@ struct TypeCheckHelpers {
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return interner.resolve(symbol.name) == "OpenEndRange"
+        return symbol.name == KnownCompilerNames(interner: interner).openEndRange
     }
 
     /// True when a resolved call's return type yields a heap-backed range

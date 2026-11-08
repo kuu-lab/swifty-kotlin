@@ -12,12 +12,8 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id
-        let args = request.args
-        let ctx = request.ctx
-        let sema = ctx.sema
-        let ast = ctx.ast
-        let interner = ctx.interner
+        let id = request.id, args = request.args
+        let ctx = request.ctx, sema = request.sema, ast = request.ast, interner = request.interner
 
         guard ast.arena.isExplicitCall(id),
               let target = nestedClassifierCompanionInvokeTarget(

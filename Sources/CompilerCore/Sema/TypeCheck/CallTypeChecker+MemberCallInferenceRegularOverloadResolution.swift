@@ -18,17 +18,11 @@ extension CallTypeChecker {
         memberLookupType: TypeID,
         locals: inout LocalBindings
     ) -> (effectiveReceiverType: TypeID, earlyReturnType: TypeID?) {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, ctx = request.ctx
+        let expectedType = request.expectedType, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
 
         let mutableMapSuperReceiverType: TypeID? = {
             guard isSuperCall,
@@ -73,7 +67,7 @@ extension CallTypeChecker {
             return callableReferenceFunctionType
         }()
         let resolvedLookupReceiverType = resolvedBuilderInferenceType(lookupReceiverType, ctx: ctx)
-        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+        let channelBoundReceiverType = calleeName == knownNames.receive
             ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
             : nil
         let effectiveReceiverType = companionReceiverType
@@ -251,16 +245,10 @@ extension CallTypeChecker {
         typeAliasConstructor: TypeAliasConstructorContext?,
         locals: inout LocalBindings
     ) -> (candidates: [SymbolID], preparedArgs: PreparedCallArguments, resolved: ResolvedCall, earlyReturnType: TypeID?) {
-        let id = request.id
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let id = request.id, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs
+        let ast = request.ast, sema = request.sema, interner = request.interner
         var candidates = candidates
         let memberNameText = interner.resolve(calleeName)
 

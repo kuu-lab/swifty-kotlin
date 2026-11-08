@@ -101,12 +101,12 @@ extension CallTypeChecker {
                       && (isRangeIteratorMigrationMember
                           || isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count)))
                   || (isTypedIntRangeReceiver
-                      && isIntRangeSourceBackedHOF(calleeName, memberName: memberName, argCount: args.count, knownNames: knownNames))
+                      && isIntRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))
                   || (isTypedLongRangeReceiver
                       && isLongRangeSourceBackedHOF(memberName, argCount: args.count))
                   || (isTypedULongRangeReceiver
                       && (isRangeIteratorMigrationMember
-                          || isUnsignedRangeSourceBackedHOF(calleeName, memberName: memberName, argCount: args.count, knownNames: knownNames))))
+                          || isUnsignedRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))))
         else {
             return nil
         }
@@ -118,7 +118,7 @@ extension CallTypeChecker {
            memberName == "contains",
            args.contains(where: { argument in
                guard let label = argument.label else { return false }
-               return interner.resolve(label) != "value"
+               return label != knownNames.value
            })
         {
             return nil
@@ -420,16 +420,11 @@ extension CallTypeChecker {
         return safeCall ? ctx.sema.types.makeNullable(resultType) : resultType
     }
 
-    private func isIntRangeSourceBackedHOF(
-        _ calleeName: InternedString,
-        memberName: String,
-        argCount: Int,
-        knownNames: KnownCompilerNames
-    ) -> Bool {
-        if memberName == "contains" {
+    private func isIntRangeSourceBackedHOF(_ calleeName: InternedString, argCount: Int, knownNames: KnownCompilerNames) -> Bool {
+        if calleeName == knownNames.contains {
             return argCount == 1
         }
-        if memberName == "first" || memberName == "last" {
+        if calleeName == knownNames.first || calleeName == knownNames.last {
             return argCount == 0 || argCount == 1
         }
         return knownNames.intRangeSourceBackedHOFNames.contains(calleeName)
@@ -496,36 +491,31 @@ extension CallTypeChecker {
             || argumentType == sema.types.shortType
     }
 
-    private func isUnsignedRangeSourceBackedHOF(
-        _ calleeName: InternedString,
-        memberName: String,
-        argCount: Int,
-        knownNames: KnownCompilerNames
-    ) -> Bool {
-        if memberName == "contains" {
+    private func isUnsignedRangeSourceBackedHOF(_ calleeName: InternedString, argCount: Int, knownNames: KnownCompilerNames) -> Bool {
+        if calleeName == knownNames.contains {
             return argCount == 1
         }
-        if memberName == "iterator" {
+        if calleeName == knownNames.iterator {
             return argCount == 0
         }
-        if memberName == "step" {
+        if calleeName == knownNames.step {
             return argCount == 1
         }
-        if memberName == "first" || memberName == "last"
-            || memberName == "firstOrNull" || memberName == "lastOrNull"
+        if calleeName == knownNames.first || calleeName == knownNames.last
+            || calleeName == knownNames.firstOrNull || calleeName == knownNames.lastOrNull
         {
-            return memberName == "first" || memberName == "last"
+            return calleeName == knownNames.first || calleeName == knownNames.last
                 ? argCount > 0
                 : argCount == 0 || argCount == 1
         }
         if knownNames.unsignedRangeSourceBackedHOFNames.contains(calleeName) {
-            if ["isEmpty", "toList", "count", "sum", "reversed", "sorted"].contains(memberName) {
+            if [knownNames.isEmpty, knownNames.toList, knownNames.count, knownNames.sum, knownNames.reversed, knownNames.sorted].contains(calleeName) {
                 return argCount == 0
             }
-            if memberName == "fold" || memberName == "foldIndexed" {
+            if calleeName == knownNames.fold || calleeName == knownNames.foldIndexed {
                 return argCount == 2
             }
-            return memberName == "windowed" ? (1...3).contains(argCount) : argCount == 1
+            return calleeName == knownNames.windowed ? (1...3).contains(argCount) : argCount == 1
         }
         return false
     }
@@ -671,6 +661,7 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let receiverType = sema.bindings.exprType(for: receiverID),
               let rangeKind = MemberRuntimeDispatch.memberCallReceiverKind(
                   MemberRuntimeDispatch.rangeReceiverKind(
@@ -722,12 +713,11 @@ extension CallTypeChecker {
             nil
         }
 
-        let knownNames = KnownCompilerNames(interner: interner)
         let isSourceBackedRangeCall =
             ((rangeKind == .intRange || rangeKind == .intProgression)
-                && isIntRangeSourceBackedHOF(calleeName, memberName: memberName, argCount: args.count, knownNames: knownNames))
+                && isIntRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))
             || (rangeKind == .uintRange
-                && isUnsignedRangeSourceBackedHOF(calleeName, memberName: memberName, argCount: args.count, knownNames: knownNames))
+                && isUnsignedRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))
             || ((rangeKind == .uintProgression || rangeKind == .ulongProgression)
                 && isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .charProgression
@@ -741,7 +731,7 @@ extension CallTypeChecker {
                 && (memberName != "contains"
                     || isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
             || (rangeKind == .ulongRange
-                && isUnsignedRangeSourceBackedHOF(calleeName, memberName: memberName, argCount: args.count, knownNames: knownNames)
+                && isUnsignedRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames)
                 && (memberName != "contains"
                     || isULongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
             || ((memberName == "random" || memberName == "randomOrNull")

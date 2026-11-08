@@ -20,17 +20,11 @@ extension CallTypeChecker {
         locals: LocalBindings,
         typeAliasConstructor: inout TypeAliasConstructorContext?
     ) -> (allCandidates: [SymbolID], companionReceiverType: TypeID?, earlyReturnType: TypeID?) {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
         let expectedType = request.expectedType
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
 
         // Track the companion type so we can pass it (not the owner class type)
         // as the implicit receiver when resolving the call.
@@ -662,7 +656,7 @@ extension CallTypeChecker {
             // fast path. Let the ordinary extension lookup try both function and
             // KFunction receiver views when that member was inapplicable.
             let inapplicableReflectiveCallBy = callableReferenceFunctionType != nil
-                && interner.resolve(calleeName) == "callBy"
+                && calleeName == knownNames.callBy
                 ? sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(interner.intern)) : nil
             // Infix eligibility precedes the member/extension priority decision.
             let memberCandidates = unfilteredMemberCandidates.filter {
@@ -812,7 +806,7 @@ extension CallTypeChecker {
         // diagnostics instead of accepting an invalid parameter map.
         if allCandidates.isEmpty,
            callableReferenceFunctionType != nil,
-           interner.resolve(calleeName) == "callBy",
+           calleeName == knownNames.callBy,
            let member = sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(interner.intern))
         {
             allCandidates = [member]

@@ -264,11 +264,12 @@ extension CallTypeChecker {
     /// avoids treating arbitrary `Any`-typed expressions as deferred nested
     /// calls.
     func isReinferableLinkedHashMapConstructor(_ expr: ExprID, ctx: TypeInferenceContext) -> Bool {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard case let .call(calleeID, typeArgs, arguments, _) = ctx.ast.arena.expr(expr),
               typeArgs.isEmpty,
               arguments.isEmpty,
               case let .nameRef(calleeName, _) = ctx.ast.arena.expr(calleeID),
-              ctx.interner.resolve(calleeName) == "LinkedHashMap"
+              calleeName == knownNames.linkedHashMap
         else {
             return false
         }

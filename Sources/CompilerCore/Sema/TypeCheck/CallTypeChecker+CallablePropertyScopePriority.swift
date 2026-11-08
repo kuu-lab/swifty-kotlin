@@ -33,8 +33,7 @@ extension CallTypeChecker {
         typeOverride: TypeID? = nil,
         locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx
-        let sema = ctx.sema
+        let ctx = request.ctx, sema = request.sema
         guard var type = typeOverride ?? sema.symbols.propertyType(for: property) else { return false }
         if typeOverride == nil,
            let owner = sema.symbols.parentSymbol(for: property),
@@ -106,8 +105,7 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx
-        let sema = ctx.sema
+        let ctx = request.ctx, sema = request.sema
         guard
               function.nullability == .nonNull,
               !request.args.contains(where: { $0.label != nil || $0.isSpread }) else { return false }

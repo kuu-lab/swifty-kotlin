@@ -4,8 +4,7 @@ extension CallTypeChecker {
     func nominalCallablePropertyInvokeCandidates(
         _ type: TypeID, request: MemberCallInferenceRequest, argTypes: [TypeID], locals: LocalBindings
     ) -> [SymbolID] {
-        let ctx = request.ctx
-        let sema = ctx.sema
+        let ctx = request.ctx, sema = request.sema
         let invoke = ctx.interner.intern("invoke")
         let visibleOperator: (SymbolID) -> Bool = { candidate in
             guard let symbol = sema.symbols.symbol(candidate) else { return false }
@@ -58,8 +57,7 @@ extension CallTypeChecker {
         _ candidates: [SymbolID], receiverType: TypeID, request: MemberCallInferenceRequest,
         argTypes: [TypeID], locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx
-        let sema = ctx.sema
+        let ctx = request.ctx, sema = request.sema
         let invoke = ctx.interner.intern("invoke")
         let callArgs = zip(request.args, argTypes).map { argument, type in
             CallArg.source(argument, type: type, callRange: request.range, ast: ctx.ast)

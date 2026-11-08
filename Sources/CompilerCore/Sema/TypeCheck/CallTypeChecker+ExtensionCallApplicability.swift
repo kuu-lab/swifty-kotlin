@@ -8,8 +8,7 @@ extension CallTypeChecker {
         argumentTypes: [TypeID],
         receiverType: TypeID
     ) -> Bool {
-        let ctx = request.ctx
-        let sema = ctx.sema
+        let ctx = request.ctx, sema = request.sema
         guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
         if !request.explicitTypeArgs.isEmpty {
             let count = sema.symbols.symbol(candidate)?.kind == .constructor

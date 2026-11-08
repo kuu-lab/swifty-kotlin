@@ -47,7 +47,8 @@ extension CallTypeChecker {
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
         let sema = ctx.sema
-        guard ctx.interner.resolve(calleeName) == "invoke",
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        guard calleeName == knownNames.invoke,
               let thisExpr = functionTypeInvokeThisRef(range: range, ctx: ctx)
         else {
             return nil
@@ -335,7 +336,7 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
-            if interner.resolve(calleeName) == "toList" {
+            if calleeName == knownNames.toList {
                 memberCandidates = preferCollectionToListCandidates(
                     memberCandidates,
                     receiverType: nonNullReceiver,

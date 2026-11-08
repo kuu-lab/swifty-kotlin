@@ -299,6 +299,7 @@ package struct KnownCompilerNames {
     let coerceAtLeast: InternedString
     let coerceAtMost: InternedString
     let coerceIn: InternedString
+    let collect: InternedString
     let compareTo: InternedString
     let contains: InternedString
     let containsAll: InternedString
@@ -307,6 +308,8 @@ package struct KnownCompilerNames {
     let distinct: InternedString
     let distinctBy: InternedString
     let drop: InternedString
+    let dropLastWhile: InternedString
+    let dropWhile: InternedString
     let eachCount: InternedString
     let elementAt: InternedString
     let elementAtOrElse: InternedString
@@ -323,6 +326,8 @@ package struct KnownCompilerNames {
     let firstNotNullOfOrNull: InternedString
     let firstOrNull: InternedString
     let flatMapIndexed: InternedString
+    let flatMapIndexedTo: InternedString
+    let flatMapTo: InternedString
     let flatten: InternedString
     let fold: InternedString
     let foldIndexed: InternedString
@@ -340,6 +345,7 @@ package struct KnownCompilerNames {
     let last: InternedString
     let lastIndexOf: InternedString
     let lastOrNull: InternedString
+    let mapIndexedNotNull: InternedString
     let maxBy: InternedString
     let maxByOrNull: InternedString
     let maxOf: InternedString
@@ -402,6 +408,7 @@ package struct KnownCompilerNames {
     let sumByDouble: InternedString
     let sumOf: InternedString
     let take: InternedString
+    let takeLastWhile: InternedString
     let toBooleanArray: InternedString
     let toByteArray: InternedString
     let toCharArray: InternedString
@@ -438,7 +445,6 @@ package struct KnownCompilerNames {
     let yield: InternedString
     let yieldAll: InternedString
     let comparisons: InternedString
-    let collect: InternedString
     let catchName: InternedString
     let retryWhen: InternedString
     let mapMember: InternedString
@@ -446,6 +452,40 @@ package struct KnownCompilerNames {
     let cancel: InternedString
     let join: InternedString
     let awaitName: InternedString
+
+    // Additional member/marker names compared by name during type checking.
+    let receive: InternedString
+    let callBy: InternedString
+    let send: InternedString
+    let returns: InternedString
+    let returnsNotNull: InternedString
+    let contract: InternedString
+    let callsInPlace: InternedString
+    let implies: InternedString
+    let substring: InternedString
+    let subSequence: InternedString
+    let readValue: InternedString
+    let alloc: InternedString
+    let not: InternedString
+    let equals: InternedString
+    let hashCode: InternedString
+    let mod: InternedString
+    let inv: InternedString
+    let mutableListOf: InternedString
+    let asFlow: InternedString
+    let value: InternedString
+    let openEndRange: InternedString
+    let linkedHashMap: InternedString
+    let invocationKind: InternedString
+    let letKeyword: InternedString
+    let annotationArrayLiteralMarker: InternedString
+    let failure: InternedString
+    let io: InternedString
+    let file: InternedString
+    let java: InternedString
+    let initMember: InternedString
+    let underscore: InternedString
+    let bufferedReader: InternedString
 
     // Package prefixes and FQ names for the same hot paths.
     let kotlinCollectionsPackage: [InternedString]
@@ -525,6 +565,25 @@ package struct KnownCompilerNames {
     let knownJvmPropertyNames: Set<InternedString>
     let inheritedOperatorNames: Set<InternedString>
     let coroutineHandleBoolProperties: Set<InternedString>
+
+    // Name tables migrated from per-file `Set<String>` literals so call sites
+    // compare interned IDs instead of resolving back to `String`.
+    let builtinFlowMemberNames: Set<InternedString>
+    let flowChainMemberNames: Set<InternedString>
+    let resultMemberNames: Set<InternedString>
+    let arrayFallbackMemberNames: Set<InternedString>
+    let workerExtensionMemberNames: Set<InternedString>
+    let rangeTypeNames: Set<InternedString>
+    /// Stdlib collection factory function names used for marking collection
+    /// literal expressions.
+    let stdlibCollectionFactoryNames: Set<InternedString>
+    /// The subset of `stdlibCollectionFactoryNames` that produce
+    /// `Array`/primitive-array literals rather than `List`/`Set`/`Map`/
+    /// `Sequence` ones. Excluded from `markCollectionExpr` call sites: an
+    /// `Array` receiver's runtime representation (RuntimeArrayBox) is not
+    /// interchangeable with the List/Sequence-shaped box that collection
+    /// member-call fallback resolution assumes.
+    let arrayFactoryFunctionNames: Set<InternedString>
 
     let kotlinRegexFQName: [InternedString]
     let kotlinStringBuilderFQName: [InternedString]
@@ -829,6 +888,7 @@ package struct KnownCompilerNames {
         coerceAtLeast = interner.intern("coerceAtLeast")
         coerceAtMost = interner.intern("coerceAtMost")
         coerceIn = interner.intern("coerceIn")
+        collect = interner.intern("collect")
         compareTo = interner.intern("compareTo")
         contains = interner.intern("contains")
         containsAll = interner.intern("containsAll")
@@ -837,6 +897,8 @@ package struct KnownCompilerNames {
         distinct = interner.intern("distinct")
         distinctBy = interner.intern("distinctBy")
         drop = interner.intern("drop")
+        dropLastWhile = interner.intern("dropLastWhile")
+        dropWhile = interner.intern("dropWhile")
         eachCount = interner.intern("eachCount")
         elementAt = interner.intern("elementAt")
         elementAtOrElse = interner.intern("elementAtOrElse")
@@ -853,6 +915,8 @@ package struct KnownCompilerNames {
         firstNotNullOfOrNull = interner.intern("firstNotNullOfOrNull")
         firstOrNull = interner.intern("firstOrNull")
         flatMapIndexed = interner.intern("flatMapIndexed")
+        flatMapIndexedTo = interner.intern("flatMapIndexedTo")
+        flatMapTo = interner.intern("flatMapTo")
         flatten = interner.intern("flatten")
         fold = interner.intern("fold")
         foldIndexed = interner.intern("foldIndexed")
@@ -870,6 +934,7 @@ package struct KnownCompilerNames {
         last = interner.intern("last")
         lastIndexOf = interner.intern("lastIndexOf")
         lastOrNull = interner.intern("lastOrNull")
+        mapIndexedNotNull = interner.intern("mapIndexedNotNull")
         maxBy = interner.intern("maxBy")
         maxByOrNull = interner.intern("maxByOrNull")
         maxOf = interner.intern("maxOf")
@@ -932,6 +997,7 @@ package struct KnownCompilerNames {
         sumByDouble = interner.intern("sumByDouble")
         sumOf = interner.intern("sumOf")
         take = interner.intern("take")
+        takeLastWhile = interner.intern("takeLastWhile")
         toBooleanArray = interner.intern("toBooleanArray")
         toByteArray = interner.intern("toByteArray")
         toCharArray = interner.intern("toCharArray")
@@ -971,7 +1037,38 @@ package struct KnownCompilerNames {
         yield = interner.intern("yield")
         yieldAll = interner.intern("yieldAll")
         comparisons = interner.intern("comparisons")
-        collect = interner.intern("collect")
+        receive = interner.intern("receive")
+        callBy = interner.intern("callBy")
+        send = interner.intern("send")
+        returns = interner.intern("returns")
+        returnsNotNull = interner.intern("returnsNotNull")
+        contract = interner.intern("contract")
+        callsInPlace = interner.intern("callsInPlace")
+        implies = interner.intern("implies")
+        substring = interner.intern("substring")
+        subSequence = interner.intern("subSequence")
+        readValue = interner.intern("readValue")
+        alloc = interner.intern("alloc")
+        not = interner.intern("not")
+        equals = interner.intern("equals")
+        hashCode = interner.intern("hashCode")
+        mod = interner.intern("mod")
+        inv = interner.intern("inv")
+        mutableListOf = interner.intern("mutableListOf")
+        asFlow = interner.intern("asFlow")
+        value = interner.intern("value")
+        openEndRange = interner.intern("OpenEndRange")
+        linkedHashMap = interner.intern("LinkedHashMap")
+        invocationKind = interner.intern("InvocationKind")
+        letKeyword = interner.intern("let")
+        annotationArrayLiteralMarker = interner.intern("$annotationArrayLiteral")
+        failure = interner.intern("failure")
+        io = interner.intern("io")
+        file = interner.intern("File")
+        self.java = interner.intern("java")
+        initMember = interner.intern("init")
+        underscore = interner.intern("_")
+        bufferedReader = interner.intern("BufferedReader")
         catchName = interner.intern("catch")
         retryWhen = interner.intern("retryWhen")
         mapMember = interner.intern("map")
@@ -1204,15 +1301,50 @@ package struct KnownCompilerNames {
             "toList", "toMutableList", "toSet", "toMutableSet", "chunked", "windowed", "reversed",
             "elementAt", "elementAtOrNull", "minOrNull", "maxOrNull", "last", "lastOrNull", "single", "singleOrNull",
         ].map { interner.intern($0) })
-        sourceBackedCollectionMemberNames = Set([
-            "take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toSortedMap", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear", "containsKey", "indexOf", "lastIndexOf",
-        ].map { interner.intern($0) })
-        sourceBackedTrailingLambdaMemberNames = Set([
-            "map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach", "count",
-        ].map { interner.intern($0) })
+        sourceBackedCollectionMemberNames = Set(["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toSortedMap", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear", "containsKey", "indexOf", "lastIndexOf"].map { interner.intern($0) })
+        sourceBackedTrailingLambdaMemberNames = Set(["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach", "count"].map { interner.intern($0) })
         coroutineBuilderNames = Set(["runBlocking", "async", "withContext", "withTimeout", "withTimeoutOrNull"].map { interner.intern($0) })
+        builtinFlowMemberNames = Set([
+            "map", "filter", "take", "collect", "collectLatest", "toList", "first",
+            "single",
+            "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
+            "buffer", "conflate", "flowOn", "debounce",
+            "catch", "retry", "retryWhen",
+        ].map { interner.intern($0) })
+        flowChainMemberNames = Set(["map", "filter", "take", "collect", "single", "catch", "retry", "retryWhen"].map { interner.intern($0) })
+        resultMemberNames = Set(["onSuccess", "onFailure", "getOrElse", "getOrDefault", "map", "fold", "recover"].map { interner.intern($0) })
+        arrayFallbackMemberNames = Set([
+            "toList", "toMutableList",
+            "copyOf", "copyOfRange", "copyInto", "fill",
+            "size", "get", "contains", "isEmpty",
+            "concatToString",
+        ].map { interner.intern($0) })
         knownJvmPropertyNames = Set(["java", "javaObjectType", "javaPrimitiveType", "kotlin", "declaringJavaClass"].map { interner.intern($0) })
         inheritedOperatorNames = Set(["equals", "compareTo"].map { interner.intern($0) })
+        workerExtensionMemberNames = Set(["asCPointer", "execute", "executeAfter", "park", "processQueue", "requestTermination"].map { interner.intern($0) })
+        rangeTypeNames = Set([
+            "OpenEndRange", "IntRange", "IntProgression", "LongRange", "LongProgression",
+            "UIntRange", "UIntProgression", "ULongRange", "ULongProgression",
+            "CharRange", "CharProgression",
+        ].map { interner.intern($0) })
+        stdlibCollectionFactoryNames = Set([
+            "listOf", "mutableListOf", "arrayListOf", "emptyList",
+            "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
+            "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
+            "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+            "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf", "emptyMap",
+            "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf", "emptySet",
+            "listOfNotNull",
+            "sequenceOf", "generateSequence",
+            "ArrayList",
+            "HashMap", "LinkedHashMap",
+            "HashSet", "LinkedHashSet",
+        ].map { interner.intern($0) })
+        arrayFactoryFunctionNames = Set([
+            "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
+            "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
+            "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+        ].map { interner.intern($0) })
         coroutineHandleBoolProperties = Set([
             "isActive", "isCompleted", "isCancelled", "isClosedForReceive", "isClosedForSend",
         ].map { interner.intern($0) })
@@ -1308,37 +1440,6 @@ package struct KnownCompilerNames {
             || name == uintArray
     }
 
-
-    /// The set of stdlib collection factory function names used for marking
-    /// collection literal expressions. Shared across call type-checking sites
-    /// to avoid duplication.
-    static let stdlibCollectionFactoryNames: Set<String> = [
-        "listOf", "mutableListOf", "arrayListOf", "emptyList",
-        "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
-        "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
-        "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
-        "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf", "emptyMap",
-        "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf", "emptySet",
-        "listOfNotNull",
-        "sequenceOf", "generateSequence",
-        "ArrayList",
-        "HashMap", "LinkedHashMap",
-        "HashSet", "LinkedHashSet",
-    ]
-
-    /// The subset of `stdlibCollectionFactoryNames` that produce `Array`/primitive-array
-    /// literals rather than `List`/`Set`/`Map`/`Sequence` ones. Excluded from
-    /// `markCollectionExpr` call sites: an `Array` receiver's runtime representation
-    /// (RuntimeArrayBox) is not interchangeable with the List/Sequence-shaped box that
-    /// collection member-call fallback resolution assumes, so flagging arrays as
-    /// "collection expr" causes List/Sequence-only extension functions (e.g.
-    /// `filterIsInstance`, `sortedBy`) to be resolved and lowered against the wrong
-    /// runtime representation, corrupting memory or crashing.
-    static let arrayFactoryFunctionNames: Set<String> = [
-        "arrayOf", "emptyArray", "intArrayOf", "longArrayOf",
-        "shortArrayOf", "byteArrayOf", "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf",
-        "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
-    ]
 
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         // Fall back to simple names only for synthetic symbols (no FQN).

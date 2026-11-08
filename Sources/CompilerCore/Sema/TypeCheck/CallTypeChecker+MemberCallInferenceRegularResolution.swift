@@ -3,24 +3,20 @@ import Foundation
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
+    /// `sourceBackedCollectionMemberNames` and
+    /// `sourceBackedTrailingLambdaMemberNames` live on `KnownCompilerNames`
+    /// as per-interner `Set<InternedString>` tables.
+
     func inferRegularMemberCall(
         _ request: MemberCallInferenceRequest,
         receiverType: TypeID,
         locals: inout LocalBindings
     ) -> TypeID {
-        let id = request.id
-        let receiverID = request.receiverID
-        let calleeName = request.calleeName
-        let args = request.args
-        let range = request.range
-        let ctx = request.ctx
-        let expectedType = request.expectedType
-        let explicitTypeArgs = request.explicitTypeArgs
-        let safeCall = request.safeCall
-        let ast = ctx.ast
-        let sema = ctx.sema
-        let interner = ctx.interner
-        let knownNames = KnownCompilerNames(interner: interner)
+        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
+        let args = request.args, range = request.range, ctx = request.ctx
+        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
+        let ast = request.ast, sema = request.sema, interner = request.interner
+        let knownNames = request.knownNames
         if calleeName == knownNames.async,
            isCoroutineScopeType(receiverType, sema: sema, interner: interner)
         {
@@ -83,7 +79,7 @@ extension CallTypeChecker {
         // callBy supplies the parameter-map context to nested generic calls.
         // Infer it before context-free argument probing can emit a stale error.
         let callableReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
-        if interner.resolve(calleeName) == "callBy",
+        if calleeName == knownNames.callBy,
            case let .functionType(functionType) = sema.types.kind(of: callableReceiverType),
            functionType.isCallableReference,
            let result = inferCallableReferenceMember(
@@ -256,7 +252,7 @@ extension CallTypeChecker {
         // Numeric mod is an extension, so an applicable user extension in a
         // nearer scope must be resolved before the primitive fallback.
         let hasUserNumericMod = {
-            guard interner.resolve(calleeName) == "mod", args.count == 1,
+            guard calleeName == knownNames.mod, args.count == 1,
                   case .primitive = sema.types.kind(of: sema.types.makeNonNullable(lookupReceiverType))
             else { return false }
             let candidates = collectExtensionCallCandidates(
@@ -389,7 +385,7 @@ extension CallTypeChecker {
                 && sema.types.isUnsigned(receiver) == sema.types.isUnsigned(argument)
             return bothArithmetic ? receiver : nil
         }()
-        let channelBoundReceiverType = interner.resolve(calleeName) == "receive"
+        let channelBoundReceiverType = calleeName == knownNames.receive
             ? ReceiverClassifier(sema: sema, interner: interner).channelUpperBoundType(of: lookupReceiverType)
             : nil
         let memberLookupType = rangeSourceMemberLookupType

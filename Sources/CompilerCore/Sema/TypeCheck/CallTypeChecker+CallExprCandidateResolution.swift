@@ -954,9 +954,8 @@ extension CallTypeChecker {
                 locals: &locals
             )
             if let calleeName {
-                let resolvedName = interner.resolve(calleeName)
-                if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName),
-                   !KnownCompilerNames.arrayFactoryFunctionNames.contains(resolvedName),
+                if knownNames.stdlibCollectionFactoryNames.contains(calleeName),
+                   !knownNames.arrayFactoryFunctionNames.contains(calleeName),
                    let symbol = sema.symbols.symbol(chosen),
                    (symbol.fqName.starts(with: [knownNames.kotlin, knownNames.collections])
                        || symbol.fqName.starts(with: [knownNames.kotlin, knownNames.sequences]))

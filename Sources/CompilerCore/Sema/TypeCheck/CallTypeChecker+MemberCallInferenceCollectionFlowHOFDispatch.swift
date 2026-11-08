@@ -38,7 +38,6 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 sema.types.anyType
             }
 
-            let knownNames = KnownCompilerNames(interner: interner)
             if knownNames.destinationCollectionHOFs.contains(calleeName), args.count == 2 {
                 if let inferredType = inferDestinationCollectionHOFSpecial(locals: &locals) {
                     return inferredType

@@ -6,9 +6,7 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx
-        let sema = ctx.sema
-        let interner = ctx.interner
+        let ctx = request.ctx, sema = request.sema, interner = request.interner
         let receiver = sema.types.makeNonNullable(lookupReceiverType)
         guard case .primitive = sema.types.kind(of: receiver) else { return false }
         let candidates = collectExtensionCallCandidates(

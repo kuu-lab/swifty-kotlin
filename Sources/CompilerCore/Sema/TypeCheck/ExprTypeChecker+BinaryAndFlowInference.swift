@@ -39,6 +39,7 @@ extension ExprTypeChecker {
         let ast = ctx.ast
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
 
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
@@ -113,7 +114,7 @@ extension ExprTypeChecker {
         let isSafeLetElvisFailure: Bool
         if op == .elvis,
            case let .safeMemberCall(_, member, _, args, _) = ast.arena.expr(lhsID),
-           interner.resolve(member) == "let", args.count == 1,
+           member == knownNames.letKeyword, args.count == 1,
            case let .lambdaLiteral(_, lambdaBodyID, _, _) = ast.arena.expr(args[0].expr)
         {
             let bodyID: ExprID? = if case let .blockExpr(_, trailing, _) = ast.arena.expr(lambdaBodyID) {
@@ -123,7 +124,7 @@ extension ExprTypeChecker {
             }
             isSafeLetElvisFailure = if let bodyID,
                case let .memberCall(_, method, typeArgs, _, _) = ast.arena.expr(bodyID),
-               interner.resolve(method) == "failure", typeArgs.isEmpty
+               method == knownNames.failure, typeArgs.isEmpty
             { true } else { false }
         } else {
             isSafeLetElvisFailure = false

@@ -4,6 +4,7 @@ extension CallTypeChecker {
         args: [CallArgument], range: SourceRange, ctx: TypeInferenceContext,
         locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         // Same foreign-typeParam guard as `inferCallExpr`: an enclosing
         // call's own inference variable must not reach the callee as a
         // same-symbol pin target (e.g. `xs.listOf(x.listOf(y))`).
@@ -26,7 +27,7 @@ extension CallTypeChecker {
         let isInfix: Bool
         if let binding = ctx.sema.bindings.callBindings[id] {
             let isUnsignedComparableCompareTo = isPrimitiveIntrinsic
-                && ctx.interner.resolve(calleeName) == "compareTo"
+                && calleeName == knownNames.compareTo
                 && ctx.sema.symbols.parentSymbol(for: binding.chosenCallee) == ctx.sema.types.comparableInterfaceSymbol
             isInfix = ctx.sema.symbols.symbol(binding.chosenCallee)?.flags.contains(.infixFunction) == true
                 || isUnsignedComparableCompareTo

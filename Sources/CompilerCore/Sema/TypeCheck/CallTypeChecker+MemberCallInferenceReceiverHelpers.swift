@@ -680,14 +680,7 @@ extension CallTypeChecker {
         // surface; `onErrorReturn`/`onErrorResume`/`delayEach` are not kotlinx
         // Flow operators, so admitting them here would accept code that kotlinc
         // rejects as unresolved.
-        let flowMembers: Set = [
-            "map", "filter", "take", "collect", "collectLatest", "toList", "first",
-            "single",
-            "transform", "takeWhile", "dropWhile", "flatMapConcat", "flatMapMerge", "flatMapLatest",
-            "buffer", "conflate", "flowOn", "debounce",
-            "catch", "retry", "retryWhen",
-        ]
-        guard flowMembers.contains(memberName) else {
+        guard KnownCompilerNames(interner: ctx.interner).builtinFlowMemberNames.contains(calleeName) else {
             return nil
         }
 
@@ -989,13 +982,14 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(receiverType)
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 2
-            && interner.resolve(symbol.fqName.last!) == "File"
-            && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
+            && symbol.fqName.last! == knownNames.file
+            && symbol.fqName[symbol.fqName.count - 2] == knownNames.io
     }
 
     /// Used by Reader-targeted special-case lambda inference (STDLIB-IO-FN-040)
@@ -1007,13 +1001,14 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         let nonNullType = sema.types.makeNonNullable(receiverType)
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return false
         }
         return symbol.fqName.count >= 2
-            && interner.resolve(symbol.fqName.last!) == "BufferedReader"
-            && interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "io"
+            && symbol.fqName.last! == knownNames.bufferedReader
+            && symbol.fqName[symbol.fqName.count - 2] == knownNames.io
     }
 
     func kClassReceiverArgumentType(

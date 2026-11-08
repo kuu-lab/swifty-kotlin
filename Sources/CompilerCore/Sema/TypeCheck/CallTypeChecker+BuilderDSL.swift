@@ -1215,8 +1215,9 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         explicitTypeArgs: [TypeID]
     ) -> TypeID? {
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard let calleeName,
-              ctx.interner.resolve(calleeName) == "yieldAll",
+              calleeName == knownNames.yieldAll,
               args.count == 1,
               explicitTypeArgs.isEmpty,
               let receiverType = ctx.implicitReceiverType,
@@ -1277,12 +1278,13 @@ extension CallTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
               let name = symbol.fqName.last
         else {
             return false
         }
-        return interner.resolve(name) == "SequenceScope"
+        return name == knownNames.sequenceScope
             && symbol.fqName.dropLast().map(interner.resolve) == ["kotlin", "sequences"]
     }
 
@@ -1971,6 +1973,7 @@ extension CallTypeChecker {
         shadowedNames: Set<InternedString>,
         sendArgumentExprs: inout [(expr: ExprID, shadowedNames: Set<InternedString>)]
     ) {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let expr = ast.arena.expr(exprID) else {
             return
         }
@@ -1978,7 +1981,7 @@ extension CallTypeChecker {
         switch expr {
         case let .call(callee, _, args, _):
             if case let .nameRef(name, _) = ast.arena.expr(callee),
-               interner.resolve(name) == "send",
+               name == knownNames.send,
                let first = args.first
             {
                 sendArgumentExprs.append((expr: first.expr, shadowedNames: shadowedNames))
@@ -1988,7 +1991,7 @@ extension CallTypeChecker {
                 collectProduceBuilderSendExprs(in: argument.expr, ast: ast, interner: interner, shadowedNames: shadowedNames, sendArgumentExprs: &sendArgumentExprs)
             }
         case let .memberCall(receiver, callee, _, args, _):
-            if interner.resolve(callee) == "send",
+            if callee == knownNames.send,
                let first = args.first
             {
                 sendArgumentExprs.append((expr: first.expr, shadowedNames: shadowedNames))

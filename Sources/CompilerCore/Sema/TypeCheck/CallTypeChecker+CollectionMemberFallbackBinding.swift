@@ -191,7 +191,7 @@ extension CallTypeChecker {
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
-              !(isArrayReceiver && isSupportedArrayMember(memberName)),
+              !(isArrayReceiver && isSupportedArrayMember(calleeName, knownNames: knownNames)),
               isCollectionReceiver
                 || isSequenceReceiver
                 // Array factories intentionally stay out of the generic

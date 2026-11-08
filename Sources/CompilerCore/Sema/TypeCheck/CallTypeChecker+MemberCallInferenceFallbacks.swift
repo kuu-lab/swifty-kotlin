@@ -173,7 +173,8 @@ extension CallTypeChecker {
         safeCall: Bool,
         existingCandidates: [SymbolID]
     ) -> TypeID? {
-        guard ctx.interner.resolve(calleeName) == "subSequence",
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        guard calleeName == knownNames.subSequence,
               args.count == 1,
               isSyntheticCharSequenceReceiverType(receiverType, sema: ctx.sema),
               let rangeType = sourceLevelRangeMemberLookupType(
@@ -303,7 +304,8 @@ extension CallTypeChecker {
         safeCall: Bool,
         existingCandidates: [SymbolID] = []
     ) -> TypeID? {
-        guard ctx.interner.resolve(calleeName) == "substring",
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        guard calleeName == knownNames.substring,
               args.count == 1 || args.count == 2,
               isSyntheticCharSequenceReceiverType(receiverType, sema: ctx.sema)
         else {

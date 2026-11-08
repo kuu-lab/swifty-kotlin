@@ -1424,6 +1424,7 @@ extension DeclTypeChecker {
         sema: SemaModule,
         scope: Scope
     ) {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard case let .block(expressions, _) = function.body,
               let firstExprID = expressions.first,
               let firstExpr = ast.arena.expr(firstExprID),
@@ -1431,7 +1432,7 @@ extension DeclTypeChecker {
               args.count == 1,
               let calleeExpr = ast.arena.expr(calleeExprID),
               case let .nameRef(calleeName, _) = calleeExpr,
-              interner.resolve(calleeName) == "contract",
+              calleeName == knownNames.contract,
               let lambdaExpr = ast.arena.expr(args[0].expr)
         else {
             return
@@ -1480,10 +1481,11 @@ extension DeclTypeChecker {
         sema: SemaModule,
         scope: Scope
     ) {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let effectExpr = ast.arena.expr(effectExprID) else { return }
 
         if case let .memberCall(receiverExprID, impliesName, _, impliesArgs, _) = effectExpr,
-           interner.resolve(impliesName) == "implies",
+           impliesName == knownNames.implies,
            impliesArgs.count == 1,
            let receiverExpr = ast.arena.expr(receiverExprID),
            case let .call(returnsCalleeExprID, _, returnsArgs, _) = receiverExpr,
@@ -1495,10 +1497,10 @@ extension DeclTypeChecker {
             // true/false = when the function returns that specific Boolean.
             let returnsValue: Bool?
             let returnCondition: ContractReturnCondition
-            if interner.resolve(returnsName) == "returnsNotNull", returnsArgs.isEmpty {
+            if returnsName == knownNames.returnsNotNull, returnsArgs.isEmpty {
                 returnsValue = nil
                 returnCondition = .returnsNotNull
-            } else if interner.resolve(returnsName) == "returns", returnsArgs.isEmpty {
+            } else if returnsName == knownNames.returns, returnsArgs.isEmpty {
                 returnsValue = nil
                 returnCondition = .normally
                 if sema.symbols.contractReturnsEffect(for: symbol) == nil {
@@ -1538,7 +1540,7 @@ extension DeclTypeChecker {
         if case let .call(returnsCalleeExprID, _, returnsArgs, _) = effectExpr,
            let returnsCalleeExpr = ast.arena.expr(returnsCalleeExprID),
            case let .nameRef(returnsName, _) = returnsCalleeExpr,
-           interner.resolve(returnsName) == "returns"
+           returnsName == knownNames.returns
         {
             if returnsArgs.isEmpty {
                 // A more specific effect (e.g. `returns(true)`) should not be
@@ -1575,7 +1577,7 @@ extension DeclTypeChecker {
         if case let .call(calleeExprID, _, callArgs, _) = effectExpr,
            let calleeExpr = ast.arena.expr(calleeExprID),
            case let .nameRef(calleeName, _) = calleeExpr,
-           interner.resolve(calleeName) == "callsInPlace",
+           calleeName == knownNames.callsInPlace,
            callArgs.count >= 1, callArgs.count <= 2,
            let firstArgExpr = ast.arena.expr(callArgs[0].expr),
            case let .nameRef(lambdaParamName, _) = firstArgExpr
@@ -1603,7 +1605,7 @@ extension DeclTypeChecker {
         if case let .call(calleeExprID, _, returnNNArgs, _) = effectExpr,
            let calleeExpr = ast.arena.expr(calleeExprID),
            case let .nameRef(calleeName, _) = calleeExpr,
-           interner.resolve(calleeName) == "returnsNotNull",
+           calleeName == knownNames.returnsNotNull,
            returnNNArgs.isEmpty
         {
             sema.symbols.setContractReturnsNotNull(for: symbol)
@@ -1765,12 +1767,13 @@ extension DeclTypeChecker {
         ast: ASTModule,
         interner: StringInterner
     ) -> InvocationKind? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let expr = ast.arena.expr(exprID) else { return nil }
         if case let .memberCall(receiverExprID, memberName, _, memberArgs, _) = expr,
            memberArgs.isEmpty,
            let receiverExpr = ast.arena.expr(receiverExprID),
            case let .nameRef(receiverName, _) = receiverExpr,
-           interner.resolve(receiverName) == "InvocationKind"
+           receiverName == knownNames.invocationKind
         {
             return InvocationKind(rawValue: interner.resolve(memberName))
         }

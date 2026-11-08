@@ -2013,7 +2013,7 @@ final class ExprTypeChecker {
         // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
         // (e.g. equals, compareTo). Overrides of these inherit operator status
         // even without the explicit `operator` keyword.
-        let knownNames = KnownCompilerNames(interner: ctx.interner)
+        let knownNames = KnownCompilerNames(interner: interner)
 
         var candidates: [SymbolID] = []
         var seen: Set<SymbolID> = []
