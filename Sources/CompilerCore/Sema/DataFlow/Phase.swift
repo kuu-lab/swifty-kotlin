@@ -339,6 +339,13 @@ final class DataFlowSemaPhase: CompilerPhase {
         withSubPhaseTiming("runValidationPasses", timer: ctx.phaseTimer) {
             runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx, sema: sema)
         }
+        if ctx.options.emit.isJVM {
+            registerJvmSerializableSupertypes(
+                symbols: symbols,
+                types: types,
+                interner: ctx.interner
+            )
+        }
         patchSourceBackedPreconditionContractEffects(
             symbols: symbols,
             types: types,
@@ -356,6 +363,42 @@ final class DataFlowSemaPhase: CompilerPhase {
             runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
         }
         ctx.storeSema(sema)
+    }
+
+    private func registerJvmSerializableSupertypes(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let serializableFQName = ["java", "io", "Serializable"].map(interner.intern)
+        guard let serializable = symbols.lookupAll(fqName: serializableFQName).first(where: { symbol in
+            symbols.symbol(symbol)?.kind == .interface
+        }) else {
+            return
+        }
+        types.serializableInterfaceSymbol = serializable
+
+        // JVM arrays are Serializable even though Kotlin's builtin array
+        // declarations use compiler-provided storage and do not repeat every
+        // JVM marker interface in their source declarations.
+        let arrayTypeNames = [
+            "Array", "BooleanArray", "ByteArray", "CharArray", "DoubleArray",
+            "FloatArray", "IntArray", "LongArray", "ShortArray",
+        ]
+        for name in arrayTypeNames {
+            let fqName = [interner.intern("kotlin"), interner.intern(name)]
+            guard let arraySymbol = symbols.lookupAll(fqName: fqName).first(where: { symbol in
+                symbols.symbol(symbol)?.kind == .class
+            }) else {
+                continue
+            }
+            var supertypes = symbols.directSupertypes(for: arraySymbol)
+            if !supertypes.contains(serializable) {
+                supertypes.append(serializable)
+            }
+            symbols.setDirectSupertypes(supertypes, for: arraySymbol)
+            types.setNominalDirectSupertypes(supertypes, for: arraySymbol)
+        }
     }
 
     func buildFileScopes(
