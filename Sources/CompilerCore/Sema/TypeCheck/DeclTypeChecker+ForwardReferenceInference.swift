@@ -812,8 +812,25 @@ extension DeclTypeChecker {
         ) {
             return arrayType
         }
-        if namedCandidates.count == 1,
-           let symbol = ctx.sema.symbols.symbol(namedCandidates[0]),
+        // Default imports can surface one nominal under several spellings —
+        // `kotlin.IllegalStateException` arrives together with the
+        // `java.lang.IllegalStateException` typealias that aliases it, so the
+        // raw candidate count is not one even though every candidate denotes
+        // the same class and pins the same constructor result (KUU-4502).
+        var effectiveClassSymbol: SymbolID?
+        var candidatesShareOneClass = true
+        for candidate in namedCandidates {
+            guard let resolved = precheckEffectiveClassSymbol(for: candidate, in: ctx),
+                  effectiveClassSymbol == nil || effectiveClassSymbol == resolved
+            else {
+                candidatesShareOneClass = false
+                break
+            }
+            effectiveClassSymbol = resolved
+        }
+        if candidatesShareOneClass,
+           let classSymbolID = effectiveClassSymbol,
+           let symbol = ctx.sema.symbols.symbol(classSymbolID),
            symbol.kind == .class || symbol.kind == .enumClass
         {
             // A pinned constructor result does not prove its arguments are
@@ -1317,6 +1334,37 @@ extension DeclTypeChecker {
             }
         }
         return nil
+    }
+
+    /// The class a scope candidate denotes for constructor-result prechecking:
+    /// a class or enum candidate is itself, while a typealias candidate
+    /// resolves through its underlying type so aliased spellings of one
+    /// nominal (the `java.lang` exception aliases of `kotlin` classes, all
+    /// default imports) collapse to a single class symbol (KUU-4502).
+    /// Non-classifier candidates return nil.
+    private func precheckEffectiveClassSymbol(
+        for candidate: SymbolID,
+        in ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        guard let symbol = ctx.sema.symbols.symbol(candidate) else { return nil }
+        switch symbol.kind {
+        case .class, .enumClass:
+            return candidate
+        case .typeAlias:
+            guard let expanded = driver.helpers.expandTypeAlias(
+                candidate,
+                typeArgs: [],
+                sema: ctx.sema,
+                visited: [],
+                depth: 0
+            ), case let .classType(classType) = ctx.sema.types.kind(of: expanded)
+            else {
+                return nil
+            }
+            return classType.classSymbol
+        default:
+            return nil
+        }
     }
 
     /// `callee()` on a property or object resolves through `invoke` on its
