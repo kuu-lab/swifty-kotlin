@@ -148,6 +148,23 @@ struct StarProjectedMemberPropertyReadTests {
         #expect(ctx.diagnostics.hasError, "Expected TT<in C> to be rejected at the C position")
     }
 
+    // KUU-4505: equal receiver types do not make captures from distinct
+    // declarations identical. kotlinc rejects independent star projections.
+    @Test func starProjectedMembersOnDifferentReceiversDoNotShareCapture() throws {
+        let ctx = makeContextWithoutStdlib("""
+        interface TT<T>
+        interface Ctx<C : Any> { val type: TT<in C>; val value: C }
+        interface Cont { fun <C : Any> f(t: TT<in C>, v: C): C }
+        fun g(cont: Cont, a: Ctx<*>, b: Ctx<*>): Any = cont.f(a.type, b.value)
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-TYPE-0001" },
+            "Expected independent captures to conflict: \(errors)"
+        )
+    }
+
     private func makeContextWithoutStdlib(_ source: String) -> CompilationContext {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".kt").path

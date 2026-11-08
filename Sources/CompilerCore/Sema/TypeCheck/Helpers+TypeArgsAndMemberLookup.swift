@@ -894,6 +894,7 @@ extension TypeCheckHelpers {
     func lookupMemberProperty(
         named calleeName: InternedString,
         receiverType: TypeID,
+        receiverDeclaration: SymbolID? = nil,
         sema: SemaModule
     ) -> (symbol: SymbolID, type: TypeID)? {
         let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
@@ -948,6 +949,7 @@ extension TypeCheckHelpers {
                     resolveMemberPropertyType(
                         propertyReadType(for: candidate, declaredType: propType, sema: sema) ?? propType,
                         receiverType: receiverType,
+                        receiverDeclaration: receiverDeclaration,
                         ownerSymbol: owner,
                         sema: sema
                     )
@@ -1474,6 +1476,7 @@ extension TypeCheckHelpers {
     func resolveMemberPropertyType(
         _ propertyType: TypeID,
         receiverType: TypeID,
+        receiverDeclaration: SymbolID? = nil,
         ownerSymbol: SymbolID,
         sema: SemaModule
     ) -> TypeID {
@@ -1512,14 +1515,14 @@ extension TypeCheckHelpers {
             case let .invariant(inner), let .out(inner), let .in(inner):
                 substitution[typeVar] = inner
             case .star:
-                // Key the capture on the receiver type so `ctx.type` and
-                // `ctx.value` read through one star projection denote the same
-                // captured type and can drive one inference variable (KUU-4362).
+                // Keep reads on the same declaration unified, but separate
+                // equal star-projected types from distinct receiver values.
                 substitution[typeVar] = sema.types.capturedTypeForStarProjection(
                     parameter: typeParamSymbol,
                     ownerTypeParameters: ownerTypeParamSymbols,
                     origin: CapturedTypeOrigin(
                         receiverType: nonNullReceiver,
+                        receiverDeclaration: receiverDeclaration,
                         parameter: typeParamSymbol,
                         argumentIndex: index
                     )

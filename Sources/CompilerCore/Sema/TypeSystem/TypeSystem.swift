@@ -82,8 +82,8 @@ public final class TypeSystem {
 
     /// Preserves informative upper bounds when a star projection crosses a
     /// nominal substitution. Trivial or dependent bounds fall back to `Any?`.
-    /// `origin` ties the minted capture to a projected receiver so reads
-    /// through the same receiver denote the same captured type (KUU-4362).
+    /// `origin` allows repeated reads through the same projected receiver to
+    /// share their capture while keeping different receiver declarations apart.
     func capturedTypeForStarProjection(
         parameter: SymbolID,
         ownerTypeParameters: [SymbolID],
