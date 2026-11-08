@@ -169,6 +169,15 @@ extension ExprTypeChecker {
             lhsID, ctx: lhsCtx, locals: &locals,
             expectedType: lhsExpectedType
         )
+        if op == .elvis {
+            // The elvis branch itself null-checks its LHS before the non-null
+            // view is used, so a platform-typed operand (`Properties.getProperty`,
+            // `Queue.poll`, ...) may legitimately be null here. Discard the
+            // expected-type-driven platform assertion inference recorded on the
+            // operand: emitting it would throw before the branch ever runs
+            // (KUU-4451).
+            sema.bindings.bindPlatformNullAssertion(lhsID, targetType: nil)
+        }
         // A bare `ClassName` on an Elvis side denotes the companion object;
         // keep the companion value type through the join (KUU-3232).
         let inferredLhs = op == .elvis
