@@ -18,7 +18,7 @@ extension OverloadResolverTests {
         let (_, resolved) = resolveSyntheticIndexedSet(middleHasDefault: false)
 
         #expect(resolved.chosenCallee == nil)
-        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0480")
     }
 
     private func resolveSyntheticIndexedSet(middleHasDefault: Bool) -> (SymbolID, ResolvedCall) {
@@ -70,7 +70,7 @@ extension OverloadResolverTests {
             args: [CallArg(type: callable, isTrailingLambda: true)]
         ), expectedType: nil, ctx: ctx)
         #expect(resolved.chosenCallee == nil)
-        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0002")
+        #expect(resolved.diagnostic?.code == "KSWIFTK-SEMA-0480")
     }
 
     @Test(arguments: [
