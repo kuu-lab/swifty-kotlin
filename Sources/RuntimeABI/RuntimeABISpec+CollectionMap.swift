@@ -36,6 +36,7 @@ public extension RuntimeABISpec {
         // Nominal-tag bridge for the LinkedHashMap constructor family
         // and linkedMapOf, mirroring `__kk_linked_hash_set_of`.
         abi.nt("__kk_linked_hash_map_of", "keysArrayRaw valuesArrayRaw count"),
+        abi.nt("__kk_map_set_access_order", "mapRaw accessOrder"),
         abi.nt("__kk_map_of_pairs", "pairsArrayRaw count"),
         abi.nt("__kk_hash_map_of_pairs", "pairsArrayRaw count"),
         abi.nt("__kk_linked_hash_map_of_pairs", "pairsArrayRaw count"),

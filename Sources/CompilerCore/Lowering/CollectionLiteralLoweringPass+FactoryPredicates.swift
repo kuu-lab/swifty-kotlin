@@ -364,6 +364,37 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
+    /// KUU-4500: returns the `accessOrder` argument of a resolved
+    /// `LinkedHashMap(initialCapacity, loadFactor, accessOrder)` call, or nil
+    /// for every other constructor form. The declared three-parameter primary
+    /// is the only LinkedHashMap constructor carrying a Boolean parameter, so
+    /// the last argument's static type distinguishes `LinkedHashMap(16,
+    /// 0.75f, true)` from the capacity/loadFactor-only forms even when the
+    /// allocated `this` receiver is prepended to `arguments`.
+    func linkedHashMapAccessOrderArgument(
+        symbol: SymbolID?,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> KIRExprID? {
+        guard let sema = ctx.sema,
+              let last = arguments.last,
+              arguments.count >= 3,
+              let argumentType = module.arena.exprType(last),
+              case .primitive(.boolean, _) = sema.types.kind(of: argumentType)
+        else { return nil }
+        if let symbol,
+           let signature = sema.symbols.functionSignature(for: symbol),
+           sema.symbols.symbol(symbol)?.kind == .constructor
+        {
+            return signature.parameterTypes.count == 3 ? last : nil
+        }
+        // Unresolved bare-name `LinkedHashMap(a, b, c)` calls can only bind to
+        // the three-parameter form, so the Boolean trailing argument still
+        // identifies the access-order constructor.
+        return last
+    }
+
     /// Looks up the primitive boxing callee for `type`, resolving a value
     /// class to its underlying primitive first (see `resolveValueClassKind`)
     /// so `Meters` boxes exactly like the `Int` it wraps — matching

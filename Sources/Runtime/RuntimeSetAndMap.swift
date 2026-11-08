@@ -633,6 +633,20 @@ public func kk_mutable_map_put(
     _ value: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeMutableMapPut(mapRaw: mapRaw, key: key, value: value,
+                         countAsAccess: true, outThrown: outThrown)
+}
+
+/// Shared put body. `MutableEntry.setValue` passes `countAsAccess: false`:
+/// the JDK writes `HashMap.Node.value` directly and never triggers
+/// `LinkedHashMap.afterNodeAccess` for it, even in access-order mode.
+private func runtimeMutableMapPut(
+    mapRaw: Int,
+    key: Int,
+    value: Int,
+    countAsAccess: Bool,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMutableMapPut(mapRaw, key: key, value: value, outThrown: outThrown)
@@ -648,7 +662,7 @@ public func kk_mutable_map_put(
         runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
         return runtimeNullSentinelInt
     }
-    return map.put(key: runtimeKey, value: runtimeValue)
+    return map.put(key: runtimeKey, value: runtimeValue, countAsAccess: countAsAccess)
         .map(runtimeCollectionABIValue)
         ?? runtimeNullSentinelInt
 }
@@ -795,7 +809,21 @@ public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let value = map.runtimeValue(at: index) else {
         return runtimeNullSentinelInt
     }
+    // KUU-4500: an access-order LinkedHashMap moves the touched entry to the
+    // tail, like the JDK's afterNodeAccess. No-op for ordinary boxes.
+    map.recordAccess(at: index)
     return runtimeCollectionABIValue(value)
+}
+
+/// Marks a LinkedHashMap box as access-ordered (`LinkedHashMap(capacity,
+/// loadFactor, accessOrder=true)`). A separate setter keeps the existing
+/// `__kk_linked_hash_map_of` factory signature unchanged.
+@_cdecl("__kk_map_set_access_order")
+public func kk_map_set_access_order(_ mapRaw: Int, _ accessOrder: Int) -> Int {
+    if accessOrder != 0 {
+        runtimeMapBox(from: mapRaw)?.enableAccessOrder()
+    }
+    return 0
 }
 
 @_cdecl("__kk_map_contains_key")
@@ -1118,7 +1146,8 @@ public func kk_mutable_map_entry_setValue(
         return runtimeNullSentinelInt
     }
     var thrown = 0
-    let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value, &thrown)
+    let previous = runtimeMutableMapPut(mapRaw: pairBox.mutableMapRaw, key: pairBox.mutableMapKey,
+                                        value: value, countAsAccess: false, outThrown: &thrown)
     if thrown != 0 {
         outThrown?.pointee = thrown
         return runtimeNullSentinelInt
