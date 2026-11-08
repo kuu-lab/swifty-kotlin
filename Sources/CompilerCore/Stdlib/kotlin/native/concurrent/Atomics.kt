@@ -48,18 +48,6 @@ private external fun AtomicInt.__kkAtomicIntCompareAndExchange(expected: Int, ne
 @KsSymbolName("__kk_atomic_int_fetchAndAdd")
 private external fun AtomicInt.__kkAtomicIntFetchAndAdd(delta: Int): Int
 
-@KsSymbolName("__kk_atomic_int_fetchAndIncrement")
-private external fun AtomicInt.__kkAtomicIntFetchAndIncrement(): Int
-
-@KsSymbolName("__kk_atomic_int_fetchAndDecrement")
-private external fun AtomicInt.__kkAtomicIntFetchAndDecrement(): Int
-
-@KsSymbolName("__kk_atomic_int_incrementAndFetch")
-private external fun AtomicInt.__kkAtomicIntIncrementAndFetch(): Int
-
-@KsSymbolName("__kk_atomic_int_decrementAndFetch")
-private external fun AtomicInt.__kkAtomicIntDecrementAndFetch(): Int
-
 public var AtomicInt.value: Int
     get() = __kkAtomicIntLoad()
     set(value) {
@@ -73,10 +61,10 @@ public fun AtomicInt.getAndAdd(delta: Int): Int =
     __kkAtomicIntFetchAndAdd(delta)
 
 public fun AtomicInt.getAndDecrement(): Int =
-    __kkAtomicIntFetchAndDecrement()
+    getAndAdd(-1)
 
 public fun AtomicInt.getAndIncrement(): Int =
-    __kkAtomicIntFetchAndIncrement()
+    getAndAdd(1)
 
 @Deprecated(
     "Use incrementAndGet() or getAndIncrement() instead.",
@@ -84,7 +72,7 @@ public fun AtomicInt.getAndIncrement(): Int =
     DeprecationLevel.ERROR
 )
 public fun AtomicInt.increment(): Unit {
-    __kkAtomicIntIncrementAndFetch()
+    getAndAdd(1)
 }
 
 @Deprecated(
@@ -93,7 +81,7 @@ public fun AtomicInt.increment(): Unit {
     DeprecationLevel.ERROR
 )
 public fun AtomicInt.decrement(): Unit {
-    __kkAtomicIntDecrementAndFetch()
+    getAndAdd(-1)
 }
 
 @KsSymbolName("__kk_atomic_long_load")
@@ -107,15 +95,6 @@ private external fun AtomicLong.__kkCompareAndExchange(expected: Long, update: L
 
 @KsSymbolName("__kk_atomic_long_fetchAndAdd")
 private external fun AtomicLong.__kkFetchAndAdd(delta: Long): Long
-
-@KsSymbolName("__kk_atomic_long_fetchAndIncrement")
-private external fun AtomicLong.__kkFetchAndIncrement(): Long
-
-@KsSymbolName("__kk_atomic_long_fetchAndDecrement")
-private external fun AtomicLong.__kkFetchAndDecrement(): Long
-
-@KsSymbolName("__kk_atomic_long_addAndFetch")
-private external fun AtomicLong.__kkAddAndFetch(delta: Long): Long
 
 @Deprecated(
     "Use kotlin.concurrent.atomics.AtomicLong instead.",
@@ -134,25 +113,25 @@ public class AtomicLong {
         }
 
     @Deprecated(message = "Use addAndGet(delta: Long) instead.", level = DeprecationLevel.ERROR)
-    public fun addAndGet(delta: Int): Long = __kkAddAndFetch(delta.toLong())
+    public fun addAndGet(delta: Int): Long = getAndAdd(delta.toLong()) + delta.toLong()
 
     public fun compareAndSwap(expected: Long, update: Long): Long =
         __kkCompareAndExchange(expected, update)
 
     @Deprecated("Use decrementAndGet() or getAndDecrement() instead.", ReplaceWith("this.decrementAndGet()"), DeprecationLevel.ERROR)
     public fun decrement(): Unit {
-        __kkAddAndFetch(-1L)
+        getAndAdd(-1L)
     }
 
     public fun getAndAdd(delta: Long): Long = __kkFetchAndAdd(delta)
 
-    public fun getAndDecrement(): Long = __kkFetchAndDecrement()
+    public fun getAndDecrement(): Long = getAndAdd(-1L)
 
-    public fun getAndIncrement(): Long = __kkFetchAndIncrement()
+    public fun getAndIncrement(): Long = getAndAdd(1L)
 
     @Deprecated("Use incrementAndGet() or getAndIncrement() instead.", ReplaceWith("this.incrementAndGet()"), DeprecationLevel.ERROR)
     public fun increment(): Unit {
-        __kkAddAndFetch(1L)
+        getAndAdd(1L)
     }
 
     public override fun toString(): String = value.toString()

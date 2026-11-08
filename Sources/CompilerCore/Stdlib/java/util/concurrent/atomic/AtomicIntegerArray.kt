@@ -25,9 +25,6 @@ private external fun AtomicIntegerArray.__kk_compareAndExchange(index: Int, expe
 @KsSymbolName("__kk_atomic_int_array_fetchAndAdd")
 private external fun AtomicIntegerArray.__kk_fetchAndAdd(index: Int, delta: Int): Int
 
-@KsSymbolName("__kk_atomic_int_array_addAndFetch")
-private external fun AtomicIntegerArray.__kk_addAndFetch(index: Int, delta: Int): Int
-
 private fun AtomicIntegerArray.checkIndex(index: Int) {
     val size = this.size
     if (index < 0 || index >= size) {
@@ -65,10 +62,8 @@ public fun AtomicIntegerArray.fetchAndAddAt(index: Int, delta: Int): Int {
     return __kk_fetchAndAdd(index, delta)
 }
 
-public fun AtomicIntegerArray.addAndFetchAt(index: Int, delta: Int): Int {
-    checkIndex(index)
-    return __kk_addAndFetch(index, delta)
-}
+public fun AtomicIntegerArray.addAndFetchAt(index: Int, delta: Int): Int =
+    fetchAndAddAt(index, delta) + delta
 
 public fun AtomicIntegerArray.fetchAndIncrementAt(index: Int): Int = fetchAndAddAt(index, 1)
 
