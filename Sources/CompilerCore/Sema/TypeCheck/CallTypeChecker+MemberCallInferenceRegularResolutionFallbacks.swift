@@ -19,174 +19,170 @@ extension CallTypeChecker {
         isSuperCall: Bool,
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs, safeCall = request.safeCall
-        let sema = request.sema, interner = request.interner
 
         if let diagnostic = resolved.diagnostic {
             if diagnostic.code == "KSWIFTK-SEMA-BOUND" {
-                let callee = interner.resolve(calleeName)
+                let callee = request.interner.resolve(request.calleeName)
                 if callee == "sorted" || callee == "sortedDescending" {
-                    ctx.sema.diagnostics.emit(diagnostic)
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    request.ctx.sema.diagnostics.emit(diagnostic)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
             }
             if isClassNameReceiver,
-               args.isEmpty,
+               request.args.isEmpty,
                let classNameReceiverNominalSymbol,
                let staticMember = resolveClassNameMemberValue(
                    ownerNominalSymbol: classNameReceiverNominalSymbol,
-                   memberName: calleeName,
-                   sema: sema
+                   memberName: request.calleeName,
+                   sema: request.sema
                ),
-               !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
-                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               !(receiverQualifierIsTypeAlias(receiverID: request.receiverID, ctx: request.ctx)
+                   && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object),
                // An explicit `()` on a nested `object` is a function invocation,
                // not a value read — fall through so `invoke` can dispatch
                // (KUU-3662).
-               !(ctx.ast.arena.isExplicitCall(id)
-                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
+               !(request.ctx.ast.arena.isExplicitCall(request.id)
+                   && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
-                if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
-                   !ctx.visibilityChecker.isAccessible(
+                if let memberSymbol = request.sema.symbols.symbol(staticMember.symbol),
+                   !request.ctx.visibilityChecker.isAccessible(
                        memberSymbol,
-                       fromFile: ctx.currentFileID,
-                       enclosingClass: ctx.enclosingClassSymbol
+                       fromFile: request.ctx.currentFileID,
+                       enclosingClass: request.ctx.enclosingClassSymbol
                    )
                 {
                     driver.helpers.emitVisibilityError(
                         for: memberSymbol,
-                        name: interner.resolve(calleeName),
-                        range: range,
-                        diagnostics: ctx.sema.diagnostics
+                        name: request.interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
-                sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
-                sema.bindings.bindExprType(id, type: staticMember.type)
+                request.sema.bindings.bindIdentifier(request.id, symbol: staticMember.symbol)
+                request.sema.bindings.bindExprType(request.id, type: staticMember.type)
                 return staticMember.type
             }
             if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                 candidates: candidates,
                 receiverType: lookupReceiverType,
-                calleeName: calleeName,
-                range: range,
-                sema: sema,
-                interner: interner
+                calleeName: request.calleeName,
+                range: request.range,
+                sema: request.sema,
+                interner: request.interner
             ) {
-                ctx.sema.diagnostics.emit(projectionDiagnostic)
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                request.ctx.sema.diagnostics.emit(projectionDiagnostic)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
             if let fallbackType = tryRegexMemberFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 return fallbackType
             }
             if let fallbackType = tryKFunctionMemberFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 return fallbackType
             }
             if let fallbackType = tryStringMemberFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 return fallbackType
             }
             if let fallbackType = tryNativePlacementAllocExtensionFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                explicitTypeArgs: explicitTypeArgs,
-                ctx: ctx
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                explicitTypeArgs: request.explicitTypeArgs,
+                ctx: request.ctx
             ) {
                 return fallbackType
             }
             if let fallbackType = tryNativeCInteropReadValueExtensionFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx
             ) {
                 return fallbackType
             }
             if let fallbackType = tryFileMemberFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 return fallbackType
             }
             if let fallbackType = tryArrayMemberFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 return fallbackType
             }
             if let fallbackType = tryRangeMemberFallback(
-                id,
-                calleeName: calleeName,
+                request.id,
+                calleeName: request.calleeName,
                 isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
+                safeCall: request.safeCall,
+                receiverID: request.receiverID,
+                args: request.args,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 return fallbackType
             }
             if let retried = retryResolutionReinferringNestedCallArguments(
                 candidates: candidates,
-                args: args,
+                args: request.args,
                 argTypes: preparedArgs.argTypes,
-                range: range,
-                calleeName: calleeName,
-                explicitTypeArgs: explicitTypeArgs,
-                expectedType: expectedType,
+                range: request.range,
+                calleeName: request.calleeName,
+                explicitTypeArgs: request.explicitTypeArgs,
+                expectedType: request.expectedType,
                 implicitReceiverType: effectiveReceiverType,
                 lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                 inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                 blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
                 hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-                ctx: ctx,
+                ctx: request.ctx,
                 locals: &locals
             ) {
                 resolved = retried
@@ -229,36 +225,36 @@ extension CallTypeChecker {
                 // non-generic receiver reports "no viable overload"
                 // (KUU-4062).
                 let nullableReceiverProbeResolves: Bool = {
-                    let receiverIsNullableNothing = lookupReceiverType == sema.types.nullableNothingType
-                    guard !safeCall,
+                    let receiverIsNullableNothing = lookupReceiverType == request.sema.types.nullableNothingType
+                    guard !request.safeCall,
                           ((diagnostic.code == "KSWIFTK-SEMA-0002"
                               || diagnostic.code == "KSWIFTK-SEMA-0480")
                               && receiverIsNullableNothing)
                               || (diagnostic.code == "KSWIFTK-TYPE-0001"
-                                  && sema.types.nullability(of: lookupReceiverType) == .nullable)
+                                  && request.sema.types.nullability(of: lookupReceiverType) == .nullable)
                     else {
                         return false
                     }
-                    let probeArgs = zip(args, preparedArgs.argTypes).map { argument, type in
-                        let literal = integerArgumentValues(argument.expr, ctx: ctx)
+                    let probeArgs = zip(request.args, preparedArgs.argTypes).map { argument, type in
+                        let literal = integerArgumentValues(argument.expr, ctx: request.ctx)
                         return CallArg.source(
-                            argument, type: type, callRange: range, ast: ctx.ast,
+                            argument, type: type, callRange: request.range, ast: request.ctx.ast,
                             signedIntegerLiteral: literal.signed,
                             unsignedIntegerLiteral: literal.unsigned
                         )
                     }
-                    let probe = ctx.resolver.resolveCall(
+                    let probe = request.ctx.resolver.resolveCall(
                         candidates: candidates,
                         call: CallExpr(
-                            range: range,
-                            calleeName: calleeName,
+                            range: request.range,
+                            calleeName: request.calleeName,
                             args: probeArgs,
-                            explicitTypeArgs: explicitTypeArgs,
-                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                            explicitTypeArgs: request.explicitTypeArgs,
+                            dispatchReceiverTypes: request.ctx.implicitReceiverMemberLookupEntries().map(\.type)
                         ),
                         expectedType: nil,
-                        implicitReceiverType: sema.types.makeNonNullable(effectiveReceiverType),
-                        ctx: ctx.sema
+                        implicitReceiverType: request.sema.types.makeNonNullable(effectiveReceiverType),
+                        ctx: request.ctx.sema
                     )
                     if probe.chosenCallee != nil {
                         return true
@@ -271,67 +267,67 @@ extension CallTypeChecker {
                 }()
                 let nullableReceiverConstraintFailure: Bool = {
                     guard diagnostic.code == "KSWIFTK-TYPE-0001",
-                          !safeCall,
-                          sema.types.nullability(of: lookupReceiverType) == .nullable,
-                          lookupReceiverType != sema.types.nullableNothingType
+                          !request.safeCall,
+                          request.sema.types.nullability(of: lookupReceiverType) == .nullable,
+                          lookupReceiverType != request.sema.types.nullableNothingType
                     else {
                         return false
                     }
-                    let probeArgs = zip(args, preparedArgs.argTypes).map { argument, type in
-                        let literal = integerArgumentValues(argument.expr, ctx: ctx)
+                    let probeArgs = zip(request.args, preparedArgs.argTypes).map { argument, type in
+                        let literal = integerArgumentValues(argument.expr, ctx: request.ctx)
                         return CallArg.source(
-                            argument, type: type, callRange: range, ast: ctx.ast,
+                            argument, type: type, callRange: request.range, ast: request.ctx.ast,
                             signedIntegerLiteral: literal.signed,
                             unsignedIntegerLiteral: literal.unsigned
                         )
                     }
-                    let probe = ctx.resolver.resolveCall(
+                    let probe = request.ctx.resolver.resolveCall(
                         candidates: candidates,
                         call: CallExpr(
-                            range: range,
-                            calleeName: calleeName,
+                            range: request.range,
+                            calleeName: request.calleeName,
                             args: probeArgs,
-                            explicitTypeArgs: explicitTypeArgs,
-                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                            explicitTypeArgs: request.explicitTypeArgs,
+                            dispatchReceiverTypes: request.ctx.implicitReceiverMemberLookupEntries().map(\.type)
                         ),
-                        expectedType: expectedType,
-                        implicitReceiverType: sema.types.makeNonNullable(effectiveReceiverType),
-                        ctx: ctx.sema
+                        expectedType: request.expectedType,
+                        implicitReceiverType: request.sema.types.makeNonNullable(effectiveReceiverType),
+                        ctx: request.ctx.sema
                     )
                     return probe.chosenCallee != nil
                 }()
                 if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                     candidates: candidates,
                     receiverType: lookupReceiverType,
-                    calleeName: calleeName,
-                    range: range,
-                    sema: sema,
-                    interner: interner
+                    calleeName: request.calleeName,
+                    range: request.range,
+                    sema: request.sema,
+                    interner: request.interner
                 ) {
-                    ctx.sema.diagnostics.emit(projectionDiagnostic)
+                    request.ctx.sema.diagnostics.emit(projectionDiagnostic)
                 } else if nullableReceiverProbeResolves {
-                    if lookupReceiverType == sema.types.nullableNothingType {
-                        ctx.sema.diagnostics.error(
+                    if lookupReceiverType == request.sema.types.nullableNothingType {
+                        request.ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0026",
                             "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                            range: range
+                            range: request.range
                         )
                     } else {
-                        ctx.sema.diagnostics.error(
+                        request.ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0002",
                             "No viable overload found for call.",
-                            range: range
+                            range: request.range
                         )
                     }
                 } else if nullableReceiverConstraintFailure {
-                    ctx.sema.diagnostics.error(
+                    request.ctx.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
-                        range: range
+                        range: request.range
                     )                } else {
-                    ctx.sema.diagnostics.emit(diagnostic)
+                    request.ctx.sema.diagnostics.emit(diagnostic)
                 }
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
         }
 
@@ -352,58 +348,53 @@ extension CallTypeChecker {
         typeAliasConstructor: TypeAliasConstructorContext? = nil,
         locals: inout LocalBindings
     ) -> TypeID {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let safeCall = request.safeCall
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let knownNames = request.knownNames
 
         guard let chosen = resolved.chosenCallee else {
             if isClassNameReceiver,
-               args.isEmpty,
+               request.args.isEmpty,
                let classNameReceiverNominalSymbol,
                let staticMember = resolveClassNameMemberValue(
                    ownerNominalSymbol: classNameReceiverNominalSymbol,
-                   memberName: calleeName,
-                   sema: sema
+                   memberName: request.calleeName,
+                   sema: request.sema
                ),
-               !(receiverQualifierIsTypeAlias(receiverID: receiverID, ctx: ctx)
-                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               !(receiverQualifierIsTypeAlias(receiverID: request.receiverID, ctx: request.ctx)
+                   && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object),
                // An explicit `()` on a nested `object` is a function invocation,
                // not a value read — fall through so `invoke` can dispatch
                // (KUU-3662).
-               !(ctx.ast.arena.isExplicitCall(id)
-                   && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
+               !(request.ctx.ast.arena.isExplicitCall(request.id)
+                   && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
             {
-                if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
-                   !ctx.visibilityChecker.isAccessible(
+                if let memberSymbol = request.sema.symbols.symbol(staticMember.symbol),
+                   !request.ctx.visibilityChecker.isAccessible(
                        memberSymbol,
-                       fromFile: ctx.currentFileID,
-                       enclosingClass: ctx.enclosingClassSymbol
+                       fromFile: request.ctx.currentFileID,
+                       enclosingClass: request.ctx.enclosingClassSymbol
                    )
                 {
                     driver.helpers.emitVisibilityError(
                         for: memberSymbol,
-                        name: interner.resolve(calleeName),
-                        range: range,
-                        diagnostics: ctx.sema.diagnostics
+                        name: request.interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
-                sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
-                sema.bindings.bindExprType(id, type: staticMember.type)
+                request.sema.bindings.bindIdentifier(request.id, symbol: staticMember.symbol)
+                request.sema.bindings.bindExprType(request.id, type: staticMember.type)
                 return staticMember.type
             }
             if let projectionDiagnostic = makeProjectionViolationDiagnostic(
                 candidates: candidates,
                 receiverType: lookupReceiverType,
-                calleeName: calleeName,
-                range: range,
-                sema: sema,
-                interner: interner
+                calleeName: request.calleeName,
+                range: request.range,
+                sema: request.sema,
+                interner: request.interner
             ) {
-                ctx.sema.diagnostics.emit(projectionDiagnostic)
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                request.ctx.sema.diagnostics.emit(projectionDiagnostic)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
             if let fallbackType = tryCommonMemberCallFallbacks(
                 request,
@@ -433,43 +424,43 @@ extension CallTypeChecker {
                 request, memberLookupType: memberLookupType, argTypes: argTypes,
                 isClassNameReceiver: isClassNameReceiver, locals: &locals
             ) { return propertyType }
-            ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            request.ctx.sema.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(request.interner.resolve(request.calleeName))'.", range: request.range)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
         // A member-style call that resolved to a local extension function is
         // a lexical reference to that declaration. Record the identifier
         // binding the callable-value path used to keep on `request.id` so
         // capture analysis and identifier lookups see the resolved local.
-        if sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true {
-            sema.bindings.bindIdentifier(id, symbol: chosen)
+        if request.sema.symbols.symbol(chosen)?.flags.contains(.localFunction) == true {
+            request.sema.bindings.bindIdentifier(request.id, symbol: chosen)
         }
-        markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: args, ctx: ctx)
+        markRegexReplaceLambdaIfNeeded(chosenCallee: chosen, args: request.args, ctx: request.ctx)
         driver.helpers.checkDeprecation(
             for: chosen,
-            sema: sema,
-            interner: interner,
-            range: range,
-            diagnostics: ctx.sema.diagnostics
+            sema: request.sema,
+            interner: request.interner,
+            range: request.range,
+            diagnostics: request.ctx.sema.diagnostics
         )
         driver.helpers.checkOptIn(
             for: chosen,
             constructorTypeAlias: typeAliasConstructor?.typeAliasSymbol,
-            ctx: ctx,
-            range: range,
-            diagnostics: ctx.sema.diagnostics
+            ctx: request.ctx,
+            range: request.range,
+            diagnostics: request.ctx.sema.diagnostics
         )
         if isSuperCall,
-           let chosenSym = sema.symbols.symbol(chosen),
+           let chosenSym = request.sema.symbols.symbol(chosen),
            chosenSym.flags.contains(SymbolFlags.abstractType),
            chosenSym.kind == SymbolKind.function || chosenSym.kind == SymbolKind.property
         {
-            let memberName = interner.resolve(calleeName)
-            ctx.sema.diagnostics.error(
+            let memberName = request.interner.resolve(request.calleeName)
+            request.ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-ABSTRACT",
                 "Cannot call abstract member '\(memberName)' via super.",
-                range: range
+                range: request.range
             )
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
 
         // kotlinc prohibits a super-call from omitting an argument that carries
@@ -481,72 +472,72 @@ extension CallTypeChecker {
         // expression's type -- an error type here would risk cascading into a
         // second, spurious kswiftc-only diagnostic on an unrelated line.
         if isSuperCall,
-           let signature = sema.symbols.functionSignature(for: chosen)
+           let signature = request.sema.symbols.functionSignature(for: chosen)
         {
             let defaultSignature = resolved.defaultArgumentOwner.flatMap {
-                sema.symbols.functionSignature(for: $0)
+                request.sema.symbols.functionSignature(for: $0)
             } ?? signature
             let suppliedParameterIndices = Set(resolved.parameterMapping.values)
             let hasOmittedDefaultArgument = defaultSignature.valueParameterHasDefaultValues.indices.contains { index in
                 defaultSignature.valueParameterHasDefaultValues[index] && !suppliedParameterIndices.contains(index)
             }
             if hasOmittedDefaultArgument {
-                let memberName = interner.resolve(calleeName)
-                ctx.sema.diagnostics.error(
+                let memberName = request.interner.resolve(request.calleeName)
+                request.ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0306",
                     "Super-calls with default arguments are prohibited. Specify all arguments of 'super.\(memberName)' explicitly.",
-                    range: range
+                    range: request.range
                 )
             }
         }
 
         if arrayFillHasWriteForbiddenProjection(
-            chosenCallee: chosen, receiverType: lookupReceiverType, ctx: ctx
+            chosenCallee: chosen, receiverType: lookupReceiverType, ctx: request.ctx
         ) {
-            ctx.sema.diagnostics.error(
+            request.ctx.sema.diagnostics.error(
                 "KSWIFTK-SEMA-VAR-OUT",
                 "A type projection on the receiver prevents calling 'fill' because its element type cannot be written.",
-                range: range
+                range: request.range
             )
-            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
         }
         // Preserve the overload-resolved receivers for member calls. KIR should
         // not have to rediscover them from generic context parameter types.
         let selectedContextReceiverSymbols = contextParameterReceiverSymbols(
             for: chosen,
             substitution: resolved.substitutedTypeArguments,
-            ctx: ctx
+            ctx: request.ctx
         )
-        let selectedDispatchReceiverSymbol = sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
-            ctx.implicitReceiverMemberLookupEntries().first { entry in
+        let selectedDispatchReceiverSymbol = request.sema.symbols.memberExtensionOwnerSymbol(for: chosen).flatMap { owner in
+            request.ctx.implicitReceiverMemberLookupEntries().first { entry in
                 driver.helpers.allNominalSymbols(
                     of: entry.type,
-                    types: sema.types,
-                    symbols: sema.symbols,
-                    interner: interner
+                    types: request.sema.types,
+                    symbols: request.sema.symbols,
+                    interner: request.interner
                 ).contains { receiverSymbol in
-                    receiverSymbol == owner || sema.types.isNominalSubtypeSymbol(receiverSymbol, of: owner)
+                    receiverSymbol == owner || request.sema.types.isNominalSubtypeSymbol(receiverSymbol, of: owner)
                 }
             }?.symbol
         }
-        let projectionReceiverType: TypeID = if calleeName == knownNames.receive,
+        let projectionReceiverType: TypeID = if request.calleeName == request.knownNames.receive,
                                                 let channelBoundReceiverType = ReceiverClassifier(
-                                                    sema: sema,
-                                                    interner: interner
+                                                    sema: request.sema,
+                                                    interner: request.interner
                                                 ).channelUpperBoundType(of: lookupReceiverType) {
             channelBoundReceiverType
         } else {
             lookupReceiverType
         }
-        if let signature = sema.symbols.functionSignature(for: chosen),
-           let varianceResult = sema.types.buildVarianceProjectionSubstitutions(
+        if let signature = request.sema.symbols.functionSignature(for: chosen),
+           let varianceResult = request.sema.types.buildVarianceProjectionSubstitutions(
                receiverType: projectionReceiverType,
                signature: signature,
-               symbols: sema.symbols
+               symbols: request.sema.symbols
            )
         {
-            if !allowsProjectedReceiverUnsafeVariance(chosen, sema: sema, interner: interner),
-               let violatingParamIndex = sema.types.checkVarianceViolationInParameters(
+            if !allowsProjectedReceiverUnsafeVariance(chosen, sema: request.sema, interner: request.interner),
+               let violatingParamIndex = request.sema.types.checkVarianceViolationInParameters(
                    signature: signature,
                    writeForbiddenSymbols: varianceResult.writeForbiddenSymbols,
                    nullableWriteSymbols: varianceResult.nullableWriteSymbols,
@@ -554,26 +545,26 @@ extension CallTypeChecker {
                    parameterMapping: resolved.parameterMapping
                )
             {
-                let paramType = sema.types.displayName(
+                let paramType = request.sema.types.displayName(
                     of: signature.parameterTypes[violatingParamIndex],
-                    symbols: sema.symbols,
-                    interner: interner
+                    symbols: request.sema.symbols,
+                    interner: request.interner
                 )
-                ctx.sema.diagnostics.error(
+                request.ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-VAR-OUT",
-                    "A type projection on the receiver prevents calling '\(interner.resolve(calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
-                    range: range
+                    "A type projection on the receiver prevents calling '\(request.interner.resolve(request.calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
+                    range: request.range
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
 
             // For projected types, merge the solver's substitution with the
             // variance projection (projection overrides receiver type params).
-            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            let typeVarBySymbol = request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             // An inner constructor captures the projected outer argument in
             // its result type. Replacing that capture with the readable upper
             // bound here would let later calls write through an out projection.
-            let mergedSubstitution: [TypeVarID: TypeID] = if sema.symbols.symbol(chosen)?.kind == .constructor {
+            let mergedSubstitution: [TypeVarID: TypeID] = if request.sema.symbols.symbol(chosen)?.kind == .constructor {
                 resolved.substitutedTypeArguments
             } else {
                 resolved.substitutedTypeArguments.merging(
@@ -584,18 +575,18 @@ extension CallTypeChecker {
             if !validateReifiedTypeArguments(
                 for: chosen,
                 substitutedTypeArguments: mergedSubstitution,
-                range: range,
-                sema: sema
+                range: request.range,
+                sema: request.sema
             ) {
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
             let projectedContextReceiverSymbols = contextParameterReceiverSymbols(
                 for: chosen,
                 substitution: mergedSubstitution,
-                ctx: ctx
+                ctx: request.ctx
             )
-            sema.bindings.bindCall(
-                id,
+            request.sema.bindings.bindCall(
+                request.id,
                 binding: CallBinding(
                     chosenCallee: chosen,
                     substitutedTypeArguments: mergedSubstitution
@@ -607,29 +598,29 @@ extension CallTypeChecker {
                     contextParameterReceiverSymbols: projectedContextReceiverSymbols
                 )
             )
-            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-            if sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(interner.intern),
-               let searchType = sema.bindings.callBindings[id]?.substitutedTypeArguments.first {
-                sema.bindings.bindFindAnnotationSearchType(id, type: searchType)
+            request.sema.bindings.bindCallableTarget(request.id, target: .symbol(chosen))
+            if request.sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(request.interner.intern),
+               let searchType = request.sema.bindings.callBindings[request.id]?.substitutedTypeArguments.first {
+                request.sema.bindings.bindFindAnnotationSearchType(request.id, type: searchType)
             }
-            let projectedReturnType = sema.types.substituteTypeParameters(
+            let projectedReturnType = request.sema.types.substituteTypeParameters(
                 in: signature.returnType,
                 substitution: mergedSubstitution,
                 typeVarBySymbol: typeVarBySymbol
             )
-            if isSuperCall { sema.bindings.markSuperCall(id) }
-            let finalType = safeCall ? sema.types.makeNullable(projectedReturnType) : projectedReturnType
-            sema.bindings.bindExprType(id, type: finalType)
+            if isSuperCall { request.sema.bindings.markSuperCall(request.id) }
+            let finalType = request.safeCall ? request.sema.types.makeNullable(projectedReturnType) : projectedReturnType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
 
-        contextualizeArrayReduceRightLambda(args: args, resolved: resolved, ctx: ctx, locals: &locals)
-        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
+        contextualizeArrayReduceRightLambda(args: request.args, resolved: resolved, ctx: request.ctx, locals: &locals)
+        contextualizeResolvedIntegerArguments(args: request.args, resolved: resolved, ctx: request.ctx, locals: &locals)
         let returnType = bindCallAndResolveReturnType(
-            id,
+            request.id,
             chosen: chosen,
             resolved: resolved,
-            sema: sema,
+            sema: request.sema,
             dispatchReceiverSymbol: selectedDispatchReceiverSymbol,
             contextParameterReceiverSymbols: selectedContextReceiverSymbols
         )
@@ -638,27 +629,27 @@ extension CallTypeChecker {
         // through this path, so their `callsInPlace` contracts must be applied
         // here too (not just for the unqualified-call path in CallTypeChecker.swift).
         applyContractEffects(
-            id: id,
+            id: request.id,
             chosen: chosen,
-            args: args,
-            ctx: ctx,
+            args: request.args,
+            ctx: request.ctx,
             locals: &locals
         )
-        let adjustedReturnType: TypeID = if sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
-                                          let block = args.first(where: { $0.label == interner.intern("block") }) ?? args.last
+        let adjustedReturnType: TypeID = if request.sema.symbols.externalLinkName(for: chosen) == "kk_coroutine_scope_async",
+                                          let block = request.args.first(where: { $0.label == request.interner.intern("block") }) ?? request.args.last
         {
             coroutineBuilderNarrowedReturnType(
-                id: id, launcherName: "async", lambdaArgExpr: block.expr,
-                fallback: returnType, ast: ast, sema: sema
+                id: request.id, launcherName: "async", lambdaArgExpr: block.expr,
+                fallback: returnType, ast: request.ast, sema: request.sema
             )
-        } else if sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
-            deferredAwaitResultType(receiverID: receiverID, fallback: returnType, ast: ast, sema: sema)
+        } else if request.sema.symbols.externalLinkName(for: chosen) == "kk_kxmini_async_await" {
+            deferredAwaitResultType(receiverID: request.receiverID, fallback: returnType, ast: request.ast, sema: request.sema)
         } else {
             returnType
         }
-        if isSuperCall { sema.bindings.markSuperCall(id) }
-        let finalType = safeCall ? sema.types.makeNullable(adjustedReturnType) : adjustedReturnType
-        sema.bindings.bindExprType(id, type: finalType)
+        if isSuperCall { request.sema.bindings.markSuperCall(request.id) }
+        let finalType = request.safeCall ? request.sema.types.makeNullable(adjustedReturnType) : adjustedReturnType
+        request.sema.bindings.bindExprType(request.id, type: finalType)
         return finalType
     }
 }

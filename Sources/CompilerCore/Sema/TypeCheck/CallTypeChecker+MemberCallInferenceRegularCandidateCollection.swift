@@ -20,11 +20,6 @@ extension CallTypeChecker {
         locals: LocalBindings,
         typeAliasConstructor: inout TypeAliasConstructorContext?
     ) -> (allCandidates: [SymbolID], companionReceiverType: TypeID?, earlyReturnType: TypeID?) {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let expectedType = request.expectedType
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let knownNames = request.knownNames
 
         // Track the companion type so we can pass it (not the owner class type)
         // as the implicit receiver when resolving the call.
@@ -39,30 +34,30 @@ extension CallTypeChecker {
                 guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
                 // In a platform module, resolve through the implementation companion
                 // so member calls bind to actual declarations with emitted symbols.
-                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
-                   let blockCompanion = companionBlockSymbol(for: actualOwner, sema: sema, interner: interner)
+                if let actualOwner = request.sema.symbols.actualSymbol(for: ownerNominal),
+                   let blockCompanion = companionBlockSymbol(for: actualOwner, sema: request.sema, interner: request.interner)
                 {
                     return blockCompanion
                 }
-                if let blockCompanion = companionBlockSymbol(for: ownerNominal, sema: sema, interner: interner) {
+                if let blockCompanion = companionBlockSymbol(for: ownerNominal, sema: request.sema, interner: request.interner) {
                     return blockCompanion
                 }
                 return nil
             }()
             let classNameReceiverSourceCompanionSymbol: SymbolID? = {
                 guard let ownerNominal = classNameReceiverNominalSymbol else { return nil }
-                if let actualOwner = sema.symbols.actualSymbol(for: ownerNominal),
-                   let companion = sema.symbols.companionObjectSymbol(for: actualOwner)
+                if let actualOwner = request.sema.symbols.actualSymbol(for: ownerNominal),
+                   let companion = request.sema.symbols.companionObjectSymbol(for: actualOwner)
                 {
                     return companion
                 }
-                return sema.symbols.companionObjectSymbol(for: ownerNominal)
+                return request.sema.symbols.companionObjectSymbol(for: ownerNominal)
             }()
             let classNameReceiverCompanionSymbol = classNameReceiverBlockSymbol
                 ?? classNameReceiverSourceCompanionSymbol
             let companionExtensionReceiverType = classNameReceiverNominalSymbol.flatMap { owner in
-                sema.symbols.symbol(owner).map { _ in
-                    sema.types.make(.classType(ClassType(
+                request.sema.symbols.symbol(owner).map { _ in
+                    request.sema.types.make(.classType(ClassType(
                         classSymbol: owner,
                         args: [],
                         nullability: .nonNull
@@ -70,101 +65,101 @@ extension CallTypeChecker {
                 }
             }
             if let companionSymbol = classNameReceiverCompanionSymbol {
-                let companionTypeForExtensionLookup = sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
+                let companionTypeForExtensionLookup = request.sema.types.make(.classType(ClassType(classSymbol: companionSymbol, args: [], nullability: .nonNull)))
 
                 // When args are present this is a function call, so skip the
                 // property short-circuit to avoid shadowing a companion function
                 // of the same name.
-                if args.isEmpty {
+                if request.args.isEmpty {
                     let directPropertyReceivers = [
                         classNameReceiverBlockSymbol.map { ($0, companionTypeForExtensionLookup) },
                         classNameReceiverSourceCompanionSymbol.map { symbol in
-                            (symbol, sema.types.make(.classType(ClassType(
+                            (symbol, request.sema.types.make(.classType(ClassType(
                                 classSymbol: symbol, args: [], nullability: .nonNull
                             ))))
                         },
                     ].compactMap { $0 }
                     let directProperty = directPropertyReceivers.first { _, receiverType in
                         driver.helpers.lookupMemberProperty(
-                            named: calleeName,
+                            named: request.calleeName,
                             receiverType: receiverType,
-                            sema: sema
+                            sema: request.sema
                         ) != nil
                     }.flatMap { _, receiverType in
                         driver.helpers.lookupMemberProperty(
-                            named: calleeName,
+                            named: request.calleeName,
                             receiverType: receiverType,
-                            sema: sema
+                            sema: request.sema
                         ).map { ($0, receiverType) }
                     }
                     if let (propResult, propertyReceiverType) = directProperty {
                         let propSymbol = propResult.symbol
                         let propType = propResult.type
-                        if let propSym = sema.symbols.symbol(propSymbol),
-                           !ctx.visibilityChecker.isAccessible(
+                        if let propSym = request.sema.symbols.symbol(propSymbol),
+                           !request.ctx.visibilityChecker.isAccessible(
                                propSym,
-                               fromFile: ctx.currentFileID,
-                               enclosingClass: ctx.enclosingClassSymbol
+                               fromFile: request.ctx.currentFileID,
+                               enclosingClass: request.ctx.enclosingClassSymbol
                            )
                         {
-                            driver.helpers.emitVisibilityError(for: propSym, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
-                            return ([], companionReceiverType, driver.helpers.bindAndReturnErrorType(id, sema: sema))
+                            driver.helpers.emitVisibilityError(for: propSym, name: request.interner.resolve(request.calleeName), range: request.range, diagnostics: request.ctx.sema.diagnostics)
+                            return ([], companionReceiverType, driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema))
                         }
                         driver.helpers.checkDeprecation(
                             for: propSymbol,
-                            sema: sema,
-                            interner: interner,
-                            range: range,
-                            diagnostics: ctx.sema.diagnostics
+                            sema: request.sema,
+                            interner: request.interner,
+                            range: request.range,
+                            diagnostics: request.ctx.sema.diagnostics
                         )
                         driver.helpers.checkOptIn(
                             for: propSymbol,
-                            ctx: ctx,
-                            range: range,
-                            diagnostics: ctx.sema.diagnostics
+                            ctx: request.ctx,
+                            range: request.range,
+                            diagnostics: request.ctx.sema.diagnostics
                         )
                         // Re-bind receiver to companion type for correct KIR lowering
-                        sema.bindings.bindExprType(receiverID, type: propertyReceiverType)
-                        sema.bindings.bindIdentifier(id, symbol: propSymbol)
-                        sema.bindings.bindExprType(id, type: propType)
+                        request.sema.bindings.bindExprType(request.receiverID, type: propertyReceiverType)
+                        request.sema.bindings.bindIdentifier(request.id, symbol: propSymbol)
+                        request.sema.bindings.bindExprType(request.id, type: propType)
                         return ([], companionReceiverType, propType)
                     }
 
                     if let sourceCompanion = classNameReceiverSourceCompanionSymbol,
                        sourceCompanion != classNameReceiverBlockSymbol
                     {
-                        let sourceCompanionType = sema.types.make(.classType(ClassType(
+                        let sourceCompanionType = request.sema.types.make(.classType(ClassType(
                             classSymbol: sourceCompanion, args: [], nullability: .nonNull
                         )))
                         if let extensionPropertyType = resolveExtensionPropertyGetter(
-                            id: id,
-                            calleeName: calleeName,
-                            range: range,
+                            id: request.id,
+                            calleeName: request.calleeName,
+                            range: request.range,
                             receiverType: sourceCompanionType,
-                            expectedType: expectedType,
-                            ctx: ctx
+                            expectedType: request.expectedType,
+                            ctx: request.ctx
                         ) {
-                            sema.bindings.bindExprType(receiverID, type: sourceCompanionType)
-                            sema.bindings.bindExprType(id, type: extensionPropertyType)
+                            request.sema.bindings.bindExprType(request.receiverID, type: sourceCompanionType)
+                            request.sema.bindings.bindExprType(request.id, type: extensionPropertyType)
                             return ([], sourceCompanionType, extensionPropertyType)
                         }
                     }
                     if let ownerReceiverType = companionExtensionReceiverType,
                        let extensionPropertyType = resolveExtensionPropertyGetter(
-                           id: id,
-                           calleeName: calleeName,
-                           range: range,
+                           id: request.id,
+                           calleeName: request.calleeName,
+                           range: request.range,
                            receiverType: ownerReceiverType,
-                           expectedType: expectedType,
-                           ctx: ctx,
+                           expectedType: request.expectedType,
+                           ctx: request.ctx,
                            invocationCandidateFilter: { candidate in
-                               self.isCompanionExtension(candidate, ctx: ctx)
+                               self.isCompanionExtension(candidate, ctx: request.ctx)
                            }
                        )
                     {
                         companionReceiverType = ownerReceiverType
-                        sema.bindings.bindExprType(receiverID, type: ownerReceiverType)
-                        sema.bindings.bindExprType(id, type: extensionPropertyType)
+                        request.sema.bindings.bindExprType(request.receiverID, type: ownerReceiverType)
+                        request.sema.bindings.bindExprType(request.id, type: extensionPropertyType)
                         return ([], companionReceiverType, extensionPropertyType)
                     }
                 }
@@ -174,10 +169,10 @@ extension CallTypeChecker {
                 var selectedCompanionReceiverType: TypeID?
                 if classNameReceiverBlockSymbol != nil {
                     companionCandidates = driver.helpers.collectMemberFunctionCandidates(
-                        named: calleeName,
+                        named: request.calleeName,
                         receiverType: companionTypeForExtensionLookup,
-                        sema: sema,
-                        interner: interner
+                        sema: request.sema,
+                        interner: request.interner
                     )
                     if !companionCandidates.isEmpty {
                         selectedCompanionReceiverType = companionTypeForExtensionLookup
@@ -187,14 +182,14 @@ extension CallTypeChecker {
                    let sourceCompanion = classNameReceiverSourceCompanionSymbol,
                    sourceCompanion != classNameReceiverBlockSymbol
                 {
-                    let sourceCompanionType = sema.types.make(.classType(ClassType(
+                    let sourceCompanionType = request.sema.types.make(.classType(ClassType(
                         classSymbol: sourceCompanion, args: [], nullability: .nonNull
                     )))
                     companionCandidates = driver.helpers.collectMemberFunctionCandidates(
-                        named: calleeName,
+                        named: request.calleeName,
                         receiverType: sourceCompanionType,
-                        sema: sema,
-                        interner: interner
+                        sema: request.sema,
+                        interner: request.interner
                     )
                     if !companionCandidates.isEmpty {
                         selectedCompanionReceiverType = sourceCompanionType
@@ -204,9 +199,9 @@ extension CallTypeChecker {
                    let ownerReceiverType = companionExtensionReceiverType
                 {
                     companionCandidates = companionExtensionFunctionCandidates(
-                        named: calleeName,
+                        named: request.calleeName,
                         ownerReceiverType: ownerReceiverType,
-                        ctx: ctx
+                        ctx: request.ctx
                     )
                     if !companionCandidates.isEmpty {
                         selectedCompanionReceiverType = ownerReceiverType
@@ -217,22 +212,22 @@ extension CallTypeChecker {
                 // member-call inference. Recover those synthetic
                 // declarations by short name for class-name receivers.
                 let syntheticCompanionCandidates = {
-                    sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                        guard let symbol = sema.symbols.symbol(candidate),
+                    request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                        guard let symbol = request.sema.symbols.symbol(candidate),
                               symbol.kind == .function,
                               symbol.flags.contains(.synthetic),
-                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let signature = request.sema.symbols.functionSignature(for: candidate),
                               let recv = signature.receiverType
                         else {
                             return false
                         }
-                        guard self.isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
+                        guard self.isUnsignedRandomExtensionVisible(symbol, named: request.calleeName, ctx: request.ctx) else {
                             return false
                         }
                         return self.extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: companionTypeForExtensionLookup,
                             declaredReceiver: recv,
-                            sema: sema
+                            sema: request.sema
                         )
                     }
                 }
@@ -242,16 +237,16 @@ extension CallTypeChecker {
                     // written as Kotlin source at package scope. These are resolved
                     // via scope lookup (like ordinary extension functions), not the
                     // companion member lookup above.
-                    companionCandidates = ctx.cachedScopeLookup(calleeName, matching: { candidate in
-                        guard let symbol = ctx.cachedSymbol(candidate),
+                    companionCandidates = request.ctx.cachedScopeLookup(request.calleeName, matching: { candidate in
+                        guard let symbol = request.ctx.cachedSymbol(candidate),
                               symbol.kind == .function,
-                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let signature = request.sema.symbols.functionSignature(for: candidate),
                               let recv = signature.receiverType
                         else { return false }
                         return extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: companionTypeForExtensionLookup,
                             declaredReceiver: recv,
-                            sema: sema
+                            sema: request.sema
                         )
                     })
                     if !companionCandidates.isEmpty {
@@ -278,37 +273,37 @@ extension CallTypeChecker {
                     companionReceiverType = selectedCompanionReceiverType
                     // Re-bind receiver expression to companion type so KIR
                     // lowering passes the selected implementation receiver.
-                    sema.bindings.bindExprType(receiverID, type: selectedCompanionReceiverType)
+                    request.sema.bindings.bindExprType(request.receiverID, type: selectedCompanionReceiverType)
                 }
                 allCandidates = companionCandidates
             } else {
                 if let ownerReceiverType = companionExtensionReceiverType {
-                    if args.isEmpty,
+                    if request.args.isEmpty,
                        let extensionPropertyType = resolveExtensionPropertyGetter(
-                           id: id,
-                           calleeName: calleeName,
-                           range: range,
+                           id: request.id,
+                           calleeName: request.calleeName,
+                           range: request.range,
                            receiverType: ownerReceiverType,
-                           expectedType: expectedType,
-                           ctx: ctx,
+                           expectedType: request.expectedType,
+                           ctx: request.ctx,
                            invocationCandidateFilter: { candidate in
-                               self.isCompanionExtension(candidate, ctx: ctx)
+                               self.isCompanionExtension(candidate, ctx: request.ctx)
                            }
                        )
                     {
                         companionReceiverType = ownerReceiverType
-                        sema.bindings.bindExprType(receiverID, type: ownerReceiverType)
-                        sema.bindings.bindExprType(id, type: extensionPropertyType)
+                        request.sema.bindings.bindExprType(request.receiverID, type: ownerReceiverType)
+                        request.sema.bindings.bindExprType(request.id, type: extensionPropertyType)
                         return ([], companionReceiverType, extensionPropertyType)
                     }
                     allCandidates = companionExtensionFunctionCandidates(
-                        named: calleeName,
+                        named: request.calleeName,
                         ownerReceiverType: ownerReceiverType,
-                        ctx: ctx
+                        ctx: request.ctx
                     )
                     if !allCandidates.isEmpty {
                         companionReceiverType = ownerReceiverType
-                        sema.bindings.bindExprType(receiverID, type: ownerReceiverType)
+                        request.sema.bindings.bindExprType(request.receiverID, type: ownerReceiverType)
                     }
                 } else {
                     allCandidates = []
@@ -320,21 +315,21 @@ extension CallTypeChecker {
             let hasScopedExactRangeExtension = rangeSourceMemberLookupType.map { sourceReceiverType in
                 guard isULongProgressionFirstLastMember,
                       let sourceReceiverSymbol = driver.helpers.nominalSymbol(
-                    of: sema.types.makeNonNullable(sourceReceiverType),
-                    types: sema.types
+                    of: request.sema.types.makeNonNullable(sourceReceiverType),
+                    types: request.sema.types
                 ) else {
                     return false
                 }
-                return ctx.cachedScopeLookup(calleeName).contains { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
+                return request.ctx.cachedScopeLookup(request.calleeName).contains { candidate in
+                    guard let symbol = request.sema.symbols.symbol(candidate),
                           symbol.kind == .function,
                           !symbol.flags.contains(.synthetic),
-                          let signature = sema.symbols.functionSignature(for: candidate),
-                          signature.parameterTypes.count == args.count,
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes.count == request.args.count,
                           let declaredReceiver = signature.receiverType,
                           let declaredReceiverSymbol = driver.helpers.nominalSymbol(
-                              of: sema.types.makeNonNullable(declaredReceiver),
-                              types: sema.types
+                              of: request.sema.types.makeNonNullable(declaredReceiver),
+                              types: request.sema.types
                           )
                     else {
                         return false
@@ -346,10 +341,10 @@ extension CallTypeChecker {
                 ? []
                 : rangeSourceMemberLookupType.map {
                     collectRangeSourceExtensionCandidates(
-                        named: calleeName,
+                        named: request.calleeName,
                         receiverType: $0,
-                        sema: sema,
-                        interner: interner
+                        sema: request.sema,
+                        interner: request.interner
                     )
                 } ?? []
             // Source-backed range overloads are recovered from the bundled
@@ -359,90 +354,90 @@ extension CallTypeChecker {
             // keep it ahead of the bundled candidates so a user declaration
             // is not silently replaced by the stdlib fallback.
             let rangeReceiverKind = MemberRuntimeDispatch.rangeReceiverKind(
-                receiverExpr: receiverID,
+                receiverExpr: request.receiverID,
                 receiverType: lookupReceiverType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
-            let scopedRangeUserCandidates: [SymbolID] = if calleeName == knownNames.contains,
+            let scopedRangeUserCandidates: [SymbolID] = if request.calleeName == request.knownNames.contains,
                                                                let rangeSourceMemberLookupType,
                                                                rangeReceiverKind == .intRange
             {
                 collectScopedRangeUserExtensionCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     receiverType: rangeSourceMemberLookupType,
-                    ctx: ctx,
-                    sema: sema,
-                    interner: interner
+                    ctx: request.ctx,
+                    sema: request.sema,
+                    interner: request.interner
                 ).filter { candidate in
-                    guard isIntRangeCrossTypeContainsCandidate(candidate, sema: sema),
-                          args.count == 1,
+                    guard isIntRangeCrossTypeContainsCandidate(candidate, sema: request.sema),
+                          request.args.count == 1,
                           argTypes.count == 1,
-                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes[0] == argTypes[0]
                     else {
                         return false
                     }
-                    guard let label = args[0].label else { return true }
+                    guard let label = request.args[0].label else { return true }
                     guard signature.valueParameterSymbols.count == 1,
-                          let parameter = sema.symbols.symbol(signature.valueParameterSymbols[0])
+                          let parameter = request.sema.symbols.symbol(signature.valueParameterSymbols[0])
                     else {
                         return false
                     }
                     return parameter.name == label
                 }
-            } else if calleeName == knownNames.contains,
+            } else if request.calleeName == request.knownNames.contains,
                       let rangeSourceMemberLookupType,
                       rangeReceiverKind == .uintRange
             {
                 collectScopedRangeUserExtensionCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     receiverType: rangeSourceMemberLookupType,
-                    ctx: ctx,
-                    sema: sema,
-                    interner: interner
+                    ctx: request.ctx,
+                    sema: request.sema,
+                    interner: request.interner
                 ).filter { candidate in
-                    guard isUIntRangeCrossTypeContainsCandidate(candidate, sema: sema),
-                          args.count == 1,
+                    guard isUIntRangeCrossTypeContainsCandidate(candidate, sema: request.sema),
+                          request.args.count == 1,
                           argTypes.count == 1,
-                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes[0] == argTypes[0]
                     else {
                         return false
                     }
-                    guard let label = args[0].label else { return true }
+                    guard let label = request.args[0].label else { return true }
                     guard signature.valueParameterSymbols.count == 1,
-                          let parameter = sema.symbols.symbol(signature.valueParameterSymbols[0])
+                          let parameter = request.sema.symbols.symbol(signature.valueParameterSymbols[0])
                     else {
                         return false
                     }
                     return parameter.name == label
                 }
-            } else if calleeName == knownNames.contains,
+            } else if request.calleeName == request.knownNames.contains,
                       let rangeSourceMemberLookupType,
                       rangeReceiverKind == .longRange,
                       !isLongRangeLiteralContainsCall
             {
                 collectScopedRangeUserExtensionCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     receiverType: rangeSourceMemberLookupType,
-                    ctx: ctx,
-                    sema: sema,
-                    interner: interner
+                    ctx: request.ctx,
+                    sema: request.sema,
+                    interner: request.interner
                 ).filter { candidate in
-                    guard args.count == 1,
+                    guard request.args.count == 1,
                           argTypes.count == 1,
-                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
                           signature.parameterTypes.count == 1,
                           signature.parameterTypes[0] == argTypes[0],
-                          [sema.types.byteType, sema.types.intType, sema.types.shortType]
+                          [request.sema.types.byteType, request.sema.types.intType, request.sema.types.shortType]
                               .contains(signature.parameterTypes[0])
                     else {
                         return false
                     }
-                    guard let label = args[0].label else { return true }
+                    guard let label = request.args[0].label else { return true }
                     guard signature.valueParameterSymbols.count == 1,
-                          let parameter = sema.symbols.symbol(signature.valueParameterSymbols[0])
+                          let parameter = request.sema.symbols.symbol(signature.valueParameterSymbols[0])
                     else {
                         return false
                     }
@@ -452,78 +447,78 @@ extension CallTypeChecker {
                 []
             }
             let bundledStdlibCandidates = collectBundledStdlibExtensionCandidates(
-                named: calleeName,
+                named: request.calleeName,
                 receiverType: memberLookupType,
-                sourceFile: ctx.currentASTFile,
-                sema: sema,
-                interner: interner
+                sourceFile: request.ctx.currentASTFile,
+                sema: request.sema,
+                interner: request.interner
             )
             let instantValueSemanticsCandidates = collectInstantValueSemanticsCandidates(
-                named: calleeName,
+                named: request.calleeName,
                 receiverType: memberLookupType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
             let primitiveArraySourceCandidates = collectPrimitiveArraySourceMembers(
-                named: calleeName,
+                named: request.calleeName,
                 receiverType: memberLookupType,
-                sema: sema,
-                interner: interner
+                sema: request.sema,
+                interner: request.interner
             )
             let arrayConversionSourceCandidates = collectArraySourceBackedCandidates(
-                named: calleeName,
+                named: request.calleeName,
                 receiverType: memberLookupType,
-                arguments: args,
-                ctx: ctx,
-                sema: sema,
-                interner: interner
+                arguments: request.args,
+                ctx: request.ctx,
+                sema: request.sema,
+                interner: request.interner
             )
             var mutableMapPutAllSourceCandidates: [SymbolID] = []
-            if calleeName == knownNames.putAll,
-               ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
-               args.count == 1,
+            if request.calleeName == request.knownNames.putAll,
+               ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
+               request.args.count == 1,
                let argumentType = argTypes.first,
-               !ReceiverClassifier(sema: sema, interner: interner).isMapLikeCollectionType(argumentType)
+               !ReceiverClassifier(sema: request.sema, interner: request.interner).isMapLikeCollectionType(argumentType)
             {
-                let argumentExpr = args[0].expr
-                let isArrayArgument = ReceiverClassifier(sema: sema, interner: interner)
+                let argumentExpr = request.args[0].expr
+                let isArrayArgument = ReceiverClassifier(sema: request.sema, interner: request.interner)
                     .isArrayLikeReceiver(receiverID: argumentExpr)
-                let isSequenceArgument = ReceiverClassifier(sema: sema, interner: interner)
+                let isSequenceArgument = ReceiverClassifier(sema: request.sema, interner: request.interner)
                     .isSequenceLikeType(argumentType)
-                mutableMapPutAllSourceCandidates = sema.symbols.lookupAll(
-                    fqName: knownNames.kotlinCollectionsPackage + [calleeName]
+                mutableMapPutAllSourceCandidates = request.sema.symbols.lookupAll(
+                    fqName: request.knownNames.kotlinCollectionsPackage + [request.calleeName]
                 ).filter { candidate in
-                    guard let candidateSymbol = sema.symbols.symbol(candidate),
+                    guard let candidateSymbol = request.sema.symbols.symbol(candidate),
                           candidateSymbol.kind == .function,
                           (!candidateSymbol.flags.contains(.synthetic)
-                              || sema.symbols.isSourceBackedSymbol(candidate)),
-                          let signature = sema.symbols.functionSignature(for: candidate),
+                              || request.sema.symbols.isSourceBackedSymbol(candidate)),
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
                           let receiver = signature.receiverType,
                           signature.parameterTypes.count == 1,
-                          let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
-                          let receiverInfo = sema.symbols.symbol(receiverSymbol),
+                          let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: request.sema.types),
+                          let receiverInfo = request.sema.symbols.symbol(receiverSymbol),
                           let parameterSymbol = driver.helpers.nominalSymbol(
-                              of: signature.parameterTypes[0], types: sema.types
+                              of: signature.parameterTypes[0], types: request.sema.types
                           ),
-                          let parameterInfo = sema.symbols.symbol(parameterSymbol)
+                          let parameterInfo = request.sema.symbols.symbol(parameterSymbol)
                     else {
                         return false
                     }
-                    guard receiverInfo.fqName == knownNames.kotlinCollectionsMutableMapFQName else {
+                    guard receiverInfo.fqName == request.knownNames.kotlinCollectionsMutableMapFQName else {
                         return false
                     }
                     if isArrayArgument {
-                        return parameterInfo.fqName == knownNames.kotlinArrayFQName
+                        return parameterInfo.fqName == request.knownNames.kotlinArrayFQName
                     }
                     if isSequenceArgument {
-                        return parameterInfo.fqName == knownNames.kotlinSequenceFQName
+                        return parameterInfo.fqName == request.knownNames.kotlinSequenceFQName
                     }
-                    return parameterInfo.fqName == knownNames.kotlinCollectionsIterableFQName
+                    return parameterInfo.fqName == request.knownNames.kotlinCollectionsIterableFQName
                 }
             }
             let standardMemberCandidates: [SymbolID]
             let workerMemberCandidates = collectWorkerMemberCandidates(
-                named: calleeName, receiverType: memberLookupType, sema: sema, interner: interner
+                named: request.calleeName, receiverType: memberLookupType, sema: request.sema, interner: request.interner
             )
             if !workerMemberCandidates.isEmpty {
                 standardMemberCandidates = workerMemberCandidates
@@ -553,11 +548,11 @@ extension CallTypeChecker {
                 standardMemberCandidates = bundledStdlibCandidates
             } else {
                 standardMemberCandidates = driver.helpers.collectMemberFunctionCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     receiverType: memberLookupType,
-                    sema: sema,
+                    sema: request.sema,
                     allowedOwnerSymbols: allowedOwnerSymbols,
-                    interner: interner
+                    interner: request.interner
                 )
             }
             // Duration.toString(DurationUnit, Int) is a bundled source extension
@@ -567,7 +562,7 @@ extension CallTypeChecker {
             // call would stop at the zero-argument member and never reach the
             // normal extension fallback.
             let sourceBackedOverloads: [SymbolID] = {
-                let memberName = interner.resolve(calleeName)
+                let memberName = request.interner.resolve(request.calleeName)
                 // kotlinx.io.bytestring Base64 codec functions are bundled source
                 // extensions whose first parameter is ByteString, disjoint from
                 // every same-named kotlin.io.encoding.Base64 member's
@@ -580,29 +575,29 @@ extension CallTypeChecker {
                     return []
                 }
                 if memberName == "toString" {
-                    guard !args.isEmpty else { return [] }
+                    guard !request.args.isEmpty else { return [] }
                 } else if memberName == "replace" {
-                    guard args.count == 2,
-                          ast.arena.expr(args[1].expr)?.isLambdaOrCallableRef == true
+                    guard request.args.count == 2,
+                          request.ast.arena.expr(request.args[1].expr)?.isLambdaOrCallableRef == true
                     else {
                         return []
                     }
                 }
-                let receiverForExtensionLookup = sema.types.makeNonNullable(memberLookupType)
-                return sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                    guard sema.symbols.isSourceBackedSymbol(candidate),
-                          let symbol = sema.symbols.symbol(candidate),
+                let receiverForExtensionLookup = request.sema.types.makeNonNullable(memberLookupType)
+                return request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                    guard request.sema.symbols.isSourceBackedSymbol(candidate),
+                          let symbol = request.sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
                           let declaredReceiver = signature.receiverType,
-                          signature.parameterTypes.count >= args.count
+                          signature.parameterTypes.count >= request.args.count
                     else {
                         return false
                     }
                     guard extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: receiverForExtensionLookup,
                         declaredReceiver: declaredReceiver,
-                        sema: sema
+                        sema: request.sema
                     ) else {
                         return false
                     }
@@ -616,19 +611,19 @@ extension CallTypeChecker {
                     // implicit `it` type before overload resolution rejects the
                     // String replacement candidate.
                     func isNominalType(_ type: TypeID, fqName: [String]) -> Bool {
-                        guard let nominal = driver.helpers.nominalSymbol(of: type, types: sema.types),
-                              let symbol = sema.symbols.symbol(nominal)
+                        guard let nominal = driver.helpers.nominalSymbol(of: type, types: request.sema.types),
+                              let symbol = request.sema.symbols.symbol(nominal)
                         else {
                             return false
                         }
-                        return symbol.fqName.map(interner.resolve) == fqName
+                        return symbol.fqName.map(request.interner.resolve) == fqName
                     }
-                    guard args.count == 2,
+                    guard request.args.count == 2,
                           signature.parameterTypes.count == 2,
                           isNominalType(declaredReceiver, fqName: ["kotlin", "CharSequence"]),
                           isNominalType(signature.parameterTypes[0], fqName: ["kotlin", "text", "Regex"]),
-                          case let .functionType(transformType) = sema.types.kind(
-                              of: sema.types.makeNonNullable(signature.parameterTypes[1])
+                          case let .functionType(transformType) = request.sema.types.kind(
+                              of: request.sema.types.makeNonNullable(signature.parameterTypes[1])
                           ),
                           transformType.params.count == 1,
                           isNominalType(transformType.params[0], fqName: ["kotlin", "text", "MatchResult"]),
@@ -648,21 +643,21 @@ extension CallTypeChecker {
             let unfilteredMemberCandidates = (sourceBackedOverloads + standardMemberCandidates).filter {
                 seenMemberCandidates.insert($0).inserted
                     && primitiveCompareToCandidateMatches(
-                        $0, calleeName: calleeName, receiverType: memberLookupType,
-                        argTypes: argTypes, sema: sema
+                        $0, calleeName: request.calleeName, receiverType: memberLookupType,
+                        argTypes: argTypes, sema: request.sema
                     )
             }
             // An applicable reflective callBy already returned from its contextual
             // fast path. Let the ordinary extension lookup try both function and
             // KFunction receiver views when that member was inapplicable.
             let inapplicableReflectiveCallBy = callableReferenceFunctionType != nil
-                && calleeName == knownNames.callBy
-                ? sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(interner.intern)) : nil
+                && request.calleeName == request.knownNames.callBy
+                ? request.sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(request.interner.intern)) : nil
             // Infix eligibility precedes the member/extension priority decision.
             let memberCandidates = unfilteredMemberCandidates.filter {
                 $0 != inapplicableReflectiveCallBy
-                    && (!ast.arena.isExplicitCall(id) || !isSyntheticCharPropertyFacadeFunction($0, ctx: ctx))
-                    && (!ast.arena.isInfixCall(id) || sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true)
+                    && (!request.ast.arena.isExplicitCall(request.id) || !isSyntheticCharPropertyFacadeFunction($0, ctx: request.ctx))
+                    && (!request.ast.arena.isInfixCall(request.id) || request.sema.symbols.symbol($0)?.flags.contains(.infixFunction) == true)
             }
             // KUU-4345: for primitive receivers the member probe also surfaces
             // kotlin/kotlin.ranges/kotlin.text package extensions as
@@ -674,15 +669,15 @@ extension CallTypeChecker {
             // nothing nearer applies.
             let effectiveMemberCandidates: [SymbolID] = {
                 let primitiveProbePackages: [[InternedString]] = [
-                    [knownNames.kotlin],
-                    knownNames.kotlinRangesPackage,
-                    knownNames.kotlinTextPackage,
+                    [request.knownNames.kotlin],
+                    request.knownNames.kotlinRangesPackage,
+                    request.knownNames.kotlinTextPackage,
                 ]
                 func isPrimitiveProbePseudoMember(_ candidate: SymbolID) -> Bool {
-                    guard let parent = sema.symbols.parentSymbol(for: candidate),
-                          let parentSymbol = sema.symbols.symbol(parent),
+                    guard let parent = request.sema.symbols.parentSymbol(for: candidate),
+                          let parentSymbol = request.sema.symbols.symbol(parent),
                           parentSymbol.kind == .package,
-                          sema.symbols.functionSignature(for: candidate)?.receiverType != nil
+                          request.sema.symbols.functionSignature(for: candidate)?.receiverType != nil
                     else {
                         return false
                     }
@@ -695,20 +690,20 @@ extension CallTypeChecker {
                     return memberCandidates
                 }
                 let scopedExtensionCandidates = collectExtensionCallCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     memberLookupType: memberLookupType,
                     isSuperCall: isSuperCall,
                     supertypeSymbols: supertypeSymbols,
-                    ctx: ctx,
+                    ctx: request.ctx,
                     locals: locals,
-                    sema: sema,
-                    interner: interner,
+                    sema: request.sema,
+                    interner: request.interner,
                     callShapeMatches: {
                         self.extensionCandidateMatchesCallShape(
                             $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
                         )
                     },
-                    requiresInfix: ast.arena.isInfixCall(id)
+                    requiresInfix: request.ast.arena.isInfixCall(request.id)
                 )
                 // A nearer-scope extension only shadows the pseudo-members
                 // when it can actually apply to this call; an inapplicable
@@ -725,29 +720,29 @@ extension CallTypeChecker {
                 // Check if the found candidates belong to a companion object so we
                 // can supply the correct implicit receiver type later.
                 if let first = effectiveMemberCandidates.first,
-                   let parentSymbol = sema.symbols.parentSymbol(for: first),
-                   let ownerNominal = driver.helpers.nominalSymbol(of: memberLookupType, types: sema.types),
+                   let parentSymbol = request.sema.symbols.parentSymbol(for: first),
+                   let ownerNominal = driver.helpers.nominalSymbol(of: memberLookupType, types: request.sema.types),
                    parentSymbol != ownerNominal,
-                   sema.symbols.companionObjectSymbol(for: ownerNominal) == parentSymbol
+                   request.sema.symbols.companionObjectSymbol(for: ownerNominal) == parentSymbol
                 {
-                    companionReceiverType = sema.types.make(.classType(ClassType(classSymbol: parentSymbol, args: [], nullability: .nonNull)))
+                    companionReceiverType = request.sema.types.make(.classType(ClassType(classSymbol: parentSymbol, args: [], nullability: .nonNull)))
                 }
                 allCandidates = effectiveMemberCandidates
             } else {
                 let innerCtorCandidates = driver.helpers.collectInnerClassConstructorCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     receiverType: memberLookupType,
-                    sema: sema,
-                    interner: interner
+                    sema: request.sema,
+                    interner: request.interner
                 )
                 if !innerCtorCandidates.isEmpty {
                     allCandidates = innerCtorCandidates
                 } else if let aliasConstructors = driver.helpers.collectInnerClassTypeAliasConstructorCandidates(
-                    named: calleeName,
+                    named: request.calleeName,
                     receiverType: memberLookupType,
                     explicitTypeArgs: request.explicitTypeArgs,
-                    ctx: ctx,
-                    interner: interner
+                    ctx: request.ctx,
+                    interner: request.interner
                 ) {
                     allCandidates = aliasConstructors.candidates
                     typeAliasConstructor = aliasConstructors.typeAliasConstructor
@@ -759,76 +754,76 @@ extension CallTypeChecker {
                         // receiver type retains its parameter list. Reflection-specific
                         // extensions still use the KFunction lookup below as a fallback.
                         allCandidates = collectExtensionCallCandidates(
-                            named: calleeName,
+                            named: request.calleeName,
                             memberLookupType: callableReferenceFunctionType,
                             isSuperCall: isSuperCall,
                             supertypeSymbols: supertypeSymbols,
-                            ctx: ctx,
+                            ctx: request.ctx,
                             locals: locals,
-                            sema: sema,
-                            interner: interner,
+                            sema: request.sema,
+                            interner: request.interner,
                             callShapeMatches: {
                                 self.extensionCandidateMatchesCallShape(
                                     $0, request: request, argumentTypes: argTypes,
                                     receiverType: callableReferenceFunctionType
                                 )
                             },
-                            requiresInfix: ast.arena.isInfixCall(id)
+                            requiresInfix: request.ast.arena.isInfixCall(request.id)
                         )
                     } else {
                         allCandidates = []
                     }
                     if allCandidates.isEmpty {
                         allCandidates = collectExtensionCallCandidates(
-                            named: calleeName,
+                            named: request.calleeName,
                             memberLookupType: memberLookupType,
                             isSuperCall: isSuperCall,
                             supertypeSymbols: supertypeSymbols,
-                            ctx: ctx,
+                            ctx: request.ctx,
                             locals: locals,
-                            sema: sema,
-                            interner: interner,
+                            sema: request.sema,
+                            interner: request.interner,
                             callShapeMatches: {
                                 self.extensionCandidateMatchesCallShape(
                                     $0, request: request, argumentTypes: argTypes, receiverType: memberLookupType
                                 )
                             },
-                            requiresInfix: ast.arena.isInfixCall(id)
+                            requiresInfix: request.ast.arena.isInfixCall(request.id)
                         )
                     }
                 }
             }
         }
-        if ast.arena.isExplicitCall(id) {
-            allCandidates.removeAll { isSyntheticCharPropertyFacadeFunction($0, ctx: ctx) }
+        if request.ast.arena.isExplicitCall(request.id) {
+            allCandidates.removeAll { isSyntheticCharPropertyFacadeFunction($0, ctx: request.ctx) }
         }
         // With no visible extension, retain the member for ordinary mismatch
         // diagnostics instead of accepting an invalid parameter map.
         if allCandidates.isEmpty,
            callableReferenceFunctionType != nil,
-           calleeName == knownNames.callBy,
-           let member = sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(interner.intern))
+           request.calleeName == request.knownNames.callBy,
+           let member = request.sema.symbols.lookup(fqName: ["kotlin", "reflect", "KCallable", "callBy"].map(request.interner.intern))
         {
             allCandidates = [member]
         }
         // If no infix callable exists, retain the ordinary lookup only for the
         // missing-modifier diagnostic enforced at the member-call entry point.
         // An existing but inapplicable infix candidate must never take this path.
-        if ast.arena.isInfixCall(id), allCandidates.isEmpty {
+        if request.ast.arena.isInfixCall(request.id), allCandidates.isEmpty {
             allCandidates = driver.helpers.collectMemberFunctionCandidates(
-                named: calleeName, receiverType: memberLookupType,
-                sema: sema, interner: interner
+                named: request.calleeName, receiverType: memberLookupType,
+                sema: request.sema, interner: request.interner
             ).filter {
                 primitiveCompareToCandidateMatches(
-                    $0, calleeName: calleeName, receiverType: memberLookupType,
-                    argTypes: argTypes, sema: sema
+                    $0, calleeName: request.calleeName, receiverType: memberLookupType,
+                    argTypes: argTypes, sema: request.sema
                 )
             }
             if allCandidates.isEmpty {
                 allCandidates = collectExtensionCallCandidates(
-                    named: calleeName, memberLookupType: memberLookupType,
+                    named: request.calleeName, memberLookupType: memberLookupType,
                     isSuperCall: isSuperCall, supertypeSymbols: supertypeSymbols,
-                    ctx: ctx, locals: locals, sema: sema, interner: interner
+                    ctx: request.ctx, locals: locals, sema: request.sema, interner: request.interner
                 )
             }
         }
@@ -836,24 +831,24 @@ extension CallTypeChecker {
         // addition to the retained interface member. Prefer the Kotlin source
         // declaration for ordinary MutableMap receiver calls while preserving
         // the synthetic member for interface and lowering bridges.
-        if calleeName == knownNames.remove,
-           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
-           args.count == 1
+        if request.calleeName == request.knownNames.remove,
+           ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
+           request.args.count == 1
         {
-            let mutableMapRemoveCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                guard let candidateSymbol = sema.symbols.symbol(candidate),
+            let mutableMapRemoveCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                guard let candidateSymbol = request.sema.symbols.symbol(candidate),
                       candidateSymbol.kind == .function,
                       (!candidateSymbol.flags.contains(.synthetic)
-                          || sema.symbols.isSourceBackedSymbol(candidate)),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                          || request.sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == 1,
                       let receiver = signature.receiverType,
-                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
-                      let symbol = sema.symbols.symbol(receiverSymbol)
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: request.sema.types),
+                      let symbol = request.sema.symbols.symbol(receiverSymbol)
                 else {
                     return false
                 }
-                return symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName
+                return symbol.fqName == request.knownNames.kotlinCollectionsMutableMapFQName
             }
             if !mutableMapRemoveCandidates.isEmpty {
                 allCandidates = mutableMapRemoveCandidates
@@ -863,19 +858,19 @@ extension CallTypeChecker {
         // is MutableIterator<MutableMap.MutableEntry<K, V>>. If the inherited
         // synthetic collection surface won the initial lookup, prefer the
         // exact bundled extension before ordinary overload resolution.
-        if calleeName == knownNames.iterator,
-           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType)
+        if request.calleeName == request.knownNames.iterator,
+           ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType)
         {
-            let mutableMapIteratorCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                guard sema.symbols.isSourceBackedSymbol(candidate),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+            let mutableMapIteratorCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                guard request.sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       let receiver = signature.receiverType,
-                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
-                      let symbol = sema.symbols.symbol(receiverSymbol)
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: request.sema.types),
+                      let symbol = request.sema.symbols.symbol(receiverSymbol)
                 else {
                     return false
                 }
-                return symbol.fqName == knownNames.kotlinCollectionsMutableMapFQName
+                return symbol.fqName == request.knownNames.kotlinCollectionsMutableMapFQName
             }
             if !mutableMapIteratorCandidates.isEmpty {
                 allCandidates = mutableMapIteratorCandidates
@@ -885,24 +880,24 @@ extension CallTypeChecker {
         // MutableMap delegated accessor has the same short name but requires
         // `(thisRef, KProperty<*>)`; keep that two-argument delegate surface
         // out of ordinary one-argument member calls.
-        if calleeName == knownNames.getValue,
-           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
-           args.count == 1
+        if request.calleeName == request.knownNames.getValue,
+           ReceiverClassifier(sema: request.sema, interner: request.interner).isMutableMapType(memberLookupType),
+           request.args.count == 1
         {
-            let mapGetValueCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                guard let candidateSymbol = sema.symbols.symbol(candidate),
+            let mapGetValueCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                guard let candidateSymbol = request.sema.symbols.symbol(candidate),
                       candidateSymbol.kind == .function,
                       (!candidateSymbol.flags.contains(.synthetic)
-                          || sema.symbols.isSourceBackedSymbol(candidate)),
-                      let signature = sema.symbols.functionSignature(for: candidate),
+                          || request.sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = request.sema.symbols.functionSignature(for: candidate),
                       signature.parameterTypes.count == 1,
                       let receiver = signature.receiverType,
-                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
-                      let symbol = sema.symbols.symbol(receiverSymbol)
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: request.sema.types),
+                      let symbol = request.sema.symbols.symbol(receiverSymbol)
                 else {
                     return false
                 }
-                return symbol.fqName == knownNames.kotlinCollectionsMapFQName
+                return symbol.fqName == request.knownNames.kotlinCollectionsMapFQName
             }
             if !mapGetValueCandidates.isEmpty {
                 allCandidates = mapGetValueCandidates

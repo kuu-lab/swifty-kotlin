@@ -59,19 +59,7 @@ extension CallTypeChecker {
         init(
             checker: CallTypeChecker,
             driver: TypeCheckDriver,
-            id: ExprID,
-            receiverID: ExprID,
-            calleeName: InternedString,
-            args: [CallArgument],
-            range: SourceRange,
-            ctx: TypeInferenceContext,
-            expectedType: TypeID?,
-            explicitTypeArgs: [TypeID],
-            safeCall: Bool,
-            ast: ASTModule,
-            sema: SemaModule,
-            interner: StringInterner,
-            knownNames: KnownCompilerNames,
+            request: MemberCallInferenceRequest,
             receiverType: TypeID,
             receiverClassifier: ReceiverClassifier,
             receiverClassification: ReceiverClassification,
@@ -97,19 +85,19 @@ extension CallTypeChecker {
         ) {
             self.checker = checker
             self.driver = driver
-            self.id = id
-            self.receiverID = receiverID
-            self.calleeName = calleeName
-            self.args = args
-            self.range = range
-            self.ctx = ctx
-            self.expectedType = expectedType
-            self.explicitTypeArgs = explicitTypeArgs
-            self.safeCall = safeCall
-            self.ast = ast
-            self.sema = sema
-            self.interner = interner
-            self.knownNames = knownNames
+            self.id = request.id
+            self.receiverID = request.receiverID
+            self.calleeName = request.calleeName
+            self.args = request.args
+            self.range = request.range
+            self.ctx = request.ctx
+            self.expectedType = request.expectedType
+            self.explicitTypeArgs = request.explicitTypeArgs
+            self.safeCall = request.safeCall
+            self.ast = request.ast
+            self.sema = request.sema
+            self.interner = request.interner
+            self.knownNames = request.knownNames
             self.receiverType = receiverType
             self.receiverClassifier = receiverClassifier
             self.receiverClassification = receiverClassification

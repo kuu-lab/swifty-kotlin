@@ -33,43 +33,42 @@ extension CallTypeChecker {
         typeOverride: TypeID? = nil,
         locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx, sema = request.sema
-        guard var type = typeOverride ?? sema.symbols.propertyType(for: property) else { return false }
+        guard var type = typeOverride ?? request.sema.symbols.propertyType(for: property) else { return false }
         if typeOverride == nil,
-           let owner = sema.symbols.parentSymbol(for: property),
-           let info = sema.symbols.symbol(owner),
+           let owner = request.sema.symbols.parentSymbol(for: property),
+           let info = request.sema.symbols.symbol(owner),
            info.kind == .class || info.kind == .interface || info.kind == .object {
-            let ownerType = sema.types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
-            if let dispatch = ctx.implicitReceiverMemberLookupEntries().map(\.type).first(where: {
-                if sema.types.isSubtype($0, ownerType) { return true }
-                guard case let .classType(receiver) = sema.types.kind(of: sema.types.makeNonNullable($0)) else { return false }
-                return sema.types.isNominalSubtypeSymbol(receiver.classSymbol, of: owner)
+            let ownerType = request.sema.types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+            if let dispatch = request.ctx.implicitReceiverMemberLookupEntries().map(\.type).first(where: {
+                if request.sema.types.isSubtype($0, ownerType) { return true }
+                guard case let .classType(receiver) = request.sema.types.kind(of: request.sema.types.makeNonNullable($0)) else { return false }
+                return request.sema.types.isNominalSubtypeSymbol(receiver.classSymbol, of: owner)
             }) {
-                type = driver.helpers.resolveMemberPropertyType(type, receiverType: dispatch, ownerSymbol: owner, sema: sema)
+                type = driver.helpers.resolveMemberPropertyType(type, receiverType: dispatch, ownerSymbol: owner, sema: request.sema)
             }
         }
         if typeOverride == nil,
-           let getter = sema.symbols.extensionPropertyGetterAccessor(for: property),
-           let signature = sema.symbols.functionSignature(for: getter),
+           let getter = request.sema.symbols.extensionPropertyGetterAccessor(for: property),
+           let signature = request.sema.symbols.functionSignature(for: getter),
            !signature.typeParameterSymbols.isEmpty {
-            let resolution = ctx.resolver.resolveCall(
+            let resolution = request.ctx.resolver.resolveCall(
                 candidates: [getter],
                 call: CallExpr(range: request.range, calleeName: request.calleeName, args: [],
-                               dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)),
+                               dispatchReceiverTypes: request.ctx.implicitReceiverMemberLookupEntries().map(\.type)),
                 expectedType: nil, implicitReceiverType: receiverType,
-                ctx: ctx.sema
+                ctx: request.ctx.sema
             )
             guard resolution.chosenCallee != nil else { return false }
-            type = sema.types.substituteTypeParameters(
+            type = request.sema.types.substituteTypeParameters(
                 in: type, substitution: resolution.substitutedTypeArguments,
-                typeVarBySymbol: sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                typeVarBySymbol: request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
             )
         }
-        guard case let .functionType(function) = sema.types.kind(of: type) else {
+        guard case let .functionType(function) = request.sema.types.kind(of: type) else {
             return nominalCallablePropertyAcceptsArgumentShape(type, request: request, argTypes: argTypes, locals: locals)
         }
         guard request.explicitTypeArgs.isEmpty else { return false }
-        if sema.symbols.extensionPropertyReceiverType(for: property) != nil {
+        if request.sema.symbols.extensionPropertyReceiverType(for: property) != nil {
             return callableValueAcceptsArgumentShape(
                 function, receiverIsExplicit: true,
                 request: request, argTypes: argTypes, locals: locals
@@ -88,7 +87,7 @@ extension CallTypeChecker {
             )
         }
         guard argTypes.count == function.params.count,
-              sema.types.isSubtype(sema.types.makeNonNullable(receiverType), functionReceiver)
+              request.sema.types.isSubtype(request.sema.types.makeNonNullable(receiverType), functionReceiver)
         else {
             return false
         }
@@ -105,7 +104,6 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx, sema = request.sema
         guard
               function.nullability == .nonNull,
               !request.args.contains(where: { $0.label != nil || $0.isSpread }) else { return false }
@@ -114,22 +112,22 @@ extension CallTypeChecker {
         guard parameterTypes.count == request.args.count else { return false }
         for (index, argument) in request.args.enumerated() {
             let parameter = parameterTypes[index]
-            switch ctx.ast.arena.expr(argument.expr) {
+            switch request.ctx.ast.arena.expr(argument.expr) {
             case let .lambdaLiteral(params, _, _, _):
-                guard let callback = callableArgumentFunctionType(parameter, ctx: ctx) else {
-                    if case .typeParam = sema.types.kind(of: parameter) { continue }
-                    if callableArgumentAcceptsUnknownArity(parameter, isReference: false, ctx: ctx) { continue }
+                guard let callback = callableArgumentFunctionType(parameter, ctx: request.ctx) else {
+                    if case .typeParam = request.sema.types.kind(of: parameter) { continue }
+                    if callableArgumentAcceptsUnknownArity(parameter, isReference: false, ctx: request.ctx) { continue }
                     return false
                 }
                 if params.isEmpty {
                     if callback.params.count > 1 { return false }
                 } else if params.count != callback.params.count { return false }
             case .callableRef:
-                guard callableReferenceAcceptsArgumentType(argument.expr, parameter: parameter, ctx: ctx, locals: locals) else { return false }
+                guard callableReferenceAcceptsArgumentType(argument.expr, parameter: parameter, ctx: request.ctx, locals: locals) else { return false }
             default:
-                if case .typeParam = sema.types.kind(of: parameter) { continue }
-                guard sema.types.isSubtype(argTypes[index], parameter)
-                    || integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) else { return false }
+                if case .typeParam = request.sema.types.kind(of: parameter) { continue }
+                guard request.sema.types.isSubtype(argTypes[index], parameter)
+                    || integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: request.ctx) else { return false }
             }
         }
         return true

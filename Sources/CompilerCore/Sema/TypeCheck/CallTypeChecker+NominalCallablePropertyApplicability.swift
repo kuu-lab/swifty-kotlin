@@ -4,27 +4,26 @@ extension CallTypeChecker {
     func nominalCallablePropertyInvokeCandidates(
         _ type: TypeID, request: MemberCallInferenceRequest, argTypes: [TypeID], locals: LocalBindings
     ) -> [SymbolID] {
-        let ctx = request.ctx, sema = request.sema
-        let invoke = ctx.interner.intern("invoke")
+        let invoke = request.ctx.interner.intern("invoke")
         let visibleOperator: (SymbolID) -> Bool = { candidate in
-            guard let symbol = sema.symbols.symbol(candidate) else { return false }
+            guard let symbol = request.sema.symbols.symbol(candidate) else { return false }
             return symbol.flags.contains(.operatorFunction)
-                && ctx.visibilityChecker.isAccessible(symbol, fromFile: ctx.currentFileID, enclosingClass: ctx.enclosingClassSymbol)
+                && request.ctx.visibilityChecker.isAccessible(symbol, fromFile: request.ctx.currentFileID, enclosingClass: request.ctx.enclosingClassSymbol)
         }
         let members = driver.helpers.collectMemberFunctionCandidates(
-            named: invoke, receiverType: type, sema: sema, interner: ctx.interner
+            named: invoke, receiverType: type, sema: request.sema, interner: request.ctx.interner
         ).filter(visibleOperator)
-        let nonNullType = sema.types.makeNonNullable(type)
+        let nonNullType = request.sema.types.makeNonNullable(type)
         let dispatchExtensions = collectDispatchReceiverMemberExtensionCandidates(
-            named: invoke, extensionReceiverType: nonNullType, ctx: ctx
+            named: invoke, extensionReceiverType: nonNullType, ctx: request.ctx
         ).filter(visibleOperator)
-        let scopedExtensions = ctx.cachedScopeLookup(invoke).filter { candidate in
+        let scopedExtensions = request.ctx.cachedScopeLookup(invoke).filter { candidate in
             guard visibleOperator(candidate),
-                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let signature = request.sema.symbols.functionSignature(for: candidate),
                   let declaredReceiver = signature.receiverType
             else { return false }
             return extensionSyntheticFallbackReceiverMatches(
-                callSiteReceiver: nonNullType, declaredReceiver: declaredReceiver, sema: sema
+                callSiteReceiver: nonNullType, declaredReceiver: declaredReceiver, sema: request.sema
             )
         }
 
@@ -57,16 +56,15 @@ extension CallTypeChecker {
         _ candidates: [SymbolID], receiverType: TypeID, request: MemberCallInferenceRequest,
         argTypes: [TypeID], locals: LocalBindings
     ) -> Bool {
-        let ctx = request.ctx, sema = request.sema
-        let invoke = ctx.interner.intern("invoke")
+        let invoke = request.ctx.interner.intern("invoke")
         let callArgs = zip(request.args, argTypes).map { argument, type in
-            CallArg.source(argument, type: type, callRange: request.range, ast: ctx.ast)
+            CallArg.source(argument, type: type, callRange: request.range, ast: request.ctx.ast)
         }
         for candidate in candidates {
-            guard let signature = sema.symbols.functionSignature(for: candidate),
-                  let mapping = ctx.resolver.buildParameterMapping(
-                    signature: signature, callArgs: callArgs, symbols: sema.symbols, typeSystem: sema.types,
-                    isCallableArgument: { self.isLambdaOrCallableRefArg(request.args[$0].expr, ast: ctx.ast) }
+            guard let signature = request.sema.symbols.functionSignature(for: candidate),
+                  let mapping = request.ctx.resolver.buildParameterMapping(
+                    signature: signature, callArgs: callArgs, symbols: request.sema.symbols, typeSystem: request.sema.types,
+                    isCallableArgument: { self.isLambdaOrCallableRefArg(request.args[$0].expr, ast: request.ctx.ast) }
                   ) else { continue }
             var replacements: [Int: TypeID] = [:]
             var matches = true
@@ -76,38 +74,38 @@ extension CallTypeChecker {
                     break
                 }
                 var parameter = signature.parameterTypes[parameterIndex]
-                if let owner = sema.symbols.parentSymbol(for: candidate) {
+                if let owner = request.sema.symbols.parentSymbol(for: candidate) {
                     parameter = driver.helpers.resolveMemberPropertyType(
-                        parameter, receiverType: receiverType, ownerSymbol: owner, sema: sema
+                        parameter, receiverType: receiverType, ownerSymbol: owner, sema: request.sema
                     )
                 }
-                switch ctx.ast.arena.expr(argument.expr) {
+                switch request.ctx.ast.arena.expr(argument.expr) {
                 case let .lambdaLiteral(params, _, _, _):
-                    if let function = callableArgumentFunctionType(parameter, ctx: ctx) {
+                    if let function = callableArgumentFunctionType(parameter, ctx: request.ctx) {
                         if params.isEmpty ? function.params.count > 1 : params.count != function.params.count {
                             matches = false
                         }
-                    } else if !callableArgumentAcceptsUnknownArity(parameter, isReference: false, ctx: ctx) {
+                    } else if !callableArgumentAcceptsUnknownArity(parameter, isReference: false, ctx: request.ctx) {
                         matches = false
                     }
                     replacements[index] = parameter
                 case .callableRef:
                     matches = matches && callableReferenceAcceptsArgumentType(
-                        argument.expr, parameter: parameter, ctx: ctx, locals: locals
+                        argument.expr, parameter: parameter, ctx: request.ctx, locals: locals
                     )
                     replacements[index] = parameter
                 default:
-                    if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: ctx) {
+                    if integerLiteralFitsParameter(argument.expr, parameterType: parameter, ctx: request.ctx) {
                         replacements[index] = parameter
                     }
                 }
             }
             guard matches else { continue }
-            let probe = ctx.resolver.probeCall(
+            let probe = request.ctx.resolver.probeCall(
                 candidates: [candidate],
                 call: CallExpr(range: request.range, calleeName: invoke, args: callArgs, explicitTypeArgs: request.explicitTypeArgs),
                 expectedType: nil, implicitReceiverType: receiverType,
-                candidateArgumentTypes: [candidate: replacements], ctx: ctx.sema
+                candidateArgumentTypes: [candidate: replacements], ctx: request.ctx.sema
             )
             if !probe.viableCandidates.isEmpty { return true }
         }

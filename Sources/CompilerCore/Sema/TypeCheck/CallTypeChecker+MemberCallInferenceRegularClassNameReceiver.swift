@@ -11,71 +11,66 @@ extension CallTypeChecker {
         argTypes: [TypeID],
         locals: inout LocalBindings
     ) -> TypeID? {
-        let id = request.id, receiverID = request.receiverID, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let expectedType = request.expectedType, explicitTypeArgs = request.explicitTypeArgs
-        let ast = request.ast, sema = request.sema, interner = request.interner
-        let knownNames = request.knownNames
 
         // KUU-3237: a typealias qualifier cannot reach nested classifiers
         // (`A2.Nested`, `A2.Inner`, `A2.Companion` are all unresolved in
         // Kotlin), but companion members and enum entries stay visible
         // through the alias, so only `.object` member values are skipped.
         let receiverViaTypeAlias = receiverQualifierIsTypeAlias(
-            receiverID: request.receiverID, ctx: ctx
+            receiverID: request.receiverID, ctx: request.ctx
         )
         if isClassNameReceiver,
-           args.isEmpty,
+           request.args.isEmpty,
            let ownerSymbol = classNameReceiverNominalSymbol,
            let staticMember = resolveClassNameMemberValue(
                ownerNominalSymbol: ownerSymbol,
-               memberName: calleeName,
-               sema: sema
+               memberName: request.calleeName,
+               sema: request.sema
            ),
            !(receiverViaTypeAlias
-               && sema.symbols.symbol(staticMember.symbol)?.kind == .object),
+               && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object),
            // An explicit `()` on a nested `object` is a function invocation,
            // not a value read — fall through so `invoke` can dispatch
            // (KUU-3662).
-           !(ast.arena.isExplicitCall(id)
-               && sema.symbols.symbol(staticMember.symbol)?.kind == .object)
+           !(request.ast.arena.isExplicitCall(request.id)
+               && request.sema.symbols.symbol(staticMember.symbol)?.kind == .object)
         {
-            if let memberSymbol = sema.symbols.symbol(staticMember.symbol),
-               !ctx.visibilityChecker.isAccessible(
+            if let memberSymbol = request.sema.symbols.symbol(staticMember.symbol),
+               !request.ctx.visibilityChecker.isAccessible(
                    memberSymbol,
-                   fromFile: ctx.currentFileID,
-                   enclosingClass: ctx.enclosingClassSymbol
+                   fromFile: request.ctx.currentFileID,
+                   enclosingClass: request.ctx.enclosingClassSymbol
                )
             {
-                driver.helpers.emitVisibilityError(for: memberSymbol, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                driver.helpers.emitVisibilityError(for: memberSymbol, name: request.interner.resolve(request.calleeName), range: request.range, diagnostics: request.ctx.sema.diagnostics)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
-            sema.bindings.bindIdentifier(id, symbol: staticMember.symbol)
-            sema.bindings.bindExprType(id, type: staticMember.type)
+            request.sema.bindings.bindIdentifier(request.id, symbol: staticMember.symbol)
+            request.sema.bindings.bindExprType(request.id, type: staticMember.type)
             return staticMember.type
         }
 
         if isClassNameReceiver,
            let ownerSymbol = classNameReceiverNominalSymbol,
-           let owner = sema.symbols.symbol(ownerSymbol)
+           let owner = request.sema.symbols.symbol(ownerSymbol)
         {
-            let staticMethodFQName = owner.fqName + [calleeName]
-            var staticMethodCandidates = sema.symbols.lookupAll(fqName: staticMethodFQName).filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
+            let staticMethodFQName = owner.fqName + [request.calleeName]
+            var staticMethodCandidates = request.sema.symbols.lookupAll(fqName: staticMethodFQName).filter { candidate in
+                guard let symbol = request.sema.symbols.symbol(candidate),
                       symbol.kind == .function,
-                      sema.symbols.parentSymbol(for: candidate) == ownerSymbol,
-                      let signature = sema.symbols.functionSignature(for: candidate)
+                      request.sema.symbols.parentSymbol(for: candidate) == ownerSymbol,
+                      let signature = request.sema.symbols.functionSignature(for: candidate)
                 else {
                     return false
                 }
                 return signature.receiverType == nil
             }
             if staticMethodCandidates.isEmpty {
-                staticMethodCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
+                staticMethodCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                    guard let symbol = request.sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          sema.symbols.parentSymbol(for: candidate) == ownerSymbol,
-                          let signature = sema.symbols.functionSignature(for: candidate)
+                          request.sema.symbols.parentSymbol(for: candidate) == ownerSymbol,
+                          let signature = request.sema.symbols.functionSignature(for: candidate)
                     else {
                         return false
                     }
@@ -83,42 +78,42 @@ extension CallTypeChecker {
                 }
             }
             if !staticMethodCandidates.isEmpty {
-                let (visibleStaticMethods, invisibleStaticMethods) = ctx.filterByVisibility(staticMethodCandidates)
+                let (visibleStaticMethods, invisibleStaticMethods) = request.ctx.filterByVisibility(staticMethodCandidates)
                 if let firstInvisible = invisibleStaticMethods.first {
                     driver.helpers.emitVisibilityError(
                         for: firstInvisible,
-                        name: interner.resolve(calleeName),
-                        range: range,
-                        diagnostics: ctx.sema.diagnostics
+                        name: request.interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
                 if !visibleStaticMethods.isEmpty {
-                    let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
+                    let callArgs = zip(request.args, argTypes).map { arg, type in
+                        CallArg.source(arg, type: type, callRange: request.range, ast: request.ctx.ast)
                     }
                     let call = CallExpr(
-                        range: range,
-                        calleeName: calleeName,
+                        range: request.range,
+                        calleeName: request.calleeName,
                         args: callArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: request.explicitTypeArgs
                     )
-                    let resolved = ctx.resolver.resolveCall(
+                    let resolved = request.ctx.resolver.resolveCall(
                         candidates: visibleStaticMethods,
                         call: call,
-                        expectedType: expectedType,
-                        ctx: sema
+                        expectedType: request.expectedType,
+                        ctx: request.sema
                     )
                     if let diagnostic = resolved.diagnostic {
-                        ctx.sema.diagnostics.emit(diagnostic)
-                        return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                        request.ctx.sema.diagnostics.emit(diagnostic)
+                        return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                     }
                     if let chosen = resolved.chosenCallee,
-                       let signature = sema.symbols.functionSignature(for: chosen)
+                       let signature = request.sema.symbols.functionSignature(for: chosen)
                     {
-                        bindResolvedFunctionValueSamArguments(id, chosen: chosen, resolved: resolved, sema: sema)
-                        sema.bindings.bindCall(
-                            id,
+                        bindResolvedFunctionValueSamArguments(request.id, chosen: chosen, resolved: resolved, sema: request.sema)
+                        request.sema.bindings.bindCall(
+                            request.id,
                             binding: CallBinding(
                                 chosenCallee: chosen,
                                 substitutedTypeArguments: resolved.substitutedTypeArguments
@@ -127,15 +122,15 @@ extension CallTypeChecker {
                                 parameterMapping: resolved.parameterMapping
                             )
                         )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                        sema.bindings.bindIdentifier(id, symbol: chosen)
-                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-                        let resultType = sema.types.substituteTypeParameters(
+                        request.sema.bindings.bindCallableTarget(request.id, target: .symbol(chosen))
+                        request.sema.bindings.bindIdentifier(request.id, symbol: chosen)
+                        let typeVarBySymbol = request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let resultType = request.sema.types.substituteTypeParameters(
                             in: signature.returnType,
                             substitution: resolved.substitutedTypeArguments,
                             typeVarBySymbol: typeVarBySymbol
                         )
-                        sema.bindings.bindExprType(id, type: resultType)
+                        request.sema.bindings.bindExprType(request.id, type: resultType)
                         return resultType
                     }
                 }
@@ -149,42 +144,42 @@ extension CallTypeChecker {
                 // remain companion members. Imported stdlib artifacts expose the
                 // source-backed form as synthetic symbols, so recover it by short
                 // name when it is not present in the file scope.
-                let ownerType = sema.types.make(.classType(ClassType(
+                let ownerType = request.sema.types.make(.classType(ClassType(
                     classSymbol: ownerSymbol,
                     args: [],
                     nullability: .nonNull
                 )))
-                if args.isEmpty,
-                   sema.bundledIndex.contains(
+                if request.args.isEmpty,
+                   request.sema.bundledIndex.contains(
                        ownerFQName: owner.fqName,
-                       name: calleeName,
+                       name: request.calleeName,
                        arity: 0
                    ),
                    let extensionPropertyType = resolveExtensionPropertyGetter(
-                       id: id,
-                       calleeName: calleeName,
-                       range: range,
+                       id: request.id,
+                       calleeName: request.calleeName,
+                       range: request.range,
                        receiverType: ownerType,
-                       expectedType: expectedType,
-                       ctx: ctx
+                       expectedType: request.expectedType,
+                       ctx: request.ctx
                    )
                 {
-                    sema.bindings.bindExprType(receiverID, type: ownerType)
-                    sema.bindings.bindExprType(id, type: extensionPropertyType)
+                    request.sema.bindings.bindExprType(request.receiverID, type: ownerType)
+                    request.sema.bindings.bindExprType(request.id, type: extensionPropertyType)
                     return extensionPropertyType
                 }
 
-                var ownerExtensionCandidates = ctx.cachedScopeLookup(calleeName).filter { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate),
+                var ownerExtensionCandidates = request.ctx.cachedScopeLookup(request.calleeName).filter { candidate in
+                    guard let symbol = request.sema.symbols.symbol(candidate),
                           symbol.kind == .function,
-                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let signature = request.sema.symbols.functionSignature(for: candidate),
                           let receiver = signature.receiverType
                     else {
                         return false
                     }
-                    guard sema.bundledIndex.contains(
+                    guard request.sema.bundledIndex.contains(
                         ownerFQName: owner.fqName,
-                        name: calleeName,
+                        name: request.calleeName,
                         arity: signature.parameterTypes.count
                     ) else {
                         return false
@@ -192,25 +187,25 @@ extension CallTypeChecker {
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: ownerType,
                         declaredReceiver: receiver,
-                        sema: sema
+                        sema: request.sema
                     )
                 }
                 if ownerExtensionCandidates.isEmpty {
-                    ownerExtensionCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                        guard let symbol = sema.symbols.symbol(candidate),
+                    ownerExtensionCandidates = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                        guard let symbol = request.sema.symbols.symbol(candidate),
                               symbol.kind == .function,
                               symbol.flags.contains(.synthetic),
-                              let signature = sema.symbols.functionSignature(for: candidate),
+                              let signature = request.sema.symbols.functionSignature(for: candidate),
                               let receiver = signature.receiverType
                         else {
                             return false
                         }
-                        guard isUnsignedRandomExtensionVisible(symbol, named: calleeName, ctx: ctx) else {
+                        guard isUnsignedRandomExtensionVisible(symbol, named: request.calleeName, ctx: request.ctx) else {
                             return false
                         }
-                        guard sema.bundledIndex.contains(
+                        guard request.sema.bundledIndex.contains(
                             ownerFQName: owner.fqName,
-                            name: calleeName,
+                            name: request.calleeName,
                             arity: signature.parameterTypes.count
                         ) else {
                             return false
@@ -218,46 +213,46 @@ extension CallTypeChecker {
                         return extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: ownerType,
                             declaredReceiver: receiver,
-                            sema: sema
+                            sema: request.sema
                         )
                     }
                 }
-                let (visibleOwnerExtensions, invisibleOwnerExtensions) = ctx.filterByVisibility(ownerExtensionCandidates)
+                let (visibleOwnerExtensions, invisibleOwnerExtensions) = request.ctx.filterByVisibility(ownerExtensionCandidates)
                 if let firstInvisible = invisibleOwnerExtensions.first {
                     driver.helpers.emitVisibilityError(
                         for: firstInvisible,
-                        name: interner.resolve(calleeName),
-                        range: range,
-                        diagnostics: ctx.sema.diagnostics
+                        name: request.interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
                 if !visibleOwnerExtensions.isEmpty {
-                    let callArgs = zip(args, argTypes).map { arg, type in
-                        CallArg.source(arg, type: type, callRange: range, ast: ctx.ast)
+                    let callArgs = zip(request.args, argTypes).map { arg, type in
+                        CallArg.source(arg, type: type, callRange: request.range, ast: request.ctx.ast)
                     }
                     let call = CallExpr(
-                        range: range,
-                        calleeName: calleeName,
+                        range: request.range,
+                        calleeName: request.calleeName,
                         args: callArgs,
-                        explicitTypeArgs: explicitTypeArgs
+                        explicitTypeArgs: request.explicitTypeArgs
                     )
-                    let resolved = ctx.resolver.resolveCall(
+                    let resolved = request.ctx.resolver.resolveCall(
                         candidates: visibleOwnerExtensions,
                         call: call,
-                        expectedType: expectedType,
+                        expectedType: request.expectedType,
                         implicitReceiverType: ownerType,
-                        ctx: sema
+                        ctx: request.sema
                     )
                     if let diagnostic = resolved.diagnostic {
-                        ctx.sema.diagnostics.emit(diagnostic)
-                        return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                        request.ctx.sema.diagnostics.emit(diagnostic)
+                        return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                     }
                     if let chosen = resolved.chosenCallee,
-                       let signature = sema.symbols.functionSignature(for: chosen)
+                       let signature = request.sema.symbols.functionSignature(for: chosen)
                     {
-                        sema.bindings.bindCall(
-                            id,
+                        request.sema.bindings.bindCall(
+                            request.id,
                             binding: CallBinding(
                                 chosenCallee: chosen,
                                 substitutedTypeArguments: resolved.substitutedTypeArguments
@@ -266,29 +261,29 @@ extension CallTypeChecker {
                                 parameterMapping: resolved.parameterMapping
                             )
                         )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-                        sema.bindings.bindIdentifier(id, symbol: chosen)
-                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-                        let resultType = sema.types.substituteTypeParameters(
+                        request.sema.bindings.bindCallableTarget(request.id, target: .symbol(chosen))
+                        request.sema.bindings.bindIdentifier(request.id, symbol: chosen)
+                        let typeVarBySymbol = request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let resultType = request.sema.types.substituteTypeParameters(
                             in: signature.returnType,
                             substitution: resolved.substitutedTypeArguments,
                             typeVarBySymbol: typeVarBySymbol
                         )
                         driver.helpers.checkDeprecation(
                             for: chosen,
-                            sema: sema,
-                            interner: interner,
-                            range: range,
-                            diagnostics: ctx.sema.diagnostics
+                            sema: request.sema,
+                            interner: request.interner,
+                            range: request.range,
+                            diagnostics: request.ctx.sema.diagnostics
                         )
                         driver.helpers.checkOptIn(
                             for: chosen,
-                            ctx: ctx,
-                            range: range,
-                            diagnostics: ctx.sema.diagnostics
+                            ctx: request.ctx,
+                            range: request.range,
+                            diagnostics: request.ctx.sema.diagnostics
                         )
-                        sema.bindings.bindExprType(receiverID, type: ownerType)
-                        sema.bindings.bindExprType(id, type: resultType)
+                        request.sema.bindings.bindExprType(request.receiverID, type: ownerType)
+                        request.sema.bindings.bindExprType(request.id, type: resultType)
                         return resultType
                     }
                 }
@@ -308,30 +303,30 @@ extension CallTypeChecker {
             // A named object is both a value and a classifier qualifier.
             // Values with the object's type (including this) cannot qualify
             // nested classes, so require the object declaration binding.
-            switch ast.arena.expr(receiverID) {
+            switch request.ast.arena.expr(request.receiverID) {
             case .nameRef:
                 break
-            case .memberCall where !ast.arena.isExplicitCall(receiverID):
+            case .memberCall where !request.ast.arena.isExplicitCall(request.receiverID):
                 break
             default:
                 return nil
             }
-            guard let symbolID = sema.bindings.identifierSymbol(for: receiverID),
-                  sema.symbols.symbol(symbolID)?.kind == .object
+            guard let symbolID = request.sema.bindings.identifierSymbol(for: request.receiverID),
+                  request.sema.symbols.symbol(symbolID)?.kind == .object
             else {
                 return nil
             }
             return symbolID
         }()
         if let ownerSymbol = nestedClassifierOwnerSymbol,
-           let owner = sema.symbols.symbol(ownerSymbol)
+           let owner = request.sema.symbols.symbol(ownerSymbol)
         {
-            let nestedOwnerFQName = owner.fqName + [calleeName]
-            var nestedOwnerSymbols = sema.symbols.lookupAll(fqName: nestedOwnerFQName).filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate) else {
+            let nestedOwnerFQName = owner.fqName + [request.calleeName]
+            var nestedOwnerSymbols = request.sema.symbols.lookupAll(fqName: nestedOwnerFQName).filter { candidate in
+                guard let symbol = request.sema.symbols.symbol(candidate) else {
                     return false
                 }
-                guard sema.symbols.parentSymbol(for: candidate) == ownerSymbol else {
+                guard request.sema.symbols.parentSymbol(for: candidate) == ownerSymbol else {
                     return false
                 }
                 switch symbol.kind {
@@ -342,11 +337,11 @@ extension CallTypeChecker {
                 }
             }
             if nestedOwnerSymbols.isEmpty {
-                let shortNameNestedOwners = sema.symbols.lookupByShortName(calleeName).filter { candidate in
-                    guard let symbol = sema.symbols.symbol(candidate) else {
+                let shortNameNestedOwners = request.sema.symbols.lookupByShortName(request.calleeName).filter { candidate in
+                    guard let symbol = request.sema.symbols.symbol(candidate) else {
                         return false
                     }
-                    guard sema.symbols.parentSymbol(for: candidate) == ownerSymbol else {
+                    guard request.sema.symbols.parentSymbol(for: candidate) == ownerSymbol else {
                         return false
                     }
                     switch symbol.kind {
@@ -367,42 +362,42 @@ extension CallTypeChecker {
             var nestedAliasContext: TypeAliasConstructorContext?
             var nestedAliasExpandedOwner: SymbolID?
             if let aliasSymbol = nestedOwnerSymbols.first(where: {
-                sema.symbols.symbol($0)?.kind == .typeAlias
+                request.sema.symbols.symbol($0)?.kind == .typeAlias
             }) {
-                if let aliasSemantic = sema.symbols.symbol(aliasSymbol),
-                   !ctx.visibilityChecker.isAccessible(
+                if let aliasSemantic = request.sema.symbols.symbol(aliasSymbol),
+                   !request.ctx.visibilityChecker.isAccessible(
                        aliasSemantic,
-                       fromFile: ctx.currentFileID,
-                       enclosingClass: ctx.enclosingClassSymbol
+                       fromFile: request.ctx.currentFileID,
+                       enclosingClass: request.ctx.enclosingClassSymbol
                    )
                 {
                     driver.helpers.emitVisibilityError(
                         for: aliasSemantic,
-                        name: interner.resolve(calleeName),
-                        range: range,
-                        diagnostics: ctx.sema.diagnostics
+                        name: request.interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: request.ctx.sema.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
-                let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
-                if !explicitTypeArgs.isEmpty, explicitTypeArgs.count != aliasTypeParameters.count {
-                    sema.diagnostics.error(
+                let aliasTypeParameters = request.sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
+                if !request.explicitTypeArgs.isEmpty, request.explicitTypeArgs.count != aliasTypeParameters.count {
+                    request.sema.diagnostics.error(
                         "KSWIFTK-SEMA-0062",
-                        "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(explicitTypeArgs.count).",
-                        range: range
+                        "Type argument count mismatch: expected \(aliasTypeParameters.count) but got \(request.explicitTypeArgs.count).",
+                        range: request.range
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
-                let aliasTypeArgs: [TypeArg] = if explicitTypeArgs.isEmpty {
+                let aliasTypeArgs: [TypeArg] = if request.explicitTypeArgs.isEmpty {
                     aliasTypeParameters.map {
-                        .invariant(sema.types.make(.typeParam(TypeParamType(
+                        .invariant(request.sema.types.make(.typeParam(TypeParamType(
                             symbol: $0, nullability: .nonNull
                         ))))
                     }
                 } else {
-                    explicitTypeArgs.enumerated().map { index, type in
+                    request.explicitTypeArgs.enumerated().map { index, type in
                         let resolved = type == TypeID.invalid
-                            ? sema.types.make(.typeParam(TypeParamType(
+                            ? request.sema.types.make(.typeParam(TypeParamType(
                                 symbol: aliasTypeParameters[index], nullability: .nonNull
                             )))
                             : type
@@ -412,41 +407,41 @@ extension CallTypeChecker {
                 if let expanded = driver.helpers.expandTypeAlias(
                     aliasSymbol,
                     typeArgs: aliasTypeArgs,
-                    sema: sema,
+                    sema: request.sema,
                     visited: [],
                     depth: 0,
-                    diagnostics: sema.diagnostics
-                ), case let .classType(aliasTarget) = sema.types.kind(of: expanded) {
-                    let expandedOwner = sema.symbols.actualSymbol(for: aliasTarget.classSymbol)
+                    diagnostics: request.sema.diagnostics
+                ), case let .classType(aliasTarget) = request.sema.types.kind(of: expanded) {
+                    let expandedOwner = request.sema.symbols.actualSymbol(for: aliasTarget.classSymbol)
                         ?? aliasTarget.classSymbol
                     nestedAliasExpandedOwner = expandedOwner
-                    if args.isEmpty, !ast.arena.isExplicitCall(id) {
+                    if request.args.isEmpty, !request.ast.arena.isExplicitCall(request.id) {
                         // Bind the expanded classifier, not the alias:
                         // lowering treats the qualifier exactly like a
                         // direct `Owner.Nested` spelling (KUU-3840).
-                        sema.bindings.bindIdentifier(id, symbol: expandedOwner)
-                        sema.bindings.bindExprType(id, type: expanded)
+                        request.sema.bindings.bindIdentifier(request.id, symbol: expandedOwner)
+                        request.sema.bindings.bindExprType(request.id, type: expanded)
                         return expanded
                     }
-                    if sema.symbols.symbol(expandedOwner)?.flags.contains(.innerClass) == true {
+                    if request.sema.symbols.symbol(expandedOwner)?.flags.contains(.innerClass) == true {
                         // `Owner.Alias()` cannot supply the enclosing
                         // instance an inner-class constructor needs — the
                         // same error Kotlin reports for `Owner.Inner()`.
-                        let innerName = sema.symbols.symbol(expandedOwner)
-                            .map { interner.resolve($0.name) } ?? interner.resolve(calleeName)
-                        ctx.sema.diagnostics.error(
+                        let innerName = request.sema.symbols.symbol(expandedOwner)
+                            .map { request.interner.resolve($0.name) } ?? request.interner.resolve(request.calleeName)
+                        request.ctx.sema.diagnostics.error(
                             "KSWIFTK-SEMA-0437",
                             "constructor of the inner class '\(innerName)' can only be called with a receiver of the containing class.",
-                            range: range
+                            range: request.range
                         )
-                        return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                        return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                     }
                     // `typeAliasConstructorSignature` reads the combined
                     // argument list from `args`, so keep the enclosing +
                     // own arguments flattened there (KUU-3840).
-                    let constructorType = sema.types.make(.classType(ClassType(
+                    let constructorType = request.sema.types.make(.classType(ClassType(
                         classSymbol: expandedOwner,
-                        args: sema.types.allTypeArguments(for: aliasTarget),
+                        args: request.sema.types.allTypeArguments(for: aliasTarget),
                         nullability: .nonNull
                     )))
                     nestedAliasContext = TypeAliasConstructorContext(
@@ -458,15 +453,15 @@ extension CallTypeChecker {
             }
             if let nestedOwner = nestedOwnerSymbols.first,
                let samType = inferQualifiedNestedClassifierSamConstruction(
-                   id,
-                   calleeName: calleeName,
+                   request.id,
+                   calleeName: request.calleeName,
                    classifierSymbol: nestedAliasExpandedOwner ?? nestedOwner,
-                   args: args,
+                   args: request.args,
                    argTypes: argTypes,
-                   ctx: ctx,
+                   ctx: request.ctx,
                    locals: &locals,
-                   expectedType: expectedType,
-                   explicitTypeArgs: explicitTypeArgs
+                   expectedType: request.expectedType,
+                   explicitTypeArgs: request.explicitTypeArgs
                )
             {
                 return samType
@@ -486,33 +481,33 @@ extension CallTypeChecker {
             // An explicit `()` on a nested `object` is instead a function
             // invocation — it must fall through so `invoke` can dispatch
             // (KUU-3662).
-            if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
-               let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
+            if request.args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
+               let nestedOwnerKind = request.sema.symbols.symbol(nestedOwner)?.kind,
                nestedOwnerKind == .enumClass
                    || ((nestedOwnerKind == .class || nestedOwnerKind == .object
                         || nestedOwnerKind == .interface || nestedOwnerKind == .annotationClass)
-                       && !ast.arena.isExplicitCall(id))
+                       && !request.ast.arena.isExplicitCall(request.id))
             {
-                if let nestedSymbol = sema.symbols.symbol(nestedOwner),
-                   !ctx.visibilityChecker.isAccessible(
+                if let nestedSymbol = request.sema.symbols.symbol(nestedOwner),
+                   !request.ctx.visibilityChecker.isAccessible(
                        nestedSymbol,
-                       fromFile: ctx.currentFileID,
-                       enclosingClass: ctx.enclosingClassSymbol
+                       fromFile: request.ctx.currentFileID,
+                       enclosingClass: request.ctx.enclosingClassSymbol
                    )
                 {
                     driver.helpers.emitVisibilityError(
-                        for: nestedSymbol, name: interner.resolve(calleeName),
-                        range: range, diagnostics: ctx.sema.diagnostics
+                        for: nestedSymbol, name: request.interner.resolve(request.calleeName),
+                        range: request.range, diagnostics: request.ctx.sema.diagnostics
                     )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
-                let nestedType = sema.types.make(.classType(ClassType(
+                let nestedType = request.sema.types.make(.classType(ClassType(
                     classSymbol: nestedOwner,
                     args: [],
                     nullability: .nonNull
                 )))
-                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
-                sema.bindings.bindExprType(id, type: nestedType)
+                request.sema.bindings.bindIdentifier(request.id, symbol: nestedOwner)
+                request.sema.bindings.bindExprType(request.id, type: nestedType)
                 return nestedType
             }
             // `Outer.I()` reaches here as a classifier qualifier — there is
@@ -522,34 +517,34 @@ extension CallTypeChecker {
             // already instances.
             if isClassNameReceiver,
                let nestedOwner = nestedOwnerSymbols.first,
-               sema.symbols.symbol(nestedOwner)?.flags.contains(.innerClass) == true
+               request.sema.symbols.symbol(nestedOwner)?.flags.contains(.innerClass) == true
             {
-                let innerName = sema.symbols.symbol(nestedOwner)
-                    .map { interner.resolve($0.name) } ?? interner.resolve(calleeName)
-                ctx.sema.diagnostics.error(
+                let innerName = request.sema.symbols.symbol(nestedOwner)
+                    .map { request.interner.resolve($0.name) } ?? request.interner.resolve(request.calleeName)
+                request.ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0437",
                     "constructor of the inner class '\(innerName)' can only be called with a receiver of the containing class.",
-                    range: range
+                    range: request.range
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
-            let nestedCtorFQName = owner.fqName + [calleeName, knownNames.initName]
-            var nestedCtorCandidates = sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
-                guard let symbol = sema.symbols.symbol(candidate) else {
+            let nestedCtorFQName = owner.fqName + [request.calleeName, request.knownNames.initName]
+            var nestedCtorCandidates = request.sema.symbols.lookupAll(fqName: nestedCtorFQName).filter { candidate in
+                guard let symbol = request.sema.symbols.symbol(candidate) else {
                     return false
                 }
                 return symbol.kind == .constructor
             }
             if nestedCtorCandidates.isEmpty {
                 if !nestedOwnerSymbols.isEmpty {
-                    let initName = knownNames.initName
-                    nestedCtorCandidates = sema.symbols.lookupByShortName(initName).filter { candidate in
-                        guard let symbol = sema.symbols.symbol(candidate),
+                    let initName = request.knownNames.initName
+                    nestedCtorCandidates = request.sema.symbols.lookupByShortName(initName).filter { candidate in
+                        guard let symbol = request.sema.symbols.symbol(candidate),
                               symbol.kind == .constructor
                         else {
                             return false
                         }
-                        guard let parent = sema.symbols.parentSymbol(for: candidate) else {
+                        guard let parent = request.sema.symbols.parentSymbol(for: candidate) else {
                             return false
                         }
                         return nestedOwnerSymbols.contains(parent)
@@ -558,58 +553,58 @@ extension CallTypeChecker {
             }
             if nestedCtorCandidates.isEmpty,
                let expandedOwner = nestedAliasExpandedOwner,
-               let expandedOwnerSymbol = sema.symbols.symbol(expandedOwner)
+               let expandedOwnerSymbol = request.sema.symbols.symbol(expandedOwner)
             {
                 // `Owner.Alias(...)` calls the expanded classifier's
                 // constructors, stored under the underlying FQ name rather
                 // than the alias's (KUU-3840).
-                nestedCtorCandidates = sema.symbols.lookupAll(
-                    fqName: expandedOwnerSymbol.fqName + [knownNames.initName]
+                nestedCtorCandidates = request.sema.symbols.lookupAll(
+                    fqName: expandedOwnerSymbol.fqName + [request.knownNames.initName]
                 ).filter { candidate in
-                    sema.symbols.symbol(candidate)?.kind == .constructor
-                        && sema.symbols.parentSymbol(for: candidate) == expandedOwner
+                    request.sema.symbols.symbol(candidate)?.kind == .constructor
+                        && request.sema.symbols.parentSymbol(for: candidate) == expandedOwner
                 }
             }
             if !nestedCtorCandidates.isEmpty {
                 let hasFactoryFunctionCandidates: Bool = {
                     let factoryOwner = owner.kind == .object
-                        ? ownerSymbol : sema.symbols.companionObjectSymbol(for: ownerSymbol)
+                        ? ownerSymbol : request.sema.symbols.companionObjectSymbol(for: ownerSymbol)
                     guard let factoryOwner else {
                         return false
                     }
-                    let factoryType = sema.types.make(.classType(ClassType(
+                    let factoryType = request.sema.types.make(.classType(ClassType(
                         classSymbol: factoryOwner,
                         args: [],
                         nullability: .nonNull
                     )))
                     if !driver.helpers.collectMemberFunctionCandidates(
-                        named: calleeName,
+                        named: request.calleeName,
                         receiverType: factoryType,
-                        sema: sema,
-                        interner: interner
+                        sema: request.sema,
+                        interner: request.interner
                     ).isEmpty {
                         return true
                     }
                     // Mirror ordinary object/companion lookup's scoped and
                     // imported-library extension fallbacks.
-                    let extensionCandidates = ctx.cachedScopeLookup(calleeName)
-                        + sema.symbols.lookupByShortName(calleeName).filter {
-                            sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
+                    let extensionCandidates = request.ctx.cachedScopeLookup(request.calleeName)
+                        + request.sema.symbols.lookupByShortName(request.calleeName).filter {
+                            request.sema.symbols.symbol($0)?.flags.contains(.synthetic) == true
                         }
                     return extensionCandidates.contains { candidate in
-                        guard sema.symbols.symbol(candidate)?.kind == .function,
-                              let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType
+                        guard request.sema.symbols.symbol(candidate)?.kind == .function,
+                              let receiver = request.sema.symbols.functionSignature(for: candidate)?.receiverType
                         else {
                             return false
                         }
                         return extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: factoryType,
                             declaredReceiver: receiver,
-                            sema: sema
+                            sema: request.sema
                         )
                     }
                 }()
-                let (visibleNested, invisibleNested) = ctx.filterByVisibility(nestedCtorCandidates)
+                let (visibleNested, invisibleNested) = request.ctx.filterByVisibility(nestedCtorCandidates)
                 if visibleNested.isEmpty, let firstInvisible = invisibleNested.first {
                     // An inaccessible constructor must not hide an accessible
                     // object or companion factory. Let ordinary lookup resolve it.
@@ -628,22 +623,22 @@ extension CallTypeChecker {
                     {
                         return invokeType
                     }
-                    driver.helpers.emitVisibilityError(for: firstInvisible, name: interner.resolve(calleeName), range: range, diagnostics: ctx.sema.diagnostics)
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                    driver.helpers.emitVisibilityError(for: firstInvisible, name: request.interner.resolve(request.calleeName), range: request.range, diagnostics: request.ctx.sema.diagnostics)
+                    return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                 }
                 if !visibleNested.isEmpty {
-                    if args.isEmpty, explicitTypeArgs.isEmpty {
+                    if request.args.isEmpty, request.explicitTypeArgs.isEmpty {
                         let zeroArgNested = visibleNested.first { candidate in
-                            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                            guard let signature = request.sema.symbols.functionSignature(for: candidate) else {
                                 return false
                             }
                             return signature.parameterTypes.isEmpty && signature.typeParameterSymbols.isEmpty
                         }
                         if let zeroArgNested,
-                           let signature = sema.symbols.functionSignature(for: zeroArgNested)
+                           let signature = request.sema.symbols.functionSignature(for: zeroArgNested)
                         {
-                            sema.bindings.bindCall(
-                                id,
+                            request.sema.bindings.bindCall(
+                                request.id,
                                 binding: CallBinding(
                                     chosenCallee: zeroArgNested,
                                     substitutedTypeArguments: [],
@@ -651,15 +646,15 @@ extension CallTypeChecker {
                                 )
                             )
                             let resultType = signature.returnType
-                            if ast.arena.isExplicitCall(id),
-                               let nestedOwner = sema.symbols.parentSymbol(for: zeroArgNested),
-                               let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                            if request.ast.arena.isExplicitCall(request.id),
+                               let nestedOwner = request.sema.symbols.parentSymbol(for: zeroArgNested),
+                               let nestedOwnerSymbol = request.sema.symbols.symbol(nestedOwner),
                                (nestedOwnerSymbol.kind == .class || nestedOwnerSymbol.kind == .annotationClass),
                                !nestedOwnerSymbol.flags.contains(.innerClass)
                             {
-                                sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                                request.sema.bindings.markTypeQualifiedConstructorCallExpr(request.id)
                             }
-                            sema.bindings.bindExprType(id, type: resultType)
+                            request.sema.bindings.bindExprType(request.id, type: resultType)
                             return resultType
                         }
                     }
@@ -667,23 +662,23 @@ extension CallTypeChecker {
                     // preparation, so infer lambdas and callable references
                     // against their constructor parameter types here too.
                     var cachedNonLambdaArgTypes: [Int: TypeID] = [:]
-                    for (index, argument) in args.enumerated() {
-                        if ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                    for (index, argument) in request.args.enumerated() {
+                        if request.ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
                             continue
                         }
                         cachedNonLambdaArgTypes[index] = argTypes[index]
                     }
                     var expectedTypeOverrides: [Int: TypeID] = [:]
                     var lambdaContextOverrides: [Int: TypeInferenceContext] = [:]
-                    let argumentDiagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    let argumentDiagnosticsCheckpoint = request.sema.diagnostics.checkpoint()
                     let originalArgumentLocals = locals
                     let expectedTypeHintIndices = prepareCallExprArgumentContexts(
-                        args: args,
-                        callRange: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        calleeName: calleeName,
+                        args: request.args,
+                        callRange: request.range,
+                        ctx: request.ctx,
+                        expectedType: request.expectedType,
+                        explicitTypeArgs: request.explicitTypeArgs,
+                        calleeName: request.calleeName,
                         candidates: visibleNested,
                         locals: locals,
                         withContextExpectedLambdaType: nil,
@@ -691,49 +686,49 @@ extension CallTypeChecker {
                         lambdaContextOverrides: &lambdaContextOverrides
                     )
                     let preparedArgs = prepareCallArguments(
-                        args: args,
-                        callRange: range,
+                        args: request.args,
+                        callRange: request.range,
                         candidates: visibleNested,
                         preInferredNonLambdaArgTypes: cachedNonLambdaArgTypes,
                         expectedTypeOverrides: expectedTypeOverrides,
                         expectedTypeHintIndices: expectedTypeHintIndices,
-                        contextualCallResultType: ctx.isCallResultDiscarded && ctx.isUnitCoercionContext
-                            ? sema.types.unitType : expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
+                        contextualCallResultType: request.ctx.isCallResultDiscarded && request.ctx.isUnitCoercionContext
+                            ? request.sema.types.unitType : request.expectedType,
+                        explicitTypeArgs: request.explicitTypeArgs,
                         lambdaContextOverrides: lambdaContextOverrides,
-                        ctx: ctx,
+                        ctx: request.ctx,
                         locals: &locals
                     )
                     let resolved = resolveCallRespectingLambdaReturnType(
                         candidates: visibleNested,
-                        args: args,
+                        args: request.args,
                         argTypes: preparedArgs.argTypes,
-                        range: range,
-                        calleeName: calleeName,
-                        explicitTypeArgs: explicitTypeArgs,
+                        range: request.range,
+                        calleeName: request.calleeName,
+                        explicitTypeArgs: request.explicitTypeArgs,
                         typeAliasConstructor: nestedAliasContext,
-                        expectedType: expectedType,
+                        expectedType: request.expectedType,
                         implicitReceiverType: nil,
                         lambdaLiteralIndices: preparedArgs.lambdaLiteralIndices,
                         inputOnlyLambdaIndices: preparedArgs.inputOnlyLambdaIndices,
                         blockedLambdaRefinement: preparedArgs.blockedLambdaRefinement,
                         hasUnresolvableImplicitLambdaParameter: preparedArgs.hasUnresolvableImplicitLambdaParameter,
-                        ctx: ctx
+                        ctx: request.ctx
                     )
                     if let diagnostic = resolved.diagnostic {
-                        if ctx.allowsLiftedCallExpectedTypeHints, !expectedTypeHintIndices.isEmpty {
-                            sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
+                        if request.ctx.allowsLiftedCallExpectedTypeHints, !expectedTypeHintIndices.isEmpty {
+                            request.sema.diagnostics.rollback(to: argumentDiagnosticsCheckpoint)
                             locals = originalArgumentLocals
-                            var retryContext = ctx
+                            var retryContext = request.ctx
                             retryContext.allowsLiftedCallExpectedTypeHints = false
                             // Member calls reuse already-bound argument types.
                             // Refresh speculative arguments before the retry
                             // so Box<Any> cannot survive a natural Box<Int> pass.
                             for index in expectedTypeHintIndices.sorted() {
-                                guard isInferableNestedCallExpr(args[index].expr, ast: ast) else { continue }
-                                _ = driver.inferExpr(args[index].expr, ctx: retryContext, locals: &locals)
+                                guard isInferableNestedCallExpr(request.args[index].expr, ast: request.ast) else { continue }
+                                _ = driver.inferExpr(request.args[index].expr, ctx: retryContext, locals: &locals)
                             }
-                            return driver.inferExpr(id, ctx: retryContext, locals: &locals, expectedType: expectedType)
+                            return driver.inferExpr(request.id, ctx: retryContext, locals: &locals, expectedType: request.expectedType)
                         }
                         // Kotlin gives applicable nested constructors priority
                         // for Owner.Name(...), but retries object/companion functions
@@ -742,12 +737,12 @@ extension CallTypeChecker {
                         // A result-type mismatch does not make an otherwise
                         // applicable constructor yield to a companion function.
                         let ctorInapplicable = diagnostic.code != "KSWIFTK-SEMA-0003"
-                            && (expectedType == nil || ctx.resolver.probeCall(
+                            && (request.expectedType == nil || request.ctx.resolver.probeCall(
                                 candidates: visibleNested,
                                 call: CallExpr(
-                                    range: range,
-                                    calleeName: calleeName,
-                                    args: zip(args, preparedArgs.argTypes).map { argument, type in
+                                    range: request.range,
+                                    calleeName: request.calleeName,
+                                    args: zip(request.args, preparedArgs.argTypes).map { argument, type in
                                         CallArg(
                                             label: argument.label,
                                             isSpread: argument.isSpread,
@@ -755,11 +750,11 @@ extension CallTypeChecker {
                                             isTrailingLambda: argument.isTrailingLambda
                                         )
                                     },
-                                    explicitTypeArgs: explicitTypeArgs,
+                                    explicitTypeArgs: request.explicitTypeArgs,
                                     typeAliasConstructor: nestedAliasContext
                                 ),
                                 expectedType: nil,
-                                ctx: sema
+                                ctx: request.sema
                             ).viableCandidates.isEmpty)
                         if ctorInapplicable {
                             if hasFactoryFunctionCandidates {
@@ -779,15 +774,15 @@ extension CallTypeChecker {
                                 return invokeType
                             }
                         }
-                        ctx.sema.diagnostics.emit(diagnostic)
-                        return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                        request.ctx.sema.diagnostics.emit(diagnostic)
+                        return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
                     }
                     if let chosen = resolved.chosenCallee,
-                       let signature = sema.symbols.functionSignature(for: chosen)
+                       let signature = request.sema.symbols.functionSignature(for: chosen)
                     {
-                        contextualizeResolvedIntegerArguments(args: args, resolved: resolved, ctx: ctx, locals: &locals)
-                        sema.bindings.bindCall(
-                            id,
+                        contextualizeResolvedIntegerArguments(args: request.args, resolved: resolved, ctx: request.ctx, locals: &locals)
+                        request.sema.bindings.bindCall(
+                            request.id,
                             binding: CallBinding(
                                 chosenCallee: chosen,
                                 substitutedTypeArguments: resolved.substitutedTypeArguments
@@ -796,21 +791,21 @@ extension CallTypeChecker {
                                 parameterMapping: resolved.parameterMapping
                             )
                         )
-                        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
-                        let resultType = sema.types.substituteTypeParameters(
+                        let typeVarBySymbol = request.sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                        let resultType = request.sema.types.substituteTypeParameters(
                             in: signature.returnType,
                             substitution: resolved.substitutedTypeArguments,
                             typeVarBySymbol: typeVarBySymbol
                         )
-                        if ast.arena.isExplicitCall(id),
-                           let nestedOwner = sema.symbols.parentSymbol(for: chosen),
-                           let nestedOwnerSymbol = sema.symbols.symbol(nestedOwner),
+                        if request.ast.arena.isExplicitCall(request.id),
+                           let nestedOwner = request.sema.symbols.parentSymbol(for: chosen),
+                           let nestedOwnerSymbol = request.sema.symbols.symbol(nestedOwner),
                            (nestedOwnerSymbol.kind == .class || nestedOwnerSymbol.kind == .annotationClass),
                            !nestedOwnerSymbol.flags.contains(.innerClass)
                         {
-                            sema.bindings.markTypeQualifiedConstructorCallExpr(id)
+                            request.sema.bindings.markTypeQualifiedConstructorCallExpr(request.id)
                         }
-                        sema.bindings.bindExprType(id, type: resultType)
+                        request.sema.bindings.bindExprType(request.id, type: resultType)
                         return resultType
                     }
                 }

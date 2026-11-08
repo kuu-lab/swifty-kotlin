@@ -47,79 +47,74 @@ extension CallTypeChecker {
         locals: inout LocalBindings,
         enforceInfixEligibility: Bool = true
     ) -> TypeID? {
-        let id = request.id, calleeName = request.calleeName
-        let args = request.args, range = request.range, ctx = request.ctx
-        let safeCall = request.safeCall
-        let sema = request.sema, interner = request.interner
-        let knownNames = request.knownNames
-        if enforceInfixEligibility, ctx.ast.arena.isInfixCall(id),
-           !isInfixPrimitiveIntrinsic(calleeName, receiverType: lookupReceiverType, ctx: ctx)
+        if enforceInfixEligibility, request.ctx.ast.arena.isInfixCall(request.id),
+           !isInfixPrimitiveIntrinsic(request.calleeName, receiverType: lookupReceiverType, ctx: request.ctx)
         {
             return nil
         }
-        if calleeName == knownNames.inv,
-           args.isEmpty
+        if request.calleeName == request.knownNames.inv,
+           request.args.isEmpty
         {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let uintType = sema.types.make(.primitive(.uint, .nonNull))
-            let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
-            let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
-            let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            let intType = request.sema.types.make(.primitive(.int, .nonNull))
+            let longType = request.sema.types.make(.primitive(.long, .nonNull))
+            let uintType = request.sema.types.make(.primitive(.uint, .nonNull))
+            let ulongType = request.sema.types.make(.primitive(.ulong, .nonNull))
+            let ubyteType = request.sema.types.make(.primitive(.ubyte, .nonNull))
+            let ushortType = request.sema.types.make(.primitive(.ushort, .nonNull))
             if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType || lookupReceiverType == ubyteType || lookupReceiverType == ushortType {
                 let resultType = lookupReceiverType
-                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                sema.bindings.bindExprType(id, type: finalType)
+                let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
         }
 
-        if args.count == 1 {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let uintType = sema.types.make(.primitive(.uint, .nonNull))
-            let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
-            let floatType = sema.types.make(.primitive(.float, .nonNull))
-            let doubleType = sema.types.make(.primitive(.double, .nonNull))
-            let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
-            let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
-            let charType = sema.types.charType
-            let receiverForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
+        if request.args.count == 1 {
+            let intType = request.sema.types.make(.primitive(.int, .nonNull))
+            let longType = request.sema.types.make(.primitive(.long, .nonNull))
+            let uintType = request.sema.types.make(.primitive(.uint, .nonNull))
+            let ulongType = request.sema.types.make(.primitive(.ulong, .nonNull))
+            let floatType = request.sema.types.make(.primitive(.float, .nonNull))
+            let doubleType = request.sema.types.make(.primitive(.double, .nonNull))
+            let ubyteType = request.sema.types.make(.primitive(.ubyte, .nonNull))
+            let ushortType = request.sema.types.make(.primitive(.ushort, .nonNull))
+            let byteType = request.sema.types.byteType
+            let shortType = request.sema.types.shortType
+            let charType = request.sema.types.charType
+            let receiverForCheck = request.safeCall
+                ? request.sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             // kotlinc exposes six compareTo overloads on each signed primitive
             // receiver, so `i.compareTo(TODO())` is ambiguous there. KSwiftK
             // binds the single Comparable<T> member instead and must report the
             // ambiguity itself (KUU-4351). Unsigned primitives keep their
             // unique resolution, matching kotlinc.
-            if calleeName == knownNames.compareTo,
-               case .nothing(.nonNull) = sema.types.kind(of: argTypes[0]),
+            if request.calleeName == request.knownNames.compareTo,
+               case .nothing(.nonNull) = request.sema.types.kind(of: argTypes[0]),
                receiverForCheck == byteType || receiverForCheck == shortType
                    || receiverForCheck == intType || receiverForCheck == longType
                    || receiverForCheck == floatType || receiverForCheck == doubleType
             {
-                ctx.sema.diagnostics.error(
+                request.ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0003",
                     "Ambiguous overload resolution.",
-                    range: range
+                    range: request.range
                 )
-                sema.bindings.bindExprType(id, type: sema.types.errorType)
-                return sema.types.errorType
+                request.sema.bindings.bindExprType(request.id, type: request.sema.types.errorType)
+                return request.sema.types.errorType
             }
             // Range expressions use their scalar element type as the lowering
             // type. Keep them out of the numeric fast path so range extensions
             // such as Iterable.plus/minus can be resolved from the source-level
             // range receiver instead.
-            let isRangeReceiver = ["plus", "minus"].contains(interner.resolve(calleeName))
+            let isRangeReceiver = ["plus", "minus"].contains(request.interner.resolve(request.calleeName))
                 && (MemberRuntimeDispatch.rangeReceiverKind(
                     receiverExpr: request.receiverID,
                     receiverType: lookupReceiverType,
-                    sema: sema,
-                    interner: interner
+                    sema: request.sema,
+                    interner: request.interner
                 ) != nil
-                    || ControlFlowTypeChecker.isRangeExpression(request.receiverID, ast: ctx.ast))
+                    || ControlFlowTypeChecker.isRangeExpression(request.receiverID, ast: request.ctx.ast))
             let rawRhsType = argTypes[0]
             let isPrimitiveReceiver = !isRangeReceiver
                 && (receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
@@ -145,7 +140,7 @@ extension CallTypeChecker {
             // `x.plus(TODO())` or `c.minus(TODO())` still fall through to
             // normal resolution and are rejected there, matching kotlinc.
             let isNonNullNothingOperand = {
-                if case .nothing(.nonNull) = sema.types.kind(of: rawRhsType) {
+                if case .nothing(.nonNull) = request.sema.types.kind(of: rawRhsType) {
                     return true
                 }
                 return false
@@ -155,18 +150,18 @@ extension CallTypeChecker {
             // overload applicable and kotlinc reports the signed and
             // floating-point sets as ambiguous. Char and the unsigned types
             // keep a unique winner and fall through to normal resolution.
-            if calleeName == knownNames.compareTo,
+            if request.calleeName == request.knownNames.compareTo,
                isNonNullNothingOperand,
                receiverForCheck == byteType || receiverForCheck == shortType
                    || receiverForCheck == intType || receiverForCheck == longType
                    || receiverForCheck == floatType || receiverForCheck == doubleType
             {
-                ctx.sema.diagnostics.error(
+                request.ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0003",
                     "Ambiguous overload resolution.",
-                    range: range
+                    range: request.range
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
             // KUU-3954: Kotlin's primitive arithmetic members take only
             // non-null numeric operands — `x.plus(xn)` where xn: Int? is
@@ -185,7 +180,7 @@ extension CallTypeChecker {
                 if isSignedInteger(operand) || isFloating(operand) || isUnsignedInteger(operand) {
                     return false
                 }
-                switch sema.types.kind(of: operand) {
+                switch request.sema.types.kind(of: operand) {
                 case .error:
                     return false
                 case .nothing(.nonNull):
@@ -203,13 +198,13 @@ extension CallTypeChecker {
             let unsignedOperandResultType = { (operand: TypeID) -> TypeID? in
                 if isUnsignedInteger(operand) {
                     receiverForCheck == ulongType || operand == ulongType ? ulongType : uintType
-                } else if case .nothing(.nonNull) = sema.types.kind(of: operand) {
+                } else if case .nothing(.nonNull) = request.sema.types.kind(of: operand) {
                     receiverForCheck == ulongType ? ulongType : uintType
                 } else {
                     nil
                 }
             }
-            let arithmeticOp: BinaryOp? = switch interner.resolve(calleeName) {
+            let arithmeticOp: BinaryOp? = switch request.interner.resolve(request.calleeName) {
             case "plus": .add
             case "minus": .subtract
             case "times": .multiply
@@ -219,7 +214,7 @@ extension CallTypeChecker {
             }
             if let arithmeticOp,
                driver.exprChecker.hasInvalidBuiltinCharArithmetic(
-                   op: arithmeticOp, lhs: receiverForCheck, rhs: rawRhsType, sema: sema
+                   op: arithmeticOp, lhs: receiverForCheck, rhs: rawRhsType, sema: request.sema
                )
             {
                 return nil
@@ -228,7 +223,7 @@ extension CallTypeChecker {
                 || receiverForCheck == floatType
                 || receiverForCheck == doubleType
                 || receiverForCheck == charType
-            switch interner.resolve(calleeName) {
+            switch request.interner.resolve(request.calleeName) {
             case "plus":
                 // Collection plus(element) must reach overload resolution instead of
                 // being mistaken for primitive arithmetic based only on the RHS type.
@@ -240,10 +235,10 @@ extension CallTypeChecker {
                     // Char.plus(Int) is the only member overload and beats the
                     // Char.plus(String) extension, so a Nothing operand resolves.
                     charType
-                } else if receiverForCheck == charType && sema.types.isString(rawRhsType) {
+                } else if receiverForCheck == charType && request.sema.types.isString(rawRhsType) {
                     driver.exprChecker.collectScopedOperatorExtensionCandidates(
-                        names: [calleeName], receiverType: receiverForCheck, argumentType: rawRhsType, ctx: ctx
-                    ).isEmpty ? sema.types.stringType : nil
+                        names: [request.calleeName], receiverType: receiverForCheck, argumentType: rawRhsType, ctx: request.ctx
+                    ).isEmpty ? request.sema.types.stringType : nil
                 } else if rejectsArithmeticOperand(rawRhsType) {
                     nil
                 } else if isUnsignedInteger(receiverForCheck) {
@@ -266,8 +261,8 @@ extension CallTypeChecker {
                     nil
                 }
                 if let resultType {
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "minus":
@@ -297,8 +292,8 @@ extension CallTypeChecker {
                     nil
                 }
                 if let resultType {
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "times", "div", "rem":
@@ -323,8 +318,8 @@ extension CallTypeChecker {
                     nil
                 }
                 if let resultType {
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "floorDiv":
@@ -361,8 +356,8 @@ extension CallTypeChecker {
                     nil
                 }
                 if let resultType {
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "mod":
@@ -393,8 +388,8 @@ extension CallTypeChecker {
                     nil
                 }
                 if let resultType {
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "and", "or", "xor":
@@ -404,8 +399,8 @@ extension CallTypeChecker {
                    rawRhsType == receiverForCheck || isNonNullNothingOperand
                 {
                     let resultType = receiverForCheck
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(resultType) : resultType
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "shl", "shr":
@@ -414,8 +409,8 @@ extension CallTypeChecker {
                 if isShiftReceiver,
                    rawRhsType == intType || isNonNullNothingOperand
                 {
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(receiverForCheck) : receiverForCheck
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             case "ushr":
@@ -425,8 +420,8 @@ extension CallTypeChecker {
                 if (receiverForCheck == intType || receiverForCheck == longType),
                    rawRhsType == intType || isNonNullNothingOperand
                 {
-                    let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
-                    sema.bindings.bindExprType(id, type: finalType)
+                    let finalType = request.safeCall ? request.sema.types.makeNullable(receiverForCheck) : receiverForCheck
+                    request.sema.bindings.bindExprType(request.id, type: finalType)
                     return finalType
                 }
             default:
@@ -451,28 +446,28 @@ extension CallTypeChecker {
         // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
         // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and resolves
         // through normal extension-function overload resolution below instead.
-        if calleeName == knownNames.toString,
-           args.isEmpty
+        if request.calleeName == request.knownNames.toString,
+           request.args.isEmpty
         {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
-            let stringType = sema.types.stringType
-            let receiverForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
+            let intType = request.sema.types.make(.primitive(.int, .nonNull))
+            let longType = request.sema.types.make(.primitive(.long, .nonNull))
+            let byteType = request.sema.types.byteType
+            let shortType = request.sema.types.shortType
+            let stringType = request.sema.types.stringType
+            let receiverForCheck = request.safeCall
+                ? request.sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             if receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == byteType || receiverForCheck == shortType {
-                let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
-                sema.bindings.bindExprType(id, type: finalType)
+                let finalType = request.safeCall ? request.sema.types.makeNullable(stringType) : stringType
+                request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
         }
 
-        let anyFallbackReceiverType = safeCall
-            ? sema.types.makeNonNullable(lookupReceiverType)
+        let anyFallbackReceiverType = request.safeCall
+            ? request.sema.types.makeNonNullable(lookupReceiverType)
             : lookupReceiverType
-        let allowsAnyFallback: Bool = switch sema.types.kind(of: anyFallbackReceiverType) {
+        let allowsAnyFallback: Bool = switch request.sema.types.kind(of: anyFallbackReceiverType) {
         case .stringStruct:
             false
         case .primitive:
@@ -490,53 +485,53 @@ extension CallTypeChecker {
             // collecting unrelated `toString` extensions that the bottom type is
             // nominally a subtype of) matches kotlinc for `null?.toString()`
             // (KUU-3146). Non-safe `Nothing` receivers keep ordinary resolution.
-            safeCall
+            request.safeCall
         default:
-            anyFallbackReceiverType == sema.types.anyType || anyFallbackReceiverType == sema.types.nullableAnyType
+            anyFallbackReceiverType == request.sema.types.anyType || anyFallbackReceiverType == request.sema.types.nullableAnyType
         }
 
-        if calleeName == knownNames.hashCode, args.isEmpty, allowsAnyFallback {
-            let finalType = safeCall ? sema.types.makeNullable(sema.types.intType) : sema.types.intType
-            sema.bindings.bindExprType(id, type: finalType)
+        if request.calleeName == request.knownNames.hashCode, request.args.isEmpty, allowsAnyFallback {
+            let finalType = request.safeCall ? request.sema.types.makeNullable(request.sema.types.intType) : request.sema.types.intType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
 
-        if calleeName == knownNames.toString, args.isEmpty, allowsAnyFallback {
-            let stringType = sema.types.stringType
-            let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
-            sema.bindings.bindExprType(id, type: finalType)
+        if request.calleeName == request.knownNames.toString, request.args.isEmpty, allowsAnyFallback {
+            let stringType = request.sema.types.stringType
+            let finalType = request.safeCall ? request.sema.types.makeNullable(stringType) : stringType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
 
-        if calleeName == knownNames.equals, args.count == 1, allowsAnyFallback {
-            if !safeCall, sema.types.nullability(of: lookupReceiverType) == .nullable {
-                sema.diagnostics.error(
+        if request.calleeName == request.knownNames.equals, request.args.count == 1, allowsAnyFallback {
+            if !request.safeCall, request.sema.types.nullability(of: lookupReceiverType) == .nullable {
+                request.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0026",
                     "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                    range: range
+                    range: request.range
                 )
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                return driver.helpers.bindAndReturnErrorType(request.id, sema: request.sema)
             }
-            let finalType = safeCall ? sema.types.makeNullable(sema.types.booleanType) : sema.types.booleanType
-            sema.bindings.bindExprType(id, type: finalType)
+            let finalType = request.safeCall ? request.sema.types.makeNullable(request.sema.types.booleanType) : request.sema.types.booleanType
+            request.sema.bindings.bindExprType(request.id, type: finalType)
             return finalType
         }
 
-        if args.isEmpty {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
-            let uintType = sema.types.make(.primitive(.uint, .nonNull))
-            let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
-            let ubyteType = sema.types.ubyteType
-            let ushortType = sema.types.ushortType
-            let byteType = sema.types.byteType
-            let shortType = sema.types.shortType
-            let floatType = sema.types.make(.primitive(.float, .nonNull))
-            let doubleType = sema.types.make(.primitive(.double, .nonNull))
-            let receiverForCheck = safeCall
-                ? sema.types.makeNonNullable(lookupReceiverType)
+        if request.args.isEmpty {
+            let intType = request.sema.types.make(.primitive(.int, .nonNull))
+            let longType = request.sema.types.make(.primitive(.long, .nonNull))
+            let uintType = request.sema.types.make(.primitive(.uint, .nonNull))
+            let ulongType = request.sema.types.make(.primitive(.ulong, .nonNull))
+            let ubyteType = request.sema.types.ubyteType
+            let ushortType = request.sema.types.ushortType
+            let byteType = request.sema.types.byteType
+            let shortType = request.sema.types.shortType
+            let floatType = request.sema.types.make(.primitive(.float, .nonNull))
+            let doubleType = request.sema.types.make(.primitive(.double, .nonNull))
+            let receiverForCheck = request.safeCall
+                ? request.sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            let calleeStr = interner.resolve(calleeName)
+            let calleeStr = request.interner.resolve(request.calleeName)
             let (targetType, matches): (TypeID, Bool) = switch calleeStr {
             case "toInt": (intType, receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toUInt": (uintType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == byteType || receiverForCheck == shortType)
@@ -546,20 +541,20 @@ extension CallTypeChecker {
             case "toDouble": (doubleType, receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toByte": (byteType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toShort": (shortType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
-            case "toUByte": (sema.types.ubyteType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
-            case "toUShort": (sema.types.ushortType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
-            case "toChar": (sema.types.charType, receiverForCheck == byteType || receiverForCheck == shortType)
-            default: (sema.types.errorType, false)
+            case "toUByte": (request.sema.types.ubyteType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toUShort": (request.sema.types.ushortType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toChar": (request.sema.types.charType, receiverForCheck == byteType || receiverForCheck == shortType)
+            default: (request.sema.types.errorType, false)
             }
             if matches {
-                let finalType = safeCall ? sema.types.makeNullable(targetType) : targetType
+                let finalType = request.safeCall ? request.sema.types.makeNullable(targetType) : targetType
                 let deprecatedCallee = driver.helpers.checkBuiltinDeprecation(
-                    calleeName: calleeName,
+                    calleeName: request.calleeName,
                     receiverType: receiverForCheck,
-                    sema: sema,
-                    interner: interner,
-                    range: range,
-                    diagnostics: ctx.sema.diagnostics
+                    sema: request.sema,
+                    interner: request.interner,
+                    range: request.range,
+                    diagnostics: request.ctx.sema.diagnostics
                 )
                 // KUU-3763: Byte/Short.toChar() has no entry in the KIR
                 // conversion tables, so an unbound call fell back to a
@@ -568,13 +563,13 @@ extension CallTypeChecker {
                 // emits a real call, which a @Suppress('DEPRECATION_ERROR')
                 // site can still execute.
                 if let deprecatedCallee {
-                    sema.bindings.bindCall(id, binding: CallBinding(
+                    request.sema.bindings.bindCall(request.id, binding: CallBinding(
                         chosenCallee: deprecatedCallee,
                         substitutedTypeArguments: [],
                         parameterMapping: [:]
                     ))
                 }
-                sema.bindings.bindExprType(id, type: finalType)
+                request.sema.bindings.bindExprType(request.id, type: finalType)
                 return finalType
             }
         }
