@@ -123,7 +123,11 @@ struct CallableReferenceMemberExtensionFallbackTests {
         let context = try frontend(source, fromSource: fromSource)
         let errors = context.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.count == 2, "\(errors)")
-        #expect(errors.allSatisfy { $0.code == "KSWIFTK-SEMA-0468" }, "\(errors)")
+        // Neither reference resolves unambiguously against the expected
+        // function type, so the callable-reference path reports TYPE-0001
+        // (matching the rest of the callable-reference suites) rather than
+        // the downstream initializer mismatch (KUU-4489).
+        #expect(errors.allSatisfy { $0.code == "KSWIFTK-TYPE-0001" }, "\(errors)")
     }
 
     private func frontend(_ source: String, fromSource: Bool) throws -> CompilationContext {
