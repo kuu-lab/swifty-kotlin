@@ -213,6 +213,10 @@ Environment:
                      Space-separated arguments appended to the candidate
                      kswiftc invocation (default: empty)
   DIFF_BACKEND       Candidate backend lane: native (default), jvm, or wasm
+  DIFF_BACKEND_SWEEP
+                     If 1, jvm/wasm lanes run every non-candidate case
+                     instead of only // DIFF_<BACKEND> marked ones
+                     (default: 0)
   DIFF_ENGINE        WASI engine for DIFF_BACKEND=wasm: node or wasmtime
                      (default: node)
   DIFF_JVM_STDLIB_JAR
@@ -1305,7 +1309,9 @@ else
       FAILED=$((FAILED + 1))
     fi
 
-    if [[ -n "$REPORT_PATH" ]]; then
+    # Sweep mode already recorded this case from its worker; skip the
+    # duplicate row here so partial reports stay consistent.
+    if [[ -n "$REPORT_PATH" && "${DIFF_BACKEND_SWEEP:-0}" != "1" ]]; then
       printf '%s\t%s\t%s\n' "$test_case" "$status" "$artifact_dir" >>"$REPORT_PATH"
     fi
   done

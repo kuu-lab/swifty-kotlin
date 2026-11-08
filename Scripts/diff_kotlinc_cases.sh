@@ -203,6 +203,9 @@ case_skips_native_lane() {
 # an explicitly named single file always runs so one-off backend checks do
 # not need a directive edit. Candidate-only variants stay native-only: they
 # run through run_candidate_only.sh's own native pipeline.
+# DIFF_BACKEND_SWEEP=1 drops the marker requirement so jvm/wasm lanes run
+# every non-candidate case; used to harvest which cases a backend can
+# handle before opting them in with // DIFF_<BACKEND>.
 backend_lane_skips_case() {
   local kt_file="$1"
   if [[ "$DIFF_BACKEND" == "native" ]]; then
@@ -216,6 +219,9 @@ backend_lane_skips_case() {
     return 0
   fi
   [[ -f "$TARGET" ]] && return 1
+  if [[ "${DIFF_BACKEND_SWEEP:-0}" == "1" ]]; then
+    return 1
+  fi
   ! case_supports_backend "$kt_file" "$DIFF_BACKEND"
 }
 

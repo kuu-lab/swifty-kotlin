@@ -951,7 +951,9 @@ jobs:
           DIFF_LOG_PASS: "0"
           KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
         run: |
-          DIFF_WORKERS="$(nproc)" \
+          # Each marked case compiles the bundled stdlib to wasm inline; cap
+          # workers so parallel compiles do not exhaust the runner.
+          DIFF_WORKERS="2" \
             bash Scripts/diff_kotlinc.sh --report "$DIFF_REPORT" Scripts/diff_cases
       - name: Summarize WASM backend diff artifacts
         if: always() && steps.diff_kotlinc_wasm.outcome != 'cancelled'
@@ -1021,6 +1023,16 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nightly-mutation-fuzzer"
           "$KSWIFTC" --stdlib-only --emit library \
             -o "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib"
+      - name: Warm shared runtime object cache
+        run: |
+          # The first native compile builds the shared Runtime objects
+          # (swift build -c release --target Runtime; several minutes cold).
+          # Warm the cache here so the baseline guardrail and the fuzzer cases
+          # measure steady-state compile time instead of the one-time build.
+          "$KSWIFTC" --no-stdlib \
+            --stdlib-library "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib" \
+            Scripts/diff_cases/hello.kt \
+            -o "$RUNNER_TEMP/nightly-mutation-fuzzer/warmup-hello"
       - name: Replay committed crash corpus
         run: |
           python3 Scripts/mutate_diff_cases.py \
@@ -1225,9 +1237,9 @@ jobs:
   kotlinx-io-apple-candidate:
     name: Darwin SDK and Apple IO focused candidate
     runs-on: macos-26
-    # Existing runner bounds: build 1200 + Core 1200 + Runtime 900 + Backend
+    # Existing runner bounds: build 1200 + Core 3000 + Runtime 900 + Backend
     # 3600 seconds. Leave setup/upload margin; retried wrapper runs cannot pass the audit.
-    timeout-minutes: 150
+    timeout-minutes: 190
     env:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       KSWIFTK_IO1763_RECEIPT_DIRECTORY: ${{ github.workspace }}/apple-candidate-receipts

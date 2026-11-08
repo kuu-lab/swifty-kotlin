@@ -553,4 +553,10 @@ run_case_worker() {
 
   artifact="$(cat "$artifact_file" 2>/dev/null || true)"
   printf '%s\t%s\n' "$status" "$artifact" >"$status_path"
+
+  # Sweep runs can exceed the job timeout before the parent collects results;
+  # record each finished case immediately so partial TSVs remain usable.
+  if [[ -n "${REPORT_PATH:-}" && "${DIFF_BACKEND_SWEEP:-0}" == "1" ]]; then
+    printf '%s\t%s\t%s\n' "$kt_file" "$status" "$artifact" >>"$REPORT_PATH"
+  fi
 }
