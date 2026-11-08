@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 @testable import CompilerTestSupport
 
@@ -283,6 +284,72 @@ struct CompilerOptionsTests {
         #expect(opts.useNewInference)
         #expect(opts.useUnrestrictedBuilderInference)
         #expect(opts.useProperTypeInferenceConstraintsProcessing)
+    }
+
+    // MARK: - nativeLinkLibraries
+
+    /// KUU-4460: a `-l` name that resolves to a `.kklib` bundle under the
+    /// kklib search paths must not be forwarded to `ld` — its objects already
+    /// reach the linker through kklib discovery.
+    @Test func testNativeLinkLibrariesFiltersKklibBundles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory.appendingPathComponent("libtiny.kklib"), withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: directory.appendingPathComponent("plain.kklib"), withIntermediateDirectories: true
+        )
+
+        let opts = CompilerOptions(
+            moduleName: "Test",
+            inputs: [],
+            outputPath: "/out",
+            emit: .executable,
+            searchPaths: [directory.path],
+            linkLibraries: ["tiny", "plain", "sqlite3"],
+            target: defaultTargetTriple()
+        )
+        #expect(opts.nativeLinkLibraries == ["sqlite3"])
+    }
+
+    @Test func testNativeLinkLibrariesDirectKklibSearchPath() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let bundle = directory.appendingPathComponent("tiny.kklib")
+        try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let opts = CompilerOptions(
+            moduleName: "Test",
+            inputs: [],
+            outputPath: "/out",
+            emit: .executable,
+            searchPaths: [bundle.path],
+            linkLibraries: ["tiny"],
+            target: defaultTargetTriple()
+        )
+        #expect(opts.nativeLinkLibraries.isEmpty)
+    }
+
+    @Test func testNativeLinkLibrariesPassesThroughUnresolvedNames() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(
+            at: directory.appendingPathComponent("unrelated.kklib"), withIntermediateDirectories: true
+        )
+
+        let opts = CompilerOptions(
+            moduleName: "Test",
+            inputs: [],
+            outputPath: "/out",
+            emit: .executable,
+            searchPaths: [directory.path],
+            linkLibraries: ["runtime", "dir/nested"],
+            target: defaultTargetTriple()
+        )
+        #expect(opts.nativeLinkLibraries == ["runtime", "dir/nested"])
     }
 
     // MARK: - EmitMode
