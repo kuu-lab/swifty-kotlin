@@ -68,6 +68,28 @@ struct CollectionContainsAllReceiverTests {
     }
 
     @Test
+    func bareEmptyListArgumentInfersReceiverElementType() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            println(listOf(1, 2, 3).containsAll(emptyList()))
+            println(setOf("a").containsAll(emptyList()))
+            val ints: List<Int> = listOf(1)
+            println(ints.containsAll(emptyList()))
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+
+        let sema = try #require(ctx.sema)
+        let calls = try containsAllCalls(in: ctx)
+        #expect(calls.count == 3)
+        for call in calls {
+            let binding = try #require(sema.bindings.callBinding(for: call))
+            #expect(sema.symbols.isSourceBackedSymbol(binding.chosenCallee))
+        }
+    }
+
+    @Test
     func userDefinedIterableAndSequenceExtensionsAndMembersStillResolve() throws {
         let ctx = makeContextFromSource("""
         fun Iterable<Int>.containsAll(elements: Collection<Int>): Boolean = true
