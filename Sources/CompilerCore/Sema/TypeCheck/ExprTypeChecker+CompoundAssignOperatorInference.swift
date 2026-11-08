@@ -42,6 +42,7 @@ extension ExprTypeChecker {
             : operatorFunctionNames(for: driver.helpers.compoundAssignToBinaryOp(op), interner: interner)
         let call = CallExpr(
             range: range, calleeName: operatorNames[0], args: [CallArg(type: valueType)],
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
             isOperatorCall: true
         )
         var operatorCandidates = collectOperatorCandidates(
@@ -107,6 +108,23 @@ extension ExprTypeChecker {
 
         guard let chosen = resolved.chosenCallee else {
             return nil
+        }
+
+        // Record the implicit receiver that supplies a member extension's
+        // dispatch receiver so KIR lowering can emit `this@Owner` ahead of
+        // the operator receiver (KUU-4420).
+        if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
+            let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
+                driver.helpers.allNominalSymbols(
+                    of: entry.type,
+                    types: sema.types,
+                    symbols: sema.symbols
+                ).contains(dispatchOwner)
+            }
+            sema.bindings.markImplicitReceiverMember(exprID, name: operatorNames[0])
+            if let symbol = dispatchReceiver?.symbol {
+                sema.bindings.markImplicitReceiverOuterReceiver(exprID, symbol: symbol)
+            }
         }
 
         let returnType: TypeID
@@ -191,6 +209,7 @@ extension ExprTypeChecker {
             range: range,
             calleeName: operatorName,
             args: [],
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
             isOperatorCall: true
         )
         let operatorCandidates = collectOperatorCandidates(
@@ -230,6 +249,20 @@ extension ExprTypeChecker {
                 expressionType: sema.types.errorType,
                 assignedType: sema.types.errorType
             )
+        }
+
+        if let dispatchOwner = sema.symbols.memberExtensionOwnerSymbol(for: chosen) {
+            let dispatchReceiver = ctx.implicitReceiverMemberLookupEntries().first { entry in
+                driver.helpers.allNominalSymbols(
+                    of: entry.type,
+                    types: sema.types,
+                    symbols: sema.symbols
+                ).contains(dispatchOwner)
+            }
+            sema.bindings.markImplicitReceiverMember(exprID, name: operatorName)
+            if let symbol = dispatchReceiver?.symbol {
+                sema.bindings.markImplicitReceiverOuterReceiver(exprID, symbol: symbol)
+            }
         }
 
         let returnType = driver.callChecker.bindCallAndResolveReturnType(

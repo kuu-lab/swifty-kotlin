@@ -23,6 +23,7 @@ extension ExprTypeChecker {
         let names = operatorFunctionNames(for: op, interner: ctx.interner)
         let call = CallExpr(
             range: range, calleeName: names[0], args: [CallArg(type: originalType)],
+            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type),
             isOperatorCall: true
         )
         let candidates = collectOperatorCandidates(

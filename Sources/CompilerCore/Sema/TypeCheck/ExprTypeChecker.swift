@@ -1987,7 +1987,8 @@ final class ExprTypeChecker {
         receiverType: TypeID,
         call: CallExpr,
         locals: LocalBindings,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        allowsImplicitReceiverMemberExtensionOperators: Bool = true
     ) -> [SymbolID] {
         let sema = ctx.sema
         let interner = ctx.interner
@@ -2105,18 +2106,16 @@ final class ExprTypeChecker {
         // that member scope before package-scope extensions so an inherited
         // interface operator keeps the same priority as an ordinary member
         // extension call.
-        if names.count == 1,
-           let name = names.first,
-           ["not", "unaryPlus", "unaryMinus"].contains(interner.resolve(name))
-        {
-            let memberExtensionCandidates = collectImplicitReceiverMemberExtensionOperatorCandidates(
-                named: name,
+        let memberExtensionCandidates = allowsImplicitReceiverMemberExtensionOperators
+            ? collectImplicitReceiverMemberExtensionOperatorCandidates(
+                names: names,
                 receiverType: receiverType,
+                call: call,
                 ctx: ctx
             )
-            if !memberExtensionCandidates.isEmpty {
-                return memberExtensionCandidates
-            }
+            : []
+        if !memberExtensionCandidates.isEmpty {
+            return memberExtensionCandidates
         }
 
         let localExtensionCandidates = collectLocalOperatorExtensionCandidates(
@@ -2213,38 +2212,58 @@ final class ExprTypeChecker {
     }
 
     private func collectImplicitReceiverMemberExtensionOperatorCandidates(
-        named name: InternedString,
+        names: [InternedString],
         receiverType: TypeID,
+        call: CallExpr,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
         guard receiverType != sema.types.errorType else { return [] }
 
         for dispatchReceiver in ctx.implicitReceiverMemberLookupEntries() {
-            let members = driver.helpers.collectMemberFunctionCandidates(
-                named: name,
-                receiverType: dispatchReceiver.type,
-                sema: sema,
-                interner: ctx.interner
-            )
-            let eligible = members.filter { candidate in
-                guard !ctx.isCandidateBlockedByDslMarker(candidate),
-                      let symbol = sema.symbols.symbol(candidate),
-                      symbol.kind == .function,
-                      symbol.flags.contains(.operatorFunction),
-                      sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
-                      let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType
-                else {
-                    return false
+            var eligible: [SymbolID] = []
+            var seen: Set<SymbolID> = []
+            for name in names {
+                for candidate in driver.helpers.collectMemberFunctionCandidates(
+                    named: name,
+                    receiverType: dispatchReceiver.type,
+                    sema: sema,
+                    interner: ctx.interner
+                ) where seen.insert(candidate).inserted {
+                    guard !ctx.isCandidateBlockedByDslMarker(candidate),
+                          let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.flags.contains(.operatorFunction),
+                          sema.symbols.memberExtensionOwnerSymbol(for: candidate) != nil,
+                          let declaredReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                          driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                              callSiteReceiver: receiverType,
+                              declaredReceiver: declaredReceiver,
+                              sema: sema
+                          )
+                    else {
+                        continue
+                    }
+                    eligible.append(candidate)
                 }
-                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
-                    callSiteReceiver: receiverType,
-                    declaredReceiver: declaredReceiver,
-                    sema: sema
-                )
             }
             let visible = ctx.filterByVisibility(eligible).visible
-            if !visible.isEmpty {
+            guard !visible.isEmpty else { continue }
+            // Collection admits declared type parameters leniently so generic
+            // member extensions stay reachable; claim the tier only when a
+            // candidate is viable for this operand/argument pair. An
+            // inapplicable member extension (`Ring<T>.T.plus` seen from an
+            // unrelated `Foo` operand) must not shadow package-scope
+            // extensions, and an inapplicable inner tier must not hide an
+            // applicable outer receiver's operator (KUU-4420).
+            let hasViableCandidate = !ctx.resolver.probeCall(
+                candidates: visible,
+                call: call,
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                ctx: sema
+            ).viableCandidates.isEmpty
+            if hasViableCandidate {
                 return visible
             }
         }
