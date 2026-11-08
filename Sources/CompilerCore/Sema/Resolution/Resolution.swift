@@ -1227,13 +1227,26 @@ extension OverloadResolver {
         // expected type that merely mentions the parameter in a nested
         // position (e.g. `PS<List<E>>`, which correctly binds `E' = List<E>`)
         // keeps its ordinary decomposition.
+        //
+        // Type parameters the expected type mentions are caller-side rigid
+        // types even when they share a symbol with the candidate's own
+        // parameters (a member of `class Q<RowType>` sees `RowType` in both
+        // roles). Without this the expected `QR<RowType?>` would decompose
+        // against `QR<R>` as `R <: RowType-var`, and the receiver-bound
+        // non-null `RowType` then rejects the nullable inference (KUU-4461).
+        let expectedRigidTypeParameters = expectedType.map {
+            rigidTypeParameterSymbols(
+                in: $0, typeVarBySymbol: typeVarBySymbol, typeSystem: ctx.types
+            )
+        } ?? []
         if let expectedType {
             let expectedDecomposed = decomposeSubtypeConstraint(
                 subtype: signature.returnType,
                 supertype: expectedType,
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: ctx.types,
-                blameRange: call.range
+                blameRange: call.range,
+                rigidSupertypeTypeParameters: expectedRigidTypeParameters
             )
             var pinnedVariables: Set<TypeVarID> = []
             for constraint in expectedDecomposed {
@@ -1291,7 +1304,8 @@ extension OverloadResolver {
                         supertype: expectedTypeHint,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: ctx.types,
-                        blameRange: call.range
+                        blameRange: call.range,
+                        rigidSupertypeTypeParameters: expectedRigidTypeParameters
                     )
                     constraints.append(contentsOf: returnDecomposed)
                     inputConstraints.append(contentsOf: returnDecomposed)
@@ -1308,7 +1322,8 @@ extension OverloadResolver {
                     supertype: expectedTypeHint,
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: ctx.types,
-                    blameRange: call.range
+                    blameRange: call.range,
+                    rigidSupertypeTypeParameters: expectedRigidTypeParameters
                 )
                 constraints.append(contentsOf: returnDecomposed)
                 inputConstraints.append(contentsOf: returnDecomposed)
@@ -1322,7 +1337,8 @@ extension OverloadResolver {
                     supertype: expectedType,
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: ctx.types,
-                    blameRange: call.range
+                    blameRange: call.range,
+                    rigidSupertypeTypeParameters: expectedRigidTypeParameters
                 )
                 constraints.append(contentsOf: returnDecomposed)
                 inputConstraints.append(contentsOf: returnDecomposed)
@@ -1360,7 +1376,12 @@ extension OverloadResolver {
                     supertype: resultTypeHint,
                     typeVarBySymbol: methodTypeVarBySymbol,
                     typeSystem: ctx.types,
-                    blameRange: call.range
+                    blameRange: call.range,
+                    rigidSupertypeTypeParameters: rigidTypeParameterSymbols(
+                        in: resultTypeHint,
+                        typeVarBySymbol: methodTypeVarBySymbol,
+                        typeSystem: ctx.types
+                    )
                 )
                 for hint in decomposedHints {
                     guard let left = replacingInputVariables(
@@ -1807,6 +1828,22 @@ extension OverloadResolver {
         }
     }
 
+    /// Symbols occurring in `type` that collide with the candidate's
+    /// inference variables. On the caller-derived side of a constraint these
+    /// name rigid types, not bindable variables: an expected type written
+    /// inside a generic declaration mentions the enclosing parameters, which
+    /// share symbols with the candidate's own class/function parameters
+    /// (KUU-4461).
+    private func rigidTypeParameterSymbols(
+        in type: TypeID,
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        typeSystem: TypeSystem
+    ) -> Set<SymbolID> {
+        Set(typeVarBySymbol.keys.filter {
+            typeSystem.typeContainsTypeParam(type, symbol: $0)
+        })
+    }
+
     private func appendArgumentConstraints(
         to constraints: inout [VariableConstraint],
         call: CallExpr,
@@ -1823,8 +1860,17 @@ extension OverloadResolver {
         let isVararg = Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count)
         // The argument type is caller-derived: a type parameter it names (for
         // a recursive call it can share the candidate's own symbol) is a rigid
-        // type, never the candidate's inference variable (KUU-3960).
-        let rigidSubtypeTypeParameters = Set(typeVarBySymbol.keys)
+        // type, never the candidate's inference variable (KUU-3960). Only the
+        // parameters actually present on the argument side qualify: a symbol
+        // that appears solely in the parameter type can resurface on the
+        // subtype side when invariant arguments decompose in both directions,
+        // and marking it rigid there would constrain the candidate's own
+        // variable against itself (KUU-4461).
+        func rigidSubtypeTypeParameters(of type: TypeID) -> Set<SymbolID> {
+            Set(typeVarBySymbol.keys.filter {
+                typeSystem.typeContainsTypeParam(type, symbol: $0)
+            })
+        }
         var processedAll = true
         for argIndex in call.args.indices {
             if ignoredIntegerLiteralArgumentIndices.contains(argIndex) { continue }
@@ -1886,7 +1932,7 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: call.range,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(of: elementType)
                 ).map { $0.withOrigin(.callArgument) })
                 continue
             }
@@ -1909,7 +1955,7 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: call.range,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(of: elementType)
                 )
                 constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
                 continue
@@ -1975,7 +2021,7 @@ extension OverloadResolver {
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: call.range,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(of: constraintArgumentType)
             )
             // An unsuffixed integer literal keeps its JVM literal-type
             // provenance through constraint recording: the join can then tell
