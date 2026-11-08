@@ -10,8 +10,6 @@
 
 import Foundation
 
-extension RuntimeThrowableBox: Error {}
-
 /// Thrown within a runtime bridge closure to indicate an explicit runtime error handle.
 public struct RuntimeThrownHandle: Error, Sendable {
     public let handle: Int
@@ -36,9 +34,6 @@ public func runtimeThrowingBridge<R: BinaryInteger>(
     } catch let thrown as RuntimeThrownHandle {
         runtimeSetThrown(outThrown, thrown.handle)
         return defaultOnFailure
-    } catch let box as RuntimeThrowableBox {
-        runtimeSetThrown(outThrown, runtimeRegisterThrowable(box))
-        return defaultOnFailure
     } catch {
         runtimeSetThrown(outThrown, runtimeAllocateException(message: String(describing: error)))
         return defaultOnFailure
@@ -57,9 +52,6 @@ public func runtimeThrowingBridgePointer<P>(
         return try body()
     } catch let thrown as RuntimeThrownHandle {
         runtimeSetThrown(outThrown, thrown.handle)
-        return defaultOnFailure
-    } catch let box as RuntimeThrowableBox {
-        runtimeSetThrown(outThrown, runtimeRegisterThrowable(box))
         return defaultOnFailure
     } catch {
         runtimeSetThrown(outThrown, runtimeAllocateException(message: String(describing: error)))
