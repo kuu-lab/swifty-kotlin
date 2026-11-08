@@ -154,6 +154,17 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 - 診断コード: `KSWIFTK-{PHASE}-{NUMBER}` 形式（例: `KSWIFTK-SEMA-0001`）
 - 分割ファイルは責務ベースで命名（`+Part2` のような番号付き名は禁止）
 
+## テスト記述規約
+
+新規テストは `CompilerTestSupport` のコンパイル期待 DSL（`Sources/CompilerTestSupport/CompileExpectations.swift`）を優先して使い、「ソース文字列 → コンパイル → 診断アサート」の足場を手組みしない。
+
+- Sema / KIR / Lowering まで進めるテスト: `semaContext(from:expecting:)` / `kirContext(from:expecting:)` / `loweringContext(from:expecting:)`。`expecting` 省略時は error 診断ゼロを要求し、ctx を返すので symbol table / AST / KIR の追加検査にそのまま使える
+- 特定診断を期待する reject 系テスト: `expecting: [.error("KSWIFTK-SEMA-XXXX", containing: "...")]`。列挙していない error 診断が残ると失敗する（過不足なし検証）
+- 事後の診断フィルタは `ctx.errorDiagnostics` / `ctx.warningDiagnostics` / `ctx.diagnosticsWithCode(_:severity:)` を使い、`ctx.diagnostics.diagnostics.filter { $0.severity == .error }` の手組みをしない
+- Backend の実行テスト（compile → link → run → stdout アサート）は `assertKotlinOutput` / `compileAndRunKotlin`（`Tests/CompilerBackendTests/Integration/TestSupport/`）を使う
+- 実ファイルパス・特殊な emit/searchPaths・パイプライン例外を catch して診断だけ見る等、DSL で表現できないケースは従来どおり `withTemporaryFile` + `makeCompilationContext` を使ってよい
+- 回帰テストは引き続き「1 修正 = 1 ファイル / `+拡張` ファイル」構造を維持する（並行 PR のマージコンフリクト回避のため、ファイル統合はしない）
+
 ## Cursor Cloud specific instructions
 
 ### 概要
