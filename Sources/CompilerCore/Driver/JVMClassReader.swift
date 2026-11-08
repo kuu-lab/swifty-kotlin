@@ -26,8 +26,17 @@ struct JVMForeignField {
     let name: String
     let descriptor: String
     let access: UInt16
+    /// `ConstantValue` attribute payload for `static final` fields, when the
+    /// classfile carries one. Used to emit Kotlin `const`-style literals.
+    var constantValue: JVMFieldConstant?
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
+    var isFinal: Bool { access & 16 != 0 }
+}
+
+/// A `ConstantValue` field attribute resolved through the constant pool.
+enum JVMFieldConstant {
+    case int(Int32), long(Int64), float(Float), double(Double), string(String)
 }
 
 /// Reads declarations only. Dependency code and class initializers are never run.
@@ -36,6 +45,7 @@ struct JVMClassReader {
     var offset = 0
     var strings: [Int: String] = [:]
     var classes: [Int: Int] = [:]
+    var constants: [Int: JVMFieldConstant] = [:]
     struct Invalid: Error {}
 
     mutating func u1() throws -> UInt8 {
@@ -52,6 +62,23 @@ struct JVMClassReader {
     mutating func attributes() throws {
         let count = try u2()
         for _ in 0..<count { _ = try u2(); let size = try u4(); try skip(Int(size)) }
+    }
+    /// Field attributes: returns the resolved `ConstantValue` payload, if any.
+    mutating func fieldAttributes() throws -> JVMFieldConstant? {
+        var result: JVMFieldConstant?
+        let count = try u2()
+        for _ in 0..<count {
+            let nameIndex = Int(try u2())
+            let size = try u4()
+            let end = offset + Int(size)
+            if try text(nameIndex) == "ConstantValue", size == 2 {
+                result = constants[Int(try u2())]
+            } else {
+                try skip(Int(size))
+            }
+            guard offset == end else { throw Invalid() }
+        }
+        return result
     }
     private mutating func classAttributes() throws -> (signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool, hasEnclosingMethod: Bool) {
         let count = try u2()
@@ -164,6 +191,9 @@ struct JVMClassReader {
         _ = try u2(); guard try u2() >= 45 else { throw Invalid() }
         let count = Int(try u2())
         var index = 1
+        // CONSTANT_String may reference a Utf8 entry declared later in the
+        // pool; resolve those references once the pool is fully read.
+        var pendingStringRefs: [Int: Int] = [:]
         while index < count {
             switch try u1() {
             case 1:
@@ -185,15 +215,31 @@ struct JVMClassReader {
                 }
                 strings[index] = String(decoding: units, as: UTF16.self)
             case 7: classes[index] = Int(try u2())
-            case 3, 4: try skip(4)
-            case 5, 6:
-                guard index + 1 < count else { throw Invalid() }; try skip(8); index += 1
-            case 8, 16, 19, 20: try skip(2)
+            case 3:
+                constants[index] = .int(Int32(bitPattern: try u4()))
+            case 4:
+                constants[index] = .float(Float(bitPattern: try u4()))
+            case 5:
+                guard index + 1 < count else { throw Invalid() }
+                let high = try u4(), low = try u4()
+                constants[index] = .long(Int64(bitPattern: (UInt64(high) << 32) | UInt64(low)))
+                index += 1
+            case 6:
+                guard index + 1 < count else { throw Invalid() }
+                let high = try u4(), low = try u4()
+                constants[index] = .double(Double(bitPattern: (UInt64(high) << 32) | UInt64(low)))
+                index += 1
+            case 8:
+                pendingStringRefs[index] = Int(try u2())
+            case 16, 19, 20: try skip(2)
             case 9, 10, 11, 12, 17, 18: try skip(4)
             case 15: try skip(3)
             default: throw Invalid()
             }
             index += 1
+        }
+        for (slot, ref) in pendingStringRefs {
+            if let value = strings[ref] { constants[slot] = .string(value) }
         }
         let flags = try u2(), this = try u2(), base = try u2()
         let name = try className(Int(this))
@@ -206,8 +252,9 @@ struct JVMClassReader {
         for _ in 0..<fieldCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let fieldName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            fields.append(JVMForeignField(name: fieldName, descriptor: descriptor, access: access))
-            try attributes()
+            var field = JVMForeignField(name: fieldName, descriptor: descriptor, access: access)
+            field.constantValue = try fieldAttributes()
+            fields.append(field)
         }
         var methods: [JVMForeignMethod] = []
         var bridgeMethods: [JVMForeignMethod] = []
@@ -275,7 +322,13 @@ enum JVMDescriptor {
                 while i < bytes.count, bytes[i] != 59 { i += 1 }
                 guard i < bytes.count, i > start else { throw JVMClassReader.Invalid() }
                 let name = String(decoding: bytes[start..<i], as: UTF8.self); i += 1
-                guard name.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ JVMProgramBuilder.isIdentifier(String($0)) }) else { throw JVMClassReader.Invalid() }
+                // Binary names may nest with '$' (a/b/C$D); each segment
+                // must still be a valid identifier so anonymous classes
+                // (C$1) and other unnameable shapes stay rejected.
+                guard name.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ segment in
+                    segment.split(separator: "$", omittingEmptySubsequences: false)
+                        .allSatisfy { JVMProgramBuilder.isIdentifier(String($0)) }
+                }) else { throw JVMClassReader.Invalid() }
                 return .reference(name, nullable: true)
             default: throw JVMClassReader.Invalid()
             }
