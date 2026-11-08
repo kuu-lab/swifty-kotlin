@@ -1612,6 +1612,7 @@ extension DataFlowSemaPhase {
                     ast: ast,
                     symbols: symbols,
                     bindings: bindings,
+                    types: types,
                     diagnostics: diagnostics
                 )
                 validateAbstractOverridesForDecl(
@@ -1634,13 +1635,14 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine
     ) {
         guard let decl = ast.arena.decl(declID),
               case let .interfaceDecl(interfaceDecl) = decl,
               interfaceDecl.isFunInterface,
               let symbol = bindings.declSymbols[declID],
-              TypeCheckHelpers().effectiveSamAbstractMethod(for: symbol, symbols: symbols) == nil
+              TypeCheckHelpers().effectiveSamAbstractMethod(for: symbol, symbols: symbols, types: types) == nil
         else {
             return
         }

@@ -934,7 +934,7 @@ extension DeclTypeChecker {
             delegateExpr, ctx: ctx
         ),
             let samMethod = driver.helpers.effectiveSamAbstractMethod(
-                for: interfaceSymbol, symbols: sema.symbols
+                for: interfaceSymbol, symbols: sema.symbols, types: sema.types
             ),
             let methodSymbol = sema.symbols.symbol(samMethod),
             methodSymbol.name == interner.intern("getValue"),

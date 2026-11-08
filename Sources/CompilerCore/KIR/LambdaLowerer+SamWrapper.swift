@@ -458,7 +458,7 @@ extension LambdaLowerer {
         else {
             return nil
         }
-        guard let method = TypeCheckHelpers().effectiveSamAbstractMethod(for: interfaceSymbol, symbols: sema.symbols),
+        guard let method = TypeCheckHelpers().effectiveSamAbstractMethod(for: interfaceSymbol, symbols: sema.symbols, types: sema.types),
               let methodInfo = sema.symbols.symbol(method),
               let signature = sema.symbols.functionSignature(for: method)
         else {
