@@ -96,6 +96,31 @@ extension TypeSystem {
         )))
     }
 
+    /// A lambda literal checked against a receiver-function expected type
+    /// adopts that receiver: its first-pass `() -> T` shape checks as
+    /// `R.() -> T` against `R.() -> U`. Function *values* cannot convert this
+    /// way, so callers must only apply this to literal lambdas (KUU-4456).
+    func lambdaLiteralReceiverConversionType(from source: TypeID, to target: TypeID) -> TypeID? {
+        guard case let .functionType(sourceFunction) = kind(of: source),
+              sourceFunction.contextReceivers.isEmpty,
+              sourceFunction.receiver == nil,
+              case let .functionType(targetFunction) = kind(of: target),
+              targetFunction.contextReceivers.isEmpty,
+              targetFunction.receiver != nil
+        else {
+            return nil
+        }
+        return make(.functionType(FunctionType(
+            receiver: targetFunction.receiver,
+            params: sourceFunction.params,
+            returnType: sourceFunction.returnType,
+            isSuspend: sourceFunction.isSuspend,
+            isCallableReference: sourceFunction.isCallableReference,
+            nullability: sourceFunction.nullability,
+            throws: sourceFunction.throws
+        )))
+    }
+
     /// Applies call-site function adaptations while keeping them separate from
     /// ordinary function subtyping.
     func functionArgumentConversionType(from source: TypeID, to target: TypeID) -> TypeID? {

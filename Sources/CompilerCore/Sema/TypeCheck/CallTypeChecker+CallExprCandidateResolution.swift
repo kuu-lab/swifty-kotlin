@@ -621,6 +621,59 @@ extension CallTypeChecker {
                     }
                 }
             }
+            // A lambda literal whose overloads disagree on the receiver-function
+            // shape is checked first without any expected type, so `this` stays
+            // unresolved inside its body. Re-check it against the chosen
+            // candidate's parameter type so receiver members resolve (KUU-4456).
+            if resolved.diagnostic == nil,
+               let chosen = resolved.chosenCallee,
+               let chosenSignature = sema.symbols.functionSignature(for: chosen)
+            {
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(
+                    chosenSignature.typeParameterSymbols
+                )
+                for index in preparedArgs.lambdaLiteralIndices {
+                    guard let parameterIndex = resolved.parameterMapping[index],
+                          chosenSignature.parameterTypes.indices.contains(parameterIndex),
+                          argTypes.indices.contains(index),
+                          case let .functionType(expectedFunction) = sema.types.kind(
+                              of: chosenSignature.parameterTypes[parameterIndex]
+                          ),
+                          expectedFunction.receiver != nil,
+                          case let .functionType(argumentFunction) = sema.types.kind(
+                              of: argTypes[index]
+                          ),
+                          argumentFunction.receiver == nil
+                    else {
+                        continue
+                    }
+                    let expectedArgumentType = sema.types.substituteTypeParameters(
+                        in: chosenSignature.parameterTypes[parameterIndex],
+                        substitution: resolved.substitutedTypeArguments,
+                        typeVarBySymbol: typeVarBySymbol
+                    )
+                    let diagnosticsCheckpoint = sema.diagnostics.checkpoint()
+                    let argumentRange = ast.arena.exprRange(args[index].expr)
+                    let removedDiagnostics = argumentRange.map {
+                        sema.diagnostics.removeErrorDiagnostics(containedIn: $0)
+                    } ?? []
+                    let argumentType = driver.inferExpr(
+                        args[index].expr,
+                        ctx: ctx,
+                        locals: &locals,
+                        expectedType: expectedArgumentType
+                    )
+                    let emittedError = sema.diagnostics.diagnostics
+                        .dropFirst(diagnosticsCheckpoint)
+                        .contains { $0.severity == .error }
+                    if argumentType == sema.types.errorType
+                        || typeContainsErrorType(argumentType, sema: sema)
+                        || emittedError
+                    {
+                        removedDiagnostics.forEach { sema.diagnostics.emit($0) }
+                    }
+                }
+            }
             // An applicable member keeps precedence even when the surrounding
             // result expectation fails, or its own overload set is ambiguous.
             if let diagnostic = resolved.diagnostic,

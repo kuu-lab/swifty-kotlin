@@ -169,5 +169,74 @@ struct GenericReceiverLambdaTypeInferenceTests {
             "Generic scope chains must retain T and T? rather than widen to Any, got: \(ctx.diagnostics.diagnostics)"
         )
     }
+
+    // KUU-4456: two generic extension overloads whose lambda parameters are
+    // receiver functions (`Ck<T>.() -> Unit`) disagree on the expected type, so
+    // the literal is first checked without one. The chosen candidate's receiver
+    // must still steer both the call-argument constraint and the body's `this`.
+    @Test func testOverloadSetReceiverLambdaAdoptsChosenReceiver() throws {
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: [
+            """
+            package sample
+            sealed class Assert<out T>(val v: T)
+            class A2<T>(v: T) : Assert<T>(v)
+            class Ck<T> { val size = 0 }
+
+            fun <T> Assert<Iterable<T>>.coll(check: Ck<T>.() -> Unit) = Unit
+            fun <T> Assert<Sequence<T>>.coll(check: Ck<T>.() -> Unit) = Unit
+
+            fun <E> Assert<Iterable<E>>.none(f: (Assert<E>) -> Unit) =
+                coll { println(size) }
+
+            fun <E> Assert<Iterable<E>>.noneNamed(f: (Assert<E>) -> Unit) =
+                coll(check = { println(this.size) })
+
+            fun <E> Assert<Sequence<E>>.noneSeq(f: (Assert<E>) -> Unit) =
+                coll { println(size) }
+            """
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            "Receiver lambda must adopt the chosen overload's Ck<T> receiver, got: \(errors)"
+        )
+    }
+
+    // A function *value* cannot adopt a receiver shape: `() -> Unit` is not a
+    // `Ck<T>.() -> Unit`, and overload resolution must still reject it.
+    @Test func testOverloadSetRejectsNonReceiverFunctionValue() throws {
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: [
+            """
+            package sample
+            sealed class Assert<out T>(val v: T)
+            class Ck<T> { val size = 0 }
+
+            fun <T> Assert<Iterable<T>>.coll(check: Ck<T>.() -> Unit) = Unit
+            fun <T> Assert<Sequence<T>>.coll(check: Ck<T>.() -> Unit) = Unit
+
+            fun <E> Assert<Iterable<E>>.none(f: (Assert<E>) -> Unit) {
+                val plain: () -> Unit = { }
+                coll(plain)
+            }
+            """
+        ]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.contains { $0.code == "KSWIFTK-SEMA-0473" },
+            "() -> Unit value must not satisfy Ck<T>.() -> Unit, got: \(errors)"
+        )
+    }
 }
 #endif

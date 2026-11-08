@@ -9,6 +9,10 @@ public struct CallArg {
     /// Source calls distinguish a lambda outside parentheses from ordinary
     /// positional arguments. Nil preserves normalized calls without an AST.
     public let isTrailingLambda: Bool?
+    /// True when the argument expression is itself a lambda literal. Lambda
+    /// literals adopt a receiver-function expected type, which function
+    /// *values* of matching shape cannot (KUU-4456).
+    public let isLambdaLiteral: Bool
     /// Synthetic operator-set calls bind the assigned value to the setter's
     /// final parameter, skipping any defaulted parameters between the indices
     /// and that value.
@@ -21,6 +25,7 @@ public struct CallArg {
         signedIntegerLiteral: Int64? = nil,
         unsignedIntegerLiteral: UInt64? = nil,
         isTrailingLambda: Bool? = nil,
+        isLambdaLiteral: Bool = false,
         bindsToLastParameter: Bool = false
     ) {
         self.label = label
@@ -29,6 +34,7 @@ public struct CallArg {
         self.signedIntegerLiteral = signedIntegerLiteral
         self.unsignedIntegerLiteral = unsignedIntegerLiteral
         self.isTrailingLambda = isTrailingLambda
+        self.isLambdaLiteral = isLambdaLiteral
         self.bindsToLastParameter = bindsToLastParameter
     }
 
@@ -46,7 +52,12 @@ public struct CallArg {
         CallArg(
             label: argument.label, isSpread: argument.isSpread, type: type,
             signedIntegerLiteral: signedIntegerLiteral, unsignedIntegerLiteral: unsignedIntegerLiteral,
-            isTrailingLambda: trailingLambdaPosition(argument, callRange: callRange, ast: ast)
+            isTrailingLambda: trailingLambdaPosition(argument, callRange: callRange, ast: ast),
+            isLambdaLiteral: {
+                guard let expr = ast.arena.expr(argument.expr) else { return false }
+                if case .lambdaLiteral = expr { return true }
+                return false
+            }()
         )
     }
 }
