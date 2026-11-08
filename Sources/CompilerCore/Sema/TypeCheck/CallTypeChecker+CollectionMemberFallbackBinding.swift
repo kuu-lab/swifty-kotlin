@@ -22,6 +22,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
+        let memberName = interner.resolve(calleeName)
         // A `super.<member>` call binds here without ever reaching
         // `bindChosenRegularMemberCall`, so nothing would record the
         // super-call marker. Without it KIR lowering emits a virtual
@@ -42,8 +43,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        let memberName = interner.resolve(calleeName)
-        if sema.requiresResolvedLibraryCalls, Self.jvmSourceCollectionCalls.contains(memberName) { return nil }
+        if sema.requiresResolvedLibraryCalls, knownNames.jvmSourceCollectionCalls.contains(calleeName) { return nil }
         if sema.bindings.exprTypes[receiverID] == nil {
             _ = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
         }

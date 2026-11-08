@@ -756,13 +756,13 @@ extension CallTypeChecker {
             ).isEmpty
         let isSourceBackedMemberName = (calleeName == knownNames.zip
             && isSequenceLikeType(lookupReceiverType, sema: sema, interner: interner))
-            || Self.sourceBackedCollectionMemberNames.contains(memberNameText)
-            || (Self.sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+            || knownNames.sourceBackedCollectionMemberNames.contains(calleeName)
+            || (knownNames.sourceBackedTrailingLambdaMemberNames.contains(calleeName) && !isArrayJoinToString)
             || isArraySourceBackedMember
             || isMutableMapIteratorSource
             || isUniqueIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
-            && (isArraySourceBackedMember || !Self.sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
+            && (isArraySourceBackedMember || !knownNames.sourceBackedCollectionMemberNames.contains(calleeName) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
                 sema.symbols.isSourceBackedSymbol(candidateID)
             }
