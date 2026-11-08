@@ -471,10 +471,10 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | ~~`kotlinx.serialization` compatibility~~ **完了・ファイル削除済み**（CLEANUP-STUB-121, 2026-08-06）。target-out として Runtime/ABI ともに除去。 |
 | `HeaderHelpers+SyntheticSetStubs.swift` | 0 (deleted) | (b) migrated | **完了（KSP-704、2026-09-16）**: Set/MutableSet の nominal shell と HOF 関連の source-backed 宣言を `Stdlib/kotlin/collections/Set.kt`/`MutableSet.kt`/`SetHOF.kt` に集約し、`HashSet.kt`/`LinkedHashSet.kt` の source-backed nominal declarations と併せて旧合成 Set stub を削除。`size` は property link-name 注釈の制約を private external helper で吸収し、MutableSet の mutation default body は `__kk_mutable_set_*` demoted bridges に Lowering から接続する。Set box の opaque layout に対応する direct size/mutation routing を保持し、既存 Set diff と HashSet/LinkedHashSet 生成ケース 11件で確認済み。 |
 | `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | ~~`repeat` source migration~~ **完了・ファイル削除済み**（KSP-604、`Stdlib/kotlin/Standard.kt`）。 |
-| `HeaderHelpers+SyntheticStringBuilderStubs.swift` | 629 | (b) | M2 StringBuilder source migration; source exists. |
-| `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 475 | (b) | M1 string helper registration. |
-| `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
-| `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。残存する collection type fallback は `+SyntheticCollectionTypeFallbacks.swift` に分離。 |
+| `HeaderHelpers+SyntheticStringBuilderStubs.swift` | 0 (deleted) | (b) | **完了・ファイル削除済み**（KSP-628）。StringBuilder の合成スタブは bundled Kotlin source へ移行完了。 |
+| `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 0 (deleted) | (b) | **完了・ファイル削除済み**（KSP-711）。String 登録ヘルパーは Kotlin 側へ移行完了。 |
+| `HeaderHelpers+SyntheticStringStubs.swift` | 52 | (c) | **KSP-711 で (c) 昇格**: String/CharSequence の合成関数スタブは全廃（0件）。残存する CharSequence/String nominal shell、supertype 適合、および `String.Companion` アンカー（`+SyntheticStringCompanionHelpers.swift`, `+SyntheticStringEncodingStubs.swift`）は `--no-stdlib` / metadata fallback 用の (c) アンカーとして残置。 |
+| `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 0 (deleted) | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。残存する collection type fallback は `+SyntheticCollectionTypeFallbacks.swift` に分離。 |
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | deleted | (b) migrated | KUU-2018: Java `ThreadLocal<T>` and `kotlin.concurrent.getOrSet` are source-backed; Kotlin/Native annotation support remains separate. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
