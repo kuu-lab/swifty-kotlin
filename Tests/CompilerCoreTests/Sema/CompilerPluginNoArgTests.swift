@@ -215,5 +215,32 @@ struct CompilerPluginNoArgTests {
             #expect(containsInitConstant, "invokeInitializers=true must emit property initializers and init blocks")
         }
     }
+
+    @Test
+    func testGeneratedConstructorIsHiddenFromKotlinCalls() throws {
+        let callSource = """
+        package com.example
+
+        annotation class Entity
+
+        @Entity
+        class Foo(val id: Int)
+
+        fun test() {
+            val f = Foo()
+        }
+        """
+        try withTemporaryFiles(contents: [callSource]) { paths in
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: [pluginFlag]
+            )
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(!errors.contains { $0.code == "KSWIFTK-SEMA-DEPRECATED" }, "Synthetic constructor must be hidden from lookup, not emitted as deprecated")
+            #expect(errors.contains { $0.message.contains("parameter") || $0.code.contains("PARAMETER") || $0.code.contains("ARGUMENT") || $0.code.contains("UNRESOLVED") })
+        }
+    }
 }
 #endif

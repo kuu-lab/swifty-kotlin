@@ -221,6 +221,97 @@ struct JvmCompilerPluginBridgeTests {
         }
     }
 
+    @Test
+    func testDynamicPluginInstructionPlanLowersCustomMethod() throws {
+        CompilerPluginRegistry.clearDynamicPluginsCache()
+        defer { CompilerPluginRegistry.clearDynamicPluginsCache() }
+        guard FileManager.default.fileExists(atPath: parcelizeJarPath) else {
+            return
+        }
+        let source = """
+        package com.example
+
+        class CustomService
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let flags = [
+                "-Xplugin=\(parcelizeJarPath)",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+
+            // Inject an arbitrary instruction plan to verify the generic IR generation engine
+            let serviceID = try #require(lookupSymbol(named: "CustomService", in: sema, interner: ctx.interner))
+            let methodName = ctx.interner.intern("greeting")
+            let methodSym = sema.symbols.define(
+                kind: .function,
+                name: methodName,
+                fqName: sema.symbols.symbol(serviceID)!.fqName + [methodName],
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            sema.symbols.setParentSymbol(serviceID, for: methodSym)
+            let methodType = sema.types.make(.classType(ClassType(classSymbol: serviceID, args: [], nullability: .nonNull)))
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: methodType,
+                    parameterTypes: [],
+                    returnType: sema.types.stringType,
+                    valueParameterSymbols: [],
+                    typeParameterSymbols: [],
+                    classTypeParameterCount: 0
+                ),
+                for: methodSym
+            )
+
+            // Find the dynamic plugin and register the plan
+            let plugins = CompilerPluginRegistry.plugins(for: ctx.options)
+            let dynamicPlugin = plugins.first(where: { $0 is JvmCompilerPlugin }) as? JvmCompilerPlugin
+            let planBox = try #require(dynamicPlugin?.planBox)
+            planBox.syntheticMethodSymbols[methodSym] = JvmSyntheticMethodPlan(
+                classFqName: "com.example.CustomService",
+                name: "greeting",
+                returnType: "kotlin.String",
+                instructions: [
+                    JvmKIRInstructionPlan(kind: .returnString, stringValue: "Hello from dynamic IR!")
+                ]
+            )
+
+            try BuildKIRPhase().run(ctx)
+            try LoweringPhase().run(ctx)
+            let kir = try #require(ctx.kir)
+            let fn = kir.arena.function(for: methodSym)
+            #expect(fn != nil, "Custom method must be lowered into KIR")
+            if let fn {
+                #expect(!fn.body.isEmpty, "Custom method must have generated instructions")
+                let hasStringReturn = fn.body.contains { instr in
+                    switch instr {
+                    case let .constValue(_, val):
+                        if case let .stringLiteral(interned) = val {
+                            return ctx.interner.resolve(interned) == "Hello from dynamic IR!"
+                        }
+                    case let .returnValue(expr):
+                        let idx = Int(expr.rawValue)
+                        if idx >= 0 && idx < kir.arena.expressions.count,
+                           case let .stringLiteral(interned) = kir.arena.expressions[idx] {
+                            return ctx.interner.resolve(interned) == "Hello from dynamic IR!"
+                        }
+                    default:
+                        break
+                    }
+                    return false
+                }
+                #expect(hasStringReturn, "Custom method body must contain the string literal from instruction plan")
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func lookupSymbol(named name: String, in sema: SemaModule, interner: StringInterner) -> SymbolID? {

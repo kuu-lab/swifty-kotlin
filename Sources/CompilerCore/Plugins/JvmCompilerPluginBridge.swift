@@ -95,6 +95,27 @@ public struct JvmSyntheticConstructorPlan: Codable, Sendable {
     }
 }
 
+public struct JvmKIRInstructionPlan: Codable, Sendable {
+    public enum Kind: String, Codable, Sendable {
+        case returnUnit
+        case returnInt
+        case returnString
+        case returnBoolean
+    }
+
+    public let kind: Kind
+    public let intValue: Int?
+    public let stringValue: String?
+    public let boolValue: Bool?
+
+    public init(kind: Kind, intValue: Int? = nil, stringValue: String? = nil, boolValue: Bool? = nil) {
+        self.kind = kind
+        self.intValue = intValue
+        self.stringValue = stringValue
+        self.boolValue = boolValue
+    }
+}
+
 public struct JvmSyntheticMethodParam: Codable, Sendable {
     public let name: String
     public let type: String
@@ -111,13 +132,22 @@ public struct JvmSyntheticMethodPlan: Codable, Sendable {
     public let returnType: String
     public let defaultIntReturn: Int?
     public let params: [JvmSyntheticMethodParam]?
+    public let instructions: [JvmKIRInstructionPlan]?
 
-    public init(classFqName: String, name: String, returnType: String, defaultIntReturn: Int? = nil, params: [JvmSyntheticMethodParam]? = nil) {
+    public init(
+        classFqName: String,
+        name: String,
+        returnType: String,
+        defaultIntReturn: Int? = nil,
+        params: [JvmSyntheticMethodParam]? = nil,
+        instructions: [JvmKIRInstructionPlan]? = nil
+    ) {
         self.classFqName = classFqName
         self.name = name
         self.returnType = returnType
         self.defaultIntReturn = defaultIntReturn
         self.params = params
+        self.instructions = instructions
     }
 }
 
@@ -460,6 +490,10 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
             let returnTypeID: TypeID
             if methodPlan.returnType == "kotlin.Int" {
                 returnTypeID = types.intType
+            } else if methodPlan.returnType == "kotlin.String" {
+                returnTypeID = types.stringType
+            } else if methodPlan.returnType == "kotlin.Boolean" {
+                returnTypeID = types.booleanType
             } else if methodPlan.returnType == "kotlin.Unit" {
                 returnTypeID = types.unitType
             } else {
@@ -655,6 +689,42 @@ final class JvmPluginLoweringPass: LoweringPass {
             return
         }
 
+        // 1. Synthesize KIRFunctions for synthetic methods that were not emitted during class lowering
+        for (symbol, plan) in planBox.syntheticMethodSymbols {
+            if module.arena.function(for: symbol) == nil {
+                guard let signature = sema.symbols.functionSignature(for: symbol),
+                      let classSymbol = sema.symbols.parentSymbol(for: symbol)
+                else { continue }
+
+                var instructions: [KIRInstruction] = []
+                buildInstructions(for: plan, instructions: &instructions, sema: sema, arena: module.arena, interner: ctx.interner)
+
+                let receiverType = signature.receiverType ?? sema.types.anyType
+                var params: [KIRParameter] = [
+                    KIRParameter(symbol: classSymbol, type: receiverType)
+                ]
+                for (idx, paramType) in signature.parameterTypes.enumerated() {
+                    let paramSym = signature.valueParameterSymbols.indices.contains(idx)
+                        ? signature.valueParameterSymbols[idx]
+                        : classSymbol
+                    params.append(KIRParameter(symbol: paramSym, type: paramType))
+                }
+
+                let methodName = ctx.interner.intern(plan.name)
+                let kirFunc = KIRFunction(
+                    symbol: symbol,
+                    name: methodName,
+                    params: params,
+                    returnType: signature.returnType,
+                    body: instructions,
+                    isSuspend: false,
+                    isInline: false
+                )
+                _ = module.arena.appendDecl(.function(kirFunc))
+            }
+        }
+
+        // 2. For any pre-existing function declarations whose body is empty, populate instructions
         module.arena.transformFunctions { function in
             guard let plan = self.planBox.syntheticMethodSymbols[function.symbol],
                   function.body.isEmpty
@@ -662,17 +732,49 @@ final class JvmPluginLoweringPass: LoweringPass {
 
             var updated = function
             var instructions: [KIRInstruction] = []
-
-            if let intRet = plan.defaultIntReturn {
-                let constExpr = module.arena.appendExpr(.intLiteral(Int64(intRet)), type: sema.types.intType)
-                instructions.append(.returnValue(constExpr))
-            } else {
-                instructions.append(.returnUnit)
-            }
-
+            self.buildInstructions(for: plan, instructions: &instructions, sema: sema, arena: module.arena, interner: ctx.interner)
             updated.replaceBody(instructions, locations: Array(repeating: nil, count: instructions.count))
             return updated
         }
         module.recordLowering(Self.name)
+    }
+
+    private func buildInstructions(
+        for plan: JvmSyntheticMethodPlan,
+        instructions: inout [KIRInstruction],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) {
+        if let instructionPlans = plan.instructions, !instructionPlans.isEmpty {
+            for instr in instructionPlans {
+                switch instr.kind {
+                case .returnUnit:
+                    instructions.append(.returnUnit)
+                case .returnInt:
+                    let val = instr.intValue ?? 0
+                    let expr = arena.appendExpr(.intLiteral(Int64(val)), type: sema.types.intType)
+                    instructions.append(.constValue(result: expr, value: .intLiteral(Int64(val))))
+                    instructions.append(.returnValue(expr))
+                case .returnString:
+                    let val = instr.stringValue ?? ""
+                    let internedStr = interner.intern(val)
+                    let expr = arena.appendExpr(.stringLiteral(internedStr), type: sema.types.stringType)
+                    instructions.append(.constValue(result: expr, value: .stringLiteral(internedStr)))
+                    instructions.append(.returnValue(expr))
+                case .returnBoolean:
+                    let val = instr.boolValue ?? false
+                    let expr = arena.appendExpr(.boolLiteral(val), type: sema.types.booleanType)
+                    instructions.append(.constValue(result: expr, value: .boolLiteral(val)))
+                    instructions.append(.returnValue(expr))
+                }
+            }
+        } else if let intRet = plan.defaultIntReturn {
+            let constExpr = arena.appendExpr(.intLiteral(Int64(intRet)), type: sema.types.intType)
+            instructions.append(.constValue(result: constExpr, value: .intLiteral(Int64(intRet))))
+            instructions.append(.returnValue(constExpr))
+        } else {
+            instructions.append(.returnUnit)
+        }
     }
 }
