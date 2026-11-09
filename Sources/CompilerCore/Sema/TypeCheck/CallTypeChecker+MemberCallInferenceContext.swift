@@ -46,6 +46,22 @@ extension CallTypeChecker {
         var interner: StringInterner { ctx.interner }
         var isExplicitCall: Bool { ctx.ast.arena.isExplicitCall(id) }
         var isInfixCall: Bool { ctx.ast.arena.isInfixCall(id) }
+        /// Member-property captures are shared by reads through one declared
+        /// receiver, while same-typed declarations retain independent captures.
+        var receiverDeclaration: SymbolID? {
+            guard case .nameRef = ast.arena.expr(receiverID),
+                  let symbol = bindings.identifierSymbol(for: receiverID)
+            else {
+                return nil
+            }
+            guard let kind = symbols.symbol(symbol)?.kind else { return nil }
+            switch kind {
+            case .local, .valueParameter, .property, .field:
+                return symbol
+            default:
+                return nil
+            }
+        }
         /// `recv.name` without parentheses is property-access syntax, not an
         /// invocation of a same-named function.
         var isPropertyAccessShape: Bool { args.isEmpty && !isExplicitCall }

@@ -17,7 +17,10 @@ extension CallTypeChecker {
         // Skip this for class-name receivers — only companion members are
         // accessible via `ClassName.member`, not instance properties.
         let memberProperty = driver.helpers.lookupMemberProperty(
-            named: request.calleeName, receiverType: memberLookupType, sema: request.sema
+            named: request.calleeName,
+            receiverType: memberLookupType,
+            receiverDeclaration: request.receiverDeclaration,
+            sema: request.sema
         )
         // Lexical receiver-function values precede package extension properties.
         // Nominal member properties retain their existing priority.

@@ -31,6 +31,7 @@ extension CallTypeChecker {
         let memberProperty = entryMemberProperty ?? driver.helpers.lookupMemberProperty(
             named: request.calleeName,
             receiverType: memberLookupType,
+            receiverDeclaration: request.receiverDeclaration,
             sema: request.sema
         )
 
@@ -84,6 +85,7 @@ extension CallTypeChecker {
                    let refreshed = driver.helpers.lookupMemberProperty(
                        named: request.calleeName,
                        receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
+                       receiverDeclaration: request.receiverDeclaration,
                        sema: request.sema
                    )
                 {

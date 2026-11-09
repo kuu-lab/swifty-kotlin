@@ -138,11 +138,21 @@ public struct TypeParamType: Hashable, Sendable, Codable {
 /// multiple member-call sites while denoting the same captured type.
 public struct CapturedTypeOrigin: Hashable, Sendable, Codable {
     public let receiverType: TypeID
+    /// Identifies the receiver declaration when multiple values have the same
+    /// interned type. A missing symbol keeps type-only origins used by
+    /// receiver conversions that do not have a source expression.
+    public let receiverDeclaration: SymbolID?
     public let parameter: SymbolID
     public let argumentIndex: Int
 
-    public init(receiverType: TypeID, parameter: SymbolID, argumentIndex: Int) {
+    public init(
+        receiverType: TypeID,
+        receiverDeclaration: SymbolID? = nil,
+        parameter: SymbolID,
+        argumentIndex: Int
+    ) {
         self.receiverType = receiverType
+        self.receiverDeclaration = receiverDeclaration
         self.parameter = parameter
         self.argumentIndex = argumentIndex
     }
@@ -253,6 +263,7 @@ extension TypeKind {
             let origin = capture.origin.map {
                 CapturedTypeOrigin(
                     receiverType: transform($0.receiverType),
+                    receiverDeclaration: $0.receiverDeclaration,
                     parameter: $0.parameter,
                     argumentIndex: $0.argumentIndex
                 )
