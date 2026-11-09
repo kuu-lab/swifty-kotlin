@@ -409,13 +409,22 @@ final class LocalDeclTypeChecker {
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: declaredType)
             driver.recordGenericCallConsumer(value, type: declaredType)
             ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
-            if !local.isMutable, local.isInitialized {
+            // A `val`'s single initializing assignment stays valid however
+            // many times the enclosing expression is re-inferred: contract
+            // effects (`callsInPlace`) or candidate probes can mark the local
+            // initialized before a later pass re-checks this same assignment
+            // (KUU-4513).
+            let repeatsValInitialization = ctx.dataFlow.valInitializingAssignmentExprs.contains(id)
+            if !local.isMutable, local.isInitialized, !repeatsValInitialization {
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
                     range: range
                 )
             } else {
+                if !local.isMutable, !local.isInitialized {
+                    ctx.dataFlow.valInitializingAssignmentExprs.insert(id)
+                }
                 driver.emitSubtypeConstraint(
                     left: valueType,
                     right: declaredType,
