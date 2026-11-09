@@ -1,5 +1,4 @@
 private let abi = RuntimeABISectionBuilder("Regex")
-private let abiString = RuntimeABISectionBuilder("String")
 
 public extension RuntimeABISpec {
     static let regexFunctions: [RuntimeABIFunctionSpec] = [
@@ -31,6 +30,5 @@ public extension RuntimeABISpec {
         // First param is the Companion object receiver (ignored at runtime).
         abi.nt("__kk_regex_from_literal_flat", "companionRef data:nullableConstUInt8Pointer length byteCount hash"),
         abi.th("__kk_string_replaceFirst_regex", "str regex replacement outThrown"),
-        abiString.nt("kk_string_asSequence_flat", "data:nullableConstUInt8Pointer length byteCount hash"),
     ]
 }
