@@ -297,6 +297,58 @@ struct ContractCallSiteEffectsTests {
         }
     }
 
+    @Test
+    func contractInvocationInitializesCapturedValWithoutReassignmentError() throws {
+        let sources = [
+            """
+            package kotlin.contracts
+            enum class InvocationKind { EXACTLY_ONCE }
+            interface CallsInPlace
+            interface ContractBuilder {
+                fun <T> callsInPlace(lambda: () -> T, kind: InvocationKind): CallsInPlace
+            }
+            fun contract(builder: ContractBuilder.() -> Unit) {}
+            """,
+            """
+            package capturedValInitialization
+            import kotlin.contracts.*
+            fun println(value: Any?) {}
+            fun println(value: Int) {}
+            fun runIt(tag: Int, f: () -> Int): Int {
+                contract { callsInPlace(f, InvocationKind.EXACTLY_ONCE) }
+                return f() + tag
+            }
+            fun probe() {
+                val d: Int
+                println(runIt(f = { d = 5; d }, tag = 0))
+                println(d)
+            }
+            """,
+            """
+            package capturedValReassignment
+            import kotlin.contracts.*
+            fun println(value: Any?) {}
+            fun println(value: Int) {}
+            fun runIt(tag: Int, f: () -> Int): Int {
+                contract { callsInPlace(f, InvocationKind.EXACTLY_ONCE) }
+                return f() + tag
+            }
+            fun probe() {
+                val d: Int
+                println(runIt(f = { d = 5; d = 6; d }, tag = 0))
+            }
+            """,
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
+            try runSema(ctx)
+            let acceptedErrors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
+            #expect(acceptedErrors.isEmpty, "\(acceptedErrors)")
+            let rejectedErrors = diagnosticsForPath(paths[2], in: ctx).filter { $0.severity == .error }
+            #expect(rejectedErrors.contains { $0.code == "KSWIFTK-SEMA-0014" }, "\(rejectedErrors)")
+        }
+    }
+
     @Test(arguments: [false, true])
     func importedImplicationsNarrowCallArguments(isType: Bool) throws {
         let libDir = FileManager.default.temporaryDirectory

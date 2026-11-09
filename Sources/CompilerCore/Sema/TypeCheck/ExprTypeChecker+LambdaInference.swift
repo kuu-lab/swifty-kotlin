@@ -186,6 +186,17 @@ extension ExprTypeChecker {
         }
 
         var lambdaLocals = locals
+        if ctx.callArgumentExprBeingInferred == id {
+            // A surrounding overload-resolution pass can re-infer this same
+            // argument after its call-site `callsInPlace` effect has already
+            // marked captured locals initialized. That effect is the lambda's
+            // exit state, so do not feed it back as the lambda's entry state.
+            let initializedSymbols = Set(sema.bindings.contractCallsInPlaceInitializedSymbols(for: id))
+            for (name, local) in lambdaLocals where local.isInitialized && initializedSymbols.contains(local.symbol) {
+                lambdaLocals[name] = (local.type, local.symbol, local.isMutable, false)
+                lambdaLocals.invalidateMembers(root: local.symbol)
+            }
+        }
         // Outer receiver `this` symbols are reachable inside the lambda even
         // though the enclosing member's `this` shadows them in `locals` — the
         // enclosing context (e.g. an object literal) captured them, so the
