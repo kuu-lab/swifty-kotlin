@@ -617,20 +617,8 @@ func runtimeAllocateIllegalArgumentException(message: String?, cause: Int = 0, m
     return runtimeRegisterThrowable(RuntimeIllegalArgumentExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
-func runtimeAllocateInvalidParameterException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeInvalidParameterExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
-}
-
-func runtimeAllocateNoWhenBranchMatchedException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeNoWhenBranchMatchedExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
-}
-
 func runtimeAllocateConcurrentModificationException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeConcurrentModificationExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
-}
-
-func runtimeAllocateInvalidMutabilityException(message: String?, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeInvalidMutabilityExceptionBox(message: message, messageRaw: messageRaw))
 }
 
 func runtimeAllocateArrayIndexOutOfBoundsException(message: String?, messageRaw: Int = 0) -> Int {
@@ -665,10 +653,6 @@ func runtimeAllocateIOException(message: String?, cause: Int = 0, messageRaw: In
     return runtimeRegisterThrowable(RuntimeIOExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
-func runtimeAllocateCharacterCodingException(message: String?, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeCharacterCodingExceptionBox(message: message, messageRaw: messageRaw))
-}
-
 /// Message used by `MalformedInputException` for a one-byte invalid sequence.
 let runtimeMalformedInputExceptionDefaultMessage = "Input length = 1"
 
@@ -677,30 +661,6 @@ func runtimeAllocateMalformedInputException(
     messageRaw: Int = 0
 ) -> Int {
     return runtimeRegisterThrowable(RuntimeMalformedInputExceptionBox(message: message, messageRaw: messageRaw))
-}
-
-func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
-}
-
-func runtimeAllocateError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeErrorBox(message: message, cause: cause, messageRaw: messageRaw))
-}
-
-func runtimeAllocateExceptionInInitializerError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(
-        RuntimeExceptionInInitializerErrorBox(message: message, cause: cause, messageRaw: messageRaw)
-    )
-}
-
-func runtimeAllocateKotlinReflectionNotSupportedError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(
-        RuntimeKotlinReflectionNotSupportedErrorBox(message: message, cause: cause, messageRaw: messageRaw)
-    )
-}
-
-func runtimeAllocateOutOfMemoryError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeOutOfMemoryErrorBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
 func runtimeAllocateStackOverflowError(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
@@ -727,10 +687,6 @@ func runtimeAllocateNoSuchElementException(message: String?, cause: Int = 0, mes
 
 func runtimeAllocateClassCastException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
     return runtimeRegisterThrowable(RuntimeClassCastExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
-}
-
-func runtimeAllocateTypeCastException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
-    return runtimeRegisterThrowable(RuntimeTypeCastExceptionBox(message: message, cause: cause, messageRaw: messageRaw))
 }
 
 func runtimeAllocateNullPointerException(message: String?, cause: Int = 0, messageRaw: Int = 0) -> Int {
