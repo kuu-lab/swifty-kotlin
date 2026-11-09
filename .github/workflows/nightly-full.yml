@@ -72,6 +72,7 @@ jobs:
       - name: Warm runtime objects for candidate-only verification
         env:
           DIFF_COMPILE_TIMEOUT: "600"
+          DIFF_STDLIB_COMPILE_TIMEOUT: "1800"
           DIFF_KSWIFTC_FLAGS: "--no-incremental"
         run: bash Scripts/run_candidate_only.sh Scripts/diff_cases/array_max_by.kt
       - name: Verify candidate-only diff cases
@@ -1332,6 +1333,8 @@ jobs:
           pathlib.Path("apple-candidate-receipts/toolchain-binaries.json").write_text(
               json.dumps([record(raw) for raw in sys.argv[1:]], indent=2) + "\n")
           PY
+      - name: Check focused Swift Testing summary parsing
+        run: python3 Scripts/kotlinx_io_upstream/apple/test_run_candidate.py
       - name: Fresh build and exact focused gates, sequential ownership
         shell: bash
         run: |
