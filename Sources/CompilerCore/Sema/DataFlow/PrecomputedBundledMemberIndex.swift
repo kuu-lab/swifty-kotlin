@@ -5,7 +5,8 @@ import Foundation
 /// `BundledMemberKey` and `InternedString` values on every compilation.
 struct PrecomputedBundledMemberIndex: Sendable {
     private struct Entry: Sendable {
-        let ownerComponents: [Range<Int>]
+        let ownerComponents: Range<Int>
+        let ownerComponentCount: Int
         let name: Range<Int>
         let arity: Int
     }
@@ -41,12 +42,11 @@ struct PrecomputedBundledMemberIndex: Sendable {
             }
             cursor += 4
 
-            var ownerComponents: [Range<Int>] = []
-            ownerComponents.reserveCapacity(Int(ownerCount))
+            let ownerComponentsStart = cursor
             for _ in 0 ..< ownerCount {
-                guard let range = Self.readStringRange(data, cursor: &cursor) else { return nil }
-                ownerComponents.append(range)
+                guard Self.readStringRange(data, cursor: &cursor) != nil else { return nil }
             }
+            let ownerComponents = ownerComponentsStart ..< cursor
             guard let name = Self.readStringRange(data, cursor: &cursor),
                   let rawArity = Self.readUInt32(data, at: cursor)
             else {
@@ -54,7 +54,12 @@ struct PrecomputedBundledMemberIndex: Sendable {
             }
             cursor += 4
 
-            let entry = Entry(ownerComponents: ownerComponents, name: name, arity: Int(rawArity))
+            let entry = Entry(
+                ownerComponents: ownerComponents,
+                ownerComponentCount: Int(ownerCount),
+                name: name,
+                arity: Int(rawArity)
+            )
             if let previous, Self.compare(previous, entry, data: data) != .orderedAscending {
                 return nil
             }
@@ -136,13 +141,17 @@ struct PrecomputedBundledMemberIndex: Sendable {
         _ rhs: Entry,
         data: Data
     ) -> ComparisonResult {
-        let sharedOwnerCount = min(lhs.ownerComponents.count, rhs.ownerComponents.count)
-        for index in 0 ..< sharedOwnerCount {
-            let order = compare(lhs.ownerComponents[index], rhs.ownerComponents[index], data: data)
+        let sharedOwnerCount = min(lhs.ownerComponentCount, rhs.ownerComponentCount)
+        var lhsCursor = lhs.ownerComponents.lowerBound
+        var rhsCursor = rhs.ownerComponents.lowerBound
+        for _ in 0 ..< sharedOwnerCount {
+            let lhsComponent = readStringRange(data, cursor: &lhsCursor)!
+            let rhsComponent = readStringRange(data, cursor: &rhsCursor)!
+            let order = compare(lhsComponent, rhsComponent, data: data)
             if order != .orderedSame { return order }
         }
-        if lhs.ownerComponents.count != rhs.ownerComponents.count {
-            return lhs.ownerComponents.count < rhs.ownerComponents.count ? .orderedAscending : .orderedDescending
+        if lhs.ownerComponentCount != rhs.ownerComponentCount {
+            return lhs.ownerComponentCount < rhs.ownerComponentCount ? .orderedAscending : .orderedDescending
         }
         let nameOrder = compare(lhs.name, rhs.name, data: data)
         if nameOrder != .orderedSame { return nameOrder }
@@ -157,13 +166,15 @@ struct PrecomputedBundledMemberIndex: Sendable {
         arity: Int?,
         data: Data
     ) -> ComparisonResult {
-        let sharedOwnerCount = min(entry.ownerComponents.count, owner.count)
+        let sharedOwnerCount = min(entry.ownerComponentCount, owner.count)
+        var cursor = entry.ownerComponents.lowerBound
         for index in 0 ..< sharedOwnerCount {
-            let order = compare(entry.ownerComponents[index], to: owner[index], data: data)
+            let component = readStringRange(data, cursor: &cursor)!
+            let order = compare(component, to: owner[index], data: data)
             if order != .orderedSame { return order }
         }
-        if entry.ownerComponents.count != owner.count {
-            return entry.ownerComponents.count < owner.count ? .orderedAscending : .orderedDescending
+        if entry.ownerComponentCount != owner.count {
+            return entry.ownerComponentCount < owner.count ? .orderedAscending : .orderedDescending
         }
         let nameOrder = compare(entry.name, to: name, data: data)
         if nameOrder != .orderedSame { return nameOrder }

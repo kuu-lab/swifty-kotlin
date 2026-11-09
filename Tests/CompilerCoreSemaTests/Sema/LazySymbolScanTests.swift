@@ -112,6 +112,11 @@ struct LazySymbolScanTests {
             #expect(symbols.externalLinkNameIfKnown(for: member) == "scan_member")
             #expect(symbols.functionSignatureIfKnown(for: member) == nil)
             #expect(symbols.mayHaveImportedInitializers(for: owner) == oldInitializerIndex)
+            if compact {
+                #expect(!symbols.allSymbols().contains {
+                    $0.fqName == [ctx.interner.intern("scan"), ctx.interner.intern("Singleton")]
+                })
+            }
             _ = TypeCheckScopeBuilder().collectLibraryTopLevelSymbolsByPackage(sema: sema)
             #expect(work.importedBindings.allSatisfy { !$0.isMaterialized })
 
@@ -174,7 +179,7 @@ struct LazySymbolScanTests {
                 arity: 0, isSuspend: false, typeSignature: "F0<I>"
             ),
             path: "metadata.bin", diagnostics: DiagnosticEngine(), interner: interner,
-            nominalTypeParametersByFQName: [:]
+            nominalTypeParametersSignature: { _ in nil }
         ))
         let binding = DataFlowSemaPhase.ImportedLibraryBinding(
             record: record, symbol: method, metadataPath: "metadata.bin",

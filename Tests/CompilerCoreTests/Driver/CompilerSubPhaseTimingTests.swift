@@ -70,7 +70,11 @@ struct CompilerSubPhaseTimingTests {
         timer.endPhase()
         #expect(!ctx.diagnostics.hasError)
         let imports = timer.phaseRecords[0].subRecords[0]
-        #expect(imports.subRecords.map(\.name) == ["indexDecode", "registerShells"])
+        for name in ["libraryDirectoryDiscovery", "libraryManifest", "indexDecode", "registerShells",
+                     "importLibraryLoop", "importTail"]
+        {
+            #expect(imports.subRecords.contains { $0.name == name })
+        }
         #expect(!timer.phaseRecords[0].subRecords.contains { $0.name == "imports.lazyMaterialize" })
         timer.beginPhase("BuildKIR")
         for name in ["first", "second"] {
@@ -79,6 +83,45 @@ struct CompilerSubPhaseTimingTests {
         }
         timer.endPhase()
         #expect(timer.phaseRecords[1].subRecords.map(\.name) == ["imports.lazyMaterialize"])
+    }
+
+    @Test
+    func testCompactImportCreatesInitializerShellOnlyAfterOwnerLookup() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try #"{"formatVersion":1,"moduleName":"LazyInitializer","metadata":"metadata.bin"}"#
+            .write(to: directory.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        let initializerLinkName = "_KK_timed_Unused_init"
+        let records = [MetadataRecord(
+            kind: .object,
+            mangledName: "_KK_timed_Unused",
+            fqName: "timed.Unused",
+            objectInitializerLinkName: initializerLinkName
+        )]
+        try MetadataEncoder().serializeCompactIndexed(records)
+            .write(to: directory.appendingPathComponent("metadata.bin"))
+
+        let ctx = makeCompilationContext(inputs: [], searchPaths: [directory.path], includeStdlib: false)
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        _ = DataFlowSemaPhase().loadImportedLibrarySymbols(
+            options: ctx.options,
+            symbols: symbols,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
+            importedInlineFunctions: ImportedInlineFunctionStore()
+        )
+
+        let objectFQName = ["timed", "Unused"].map(ctx.interner.intern)
+        #expect(!symbols.allSymbols().contains { $0.fqName == objectFQName })
+        let object = try #require(symbols.lookup(fqName: objectFQName))
+        let initializer = try #require(symbols.objectInitializerSymbolIfKnown(for: object))
+        #expect(symbols.externalLinkName(for: initializer) == initializerLinkName)
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test

@@ -6,7 +6,7 @@ import Testing
 @Suite
 struct ImportedStdlibIndexMergeTests {
     @Test
-    func precomputedStdlibSyntheticAnchorsRestoreTypeSystemLookups() {
+    func precomputedStdlibSyntheticAnchorsRestoreTypeSystemLookups() throws {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
@@ -36,12 +36,21 @@ struct ImportedStdlibIndexMergeTests {
             symbols.markImportedStdlibSymbol(symbol)
             symbolsByPath[path] = symbol
         }
+        var loadedSymbols: [SymbolID] = []
+        let importedSymbols = Set(symbolsByPath.values)
+        symbols.setLazyImportedMetadataLoader(
+            indexedNominals: importedSymbols,
+            lazyShells: importedSymbols
+        ) { symbol in
+            loadedSymbols.append(symbol)
+        }
 
         #expect(DataFlowSemaPhase().restorePrecomputedStdlibSyntheticTypeSymbols(
             symbols: symbols,
             types: types,
             interner: interner
         ))
+        #expect(loadedSymbols.isEmpty)
         #expect(types.anyClassSymbol == symbolsByPath[["kotlin", "Any"]])
         #expect(types.annotationInterfaceSymbol == symbolsByPath[["kotlin", "Annotation"]])
         #expect(types.comparableInterfaceSymbol == symbolsByPath[["kotlin", "Comparable"]])
@@ -54,6 +63,10 @@ struct ImportedStdlibIndexMergeTests {
         #expect(types.functionNInterfaceSymbols[22] == symbolsByPath[["kotlin", "Function", "Function22"]])
         #expect(types.suspendFunctionNInterfaceSymbols[22]
             == symbolsByPath[["kotlin", "coroutines", "SuspendFunction22"]])
+
+        let any = try #require(symbolsByPath[["kotlin", "Any"]])
+        _ = symbols.directSupertypes(for: any)
+        #expect(loadedSymbols == [any])
     }
 
     @Test

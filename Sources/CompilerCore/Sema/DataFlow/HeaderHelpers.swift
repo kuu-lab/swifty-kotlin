@@ -1826,7 +1826,9 @@ extension DataFlowSemaPhase {
             }) else {
                 return nil
             }
-            symbols.ensureLazyImportedMetadataLoaded(for: symbol)
+            // The TypeSystem anchors need only the imported shell's SymbolID.
+            // Keep its declaration body lazy; semantic queries load it when
+            // they need supertypes, generic bounds, layout, or members.
             return symbol
         }
 

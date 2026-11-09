@@ -6,7 +6,7 @@ extension DataFlowSemaPhase {
         path: String,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        nominalTypeParametersByFQName: [String: String]
+        nominalTypeParametersSignature: (String) -> String?
     ) -> ImportedLibrarySymbolRecord? {
         if record.kind == .function || record.kind == .constructor {
             guard (0 ... ImportedLibraryLimits.maxCallableArity).contains(record.arity) else {
@@ -29,7 +29,7 @@ extension DataFlowSemaPhase {
         let name = fqName(record.fqName)
         guard !name.isEmpty else { return nil }
         let ownerSignature = record.fqName.lastIndex(of: ".").flatMap {
-            nominalTypeParametersByFQName[String(record.fqName[..<$0])]
+            nominalTypeParametersSignature(String(record.fqName[..<$0]))
         }
         return ImportedLibrarySymbolRecord(
             kind: record.kind,

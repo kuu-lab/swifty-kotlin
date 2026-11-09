@@ -38,7 +38,7 @@ extension DataFlowSemaPhase {
                 guard let record = file.record(for: entry) else { return nil }
                 return makeImportedLibraryRecord(
                     record, path: path, diagnostics: diagnostics, interner: interner,
-                    nominalTypeParametersByFQName: signatures
+                    nominalTypeParametersSignature: { file.nominalTypeParametersSignature(forFQName: $0) }
                 )
             }
         }
@@ -89,7 +89,7 @@ extension DataFlowSemaPhase {
                 path: path,
                 diagnostics: diagnostics,
                 interner: interner,
-                nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                nominalTypeParametersSignature: { nominalTypeParametersByFQName[$0] }
             )
         }
     }
@@ -99,7 +99,7 @@ extension DataFlowSemaPhase {
         path: String,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        nominalTypeParametersByFQName: [String: String]
+        nominalTypeParametersSignature: (String) -> String?
     ) -> ImportedLibrarySymbolRecord? {
         let fqName = metadataRecord.fqName
             .split(separator: ".")
@@ -108,9 +108,7 @@ extension DataFlowSemaPhase {
             return nil
         }
         let ownerNominalTypeParametersSignature: String? = if fqName.count >= 2 {
-            nominalTypeParametersByFQName[
-                fqName.dropLast().map { interner.resolve($0) }.joined(separator: ".")
-            ]
+            nominalTypeParametersSignature(fqName.dropLast().map { interner.resolve($0) }.joined(separator: "."))
         } else {
             nil
         }

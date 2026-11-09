@@ -51,7 +51,7 @@ struct CompactMetadataIndexTests {
         #expect(indexRecord.record.propertySetterVisibility == visibility)
         let shell = try #require(DataFlowSemaPhase().makeImportedLibraryIndexRecord(
             indexRecord, path: "test", diagnostics: DiagnosticEngine(),
-            interner: StringInterner(), nominalTypeParametersByFQName: [:]
+            interner: StringInterner(), nominalTypeParametersSignature: { _ in nil }
         ))
         #expect(shell.propertySetterVisibility == visibility)
         #expect(shell.typeSignature == nil)
@@ -91,7 +91,7 @@ struct CompactMetadataIndexTests {
         #expect(indexRecord.constructorVisibilityInherited)
         let imported = try #require(DataFlowSemaPhase().makeImportedLibraryIndexRecord(
             indexRecord, path: "test", diagnostics: DiagnosticEngine(),
-            interner: StringInterner(), nominalTypeParametersByFQName: [:]
+            interner: StringInterner(), nominalTypeParametersSignature: { _ in nil }
         ))
         #expect(imported.constructorVisibilityInherited)
     }
@@ -250,7 +250,7 @@ struct CompactMetadataIndexTests {
         let indexRecord = try #require(file.entries[0].compactRecord)
         let shell = try #require(DataFlowSemaPhase().makeImportedLibraryIndexRecord(
             indexRecord, path: "test", diagnostics: DiagnosticEngine(),
-            interner: StringInterner(), nominalTypeParametersByFQName: [:]
+            interner: StringInterner(), nominalTypeParametersSignature: { _ in nil }
         ))
         #expect(shell.typeSignature == nil)
         #expect(shell.annotations.isEmpty)
