@@ -407,6 +407,12 @@ extension CallTypeChecker {
                    mergedImplicitReceiverMembers.count == 1,
                    let bestCandidate = mergedImplicitReceiverMembers.first,
                    let signature = sema.symbols.functionSignature(for: bestCandidate),
+                   callImplicitReceiverType.map({
+                       !isUnsafeNullableImplicitReceiverCall(
+                           bestCandidate, supplyingReceiverType: $0,
+                           argCount: args.count, sema: sema, interner: interner
+                       )
+                   }) ?? true,
                    !narrowedCallCandidates(
                        candidates: [bestCandidate], args: args, callRange: range,
                        inferredNonLambdaArgTypes: Dictionary(uniqueKeysWithValues: argTypes.enumerated().map {
@@ -720,6 +726,38 @@ extension CallTypeChecker {
                    )
                 {
                     return recovered
+                }
+                // When the receiver's nullability is the only blocker — the
+                // same candidate set resolves once it is non-null — kotlinc
+                // reports an unsafe call rather than a constraint failure.
+                if let implicitReceiver = resolvedImplicitReceiverType ?? callImplicitReceiverType,
+                   sema.types.nullability(of: implicitReceiver) == .nullable
+                {
+                    let probeArgs = zip(args, argTypes).map { argument, type in
+                        CallArg.source(argument, type: type, callRange: range, ast: ast)
+                    }
+                    let probe = ctx.resolver.resolveCall(
+                        candidates: resolvedCandidates,
+                        call: CallExpr(
+                            range: range,
+                            calleeName: calleeName ?? InternedString(),
+                            args: probeArgs,
+                            explicitTypeArgs: explicitTypeArgs,
+                            dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                        ),
+                        expectedType: isCoroutineBuilderWithHardcodedAnyReturn ? nil : expectedType,
+                        implicitReceiverType: sema.types.makeNonNullable(implicitReceiver),
+                        ctx: ctx.sema
+                    )
+                    if probe.diagnostic == nil, probe.chosenCallee != nil {
+                        ctx.sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
                 }
                 ctx.sema.diagnostics.emit(diagnostic)
                 sema.bindings.bindExprType(id, type: sema.types.errorType)

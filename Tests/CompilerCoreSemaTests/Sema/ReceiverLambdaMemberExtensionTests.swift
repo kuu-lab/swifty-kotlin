@@ -104,7 +104,10 @@ struct ReceiverLambdaMemberExtensionTests {
         fun outside(p: Parser<Int>): Int = p.parse()
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+        // With `State` out of scope the member extension is not callable, so
+        // resolution falls to `Parser.parse(source:)` and reports the missing
+        // argument — kotlinc's own "no value passed for parameter" diagnostic.
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0480" })
     }
 
     @Test

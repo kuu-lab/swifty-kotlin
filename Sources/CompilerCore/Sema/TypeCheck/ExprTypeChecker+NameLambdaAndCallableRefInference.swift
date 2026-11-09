@@ -261,6 +261,11 @@ extension ExprTypeChecker {
                     declaredReceiver: declaredReceiver,
                     sema: sema
                 ),
+                driver.callChecker.implicitReceiverEntryNullabilityCompatible(
+                    callSiteReceiver: entry.type,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                ),
                 let receiverSubstitution = extensionPropertyReceiverTypeSubstitution(
                     for: candidate.id,
                     declaredReceiver: declaredReceiver,
@@ -339,6 +344,17 @@ extension ExprTypeChecker {
                   )
                 else {
                     continue
+                }
+                // A nearer nullable receiver's member wins the tower but is
+                // an unsafe read without `?.` (KUU-4501).
+                if sema.types.nullability(of: receiver.type) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: nameRange
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
                 }
                 if let receiverSymbol = receiver.symbol {
                     sema.bindings.markImplicitReceiverOuterReceiver(id, symbol: receiverSymbol)
@@ -474,6 +490,11 @@ extension ExprTypeChecker {
                 if let receiverType = ctx.implicitReceiverType.map({
                     driver.callChecker.resolvedBuilderInferenceType($0, ctx: ctx)
                 }),
+                   driver.callChecker.implicitReceiverEntryNullabilityCompatible(
+                       callSiteReceiver: receiverType,
+                       declaredReceiver: declaredReceiver,
+                       sema: sema
+                   ),
                    sema.types.isSubtype(
                        sema.types.makeNonNullable(receiverType),
                        sema.types.makeNonNullable(declaredReceiver)
@@ -624,6 +645,22 @@ extension ExprTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         let resolvedName = interner.resolve(name)
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        // A nullable tower entry's member scope exposes no properties — a
+        // bare read has no `?.` marker, so binding any member-shaped result
+        // is an unsafe call (KUU-4501).
+        let receiverIsNullable = sema.types.nullability(of: receiverType) == .nullable
+        // Kotlin's member scope of `T?` still surfaces `T`'s members, but as
+        // unsafe-call candidates that win the tower — a nearer nullable hit
+        // reports SEMA-0026 rather than falling through to an outer receiver.
+        func unsafeNullableReceiverResult() -> TypeID {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: nameRange
+            )
+            sema.bindings.bindExprType(id, type: sema.types.errorType)
+            return sema.types.errorType
+        }
         var implicitMemberType: TypeID?
         if sema.types.isSubtype(nonNullReceiver, sema.types.stringType), resolvedName == "length" {
             implicitMemberType = sema.types.intType
@@ -650,6 +687,9 @@ extension ExprTypeChecker {
                )
            }) == true
         {
+            if receiverIsNullable {
+                return unsafeNullableReceiverResult()
+            }
             // An expression-bodied function inferred ahead of source order
             // can still see a member property's header `Any?` placeholder.
             // Resolve it on demand like lexical-scope property reads do in
@@ -786,6 +826,9 @@ extension ExprTypeChecker {
                     ctx: ctx.sema
                 )
                 if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
+                    if receiverIsNullable {
+                        return unsafeNullableReceiverResult()
+                    }
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
                         id, chosen: chosen, resolved: resolved, sema: sema
                     )
@@ -829,6 +872,9 @@ extension ExprTypeChecker {
                     ctx: ctx.sema
                 )
                 if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
+                    if receiverIsNullable {
+                        return unsafeNullableReceiverResult()
+                    }
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
                         id, chosen: chosen, resolved: resolved, sema: sema
                     )
@@ -839,6 +885,9 @@ extension ExprTypeChecker {
             }
         }
         if let memberType = implicitMemberType {
+            if receiverIsNullable {
+                return unsafeNullableReceiverResult()
+            }
             sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindExprType(id, type: memberType)
             return memberType

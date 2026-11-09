@@ -1,10 +1,77 @@
 extension CallTypeChecker {
+    /// Nullability part of an implicit receiver-tower match. The lenient
+    /// `extensionSyntheticFallbackReceiverMatches` deliberately strips
+    /// nullability for candidate discovery, so a binding must re-check it:
+    /// a nullable tower entry can supply only a receiver that admits null —
+    /// a nullable declared type, or an unsolved receiver type parameter whose
+    /// upper bounds all admit null (the parameter then infers to the nullable
+    /// type itself). Everything else is an unsafe call (KUU-4501).
+    func implicitReceiverEntryNullabilityCompatible(
+        callSiteReceiver: TypeID,
+        declaredReceiver: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard sema.types.nullability(of: callSiteReceiver) == .nullable else { return true }
+        if sema.types.isSubtype(callSiteReceiver, declaredReceiver) {
+            return true
+        }
+        guard case let .typeParam(parameter) = sema.types.kind(
+            of: sema.types.makeNonNullable(declaredReceiver)
+        ) else {
+            return false
+        }
+        return sema.symbols.typeParameterUpperBounds(for: parameter.symbol).allSatisfy { bound in
+            sema.types.nullabilitySubtype(
+                sema.types.nullability(of: callSiteReceiver),
+                sema.types.nullability(of: bound)
+            )
+        }
+    }
+
+    /// Whether `candidate` must not bind through an implicit-receiver tower
+    /// entry of type `supplyingReceiverType` because the bare call carries no
+    /// `?.` marker. A nullable entry rejects every receiver that cannot hold
+    /// null; the only exception mirrors Kotlin's member scope for `T?`, which
+    /// exposes `Any`'s `toString()`, `hashCode()`, and `equals` (KUU-4501).
+    func isUnsafeNullableImplicitReceiverCall(
+        _ candidate: SymbolID,
+        supplyingReceiverType: TypeID,
+        argCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.types.nullability(of: supplyingReceiverType) == .nullable,
+              let signature = sema.symbols.functionSignature(for: candidate),
+              let declaredReceiver = signature.receiverType,
+              !implicitReceiverEntryNullabilityCompatible(
+                  callSiteReceiver: supplyingReceiverType,
+                  declaredReceiver: declaredReceiver,
+                  sema: sema
+              )
+        else { return false }
+        guard sema.symbols.memberExtensionOwnerSymbol(for: candidate) == nil,
+              let name = sema.symbols.symbol(candidate)?.name
+        else { return true }
+        let knownNames = KnownCompilerNames(interner: interner)
+        switch name {
+        case knownNames.toString, knownNames.hashCode:
+            return argCount != 0
+        case knownNames.equals:
+            return argCount != 1
+        default:
+            return true
+        }
+    }
+
     func implicitMemberExtensionReceiverMatches(_ actual: TypeID, declared: TypeID, sema: SemaModule) -> Bool {
         // Same nullability contract as `extensionSyntheticFallbackReceiverMatches`:
-        // a nullable receiver cannot supply a non-null member-extension receiver.
-        guard sema.types.nullabilitySubtype(
-            sema.types.nullability(of: actual),
-            sema.types.nullability(of: declared)
+        // a nullable receiver cannot supply a non-null member-extension receiver,
+        // but a declared receiver type parameter whose bounds admit null still
+        // matches (`T` binds `String?`, KUU-4501).
+        guard implicitReceiverEntryNullabilityCompatible(
+            callSiteReceiver: actual,
+            declaredReceiver: declared,
+            sema: sema
         ) else {
             return false
         }
@@ -583,6 +650,10 @@ extension CallTypeChecker {
         // Preserve the existing lambda inference in this recovery path. Literal
         // values let the resolver narrow each viable numeric overload, without
         // re-contextualizing star-projected receiver lambdas as non-null Any.
+        // The receiver constraint must run against the call site's real
+        // nullability — re-resolving with the stripped receiver would let a
+        // nullable implicit receiver bind a non-null extension receiver
+        // without `?.` (KUU-4501).
         let resolved = ctx.resolver.resolveCall(
             candidates: candidates,
             call: CallExpr(
@@ -595,6 +666,31 @@ extension CallTypeChecker {
             ctx: ctx.sema
         )
         if let diagnostic = resolved.diagnostic {
+            // When only the receiver's nullability blocks the call — the same
+            // overload set resolves once the receiver is non-null — kotlinc
+            // reports an unsafe call rather than a constraint failure.
+            if sema.types.nullability(of: receiverType) == .nullable {
+                let probe = ctx.resolver.resolveCall(
+                    candidates: candidates,
+                    call: CallExpr(
+                        range: range, calleeName: calleeName, args: resolvedArgs,
+                        explicitTypeArgs: explicitTypeArgs,
+                        dispatchReceiverTypes: ctx.implicitReceiverMemberLookupEntries().map(\.type)
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: nonNullReceiver,
+                    ctx: ctx.sema
+                )
+                if probe.chosenCallee != nil {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+            }
             ctx.sema.diagnostics.emit(diagnostic)
             sema.bindings.bindExprType(id, type: sema.types.errorType)
             return sema.types.errorType
@@ -658,7 +754,7 @@ extension CallTypeChecker {
         // what capture analysis stores into an object literal's fields so KIR
         // lowering can materialize the receiver value from it.
         var receiverChain: [(type: TypeID, symbol: SymbolID?)] = [
-            (type: nonNullReceiver, symbol: nil)
+            (type: implicitReceiverType, symbol: nil)
         ]
         for outerReceiver in ctx.outerReceiverTypes.reversed() {
             let outerNonNullReceiver = sema.types.makeNonNullable(outerReceiver.type)
@@ -667,13 +763,13 @@ extension CallTypeChecker {
             else {
                 continue
             }
-            receiverChain.append((type: outerNonNullReceiver, symbol: outerReceiverSymbol))
+            receiverChain.append((type: outerReceiver.type, symbol: outerReceiverSymbol))
         }
 
         for receiver in receiverChain {
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
-                receiverType: receiver.type,
+                receiverType: sema.types.makeNonNullable(receiver.type),
                 sema: sema,
                 interner: ctx.interner
             ).filter { !scopeExtensions.contains($0) }
@@ -709,7 +805,7 @@ extension CallTypeChecker {
                 symbols: [SymbolID], receiverType: TypeID, extensionSymbol: SymbolID?
             )] = regularMemberCandidates.isEmpty
                 ? []
-                : [(regularMemberCandidates, receiver.type, nil)]
+                : [(regularMemberCandidates, sema.types.makeNonNullable(receiver.type), nil)]
             orderedGroups.append(
                 contentsOf: memberExtensionGroups.map {
                     ($0.symbols, $0.receiverType, $0.symbol)
@@ -732,8 +828,19 @@ extension CallTypeChecker {
                     implicitReceiverType: group.receiverType,
                     ctx: ctx.sema
                 )
+                // Member extensions were resolved against their real picked
+                // entry above; regular members keep the stripped lookup form,
+                // so the unsafe-call gate applies on the real tower type.
                 guard resolved.diagnostic == nil,
-                      let chosen = resolved.chosenCallee
+                      let chosen = resolved.chosenCallee,
+                      !regularMemberCandidates.contains(chosen)
+                          || !isUnsafeNullableImplicitReceiverCall(
+                              chosen,
+                              supplyingReceiverType: receiver.type,
+                              argCount: args.count,
+                              sema: sema,
+                              interner: ctx.interner
+                          )
                 else { continue }
 
                 let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)

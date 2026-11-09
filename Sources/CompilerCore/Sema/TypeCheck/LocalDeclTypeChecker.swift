@@ -509,6 +509,16 @@ final class LocalDeclTypeChecker {
                 receiverType: nonNullReceiverType,
                 sema: ctx.sema
             ) {
+                // A bare `x = v` write supplies no `?.` marker, so a member on
+                // a nullable implicit receiver is an unsafe call (KUU-4501).
+                if ctx.sema.types.nullability(of: receiverType) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+                }
                 implicitReceiverMember = (member, nonNullReceiverType)
                 break
             }
@@ -630,7 +640,44 @@ final class LocalDeclTypeChecker {
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
         let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
-        if let propSymbol = candidates.first(where: { $0.kind == .property }) {
+        // A receiver-bearing extension property binds only when an implicit
+        // receiver tower entry can supply its declared receiver — the same
+        // tower the read path walks. An entry that matches only leniently is
+        // nullable, so the write is unsafe rather than unresolved (KUU-4501).
+        let receiverEntries = ctx.implicitReceiverMemberLookupEntries()
+        var sawUnsafeReceiverWrite = false
+        let writableCandidates = candidates.filter { candidate in
+            guard let declaredReceiver = ctx.sema.symbols.extensionPropertyReceiverType(
+                for: candidate.id
+            ) else { return true }
+            var sawLenientMatch = false
+            for entry in receiverEntries {
+                guard driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: entry.type,
+                    declaredReceiver: declaredReceiver,
+                    sema: ctx.sema
+                ) else { continue }
+                sawLenientMatch = true
+                if driver.callChecker.implicitReceiverEntryNullabilityCompatible(
+                    callSiteReceiver: entry.type,
+                    declaredReceiver: declaredReceiver,
+                    sema: ctx.sema
+                ) {
+                    return true
+                }
+            }
+            sawUnsafeReceiverWrite = sawUnsafeReceiverWrite || sawLenientMatch
+            return false
+        }
+        if writableCandidates.isEmpty, sawUnsafeReceiverWrite {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: range
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+        }
+        if let propSymbol = writableCandidates.first(where: { $0.kind == .property }) {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
             let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
             driver.recordGenericCallConsumer(value, type: propType)

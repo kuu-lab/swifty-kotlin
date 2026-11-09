@@ -284,7 +284,8 @@ extension CallTypeChecker {
         if let calleeName, let receiverType = ctx.implicitReceiverType {
             let nonNullReceiver = sema.types.makeNonNullable(receiverType)
             let name = interner.resolve(calleeName)
-            if sema.types.isSubtype(nonNullReceiver, sema.types.charType),
+            if receiverType == nonNullReceiver,
+               sema.types.isSubtype(nonNullReceiver, sema.types.charType),
                args.isEmpty,
                let member = syntheticCharMemberSpec(named: name)
             {
@@ -297,23 +298,22 @@ extension CallTypeChecker {
                 return resultType
             }
 
-            if sema.types.isSubtype(nonNullReceiver, sema.types.booleanType) {
+            if receiverType == nonNullReceiver,
+               sema.types.isSubtype(nonNullReceiver, sema.types.booleanType)
+            {
                 let resultType = sema.types.booleanType
-                let finalType = receiverType == nonNullReceiver
-                    ? resultType
-                    : sema.types.makeNullable(resultType)
                 switch name {
                 case "not" where args.isEmpty:
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
                 case "and" where args.count == 1,
                      "or" where args.count == 1,
                      "xor" where args.count == 1:
                     for arg in args {
                         _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: sema.types.booleanType)
                     }
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
                 default:
                     break
                 }
@@ -497,12 +497,10 @@ extension CallTypeChecker {
                    // fire when the implicit receiver's nullability cannot
                    // supply the declared extension receiver — `String?` must
                    // not bind a `String` extension (KUU-4501).
-                   sig.receiverType.map({
-                       sema.types.nullabilitySubtype(
-                           sema.types.nullability(of: receiverType),
-                           sema.types.nullability(of: $0)
-                       )
-                   }) ?? true,
+                   !isUnsafeNullableImplicitReceiverCall(
+                       bestCandidate, supplyingReceiverType: receiverType,
+                       argCount: args.count, sema: sema, interner: interner
+                   ),
                    !(sema.symbols.parentSymbol(for: bestCandidate).flatMap {
                        sema.symbols.symbol($0)?.kind
                    } == .object
@@ -671,7 +669,14 @@ extension CallTypeChecker {
                    let bestCandidate = outerCandidates.first,
                    let sig = sema.symbols.functionSignature(for: bestCandidate),
                    !(outerRegularCandidates.contains(bestCandidate)
-                       && implicitReceiverFallbackResolutionIsInapplicable(resolvedOuter))
+                       && implicitReceiverFallbackResolutionIsInapplicable(resolvedOuter)),
+                   !isUnsafeNullableImplicitReceiverCall(
+                       bestCandidate,
+                       supplyingReceiverType: outerMemberExtensionCandidates.first(where: {
+                           $0.symbol == bestCandidate
+                       })?.receiverType ?? outerReceiver.type,
+                       argCount: args.count, sema: sema, interner: interner
+                   )
                 {
                     var mapping: [Int: Int] = [:]
                     for i in args.indices { mapping[i] = i }

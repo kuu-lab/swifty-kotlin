@@ -761,6 +761,16 @@ extension ExprTypeChecker {
             ),
                let memberSymbol = ctx.cachedSymbol(member.writeSymbol ?? member.symbol)
             {
+                // Same unsafe-call rule as `x = v`: a compound write through a
+                // nullable implicit receiver carries no `?.` marker (KUU-4501).
+                if sema.types.nullability(of: receiverType) == .nullable {
+                    ctx.sema.diagnostics.error(
+                        "KSWIFTK-SEMA-0026",
+                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                        range: range
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
                 implicitReceiverMember = (memberSymbol, member.type, member.writeSymbol != nil)
                 break
             }

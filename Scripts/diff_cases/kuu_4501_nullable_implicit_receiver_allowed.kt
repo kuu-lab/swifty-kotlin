@@ -7,6 +7,8 @@ fun String?.safeCode(): Int = if (this == null) -1 else 2
 fun viaNonNull(): Int = with("ab") { firstCode() }
 fun viaNullableExt(): Int = with(null as String?) { safeCode() }
 fun viaEquals(s: String?): Boolean = with(s) { equals("x") }
+fun viaToString(s: String?): String = with(s) { toString() }
+fun viaHashCode(s: String?): Int = with(s) { hashCode() }
 fun viaSmartCast(s: String?): Int {
     if (s != null) return with(s) { firstCode() }
     return -1
@@ -18,6 +20,9 @@ fun main() {
     println(viaNonNull())
     println(viaNullableExt())
     println(viaEquals("x"))
+    println(viaToString("ab"))
+    println(viaToString(null))
+    println(viaHashCode("ab"))
     println(viaSmartCast("ab"))
     println(viaSmartCast(null))
     println(viaSafeCall("ab"))

@@ -707,7 +707,11 @@ extension CallTypeChecker {
                   sema.symbols.memberExtensionOwnerSymbol(for: chosen) == nil,
                   let signature = sema.symbols.functionSignature(for: chosen),
                   signature.classTypeParameterCount > 0,
-                  signature.typeParameterSymbols.count == signature.classTypeParameterCount
+                  signature.typeParameterSymbols.count == signature.classTypeParameterCount,
+                  !isUnsafeNullableImplicitReceiverCall(
+                      chosen, supplyingReceiverType: receiverEntry.type,
+                      argCount: args.count, sema: sema, interner: ctx.interner
+                  )
             else { return nil }
             func specialize(_ type: TypeID) -> TypeID {
                 applyReceiverClassTypeArgs(
