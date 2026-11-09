@@ -8,6 +8,7 @@ fun CharSequence.codePoints(): IntStream = null!!
 operator fun CharSequence.get(index: Int): Char = null!!
 fun CharSequence.subSequence(startIndex: Int, endIndex: Int): CharSequence = null!!
 fun String.substring(startIndex: Int, endIndex: Int = null!!): String = null!!
+fun String.substring(range: kotlin.ranges.IntRange): String = null!!
 fun String.trimIndent(): String = null!!
 fun String.trimMargin(marginPrefix: String = null!!): String = null!!
 fun String.split(vararg delimiters: String, ignoreCase: Boolean = null!!, limit: Int = null!!): List<String> = null!!

@@ -86,6 +86,7 @@ public fun String.slice(indices: IntRange): String {
     if (indices.isEmpty()) return ""
     return __jvmSubstring(this, indices.start, indices.endInclusive + 1)
 }
+public fun String.substring(range: IntRange): String = __jvmSubstring(this, range.start, range.endInclusive + 1)
 public fun CharSequence.slice(indices: Iterable<Int>): CharSequence {
     val result = StringBuilder()
     for (index in indices) {
