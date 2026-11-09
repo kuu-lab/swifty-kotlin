@@ -710,14 +710,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_min")
             case interner.intern("unzip"):
                 return interner.intern("kk_sequence_unzip")
-            case interner.intern("runningFold"):
-                return interner.intern("kk_sequence_runningFold")
-            case interner.intern("scan"):
-                return interner.intern("kk_sequence_scan")
-            case interner.intern("runningFoldIndexed"):
-                return interner.intern("kk_sequence_runningFoldIndexed")
-            case interner.intern("scanIndexed"):
-                return interner.intern("kk_sequence_scanIndexed")
             case interner.intern("reduceOrNull"):
                 return interner.intern("kk_sequence_reduceOrNull")
             case interner.intern("reduce"):
@@ -734,8 +726,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_reduceRightOrNull")
             case interner.intern("reduceRightIndexedOrNull"):
                 return interner.intern("kk_sequence_reduceRightIndexedOrNull")
-            case interner.intern("runningReduceIndexed"):
-                return interner.intern("kk_sequence_runningReduceIndexed")
             default:
                 break
             }

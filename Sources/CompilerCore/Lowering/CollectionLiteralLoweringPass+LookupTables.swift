@@ -186,9 +186,6 @@ struct CollectionLiteralLookupTables {
     var kkSequenceFlatMapIndexedName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedName }
     var kkSequenceShuffledName: InternedString { sequenceLookup.kkSequenceShuffledName }
     var kkSequenceShuffledRandomName: InternedString { sequenceLookup.kkSequenceShuffledRandomName }
-    var kkSequenceScanName: InternedString { sequenceLookup.kkSequenceScanName }
-    var kkSequenceRunningFoldName: InternedString { sequenceLookup.kkSequenceRunningFoldName }
-    var kkSequenceRunningReduceName: InternedString { sequenceLookup.kkSequenceRunningReduceName }
     var kkSequenceToSetName: InternedString { sequenceLookup.kkSequenceToSetName }
     var kkSequenceToMapName: InternedString { sequenceLookup.kkSequenceToMapName }
     var kkSequenceToCollectionName: InternedString { sequenceLookup.kkSequenceToCollectionName }
@@ -196,11 +193,8 @@ struct CollectionLiteralLookupTables {
     var kkSequenceMaxOrNullName: InternedString { sequenceLookup.kkSequenceMaxOrNullName }
     var kkSequenceMinOrNullName: InternedString { sequenceLookup.kkSequenceMinOrNullName }
     var kkSequenceFlattenName: InternedString { sequenceLookup.kkSequenceFlattenName }
-    var kkSequenceRunningFoldIndexedName: InternedString { sequenceLookup.kkSequenceRunningFoldIndexedName }
-    var kkSequenceScanIndexedName: InternedString { sequenceLookup.kkSequenceScanIndexedName }
     var kkSequenceReduceIndexedName: InternedString { sequenceLookup.kkSequenceReduceIndexedName }
     var kkSequenceReduceIndexedOrNullName: InternedString { sequenceLookup.kkSequenceReduceIndexedOrNullName }
-    var kkSequenceRunningReduceIndexedName: InternedString { sequenceLookup.kkSequenceRunningReduceIndexedName }
     var kkSequencePlusName: InternedString { sequenceLookup.kkSequencePlusName }
     var kkSequencePlusElementName: InternedString { sequenceLookup.kkSequencePlusElementName }
     var kkSequenceMinusName: InternedString { sequenceLookup.kkSequenceMinusName }

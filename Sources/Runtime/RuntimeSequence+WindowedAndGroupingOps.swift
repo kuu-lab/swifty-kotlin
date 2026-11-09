@@ -213,63 +213,6 @@ public func kk_sequence_toMap(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<I
     return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
 }
 
-@_cdecl("kk_sequence_groupBy")
-public func kk_sequence_groupBy(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var groupKeys: [Int] = []
-    var groupElements: [[Int]] = []
-    // Uses RuntimeElementKey to respect runtimeValuesEqual semantics (e.g. String content equality).
-    var keyToIndex: [RuntimeElementKey: Int] = [:]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let key = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            let runtimeKey = RuntimeElementKey(value: key)
-            if let grpIdx = keyToIndex[runtimeKey] {
-                groupElements[grpIdx].append(elem)
-            } else {
-                let newIndex = groupKeys.count
-                keyToIndex[runtimeKey] = newIndex
-                groupKeys.append(key)
-                groupElements.append([elem])
-            }
-            return true
-        }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let key = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-            }
-            let runtimeKey = RuntimeElementKey(value: key)
-            if let grpIdx = keyToIndex[runtimeKey] {
-                groupElements[grpIdx].append(elem)
-            } else {
-                let newIndex = groupKeys.count
-                keyToIndex[runtimeKey] = newIndex
-                groupKeys.append(key)
-                groupElements.append([elem])
-            }
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 {
-        return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
-    }
-    let values = groupElements.map { registerRuntimeObject(RuntimeListBox(elements: $0)) }
-    return registerRuntimeObject(RuntimeMapBox(keys: groupKeys, values: values))
-}
-
 @_cdecl("kk_sequence_maxOrNull")
 public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
     var best: Int?

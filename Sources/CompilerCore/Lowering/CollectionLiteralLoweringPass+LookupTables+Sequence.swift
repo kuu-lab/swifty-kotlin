@@ -15,9 +15,6 @@ struct SequenceLookupNames {
     let kkSequenceFlatMapIndexedName: InternedString
     let kkSequenceShuffledName: InternedString
     let kkSequenceShuffledRandomName: InternedString
-    let kkSequenceScanName: InternedString
-    let kkSequenceRunningFoldName: InternedString
-    let kkSequenceRunningReduceName: InternedString
     let kkSequenceToSetName: InternedString
     let kkSequenceToMapName: InternedString
     let kkSequenceToCollectionName: InternedString
@@ -25,11 +22,8 @@ struct SequenceLookupNames {
     let kkSequenceMaxOrNullName: InternedString
     let kkSequenceMinOrNullName: InternedString
     let kkSequenceFlattenName: InternedString
-    let kkSequenceRunningFoldIndexedName: InternedString
-    let kkSequenceScanIndexedName: InternedString
     let kkSequenceReduceIndexedName: InternedString
     let kkSequenceReduceIndexedOrNullName: InternedString
-    let kkSequenceRunningReduceIndexedName: InternedString
     let kkSequencePlusName: InternedString
     let kkSequencePlusElementName: InternedString
     let kkSequenceMinusName: InternedString
@@ -75,9 +69,6 @@ struct SequenceLookupNames {
         kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")
         kkSequenceShuffledName = interner.intern("kk_sequence_shuffled")
         kkSequenceShuffledRandomName = interner.intern("kk_sequence_shuffled_random")
-        kkSequenceScanName = interner.intern("kk_sequence_scan")
-        kkSequenceRunningFoldName = interner.intern("kk_sequence_runningFold")
-        kkSequenceRunningReduceName = interner.intern("kk_sequence_runningReduce")
         kkSequenceToSetName = interner.intern("kk_sequence_toSet")
         kkSequenceToMapName = interner.intern("kk_sequence_toMap")
         kkSequenceToCollectionName = interner.intern("kk_sequence_toCollection")
@@ -85,11 +76,8 @@ struct SequenceLookupNames {
         kkSequenceMaxOrNullName = interner.intern("kk_sequence_maxOrNull")
         kkSequenceMinOrNullName = interner.intern("kk_sequence_minOrNull")
         kkSequenceFlattenName = interner.intern("kk_sequence_flatten")
-        kkSequenceRunningFoldIndexedName = interner.intern("kk_sequence_runningFoldIndexed")
-        kkSequenceScanIndexedName = interner.intern("kk_sequence_scanIndexed")
         kkSequenceReduceIndexedName = interner.intern("kk_sequence_reduceIndexed")
         kkSequenceReduceIndexedOrNullName = interner.intern("kk_sequence_reduceIndexedOrNull")
-        kkSequenceRunningReduceIndexedName = interner.intern("kk_sequence_runningReduceIndexed")
         kkSequencePlusName = interner.intern("kk_sequence_plus")
         kkSequencePlusElementName = interner.intern("kk_sequence_plus_element")
         kkSequenceMinusName = interner.intern("kk_sequence_minus")

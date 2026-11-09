@@ -214,16 +214,9 @@ struct ABIMismatchRuntimeExportParityTests {
             RuntimeABISpec.listTakeLastWhileSpec,
             RuntimeABISpec.listDropWhileSpec,
             RuntimeABISpec.listDropLastWhileSpec,
-            // KSP-445: Sequence scan HOFs are source-backed in bundled
-            // kotlin.collections/sequences; runtime bridges are no longer exported.
+            // KSP-445: Sequence reduce-indexed compatibility specs.
             RuntimeABISpec.sequenceReduceIndexedSpec,
             RuntimeABISpec.sequenceReduceIndexedOrNullSpec,
-            RuntimeABISpec.sequenceRunningFoldSpec,
-            RuntimeABISpec.sequenceRunningFoldIndexedSpec,
-            RuntimeABISpec.sequenceRunningReduceSpec,
-            RuntimeABISpec.sequenceRunningReduceIndexedSpec,
-            RuntimeABISpec.sequenceScanSpec,
-            RuntimeABISpec.sequenceScanIndexedSpec,
             // KSP-430: Map higher-order functions are now source-backed in
             // bundled MapHOF.kt. RF-LOWER-CALL-012 removed the Lowering-side
             // rewrites and KSP-703 removed the Sema-side synthetic stub

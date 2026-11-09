@@ -16,7 +16,6 @@ extension CallLowerer {
         "kk_sequence_reduceOrNull", "kk_sequence_reduce",
         "kk_sequence_reduceRight", "kk_sequence_reduceRightIndexed",
         "kk_sequence_reduceRightOrNull", "kk_sequence_reduceRightIndexedOrNull",
-        "kk_sequence_runningReduceIndexed",
         "kk_sequence_ifEmpty",
     ]
 
@@ -109,7 +108,6 @@ extension CallLowerer {
             case "reduceOrNull": runtimeCallee = "kk_sequence_reduceOrNull"
             case "reduceRight": runtimeCallee = "kk_sequence_reduceRight"
             case "reduce": runtimeCallee = "kk_sequence_reduce"
-            case "runningReduceIndexed": runtimeCallee = "kk_sequence_runningReduceIndexed"
             case "reduceRightIndexed": runtimeCallee = "kk_sequence_reduceRightIndexed"
             case "reduceRightOrNull": runtimeCallee = "kk_sequence_reduceRightOrNull"
             case "reduceRightIndexedOrNull": runtimeCallee = "kk_sequence_reduceRightIndexedOrNull"

@@ -457,21 +457,6 @@ struct RuntimeSequenceTests {
         #expect(kk_sequence_indexOfLast(seq, unsafeBitCast(greaterThanTenPredicate, to: Int.self), 0, nil) == -1)
     }
 
-    @Test func groupByGroupsElementsIntoNewMap() {
-        let seq = makeSequence([1, 2, 3, 4, 5])
-
-        let result = kk_sequence_groupBy(
-            seq,
-            unsafeBitCast(sequenceParitySelector, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(mapKeys(result) == [1, 0])
-        #expect(runtimeTestListElements(kk_map_get(result, 1)) == [1, 3, 5])
-        #expect(runtimeTestListElements(kk_map_get(result, 0)) == [2, 4])
-    }
-
     @Test func indexOfReturnsFirstMatchingIndexOrMinusOne() {
         let seq = makeSequence([10, 20, 10, 30])
 
