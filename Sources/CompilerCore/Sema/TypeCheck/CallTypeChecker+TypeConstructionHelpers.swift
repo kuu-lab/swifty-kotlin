@@ -86,25 +86,6 @@ extension CallTypeChecker {
         )))
     }
 
-    /// Promoted from `private` to module-`internal` so the
-    /// `+MemberCallInference*` extension files can share the single definition
-    /// instead of duplicating it.
-    func makeSyntheticNominalType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner _: StringInterner,
-        fqName: [InternedString]
-    ) -> TypeID {
-        guard let symbol = symbols.lookupNominal(fqName: fqName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
     func makeSyntheticSequenceType(
         symbols: SymbolTable,
         types: TypeSystem,

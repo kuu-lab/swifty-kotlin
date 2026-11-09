@@ -363,7 +363,7 @@ extension CallTypeChecker {
         {
             ctx.builderInference?.constraints.append(contentsOf: constraints)
         }
-        return shadowFilteredExtensionCandidates(scopeCandidates, ctx: ctx, sema: sema)
+        return shadowFilteredExtensionCandidates(scopeCandidates, sema: sema)
     }
 
     /// A user-source declaration shadows a bundled-stdlib declaration with
@@ -371,7 +371,6 @@ extension CallTypeChecker {
     /// against the bundled stdlib must not see each extension twice.
     private func shadowFilteredExtensionCandidates(
         _ candidates: [SymbolID],
-        ctx: TypeInferenceContext,
         sema: SemaModule
     ) -> [SymbolID] {
         func sameCallableSignature(_ lhs: SymbolID, _ rhs: SymbolID) -> Bool {

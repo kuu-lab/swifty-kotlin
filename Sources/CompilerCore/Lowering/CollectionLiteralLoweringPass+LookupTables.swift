@@ -143,7 +143,6 @@ struct CollectionLiteralLookupTables {
     var kkIterableToHashSetName: InternedString { setLookup.kkIterableToHashSetName }
     var kkMutableSetAddName: InternedString { setLookup.kkMutableSetAddName }
     var kkMutableSetRemoveName: InternedString { setLookup.kkMutableSetRemoveName }
-    var kkBuilderSetFreezeName: InternedString { setLookup.kkBuilderSetFreezeName }
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
 
@@ -327,7 +326,6 @@ struct CollectionLiteralLookupTables {
     var reduceName: InternedString { commonLookup.reduceName }
     var scanName: InternedString { commonLookup.scanName }
     var runningFoldName: InternedString { commonLookup.runningFoldName }
-    var runningReduceName: InternedString { commonLookup.runningReduceName }
     var groupByName: InternedString { commonLookup.groupByName }
     var findName: InternedString { commonLookup.findName }
     var findLastName: InternedString { commonLookup.findLastName }
@@ -353,8 +351,6 @@ struct CollectionLiteralLookupTables {
     var reduceIndexedName: InternedString { commonLookup.reduceIndexedName }
     var filterIndexedName: InternedString { commonLookup.filterIndexedName }
     var runningFoldIndexedName: InternedString { commonLookup.runningFoldIndexedName }
-    var runningReduceIndexedName: InternedString { commonLookup.runningReduceIndexedName }
-    var scanIndexedName: InternedString { commonLookup.scanIndexedName }
     var maxName: InternedString { commonLookup.maxName }
     var maxOrNullName: InternedString { commonLookup.maxOrNullName }
     var minOrNullName: InternedString { commonLookup.minOrNullName }

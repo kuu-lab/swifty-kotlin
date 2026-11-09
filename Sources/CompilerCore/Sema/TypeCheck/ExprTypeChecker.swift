@@ -847,8 +847,7 @@ final class ExprTypeChecker {
             return driver.callChecker.inferSafeMemberCallExpr(
                 id, receiverID: receiverID, calleeName: calleeName,
                 args: args, range: range, ctx: callCtx, locals: &locals,
-                expectedType: expectedType, explicitTypeArgs: explicitTypeArgs,
-                receiverIsConditionallyEvaluated: ctx.isConditionallyEvaluated
+                expectedType: expectedType, explicitTypeArgs: explicitTypeArgs
             )
 
         case let .compoundAssign(op, name, valueExpr, range):

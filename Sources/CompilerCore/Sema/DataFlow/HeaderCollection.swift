@@ -112,8 +112,7 @@ extension DataFlowSemaPhase {
     /// the symbol table. Shared by the forward-declaration pass and `collectHeader`
     /// so both agree on kind/visibility/flags.
     func topLevelDeclarationDescriptor(
-        for decl: Decl,
-        diagnostics: DiagnosticEngine?
+        for decl: Decl
     ) -> (kind: SymbolKind, name: InternedString, range: SourceRange?, visibility: Visibility, flags: SymbolFlags)? {
         switch decl {
         case let .classDecl(classDecl):

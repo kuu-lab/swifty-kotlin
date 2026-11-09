@@ -16,7 +16,7 @@ extension CallTypeChecker {
             id, receiverID: receiverID, calleeName: calleeName,
             args: args, range: range, ctx: ctx, locals: &locals,
             expectedType: memberExpectedType, explicitTypeArgs: explicitTypeArgs,
-            safeCall: false, receiverIsConditionallyEvaluated: nil
+            safeCall: false
         )
         guard ctx.ast.arena.isInfixCall(id), result != ctx.sema.types.errorType else {
             return result
@@ -70,8 +70,7 @@ extension CallTypeChecker {
     func inferSafeMemberCallExpr(
         _ id: ExprID, receiverID: ExprID, calleeName: InternedString,
         args: [CallArgument], range: SourceRange, ctx: TypeInferenceContext,
-        locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = [],
-        receiverIsConditionallyEvaluated: Bool
+        locals: inout LocalBindings, expectedType: TypeID?, explicitTypeArgs: [TypeID] = []
     ) -> TypeID {
         inferMemberCallImpl(
             id, receiverID: receiverID, calleeName: calleeName,
@@ -79,7 +78,7 @@ extension CallTypeChecker {
             expectedType: expectedType.flatMap {
                 dropForeignTypeParamExpectedType($0, ctx: ctx)
             }, explicitTypeArgs: explicitTypeArgs,
-            safeCall: true, receiverIsConditionallyEvaluated: receiverIsConditionallyEvaluated
+            safeCall: true
         )
     }
 }

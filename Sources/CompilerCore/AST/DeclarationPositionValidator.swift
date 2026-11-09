@@ -977,7 +977,7 @@ struct DeclarationPositionValidator {
         // `inner` is kind-invalid on enum and annotation classes, so the
         // not-applicable-to diagnostic owns it without a positional duplicate.
         if !conflictCovered.contains(.inner), !isEnum, !isAnnotation {
-            validateInnerPosition(modifiers, site: site, target: kindName, range: decl.range)
+            validateInnerPosition(modifiers, site: site, range: decl.range)
         }
         if case .nominal(let nominal) = site {
             validateMemberSiteModifiers(modifiers, site: nominal, target: "nested class", range: decl.range)
@@ -1397,7 +1397,6 @@ struct DeclarationPositionValidator {
     private func validateInnerPosition(
         _ modifiers: Modifiers,
         site: OwnerSite,
-        target: String,
         range: SourceRange
     ) {
         guard modifiers.contains(.inner) else {

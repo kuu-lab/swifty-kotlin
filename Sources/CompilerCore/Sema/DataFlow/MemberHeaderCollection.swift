@@ -58,7 +58,7 @@ extension DataFlowSemaPhase {
 
         for nestedDeclID in nestedDecls {
             guard let nestedDecl = ast.arena.decl(nestedDeclID),
-                  let declaration = topLevelDeclarationDescriptor(for: nestedDecl, diagnostics: nil),
+                  let declaration = topLevelDeclarationDescriptor(for: nestedDecl),
                   let range = declaration.range
             else { continue }
             let nestedSymbol = collectNestedDeclarationHeader(

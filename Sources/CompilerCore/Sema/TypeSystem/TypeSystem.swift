@@ -178,14 +178,6 @@ public final class TypeSystem {
         return arity
     }
 
-    /// Resolves a source-visible `FunctionN` spelling to its compiler-known
-    /// nominal interface symbol. Higher arities are materialized on demand by
-    /// semantic type resolution.
-    func functionNInterfaceSymbol(named path: [InternedString], interner: StringInterner) -> SymbolID? {
-        guard let arity = functionNInterfaceArity(named: path, interner: interner) else { return nil }
-        return functionNInterfaceSymbols[arity]
-    }
-
     /// The symbols of the synthetic `kotlin.coroutines.SuspendFunctionN`
     /// interfaces, keyed by arity. These keep suspend function types distinct
     /// from regular `FunctionN` types while exposing their suspend `invoke`.

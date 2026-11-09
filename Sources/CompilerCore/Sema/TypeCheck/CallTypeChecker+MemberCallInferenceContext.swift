@@ -45,7 +45,6 @@ extension CallTypeChecker {
         var diagnostics: DiagnosticEngine { ctx.sema.diagnostics }
         var interner: StringInterner { ctx.interner }
         var isExplicitCall: Bool { ctx.ast.arena.isExplicitCall(id) }
-        var isInfixCall: Bool { ctx.ast.arena.isInfixCall(id) }
         /// Member-property captures are shared by reads through one declared
         /// receiver, while same-typed declarations retain independent captures.
         var receiverDeclaration: SymbolID? {
@@ -61,20 +60,6 @@ extension CallTypeChecker {
             default:
                 return nil
             }
-        }
-        /// `recv.name` without parentheses is property-access syntax, not an
-        /// invocation of a same-named function.
-        var isPropertyAccessShape: Bool { args.isEmpty && !isExplicitCall }
-
-        func finalType(_ type: TypeID) -> TypeID {
-            safeCall ? ctx.sema.types.makeNullable(type) : type
-        }
-
-        @discardableResult
-        func bindResult(_ type: TypeID) -> TypeID {
-            let final = finalType(type)
-            ctx.sema.bindings.bindExprType(id, type: final)
-            return final
         }
     }
 

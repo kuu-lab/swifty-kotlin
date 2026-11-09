@@ -535,7 +535,7 @@ public func nullAssertProbeCannotBeNull(
     case .primitive(_, .nonNull):
         return true
     default:
-        return isNonNullUnboxedValueClassOperand(kind, types: types, symbols: symbols)
+        return isNonNullUnboxedValueClassOperand(kind, symbols: symbols)
     }
 }
 
@@ -545,7 +545,6 @@ public func nullAssertProbeCannotBeNull(
 /// the raw probe.
 func isNonNullUnboxedValueClassOperand(
     _ kind: TypeKind?,
-    types: TypeSystem,
     symbols: SymbolTable?
 ) -> Bool {
     guard case let .classType(classType) = kind,
