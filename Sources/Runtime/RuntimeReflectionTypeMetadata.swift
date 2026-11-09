@@ -112,6 +112,43 @@ private let runtimeKCallableReturnTypeGetter: @convention(c) (Int, UnsafeMutable
     return __kk_kcallable_get_return_type(raw)
 }
 
+private let runtimeKProperty1Get: @convention(c) (
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { raw, receiver, outThrown in
+    let arguments = registerRuntimeObject(RuntimeListBox(elements: [receiver]))
+    return __kk_kcallable_call(raw, arguments, outThrown)
+}
+
+private let runtimeKProperty1GetDelegate: @convention(c) (
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?
+) -> Int = { raw, _, outThrown in
+    outThrown?.pointee = 0
+    guard let property = runtimeReflectionObject(from: raw, as: RuntimeKPropertyStub.self) else {
+        return runtimeNullSentinelInt
+    }
+    return property.delegateRaw != 0 ? property.delegateRaw : runtimeNullSentinelInt
+}
+
+/// Installs the member-property methods on the unbound KProperty1 interface.
+func runtimeRegisterKProperty1ItableIfNeeded(rawValue: Int, typeID: Int64) {
+    guard typeID == kProperty1RuntimeTypeID || typeID == kMutableProperty1RuntimeTypeID else { return }
+    let interfaceSlot = 1
+    _ = kk_object_register_itable_iface(rawValue, Int(kProperty1RuntimeTypeID), interfaceSlot)
+    _ = kk_object_register_itable_method(
+        rawValue, interfaceSlot, 0, unsafeBitCast(runtimeKProperty1Get, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        rawValue, interfaceSlot, 1, unsafeBitCast(runtimeKProperty1GetDelegate, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        rawValue, interfaceSlot, 2, unsafeBitCast(runtimeKProperty1Get, to: Int.self)
+    )
+}
+
 /// Registers runtime reflection values for KCallable's source-backed property
 /// getters. User implementations and these runtime values then share interface
 /// dispatch, while the bridge getters preserve the metadata-backed behavior.

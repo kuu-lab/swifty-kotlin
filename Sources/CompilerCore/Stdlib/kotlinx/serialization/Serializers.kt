@@ -2,12 +2,12 @@
  * Copyright 2017-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license.
  *
  * Derived from kotlinx.serialization core/commonMain/src/kotlinx/serialization/Serializers.kt.
- * The public `serializer*` entry points keep their upstream signatures, but the lookup is
- * reduced to the contextual [SerializersModule] path: plugin-generated serializers,
- * platform reflection and the builtin serializer registry do not exist in this toolchain,
- * so unresolved lookups fail with [SerializationException] instead of consulting them.
+ * Generated companion entry points are installed by the compiler plugin. The shared
+ * serializer lookup also supports primitive serializers and reflective serializers for
+ * classes carrying the bundled [Serializable] annotation.
  */
 @file:Suppress("DEPRECATION_ERROR", "UNCHECKED_CAST")
+@file:OptIn(InternalSerializationApi::class)
 
 package kotlinx.serialization
 
@@ -135,15 +135,14 @@ private fun SerializersModule.serializerByKTypeImpl(
     val isNullable = type.isMarkedNullable
     val typeArguments = type.arguments.map { it.typeOrThrow() }
 
-    // Unlike upstream there is no plugin-generated serializer lookup or builtin registry:
-    // only contextual serializers registered in this module can be resolved.
+    val defaultSerializer = rootClass.serializerOrNull()
     val contextualSerializer: KSerializer<out Any?>? = if (typeArguments.isEmpty()) {
         getContextual(rootClass)
     } else {
         val serializers = serializersForParameters(typeArguments, failOnMissingTypeArgSerializer) ?: return null
         getContextual(rootClass, serializers)
     }
-    return contextualSerializer?.cast<Any>()?.nullable(isNullable)
+    return (contextualSerializer ?: defaultSerializer)?.cast<Any>()?.nullable(isNullable)
 }
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -152,7 +151,7 @@ private fun SerializersModule.serializerByKClassImpl(
     typeArgumentsSerializers: List<KSerializer<Any?>>,
     isNullable: Boolean
 ): KSerializer<Any?>? {
-    val serializer = getContextual(rootClass, typeArgumentsSerializers)
+    val serializer = getContextual(rootClass, typeArgumentsSerializers) ?: rootClass.serializerOrNull()
     return serializer?.cast<Any>()?.nullable(isNullable)
 }
 
@@ -175,9 +174,8 @@ internal fun SerializersModule.serializersForParameters(
  * Retrieves a [KSerializer] for the given [KClass].
  * The given class must be annotated with [Serializable] or be one of the built-in types.
  *
- * This toolchain has no serialization compiler plugin, so only classes resolvable through
- * platform-independent means can return a serializer; every other class reports
- * [SerializationException] via [serializerNotRegistered].
+ * Serializable classes use the reflective fallback supplied by this runtime. The compiler
+ * plugin additionally generates the familiar `Owner.serializer()` companion entry point.
  */
 @InternalSerializationApi
 public fun <T : Any> KClass<T>.serializer(): KSerializer<T> = serializerOrNull() ?: serializerNotRegistered()
@@ -187,7 +185,12 @@ public fun <T : Any> KClass<T>.serializer(): KSerializer<T> = serializerOrNull()
  * The given class must be annotated with [Serializable] or be one of the built-in types.
  */
 @InternalSerializationApi
-public fun <T : Any> KClass<T>.serializerOrNull(): KSerializer<T>? = null
+public fun <T : Any> KClass<T>.serializerOrNull(): KSerializer<T>? =
+    builtinSerializerOrNull(this) ?: if (annotations.any { it is Serializable }) {
+        ReflectiveClassSerializer(this)
+    } else {
+        null
+    }
 
 private fun <T : Any> KSerializer<T>.nullable(shouldBeNullable: Boolean): KSerializer<T?> {
     if (shouldBeNullable) return this.nullable

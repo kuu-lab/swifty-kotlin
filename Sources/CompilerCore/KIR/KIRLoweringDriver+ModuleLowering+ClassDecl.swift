@@ -1495,10 +1495,65 @@ extension KIRLoweringDriver {
         if let serializerSym = info.companionSerializerMethod,
            arena.function(for: serializerSym) == nil {
             if let signature = sema.symbols.functionSignature(for: serializerSym) {
-                var body: [KIRInstruction] = []
-                let dummyResult = arena.appendExpr(.null, type: signature.returnType)
-                body.append(.constValue(result: dummyResult, value: .null))
-                body.append(.returnValue(dummyResult))
+                let body: [KIRInstruction]
+                let helperFQName = ["kotlinx", "serialization", "serializerForClass"].map {
+                    interner.intern($0)
+                }
+                let hasTypeParameters = !sema.types.nominalTypeParameterSymbols(for: classSymbol).isEmpty
+                    || !sema.types.enclosingTypeParameterSymbols(for: classSymbol).isEmpty
+                if !hasTypeParameters,
+                   let helperSymbol = sema.symbols.lookup(fqName: helperFQName),
+                   let helperInfo = sema.symbols.symbol(helperSymbol)
+                {
+                    let ownerType = sema.types.make(.classType(ClassType(
+                        classSymbol: classSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    let kClassType = sema.types.makeKClassType(argument: ownerType)
+                    let typeToken = RuntimeTypeCheckToken.encode(
+                        type: ownerType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    let typeName = RuntimeTypeCheckToken.qualifiedName(
+                        of: ownerType,
+                        sema: sema,
+                        interner: interner
+                    ) ?? RuntimeTypeCheckToken.simpleName(
+                        of: ownerType,
+                        sema: sema,
+                        interner: interner
+                    ) ?? sema.symbols.symbol(classSymbol).map { interner.resolve($0.name) } ?? "Serializable"
+                    let tokenExpr = arena.appendExpr(.intLiteral(typeToken), type: sema.types.intType)
+                    let nameExpr = arena.appendExpr(.stringLiteral(interner.intern(typeName)), type: sema.types.stringType)
+                    let kClassResult = arena.appendTemporary(type: kClassType)
+                    let serializerResult = arena.appendTemporary(type: signature.returnType)
+                    body = [
+                        .constValue(result: tokenExpr, value: .intLiteral(typeToken)),
+                        .constValue(result: nameExpr, value: .stringLiteral(interner.intern(typeName))),
+                        .call(
+                            callee: interner.intern("__kk_kclass_create"),
+                            arguments: [tokenExpr, nameExpr],
+                            result: kClassResult,
+                            canThrow: false
+                        ),
+                        .call(
+                            symbol: helperSymbol,
+                            callee: helperInfo.name,
+                            arguments: [kClassResult],
+                            result: serializerResult,
+                            canThrow: sema.symbols.functionSignatureIfKnown(for: helperSymbol)?.canThrow ?? false
+                        ),
+                        .returnValue(serializerResult),
+                    ]
+                } else {
+                    let dummyResult = arena.appendExpr(.null, type: signature.returnType)
+                    body = [
+                        .constValue(result: dummyResult, value: .null),
+                        .returnValue(dummyResult),
+                    ]
+                }
 
                 let receiverType = signature.receiverType ?? sema.types.anyType
                 var params: [KIRParameter] = [
