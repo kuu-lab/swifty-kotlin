@@ -22,10 +22,7 @@ extension DataFlowSemaPhase {
         let anyType = types.anyType
         let unitType = types.unitType
 
-        guard let declaration = topLevelDeclarationDescriptor(
-            for: decl,
-            diagnostics: diagnostics
-        ) else { return }
+        guard let declaration = topLevelDeclarationDescriptor(for: decl) else { return }
         let fqName = package + [declaration.name]
         let symbol = predeclaredSymbol ?? defineTopLevelSymbol(
             declaration: declaration,

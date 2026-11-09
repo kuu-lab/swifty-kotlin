@@ -168,7 +168,7 @@ extension DataFlowSemaPhase {
             case .funDecl, .propertyDecl, .enumEntryDecl:
                 continue
             }
-            guard let declaration = topLevelDeclarationDescriptor(for: decl, diagnostics: nil) else {
+            guard let declaration = topLevelDeclarationDescriptor(for: decl) else {
                 continue
             }
             predeclared[declID] = defineTopLevelSymbol(

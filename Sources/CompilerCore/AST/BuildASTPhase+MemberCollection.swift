@@ -489,16 +489,6 @@ extension BuildASTPhase {
         )
     }
 
-    func declarationSuperTypes(
-        from nodeID: NodeID,
-        in arena: SyntaxArena,
-        interner: StringInterner,
-        astArena: ASTArena
-    ) -> [TypeRefID] {
-        let entries = declarationSuperTypeEntries(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        return entries.map(\.typeRef)
-    }
-
     private struct ParsedSuperType {
         let ref: TypeRefID
         let constructorArgs: [CallArgument]

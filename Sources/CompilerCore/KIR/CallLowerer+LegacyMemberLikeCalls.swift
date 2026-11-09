@@ -801,7 +801,6 @@ extension CallLowerer {
                 calleeNameStr: calleeNameStr,
                 args: args,
                 sema: sema,
-                arena: arena,
                 interner: interner,
                 chosenBase64Callee: chosenBase64Callee,
                 loweredReceiverID: loweredReceiverID,

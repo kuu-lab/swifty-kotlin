@@ -198,7 +198,6 @@ extension CallLowerer {
         calleeNameStr: String,
         args: [CallArgument],
         sema: SemaModule,
-        arena: KIRArena,
         interner: StringInterner,
         chosenBase64Callee: SymbolID?,
         loweredReceiverID: KIRExprID,

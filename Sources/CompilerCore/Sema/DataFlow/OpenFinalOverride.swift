@@ -1432,7 +1432,6 @@ extension DataFlowSemaPhase {
             // overridden accessor instead (KSWIFTK-SEMA-0478/0479). Only the
             // cross-module compatibility rules still apply at member level.
             validateModuleBoundaryCompatibility(
-                childVisibility: memberMeta.visibility,
                 childOwnerSymbol: ownerSymbol,
                 parentSymbol: parentSym,
                 memberName: memberMeta.name,
@@ -3057,7 +3056,6 @@ extension DataFlowSemaPhase {
         // override of a member declared `internal` elsewhere stays rejected
         // regardless of the visibility the child spells.
         validateModuleBoundaryCompatibility(
-            childVisibility: childVisibility,
             childOwnerSymbol: childOwnerSymbol,
             parentSymbol: parentSymbol,
             memberName: memberName,
@@ -3067,7 +3065,6 @@ extension DataFlowSemaPhase {
     }
 
     private func validateModuleBoundaryCompatibility(
-        childVisibility: Visibility,
         childOwnerSymbol: SymbolID,
         parentSymbol: SemanticSymbol,
         memberName: InternedString,
@@ -3122,25 +3119,6 @@ extension DataFlowSemaPhase {
             current = ctx.symbols.parentSymbol(for: id)
         }
         return nil
-    }
-
-    /// Owners whose members follow class-style override hiding: classes,
-    /// objects (named, companion, and synthetic companion blocks), enum
-    /// classes, and enum-entry field symbols — an entry body is an anonymous
-    /// subclass of the enum class (KUU-4161).
-    private func isClassLikeOverrideOwner(
-        _ symbol: SemanticSymbol,
-        ctx: OpenFinalOverrideContext
-    ) -> Bool {
-        switch symbol.kind {
-        case .class, .object, .enumClass:
-            return true
-        case .field:
-            return ctx.symbols.parentSymbol(for: symbol.id)
-                .flatMap { ctx.symbols.symbol($0) }?.kind == .enumClass
-        default:
-            return false
-        }
     }
 
     private func validateMissingOverride(

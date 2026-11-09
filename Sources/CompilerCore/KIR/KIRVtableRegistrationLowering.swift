@@ -434,7 +434,6 @@ func appendSamWrapperAnyEqualsHashCodeOverrideRegistrations<C: RangeReplaceableC
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     implementation: SymbolID,
-    driver: KIRLoweringDriver? = nil,
     sema: SemaModule,
     cache: KIRNominalDispatchCache,
     arena: KIRArena,

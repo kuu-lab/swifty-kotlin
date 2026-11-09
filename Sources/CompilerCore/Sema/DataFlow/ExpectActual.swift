@@ -456,7 +456,6 @@ extension DataFlowSemaPhase {
                         actual,
                         actualSig: actualSig,
                         functionsByRange: sourceDeclarations.functionsByRange,
-                        symbols: symbols,
                         types: types
                     )
             )
@@ -701,7 +700,6 @@ extension DataFlowSemaPhase {
                 actual,
                 actualSig: actualSig,
                 functionsByRange: sourceDeclarations.functionsByRange,
-                symbols: symbols,
                 types: types
             )
         default:
@@ -737,7 +735,6 @@ extension DataFlowSemaPhase {
         _ actual: SemanticSymbol,
         actualSig: FunctionSignature,
         functionsByRange: [SourceRange: [FunDecl]],
-        symbols: SymbolTable,
         types: TypeSystem
     ) -> Bool {
         guard actualSig.returnType == types.anyType,
