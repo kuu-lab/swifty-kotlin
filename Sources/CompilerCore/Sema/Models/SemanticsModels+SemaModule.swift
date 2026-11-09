@@ -20,6 +20,23 @@ public struct ParcelizeClassInfo: Sendable {
     }
 }
 
+/// Describes synthetic serialization members generated for an `@Serializable` class.
+public struct SerializationClassInfo: Sendable {
+    public var companionSerializerMethod: SymbolID?
+    public var generatedSerializerClass: SymbolID?
+    public var companionObjectSymbol: SymbolID?
+
+    public init(
+        companionSerializerMethod: SymbolID? = nil,
+        generatedSerializerClass: SymbolID? = nil,
+        companionObjectSymbol: SymbolID? = nil
+    ) {
+        self.companionSerializerMethod = companionSerializerMethod
+        self.generatedSerializerClass = generatedSerializerClass
+        self.companionObjectSymbol = companionObjectSymbol
+    }
+}
+
 public final class SemaModule {
     var independentBodyCount = 0
 
@@ -94,6 +111,9 @@ public final class SemaModule {
 
     /// Classes processed by the Parcelize plugin and their synthesized member symbols.
     public var parcelizeClasses: [SymbolID: ParcelizeClassInfo] = [:]
+
+    /// Classes processed by the kotlinx.serialization plugin and their synthesized member symbols.
+    public var serializationClasses: [SymbolID: SerializationClassInfo] = [:]
 
     public init(
         symbols: SymbolTable,
