@@ -183,3 +183,27 @@ fun IntArray.arrayIndices(): kotlin.ranges.IntRange = kotlin.ranges.IntRange(0, 
 fun IntArray.arrayLastIndex(): Int = this.size - 1
 
 fun IntArray.toList(): List<Int> = this.asSequence().toList()
+
+fun IntArray.isEmpty(): Boolean = this.size == 0
+fun IntArray.isNotEmpty(): Boolean = this.size != 0
+fun LongArray.toList(): List<Long> = this.asSequence().toList()
+fun LongArray.isEmpty(): Boolean = this.size == 0
+fun LongArray.isNotEmpty(): Boolean = this.size != 0
+fun FloatArray.toList(): List<Float> = this.asSequence().toList()
+fun FloatArray.isEmpty(): Boolean = this.size == 0
+fun FloatArray.isNotEmpty(): Boolean = this.size != 0
+fun DoubleArray.toList(): List<Double> = this.asSequence().toList()
+fun DoubleArray.isEmpty(): Boolean = this.size == 0
+fun DoubleArray.isNotEmpty(): Boolean = this.size != 0
+fun BooleanArray.toList(): List<Boolean> = this.asSequence().toList()
+fun BooleanArray.isEmpty(): Boolean = this.size == 0
+fun BooleanArray.isNotEmpty(): Boolean = this.size != 0
+fun CharArray.toList(): List<Char> = this.asSequence().toList()
+fun CharArray.isEmpty(): Boolean = this.size == 0
+fun CharArray.isNotEmpty(): Boolean = this.size != 0
+fun ByteArray.toList(): List<Byte> = this.asSequence().toList()
+fun ByteArray.isEmpty(): Boolean = this.size == 0
+fun ByteArray.isNotEmpty(): Boolean = this.size != 0
+fun ShortArray.toList(): List<Short> = this.asSequence().toList()
+fun ShortArray.isEmpty(): Boolean = this.size == 0
+fun ShortArray.isNotEmpty(): Boolean = this.size != 0
