@@ -525,6 +525,43 @@ struct NestedCallArgumentCandidateFailureTests {
         )
     }
 
+    @Test
+    func nestedFactoryCallInfersFromBareTypeParameterBound() throws {
+        // `mutableMapOf()` collapses to `MutableMap<Nothing, Nothing>` on the
+        // first pass, and the `M` parameter stays a bare type variable even
+        // after `K`/`V` are bound from `source`. The parameter's upper bound
+        // `MutableMap<in K, in V>` — specialized to `MutableMap<in String,
+        // in Int>` — must still steer the nested call's expected type, the
+        // same way the post-failure retry path already does (KUU-4511).
+        let context = makeContext("""
+        fun <K, V, M : MutableMap<in K, in V>> copyPairsInto(
+            source: Array<out Pair<K, V>>,
+            destination: M,
+        ): M = source.toMap(destination)
+
+        fun <M : MutableMap<String, Int>> takes(m: M): M = m
+
+        fun main() {
+            val arr: Array<Pair<String, Int>> = arrayOf("x" to 3)
+            val out: Array<out Pair<String, Int>> = arr
+            println(copyPairsInto(out, mutableMapOf()))
+            println(takes(mutableMapOf()))
+        }
+        """)
+
+        try runSema(context)
+
+        #expect(!context.diagnostics.hasError, "Unexpected diagnostics: \(context.diagnostics.diagnostics)")
+        let sema = try #require(context.sema)
+        let ast = try #require(context.ast)
+        for calleeName in ["copyPairsInto", "takes"] {
+            let callExprID = try #require(nameRefCallExprID(named: calleeName, in: ast, interner: context.interner))
+            let chosen = try #require(sema.bindings.callBinding(for: callExprID)?.chosenCallee)
+            #expect(sema.symbols.symbol(chosen)?.name == context.interner.intern(calleeName))
+            #expect(sema.bindings.exprType(for: callExprID) != sema.types.errorType)
+        }
+    }
+
     private func makeContext(_ source: String) -> CompilationContext {
         TestStdlibCache.shared.prepare()
         return makeContextFromSource(source, allowDefaultStdlibLibrary: true)
