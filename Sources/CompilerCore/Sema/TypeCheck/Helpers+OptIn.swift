@@ -829,6 +829,13 @@ extension TypeCheckHelpers {
                 {
                     return symbol
                 }
+
+                if importDecl.isWildcard,
+                   let symbol = ctx.sema.symbols.lookup(fqName: importDecl.path + [shortName]),
+                   ctx.sema.symbols.symbol(symbol)?.kind == .annotationClass
+                {
+                    return symbol
+                }
             }
         }
 
