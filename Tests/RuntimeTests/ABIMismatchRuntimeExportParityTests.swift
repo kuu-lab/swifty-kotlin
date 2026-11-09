@@ -169,7 +169,6 @@ struct ABIMismatchRuntimeExportParityTests {
             RuntimeABISpec.memScopeExitSpec,
             RuntimeABISpec.nativeAllocBytesSpec,
             RuntimeABISpec.charSequenceLengthSpec,
-            RuntimeABISpec.dynamicIteratorSpec,
             RuntimeABISpec.intToIntSpec,
             // KSP-426: source-backed in ListSortingHOF.kt / ListExtremaHOF.kt;
             // retained only in RuntimeABISpec and test-only compatibility shims.

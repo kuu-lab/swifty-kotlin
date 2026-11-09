@@ -218,55 +218,15 @@ extension CallLowerer {
             let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: args.first?.expr, sema: sema)
             let runtimeCallee: String? = switch calleeStr {
             case "sortedBy":
-                primitiveSelectorKind != nil ? "kk_list_sortedBy_primitive" : "kk_list_sortedBy"
-            case "sortedByDescending":
-                primitiveSelectorKind != nil ? "kk_list_sortedByDescending_primitive" : "kk_list_sortedByDescending"
-            case "sortedWith":
-                "kk_list_sortedWith"
-            case "maxOf":
-                "kk_list_maxOf"
-            case "minOf":
-                "kk_list_minOf"
-            case "max":
-                "kk_list_max"
-            case "min":
-                "kk_list_min"
-            case "maxWith":
-                "kk_list_maxWith"
-            case "maxWithOrNull":
-                "kk_list_maxWithOrNull"
-            case "minWith":
-                "kk_list_minWith"
-            case "minWithOrNull":
-                "kk_list_minWithOrNull"
-            case "maxOfWith":
-                "kk_list_maxOfWith"
-            case "maxOfWithOrNull":
-                "kk_list_maxOfWithOrNull"
-            case "minOfWith":
-                "kk_list_minOfWith"
-            case "minOfWithOrNull":
-                "kk_list_minOfWithOrNull"
-            case "minBy":
-                "kk_list_minBy"
-            case "partition":
-                "kk_list_partition"
+                primitiveSelectorKind == nil ? "kk_list_sortedBy" : nil
             default:
                 nil
             }
             if let runtimeCallee {
-                var callArguments = [loweredReceiverID] + normalizedArgIDs
-                if let primitiveSelectorKind,
-                   runtimeCallee == "kk_list_sortedBy_primitive" || runtimeCallee == "kk_list_sortedByDescending_primitive"
-                {
-                    let kindExpr = arena.appendExpr(.intLiteral(Int64(primitiveSelectorKind.rawValue)), type: sema.types.intType)
-                    instructions.append(.constValue(result: kindExpr, value: .intLiteral(Int64(primitiveSelectorKind.rawValue))))
-                    callArguments.append(kindExpr)
-                }
-                let canThrow = runtimeCallee == "kk_list_minBy"
-                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: callArguments, result: result, canThrow: canThrow))
+                let callArguments = [loweredReceiverID] + normalizedArgIDs
+                instructions.append(.call(callee: interner.intern(runtimeCallee), arguments: callArguments, result: result, canThrow: true))
                 return result
-                }
+            }
             }
         }
         return nil

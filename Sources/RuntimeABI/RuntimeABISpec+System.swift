@@ -1,8 +1,6 @@
 private let abi = RuntimeABISectionBuilder("System")
 
 public extension RuntimeABISpec {
-    static let dynamicIteratorSpec: RuntimeABIFunctionSpec = abi.th("kk_dynamic_iterator", "value")
-
     static let systemFunctions: [RuntimeABIFunctionSpec] = [
         abi.nt("__kk_system_in"),
         abi.nt("__kk_system_getProperty", "propertyName"),
@@ -63,6 +61,5 @@ public extension RuntimeABISpec {
         abi.th("__kk_process_error_stream", "handle outThrown"),
         abi.nt("kk_clock_now", "receiver"),
         abi.nt("kk_clock_system_now"),
-        dynamicIteratorSpec,
     ]
 }
