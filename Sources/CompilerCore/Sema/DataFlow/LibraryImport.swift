@@ -157,7 +157,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
+        let libraryDirs = withSubPhaseTiming("libraryDirectoryDiscovery", timer: phaseTimer) {
+            discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
+        }
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         /// Bindings live on the loader state: index providers keep registering
         /// after the tail pass, and the returned `LibraryImportDeferredWork`
@@ -525,6 +527,7 @@ extension DataFlowSemaPhase {
             return symbol
         }
 
+        let importLoopStartedAt = phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
         for (importOrder, libraryDir) in libraryDirs.enumerated() {
             // While an earlier library is still being processed, drains must
             // not see records from later libraries on the search path.
@@ -570,17 +573,19 @@ extension DataFlowSemaPhase {
                 continue
             }
             let stdlibArtifact = isStdlibArtifact(libraryDir)
-            let manifestInfo: LibraryManifestInfo
-            if let cached = cache?.cachedManifestInfo(libraryDir: libraryDir, target: options.target) {
-                manifestInfo = cached
-            } else {
-                manifestInfo = resolveLibraryManifestInfo(
+            let manifestInfo = withSubPhaseTiming("libraryManifest", timer: phaseTimer) {
+                if let cached = cache?.cachedManifestInfo(libraryDir: libraryDir, target: options.target) {
+                    return cached
+                }
+                let resolved = resolveLibraryManifestInfo(
                     libraryDir: libraryDir,
                     currentTarget: options.target,
                     diagnostics: diagnostics,
+                    phaseTimer: phaseTimer,
                     isStdlibArtifact: stdlibArtifact
                 )
-                cache?.cacheManifestInfo(manifestInfo, libraryDir: libraryDir, target: options.target)
+                cache?.cacheManifestInfo(resolved, libraryDir: libraryDir, target: options.target)
+                return resolved
             }
             if stdlibArtifact {
                 stdlibArtifactLoaded = manifestInfo.isValid
@@ -630,12 +635,15 @@ extension DataFlowSemaPhase {
             }
             var precomputedMemberIndex: PrecomputedBundledMemberIndex?
             if let memberIndexPath = manifestInfo.bundledMemberIndexPath {
-                guard let memberIndexData = try? Data(contentsOf: URL(fileURLWithPath: memberIndexPath)),
-                      let decodedMemberIndex = PrecomputedBundledMemberIndex(
-                          data: memberIndexData,
-                          interner: interner
-                      )
-                else {
+                let decodedMemberIndex: PrecomputedBundledMemberIndex? = withSubPhaseTiming(
+                    "bundledMemberIndexDecode", timer: phaseTimer
+                ) {
+                    guard let memberIndexData = try? Data(contentsOf: URL(fileURLWithPath: memberIndexPath)) else {
+                        return nil
+                    }
+                    return PrecomputedBundledMemberIndex(data: memberIndexData, interner: interner)
+                }
+                guard let decodedMemberIndex else {
                     diagnostics.error(
                         "KSWIFTK-LIB-0024",
                         "Malformed bundled member index at \(memberIndexPath)",
@@ -680,27 +688,34 @@ extension DataFlowSemaPhase {
                     // A duplicate nominal signature rejects the whole library
                     // (eager parity), while an out-of-range arity drops only
                     // the offending record.
-                    var nominalSignaturesByFQName: [String: String] = [:]
-                    var duplicateNominalSignature = false
-                    for entry in indexedFile.entries {
-                        guard let signature = entry.nominalTypeParametersSignature else { continue }
-                        guard nominalSignaturesByFQName.updateValue(signature, forKey: entry.fqName) == nil else {
-                            diagnostics.error(
-                                "KSWIFTK-LIB-0024",
-                                "Duplicate nominal type metadata for '\(entry.fqName)' in library metadata at \(metadataPath)",
-                                range: nil
-                            )
-                            duplicateNominalSignature = true
-                            break
+                    let validation = withSubPhaseTiming("validateCompactIndex", timer: phaseTimer) {
+                        var nominalFQNamesWithSignatures: Set<String> = []
+                        var invalidCallableIndices: [Int] = []
+                        for (index, entry) in indexedFile.entries.enumerated() {
+                            if let compactRecord = entry.compactRecord,
+                               (compactRecord.kind == .function || compactRecord.kind == .constructor),
+                               !(0 ... ImportedLibraryLimits.maxCallableArity).contains(compactRecord.arity)
+                            {
+                                invalidCallableIndices.append(index)
+                            }
+                            guard entry.nominalTypeParametersSignature != nil else { continue }
+                            guard nominalFQNamesWithSignatures.insert(entry.fqName).inserted else {
+                                diagnostics.error(
+                                    "KSWIFTK-LIB-0024",
+                                    "Duplicate nominal type metadata for '\(entry.fqName)' in library metadata at \(metadataPath)",
+                                    range: nil
+                                )
+                                return (duplicateNominalSignature: true, invalidCallableIndices: [Int]())
+                            }
                         }
+                        return (duplicateNominalSignature: false, invalidCallableIndices: invalidCallableIndices)
                     }
-                    if duplicateNominalSignature { continue }
+                    if validation.duplicateNominalSignature { continue }
                     var rejectedEntryIndices: Set<Int> = []
-                    for (index, entry) in indexedFile.entries.enumerated() {
-                        guard let compactRecord = entry.compactRecord,
-                              compactRecord.kind == .function || compactRecord.kind == .constructor,
-                              !(0 ... ImportedLibraryLimits.maxCallableArity).contains(compactRecord.arity)
-                        else { continue }
+                    rejectedEntryIndices.reserveCapacity(validation.invalidCallableIndices.count)
+                    for index in validation.invalidCallableIndices {
+                        let entry = indexedFile.entries[index]
+                        let compactRecord = entry.compactRecord!
                         diagnostics.error(
                             "KSWIFTK-LIB-0024",
                             "Callable arity \(compactRecord.arity) in '\(metadataPath)' is outside the supported range 0...\(ImportedLibraryLimits.maxCallableArity)",
@@ -724,13 +739,13 @@ extension DataFlowSemaPhase {
                         isStdlibArtifact: stdlibArtifact,
                         symbols: symbols,
                         rejectedEntryIndices: rejectedEntryIndices
-                    ) { [self, weak symbols, weak lazyLoaderState] index, nominalTypeParametersByFQName in
+                    ) { [self, weak symbols, weak lazyLoaderState] index, nominalTypeParametersSignature in
                         guard let symbols, let lazyLoaderState else { return nil }
                         let entry = indexedFile.entries[index]
                         guard let compactRecord = entry.compactRecord,
                               let shell = self.makeImportedLibraryIndexRecord(
                                   compactRecord, path: metadataPath, diagnostics: diagnostics,
-                                  interner: interner, nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                                  interner: interner, nominalTypeParametersSignature: nominalTypeParametersSignature
                               )
                         else { return nil }
                         guard let symbol = appendImportedBinding(
@@ -748,19 +763,19 @@ extension DataFlowSemaPhase {
                                     path: metadataPath,
                                     diagnostics: diagnostics,
                                     interner: interner,
-                                    nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                                    nominalTypeParametersSignature: { indexedFile.nominalTypeParametersSignature(forFQName: $0) }
                                 )
                             },
                             hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
                             moduleFQN: libraryModuleFQN
                         ) else { return nil }
-                        providerRegisteredSymbols.insert(symbol)
                         // A record merged onto an earlier library's symbol or
                         // shadowed by it owns no new binding; the shadowed-
                         // record fallbacks recorded above carry its links.
                         guard boundSymbolOrigins[symbol]?.metadataPath == metadataPath else {
                             return symbol
                         }
+                        providerRegisteredSymbols.insert(symbol)
                         if let linkName = shell.externalLinkName, !linkName.isEmpty {
                             externalLinkNameToSymbol[linkName] = symbol
                             symbols.setExternalLinkName(linkName, for: symbol)
@@ -836,10 +851,6 @@ extension DataFlowSemaPhase {
                         return symbol
                     }
                     symbols.addIndexedLibraryProvider(source)
-                    // Module-init emission enumerates init stubs by owner
-                    // symbol, so entries carrying an initializer link cannot
-                    // wait for a lookup that may never come.
-                    source.claimInitializerEntries()
                     indexedSources.append(source)
                     if stdlibArtifact {
                         stdlibIndexSource = source
@@ -869,12 +880,14 @@ extension DataFlowSemaPhase {
                             if let compactRecord = entry.compactRecord {
                                 shell = makeImportedLibraryIndexRecord(
                                     compactRecord, path: metadataPath, diagnostics: diagnostics,
-                                    interner: interner, nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                                    interner: interner,
+                                    nominalTypeParametersSignature: { nominalTypeParametersByFQName[$0] }
                                 )
                             } else {
                                 shell = makeImportedLibraryRecord(
                                     entry.record, path: metadataPath, diagnostics: diagnostics,
-                                    interner: interner, nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                                    interner: interner,
+                                    nominalTypeParametersSignature: { nominalTypeParametersByFQName[$0] }
                                 )
                             }
                             guard let shell else { continue }
@@ -893,7 +906,7 @@ extension DataFlowSemaPhase {
                                         path: metadataPath,
                                         diagnostics: diagnostics,
                                         interner: interner,
-                                        nominalTypeParametersByFQName: nominalTypeParametersByFQName
+                                        nominalTypeParametersSignature: { nominalTypeParametersByFQName[$0] }
                                     )
                                 },
                                 hasCompleteInitializerInfo: entry.hasCompleteInitializerInfo,
@@ -930,6 +943,34 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+        if let importLoopStartedAt {
+            phaseTimer?.recordSubPhase(
+                "importLibraryLoop",
+                startTime: importLoopStartedAt,
+                endTime: DispatchTime.now().uptimeNanoseconds
+            )
+        }
+        let importTailStartedAt = phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
+        defer {
+            if let importTailStartedAt {
+                phaseTimer?.recordSubPhase(
+                    "importTail",
+                    startTime: importTailStartedAt,
+                    endTime: DispatchTime.now().uptimeNanoseconds
+                )
+            }
+        }
+        func startImportTailSubPhase() -> UInt64? {
+            phaseTimer.map { _ in DispatchTime.now().uptimeNanoseconds }
+        }
+        func endImportTailSubPhase(_ name: String, startedAt: UInt64?) {
+            guard let startedAt else { return }
+            phaseTimer?.recordSubPhase(
+                name,
+                startTime: startedAt,
+                endTime: DispatchTime.now().uptimeNanoseconds
+            )
+        }
         // Import-time registration is done; later drains may see every
         // library's index in search-path order.
         symbols.importDrainEpoch = .max
@@ -957,6 +998,7 @@ extension DataFlowSemaPhase {
         // Member lookup needs the owner edge before it can ask the lazy loader
         // for a member's signature. Restore this structural relationship from
         // the compact index without decoding any declaration body.
+        let tailStructuralEdgesStartedAt = startImportTailSubPhase()
         for binding in importedBindings {
             restoreImportedParentSymbol(binding.record, symbol: binding.symbol, symbols: symbols)
         }
@@ -978,7 +1020,9 @@ extension DataFlowSemaPhase {
             }
             symbols.setCompanionObjectSymbol(companionSymbol, for: binding.symbol)
         }
+        endImportTailSubPhase("importTailStructuralEdges", startedAt: tailStructuralEdgesStartedAt)
 
+        let tailRoutingStartedAt = startImportTailSubPhase()
         for binding in importedBindings {
             if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
                 externalLinkNameToSymbol[linkName] = binding.symbol
@@ -1026,11 +1070,13 @@ extension DataFlowSemaPhase {
                 symbols.setParentSymbol(receiver, for: binding.symbol)
             }
         }
+        endImportTailSubPhase("importTailRouting", startedAt: tailRoutingStartedAt)
 
         // Initializer stubs are pure compact-index facts (a link name per
         // nominal). Creating their shells here — companion edges restored
         // above — lets KIR lowering enumerate the calls without materializing
         // any owner body.
+        let tailInitializerShellsStartedAt = startImportTailSubPhase()
         for binding in importedBindings where isNominalLayoutTargetSymbol(binding.record.kind) {
             applyImportedInitializerShells(
                 record: binding.record,
@@ -1040,6 +1086,7 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        endImportTailSubPhase("importTailInitializerShells", startedAt: tailInitializerShellsStartedAt)
 
         // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
         // "phantom" when it never appears in its receiver, value parameters,
@@ -1082,6 +1129,7 @@ extension DataFlowSemaPhase {
         // consumer-side accessor symbol when the inline virtual call is parsed.
         // Provider-registered bindings stay lazy; the resolver materializes
         // their accessor on the first link lookup instead.
+        let tailGetterPreloadStartedAt = startImportTailSubPhase()
         let propertyBindingsWithGetter = importedBindings.filter { binding in
             !providerRegisteredSymbols.contains(binding.symbol)
                 && (binding.record.kind == .property || binding.record.kind == .field)
@@ -1120,6 +1168,7 @@ extension DataFlowSemaPhase {
             }
             externalLinkNameToSymbol[getterLink] = getterSymbol
         }
+        endImportTailSubPhase("importTailGetterPreload", startedAt: tailGetterPreloadStartedAt)
 
         let preloadedGetterBindingSymbols = Set(propertyBindingsWithGetter.map(\.symbol))
         let lazyMetadataEnabled = importedBindings.contains { !$0.isMaterialized }
@@ -1134,6 +1183,7 @@ extension DataFlowSemaPhase {
         // weak in both lookups: the resolver is retained through the lazy
         // loader state and the inline store's parse context, which the table
         // itself roots — a strong capture would cycle it.
+        let tailResolverStartedAt = startImportTailSubPhase()
         let resolver = ImportedSymbolResolver(
             linkNameLookup: { [weak symbols] name in
                 if let symbol = externalLinkNameToSymbol[name] {
@@ -1177,6 +1227,7 @@ extension DataFlowSemaPhase {
                 return importedSymbolByFQName[name]
             }
         )
+        endImportTailSubPhase("importTailResolver", startedAt: tailResolverStartedAt)
 
         // Indexed declarations stay as shells. The callback is invoked by
         // SymbolTable semantic-data accessors and applies exactly one body
@@ -1184,6 +1235,7 @@ extension DataFlowSemaPhase {
         // populated incrementally by `appendImportedBinding` because index
         // providers keep registering shells after this point — always read
         // `lazyLoaderState.indexedBindingsBySymbol`, never a snapshot.
+        let tailLazyLoaderStartedAt = startImportTailSubPhase()
         if lazyMetadataEnabled {
             // `symbols` is weak: this closure is stored on the symbol table
             // itself, so a strong capture would be a retain cycle leaking the
@@ -1303,16 +1355,22 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+        endImportTailSubPhase("importTailLazyLoader", startedAt: tailLazyLoaderStartedAt)
 
+        let tailSyntheticPackagesStartedAt = startImportTailSubPhase()
         var syntheticPackagePaths: Set<[InternedString]> = []
         var syntheticPackageModules: [[InternedString]: InternedString] = [:]
+        let eagerlyRegisteredBindings = importedBindings.filter {
+            !providerRegisteredSymbols.contains($0.symbol)
+        }
         // STDLIB-SHARED-011: Type/value parameters and local symbols belong to a
         // real owner; their FQ name prefixes must not be synthesised as packages.
         let packageOwnerRecordKinds: Set<SymbolKind> = [
             .class, .interface, .object, .enumClass, .annotationClass,
             .typeAlias, .function, .property, .constructor
         ]
-        for binding in importedBindings
+        let tailPackagePrefixScanStartedAt = startImportTailSubPhase()
+        for binding in eagerlyRegisteredBindings
             where binding.record.kind != .package
             && packageOwnerRecordKinds.contains(binding.record.kind)
         {
@@ -1338,6 +1396,8 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+        endImportTailSubPhase("importTailPackagePrefixScan", startedAt: tailPackagePrefixScanStartedAt)
+        let tailPackageDefinitionStartedAt = startImportTailSubPhase()
         for packagePath in syntheticPackagePaths {
             let existing = symbols.lookupAll(fqName: packagePath)
             let alreadyHasPackage = existing.contains { id in
@@ -1358,28 +1418,38 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+        endImportTailSubPhase("importTailPackageDefinition", startedAt: tailPackageDefinitionStartedAt)
 
+        let tailEnumSynthesisStartedAt = startImportTailSubPhase()
         if lazyMetadataEnabled {
             // Enum class-name APIs are structural shells, not declaration
             // bodies. Register them from the compact records so `Enum.entries`
             // can resolve before a body query, while keeping ordinary members
             // lazy. Stdlib enum APIs are supplied by the bundled source pass.
-            let importedEnumWork = LibraryImportDeferredWork(
-                pendingSupertypeEdges: [],
-                importedBindings: importedBindings.filter { !$0.isStdlibArtifact },
-                lazyLoaderState: nil,
-                stdlibModuleName: nil,
-                klibModules: []
-            )
-            applyImportedEnumSyntheticMembers(
-                work: importedEnumWork,
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                bundledIndex: .empty
-            )
+            let importedEnumBindings = eagerlyRegisteredBindings.filter {
+                !$0.isStdlibArtifact && $0.record.kind == .enumClass
+            }
+            if !importedEnumBindings.isEmpty {
+                let importedEnumWork = LibraryImportDeferredWork(
+                    pendingSupertypeEdges: [],
+                    importedBindings: importedEnumBindings,
+                    lazyLoaderState: nil,
+                    stdlibModuleName: nil,
+                    klibModules: []
+                )
+                applyImportedEnumSyntheticMembers(
+                    work: importedEnumWork,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    bundledIndex: .empty
+                )
+            }
         }
+        endImportTailSubPhase("importTailEnumSynthesis", startedAt: tailEnumSynthesisStartedAt)
+        endImportTailSubPhase("importTailSyntheticPackages", startedAt: tailSyntheticPackagesStartedAt)
 
+        let tailFinalizationStartedAt = startImportTailSubPhase()
         // Bind the resolution context for deferred inline-body parses only
         // after every binding has been applied, so a lazy parse resolves
         // callees against the final link-name and FQ-name maps — exactly the
@@ -1414,6 +1484,7 @@ extension DataFlowSemaPhase {
         for module in klibModules {
             inheritKlibDefaultArguments(module: module, symbols: symbols)
         }
+        endImportTailSubPhase("importTailFinalization", startedAt: tailFinalizationStartedAt)
 
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
@@ -1422,7 +1493,9 @@ extension DataFlowSemaPhase {
             stdlibModuleName: stdlibModuleName,
             klibModules: klibModules,
             stdlibHasPrecomputedSyntheticStubs: stdlibHasPrecomputedSyntheticStubs,
-            stdlibMemberKeys: stdlibIndexSource?.memberKeys(),
+            stdlibMemberKeys: lazyLoaderState.stdlibMemberIndex == nil
+                ? stdlibIndexSource?.memberKeys()
+                : nil,
             importedExternalLinkNames: externalLinkNameToSymbol,
             importedSymbolsByFQName: importedSymbolByFQName
         )
@@ -2279,10 +2352,10 @@ extension DataFlowSemaPhase {
     }
 
     /// Synthesizes the extern-linked initializer stubs a nominal's compact
-    /// index announces (`object/companion/enum-static` initializers). Shell
-    /// registration invokes this eagerly so downstream passes enumerate the
-    /// init calls from symbol maps without decoding owner bodies; the decode
-    /// path calls it again and each `IfKnown` guard keeps that idempotent.
+    /// index announces (`object/companion/enum-static` initializers). On-demand
+    /// owner registration invokes this before downstream passes inspect the
+    /// init calls from symbol maps without decoding owner bodies. The decode
+    /// path may call it again and each `IfKnown` guard keeps that idempotent.
     func applyImportedInitializerShells(
         record: ImportedLibrarySymbolRecord,
         symbol ownerSymbol: SymbolID,

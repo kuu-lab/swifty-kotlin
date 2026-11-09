@@ -360,6 +360,23 @@ final class IndexedMetadataFile {
     private let data: Data
     private let bodyStart: Int
     private var decodedRecords: [Int: MetadataRecord] = [:]
+    private lazy var entriesSortedByFQName = entries.indices.sorted {
+        let left = entries[$0].fqName
+        let right = entries[$1].fqName
+        return left == right ? $0 < $1 : left < right
+    }
+    private lazy var entriesSortedByShortName = entries.indices.sorted {
+        let left = Self.shortName(entries[$0].fqName)
+        let right = Self.shortName(entries[$1].fqName)
+        return left == right ? $0 < $1 : left < right
+    }
+    private lazy var entriesSortedByReceiverOwner = entries.indices.filter {
+        entries[$0].compactRecord?.receiverOwnerFQName?.isEmpty == false
+    }.sorted {
+        let left = entries[$0].compactRecord!.receiverOwnerFQName!
+        let right = entries[$1].compactRecord!.receiverOwnerFQName!
+        return left == right ? $0 < $1 : left < right
+    }
 
     init?(data: Data) {
         if data.starts(with: CompactMetadataIndex.magic) {
@@ -466,6 +483,92 @@ final class IndexedMetadataFile {
         _ range: Range<Int>, bytes: UnsafeBufferPointer<UInt8>, marker: StaticString
     ) -> Bool {
         marker.withUTF8Buffer { bytes[range].elementsEqual($0) }
+    }
+
+    private static func shortName(_ fqName: String) -> Substring {
+        fqName.lastIndex(of: ".").map { fqName[fqName.index(after: $0)...] } ?? Substring(fqName)
+    }
+
+    private func lowerBound<Key: Comparable>(
+        in sortedIndices: [Int],
+        key: Key,
+        value: (Int) -> Key
+    ) -> Int {
+        var lower = 0
+        var upper = sortedIndices.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if value(sortedIndices[middle]) < key {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        return lower
+    }
+
+    func fQNameRange(matching fqName: String) -> Range<Int> {
+        let sorted = entriesSortedByFQName
+        let lower = lowerBound(in: sorted, key: fqName) { entries[$0].fqName }
+        var upper = lower
+        while upper < sorted.count, entries[sorted[upper]].fqName == fqName {
+            upper += 1
+        }
+        return lower ..< upper
+    }
+
+    func fQNamePrefixRange(_ prefix: String) -> Range<Int> {
+        let sorted = entriesSortedByFQName
+        let lower = lowerBound(in: sorted, key: prefix) { entries[$0].fqName }
+        var upper = lower
+        while upper < sorted.count, entries[sorted[upper]].fqName.hasPrefix(prefix) {
+            upper += 1
+        }
+        return lower ..< upper
+    }
+
+    func entryIndex(sortedByFQNameAt position: Int) -> Int {
+        entriesSortedByFQName[position]
+    }
+
+    func entryIndex(sortedByShortNameAt position: Int) -> Int {
+        entriesSortedByShortName[position]
+    }
+
+    func shortNameRange(matching name: String) -> Range<Int> {
+        let sorted = entriesSortedByShortName
+        let lower = lowerBound(in: sorted, key: Substring(name)) { Self.shortName(entries[$0].fqName) }
+        var upper = lower
+        while upper < sorted.count, Self.shortName(entries[sorted[upper]].fqName) == Substring(name) {
+            upper += 1
+        }
+        return lower ..< upper
+    }
+
+    func receiverOwnerRange(matching ownerFQName: String) -> Range<Int> {
+        let sorted = entriesSortedByReceiverOwner
+        let lower = lowerBound(in: sorted, key: ownerFQName) {
+            entries[$0].compactRecord!.receiverOwnerFQName!
+        }
+        var upper = lower
+        while upper < sorted.count,
+              entries[sorted[upper]].compactRecord!.receiverOwnerFQName == ownerFQName
+        {
+            upper += 1
+        }
+        return lower ..< upper
+    }
+
+    func entryIndex(sortedByReceiverOwnerAt position: Int) -> Int {
+        entriesSortedByReceiverOwner[position]
+    }
+
+    func nominalTypeParametersSignature(forFQName fqName: String) -> String? {
+        for position in fQNameRange(matching: fqName) {
+            let entry = entries[entryIndex(sortedByFQNameAt: position)]
+            if let signature = entry.nominalTypeParametersSignature { return signature }
+        }
+        return nil
     }
 
     func record(for entry: MetadataIndexEntry) -> MetadataRecord? {

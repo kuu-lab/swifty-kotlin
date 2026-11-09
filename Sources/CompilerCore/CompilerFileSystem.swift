@@ -17,10 +17,21 @@ package enum CompilerFileSystem {
     ) -> Bool {
         let canonicalCandidate = candidate.resolvingSymlinksInPath().standardizedFileURL
         let canonicalRoot = root.resolvingSymlinksInPath().standardizedFileURL
-        guard canonicalCandidate.path != canonicalRoot.path else { return allowRoot }
+        return isCanonicalPathContained(canonicalCandidate, in: canonicalRoot, allowRoot: allowRoot)
+    }
 
-        let rootPath = canonicalRoot.path.hasSuffix("/") ? canonicalRoot.path : canonicalRoot.path + "/"
-        return canonicalCandidate.path.hasPrefix(rootPath)
+    /// Checks containment for URLs that callers have already resolved and standardized.
+    package static func isCanonicalPathContained(
+        _ candidate: URL,
+        in root: URL,
+        allowRoot: Bool = true
+    ) -> Bool {
+        let candidatePath = candidate.standardizedFileURL.path
+        let rootPath = root.standardizedFileURL.path
+        guard candidatePath != rootPath else { return allowRoot }
+
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        return candidatePath.hasPrefix(rootPrefix)
     }
 
     package static func isRegularFile(

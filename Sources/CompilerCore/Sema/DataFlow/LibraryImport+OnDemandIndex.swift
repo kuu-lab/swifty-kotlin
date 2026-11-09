@@ -5,11 +5,9 @@ extension DataFlowSemaPhase {
     /// instead of through an eager `registerShells` pass.
     ///
     /// `loadImportedLibrarySymbols` attaches one source per v3 artifact.
-    /// SymbolTable query paths drain matching entries through this type's
-    /// pending maps before reading their indexes, so a shell is defined only
-    /// when a lookup can actually reach it. All maps key on the raw index
-    /// strings (`Substring` slices of the decoded index, no copies); the
-    /// `registerEntry` closure — owned by the import function so it shares
+    /// SymbolTable query paths find matching entries in lazily sorted index
+    /// ranges, so a shell is defined only when a lookup can actually reach it.
+    /// The `registerEntry` closure — owned by the import function so it shares
     /// that function's shadow/link state — builds the shell and restores the
     /// structural edges the removed eager post-pass established.
     final class IndexedLibrarySource: IndexedLibraryEntryProvider {
@@ -25,10 +23,10 @@ extension DataFlowSemaPhase {
         /// Claims one index entry: builds the index shell, runs
         /// `appendImportedBinding`, and restores parents, companion edges,
         /// extension receivers, and link-name routing. The second parameter
-        /// carries this source's nominal type-parameter signatures, which the
-        /// record builder needs and which live here so the closure does not
-        /// retain the provider (the symbol table already does).
-        private let registerEntry: (Int, [String: String]) -> SymbolID?
+        /// resolves a nominal owner's type-parameter signature on demand. The
+        /// lookup closure reads the immutable metadata index and does not retain
+        /// the provider (the symbol table already does).
+        private let registerEntry: (Int, (String) -> String?) -> SymbolID?
         /// Index entries rejected by the import-time validation scan (e.g.
         /// callable arity outside the supported range). They behave as if
         /// the record were absent: not claimable, not counted, contributing
@@ -43,7 +41,7 @@ extension DataFlowSemaPhase {
             isStdlibArtifact: Bool,
             symbols: SymbolTable,
             rejectedEntryIndices: Set<Int> = [],
-            registerEntry: @escaping (Int, [String: String]) -> SymbolID?
+            registerEntry: @escaping (Int, (String) -> String?) -> SymbolID?
         ) {
             self.importOrder = importOrder
             self.indexedFile = indexedFile
@@ -56,7 +54,7 @@ extension DataFlowSemaPhase {
             self.registerEntry = registerEntry
         }
 
-        // MARK: - Pending-entry maps
+        // MARK: - Indexed-entry lookup
 
         /// Index kinds that never surface through declaration lookup: they
         /// encode part of an owner (parameters, backing state, locals) and
@@ -70,48 +68,30 @@ extension DataFlowSemaPhase {
             .class, .interface, .object, .enumClass, .annotationClass,
             .typeAlias, .function, .property, .constructor,
         ]
+        private static let initializerOwnerKinds: Set<SymbolKind> = [
+            .object, .class, .interface, .annotationClass, .enumClass,
+        ]
 
-        private var mapsBuilt = false
         /// Entries already registered through any drain path. The pending
-        /// maps overlap (a member is claimable by FQ name, by parent, by
+        /// queries overlap (a member is claimable by FQ name, by parent, by
         /// short name, and by link name), so claims key on the entry index —
         /// `claim(index:)` is the single point that keeps registration
         /// once-only.
         private var claimed: Set<Int> = []
-        /// Declarations claimable by exact FQ name (`lookupAll`/`define`).
-        private var pendingByFQName: [Substring: [Int]] = [:]
-        /// Entries claimable by declaring parent path, including extension
-        /// records reparented to a nominal owner at that path
-        /// (`children(ofFQName:)`).
-        private var pendingChildren: [Substring: [Int]] = [:]
-        /// Declaration-kind entries claimable by simple name
-        /// (`lookupByShortName`); machinery records stay out of name lookup.
-        private var pendingByShortName: [Substring: [Int]] = [:]
-        /// External link names claimable without touching declaration lookup
-        /// (inline-body callee resolution).
+        private var drainedFQNames: Set<String> = []
+        private var drainedParents: Set<String> = []
+        private var drainedShortNames: Set<String> = []
+        private var drainedTypeParameterOwners: Set<String> = []
+        private var expectEntriesDrained = false
+        /// Link-name lookup is uncommon and is built only if an imported inline
+        /// body asks for a producer link.
         private var pendingLinks: [Substring: LinkTarget] = [:]
-        /// Type-parameter records keyed by their owner's owner path, for the
-        /// BUG-KSP-1217 phantom-parameter recovery keyed on single-callable
-        /// FQ names.
-        private var pendingTypeParametersByGrandparent: [Substring: [Int]] = [:]
-        /// Every FQ name present in the index, used by the constructor-parent
-        /// package rule: `pkg.Type.<init>` must not turn `pkg.Type` into a
-        /// package when `pkg.Type` itself is a declaration.
-        private var entryFQNames: Set<Substring> = []
-        /// Entries whose initializer stubs the module-init emission
-        /// enumerates by owner symbol (objects, companion owners, enum
-        /// classes). They cannot stay pending: an unreferenced entry would
-        /// otherwise lose the init call the eager import emitted.
-        private var initializerEntryIndices: [Int] = []
+        private var linksBuilt = false
         /// Package prefixes the index contributes, with the constructor
-        /// exclusion applied (eager `syntheticPackagePaths` parity).
-        private var packagePrefixes: Set<Substring> = []
-        /// The package set is immutable after map construction. Cache misses as
-        /// well as matches so repeated class-scope lookups never rescan it.
+        /// exclusion applied (eager `syntheticPackagePaths` parity). Only
+        /// queried package scopes are retained.
         private var childPackagePrefixesByParent: [String: [[InternedString]]] = [:]
-        /// Nominal type-parameter signatures by owner FQ name, populated the
-        /// same way the removed eager pre-pass populated them.
-        private(set) var nominalTypeParametersByFQName: [String: String] = [:]
+        private var nestedEntriesByFQName: [String: Bool] = [:]
         private var stdlibMemberKeysCache: Set<BundledMemberKey>?
 
         enum LinkTarget {
@@ -130,33 +110,16 @@ extension DataFlowSemaPhase {
         @discardableResult
         private func claim(index: Int) -> SymbolID? {
             guard claimed.insert(index).inserted else { return nil }
-            return registerEntry(index, nominalTypeParametersByFQName)
+            return registerEntry(index) { [indexedFile] fqName in
+                indexedFile.nominalTypeParametersSignature(forFQName: fqName)
+            }
         }
 
-        private func buildMapsIfNeeded() {
-            guard !mapsBuilt else { return }
-            mapsBuilt = true
-            pendingByFQName.reserveCapacity(indexedFile.entries.count)
-            entryFQNames.reserveCapacity(indexedFile.entries.count)
-            nominalTypeParametersByFQName.reserveCapacity(indexedFile.entries.count / 8)
-            /// FQ parents of constructor records whose package contribution
-            /// waits for the declaration-occupancy check below.
-            var constructorParents: Set<Substring> = []
+        private func buildLinkMapIfNeeded() {
+            guard !linksBuilt else { return }
+            linksBuilt = true
             for (index, entry) in indexedFile.entries.enumerated() {
-                guard let record = entry.compactRecord, !rejectedIndices.contains(index)
-                else { continue }
-                let fqName = Substring(record.fqName)
-                pendingByFQName[fqName, default: []].append(index)
-                entryFQNames.insert(fqName)
-                let parent = record.fqName.lastIndex(of: ".").map { Substring(record.fqName[..<$0]) } ?? ""
-                pendingChildren[parent, default: []].append(index)
-                if !Self.machineryKinds.contains(record.kind) {
-                    let short = record.fqName.lastIndex(of: ".").map { Substring(record.fqName[record.fqName.index(after: $0)...]) } ?? fqName
-                    pendingByShortName[short, default: []].append(index)
-                }
-                if let receiver = record.receiverOwnerFQName, !receiver.isEmpty {
-                    pendingChildren[Substring(receiver), default: []].append(index)
-                }
+                guard let record = entry.compactRecord, !rejectedIndices.contains(index) else { continue }
                 if let link = record.externalLinkName, !link.isEmpty {
                     pendingLinks[Substring(link)] = .symbol(index)
                 }
@@ -166,85 +129,152 @@ extension DataFlowSemaPhase {
                 if let link = record.propertyGetterExternalLinkName, !link.isEmpty {
                     pendingLinks[Substring(link)] = .propertyGetter(index)
                 }
-                if record.kind == .typeParameter {
-                    // `owner.$id.name`: recover the owner path by dropping the
-                    // last two segments when the middle one is the `$` id.
-                    var cursor = Substring(record.fqName)
-                    if let dot = cursor.lastIndex(of: ".") {
-                        cursor = cursor[..<dot]
-                        if let dot = cursor.lastIndex(of: "."), cursor[cursor.index(after: dot)...].hasPrefix("$") {
-                            pendingTypeParametersByGrandparent[Substring(cursor[..<dot]), default: []].append(index)
-                        }
+            }
+        }
+
+        private func hasClaimableEntry(fqName: String) -> Bool {
+            for position in indexedFile.fQNameRange(matching: fqName) {
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                if !rejectedIndices.contains(index) { return true }
+            }
+            return false
+        }
+
+        private func hasCompanionObject(fqName: String) -> Bool {
+            for position in indexedFile.fQNameRange(matching: fqName) {
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                guard !rejectedIndices.contains(index),
+                      let kind = indexedFile.entries[index].compactRecord?.kind
+                else { continue }
+                if kind == .object || kind == .class || kind == .interface { return true }
+            }
+            return false
+        }
+
+        private func packagePrefixNames(under parentFQName: String) -> Set<String> {
+            guard !parentFQName.isEmpty else { return [] }
+            let searchPrefix = parentFQName + "."
+            var packagePrefixes: Set<String> = []
+            var constructorParents: Set<String> = []
+            for position in indexedFile.fQNamePrefixRange(searchPrefix) {
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                guard !rejectedIndices.contains(index),
+                      let record = indexedFile.entries[index].compactRecord,
+                      Self.packageOwnerKinds.contains(record.kind)
+                else { continue }
+                var cursor = Substring(record.fqName)
+                var isDirectParent = true
+                while let dot = cursor.lastIndex(of: ".") {
+                    let prefix = cursor[..<dot]
+                    if prefix == parentFQName { break }
+                    if record.kind == .constructor, isDirectParent {
+                        constructorParents.insert(String(prefix))
+                    } else {
+                        packagePrefixes.insert(String(prefix))
                     }
-                }
-                if let signature = entry.nominalTypeParametersSignature,
-                   nominalTypeParametersByFQName[record.fqName] == nil
-                {
-                    nominalTypeParametersByFQName[record.fqName] = signature
-                }
-                if record.objectInitializerLinkName?.isEmpty == false
-                    || record.companionInitializerLinkName?.isEmpty == false
-                    || record.enumStaticInitLinkName?.isEmpty == false
-                {
-                    initializerEntryIndices.append(index)
-                }
-                if Self.packageOwnerKinds.contains(record.kind) {
-                    var cursor = Substring(record.fqName)
-                    var isDirectParent = true
-                    while let dot = cursor.lastIndex(of: ".") {
-                        let prefix = cursor[..<dot]
-                        if record.kind == .constructor, isDirectParent {
-                            constructorParents.insert(Substring(prefix))
-                        } else {
-                            packagePrefixes.insert(Substring(prefix))
-                        }
-                        isDirectParent = false
-                        cursor = prefix
-                    }
+                    isDirectParent = false
+                    cursor = prefix
                 }
             }
             // Constructor FQ names nest under their nominal owner. That owner
-            // path only becomes a package when no declaration occupies it —
-            // matching the eager `lookupAll(prefix).contains(non-package)`
-            // check evaluated against the fully registered table.
-            for parent in constructorParents where !entryFQNames.contains(parent) {
-                packagePrefixes.insert(parent)
+            // path only becomes a package when no declaration occupies it.
+            for candidate in constructorParents where !hasClaimableEntry(fqName: candidate) {
+                packagePrefixes.insert(candidate)
             }
+            return packagePrefixes
+        }
+
+        private func allPackagePrefixNames() -> Set<String> {
+            var entryFQNames: Set<String> = []
+            var packagePrefixes: Set<String> = []
+            var constructorParents: Set<String> = []
+            for (index, entry) in indexedFile.entries.enumerated() {
+                guard let record = entry.compactRecord, !rejectedIndices.contains(index) else { continue }
+                entryFQNames.insert(record.fqName)
+                guard Self.packageOwnerKinds.contains(record.kind) else { continue }
+                var cursor = Substring(record.fqName)
+                var isDirectParent = true
+                while let dot = cursor.lastIndex(of: ".") {
+                    let prefix = cursor[..<dot]
+                    if record.kind == .constructor, isDirectParent {
+                        constructorParents.insert(String(prefix))
+                    } else {
+                        packagePrefixes.insert(String(prefix))
+                    }
+                    isDirectParent = false
+                    cursor = prefix
+                }
+            }
+            for candidate in constructorParents where !entryFQNames.contains(candidate) {
+                packagePrefixes.insert(candidate)
+            }
+            return packagePrefixes
         }
 
         // MARK: - IndexedLibraryEntryProvider
 
         func drainEntries(fqName: [InternedString]) {
-            buildMapsIfNeeded()
-            guard let indexes = pendingByFQName.removeValue(forKey: Substring(render(fqName))) else { return }
-            for index in indexes {
+            let name = render(fqName)
+            guard drainedFQNames.insert(name).inserted else { return }
+            for position in indexedFile.fQNameRange(matching: name) {
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                guard !rejectedIndices.contains(index) else { continue }
                 claim(index: index)
             }
         }
 
         func drainChildren(parentFQName: [InternedString]) {
-            buildMapsIfNeeded()
-            guard let indexes = pendingChildren.removeValue(forKey: Substring(render(parentFQName))) else { return }
-            for index in indexes {
+            let parent = render(parentFQName)
+            guard drainedParents.insert(parent).inserted else { return }
+            var indexes: Set<Int> = []
+            if parent.isEmpty {
+                for (index, entry) in indexedFile.entries.enumerated() {
+                    guard !rejectedIndices.contains(index),
+                          let record = entry.compactRecord,
+                          !record.fqName.contains(".")
+                    else { continue }
+                    indexes.insert(index)
+                }
+            } else {
+                for position in indexedFile.fQNamePrefixRange(parent + ".") {
+                    let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                    guard !rejectedIndices.contains(index),
+                          let record = indexedFile.entries[index].compactRecord,
+                          record.fqName.lastIndex(of: ".").map({ String(record.fqName[..<$0]) }) == parent
+                    else { continue }
+                    indexes.insert(index)
+                }
+            }
+            for position in indexedFile.receiverOwnerRange(matching: parent) {
+                let index = indexedFile.entryIndex(sortedByReceiverOwnerAt: position)
+                if !rejectedIndices.contains(index) { indexes.insert(index) }
+            }
+            for index in indexes.sorted() {
                 claim(index: index)
             }
         }
 
         func drainEntries(shortName: InternedString) {
-            buildMapsIfNeeded()
-            guard let indexes = pendingByShortName.removeValue(forKey: Substring(interner.resolve(shortName))) else { return }
-            for index in indexes {
+            let name = interner.resolve(shortName)
+            guard drainedShortNames.insert(name).inserted else { return }
+            for position in indexedFile.shortNameRange(matching: name) {
+                let index = indexedFile.entryIndex(sortedByShortNameAt: position)
+                guard !rejectedIndices.contains(index),
+                      let record = indexedFile.entries[index].compactRecord,
+                      !Self.machineryKinds.contains(record.kind)
+                else { continue }
                 claim(index: index)
             }
         }
 
         /// Registers every pending `isExpect` entry so expect/actual
         /// validation covers the complete expect surface, not only the
-        /// entries earlier lookups happened to reach (KUU-3969). The pending
-        /// maps are not consulted: claims key on the entry index and already
+        /// entries earlier lookups happened to reach (KUU-3969). Lookup
+        /// indexes are not consulted: claims key on the entry index and already
         /// deduplicate against lookup-driven drains.
         func drainExpectEntries() {
-            buildMapsIfNeeded()
+            guard !expectEntriesDrained else { return }
+            expectEntriesDrained = true
             for index in indexedFile.entries.indices {
                 guard let record = indexedFile.entries[index].compactRecord,
                       record.isExpect
@@ -253,31 +283,76 @@ extension DataFlowSemaPhase {
             }
         }
 
-        /// Claims the initializer-bearing entries once, at import time. The
-        /// module-init emission enumerates registered owner symbols to emit
-        /// object/companion/enum init calls before `main`; an entry that
-        /// never drains would silently lose that call, so this subset must
-        /// register eagerly even though nothing references it.
-        func claimInitializerEntries() {
-            buildMapsIfNeeded()
-            for index in initializerEntryIndices {
-                claim(index: index)
+        func eagerInitializerLinks(
+            markingSeenOwners seenOwners: inout Set<String>
+        ) -> IndexedLibraryInitializerLinks {
+            var result = IndexedLibraryInitializerLinks()
+            for (index, entry) in indexedFile.entries.enumerated() {
+                guard !rejectedIndices.contains(index),
+                      let record = entry.compactRecord,
+                      Self.initializerOwnerKinds.contains(record.kind),
+                      seenOwners.insert(record.fqName).inserted
+                else { continue }
+
+                switch record.kind {
+                case .object:
+                    if let link = record.objectInitializerLinkName, !link.isEmpty {
+                        result.beforeEnumEntries.append(link)
+                    }
+                case .class, .interface, .annotationClass, .enumClass:
+                    if let companionFQName = record.companionObjectFQName,
+                       hasCompanionObject(fqName: companionFQName),
+                       let link = record.companionInitializerLinkName,
+                       !link.isEmpty
+                    {
+                        result.beforeEnumEntries.append(link)
+                    }
+                    if record.kind == .enumClass,
+                       let link = record.enumStaticInitLinkName,
+                       !link.isEmpty
+                    {
+                        result.enumStatic.append(link)
+                    }
+                default:
+                    break
+                }
             }
+            return result
         }
 
         func containsEntriesNested(under fqName: [InternedString]) -> Bool {
-            buildMapsIfNeeded()
-            return packagePrefixes.contains(Substring(render(fqName)))
+            let path = render(fqName)
+            if let cached = nestedEntriesByFQName[path] { return cached }
+            for position in indexedFile.fQNamePrefixRange(path + ".") {
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                guard !rejectedIndices.contains(index),
+                      let record = indexedFile.entries[index].compactRecord,
+                      Self.packageOwnerKinds.contains(record.kind)
+                else { continue }
+                let directParent = record.fqName.lastIndex(of: ".")
+                    .map { String(record.fqName[..<$0]) }
+                if record.kind == .constructor, directParent == path {
+                    if !hasClaimableEntry(fqName: path) {
+                        nestedEntriesByFQName[path] = true
+                        return true
+                    }
+                } else {
+                    nestedEntriesByFQName[path] = true
+                    return true
+                }
+            }
+            nestedEntriesByFQName[path] = false
+            return false
         }
 
         /// Package prefixes nested directly under `parentFQName` (no further
         /// segments), so a children drain can synthesize the same child
         /// package shells the eager pass registered.
         func packagePrefixes(under parentFQName: [InternedString]) -> [[InternedString]] {
-            buildMapsIfNeeded()
             let parent = render(parentFQName)
             if let cached = childPackagePrefixesByParent[parent] { return cached }
             let prefix = parent + "."
+            let packagePrefixes = packagePrefixNames(under: parent)
             var result: [[InternedString]] = []
             for packagePrefix in packagePrefixes {
                 guard packagePrefix.hasPrefix(prefix) else { continue }
@@ -297,11 +372,10 @@ extension DataFlowSemaPhase {
         }
 
         func materializeAll(into symbols: SymbolTable) {
-            buildMapsIfNeeded()
             for index in indexedFile.entries.indices {
                 claim(index: index)
             }
-            for prefix in packagePrefixes.sorted() {
+            for prefix in allPackagePrefixNames().sorted() {
                 let fqName = prefix.split(separator: ".").map { interner.intern(String($0)) }
                 _ = symbols.lookupAll(fqName: fqName)
             }
@@ -314,7 +388,7 @@ extension DataFlowSemaPhase {
         /// synthesized accessor, which exists only once the property's own
         /// binding has been applied — the lazy materializer provides that.
         func resolveLinkName(_ name: String) -> SymbolID? {
-            buildMapsIfNeeded()
+            buildLinkMapIfNeeded()
             guard let target = pendingLinks.removeValue(forKey: Substring(name)),
                   let symbols
             else { return nil }
@@ -338,10 +412,11 @@ extension DataFlowSemaPhase {
         /// yet. The phantom-parameter single-owner rule combines this with
         /// the already-registered binding count.
         func pendingCallableCount(fqName: [InternedString]) -> Int {
-            buildMapsIfNeeded()
-            guard let indexes = pendingByFQName[Substring(render(fqName))] else { return 0 }
-            return indexes.reduce(0) { count, index in
+            let name = render(fqName)
+            return indexedFile.fQNameRange(matching: name).reduce(0) { count, position in
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
                 guard !claimed.contains(index),
+                      !rejectedIndices.contains(index),
                       let kind = indexedFile.entries[index].compactRecord?.kind,
                       kind == .function || kind == .constructor
                 else { return count }
@@ -352,16 +427,30 @@ extension DataFlowSemaPhase {
         /// Claims this index's type-parameter records owned under `fqName`,
         /// returning their freshly registered symbols.
         func claimTypeParameterSymbols(forOwner fqName: [InternedString]) -> [SymbolID] {
-            buildMapsIfNeeded()
-            guard let indexes = pendingTypeParametersByGrandparent.removeValue(forKey: Substring(render(fqName))) else { return [] }
-            return indexes.compactMap { claim(index: $0) }
+            let owner = render(fqName)
+            guard drainedTypeParameterOwners.insert(owner).inserted else { return [] }
+            let prefix = owner + ".$"
+            var indexes: [Int] = []
+            for position in indexedFile.fQNamePrefixRange(prefix) {
+                let index = indexedFile.entryIndex(sortedByFQNameAt: position)
+                guard !rejectedIndices.contains(index),
+                      let record = indexedFile.entries[index].compactRecord,
+                      record.kind == .typeParameter,
+                      let lastDot = record.fqName.lastIndex(of: "."),
+                      let ownerIDDot = record.fqName[..<lastDot].lastIndex(of: "."),
+                      record.fqName[record.fqName.index(after: ownerIDDot) ..< lastDot].hasPrefix("$"),
+                      record.fqName[..<ownerIDDot] == owner
+                else { continue }
+                indexes.append(index)
+            }
+            return indexes.sorted().compactMap { claim(index: $0) }
         }
 
         /// Member keys for the bundled-stdib merge, built straight from the
         /// index so no shell (let alone signature) is needed for entries the
-        /// compilation never references.
+        /// compilation never references. This independent query does not
+        /// initialize declaration-lookup state.
         func memberKeys() -> Set<BundledMemberKey> {
-            buildMapsIfNeeded()
             if let cached = stdlibMemberKeysCache { return cached }
             var keys: Set<BundledMemberKey> = []
             keys.reserveCapacity(indexedFile.entries.count)

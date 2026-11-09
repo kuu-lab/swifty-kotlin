@@ -587,6 +587,23 @@ extension KIRLoweringDriver {
         }
 
         let importedSymbols = sema.symbols.allSymbols().filter { $0.flags.contains(.importedLibrary) }
+        let materializedOwnerFQNames = Set(importedSymbols.compactMap { symbol -> String? in
+            guard symbol.kind == .object || symbol.kind == .class || symbol.kind == .interface
+                || symbol.kind == .annotationClass || symbol.kind == .enumClass
+            else { return nil }
+            return symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        })
+        let indexedInitializerLinks = sema.symbols.eagerIndexedLibraryInitializerLinks(
+            materializedOwnerFQNames: materializedOwnerFQNames
+        )
+
+        func appendInitializerLink(_ linkName: String) {
+            guard !linkName.isEmpty else { return }
+            let result = arena.appendTemporary(type: sema.types.unitType)
+            allTopLevelInitInstructions.append(
+                .call(callee: interner.intern(linkName), arguments: [], result: result, canThrow: false)
+            )
+        }
 
         // Imported top-level properties can capture an object singleton. Make
         // every imported object's eager handle (and its interface registrations)
@@ -623,6 +640,9 @@ extension KIRLoweringDriver {
                 break
             }
         }
+        for linkName in indexedInitializerLinks.beforeEnumEntries {
+            appendInitializerLink(linkName)
+        }
 
         // Enum entry initialization may itself access imported singletons, so
         // keep it after all object and companion handles have been allocated.
@@ -632,6 +652,9 @@ extension KIRLoweringDriver {
                     ? sema.symbols.enumStaticInitSymbol(for: symbol.id)
                     : sema.symbols.enumStaticInitSymbolIfKnown(for: symbol.id)
             )
+        }
+        for linkName in indexedInitializerLinks.enumStatic {
+            appendInitializerLink(linkName)
         }
 
         // Run library stored-property initializers only after singleton handles

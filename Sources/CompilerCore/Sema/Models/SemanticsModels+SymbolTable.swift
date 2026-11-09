@@ -234,6 +234,15 @@ protocol IndexedLibraryEntryProvider: AnyObject {
     /// Register every record from this library. Used only when producing a
     /// persistent stdlib snapshot, where the import-time graph must be complete.
     func materializeAll(into symbols: SymbolTable)
+    /// Return eager initializer link names for owners that have not already
+    /// been materialized, marking every nominal owner name as seen so later
+    /// libraries cannot replace the winning declaration.
+    func eagerInitializerLinks(markingSeenOwners seenOwners: inout Set<String>) -> IndexedLibraryInitializerLinks
+}
+
+struct IndexedLibraryInitializerLinks {
+    var beforeEnumEntries: [String] = []
+    var enumStatic: [String] = []
 }
 
 public final class SymbolTable {
@@ -615,6 +624,24 @@ public final class SymbolTable {
         for symbol in pending where isUnmaterializedImportedShellLocked(symbol) {
             ensureLazyImportedMetadataLoaded(for: symbol)
         }
+    }
+
+    /// Reads compact initializer links without registering every owner shell.
+    /// This keeps module-init emission complete while leaving unused indexed
+    /// declarations on the on-demand path.
+    func eagerIndexedLibraryInitializerLinks(
+        materializedOwnerFQNames: Set<String>
+    ) -> IndexedLibraryInitializerLinks {
+        lock.lock()
+        defer { lock.unlock() }
+        var seenOwners = materializedOwnerFQNames
+        var result = IndexedLibraryInitializerLinks()
+        for provider in indexedLibraryProviders.sorted(by: { $0.importOrder < $1.importOrder }) {
+            let links = provider.eagerInitializerLinks(markingSeenOwners: &seenOwners)
+            result.beforeEnumEntries.append(contentsOf: links.beforeEnumEntries)
+            result.enumStatic.append(contentsOf: links.enumStatic)
+        }
+        return result
     }
 
     /// Registration-time mark for nominal shells drained after the lazy
