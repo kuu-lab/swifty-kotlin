@@ -800,6 +800,15 @@ struct TypeInferenceContext: CustomStringConvertible {
         if sema.symbols.enumOwnerSymbol(for: symbol) != nil {
             return true
         }
+        // Constructor-delegation and supertype-constructor argument scopes
+        // drop the not-yet-constructed receiver from the tower, but its
+        // members must still bind so the pre-instance checker can reject
+        // them with KSWIFTK-SEMA-0058 — an unresolved binding degrades the
+        // diagnostic to SEMA-0022 and wrongly rejects deferred-lambda reads
+        // that run after construction (KUU-4520).
+        if excludesEnclosingClassReceiver, ownerID == enclosingClassSymbol {
+            return true
+        }
         var companionSeeds: Set<SymbolID> = []
         for entry in implicitReceiverMemberLookupEntries() {
             guard case let .classType(classType) = sema.types.kind(of: entry.type) else {
