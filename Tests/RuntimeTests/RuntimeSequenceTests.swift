@@ -208,16 +208,6 @@ private let sequenceFirstNotNullOfStringForTwo: @convention(c) (Int, Int, Unsafe
 private let sequenceFirstNotNullOfAlwaysNull: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
     runtimeNullSentinelInt
 }
-
-
-
-private let sequenceGreaterThanTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value > 2 ? 1 : 0
-}
-
-
-
-
 private func runtimeTestStringHandle(_ value: String) -> Int {
     let bytes = Array(value.utf8)
     return bytes.withUnsafeBufferPointer { buffer in
@@ -1551,15 +1541,6 @@ struct RuntimeSequenceTests {
             return []
         }
         return box.elements
-    }
-
-    private func mapKeys(_ mapRaw: Int) -> [Int] {
-        let iterator = kk_map_iterator(mapRaw)
-        var keys: [Int] = []
-        while kk_map_iterator_hasNext(iterator) != 0 {
-            keys.append(kk_map_iterator_next(iterator))
-        }
-        return keys
     }
 
 }

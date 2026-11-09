@@ -132,24 +132,6 @@ public func kk_list_associate(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _
     let normalized = runtimeNormalizeMapEntries(keys: keys, values: values)
     return registerRuntimeObject(RuntimeMapBox(keys: normalized.0, values: normalized.1))
 }
-@_cdecl("kk_list_associateTo")
-public func kk_list_associateTo(_ listRaw: Int, _ destRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let elements = runtimeCollectionElements(from: listRaw) else {
-        invalidContainerPanic(#function, "collection")
-    }
-    guard runtimeMapBox(from: destRaw) != nil else {
-        invalidContainerPanic(#function, "map")
-    }
-    for elem in elements {
-        var thrown = 0
-        let pair = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            return handleCollectionLambdaThrow(thrown, outThrown)
-        }
-        _ = kk_mutable_map_put(destRaw, kk_pair_first(pair), kk_pair_second(pair), nil)
-    }
-    return destRaw
-}
 func buildKeyIndex(from dest: RuntimeMapBox) -> [Int: Int] {
     var keyIndex: [Int: Int] = [:]
     for (i, k) in dest.keys.enumerated() {
@@ -250,50 +232,5 @@ public func kk_list_unzip(_ listRaw: Int) -> Int {
     let firstList = registerRuntimeObject(RuntimeListBox(elements: firstValues))
     let secondList = registerRuntimeObject(RuntimeListBox(elements: secondValues))
     return kk_pair_new(firstList, secondList)
-}
-@_cdecl("kk_list_onEach")
-public func kk_list_onEach(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for elem in list.elements {
-        var thrown = 0
-        _ = lambda(closureRaw, elem, &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    }
-    return listRaw
-}
-@_cdecl("kk_list_onEachIndexed")
-public func kk_list_onEachIndexed(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (idx, elem) in list.elements.enumerated() {
-        var thrown = 0
-        _ = lambda(closureRaw, idx, elem, &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    }
-    return listRaw
-}
-@_cdecl("kk_list_partition")
-public func kk_list_partition(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    var matching: [Int] = []
-    var nonMatching: [Int] = []
-    for elem in list.elements {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 {
-            return handleCollectionLambdaThrow(thrown, outThrown)
-        }
-        if maybeUnbox(result) != 0 {
-            matching.append(elem)
-        } else {
-            nonMatching.append(elem)
-        }
-    }
-    let matchingList = registerRuntimeObject(RuntimeListBox(elements: matching))
-    let nonMatchingList = registerRuntimeObject(RuntimeListBox(elements: nonMatching))
-    return kk_pair_new(matchingList, nonMatchingList)
 }
 #endif

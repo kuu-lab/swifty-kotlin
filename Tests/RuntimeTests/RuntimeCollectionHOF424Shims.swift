@@ -37,26 +37,6 @@ public func kk_list_firstOrNull(_ listRaw: Int) -> Int {
     return list.elements[0]
 }
 
-@_cdecl("kk_list_lastOrNull")
-public func kk_list_lastOrNull(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw),
-          !list.elements.isEmpty
-    else {
-        return runtimeNullSentinelInt
-    }
-    return list.elements[list.elements.count - 1]
-}
-
-@_cdecl("kk_list_singleOrNull")
-public func kk_list_singleOrNull(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw),
-          list.elements.count == 1
-    else {
-        return runtimeNullSentinelInt
-    }
-    return list.elements[0]
-}
-
 @_cdecl("kk_list_first")
 public func kk_list_first(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

@@ -404,28 +404,6 @@ public func kk_list_minBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
     return bestElem
 }
 
-@_cdecl("kk_list_maxOfOrNull")
-public func kk_list_maxOfOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
-    }
-    guard !list.elements.isEmpty else {
-        return runtimeNullSentinelInt
-    }
-    var thrown = 0
-    var bestValue = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: list.elements[0], outThrown: &thrown)
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    for elem in list.elements.dropFirst() {
-        thrown = 0
-        let value = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if runtimeCompareValues(value, bestValue) > 0 {
-            bestValue = value
-        }
-    }
-    return bestValue
-}
-
 @_cdecl("kk_list_minOfOrNull")
 public func kk_list_minOfOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -628,20 +606,6 @@ public func kk_mutable_list_sortByDescending_primitive(_ listRaw: Int, _ fnPtr: 
     return 0
 }
 
-@_cdecl("kk_mutable_list_sortDescending")
-public func kk_mutable_list_sortDescending(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let indexed = list.elements.enumerated().sorted { lhs, rhs in
-        let comparison = runtimeCompareValues(lhs.element, rhs.element)
-        if comparison != 0 { return comparison > 0 }  // Descending order
-        return lhs.offset < rhs.offset
-    }.map(\.element)
-    for i in 0 ..< indexed.count {
-        list.elements[i] = indexed[i]
-    }
-    return 0
-}
-
 @_cdecl("kk_mutable_list_sortDescending_primitive")
 public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: Int32) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
@@ -650,19 +614,6 @@ public func kk_mutable_list_sortDescending_primitive(_ listRaw: Int, _ kindRaw: 
         list.elements[i] = sorted[i]
     }
     return 0
-}
-
-@_cdecl("kk_list_maxOf")
-public func kk_list_maxOf(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeListExtremumOf(
-        listRaw: listRaw,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        direction: .maximum,
-        emptyResult: .throwNoSuchElement,
-        functionName: #function,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_list_minOf")
@@ -704,19 +655,6 @@ public func kk_list_maxWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
     )
 }
 
-@_cdecl("kk_list_minWithOrNull")
-public func kk_list_minWithOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeListExtremumWith(
-        listRaw: listRaw,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        direction: .minimum,
-        emptyResult: .nullSentinel,
-        functionName: #function,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_list_minWith")
 public func kk_list_minWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeListExtremumWith(
@@ -740,21 +678,6 @@ public func kk_list_maxOfWithOrNull(_ listRaw: Int, _ cmpFnPtr: Int, _ cmpClosur
         selClosureRaw: selClosureRaw,
         direction: .maximum,
         emptyResult: .nullSentinel,
-        functionName: #function,
-        outThrown: outThrown
-    )
-}
-
-@_cdecl("kk_list_maxOfWith")
-public func kk_list_maxOfWith(_ listRaw: Int, _ cmpFnPtr: Int, _ cmpClosureRaw: Int, _ selFnPtr: Int, _ selClosureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeListExtremumOfWith(
-        listRaw: listRaw,
-        cmpFnPtr: cmpFnPtr,
-        cmpClosureRaw: cmpClosureRaw,
-        selFnPtr: selFnPtr,
-        selClosureRaw: selClosureRaw,
-        direction: .maximum,
-        emptyResult: .throwNoSuchElement,
         functionName: #function,
         outThrown: outThrown
     )
@@ -816,15 +739,6 @@ public func kk_list_sortedDescending_primitive(_ listRaw: Int, _ kindRaw: Int32)
     guard let listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     let sorted = runtimeSortElements(listBox.elements, descending: true, primitiveKind: runtimePrimitiveCompareKindFromRaw(kindRaw))
     return registerRuntimeObject(RuntimeListBox(elements: sorted))
-}
-
-@_cdecl("kk_list_max")
-public func kk_list_max(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let result = kk_list_maxOrNull(listRaw)
-    guard result != runtimeNullSentinelInt else {
-        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "List is empty."), outThrown)
-    }
-    return result
 }
 
 #endif

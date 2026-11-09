@@ -4,46 +4,6 @@
 // by KSP-430. These keep RuntimeCollectionHOFTests/RuntimeCollectionHOFThrowTests
 // compiling while the production compiler no longer emits calls to kk_map_* HOFs.
 
-@_cdecl("kk_map_all")
-public func kk_map_all(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let result = lambda(closureRaw, runtimeMapEntryNew(key: key, value: value), &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) == 0 { return 0 }
-    }
-    return 1
-}
-
-@_cdecl("kk_map_any")
-public func kk_map_any(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let result = lambda(closureRaw, runtimeMapEntryNew(key: key, value: value), &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return 1 }
-    }
-    return 0
-}
-
-@_cdecl("kk_map_count")
-public func kk_map_count(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var count = 0
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let result = lambda(closureRaw, runtimeMapEntryNew(key: key, value: value), &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { count += 1 }
-    }
-    return count
-}
-
 @_cdecl("kk_map_filter")
 public func kk_map_filter(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
@@ -82,25 +42,6 @@ public func kk_map_filterKeys(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
     return registerRuntimeObject(RuntimeMapBox(keys: filteredKeys, values: filteredValues))
 }
 
-@_cdecl("kk_map_filterNot")
-public func kk_map_filterNot(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    var filteredKeys: [Int] = []
-    var filteredValues: [Int] = []
-    filteredKeys.reserveCapacity(min(map.keys.count, map.values.count))
-    filteredValues.reserveCapacity(min(map.keys.count, map.values.count))
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: runtimeMapEntryNew(key: key, value: value), outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) == 0 {
-            filteredKeys.append(key)
-            filteredValues.append(value)
-        }
-    }
-    return registerRuntimeObject(RuntimeMapBox(keys: filteredKeys, values: filteredValues))
-}
-
 @_cdecl("kk_map_filterValues")
 public func kk_map_filterValues(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
@@ -118,24 +59,6 @@ public func kk_map_filterValues(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
         }
     }
     return registerRuntimeObject(RuntimeMapBox(keys: filteredKeys, values: filteredValues))
-}
-
-@_cdecl("kk_map_flatMap")
-public func kk_map_flatMap(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        invalidContainerPanic(#function, "map")
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var result: [Int] = []
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let subListRaw = lambda(closureRaw, runtimeMapEntryNew(key: key, value: value), &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if let subList = runtimeListBox(from: subListRaw) {
-            result.append(contentsOf: subList.elements)
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
 @_cdecl("kk_map_forEach")
@@ -203,22 +126,6 @@ public func kk_map_mapKeysTo(
     return destRaw
 }
 
-@_cdecl("kk_map_mapNotNull")
-public func kk_map_mapNotNull(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    var mapped: [Int] = []
-    mapped.reserveCapacity(min(map.keys.count, map.values.count))
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: runtimeMapEntryNew(key: key, value: value), outThrown: &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if let normalized = runtimeMapNotNullResultValue(result) {
-            mapped.append(normalized)
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: mapped))
-}
-
 @_cdecl("kk_map_mapValues")
 public func kk_map_mapValues(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
@@ -259,84 +166,6 @@ public func kk_map_mapValuesTo(
     return destRaw
 }
 
-@_cdecl("kk_map_maxByOrNull")
-public func kk_map_maxByOrNull(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        invalidContainerPanic(#function, "map")
-    }
-    let pairCount = min(map.keys.count, map.values.count)
-    guard pairCount > 0 else {
-        return runtimeNullSentinelInt
-    }
-    var bestKey = map.keys[0]
-    var bestValue = map.values[0]
-    var thrown = 0
-    var bestSelector = runtimeInvokeCollectionLambda1(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        value: runtimeMapEntryNew(key: bestKey, value: bestValue),
-        outThrown: &thrown
-    )
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    for idx in 1 ..< pairCount {
-        let key = map.keys[idx]
-        let value = map.values[idx]
-        thrown = 0
-        let selector = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: runtimeMapEntryNew(key: key, value: value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if runtimeCompareValues(selector, bestSelector) > 0 {
-            bestKey = key
-            bestValue = value
-            bestSelector = selector
-        }
-    }
-    return runtimeMapEntryNew(key: bestKey, value: bestValue)
-}
-
-@_cdecl("kk_map_minByOrNull")
-public func kk_map_minByOrNull(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        invalidContainerPanic(#function, "map")
-    }
-    let pairCount = min(map.keys.count, map.values.count)
-    guard pairCount > 0 else {
-        return runtimeNullSentinelInt
-    }
-    var bestKey = map.keys[0]
-    var bestValue = map.values[0]
-    var thrown = 0
-    var bestSelector = runtimeInvokeCollectionLambda1(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        value: runtimeMapEntryNew(key: bestKey, value: bestValue),
-        outThrown: &thrown
-    )
-    if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-    for idx in 1 ..< pairCount {
-        let key = map.keys[idx]
-        let value = map.values[idx]
-        thrown = 0
-        let selector = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: runtimeMapEntryNew(key: key, value: value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if runtimeCompareValues(selector, bestSelector) < 0 {
-            bestKey = key
-            bestValue = value
-            bestSelector = selector
-        }
-    }
-    return runtimeMapEntryNew(key: bestKey, value: bestValue)
-}
-
 @_cdecl("kk_map_minus")
 public func kk_map_minus(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
@@ -355,19 +184,6 @@ public func kk_map_minus(_ mapRaw: Int, _ key: Int) -> Int {
         }
     }
     return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
-}
-
-@_cdecl("kk_map_none")
-public func kk_map_none(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw) else { invalidContainerPanic(#function, "map") }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (key, value) in zip(map.keys, map.values) {
-        var thrown = 0
-        let result = lambda(closureRaw, runtimeMapEntryNew(key: key, value: value), &thrown)
-        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { return 0 }
-    }
-    return 1
 }
 
 @_cdecl("kk_map_plus")
