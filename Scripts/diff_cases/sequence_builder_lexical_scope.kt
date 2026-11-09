@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(sequence { for (value in 0 until 3) yield(value) }.count())
     println(sequence<Int> { for (value in 0 until 3) yield(value) }.count())

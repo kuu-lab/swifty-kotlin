@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Target constructor(val callback: () -> Int =
     fun(): Int { return 7 })
 fun after() = 1

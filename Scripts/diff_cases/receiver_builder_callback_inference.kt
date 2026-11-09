@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Builder<T> {
     fun use(block: () -> T) {
         println(block())

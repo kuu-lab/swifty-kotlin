@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3129: on a smart-cast receiver (`Feature<T> & BooleanFeature`), reading
 // an inherited generic member property substitutes the interface type
 // arguments through the concrete implementation

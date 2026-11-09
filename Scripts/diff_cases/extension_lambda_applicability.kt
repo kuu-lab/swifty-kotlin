@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2149: inapplicable List overloads must not hide Iterable extensions.
 package fixture
 

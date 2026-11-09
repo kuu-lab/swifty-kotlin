@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-REFLECT-063: KFunction complete implementation
 import kotlin.reflect.KFunction
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1533 audit: ULong numeric conversions that remain compiler/runtime-owned
 // (KSP-1531's (c) column: toByte/toDouble/toFloat/toInt/toShort/toUByte/
 // toUShort) after kk_ulong_to_char was deleted as dead lowering code —

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2027: A newline before the body must keep members inside the class.
 class Target(val value: Int)
 {

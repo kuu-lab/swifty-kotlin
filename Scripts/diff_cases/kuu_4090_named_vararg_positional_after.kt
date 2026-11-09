@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4090: Kotlin 1.4+ mixed named/positional arguments — once a vararg
 // parameter is filled by name, positional arguments continue binding the
 // remaining parameters in declaration order.

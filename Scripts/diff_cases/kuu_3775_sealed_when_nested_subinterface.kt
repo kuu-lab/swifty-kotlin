@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3775: covering every grandchild of a nested sealed child counts as
 // covering that child when checking `when` exhaustiveness.
 sealed interface F

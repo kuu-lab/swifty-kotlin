@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val match = Regex("(a)(b)?(c)(d)(e)(f)(g)(h)(i)(j)").find("acdefghij")
     if (match != null) {

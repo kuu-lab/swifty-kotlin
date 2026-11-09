@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Operator calls (binary operators, comparisons, ==, in, destructuring) on an
 // open/abstract member operator must dispatch on the receiver's runtime type,
 // and an override inherits the `operator` modifier without repeating it.

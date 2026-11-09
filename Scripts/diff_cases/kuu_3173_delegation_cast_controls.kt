@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3173 controls: plain delegation and a non-generic cast delegation keep
 // working next to the generic-cast path, and a wrong-type erased generic
 // delegate claim still throws a catchable ClassCastException at the claim

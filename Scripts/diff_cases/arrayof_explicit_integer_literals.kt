@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun describe(value: Any?): String = when (value) {
     is Byte -> "Byte:$value"
     is Short -> "Short:$value"

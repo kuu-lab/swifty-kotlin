@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-047: top-level / class member property initializers that end in an
 // expression with several top-level `{ }` blocks (`if/else`, `else if` chains)
 // used to lose everything after the first block during CST splitting, so the

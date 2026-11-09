@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3782: a value class resumed into a generic member suspend chain must be
 // boxed when it is staged into an erased `T` launcher slot; otherwise the
 // callee's state machine reads the raw flat payload and the value arrives

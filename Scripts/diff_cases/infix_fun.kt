@@ -1,3 +1,4 @@
+// DIFF_JVM
 infix fun Int.add(other: Int): Int = this + other
 
 fun main() {

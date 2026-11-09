@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-937: bare array size must match explicit this.size in extension receivers.
 fun CharArray.bareSize(): Int = size
 fun CharArray.explicitSize(): Int = this.size

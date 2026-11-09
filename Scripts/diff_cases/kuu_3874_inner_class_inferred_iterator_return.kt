@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3874: `for (x in expr)` failed SEMA-0002 when the iterable is a
 // generic class whose inferred `iterator()` return type is an inner class.
 // The inferred return type dropped the captured enclosing type argument,

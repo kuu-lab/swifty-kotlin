@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun show(match: MatchResult?) {
     if (match == null) {
         println("null")

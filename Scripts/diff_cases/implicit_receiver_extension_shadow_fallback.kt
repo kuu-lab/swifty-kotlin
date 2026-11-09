@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Token(val value: Int)
 class Holder(val token: Token)
 

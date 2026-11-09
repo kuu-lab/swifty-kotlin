@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // require(x != null) smart cast
     val x: String? = "hello"

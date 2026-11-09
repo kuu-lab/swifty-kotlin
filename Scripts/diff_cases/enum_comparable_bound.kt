@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Color { RED, GREEN, BLUE }
 
 fun main() {

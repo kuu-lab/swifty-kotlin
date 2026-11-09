@@ -1,3 +1,4 @@
+// DIFF_JVM
 import ConstructorMark as constructor
 
 @Target(AnnotationTarget.CONSTRUCTOR)

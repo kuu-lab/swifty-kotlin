@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var s: String? = null
     s = if (true) "x" else "y"

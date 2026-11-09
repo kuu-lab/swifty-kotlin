@@ -1,3 +1,4 @@
+// DIFF_JVM
 package parser.base
 
 fun interface Parser<out T> {

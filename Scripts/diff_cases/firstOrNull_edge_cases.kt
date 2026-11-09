@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Edge cases for firstOrNull verification
     

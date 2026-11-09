@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Node<K, V>(val x: Int) {
     companion object { val EMPTY = Node<Nothing, Nothing>(0) }
 }

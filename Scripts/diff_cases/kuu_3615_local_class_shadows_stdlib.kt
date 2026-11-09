@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3615: a file-local declaration must shadow the bundled kotlin.*
 // default-imported type of the same name in every position — return type,
 // parameter type, receiver type, local annotation, and call expression —

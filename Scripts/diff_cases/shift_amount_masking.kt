@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var one = 1
     println(one shl 32)

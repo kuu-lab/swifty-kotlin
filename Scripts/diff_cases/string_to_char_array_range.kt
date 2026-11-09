@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun checkRange(text: String, start: Int, end: Int) {
     try {
         println(text.toCharArray(start, end).contentToString())

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Delegate { fun invoke() }
 class Token(val value: Int)
 class Probe {

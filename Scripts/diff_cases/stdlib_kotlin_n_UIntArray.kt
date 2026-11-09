@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values = UIntArray(4) { (it + 1).toUInt() }
     println(values.size)

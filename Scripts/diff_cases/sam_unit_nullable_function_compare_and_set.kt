@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1291: mirror the atomicfu API without requiring the external library.
 class AtomicRef<T>(var value: T) {
     fun compareAndSet(expect: T, update: T): Boolean {

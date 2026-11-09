@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.collections.AbstractSet
 import kotlin.collections.Set
 

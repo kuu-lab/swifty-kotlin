@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(0u.toString(2))
     println(0uL.toString(36))

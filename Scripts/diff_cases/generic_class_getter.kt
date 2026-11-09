@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A generic class whose property getter (or member function) returns the
 // class type parameter `T` must type-check: the implicit receiver of the
 // class body is `Box<T>`, so `val alias: T get() = value` and

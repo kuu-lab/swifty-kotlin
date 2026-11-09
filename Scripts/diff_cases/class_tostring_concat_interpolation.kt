@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A class's own overridden toString() must be called when the value is
 // stringified through the Any-erased `+`/string-template funnel
 // (CallLowerer.emitAnyToStringWithNullGuard), not just when toString() is

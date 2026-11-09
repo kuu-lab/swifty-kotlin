@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s = "banana"
     println(s.indexOfFirst { it == 'a' })

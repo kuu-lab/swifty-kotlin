@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Parent<T> {
     fun read(): T
     var value: T

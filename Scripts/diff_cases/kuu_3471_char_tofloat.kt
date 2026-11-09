@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3471: Char.toFloat() converts the UTF-16 code unit to Float like the
 // other deprecated Char numeric conversions.
 fun main() {

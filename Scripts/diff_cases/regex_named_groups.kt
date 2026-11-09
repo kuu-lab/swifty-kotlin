@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Named capture groups with MatchResult.groups
     val regex = Regex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")

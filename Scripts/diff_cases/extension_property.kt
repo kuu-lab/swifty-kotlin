@@ -1,3 +1,4 @@
+// DIFF_JVM
 val Int.doubled: Int
     get() = this * 2
 

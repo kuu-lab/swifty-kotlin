@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A member property of function type inside an object literal: the declared
 // type `(Int) -> Int` is parsed through the expression-parser inline type
 // path (allowFunctionType = false), so it must fall back to inference-friendly

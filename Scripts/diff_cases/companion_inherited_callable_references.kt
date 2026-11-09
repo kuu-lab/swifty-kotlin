@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class Base {
     fun foo(): String = "A"
     abstract fun bar(): String

@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class OneShotIterator(
     private val values: Array<Int>,
     private val cursor: Array<Int>

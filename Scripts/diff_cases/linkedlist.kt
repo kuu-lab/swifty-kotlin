@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = mutableListOf<Int>()
     list.add(1)

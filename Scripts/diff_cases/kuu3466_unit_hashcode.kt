@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> genericHash(value: T): Int = value.hashCode()
 
 fun main() {

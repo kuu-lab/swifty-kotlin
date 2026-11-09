@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun acceptIntProgressionCompanion(companion: Any): Boolean = true
 
 fun main() {

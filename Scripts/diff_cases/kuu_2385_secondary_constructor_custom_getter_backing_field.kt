@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2385: constructor-body writes must update the instance backing field read by a custom getter.
 class A {
     val value: String

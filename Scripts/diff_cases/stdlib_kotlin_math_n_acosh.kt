@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.math.acosh
 
 private fun reportDouble(label: String, value: Double) {

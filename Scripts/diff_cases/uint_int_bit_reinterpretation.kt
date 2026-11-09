@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val n: Long = -1L
     println(n.toUInt())

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val nullable: String? = "hello"
     require(nullable != null)

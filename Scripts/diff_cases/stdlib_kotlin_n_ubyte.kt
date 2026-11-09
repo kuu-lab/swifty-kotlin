@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = ubyteArrayOf()
     val values = ubyteArrayOf(1.toUByte(), 255.toUByte(), 3.toUByte())

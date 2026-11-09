@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun box(): String {
     val x = object {
         fun <S> foo(value: S): S = value

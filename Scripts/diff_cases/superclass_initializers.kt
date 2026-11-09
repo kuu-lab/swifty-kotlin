@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-155: superclass constructors must run before subclass initializers, so
 // inherited property initializers, `init` blocks and superclass constructor
 // arguments are visible on subclass instances.

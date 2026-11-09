@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println({ 42 }())
     val l = { 10 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base(val s: String)
 typealias B = Base
 

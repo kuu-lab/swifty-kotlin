@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val m = mutableMapOf<Any, String>()
     m['a'] = "char"

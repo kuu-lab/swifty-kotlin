@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Property compound assignment reads the target before evaluating an RHS
 // that can mutate the same property, including accessor-backed virtual members.
 var events = ""

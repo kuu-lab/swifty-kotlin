@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(listOf(1) is MutableList<*>)
     println(listOf(1) as MutableList<*>)

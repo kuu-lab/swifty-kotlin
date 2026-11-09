@@ -1,3 +1,4 @@
+// DIFF_JVM
 @Deprecated("Use newFun instead", level = DeprecationLevel.WARNING)
 fun oldFun(): Int = 1
 

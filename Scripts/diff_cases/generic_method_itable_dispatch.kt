@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface GenericProbe {
     fun <T> probe(values: List<T>): Int = 1
     fun <T> transform(operation: (T) -> T): Int = 2

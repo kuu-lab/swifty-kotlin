@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3628: `enum class E : C by <expr>` used to compile but panic at
 // runtime (KSWIFTK-LINK-0003). The delegation field was enumerated as a
 // phantom enum entry and the synthesized forwarding members read the

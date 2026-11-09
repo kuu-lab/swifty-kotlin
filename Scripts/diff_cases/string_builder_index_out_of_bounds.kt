@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     try {
         StringBuilder("hello").insert(99, "x")

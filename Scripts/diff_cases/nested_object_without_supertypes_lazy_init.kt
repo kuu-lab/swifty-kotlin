@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Holder {
     fun read() = M.read()
 

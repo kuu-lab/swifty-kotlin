@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Key(val id: Int, val tag: Int) {
     override fun equals(other: Any?) = other is Key && other.id == id
     override fun hashCode() = id

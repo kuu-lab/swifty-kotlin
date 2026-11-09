@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Printable {
     fun print()
 }

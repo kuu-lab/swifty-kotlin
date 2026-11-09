@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Double/Float.toString() parity with kotlinc: decimal vs scientific notation
 // thresholds (|x| >= 1e7 or < 1e-3 -> scientific), special values, negative zero.
 // Note: Double.MIN_VALUE / Float.MIN_VALUE shortest-form differs from Java and is

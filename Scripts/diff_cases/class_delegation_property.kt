@@ -1,3 +1,4 @@
+// DIFF_JVM
 // CLASS-008: class delegation must forward interface `val`/`var` properties
 // through the delegate, not just functions.
 interface I {

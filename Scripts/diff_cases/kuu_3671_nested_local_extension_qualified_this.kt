@@ -1,3 +1,4 @@
+// DIFF_JVM
 // EXPECT-STDOUT: OK 42 0
 // EXPECT-STDOUT: outer-7-mid
 // KUU-3671: a labeled `this@outer` inside nested local extension functions

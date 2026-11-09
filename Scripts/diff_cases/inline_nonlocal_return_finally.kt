@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun once(block: () -> Unit) { block() }
 inline fun guarded(block: () -> Unit) {
     try { block() } finally { println("inline-finally") }

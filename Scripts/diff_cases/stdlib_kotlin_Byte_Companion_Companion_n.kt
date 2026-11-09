@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val directMax: Byte = Byte.MAX_VALUE
     val directMin: Byte = Byte.MIN_VALUE

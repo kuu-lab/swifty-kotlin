@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Source<out T>(val value: T)
 class Sink<in T> { fun accept(value: T) {} }
 class Box<T>(val value: T)

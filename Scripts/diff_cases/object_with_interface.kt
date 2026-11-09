@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Logger {
     fun log(msg: String)
 }

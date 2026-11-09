@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3819: Map.values is a MutableCollection and resolves Iterable extrema
 // through the collection member fallback. Arity-first candidate selection
 // bound maxOrNull() to the bundled Iterable<Double> overload, which threw

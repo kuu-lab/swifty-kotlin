@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3799: nested member reads through a star-projected smart-cast receiver
 // (`other.hashMapBuilder.node`, `other.node`) where the members' types are
 // inferred — one through a covariant `builder()` override chain and one

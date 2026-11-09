@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var b: Byte = 127; b++
     var s: Short = -32768; s--

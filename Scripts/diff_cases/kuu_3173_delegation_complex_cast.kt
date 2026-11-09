@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3173 regression adapted from Kotlin testData
 // codegen/box/bridges/delegationComplex.kt. A generic forwarding method must
 // return the value produced by the delegate when the delegate expression is

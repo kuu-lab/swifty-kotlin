@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1391: `::prop.isInitialized` must link and read the backing storage
 // directly. kotlinc only permits it where the backing field is reachable:
 // members inside the declaring scope, top-level properties in the same file.

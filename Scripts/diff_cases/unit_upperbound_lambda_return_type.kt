@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2203: a Unit upper bound makes the lambda result Unit-coercible.
 // Based on JetBrains Kotlin 2.3.10 compiler/testData/diagnostics/tests/inference/UnitUpperboundLambdaReturnType.kt.
 // DIAGNOSTICS: -FINAL_UPPER_BOUND

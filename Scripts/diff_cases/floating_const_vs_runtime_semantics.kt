@@ -1,3 +1,4 @@
+// DIFF_JVM
 // kotlinc compares floating-point values with two different rules:
 // `const val` initializers use equals/compareTo (NaN == NaN, -0.0 < 0.0,
 // NaN orders above everything), every other expression uses IEEE 754.

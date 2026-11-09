@@ -1,3 +1,4 @@
+// DIFF_JVM
 object GetterOnly {
     var calls = ""
     var value: Int = 1

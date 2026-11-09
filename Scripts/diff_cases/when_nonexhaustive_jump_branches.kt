@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f(x: Int): String {
     when (x) { 1 -> return "one"; 2 -> throw IllegalStateException("two") }
     return "other"

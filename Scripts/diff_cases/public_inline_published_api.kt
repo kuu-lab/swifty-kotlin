@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun around(block: () -> Unit) { block() }
 
 @PublishedApi

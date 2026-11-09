@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1246: unsigned shl/shr and signed ushr remain builtin operations.
 // Unsigned ushr calls must resolve user extensions, including safe calls.
 infix fun UInt.ushr(bits: Int): Int = 42 + bits

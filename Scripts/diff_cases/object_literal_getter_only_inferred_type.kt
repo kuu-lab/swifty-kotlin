@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Counter { fun inc(): Int; val name: String }
 class Named : Counter { var v = 0; override fun inc() = ++v; override val name get() = "n$v" }
 fun main() {

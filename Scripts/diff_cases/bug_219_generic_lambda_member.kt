@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Bug219Sample(val suffix: String) {
     fun decorate(): String = "decorated:$suffix"
     fun describeList(): List<String> = listOf(suffix)

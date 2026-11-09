@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface A {
     fun foo(): Any?
 }

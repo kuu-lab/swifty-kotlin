@@ -1,3 +1,4 @@
+// DIFF_JVM
 // CLASS-008: Basic class delegation with per-instance delegate storage
 
 interface Printer {

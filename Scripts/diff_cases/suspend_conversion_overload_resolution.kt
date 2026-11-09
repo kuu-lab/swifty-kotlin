@@ -1,3 +1,4 @@
+// DIFF_JVM
 var foo1 = false
 var foo2 = false
 

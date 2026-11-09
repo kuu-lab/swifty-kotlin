@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // remove() right after add(): add() invalidates the cursor position,
     // so a following remove() (with no intervening next()) must throw.

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val size = List<Int>::size
     println(size.get(listOf(1, 2)))

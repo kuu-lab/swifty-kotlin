@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.Delegates
 
 var observed: String by Delegates.observable("initial") { _, old, new ->

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-257: an `object` member property with a real custom getter has no
 // backing global slot, so reading it must dispatch through the getter
 // accessor function like an ordinary class-instance property read does --

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2005: Preserve the exact nullable-receiver reproducer.
 class Expr
 class Stmt

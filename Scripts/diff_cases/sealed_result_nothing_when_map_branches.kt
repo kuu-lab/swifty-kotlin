@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1896: both branches, reversed order, and an inferred generic result.
 sealed interface Result<out T> {
     data class Success<out T>(val value: T) : Result<T>

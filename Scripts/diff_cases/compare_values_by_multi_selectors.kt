@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class P(val n: String, val a: Int, val c: Int, val d: Int)
 
 fun name(p: P): String = p.n

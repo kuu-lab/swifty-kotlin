@@ -1,3 +1,4 @@
+// DIFF_JVM
 
 // Test cases for STDLIB-INHERIT-019: Override variance and visibility expansion
 

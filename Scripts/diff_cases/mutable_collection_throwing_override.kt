@@ -1,3 +1,4 @@
+// DIFF_JVM
 class ThrowingCollection : MutableCollection<Int> {
     val failure = IllegalStateException("override")
     override val size: Int get() = 0

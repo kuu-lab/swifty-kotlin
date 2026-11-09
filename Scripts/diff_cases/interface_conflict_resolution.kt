@@ -1,3 +1,4 @@
+// DIFF_JVM
 
 interface Base {
     fun method(): String = "Base"

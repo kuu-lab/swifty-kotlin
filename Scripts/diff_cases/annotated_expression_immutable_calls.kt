@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2046: minimal consumers of the annotated calls/blocks in upstream
 // Kotlin/kotlinx.collections.immutable at 9f961e4dd419dff58ffea164dd41ebba68acc8d6.
 // PersistentHashMap.kt: putting/removing expression operands.

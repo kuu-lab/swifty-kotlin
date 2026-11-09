@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-255 regression: Verify that yieldAll(sequence) pulls from the source sequence
 // lazily, interleaved with the outer builder's own execution, rather than
 // eagerly draining it up front. If yieldAll materialized the whole inner

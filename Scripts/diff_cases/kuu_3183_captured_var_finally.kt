@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Test {
     data class Style(
         val color: Int? = null,

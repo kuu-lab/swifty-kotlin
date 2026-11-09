@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values = arrayOf("left", "right")
     println("%s %s".format(*values))

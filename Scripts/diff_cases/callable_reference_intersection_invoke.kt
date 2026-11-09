@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KOTLINC_FLAGS: -Xjdk-release=17
 fun render(value: Boolean): String = value.toString()
 fun applyOp(op: (Int) -> Int): Int = op(1)

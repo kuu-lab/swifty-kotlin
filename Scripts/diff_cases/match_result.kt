@@ -1,3 +1,4 @@
+// DIFF_JVM
 
 fun main() {
     // STDLIB-REGEX-095: MatchResult完全実装

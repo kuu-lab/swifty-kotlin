@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Greeter {
     val greeting: String
         get() = "Hello"

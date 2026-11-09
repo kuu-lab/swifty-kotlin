@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val byte: Byte = 6
     val short: Short = 9

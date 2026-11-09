@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2934: qualified compound assignments must invoke the selected operator.
 var log = ""
 

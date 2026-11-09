@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun compute(flag: Int): Int {
     if (flag > 0) return flag
     TODO("negative input")

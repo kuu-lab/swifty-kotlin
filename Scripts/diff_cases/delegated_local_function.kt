@@ -1,3 +1,4 @@
+// DIFF_JVM
 class IntProp {
     var backing: Int = 42
 

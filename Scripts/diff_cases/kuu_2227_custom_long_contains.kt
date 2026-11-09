@@ -1,3 +1,4 @@
+// DIFF_JVM
 class LongR {
     operator fun contains(value: Long): Boolean = value == 5L
 }

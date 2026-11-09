@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("-- compareBy then thenBy --")
     val nums1 = listOf(31, 24, 12, 22, 13, 21, 14)

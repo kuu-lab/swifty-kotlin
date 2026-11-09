@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Reader { fun read(): Int }
 fun String.reader(): Reader = object : Reader {
     override fun read(): Int = get(0).code

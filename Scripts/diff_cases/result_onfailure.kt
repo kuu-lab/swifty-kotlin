@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // 1. Basic onFailure: success case — action should NOT be called
     val success1 = runCatching { 42 }

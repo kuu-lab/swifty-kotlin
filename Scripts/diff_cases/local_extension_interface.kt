@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3023: a local extension function on an interface receiver resolves
 // through the lexical function-value path when invoked on a variable of the
 // interface type.

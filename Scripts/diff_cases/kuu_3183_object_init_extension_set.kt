@@ -1,3 +1,4 @@
+// DIFF_JVM
 var result = "fail"
 
 fun <T, R> myWith(receiver: T, block: T.() -> R): R = receiver.block()

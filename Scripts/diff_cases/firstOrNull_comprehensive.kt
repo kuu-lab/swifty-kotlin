@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Test cases for firstOrNull comprehensive verification
     

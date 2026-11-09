@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3892: an interface default `fun` invoked unqualified on `this` inside an
 // enum class member bound directly to the interface default implementation,
 // bypassing the `$enumEntryDispatch$` ordinal switch — the enum entry's own

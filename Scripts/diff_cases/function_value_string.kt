@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun top(): Int = 7
 fun sum(x: Int, y: String?): Int = x + (y?.length ?: 0)
 fun isFunctionDescription(text: String): Boolean = text.contains("@") || text.contains("->")

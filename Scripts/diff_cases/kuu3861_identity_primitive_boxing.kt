@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3861: `===`/`!==` across the boxing boundary is JVM reference identity —
 // the primitive operand is boxed (Double/Float/unsigned kinds always fresh,
 // Int/Long/Byte/Short/Boolean/Char through the JVM identity cache) instead of

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun box(): String {
     class Local {
         fun <S : CharSequence> echo(value: S): S {

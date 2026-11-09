@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-CAP-005: the Comparator SAM constructor (and any generic call with a
 // trailing lambda) used to have its trailing lambda silently dropped when
 // used as a top-level or class-member property initializer, because the

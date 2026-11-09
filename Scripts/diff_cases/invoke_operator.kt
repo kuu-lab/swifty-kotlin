@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Adder {
     operator fun invoke(x: Int): Int = x + 1
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface WithCompanion {
     companion object {
         const val CONSTANT = "interface constant"

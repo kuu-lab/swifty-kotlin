@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val set = sequenceOf(3, 1, 2, 1, 3).toSet()
     println(set)

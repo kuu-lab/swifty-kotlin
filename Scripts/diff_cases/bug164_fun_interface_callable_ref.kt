@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-164 minimal repro: callable reference passed to fun interface parameter.
 
 fun interface Transformer {

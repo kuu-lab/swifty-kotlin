@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val r = CharArray(10) { 'x' }
     r[3] = '#'

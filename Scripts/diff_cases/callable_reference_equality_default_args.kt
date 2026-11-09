@@ -1,3 +1,4 @@
+// DIFF_JVM
 class V {
     fun target(x: String = "x", y: String = "y", z: String = "z") = x + y + z
 }

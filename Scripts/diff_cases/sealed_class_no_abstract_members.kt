@@ -1,3 +1,4 @@
+// DIFF_JVM
 sealed class S
 class SA(val x: Int) : S()
 

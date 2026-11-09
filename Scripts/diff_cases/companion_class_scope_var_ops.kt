@@ -1,3 +1,4 @@
+// DIFF_JVM
 class C {
     companion object {
         val log = mutableListOf<String>()

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A representation-preserving conversion through a safe call must produce a
 // value of the *result* type, not keep the receiver's box.
 fun main() {

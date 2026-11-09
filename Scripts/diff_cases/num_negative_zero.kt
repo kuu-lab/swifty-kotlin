@@ -1,3 +1,4 @@
+// DIFF_JVM
 // IEEE-754 negative zero parity: unary minus must flip the sign bit so that
 // -(0.0) == -0.0 (it must NOT be lowered as 0.0 - x, which yields +0.0).
 fun main() {

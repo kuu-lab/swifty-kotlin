@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // `Collection<T>`/`Set<T>`-typed receivers have no registered joinToString
     // symbol of their own (unlike List), so a call never resolves to a real Sema

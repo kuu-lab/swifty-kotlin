@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Vehicle(val name: String) {
     open fun describe(): String = "Vehicle($name)"
 }

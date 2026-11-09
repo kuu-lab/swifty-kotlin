@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-214: Double elements must survive Pair/Triple constructor bridges.
 fun main() {
     val pair = Pair("x", 1.0)

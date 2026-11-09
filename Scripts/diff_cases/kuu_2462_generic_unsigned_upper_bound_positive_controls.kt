@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T : UByte> explicitUByte(value: T): String = "OK"
 fun <T : UShort> explicitUShort(value: T): String = "OK"
 fun <T : UInt> inferredUInt(value: T): String = "OK"

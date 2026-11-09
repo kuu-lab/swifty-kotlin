@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun check(s: Set<Int>, x: Int): Boolean = x in s
 
 fun main() {

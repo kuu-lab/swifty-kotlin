@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.Delegates
 
 var age: Int by Delegates.vetoable(0) { prop, old, new ->

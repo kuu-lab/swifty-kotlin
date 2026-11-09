@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // STDLIB-620: Regex constructor, containsMatchIn
     val regex = Regex("[0-9]+")

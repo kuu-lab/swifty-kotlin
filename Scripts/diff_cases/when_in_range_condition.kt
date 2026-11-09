@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun hex(b: Int): Int = when (b) {
     in '0'.code..'9'.code -> b - '0'.code
     in 'a'.code..'f'.code -> b - 'a'.code + 10

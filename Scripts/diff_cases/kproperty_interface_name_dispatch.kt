@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KCallable.name read through an interface-typed receiver. Compiler-tagged
 // property references and runtime `property:` stubs answer through the
 // runtime. The runtime itable shim used to return the raw String handle where

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // EXPECT-STDOUT: OK
 class T(val value: Int) {}
 

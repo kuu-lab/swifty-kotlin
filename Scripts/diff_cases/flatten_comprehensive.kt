@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic nested list flatten using flatMap
     val nested = listOf(listOf(1, 2, 3), listOf(4, 5), listOf(6))

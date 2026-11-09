@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val s: String? = "hello"
     println(requireNotNull(s).length)

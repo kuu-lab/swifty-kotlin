@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val v = 1
     val s = "x"

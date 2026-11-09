@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-595: a mutable property with both custom accessors must call its getter
 // on reads. The setter is not evidence that reads can bypass the getter.
 class T1 {

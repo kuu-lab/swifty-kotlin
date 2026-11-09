@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val ignoreCase = Regex("hello", RegexOption.IGNORE_CASE)
     println(ignoreCase.containsMatchIn("HeLLo"))

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4103: `Int and Int` (and the other same-type bitwise infix members)
 // must resolve against the public kotlin.* member surface — the generated
 // JetBrains markdown lexers call `zzAttributes and 1 == 1` — instead of

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Top(val n: Int)
 
 fun mk(n: Int): Top = Top(n)

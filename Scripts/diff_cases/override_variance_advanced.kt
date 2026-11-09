@@ -1,3 +1,4 @@
+// DIFF_JVM
 
 // Advanced test cases for override variance
 

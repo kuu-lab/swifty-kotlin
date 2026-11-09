@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3230: a data class must keep final superclass implementations of
 // toString/hashCode/equals instead of regenerating them, including when the
 // implementation is inherited through a deeper chain. The direct `x.toString()`

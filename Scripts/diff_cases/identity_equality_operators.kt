@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Named {
     fun name(): String
 }

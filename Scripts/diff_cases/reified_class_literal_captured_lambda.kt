@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3742: a reified class literal in a lambda must use its captured token.
 private class OK2
 

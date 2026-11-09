@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2361: preserve the upstream inherited IFoo<Unit> SAM specialization.
 fun interface IFoo<T> {
     fun foo(): T

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Integer division/remainder, rem vs mod, and floorDiv parity with kotlinc,
 // including negative operands. Also Double rem/mod.
 fun main() {

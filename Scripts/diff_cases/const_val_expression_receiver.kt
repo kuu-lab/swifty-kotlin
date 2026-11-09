@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2862: inlining an object const val still evaluates an expression receiver.
 val sb = StringBuilder()
 object C {

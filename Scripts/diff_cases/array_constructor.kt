@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val arr = Array(3) { it * 2 }
     println(arr[0])

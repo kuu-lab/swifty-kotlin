@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f(x: Byte): String = "byte"
 fun f(x: Short): String = "short"
 

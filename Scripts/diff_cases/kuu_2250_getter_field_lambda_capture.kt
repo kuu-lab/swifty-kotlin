@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2250: A getter's backing field stays tied to its owning instance in lambdas.
 fun <T> eval(fn: () -> T) = fn()
 

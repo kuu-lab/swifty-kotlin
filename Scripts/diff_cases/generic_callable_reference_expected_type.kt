@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> identity(value: T): T = value
 fun <A, B> second(first: A, second: B): B = second
 fun use(ref: (Int) -> Int): Int = ref(42)

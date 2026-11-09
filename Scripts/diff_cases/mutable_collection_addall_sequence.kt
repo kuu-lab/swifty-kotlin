@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun addToCollection(values: MutableCollection<Int>, source: Sequence<Int>) {
     println(values.addAll(source))
     println(values)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> sub(a: List<List<T>>, b: List<List<T>>) = a - b
 
 fun main() {

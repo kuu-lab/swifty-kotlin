@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1285: a user extension with the same signature must win over the
 // bundled IntRange.contains(Byte) overload in direct and `in` calls.
 operator fun IntRange.contains(value: Byte): Boolean = false

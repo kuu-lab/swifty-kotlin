@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-inner-outer: an object literal's member function reads an immutable
 // property declared on a class reachable only through two `inner class`
 // `$outer` hops (Deep -> Inner -> Outer). Capture analysis previously only

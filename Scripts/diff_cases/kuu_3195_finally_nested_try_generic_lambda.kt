@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3195 (JetBrains finally/kt4134.kt): try/finally with a nested
 // try-catch inside finally, calling a generic lambda parameter on a String
 // argument. The inlined erased-ABI adapter smeared the flat String aggregate

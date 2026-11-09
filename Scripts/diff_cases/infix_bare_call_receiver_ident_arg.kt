@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3794: an infix call whose receiver is a bare `f()` invocation and
 // whose argument is a plain identifier must not absorb the next line into
 // the same statement (the trailing identifier was misjudged as a pending

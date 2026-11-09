@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: IntegerNarrowingPass must still run when the only Int
 // arithmetic in the module is synthesized by a later lowering pass
 // (data class hashCode = a.hashCode() * 31 + b.hashCode()). The user

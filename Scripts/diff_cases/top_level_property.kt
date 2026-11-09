@@ -1,3 +1,4 @@
+// DIFF_JVM
 val pi = 3.14
 var counter = 0
 

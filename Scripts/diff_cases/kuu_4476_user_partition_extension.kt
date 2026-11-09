@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <V, E> Iterable<Pair<V, E>>.partition(): Pair<List<V>, List<E>> =
     Pair(map { it.first }, map { it.second })
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("%x".format(-1))
     println("%x".format(-1L))

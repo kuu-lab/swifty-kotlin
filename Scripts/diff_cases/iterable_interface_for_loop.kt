@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-167: `for (x in xs)` over a value statically typed as an iterable
 // *interface* (`Iterable<T>`, `Collection<T>`, ...) or as a source class
 // implementing `Iterable` used to fall back to the range-iterator intrinsics,

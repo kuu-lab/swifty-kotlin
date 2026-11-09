@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val distinct = sequenceOf(1, 2, 1, 3, 2).distinct()
     println(distinct.toList())

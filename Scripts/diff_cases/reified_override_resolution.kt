@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3793: an override spelled with a rigid type parameter must not steal
 // the itable slot of an unrelated interface signature. `foo(t: T)` overrides
 // `A<T>.foo` only; `B.foo(Int)` keeps its default — on the JVM the erased

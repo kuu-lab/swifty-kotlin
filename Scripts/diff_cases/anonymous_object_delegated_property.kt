@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Delegate {
     var v = "d0"
     operator fun getValue(thisRef: Any?, property: kotlin.reflect.KProperty<*>): String = v

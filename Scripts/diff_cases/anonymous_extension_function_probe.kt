@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun probe(): Int.() -> String = fun Int.(): String { return "OK" }
 
 fun box(): String {

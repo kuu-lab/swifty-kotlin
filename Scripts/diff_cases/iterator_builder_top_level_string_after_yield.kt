@@ -1,3 +1,4 @@
+// DIFF_JVM
 var trace = ""
 
 fun main() {

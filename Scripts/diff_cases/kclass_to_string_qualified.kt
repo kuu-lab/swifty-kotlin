@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1080: Rendering uses the qualified name rather than the simple name hint.
 package sample
 

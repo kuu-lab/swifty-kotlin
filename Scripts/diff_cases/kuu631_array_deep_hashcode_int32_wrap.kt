@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-631: Array.contentDeepHashCode() is java.util.Arrays.deepHashCode —
 // result = 31 * result + elementHashCode(element) folded in 32-bit wrapping
 // Int at every step (recursing into nested arrays). KSwiftK's runtime bridge

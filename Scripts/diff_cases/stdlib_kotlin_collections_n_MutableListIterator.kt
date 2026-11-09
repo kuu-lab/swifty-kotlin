@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val values = mutableListOf(1, 2, 3)
     val iterator = values.listIterator()

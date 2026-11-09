@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-961: the `::` forms kotlinc accepts for extension declarations must
 // keep working — bare `::ext` rejection is covered by Sema unit tests
 // (diff cases require both compilers to succeed).

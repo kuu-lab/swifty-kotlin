@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3260: delegated interface members keep their operator/infix modifiers
 
 interface Indexed {

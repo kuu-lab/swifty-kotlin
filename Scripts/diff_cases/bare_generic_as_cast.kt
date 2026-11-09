@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1324: a bare cast recovers type arguments from the known superclass.
 open class Desc<T : Any, R>(val t: T, val defaultValue: R?)
 class ArgD<T : Any, R>(t: T, dv: R?) : Desc<T, R>(t, dv)

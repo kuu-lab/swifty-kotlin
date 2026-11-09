@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4346: Map.plus/Map.minus receivers must be `Map<out K, V>` like upstream
 // so that calls whose key argument widens K beyond the receiver's key type are
 // accepted (previously rejected with conflicting type-variable bounds).

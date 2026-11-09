@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic zip
     val a = listOf(1, 2, 3)

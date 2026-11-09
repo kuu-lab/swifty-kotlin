@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A property whose only customized accessor is the getter (no explicit
 // `set(value) { ... }` block) still has a backing field once the getter
 // references `field`. Its initializer, and any `field = ...` write inside

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface HasValue { val value: String }
 interface MutableValue { var value: String }
 enum class Inferred : HasValue {

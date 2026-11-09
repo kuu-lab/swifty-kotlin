@@ -1,3 +1,4 @@
+// DIFF_JVM
 // lateinit storage must start as "not initialized" in every member context,
 // and a lateinit assigned from a virtual call during super init must survive
 // the subclass's own initialization.

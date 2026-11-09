@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(255.toString(16))
     println((-255).toString(16))

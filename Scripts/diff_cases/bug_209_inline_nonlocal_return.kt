@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun myRepeat(times: Int, action: (Int) -> Unit) {
     var i = 0
     while (i < times) {

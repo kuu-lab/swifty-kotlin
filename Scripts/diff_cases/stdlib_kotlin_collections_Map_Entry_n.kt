@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class EntryValue<out K, out V>(
     override val key: K,
     override val value: V

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-233: `map[k] = v` goes through the bundled inline `kotlin.collections.set`,
 // which forwards to `put`. When the stdlib is consumed as a .kklib the inlined
 // call carried no callee symbol, so the erased type-parameter slots were invisible

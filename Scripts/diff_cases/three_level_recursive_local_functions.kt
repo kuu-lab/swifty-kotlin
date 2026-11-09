@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun box(): String {
     var calls = 0
     fun foo(x: Int) {

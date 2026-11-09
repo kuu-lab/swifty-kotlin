@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2093: independently boxed Booleans share the JVM singleton cache.
 fun box(b: Boolean): Any = b
 fun nullableBox(b: Boolean?): Any? = b

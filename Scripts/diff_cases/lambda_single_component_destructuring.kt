@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2006: A single component is still a destructuring lambda parameter.
 fun main() {
     val transform: (List<Int>) -> Int = { (a) -> a }

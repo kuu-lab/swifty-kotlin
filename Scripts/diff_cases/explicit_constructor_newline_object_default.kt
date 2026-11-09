@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Target constructor(val value: Any =
     object {})
 fun after() = 1

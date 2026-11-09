@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-629: MutableList.set/add(index, element)/addAll(index, collection) must
 // throw IndexOutOfBoundsException for an out-of-range index, not a raw Throwable.
 fun main() {

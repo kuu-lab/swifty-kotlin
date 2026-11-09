@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2164: an explicit SAM constructor accepts a variable of function type,
 // not only a lambda literal or callable reference.
 fun interface Stringify {

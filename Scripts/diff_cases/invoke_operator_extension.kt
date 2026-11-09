@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator fun String.invoke(n: Int) = repeat(n)
 operator fun Int.times(s: String) = s.repeat(this)
 class Box(val v: Int)

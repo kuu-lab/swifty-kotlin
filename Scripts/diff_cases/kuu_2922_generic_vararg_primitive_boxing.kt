@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> anyVararg(vararg x: T): Boolean = x[0] == 123f
 fun boxingNullablePrimitiveToAny(x: Float?) = x !== null && anyVararg(x)
 fun boxingPrimitiveToAny(x: Float) = anyVararg(x)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // insert(index, value)
     println(StringBuilder("hello").insert(5, " world").toString())

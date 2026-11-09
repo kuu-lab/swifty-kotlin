@@ -1,3 +1,4 @@
+// DIFF_JVM
 tailrec fun sum(n: Long, acc: Long): Long = if (n == 0L) acc else sum(n - 1, acc + n)
 
 tailrec fun count(n: Int, acc: Int = 0): Int = when {

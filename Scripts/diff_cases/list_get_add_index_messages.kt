@@ -1,3 +1,4 @@
+// DIFF_JVM
 // IndexOutOfBoundsException messages match the JVM ArrayList.
 fun main() {
     val l = mutableListOf(1, 2, 3)

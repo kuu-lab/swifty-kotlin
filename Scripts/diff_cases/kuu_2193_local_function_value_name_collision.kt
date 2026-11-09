@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun box(): String {
     var s = ""
     var foo = "O"

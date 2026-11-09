@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1966: direct, erased, and container calls across singleton declaration shapes.
 abstract class Converter<T : Any> {
     abstract fun conv(s: String): T

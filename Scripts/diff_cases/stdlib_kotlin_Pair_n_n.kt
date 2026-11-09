@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val pair = Pair(42, "answer")
     println(pair)

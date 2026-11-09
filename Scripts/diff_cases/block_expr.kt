@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun whenBlock(v: Int): Int = when (v) {
     0 -> { val a = 100; a + 1 }
     1 -> { val b = 200; b + 2 }

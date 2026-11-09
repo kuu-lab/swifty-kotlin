@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2937: primitive member calls on values smartcast to primitives via
 // `is`/`!is` on `Any` must operate on the unboxed value, not the box handle.
 // Adapted from JetBrains intrinsics/charToInt.kt.

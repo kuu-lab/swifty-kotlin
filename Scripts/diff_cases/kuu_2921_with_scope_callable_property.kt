@@ -1,3 +1,4 @@
+// DIFF_JVM
 class A {
     fun test(): Boolean {
         val foo: String.() -> Boolean = { false }

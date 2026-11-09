@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3937: inside a member function, an expected supertype pins the
 // constructor's own class type parameter (PersistentOrderedSet.add shape).
 interface PS<E> {

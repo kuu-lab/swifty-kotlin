@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3899: `x!!` on a statically non-null operand whose runtime slot cannot
 // encode a null value must not probe the raw slot — the null-sentinel bit
 // pattern is a legitimate payload there (`Long.MIN_VALUE`, `ULong` 2^63,

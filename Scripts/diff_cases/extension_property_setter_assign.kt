@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Foo(val v: Int)
 
 var Foo.tag: String

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(Regex("(?U)abc").find("zabc")?.value ?: "none")
     println(Regex("(?u)abc").find("zabc")?.value ?: "none")

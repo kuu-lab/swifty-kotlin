@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1029: unqualified private companion helpers are visible to their owner.
 class M {
     fun put(k: String): Int = helper(k)

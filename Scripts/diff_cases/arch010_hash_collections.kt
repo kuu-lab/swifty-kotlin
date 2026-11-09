@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val count = 100000
     val map = mutableMapOf<Int, Int>()

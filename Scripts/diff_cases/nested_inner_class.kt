@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Outer(val x: Int) {
     class Nested {
         fun greet(): String {

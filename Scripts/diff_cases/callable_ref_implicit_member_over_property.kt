@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Writer {
     fun flush(): Int
 }

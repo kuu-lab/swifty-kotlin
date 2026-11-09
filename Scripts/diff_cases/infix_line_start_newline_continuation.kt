@@ -1,3 +1,4 @@
+// DIFF_JVM
 infix fun Int.combine(other: Int): Int = this * 10 + other
 
 // KUU-949: inside `(`/`[` a newline is not a statement separator, so an

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-637: type-erased Comparable minOf/maxOf must follow Double.compare
 // total order (-0.0 < 0.0). Concrete maxOf(-0.0, 0.0) already used
 // kk_max_double; generic T : Comparable<T> goes through kk_compare_any.

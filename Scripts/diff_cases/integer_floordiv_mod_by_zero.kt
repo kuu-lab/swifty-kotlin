@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val z = 0
     try { println(5.floorDiv(0)) } catch (e: ArithmeticException) { println(e.message) }

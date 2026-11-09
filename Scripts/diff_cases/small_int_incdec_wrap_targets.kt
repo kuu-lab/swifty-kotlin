@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Holder { var b: Byte = 127; var us: UShort = 65535u }
 var g: Short = 32767
 

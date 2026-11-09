@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3113: value-class constructor must keep executing init blocks.
 var count = 0
 var log = ""

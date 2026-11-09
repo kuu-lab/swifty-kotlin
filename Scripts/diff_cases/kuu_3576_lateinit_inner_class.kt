@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3576 / JetBrains testData codegen/box/innerNested/kt63732.kt:
 // a member `fun foo` (or `fun counter`) must not shadow the top-level
 // property for property reads and writes inside inner-class inits and

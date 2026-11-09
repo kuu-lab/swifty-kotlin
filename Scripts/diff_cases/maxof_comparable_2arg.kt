@@ -1,3 +1,4 @@
+// DIFF_JVM
 // STDLIB-COMP-FN-005: maxOf 関数（Comparable版、2引数）
 
 fun main() {

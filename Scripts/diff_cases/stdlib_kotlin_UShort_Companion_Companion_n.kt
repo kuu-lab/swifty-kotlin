@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val directMax: UShort = UShort.MAX_VALUE
     val directMin: UShort = UShort.MIN_VALUE

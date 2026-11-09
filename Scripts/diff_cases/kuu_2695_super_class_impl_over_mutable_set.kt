@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class BaseSet<E> : MutableSet<E> {
     override fun addAll(elements: Collection<E>): Boolean {
         println("BaseSet.addAll")

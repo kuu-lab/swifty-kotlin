@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun pickInt(v: Int) = v + 1
 fun pickBool(v: Boolean) = if (v) 1 else 0
 

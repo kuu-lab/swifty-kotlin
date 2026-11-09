@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1844: Map.Entry equality compares both key and value structurally.
 fun main() {
     val m = mutableMapOf("a" to 1)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4179: an unannotated lambda returned through a generic higher-order
 // call (let/run) must receive its parameter types from a *nullable* function
 // expected type, including when the call sits in argument position behind a

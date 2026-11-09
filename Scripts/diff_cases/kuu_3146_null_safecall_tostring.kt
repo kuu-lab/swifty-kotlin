@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3146: a `null` literal safe call resolves to the single nullable
 // `Any.toString`/`hashCode`/`equals` member. `null` is typed `Nothing?`, a
 // bottom type that is nominally a subtype of every receiver, so without the

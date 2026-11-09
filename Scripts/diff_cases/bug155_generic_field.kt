@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-155: a non-null value stored through a generic T? field must survive
 // the following load, cast, and member call.
 

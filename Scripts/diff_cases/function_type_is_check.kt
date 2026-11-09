@@ -1,3 +1,4 @@
+// DIFF_JVM
 typealias Action = (Int) -> Int
 
 fun provide(action: Action?): Action? {

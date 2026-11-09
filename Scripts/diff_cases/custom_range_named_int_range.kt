@@ -1,3 +1,4 @@
+// DIFF_JVM
 class IntRange {
     operator fun contains(a: Int) = (1..2).contains(a)
 }

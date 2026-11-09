@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // KUU-635: Regex.split(input, limit) with zero-width matches must add the
     // pre-match segment (possibly empty), not the next character.

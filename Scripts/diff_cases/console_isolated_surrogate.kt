@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val star = "🌟"
     println(star.first())

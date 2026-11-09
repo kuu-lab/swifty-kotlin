@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2242 / KUU-3425: A receiver SAM lambda exposes its extension receiver as `this`.
 fun interface ReceiverFun { fun String.run(): String }
 

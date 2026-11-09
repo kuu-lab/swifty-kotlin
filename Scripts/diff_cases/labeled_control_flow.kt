@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // 1. break@outer from nested for loop
     outer@ for (i in 1..3) {

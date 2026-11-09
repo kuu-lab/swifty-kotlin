@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3839 / KT-78073: a `fun interface` SAM constructor used directly as a
 // property delegate (`by ReadOnlyProperty { ... }`) must infer its type
 // arguments from the delegate convention — the getValue `thisRef` argument

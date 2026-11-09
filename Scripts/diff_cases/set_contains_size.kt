@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val set = setOf(1, 2, 3)
     println(set.contains(2))

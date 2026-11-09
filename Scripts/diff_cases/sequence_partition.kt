@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Sequence.partition execution coverage: asSequence receivers, all-match, and
 // none-match results (basic and empty are covered by the
 // testCodegenSequencePartitionSplitsElements codegen test).

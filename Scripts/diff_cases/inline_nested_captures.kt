@@ -1,3 +1,4 @@
+// DIFF_JVM
 object InlineByteArrayVisitor {
     inline fun visit(data: ByteArray, action: (ByteArray) -> Unit) {
         action(data)

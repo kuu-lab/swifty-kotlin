@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression: an unqualified reference to a sibling extension property inside
 // another same-receiver extension body (`id` in `label`, `label` in
 // `describe`/`describeTwice`) must dispatch to that property's getter on the

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3960: a `KProperty0<T>.get()` result, typed as the enclosing rigid `T`,
 // must flow to the same-shape generic value overload instead of recursively
 // re-selecting the `KProperty0` overload — the pattern assertk relies on

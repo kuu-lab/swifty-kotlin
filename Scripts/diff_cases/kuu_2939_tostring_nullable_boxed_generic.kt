@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2939: `toString()` must resolve and render correctly for implicit
 // receivers of builtin types, `as T?`-boxed primitives, and generic
 // `T.myToString()` receivers (JetBrains intrinsics/tostring.kt).

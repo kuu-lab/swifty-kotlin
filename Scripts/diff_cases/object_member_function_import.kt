@@ -1,3 +1,4 @@
+// DIFF_JVM
 package views
 
 import views.Factories.freeze

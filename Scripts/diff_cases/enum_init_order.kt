@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Planet { MERCURY, VENUS, EARTH, MARS, JUPITER, SATURN, URANUS, NEPTUNE }
 
 fun main() {

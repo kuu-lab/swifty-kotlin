@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val empty = byteArrayOf()
     val values = byteArrayOf(1, -2, 127)

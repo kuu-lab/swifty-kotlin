@@ -1,3 +1,4 @@
+// DIFF_JVM
 import C.p
 import D.q as aliasQ
 

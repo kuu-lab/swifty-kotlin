@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3605: a protected member of a companion object is scoped to the
 // companion's containing class — code lexically inside the class sees it,
 // including inner and nested classes (JetBrains codegen/box/regressions/

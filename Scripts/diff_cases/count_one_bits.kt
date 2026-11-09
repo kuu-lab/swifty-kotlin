@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Zero — no bits set
     println(0.countOneBits())

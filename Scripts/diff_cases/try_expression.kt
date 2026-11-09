@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Handled : Throwable()
 class Unhandled : Throwable()
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1971: same-named local classes must keep their own members.
 fun main() {
     run {

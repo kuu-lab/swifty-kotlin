@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     try {
         throw IllegalArgumentException("bad arg")

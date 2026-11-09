@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1285: IntRange members retain priority over user extensions, while
 // exact cross-type user extensions win over the bundled source overloads.
 operator fun IntRange.contains(value: Int): Boolean {

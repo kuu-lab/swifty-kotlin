@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base { open fun f() = 1; fun classOnly() = 3 }
 interface Default { fun f() = 2; fun interfaceOnly() = 4 }
 class Qualified : Base(), Default {

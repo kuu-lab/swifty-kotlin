@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun testIfElse() {
     var n = 0
     if (1 < 0) n = 5 else @Suppress("X") n = 7

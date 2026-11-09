@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("-- thenByDescending basic --")
     val words = listOf("banana", "cherry", "fig", "apple", "date", "bat")

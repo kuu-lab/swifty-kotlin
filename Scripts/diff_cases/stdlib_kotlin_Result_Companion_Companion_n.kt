@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val success: Result<Int> = Result.success(42)
     println(success.isSuccess)

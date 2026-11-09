@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4024: a `when` over a nullable subject is exhaustive when the
 // positive `is` checks cover the non-null domain and a `null` branch
 // covers the rest (`is T` + `null` covers `T?`). A covering check alone

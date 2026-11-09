@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = buildList<T>(builderAction)
 
 fun demo(): Int {

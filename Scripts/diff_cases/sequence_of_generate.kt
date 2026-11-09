@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // sequenceOf: basic
     val s1 = sequenceOf(1, 2, 3).toList()

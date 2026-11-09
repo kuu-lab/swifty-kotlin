@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Compound assignment (`+=`, `-=`, `*=`, postfix `++`) on a class instance's
 // own stored property, referenced via the implicit `this` receiver from
 // inside its methods or an `init` block, must update the per-instance field

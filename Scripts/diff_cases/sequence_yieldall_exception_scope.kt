@@ -1,3 +1,4 @@
+// DIFF_JVM
 // yieldAll's first iterator probe is catchable by the producer. Failures after
 // delegation begins belong to the consumer. Iterator acquisition must run once.
 class YieldAllSource : Iterable<Int>, Sequence<Int> {

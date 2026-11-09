@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-C: extension functions whose RECEIVER is itself a function type.
 // `fun (Type).name()` was misparsed: KotlinParser+Declarations.swift's
 // parseFunctionDeclaration required an identifier-like name right after

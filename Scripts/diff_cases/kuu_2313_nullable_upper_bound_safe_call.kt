@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2313: A safe-call and a successful null check expose the non-null view
 // of a type parameter whose upper bound is nullable, while an unguarded call
 // remains invalid (covered by the Sema regression test).

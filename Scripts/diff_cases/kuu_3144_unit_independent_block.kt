@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3144: A `{ }` block on the line after a bare value (here `Unit`) is a
 // new statement, not a trailing lambda on that value. kotlinc reports
 // "lambda expression is never invoked" as a warning only; KSwiftK previously

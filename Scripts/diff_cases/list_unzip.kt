@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Zip two lists together
     val nums = listOf(1, 2, 3)

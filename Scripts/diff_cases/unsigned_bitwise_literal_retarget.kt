@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3967: unsigned integer literals retarget to the unsigned type the
 // expected type demands. `x and 0xFFU` types `0xFFU` as ULong for
 // ULong.and(ULong) — the same literal stays UInt for UInt.and(UInt) and

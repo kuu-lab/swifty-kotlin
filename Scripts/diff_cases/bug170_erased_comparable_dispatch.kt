@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-170: comparison operators on an erased `T : Comparable<T>` receiver are
 // lowered to the runtime `kk_compare_any` entry point. It used to require both
 // operands to have the exact same runtime type, so user-defined Comparable

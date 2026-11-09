@@ -1,3 +1,4 @@
+// DIFF_JVM
 package nestedalias
 
 typealias Alias = Outer.Nested

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Bob {
     fun Bob.bar() = "OK"
     fun Bob.other() = "OTHER"

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // DEBT-KIR-006 / BUG-158: primitive arrays' joinToString(transform) used to
     // silently ignore the transform lambda and join the elements' raw toString()

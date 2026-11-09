@@ -1,3 +1,4 @@
+// DIFF_JVM
 // JetBrains Kotlin testData/codegen/box/funInterface/typealiasedFunInterface.kt
 fun interface Foo<A, B> { fun invoke(a: A): B }
 typealias TA<K> = Foo<Int, K>

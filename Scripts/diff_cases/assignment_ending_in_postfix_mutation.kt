@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // BUG: an assignment statement whose LAST token is `++`/`--` was
     // mis-parsed as a standalone `<expr>++` mutation on a prefix of the

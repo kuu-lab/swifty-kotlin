@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4175: explicit call type arguments inside an inner class body must
 // keep the implicit enclosing instance's type arguments. `Box<Handler?>`
 // previously dropped `Outer<T>`'s argument, so `_box.v` mismatched every

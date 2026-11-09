@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class A<R> {
     open fun foo(r: R): R = r
 }

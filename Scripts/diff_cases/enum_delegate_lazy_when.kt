@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2201: delegated storage fields must not be counted as enum entries.
 // Reproduces KT-68339 from JetBrains/kotlin v2.3.10.
 enum class State {

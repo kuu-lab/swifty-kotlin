@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1237: private member extensions retain both receivers and infer String results.
 class Host {
     private fun String.helper(): String = this

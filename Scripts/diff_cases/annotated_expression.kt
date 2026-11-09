@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2046: expression annotations preserve operand and control-flow semantics.
 class Bag {
     fun add(x: Int): Int = x

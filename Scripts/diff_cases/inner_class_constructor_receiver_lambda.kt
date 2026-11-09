@@ -1,3 +1,4 @@
+// DIFF_JVM
 class LambdaOuter {
     inner class Inner(val block: String.() -> String) {
         fun render(text: String) = block(text)

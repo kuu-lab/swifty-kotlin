@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Transformer<A, B> { fun apply(a: A): B }
 class Doubler : Transformer<Int, Int> { override fun apply(a: Int) = a * 2 }
 fun main() {

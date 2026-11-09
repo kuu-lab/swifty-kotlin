@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2009: Keep a next-line inheritance colon attached to the implicit primary constructor.
 class ParseException(val value: Int)
     : Exception("parse")

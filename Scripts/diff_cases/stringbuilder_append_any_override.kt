@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class BuilderDisplayValue {
     override fun toString(): String = "display"
 }

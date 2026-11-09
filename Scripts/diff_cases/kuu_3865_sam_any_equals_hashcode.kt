@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3865: a `fun interface` whose only abstract member is a declared
 // `Any.equals`/`Any.hashCode` gets a SAM wrapper that must answer the
 // erased-Any dispatch tables (`kk_any_equals` / `kk_any_hashCode`), not

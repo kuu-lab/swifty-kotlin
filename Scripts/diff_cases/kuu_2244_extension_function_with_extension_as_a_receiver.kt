@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Pinned from Kotlin v2.3.10 compiler/testData/codegen/box/extensionFunctions/extensionFunctionWithExtensionAsAReceiver.kt.
 var result1 = "failed"
 var result2 = "failed"

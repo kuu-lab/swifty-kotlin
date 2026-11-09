@@ -1,3 +1,4 @@
+// DIFF_JVM
 val String.wordCount: Int get() = this.split(" ").size
 val List<Int>.secondOrNull: Int? get() = if (size >= 2) this[1] else null
 val Int.isEven: Boolean get() = this % 2 == 0

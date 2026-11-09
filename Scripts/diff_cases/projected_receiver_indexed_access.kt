@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Indexed access/assignment on projected receivers must apply use-site
 // variance: `out` forbids writes, `in` reads the captured upper bound.
 // The rejected shapes are covered by Sema tests; this case exercises the

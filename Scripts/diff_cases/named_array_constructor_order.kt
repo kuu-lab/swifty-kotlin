@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface NamedArrayGetter<T> { fun get(): T }
 fun namedArrayGetter() = object: NamedArrayGetter<Int> {
     override fun get(): Int = 42

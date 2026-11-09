@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3025: a bodiless generic class followed by a declaration starting with
 // a hard keyword (`fun`, `val`, `class`, …) lost its type-parameter list
 // because the `>`-follower check in the type-argument lookahead rejected

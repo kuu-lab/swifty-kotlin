@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface IFn { operator fun invoke(): String }
 abstract class Base(val fn: IFn)
 

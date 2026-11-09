@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T : UByte> asUByte(value: T): String = "OK"
 fun <T : UShort> asUShort(value: T): String = "OK"
 fun box(): String {

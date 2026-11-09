@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val value: String? = "hello"
     println(checkNotNull(value).length)

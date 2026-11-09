@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3573: SAM conversion inside a generic function whose interface type
 // arguments are determined by the call's other arguments and by the enclosing
 // function's own type parameters (kotlinc codegen/box/funInterface/

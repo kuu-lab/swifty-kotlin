@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var sum = 0L
     var count = 0

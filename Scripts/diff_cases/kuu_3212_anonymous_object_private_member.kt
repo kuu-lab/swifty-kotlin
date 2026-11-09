@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3212: a `private` member of an enclosing class is not inherited, so a
 // bare reference inside an anonymous object that subclasses it must resolve
 // to the enclosing instance — never the object's own same-named slot.

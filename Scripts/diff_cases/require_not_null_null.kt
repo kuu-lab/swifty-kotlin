@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-754: A null-only argument must still infer requireNotNull's T.
 fun requireWithoutMessage() {
     try {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1348: deferred non-null writes preserve outer null-check narrowing.
 class CaptureBuffer { fun readString(): String = "buffer" }
 

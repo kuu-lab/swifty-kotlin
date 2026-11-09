@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> fallback(result: Result<T>, defaultValue: T): T = result.getOrDefault(defaultValue)
 
 fun main() {

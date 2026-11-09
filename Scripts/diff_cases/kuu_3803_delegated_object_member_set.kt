@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3803: a bound delegated member property reference on a singleton
 // `object` crashed with SIGSEGV on get/set — the generated KProperty
 // wrapper invoked the real delegated accessor without its dispatch

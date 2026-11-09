@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Zero-width matches with a positive limit (KUU-635)
     println("abc".split(Regex("x*"), 3))

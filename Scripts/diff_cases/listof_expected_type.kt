@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2029: preserve valid expected-type, explicit-type, and spread inference.
 fun strings(): List<String> = listOf("a", "b")
 fun emptyStrings(): List<String> = listOf()

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // 2-arg Comparable maxOf
     println(maxOf("banana", "apple"))

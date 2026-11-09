@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val sb = StringBuilder("Hello World")
     sb.insert(5, ",")

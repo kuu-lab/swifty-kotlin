@@ -1,3 +1,4 @@
+// DIFF_JVM
 import A.B
 
 class A { class B(val xs: List<String>, val f: (String) -> String) }

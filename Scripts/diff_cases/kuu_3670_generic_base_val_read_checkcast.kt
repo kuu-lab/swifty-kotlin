@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3670: a `val s: T` read through a wrongly-parameterized generic base
 // must checkcast the erased getter result at the claim site
 // (kotlin/testData/codegen/box/bridges/test20.kt).

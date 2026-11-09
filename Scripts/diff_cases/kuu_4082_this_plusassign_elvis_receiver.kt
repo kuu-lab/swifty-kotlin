@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4082: `this += x` inside a receiver lambda whose receiver is a
 // parenthesized elvis expression — the protobuf Builder merge pattern
 // `(x ?: Builder()).apply { this += v }`. `this` is never assignable, so

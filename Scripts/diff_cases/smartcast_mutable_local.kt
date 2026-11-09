@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Node(val value: Int, val nextNode: Node?) {
     fun next(): Node? = nextNode
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Thing
 class Impl : Thing
 class Box<T>(val value: T)

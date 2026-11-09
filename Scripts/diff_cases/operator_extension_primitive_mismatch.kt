@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class Vec(val x: Int, val y: Int) { operator fun times(k: Int) = Vec(x * k, y * k) }
 operator fun Int.times(v: Vec) = v * this
 operator fun Int.times(s: String) = s.repeat(this)

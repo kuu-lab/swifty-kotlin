@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // KUU-648: Regex.fromLiteral keeps the original literal as `.pattern`.
     val r = Regex.fromLiteral("a.b")

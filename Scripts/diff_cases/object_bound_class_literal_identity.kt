@@ -1,3 +1,4 @@
+// DIFF_JVM
 package reflectionsingleton
 
 object Token

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface I
 operator fun I.invoke(): String = "OK"
 class C : I

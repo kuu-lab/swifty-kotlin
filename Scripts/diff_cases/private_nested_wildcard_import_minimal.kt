@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2252: minimal private nested classifier star-import reproducer.
 package p
 

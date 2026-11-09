@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3938: an infix initializer whose receiver is a call result and
 // whose operand is a top-level val (`g() shr LOG2`) must not swallow the
 // next local val declaration. The pending-infix parity count used to

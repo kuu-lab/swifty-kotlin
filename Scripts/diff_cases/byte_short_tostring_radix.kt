@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Byte/Short.toString(radix) resolve and render like Int.toString(radix).
 fun main() {
     println(10.toByte().toString(2))

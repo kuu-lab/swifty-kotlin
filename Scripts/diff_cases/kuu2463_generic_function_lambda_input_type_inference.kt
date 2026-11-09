@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression for KUU-2463. The iterator fold comes from JetBrains Kotlin v2.3.10's
 // realIteratorFoldl.kt; the remaining calls cover inference controls and boundaries.
 tailrec fun <T, A> Iterator<T>.foldl(acc: A, foldFunction: (T, A) -> A): A =

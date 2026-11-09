@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1934: A function-type factory must provide context before raw SAM construction.
 // KOTLINC_FLAGS: -Xjdk-release=17
 fun interface Operation<T> { fun apply(value: T): Int }

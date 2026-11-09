@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Box<T> {
     fun get(): T
 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-1063: kotlin.collections.List member APIs on a List-typed receiver —
 // size, isEmpty, indexed get, iterator(), listIterator(), listIterator(index),
 // and the for-loop desugared iterator.

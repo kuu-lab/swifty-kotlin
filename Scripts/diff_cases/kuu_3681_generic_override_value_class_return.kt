@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3681: A generic interface override must box value-class return values.
 
 @JvmInline

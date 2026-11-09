@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3524: `by` class-delegation clauses accept full expressions whose
 // bodies use braces: `when`, `if`/`else`, `try`/`catch`, object literals,
 // and parenthesized forms. A later top-level brace still opens the class

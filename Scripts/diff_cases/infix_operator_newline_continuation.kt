@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun rev(x: Int): Int {
     return (x and -0x1000000 ushr 24) or
         (x and 0x00ff0000 ushr 8) or

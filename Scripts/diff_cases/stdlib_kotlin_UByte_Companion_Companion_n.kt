@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(UByte.MAX_VALUE)
     println(UByte.MIN_VALUE)

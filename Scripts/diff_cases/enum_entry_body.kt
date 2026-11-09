@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-571: enum entries with anonymous class bodies must remain referencable
 // and dispatch their overridden members through the enum-typed value.
 enum class E(val w: Int) {

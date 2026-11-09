@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Box<T> { val value: T }
 class BoxImpl<T>(override val value: T) : Box<T>
 

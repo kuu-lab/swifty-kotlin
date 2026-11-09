@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> collect(builderAction: MutableList<T>.() -> Unit): List<T> = buildList<T>(builderAction)
 
 fun <K, V> collectMap(builderAction: MutableMap<K, V>.() -> Unit): Map<K, V> = buildMap<K, V>(builderAction) as Map<K, V>

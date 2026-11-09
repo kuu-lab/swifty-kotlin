@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2147: preserve fixed slots and alias-to-owner type argument order.
 class AliasPayload<A, B>(val first: A, val second: B)
 typealias TextPayload<T> = AliasPayload<String, T>

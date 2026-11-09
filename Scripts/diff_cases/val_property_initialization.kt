@@ -1,3 +1,4 @@
+// DIFF_JVM
 class InitValue(flag: Boolean) {
     val value: Int
     init {

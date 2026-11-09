@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // compareValues with non-null values
     println(compareValues(1, 2))

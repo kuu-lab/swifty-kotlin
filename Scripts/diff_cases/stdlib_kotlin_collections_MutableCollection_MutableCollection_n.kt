@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-677: mutable member calls through the MutableCollection interface.
 fun exercise(collection: MutableCollection<Int>) {
     println(collection.add(4))

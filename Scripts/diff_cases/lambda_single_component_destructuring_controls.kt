@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2006: Preserve multiple components, skipped entries, and parameter positions.
 class SingleBox(val value: Int) {
     operator fun component1(): Int = value

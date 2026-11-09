@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Holder(
     val f: (Int) -> String,
     val receiverF: Int.() -> Int

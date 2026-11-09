@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun <reified T> componentEmpty(): Array<T> = emptyArray<T>()
 inline fun <reified T> componentViaLambda(): Array<T> {
     val supplier = { emptyArray<T>() }

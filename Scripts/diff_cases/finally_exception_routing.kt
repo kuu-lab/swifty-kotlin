@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun routeWithFinally(): String {
     try {
         println("Before try block")

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val mutableList = sequenceOf(3, 1, 2, 1, 3).toMutableList()
     mutableList.add(99)

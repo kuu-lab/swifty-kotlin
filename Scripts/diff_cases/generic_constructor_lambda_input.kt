@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2141: infer the invariant carrier from an explicitly typed callback input.
 class Holder<T>(val action: (T) -> Unit)
 

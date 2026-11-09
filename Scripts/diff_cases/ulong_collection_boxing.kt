@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val big: ULong = 17663719463477156090uL
     val small: ULong = 5uL

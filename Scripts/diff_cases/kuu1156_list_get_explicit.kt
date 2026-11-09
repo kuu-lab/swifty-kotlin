@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> explicitFirst(values: List<T>): T = values.get(0)
 
 fun shortFirst(values: List<Short>): Short = values.get(index = 0)

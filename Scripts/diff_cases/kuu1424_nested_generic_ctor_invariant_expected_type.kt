@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1424: the outer parameter's expected type determines the nested constructor type argument.
 interface Thing {
     fun name(): String

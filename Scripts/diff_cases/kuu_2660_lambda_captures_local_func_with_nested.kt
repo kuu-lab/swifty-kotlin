@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun outer(): Int {
     fun inner(p: Int): Int {
         fun grand(c: Int): Int = c + 1

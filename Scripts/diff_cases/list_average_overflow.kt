@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(listOf(Int.MAX_VALUE, Int.MAX_VALUE).average())
     println(listOf(2_000_000_000, 2_000_000_000, 2_000_000_000).average())

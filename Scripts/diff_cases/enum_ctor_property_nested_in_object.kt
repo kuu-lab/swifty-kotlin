@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Enums nested under objects (not just classes) must get their
 // $enumConstructorProperty$ storage helpers emitted; previously the
 // synthesis walk only descended through classDecl.nestedClasses, so an

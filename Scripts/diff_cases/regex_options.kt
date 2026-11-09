@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // STDLIB-REGEX-096: Regex options complete implementation
 

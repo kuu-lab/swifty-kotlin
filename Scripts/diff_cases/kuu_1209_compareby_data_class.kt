@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1209: returned Comparator SAMs must preserve selector environments and data class arguments.
 data class P(val g: Int, val s: Int)
 

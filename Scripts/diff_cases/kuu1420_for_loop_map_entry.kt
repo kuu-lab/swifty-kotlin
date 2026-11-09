@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1420: `for (e in map)` elements are real Map.Entry objects. On
 // MutableMap the element is MutableEntry and setValue writes through; on
 // read-only Map the element supports key/value reads. Destructuring keeps

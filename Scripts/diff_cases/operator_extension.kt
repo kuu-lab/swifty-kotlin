@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator fun Int.plus(other: Int): Int = this - other
 
 fun main() {

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Regression for KUU-3666 / JetBrains KT-81617: nested do-while smart cast.
 fun foo(o: Any): Int {
     do {

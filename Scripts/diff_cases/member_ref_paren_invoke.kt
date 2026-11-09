@@ -1,3 +1,4 @@
+// DIFF_JVM
 class D { fun f() = 3 }
 class E { fun g(x: Int) = x + 3 }
 

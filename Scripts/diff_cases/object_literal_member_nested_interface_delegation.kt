@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1936: an initializer's interface delegation must not become property delegation.
 interface Iface { fun f(): Int }
 class Impl : Iface { override fun f() = 1 }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Adapted from JetBrains Kotlin v2.3.10 compiler/testData/codegen/box/casts/asWithGeneric.kt.
 // The main wrapper prints the upstream box result for native execution tests.
 fun <T> test1() = null as T

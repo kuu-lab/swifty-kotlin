@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class BaseList<E> : MutableList<E> {
     override fun add(element: E): Boolean {
         println("BaseList.add")

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun invertByte(value: UByte): UByte = value.inv()
 fun invertShort(value: UShort): UShort = value.inv()
 fun invertNullableByte(value: UByte?): UByte? = value?.inv()

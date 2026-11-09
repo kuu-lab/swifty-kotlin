@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Box {
     fun append(a: Int, b: Int, c: Int): String = "member"
     fun score(value: Int): Int = value + 1

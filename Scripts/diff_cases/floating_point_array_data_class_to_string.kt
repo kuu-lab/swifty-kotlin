@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class FloatingArrays(val doubles: DoubleArray, val floats: FloatArray)
 data class NullableFloatingArrays(val doubles: DoubleArray?, val floats: FloatArray?)
 

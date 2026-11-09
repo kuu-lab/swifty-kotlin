@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2288: JetBrains/kotlin compiler/testData/codegen/box/inference/kt39824.kt
 // pinned at 679366a83f99851b42f64795f10ed803ff011c73 (SHA-256 301d279984b9e60ef4838825e3cacb92479c0f41f7235c7bcdc16ae8e26bcc33).
 // The diff harness keeps the companion invoke overloads and adapts box() to

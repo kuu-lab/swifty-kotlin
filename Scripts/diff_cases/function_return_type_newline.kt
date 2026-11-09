@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4080 / KUU-4083: the `:` introducing a return type or declared type may
 // start on the line after an extension-receiver signature.
 class Box<A>(val a: A)

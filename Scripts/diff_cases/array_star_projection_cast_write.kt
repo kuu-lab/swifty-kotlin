@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun assign(a: Array<*>) {
     val b = a as Array<Any?>
     b[0] = 42

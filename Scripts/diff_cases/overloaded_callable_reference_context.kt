@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2005: Receiver and known arguments specialize reference inputs, not outputs.
 class Expr
 class Stmt

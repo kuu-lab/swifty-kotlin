@@ -1,3 +1,4 @@
+// DIFF_JVM
 var counter = 0
 
 fun value(): Int {

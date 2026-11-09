@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1930: retain explicit non-null bounds for star receiver lambda inputs.
 class Box<T : Any>(val value: T)
 fun <T : Any, R> Box<T>.map(transform: (T) -> R): R = transform(value)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Decoder(val value: Int)
 class Buffer
 

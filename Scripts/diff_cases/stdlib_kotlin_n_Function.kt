@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-740: kotlin.Function base interface resolution diff case
 
 fun main() {

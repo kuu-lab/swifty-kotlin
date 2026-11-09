@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Writing a `var` through an interface-typed receiver had no dispatch path
 // at all (the getter side has itable dispatch; the setter side fell through
 // to an undefined-symbol call). Covers a directly implementing class, a

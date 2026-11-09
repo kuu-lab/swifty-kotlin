@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun sink(vararg xs: String): String = xs.joinToString(",") + "#" + xs.size
 fun sinkI(vararg xs: Int): String = xs.joinToString(",") + "#" + xs.size
 fun mid(vararg parts: String): String = sink("h", *parts, "t")

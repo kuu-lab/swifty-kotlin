@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class LongHolder(val x: Long)
 data class FloatHolder(val x: Float)
 data class DoubleHolder(val x: Double)

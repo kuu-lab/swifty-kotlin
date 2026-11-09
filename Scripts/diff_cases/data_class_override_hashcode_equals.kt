@@ -1,3 +1,4 @@
+// DIFF_JVM
 data class Cust(val a: Int) {
     override fun equals(other: Any?) = other is Cust
     override fun hashCode() = 1

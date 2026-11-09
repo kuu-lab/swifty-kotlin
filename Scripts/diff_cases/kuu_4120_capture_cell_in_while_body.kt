@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4120: a `var` captured by a local/anonymous function or object literal
 // created inside a `while` body must share one cell with the loop condition.
 // Boxing it lazily at the capture site re-created the cell every iteration

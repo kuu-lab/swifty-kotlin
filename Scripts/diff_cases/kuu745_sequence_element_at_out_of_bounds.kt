@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-745: Sequence.elementAt must throw a catchable IndexOutOfBoundsException.
 fun main() {
     try {

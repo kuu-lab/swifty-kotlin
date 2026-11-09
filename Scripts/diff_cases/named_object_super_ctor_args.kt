@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-264: named (non-literal) object declarations must pass their
 // superclass constructor arguments to the super <init> call. Before the fix
 // the call was never emitted at all, so inherited properties kept their

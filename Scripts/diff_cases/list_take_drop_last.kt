@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = listOf(1, 2, 3, 4, 5)
     println(list.takeLast(3))

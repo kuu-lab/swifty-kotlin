@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-227: an open/abstract/override *class* property (stored, custom-getter,
 // or custom-setter) read or written through a base-typed reference must
 // dispatch to the actual runtime type's accessor, exactly like an ordinary

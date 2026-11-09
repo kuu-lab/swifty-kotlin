@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun optimizedSum(limit: Int): Int {
     var sum = 0
     var index = 0

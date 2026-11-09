@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     for (size in listOf(99999, 100000, 100001, 150000)) {
         println(generateSequence(0) { it + 1 }.take(size).last())

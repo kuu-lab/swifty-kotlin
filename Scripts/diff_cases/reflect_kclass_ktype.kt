@@ -1,3 +1,4 @@
+// DIFF_JVM
 // REFL-005: kotlin.reflect KClass members and KType
 open class Animal
 class Dog : Animal()

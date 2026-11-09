@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(Pair(1, "x") == Pair(1, "x"))
     println(Pair(1, "x") == Pair(2, "x"))

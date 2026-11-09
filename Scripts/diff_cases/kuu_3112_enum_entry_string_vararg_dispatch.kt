@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class E {
     A { override fun join(vararg xs: String): String = xs.joinToString("-") },
     B { override fun join(vararg xs: String): String = "B" + xs.size };

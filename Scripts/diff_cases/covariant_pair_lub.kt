@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1997: infer the common argument parent before checking probe's return type.
 open class Module
 class A: Module()

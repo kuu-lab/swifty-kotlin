@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3902: a value class stringified through an `Any`/nullable slot must
 // print its synthesized rendering once — `IC(s=OK)` — not wrap the nominal
 // box again (`IC(s=IC(s=…))`, which used to recurse through the erased

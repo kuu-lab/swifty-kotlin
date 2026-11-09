@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2047: runtime interface bridges must not compete with concrete super implementations.
 open class Base : Iterator<Int> {
     override fun hasNext(): Boolean = false

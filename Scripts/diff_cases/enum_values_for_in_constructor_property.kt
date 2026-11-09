@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Dogs(val id: String) {
     BULLDOG("bulldog"), TERRIER("terrier"), HOUND("hound"), MASTIFF("mastiff")
 }

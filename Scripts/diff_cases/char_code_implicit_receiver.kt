@@ -1,3 +1,4 @@
+// DIFF_JVM
 operator fun Char.times(other: Int): Int = code * other
 operator fun Char.plus(other: Char): Char = (code + other.code).toChar()
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Getter<E> {
     fun fetch(index: Int): E
 }

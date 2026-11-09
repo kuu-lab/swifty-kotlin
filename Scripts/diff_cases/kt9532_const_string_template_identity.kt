@@ -1,3 +1,4 @@
+// DIFF_JVM
 // JetBrains kt9532: `"1234$a"` where `a` is a `const val` is a compile-time
 // constant on the JVM — folded into one interned literal, so the non-const
 // initializers in A and B must share the same instance (KUU-3180).

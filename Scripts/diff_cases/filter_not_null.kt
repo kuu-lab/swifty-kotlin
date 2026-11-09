@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Basic filterNotNull on List<String?>
     val nullable = listOf("a", null, "b", null, "c")

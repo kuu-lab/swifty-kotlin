@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // removeAll with list
     val s1 = mutableSetOf(1, 2, 3, 4, 5)

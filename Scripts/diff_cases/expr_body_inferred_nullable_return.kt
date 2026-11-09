@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Expression-body functions whose inferred return type is nullable must not be
 // checked against the non-null `Any` header placeholder.
 fun anyOrNull(): Any? = null

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // STDLIB-REFLECT-060: KClass basic reflection features
 

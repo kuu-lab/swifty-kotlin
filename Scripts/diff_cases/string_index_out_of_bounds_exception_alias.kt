@@ -1,3 +1,4 @@
+// DIFF_JVM
 import java.lang.StringIndexOutOfBoundsException as StringBounds
 
 fun main() {

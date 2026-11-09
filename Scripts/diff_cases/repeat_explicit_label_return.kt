@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var sum = 0
     repeat(5) lbl@{

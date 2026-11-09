@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Source port of JetBrains Kotlin compiler/testData/diagnostics/tests/inner/nestedClassInObject.kt
 // at commit 679366a83f99851b42f64795f10ed803ff011c73, with execution controls.
 object Object {

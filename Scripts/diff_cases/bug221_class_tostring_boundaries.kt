@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-221 minimal reproducer: inherited and Any-erased class toString paths.
 
 open class Bug221Base {

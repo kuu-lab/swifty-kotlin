@@ -1,3 +1,4 @@
+// DIFF_JVM
 // ArrayIndexOutOfBoundsException messages match the JVM.
 fun main() {
     val a = arrayOf(1, 2, 3)

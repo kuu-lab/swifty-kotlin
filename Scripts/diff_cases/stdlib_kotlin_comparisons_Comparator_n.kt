@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.comparisons.then
 import kotlin.comparisons.thenDescending
 

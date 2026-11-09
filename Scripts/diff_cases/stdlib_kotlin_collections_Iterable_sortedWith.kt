@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class OneShotIterable<T>(private val values: List<T>) : Iterable<T> {
     var iteratorCalls: Int = 0
 

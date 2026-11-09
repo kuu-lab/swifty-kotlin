@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1932: a later inferred extension return must not contribute Any to a DSL vararg call.
 class Parser<out T>(val value: T)
 class ParserState(val choice: Int)

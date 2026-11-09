@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Box {
     val size: Int
         get() = 5

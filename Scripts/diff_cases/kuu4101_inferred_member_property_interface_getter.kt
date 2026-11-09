@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4101: an inferred member property declared in a later class must
 // publish its type before earlier bodies read it. `Wrap.size` derives from
 // the intrinsic array member `IntArray.size`, and `Iface.isZero` lives on an

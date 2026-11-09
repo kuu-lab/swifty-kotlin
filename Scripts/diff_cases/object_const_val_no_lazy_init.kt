@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Reading a `const val` of an object / companion is inlined at the use site
 // and must not run the owner's lazy initializer; a non-const member access
 // still must.

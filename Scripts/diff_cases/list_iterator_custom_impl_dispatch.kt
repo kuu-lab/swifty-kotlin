@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class ProbeListIterator : ListIterator<Int> {
     override fun hasNext(): Boolean {
         print("[hasNext]")

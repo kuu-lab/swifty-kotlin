@@ -1,3 +1,4 @@
+// DIFF_JVM
 @JvmInline
 value class Meters(val value: Int)
 

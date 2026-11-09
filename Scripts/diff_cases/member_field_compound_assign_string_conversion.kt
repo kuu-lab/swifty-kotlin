@@ -1,3 +1,4 @@
+// DIFF_JVM
 // `receiver.field += x` where `field: String` and `x` is not itself a String
 // must convert `x` the same way `+`/string-template concatenation does
 // (Kotlin's `String.plus(other: Any?)` calls `x.toString()`), before handing

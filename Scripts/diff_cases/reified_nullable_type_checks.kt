@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface ReifiedNullableMarker
 open class ReifiedNullableA : ReifiedNullableMarker
 class ReifiedNullableChild : ReifiedNullableA()

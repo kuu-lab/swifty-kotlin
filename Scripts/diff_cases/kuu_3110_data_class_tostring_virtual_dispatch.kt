@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3110: synthesized data class toString must dispatch virtually on
 // class-typed properties so the property's runtime override is used.
 open class Base {

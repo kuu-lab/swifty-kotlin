@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1318: non-property constructor parameters remain in scope in init blocks,
 // including member access after superclass constructor delegation.
 class Wrap(val inner: Int)

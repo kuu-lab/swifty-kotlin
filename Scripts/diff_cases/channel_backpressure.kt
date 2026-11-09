@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Test 1: Simulated buffered channel using a list
     val buffer = mutableListOf<Int>()

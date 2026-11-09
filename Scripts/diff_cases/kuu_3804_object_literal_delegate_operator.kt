@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3804: an anonymous `object` used as a `by` delegate expression keeps
 // member semantics for its `operator` functions. The property-declaration
 // delegate-body fallback must not re-parse the object body as a statement

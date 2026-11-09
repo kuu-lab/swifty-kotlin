@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3602: the SAM method has a function-typed extension receiver.
 fun interface S {
     fun (Int.() -> String).accept(): String

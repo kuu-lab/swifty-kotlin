@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base(val name: String)
 
 class Holder<T>(val value: T, val items: List<T>)

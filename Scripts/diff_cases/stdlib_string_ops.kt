@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("  hello  ".trim())
     println("1,2,3".split(","))

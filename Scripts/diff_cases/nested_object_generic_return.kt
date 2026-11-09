@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1966: a nested singleton's String override must satisfy the erased T-return ABI.
 abstract class GT<T : Any> {
     abstract fun conv(s: String): T

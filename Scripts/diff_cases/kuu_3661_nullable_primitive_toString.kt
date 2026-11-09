@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3661: toString() on nullable Float?/Double?/ULong? receivers must
 // render "null" for real nulls — their null sentinel bit pattern coincides
 // with a legitimate value (0.0/-0.0/ULong 2^63), so the tagged Any-member

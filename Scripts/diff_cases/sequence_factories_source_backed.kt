@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KSP-651: source-backed sequence factory overloads and lifecycle semantics.
 fun main() {
     val repeated = generateSequence({

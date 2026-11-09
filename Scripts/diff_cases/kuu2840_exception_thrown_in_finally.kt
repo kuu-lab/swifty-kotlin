@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2840: exceptions from inlined finally blocks must escape the try scopes
 // whose cleanup has already run, while remaining catchable by an outer try.
 var result = ""

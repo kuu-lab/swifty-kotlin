@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println('a' to 'b')
     println(true to false)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4387: an extension `var` whose name collides with a bundled collection
 // function (`last()`, `first()`) must still bind as a property under
 // property-access syntax. The collection member-call fast path claimed

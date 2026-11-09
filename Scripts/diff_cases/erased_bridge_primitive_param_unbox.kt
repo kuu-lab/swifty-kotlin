@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class Acc<T> { abstract fun add(a: T, b: T): T; fun sumAll(xs: List<T>, zero: T): T { var acc = zero; for (x in xs) acc = add(acc, x); return acc } }
 class DblAcc : Acc<Double>() { override fun add(a: Double, b: Double) = a + b }
 class FltAcc : Acc<Float>() { override fun add(a: Float, b: Float) = a + b }

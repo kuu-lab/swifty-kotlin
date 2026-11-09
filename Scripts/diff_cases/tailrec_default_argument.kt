@@ -1,3 +1,4 @@
+// DIFF_JVM
 tailrec fun down(n: Int, step: Int = 1): Int {
     if (n <= 0) return n
     return down(n - step)

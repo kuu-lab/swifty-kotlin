@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1307: transforms escape into the window iterator's anonymous object.
 fun windows(bonus: Int): Sequence<Int> =
     sequenceOf(1, 2, 3).windowed(2, 1, false) { it.size + bonus }

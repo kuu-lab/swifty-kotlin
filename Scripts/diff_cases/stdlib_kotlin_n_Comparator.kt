@@ -1,3 +1,4 @@
+// DIFF_JVM
 class ReverseComparator : Comparator<Int> {
     override fun compare(a: Int, b: Int): Int = b - a
 }

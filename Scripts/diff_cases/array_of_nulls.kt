@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val arr = arrayOfNulls<String>(3)
     println(arr.size)

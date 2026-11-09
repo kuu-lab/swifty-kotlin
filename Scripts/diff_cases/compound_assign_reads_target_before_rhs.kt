@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG: compound assignment (`x += rhs`) lowered the right-hand side before
 // reading the current target value, so when `rhs` itself mutated the same
 // variable (e.g. via `x++`/`++x`), the read/modify/write observed the

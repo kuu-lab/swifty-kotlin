@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Iface { fun f(): Int }
 fun get(x: Int): Int = x * 10
 fun set(x: Int): Int = x + 100

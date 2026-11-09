@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Search(private val goal: Int) {
     fun traverse(next: (Int) -> List<Pair<Int, Int>>): Int {
         var best = 0

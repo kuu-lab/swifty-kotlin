@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Test {
     private fun <T : Any> T.self() = object {
         fun calc(): T = this@self

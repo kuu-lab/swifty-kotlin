@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1423: an explicit single-type import ranks above same-package
 // declarations in Kotlin's classifier namespace, so `Pair` in type position
 // must resolve to the imported kotlin.Pair even though the root package

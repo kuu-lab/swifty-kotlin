@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun <reified T> isInstance(value: Any): Boolean = value is T
 inline fun <reified T> castOrNull(value: Any): T? = value as? T
 inline fun <reified T> castOrThrow(value: Any): T = value as T

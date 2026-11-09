@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3805: a vararg callable reference adapted to `(T) -> Int` keeps its
 // spread semantics when the generic call's expected result fixes T to an
 // array type (JetBrains KT-90169,

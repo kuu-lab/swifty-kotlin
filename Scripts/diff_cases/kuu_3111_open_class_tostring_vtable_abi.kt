@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class Base {
     override fun toString(): String = "base"
 }

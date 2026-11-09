@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Test cases for valid data class inheritance (STDLIB-DATA-014)
 
 // Case 1: Data class inheriting from regular open class - should be allowed

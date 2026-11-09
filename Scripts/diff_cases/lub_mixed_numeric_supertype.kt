@@ -1,3 +1,4 @@
+// DIFF_JVM
 // TypeSystem.lub() over 2+ non-identical, non-KClass bounds (here Int and
 // Long, neither a subtype of the other) fell back straight to Any instead of
 // walking to their nearest common ancestor kotlin.Number, so T was inferred

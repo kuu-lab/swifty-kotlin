@@ -1,3 +1,4 @@
+// DIFF_JVM
 @JvmInline
 value class Counter(val raw: Long) {
     val amount: Long get() = raw

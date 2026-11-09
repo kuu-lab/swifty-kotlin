@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> genericArrayIdentity(vararg values: T): Array<out T> = values
 fun concreteNestedIdentity(vararg values: Array<String>): Array<out Array<String>> = values
 fun scalarBoxedIntWords(vararg values: Int?): Int = values.size

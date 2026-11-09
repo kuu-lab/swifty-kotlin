@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Chan {
     fun cancel(cause: Throwable?): String = if (cause == null) "member-null" else "member-cause"
 }

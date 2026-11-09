@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     var i = 0
     do { i++; print("$i ") } while (i < 5)

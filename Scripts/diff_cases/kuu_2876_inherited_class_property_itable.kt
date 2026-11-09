@@ -1,3 +1,4 @@
+// DIFF_JVM
 open class MutableBase {
     var size: Int = 56
 }

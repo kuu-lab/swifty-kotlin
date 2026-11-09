@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(compareValues(1, 2))
     println(compareValues(2, 2))

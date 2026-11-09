@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-258: a relational comparison between a floating-point and an integer
 // operand must widen the integer side to the floating-point value it
 // represents before comparing -- kk_op_d*/kk_op_f* interpret both arguments

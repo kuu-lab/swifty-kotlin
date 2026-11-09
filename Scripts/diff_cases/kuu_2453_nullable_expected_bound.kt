@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Based on JetBrains Kotlin v2.3.10 compiler/testData/codegen/box/inference/ifWithAssignmentAndNothingBranch.kt.
 // Apache-2.0; pinned at commit 679366a83f99851b42f64795f10ed803ff011c73.
 fun <T : Any> materialize(): T {

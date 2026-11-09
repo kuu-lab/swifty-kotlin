@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Expr { fun <R> accept(v: Visitor<R>): R }
 interface Visitor<R> { fun visit(e: Literal): R }
 class Literal(val n: Int) : Expr { override fun <R> accept(v: Visitor<R>): R = v.visit(this) }

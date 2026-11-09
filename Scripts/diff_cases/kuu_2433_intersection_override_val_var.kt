@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Adapted from JetBrains/Kotlin compiler/testData/codegen/box/fakeOverride/intersectionOverrideBetweenValAndVar.kt.
 // Copyright JetBrains s.r.o. and Kotlin Programming Language contributors. Licensed under Apache-2.0.
 

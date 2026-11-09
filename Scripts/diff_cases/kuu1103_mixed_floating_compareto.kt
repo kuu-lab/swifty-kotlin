@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun compareDoubleInt(a: Double, b: Int): Int = a.compareTo(b)
 fun compareDoubleLong(a: Double, b: Long): Int = a.compareTo(b)
 fun compareDoubleFloat(a: Double, b: Float): Int = a.compareTo(b)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun sum(vararg xs: Int) = xs.sum()
 fun forward(vararg xs: Int) = sum(*xs) * 10
 fun mixed(vararg xs: Int) = sum(0, *xs, 100)

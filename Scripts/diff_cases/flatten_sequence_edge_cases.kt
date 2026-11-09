@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Sequence flatten edge cases
     println("=== Sequence flatten edge cases ===")

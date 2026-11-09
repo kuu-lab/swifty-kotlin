@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Labeled
 
 enum class Medal : Labeled { BRONZE, SILVER, GOLD }

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // A `;` inside a branch lambda of a property-initializer `when` must not end
 // the when entry.
 fun pick(mode: Int): String {

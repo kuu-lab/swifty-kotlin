@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3901: `suspendCoroutine` inside a nested suspend lambda (the inline
 // `onEach` argument) used to leave the `kk_lambda_*` decl non-suspend, so
 // CoroutineLoweringPass skipped it and the inlined

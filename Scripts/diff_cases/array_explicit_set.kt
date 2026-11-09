@@ -1,3 +1,4 @@
+// DIFF_JVM
 package array_test
 
 fun box(): String {

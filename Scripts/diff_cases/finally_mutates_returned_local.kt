@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun f4(): Int {
     var i = 0
     try {

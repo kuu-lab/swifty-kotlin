@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = mutableListOf(1)
     println(list.addAll(arrayOf(2, 3)))

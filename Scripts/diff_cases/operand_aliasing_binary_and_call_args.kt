@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG: a bare mutable-local operand in an ordinary binary expression or a
 // function/method call's argument list returned that local's persistent
 // storage register by identity. Since KIR instructions execute in append

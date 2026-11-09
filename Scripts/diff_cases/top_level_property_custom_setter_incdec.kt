@@ -1,3 +1,4 @@
+// DIFF_JVM
 var readCount = 0
 var writeCount = 0
 var stored = 0

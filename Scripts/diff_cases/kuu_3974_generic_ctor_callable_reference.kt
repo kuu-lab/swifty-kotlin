@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3974: an MVIKotlin-style `::BypassExecutor` reference passed to a
 // generic call must map the class type parameters onto the call's own
 // inference variables. Leaking the class's lexical parameters used to

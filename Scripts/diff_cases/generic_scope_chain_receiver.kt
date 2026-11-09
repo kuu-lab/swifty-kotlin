@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1026: scope chains must preserve the receiver's type parameter and nullability.
 class Key<T : Any>(val value: T)
 

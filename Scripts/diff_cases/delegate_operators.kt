@@ -1,3 +1,4 @@
+// DIFF_JVM
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 

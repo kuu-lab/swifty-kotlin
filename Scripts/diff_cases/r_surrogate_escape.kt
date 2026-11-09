@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println("\uD83D".length)
     println("\uD83D".first().code)

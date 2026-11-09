@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-inner-outer: `this@Label` qualifying an ancestor class reached through
 // two or more `inner class` `$outer` hops, referenced from inside an object
 // literal's own member function (not the enclosing function itself).

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun byteComparisons(b: Byte, other: Byte, s: Short, i: Int, l: Long, f: Float, d: Double) {
     println(b.compareTo(other))
     println(b.compareTo(s))

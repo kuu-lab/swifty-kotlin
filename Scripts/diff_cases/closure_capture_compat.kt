@@ -1,3 +1,4 @@
+// DIFF_JVM
 // CLSR-001: Comprehensive closure capture Kotlin compatibility test
 fun main() {
     // === 1. Immutable (val) capture ===

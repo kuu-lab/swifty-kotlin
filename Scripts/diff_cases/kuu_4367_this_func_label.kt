@@ -1,3 +1,4 @@
+// DIFF_JVM
 sealed interface E<out A, out B>
 data class L<out A>(val value: A) : E<A, Nothing>
 

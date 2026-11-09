@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun printAll(vararg items: Any) {
     items.forEach { println(it) }
 }

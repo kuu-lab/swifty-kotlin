@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1279: class-name shorthand must search the companion's supertypes.
 open class Root {
     open fun who(): String = "base"

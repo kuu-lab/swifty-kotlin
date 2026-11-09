@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val legacyChar = 65.toChar()
     println(legacyChar)

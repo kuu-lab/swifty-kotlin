@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> eq(a: T, b: T): Boolean = a == b
 
 fun main() {

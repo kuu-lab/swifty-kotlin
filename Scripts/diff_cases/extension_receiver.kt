@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun Int.inc2() = this + 2
 
 fun main() {

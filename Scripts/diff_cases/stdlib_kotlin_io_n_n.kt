@@ -1,3 +1,4 @@
+// DIFF_JVM
 private fun produceP(): String {
     print("p")
     return "value"

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Counter(var value: Int) {
     operator fun unaryPlus(): Counter = Counter(value)
     operator fun unaryMinus(): Counter = Counter(-value)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Direction {
     NORTH, SOUTH, EAST, WEST;
 

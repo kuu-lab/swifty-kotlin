@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Seg(var shared: Boolean = false) {
     fun unsharedCopy(): Seg = Seg()
     fun tag(): Int = 7

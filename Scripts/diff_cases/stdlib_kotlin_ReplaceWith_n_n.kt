@@ -1,3 +1,4 @@
+// DIFF_JVM
 @Deprecated(
     "Use newApi()",
     ReplaceWith("newApi()", "golden.diff.newApi", "kotlin.io.path.*")

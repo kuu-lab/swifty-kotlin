@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class ArgType<T : Any>(val hasParameter: kotlin.Boolean)
 open class Impl : ArgType<kotlin.Boolean>(false)
 object Bool2 : ArgType<Boolean>(false)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val sized = IntArray(3)
     println(sized.size)

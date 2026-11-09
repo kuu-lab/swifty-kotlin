@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun <T> test(): String {
     val x = object {
         fun <S> foo() = "OK"

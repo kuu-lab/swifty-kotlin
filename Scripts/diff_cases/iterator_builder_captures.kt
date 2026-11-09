@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1359: iterator {} builder blocks that capture external variables used
 // to panic at runtime (kk_array_get_inbounds) because the builder call dropped
 // the lambda's closure environment and the CPS launcher bound its arguments in

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val ops2: List<(Int) -> Int> = listOf({ it + 1 }, { it * 2 })
     println(ops2.map { it(10) })

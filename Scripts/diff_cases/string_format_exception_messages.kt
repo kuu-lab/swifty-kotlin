@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4150: the remaining java.util format-exception messages must match the
 // JVM byte-for-byte — DuplicateFormatFlagsException reports the single
 // repeated flag ('Flags = '-''), IllegalFormatFlagsException reports all

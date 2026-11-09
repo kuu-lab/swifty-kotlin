@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Int.rotateLeft
     println(1.rotateLeft(0))

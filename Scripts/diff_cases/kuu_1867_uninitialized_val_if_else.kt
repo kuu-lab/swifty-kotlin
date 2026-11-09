@@ -1,3 +1,4 @@
+// DIFF_JVM
 enum class Event { START, TEXT, CDATA, END }
 
 private fun event(cdata: Boolean): Event {

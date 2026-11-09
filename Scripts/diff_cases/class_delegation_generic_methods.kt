@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Echo {
     fun <T> echo(value: T): T
 }

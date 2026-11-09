@@ -1,3 +1,4 @@
+// DIFF_JVM
 private class IndexedValue
 
 fun main() {

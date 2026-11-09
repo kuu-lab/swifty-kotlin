@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1972: function values adapt to SAM parameters through ordinary member resolution.
 fun interface Action { fun run(n: Int): Int }
 interface S { fun choose(block: Action): Int }

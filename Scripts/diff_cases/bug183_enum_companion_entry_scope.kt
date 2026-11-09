@@ -1,3 +1,4 @@
+// DIFF_JVM
 // BUG-183 minimal repro: enum entries must be visible without qualification
 // inside the enum's companion object.
 

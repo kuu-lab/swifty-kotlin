@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun oneCapture(a: Double): Double {
     fun within(x: Double, y: Double): Double = x + y + a
     var x = 1.0

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun isPositive(n: Int): Boolean = n > 0
 fun negate(x: Int): Int = -x
 fun square(x: Int): Int = x * x

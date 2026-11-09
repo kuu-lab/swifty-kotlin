@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3243: an unqualified `super.<member>` resolves when exactly one direct
 // supertype actually provides the member through real supertype edges —
 // `Any` members reachable from every interface do not make the call

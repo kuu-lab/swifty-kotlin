@@ -1,3 +1,4 @@
+// DIFF_JVM
 class V { fun target(): String = "" }
 
 fun captureString(function: (V) -> String): Any = function

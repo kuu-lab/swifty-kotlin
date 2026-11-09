@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1073: infer T = Int from a callback returning Int? with T : Any.
 fun main() {
     val b = generateSequence { if (true) 1 else null }

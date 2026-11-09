@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun requireString(value: String?): String = value!!
 fun requireInt(value: Int?): Int = value!!
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-2092: preserve the invariant and contravariant reproducer from Kotlin's
 // compiler/testData/codegen/box/bridges/test23.kt (Kotlin 2.3.10).
 open class Foo(val x: Int)

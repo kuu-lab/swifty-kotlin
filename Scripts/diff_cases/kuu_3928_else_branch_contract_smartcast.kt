@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3928: a smart cast established inside an `else` branch must survive a
 // later flow split in the same branch. `ctx.flowState` is a snapshot taken at
 // the branch entry, so a second `branchOnCondition`-based split (a contract

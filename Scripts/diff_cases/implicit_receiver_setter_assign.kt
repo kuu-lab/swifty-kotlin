@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Foo {
     var x: Int = 1
         set(value) { field = value * 2 }

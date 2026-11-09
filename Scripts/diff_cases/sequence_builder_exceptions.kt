@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun probeBuilder(iterator: Iterator<Int>, useNext: Boolean) {
     try {
         if (useNext) println(iterator.next()) else println(iterator.hasNext())

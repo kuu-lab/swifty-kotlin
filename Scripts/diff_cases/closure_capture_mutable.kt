@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Mutable capture via forEach
     var total = 0

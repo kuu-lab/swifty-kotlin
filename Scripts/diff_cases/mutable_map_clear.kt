@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val map = mutableMapOf("a" to 1, "b" to 2)
     println(map)

@@ -1,3 +1,4 @@
+// DIFF_JVM
 private inline fun visit(action: () -> Unit) = action()
 
 private fun choose(first: Boolean): String {

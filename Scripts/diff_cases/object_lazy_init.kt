@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Kotlin initializes `object` and `companion object` bodies lazily on first
 // access (JVM `<clinit>` semantics), not eagerly at program start.
 

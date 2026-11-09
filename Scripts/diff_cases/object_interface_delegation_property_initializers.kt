@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface Service { fun value(): String }
 object Impl : Service { override fun value(): String = "delegate" }
 fun makeService(): Service = Impl

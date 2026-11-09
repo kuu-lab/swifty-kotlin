@@ -1,3 +1,4 @@
+// DIFF_JVM
 class VarArgs(val x: String?)
 class VarInner(val x: Any?)
 class VarOuter(val inner: VarInner?)

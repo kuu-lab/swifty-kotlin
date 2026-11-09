@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Result.map/recover/recoverCatching keep the transform's type, and
 // mapCatching resolves and captures exceptions thrown by the transform.
 fun main() {

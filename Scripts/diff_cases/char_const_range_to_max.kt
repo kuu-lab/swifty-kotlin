@@ -1,3 +1,4 @@
+// DIFF_JVM
 const val M = Char.MAX_VALUE
 
 fun main() {

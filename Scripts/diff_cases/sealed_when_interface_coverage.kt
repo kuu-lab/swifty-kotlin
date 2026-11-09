@@ -1,3 +1,4 @@
+// DIFF_JVM
 sealed class Grammar
 interface SimpleGrammar { val g: Grammar }
 class MaybeG(override val g: Grammar) : Grammar(), SimpleGrammar

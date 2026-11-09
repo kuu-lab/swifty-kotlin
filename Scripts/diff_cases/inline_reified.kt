@@ -1,3 +1,4 @@
+// DIFF_JVM
 inline fun <reified T> isType(value: Any): Boolean = value is T
 inline fun repeat3(action: () -> Unit) { action(); action(); action() }
 fun main() {

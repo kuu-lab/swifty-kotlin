@@ -1,3 +1,4 @@
+// DIFF_JVM
 abstract class A {
     abstract fun f()
     abstract val name: String

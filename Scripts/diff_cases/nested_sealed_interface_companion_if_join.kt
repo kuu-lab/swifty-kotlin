@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1288: infer nested companion properties before checking enclosing functions.
 import Outer.Inner.Slot as DeepSlot
 

@@ -1,3 +1,4 @@
+// DIFF_JVM
 class AtomicRef<T>(var v: T)
 
 class Holder(val x: Int?)

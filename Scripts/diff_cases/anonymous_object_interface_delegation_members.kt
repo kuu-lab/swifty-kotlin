@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1588: inherited members, overrides, storage, and enclosing-scope delegates.
 interface Parent<T> {
     fun read(): T

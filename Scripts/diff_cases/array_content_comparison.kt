@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val genericA: Array<Int?> = arrayOf(1, null, 3)
     val genericB: Array<Int?> = arrayOf(1, null, 3)

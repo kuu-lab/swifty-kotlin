@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-3596: a member `var` compound assignment inside a local class's init
 // block must resolve its operator against the property's inferred type. The
 // local-class path checked `init {}` before member property inference, so

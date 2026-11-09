@@ -1,3 +1,4 @@
+// DIFF_JVM
 typealias StringList = List<String>
 typealias Predicate<T> = (T) -> Boolean
 typealias IntPair = Pair<Int, Int>

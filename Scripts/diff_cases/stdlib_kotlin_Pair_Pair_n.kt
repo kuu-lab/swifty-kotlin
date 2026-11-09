@@ -1,3 +1,4 @@
+// DIFF_JVM
 // Diff regression for kotlin.Pair receiver members.
 fun main() {
     val pair = Pair(1, "one")

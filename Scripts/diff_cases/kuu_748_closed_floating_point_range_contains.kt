@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(0.5 in 0.0..1.0)
     println(0.0 in 0.0..1.0)

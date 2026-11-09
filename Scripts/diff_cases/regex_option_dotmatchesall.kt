@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // STDLIB-599: RegexOption.DOT_MATCHES_ALL
     // Without DOT_MATCHES_ALL, dot does not match newline

@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     // Int.countLeadingZeroBits() edge cases
     println(0.countLeadingZeroBits())           // all zeros → 32

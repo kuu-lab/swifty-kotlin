@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     println(listOf(1.toByte(), 2.toByte(), 3.toByte()).sum())
     println(listOf(4.toShort(), 5.toShort()).sum())

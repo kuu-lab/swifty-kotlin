@@ -1,3 +1,4 @@
+// DIFF_JVM
 class Greeter(val prefix: String) {
     fun greet(name: String): String = "$prefix $name"
 }

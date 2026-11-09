@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1314: non-null primitive identity uses value equality on Kotlin/JVM.
 fun compareDoubles(a: Double, b: Double) {
     println(a === b)

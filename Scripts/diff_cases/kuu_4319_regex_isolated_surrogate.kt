@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-4319: Regex must match isolated UTF-16 surrogate code units the way
 // java.util.regex does, and match results/replacements must round-trip them
 // instead of collapsing to U+FFFD.

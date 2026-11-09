@@ -1,3 +1,4 @@
+// DIFF_JVM
 fun main() {
     val list = listOf(3, 1, 2, 1)
     println(list.take(3))

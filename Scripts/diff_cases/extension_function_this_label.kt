@@ -1,3 +1,4 @@
+// DIFF_JVM
 // KUU-1243: An extension function's name labels its receiver, including
 // inside a suspend receiver lambda with the same receiver type.
 interface CC

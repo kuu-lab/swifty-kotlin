@@ -1,3 +1,4 @@
+// DIFF_JVM
 interface I { fun a(): String; val p: Int }
 class X : I { override fun a() = "xa"; override val p = 1 }
 class Y : I { override fun a() = "ya"; override val p = 2 }
