@@ -456,20 +456,30 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         let coroutineStartFQName = coroutinesPkg + [interner.intern("CoroutineStart")]
-        for entryName in ["DEFAULT", "LAZY", "ATOMIC", "UNDISPATCHED"] {
-            let entryInterned = interner.intern(entryName)
-            let entryFQName = coroutineStartFQName + [entryInterned]
-            if symbols.lookup(fqName: entryFQName) == nil {
-                let entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entryInterned,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(coroutineStartSymbol, for: entrySymbol)
-                symbols.setPropertyType(coroutineStartType, for: entrySymbol)
+        // KUU-4375: bundled `kotlinx/coroutines/CoroutineStart.kt` declares the
+        // enum in Kotlin source, so its real entries (name/ordinal/values/
+        // toString) must not be shadowed by these collapsed `.field` markers.
+        // Only the fully residual path — no bundled declaration and no imported
+        // metadata about to materialize — still needs them.
+        let coroutineStartDeclaresOwnEntries = context.bundledIndex.containsNominal(fqName: coroutineStartFQName)
+            || symbols.isSourceBackedSymbol(coroutineStartSymbol)
+            || symbols.hasPendingImportedNominalMetadata(for: coroutineStartSymbol)
+        if !coroutineStartDeclaresOwnEntries {
+            for entryName in ["DEFAULT", "LAZY", "ATOMIC", "UNDISPATCHED"] {
+                let entryInterned = interner.intern(entryName)
+                let entryFQName = coroutineStartFQName + [entryInterned]
+                if symbols.lookup(fqName: entryFQName) == nil {
+                    let entrySymbol = symbols.define(
+                        kind: .field,
+                        name: entryInterned,
+                        fqName: entryFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(coroutineStartSymbol, for: entrySymbol)
+                    symbols.setPropertyType(coroutineStartType, for: entrySymbol)
+                }
             }
         }
         // `CoroutineStart.isLazy`: a compile-time-folded member. The enum

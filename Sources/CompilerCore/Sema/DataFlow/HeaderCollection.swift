@@ -366,6 +366,11 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "text", "CharDirectionality"]
+            // KUU-4375: the bundled `enum class CoroutineStart` reclaims the
+            // synthetic coroutine shell; restoring its declSite makes it
+            // source-backed so the enum lowering helpers
+            // ($enumName$/$enumOrdinal$/values) are exported in metadata.
+            || resolvedFQName == ["kotlinx", "coroutines", "CoroutineStart"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
             // KUU-876: the source-backed InvalidMutabilityException must keep
             // its bundled declSite when the synthetic anchor is reused.

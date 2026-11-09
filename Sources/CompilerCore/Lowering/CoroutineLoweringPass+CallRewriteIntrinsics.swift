@@ -24,7 +24,28 @@ extension CoroutineLoweringPass {
         symbolByExprRaw: [Int32: SymbolID],
         using rewrite: SuspendRewriteContext
     ) -> [KIRInstruction]? {
-        guard call.callee == rewrite.ctx.interner.intern("kk_coroutine_start_is_lazy"),
+        // Source-mode reads lower straight to the external link name; calls
+        // imported from a kklib record are emitted through the `isLazy`
+        // property/getter symbol carrying that same link name.
+        let isCoroutineStartIsLazyRead: Bool = {
+            if call.callee == rewrite.ctx.interner.intern("kk_coroutine_start_is_lazy") {
+                return true
+            }
+            guard let symbolID = call.symbol,
+                  let sema = rewrite.ctx.sema
+            else {
+                return false
+            }
+            if sema.symbols.externalLinkName(for: symbolID) == "kk_coroutine_start_is_lazy" {
+                return true
+            }
+            guard let info = sema.symbols.symbol(symbolID), info.fqName.count >= 2 else {
+                return false
+            }
+            return rewrite.ctx.interner.resolve(info.fqName[info.fqName.count - 2]) == "CoroutineStart"
+                && rewrite.ctx.interner.resolve(info.name) == "isLazy"
+        }()
+        guard isCoroutineStartIsLazyRead,
               let result = call.result
         else {
             return nil
