@@ -1066,9 +1066,14 @@ extension CallTypeChecker {
             calleeName: calleeName,
             args: resolvedArgs,
             explicitTypeArgs: explicitTypeArgs,
-            dispatchReceiverTypes: additionalDispatchReceiverTypes + (bindsObjectDispatchReceiver
-                ? importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
-                : []) + ctx.implicitReceiverMemberLookupEntries().map {
+            // `import C.fi` supplies C as the dispatch receiver for member
+            // extensions too: `x.fi()` must specialize the declaring generic
+            // owner (`C : I<String>` binds `T`). The bound-object set stays
+            // gated — it rewrites `implicitReceiverType` for ordinary members,
+            // which only unqualified import calls opt into (KUU-4510).
+            dispatchReceiverTypes: additionalDispatchReceiverTypes
+                + importedObjectDispatchReceiverTypes(named: calleeName, candidates: candidates, ctx: ctx)
+                + ctx.implicitReceiverMemberLookupEntries().map {
                     // Inside a builder-inference callback an implicit receiver
                     // can still hold the outer call's unsolved variables
                     // (`Scope<E>` from `binding`'s receiver parameter). Once
