@@ -5,8 +5,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.OffsetDateTime
+import java.time.ZonedDateTime
 import java.time.ZoneOffset
 import java.time.DateTimeException
+import java.time.javaTimeFormatYear
 import java.time.javaTimeTwoDigits
 
 /** Formats the bundled java.time value types using ISO or a common Java pattern. */
@@ -15,7 +17,11 @@ public class DateTimeFormatter private constructor(
     private val isoKind: Int,
 ) {
     public fun format(value: LocalDate): String =
-        if (isoKind == 1) value.toString() else formatPattern(value, null, null)
+        when (isoKind) {
+            1 -> value.toString()
+            8 -> javaTimeBasicIsoDate(value)
+            else -> formatPattern(value, null, null)
+        }
 
     public fun format(value: LocalTime): String =
         if (isoKind == 2) value.toString() else formatPattern(null, value, null)
@@ -31,6 +37,12 @@ public class DateTimeFormatter private constructor(
         5 -> value.toString()
         6 -> value.toLocalDate().toString() + value.offset.toString()
         7 -> value.toLocalTime().toString() + value.offset.toString()
+        8 -> javaTimeBasicIsoDate(value.toLocalDate(), value.offset)
+        else -> formatPattern(value.toLocalDate(), value.toLocalTime(), value.offset)
+    }
+
+    public fun format(value: ZonedDateTime): String = when (isoKind) {
+        8 -> javaTimeBasicIsoDate(value.toLocalDate(), value.offset)
         else -> formatPattern(value.toLocalDate(), value.toLocalTime(), value.offset)
     }
 
@@ -111,6 +123,7 @@ public class DateTimeFormatter private constructor(
         public val ISO_OFFSET_DATE: DateTimeFormatter = DateTimeFormatter("yyyy-MM-dd", 6)
         public val ISO_OFFSET_TIME: DateTimeFormatter = DateTimeFormatter("HH:mm:ss", 7)
         public val ISO_OFFSET_DATE_TIME: DateTimeFormatter = DateTimeFormatter("yyyy-MM-dd'T'HH:mm:ss", 5)
+        public val BASIC_ISO_DATE: DateTimeFormatter = DateTimeFormatter("yyyyMMdd", 8)
 
         public fun ofPattern(pattern: String): DateTimeFormatter = DateTimeFormatter(pattern, 0)
     }
@@ -178,4 +191,11 @@ private fun javaTimeMonthName(month: Int): String = when (month) {
     10 -> "October"
     11 -> "November"
     else -> "December"
+}
+
+private fun javaTimeBasicIsoDate(date: LocalDate, offset: ZoneOffset? = null): String {
+    val dateText = javaTimeFormatYear(date.year) + javaTimeTwoDigits(date.monthValue) + javaTimeTwoDigits(date.dayOfMonth)
+    if (offset == null) return dateText
+    val offsetText = if (offset.totalSeconds == 0) "Z" else offset.id.replace(":", "")
+    return dateText + offsetText
 }
