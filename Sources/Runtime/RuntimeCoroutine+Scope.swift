@@ -659,7 +659,7 @@ public func kk_coroutine_scope_async_with_cont(
         yieldsDeferredResult: true,
         registerWithScope: plan.registerWithScope,
         prepare: { task, handle in
-            context.jobHandleRaw = handle
+            context.installJobHandle(handle)
             childScope.adoptJob(task.completionJob)
             plan.parent?.registerChild(handle)
         }
@@ -730,7 +730,7 @@ public func kk_coroutine_scope_async(
         yieldsDeferredResult: true,
         registerWithScope: plan.registerWithScope,
         prepare: { task, handle in
-            context.jobHandleRaw = handle
+            context.installJobHandle(handle)
             childScope.adoptJob(task.completionJob)
             plan.parent?.registerChild(handle)
         }
@@ -902,7 +902,7 @@ private func runtimeScopeLaunch(
         prepare: { task, handle in
             // The receiver's context contains the child Job, so nested builders
             // inherit the child's name/dispatcher and attach to the child.
-            context.jobHandleRaw = handle
+            context.installJobHandle(handle)
             childScope.adoptJob(task.completionJob)
             parent?.registerChild(handle)
         }

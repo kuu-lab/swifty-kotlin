@@ -155,7 +155,7 @@ public func __kk_run_blocking_context(
     let scheduler = runtimeBlockingScheduler(context: context, fallbackLoop: waitLoop)
     // No interceptor: expose the loop that actually executes the body.
     if context.dispatcherElementHandle == 0 {
-        context.dispatcherHandleRaw = waitLoop.elementHandle()
+        context.installDispatcherElementHandle(waitLoop.elementHandle())
     }
     let scope = RuntimeCoroutineScope(context: context)
     scope.blockingScheduler = scheduler
@@ -164,7 +164,7 @@ public func __kk_run_blocking_context(
     job.propagatesFailureToParent = false
     job.markStarted()
     let jobRaw = runtimeRegisterObject(job)
-    context.jobHandleRaw = jobRaw
+    context.installJobHandle(jobRaw)
     scope.adoptJob(job)
     let invocation = RuntimeContinuationState(functionID: 0)
     invocation.scope = scope
