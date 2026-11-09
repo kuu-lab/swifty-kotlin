@@ -71,6 +71,35 @@ extension BuildASTPhase {
         return modifiers
     }
 
+    /// Source range of a specific modifier keyword on a declaration
+    /// (e.g. `override`), at top level in its token stream. kotlinc
+    /// underlines the modifier itself for modifier-scoped diagnostics like
+    /// 'X overrides nothing', not the declaration head.
+    func declarationModifierKeywordRange(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        matching target: Keyword
+    ) -> SourceRange? {
+        let tokens = collectTokens(from: nodeID, in: arena)
+        var depth = BracketDepth()
+        for index in tokens.indices {
+            let token = tokens[index]
+            depth.track(token.kind)
+            if depth.isAtTopLevel, case let .keyword(keyword) = token.kind {
+                if keyword == target {
+                    return token.range
+                }
+                switch keyword {
+                case .fun, .class, .object, .interface, .val, .var, .typealias:
+                    return nil
+                default:
+                    break
+                }
+            }
+        }
+        return nil
+    }
+
     func extractQualifiedPath(
         from nodeID: NodeID,
         in arena: SyntaxArena,
