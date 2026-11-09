@@ -15,6 +15,7 @@ class RuntimeThrowableBox {
     /// constructor-provided `null` cause still counts as initialized.
     var causeInitialized: Bool
     var stackTraceAddresses: [Int]
+    var stackTraceFrames: [RuntimeLogicalStackTraceFrame]
     var stackTraceElementsRaw: Int = 0
     var suppressionEnabled = true
     var writableStackTrace = true
@@ -42,6 +43,7 @@ class RuntimeThrowableBox {
         self.causeInitialized = cause != 0
         self.messageRaw = messageRaw == runtimeNullSentinelInt ? 0 : messageRaw
         self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
+        self.stackTraceFrames = runtimeCurrentLogicalStackTrace()
     }
 }
 

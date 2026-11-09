@@ -26,6 +26,7 @@ extension NativeEmitter {
         let returnsRawStringRuntimeCallback: Bool
         let nameCounter: GeneratedNameCounter
         let diContext: DebugInfoContext?
+        let stackTraceMetadata: CodegenStackTraceFunctionMetadata
 
         var builder: LLVMCAPIBindings.LLVMBuilderRef!
         var currentBlock: LLVMCAPIBindings.LLVMBasicBlockRef!
@@ -50,6 +51,9 @@ extension NativeEmitter {
         var gcMutatorLeaveFunction: LLVMFunction?
         var gcSafepointFunction: LLVMFunction?
         var gcRootFrameActive = false
+        var stackTraceFrameEntered = false
+        var stackTraceLastFileName: String?
+        var stackTraceLastLine: Int?
         var gcRootSlotsByExpression: [Int32: LLVMCAPIBindings.LLVMValueRef] = [:]
         var gcRootSlotsByParameter: [Int: LLVMCAPIBindings.LLVMValueRef] = [:]
         var livenessAnalysis: FunctionLivenessAnalysis?
@@ -90,6 +94,15 @@ extension NativeEmitter {
             self.returnsRawStringRuntimeCallback = returnsRawStringRuntimeCallback
             self.nameCounter = nameCounter
             self.diContext = diContext
+            self.stackTraceMetadata = CodegenSymbolSupport.stackTraceMetadata(
+                for: function,
+                interner: emitter.interner,
+                symbols: emitter.symbols,
+                sourceManager: emitter.sourceManager,
+                fileFacadeNamesByFileID: emitter.fileFacadeNamesByFileID
+            )
+            self.stackTraceLastFileName = stackTraceMetadata.initialFileName
+            self.stackTraceLastLine = stackTraceMetadata.initialLine
             self.maxKIRArgumentCountByExternalCallee = NativeEmitter.maxKIRArgumentCountByExternalCallee(
                 body: function.body,
                 interner: emitter.interner

@@ -104,6 +104,46 @@ struct CodegenBackendThrowablePrintStackTraceTests {
         }
     }
 
+    @Test
+    func testStackTraceUsesJvmStyleKotlinFrames() throws {
+        let source = """
+        package stack_traces
+
+        fun myFunc() {
+            throw Exception("boom")
+        }
+
+        fun main() {
+            try { myFunc()
+            } catch (e: Exception) {
+                println(e.stackTraceToString())
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let fileName = URL(fileURLWithPath: path).lastPathComponent
+            let facadeName = URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent + "Kt"
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ThrowableJvmStyleStackTrace",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let lines = result.stdout.split(separator: "\n").map(String.init)
+            #expect(lines.first == "java.lang.Exception: boom")
+            #expect(lines.contains("\tat stack_traces.\(facadeName).myFunc(\(fileName):4)"))
+            #expect(lines.contains("\tat stack_traces.\(facadeName).main(\(fileName):8)"))
+            #expect(!result.stdout.contains("0x"))
+            #expect(!result.stdout.contains("$s"))
+            #expect(normalizeThrowableStderr(result.stderr).isEmpty)
+        }
+    }
+
     /// KUU-4320: circular suppressed/cause graphs must not recurse without
     /// bound — JVM `printEnclosedStackTrace` collapses any revisit (true
     /// cycle or diamond) to "[CIRCULAR REFERENCE: ...]" and

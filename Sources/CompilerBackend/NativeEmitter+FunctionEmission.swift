@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import Foundation
 import CompilerCore
 
 extension NativeEmitter {
@@ -50,6 +51,93 @@ extension NativeEmitter {
 }
 
 extension NativeEmitter.FunctionEmissionContext {
+
+    func emitRuntimeStackTraceEnter() {
+        guard let enterFunction = declareExternalFunction(
+            named: "kk_runtime_stack_trace_enter",
+            argumentCount: 4,
+            appendThrownChannel: false
+        ),
+              let className = stackTraceStringPointer(stackTraceMetadata.className, suffix: "class"),
+              let methodName = stackTraceStringPointer(stackTraceMetadata.methodName, suffix: "method"),
+              let fileName = stackTraceStringPointer(stackTraceMetadata.initialFileName, suffix: "file"),
+              let line = bindings.constInt(int64Type, value: UInt64(max(0, stackTraceMetadata.initialLine)))
+        else {
+            return
+        }
+        _ = bindings.buildCall(
+            builder,
+            functionType: enterFunction.type,
+            callee: enterFunction.value,
+            arguments: [className, methodName, fileName, line],
+            name: nameCounter.nextName("stack_trace_enter_")
+        )
+        stackTraceFrameEntered = true
+    }
+
+    func emitRuntimeStackTraceLocation(fileName: String, line: Int, suffix: String) {
+        guard stackTraceFrameEntered,
+              line > 0,
+              stackTraceLastFileName != fileName || stackTraceLastLine != line,
+              let updateFunction = declareExternalFunction(
+                  named: "kk_runtime_stack_trace_set_location",
+                  argumentCount: 2,
+                  appendThrownChannel: false
+              ),
+              let fileNameValue = stackTraceStringPointer(fileName, suffix: "location_\(suffix)"),
+              let lineValue = bindings.constInt(int64Type, value: UInt64(line))
+        else {
+            return
+        }
+        _ = bindings.buildCall(
+            builder,
+            functionType: updateFunction.type,
+            callee: updateFunction.value,
+            arguments: [fileNameValue, lineValue],
+            name: nameCounter.nextName("stack_trace_location_")
+        )
+        stackTraceLastFileName = fileName
+        stackTraceLastLine = line
+    }
+
+    func emitRuntimeStackTraceExit() {
+        guard stackTraceFrameEntered,
+              let exitFunction = declareExternalFunction(
+                  named: "kk_runtime_stack_trace_exit",
+                  argumentCount: 0,
+                  appendThrownChannel: false
+              )
+        else {
+            return
+        }
+        _ = bindings.buildCall(
+            builder,
+            functionType: exitFunction.type,
+            callee: exitFunction.value,
+            arguments: [],
+            name: nameCounter.nextName("stack_trace_exit_")
+        )
+    }
+
+    private func stackTraceStringPointer(
+        _ value: String,
+        suffix: String
+    ) -> LLVMCAPIBindings.LLVMValueRef? {
+        guard let stringPointer = bindings.buildGlobalStringPtr(
+            builder,
+            value: value,
+            name: nameCounter.nextName("stack_trace_\(suffix)_")
+        ) else {
+            return nil
+        }
+        return bindings.buildPtrToInt(
+            builder,
+            value: stringPointer,
+            type: int64Type,
+            name: nameCounter.nextName("stack_trace_\(suffix)_raw_")
+        )
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func emitBody() throws {
         guard let builder = bindings.createBuilder(context: context) else {
@@ -277,6 +365,7 @@ extension NativeEmitter.FunctionEmissionContext {
         )
 
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
+        emitRuntimeStackTraceEnter()
         emitStackOverflowGuard()
         try prepareGCSafepoints()
         try prepareGCRootFrame(allocaBuilder: allocaBuilder)
@@ -319,6 +408,23 @@ extension NativeEmitter.FunctionEmissionContext {
             if bindings.hasTerminator(currentBlock) {
                 guard case .label = instruction else {
                     continue
+                }
+            }
+
+            if function.instructionLocations.count == function.body.count,
+               instructionIndex < function.instructionLocations.count,
+               let instructionRange = function.instructionLocations[instructionIndex],
+               let sourceManager
+            {
+                let location = sourceManager.lineColumn(of: instructionRange.start)
+                if location.line > 0 {
+                    let path = sourceManager.path(of: instructionRange.start.file)
+                    let fileName = URL(fileURLWithPath: path).lastPathComponent
+                    emitRuntimeStackTraceLocation(
+                        fileName: fileName,
+                        line: location.line,
+                        suffix: "\(instructionIndex)"
+                    )
                 }
             }
 
@@ -611,6 +717,7 @@ extension NativeEmitter.FunctionEmissionContext {
                             storeOutThrownIfNonNull(thrownValue, suffix: "notnull_throw_\(instructionIndex)")
                             emitGCFrameLeave(returning: thrownValue)
                             emitGCShadowPop(thrown: thrownValue)
+                            emitRuntimeStackTraceExit()
                             _ = bindings.buildRet(builder, value: zeroReturnValue)
                             currentBlock = continueBlock
                             bindings.positionBuilder(builder, at: continueBlock)
@@ -830,6 +937,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 storeOutThrownIfNonNull(resolved, suffix: "rethrow_\(instructionIndex)")
                 emitGCFrameLeave(returning: resolved)
                 emitGCShadowPop(thrown: resolved)
+                emitRuntimeStackTraceExit()
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnIfEqual(lhs, rhs):
@@ -855,6 +963,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 bindings.positionBuilder(builder, at: trueBlock)
                 emitGCFrameLeave(returning: lhsValue)
                 emitGCShadowPop(result: lhsValue)
+                emitRuntimeStackTraceExit()
                 _ = bindings.buildRet(builder, value: lhsValue)
 
                 currentBlock = falseBlock
@@ -869,6 +978,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 emitGCFrameLeave(returning: nil)
                 emitGCShadowPop()
+                emitRuntimeStackTraceExit()
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnValue(value):
@@ -891,6 +1001,7 @@ extension NativeEmitter.FunctionEmissionContext {
                 }
                 emitGCFrameLeave(returning: returnValue)
                 emitGCShadowPop(result: returnValue)
+                emitRuntimeStackTraceExit()
                 _ = bindings.buildRet(builder, value: returnValue)
 
             case .resumeNonLocalReturn:
@@ -923,10 +1034,12 @@ extension NativeEmitter.FunctionEmissionContext {
                     }
                     emitGCFrameLeave(returning: returnValue)
                     emitGCShadowPop(result: returnValue)
+                    emitRuntimeStackTraceExit()
                     _ = bindings.buildRet(builder, value: returnValue)
                 } else {
                     emitGCFrameLeave(returning: nil)
                     emitGCShadowPop()
+                    emitRuntimeStackTraceExit()
                     _ = bindings.buildRet(builder, value: zeroReturnValue)
                 }
             }
@@ -938,6 +1051,7 @@ extension NativeEmitter.FunctionEmissionContext {
         if !bindings.hasTerminator(currentBlock) {
             emitGCFrameLeave(returning: nil)
             emitGCShadowPop()
+            emitRuntimeStackTraceExit()
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
     }
