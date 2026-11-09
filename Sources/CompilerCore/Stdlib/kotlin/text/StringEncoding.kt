@@ -42,29 +42,14 @@ public object Charsets {
     public val UTF_32LE: Charset = Charset(__utf_32le())
 }
 
-@KsSymbolName("__kk_string_toByteArray_flat")
-private external fun String.__kk_string_toByteArray_flat(): ByteArray
-
-@KsSymbolName("__kk_string_toByteArray_charset_flat")
-private external fun String.__kk_string_toByteArray_charset_flat(charsetTag: Int): ByteArray
-
-@KsSymbolName("__kk_string_encodeToByteArray_flat")
-private external fun String.__kk_string_encodeToByteArray_flat(): ByteArray
-
 @KsSymbolName("__kk_string_encodeToByteArray_range_flat")
 private external fun String.__kk_string_encodeToByteArray_range_flat(startIndex: Int, endIndex: Int): ByteArray
 
 @KsSymbolName("__kk_string_encodeToByteArray_charset_flat")
 private external fun String.__kk_string_encodeToByteArray_charset_flat(charsetID: Int): ByteArray
 
-@KsSymbolName("__kk_bytearray_decodeToString")
-private external fun ByteArray.__kk_bytearray_decodeToString(): String
-
 @KsSymbolName("__kk_bytearray_decodeToString_charset")
 private external fun ByteArray.__kk_bytearray_decodeToString_charset(charsetId: Int): String
-
-@KsSymbolName("__kk_bytearray_decodeToString_range")
-private external fun ByteArray.__kk_bytearray_decodeToString_range(startIndex: Int, endIndex: Int): String
 
 @KsSymbolName("__kk_bytearray_decodeToString_range_throw")
 private external fun ByteArray.__kk_bytearray_decodeToString_range_throw(
@@ -74,16 +59,16 @@ private external fun ByteArray.__kk_bytearray_decodeToString_range_throw(
 ): String
 
 public fun String.toByteArray(): ByteArray =
-    this.__kk_string_toByteArray_flat()
+    this.encodeToByteArray()
 
 public fun String.toByteArray(charset: Charset): ByteArray =
-    this.__kk_string_toByteArray_charset_flat(charset.tag)
+    this.encodeToByteArray(charset)
 
 public fun String.toByteArray(startIndex: Int, endIndex: Int): ByteArray =
     this.encodeToByteArray(startIndex, endIndex)
 
 public fun String.encodeToByteArray(): ByteArray =
-    this.__kk_string_encodeToByteArray_flat()
+    this.encodeToByteArray(0, this.length)
 
 public fun String.encodeToByteArray(charset: Charset): ByteArray =
     this.__kk_string_encodeToByteArray_charset_flat(charset.tag)
@@ -101,26 +86,22 @@ public fun String.encodeToByteArray(startIndex: Int = 0, endIndex: Int = this.le
 // JVM-style `java.lang.String.getBytes` overloads. The native default charset
 // is always UTF-8 (docs/stdlib-pipeline.md), matching encodeToByteArray().
 public fun String.getBytes(): ByteArray =
-    this.__kk_string_encodeToByteArray_flat()
+    this.encodeToByteArray()
 
 public fun String.getBytes(charset: Charset): ByteArray =
-    this.__kk_string_encodeToByteArray_charset_flat(charset.tag)
+    this.encodeToByteArray(charset)
 
 public fun String.getBytes(charsetName: String): ByteArray =
     getBytes(java.nio.charset.Charset.forName(charsetName))
 
 public fun ByteArray.decodeToString(): String =
-    this.__kk_bytearray_decodeToString()
+    this.decodeToString(0, this.size)
 
 public fun ByteArray.decodeToString(charset: Charset): String =
     this.__kk_bytearray_decodeToString_charset(charset.tag)
 
-public fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String {
-    if (startIndex < 0 || endIndex > this.size || startIndex > endIndex) {
-        throw IndexOutOfBoundsException("startIndex: $startIndex, endIndex: $endIndex, size: ${this.size}")
-    }
-    return this.__kk_bytearray_decodeToString_range(startIndex, endIndex)
-}
+public fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String =
+    this.decodeToString(startIndex, endIndex, throwOnInvalidSequence = false)
 
 public fun ByteArray.decodeToString(
     startIndex: Int,

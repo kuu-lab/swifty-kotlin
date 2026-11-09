@@ -375,8 +375,10 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     fun deleteRange(startIndex: Int, endIndex: Int): StringBuilder =
         delete(startIndex, endIndex)
 
-    fun clear(): StringBuilder =
-        __kk_string_builder_clear()
+    fun clear(): StringBuilder {
+        setLength(0)
+        return this
+    }
 
     fun reverse(): StringBuilder {
         val length = this.length
@@ -602,7 +604,7 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     }
 
     private fun resetTo(value: String): StringBuilder {
-        __kk_string_builder_clear()
+        clear()
         __kk_string_builder_append_obj(value)
         return this
     }
@@ -672,8 +674,6 @@ public class StringBuilder : Appendable, CharSequence, Comparable<StringBuilder>
     @KsSymbolName("__kk_string_builder_length_prop")
     private external fun __kk_string_builder_length(): Int
 
-    @KsSymbolName("__kk_string_builder_clear")
-    private external fun __kk_string_builder_clear(): StringBuilder
 
     @KsSymbolName("__kk_string_builder_capacity")
     private external fun __kk_string_builder_capacity(): Int

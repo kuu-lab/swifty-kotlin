@@ -43,8 +43,7 @@ public fun String(codePoints: IntArray, offset: Int, count: Int): String {
     return builder.toString()
 }
 
-@KsSymbolName("__kk_bytearray_decodeToString")
-public external fun String(bytes: ByteArray): String
+public fun String(bytes: ByteArray): String = bytes.decodeToString()
 
 public fun String(bytes: ByteArray, charset: Charset): String = bytes.decodeToString(charset)
 
