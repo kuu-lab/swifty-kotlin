@@ -90,6 +90,7 @@ enum CompilerPluginRegistry {
         AllOpenPlugin(),
         NoArgPlugin(),
         ParcelizePlugin(),
+        KotlinxSerializationPlugin(),
     ]
 
     static func semaContext(
