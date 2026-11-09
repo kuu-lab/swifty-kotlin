@@ -21,23 +21,11 @@ private external fun __kk_string_toBigDecimal(str: String): BigDecimal
 @KsSymbolName("__kk_string_toBigDecimalOrNull")
 private external fun __kk_string_toBigDecimalOrNull(str: String): BigDecimal?
 
-@KsSymbolName("__kk_string_toInt")
-private external fun __kk_string_toInt(str: String): Int
-
 @KsSymbolName("__kk_string_toInt_radix")
 private external fun __kk_string_toInt_radix(str: String, radix: Int): Int
 
-@KsSymbolName("__kk_string_toIntOrNull")
-private external fun __kk_string_toIntOrNull(str: String): Int?
-
 @KsSymbolName("__kk_string_toIntOrNull_radix")
 private external fun __kk_string_toIntOrNull_radix(str: String, radix: Int): Int?
-
-@KsSymbolName("__kk_string_toLong")
-private external fun __kk_string_toLong(str: String): Long
-
-@KsSymbolName("__kk_string_toLongOrNull")
-private external fun __kk_string_toLongOrNull(str: String): Long?
 
 @KsSymbolName("__kk_string_toLong_radix")
 private external fun __kk_string_toLong_radix(str: String, radix: Int): Long
@@ -45,41 +33,8 @@ private external fun __kk_string_toLong_radix(str: String, radix: Int): Long
 @KsSymbolName("__kk_string_toLongOrNull_radix")
 private external fun __kk_string_toLongOrNull_radix(str: String, radix: Int): Long?
 
-@KsSymbolName("__kk_string_toShort")
-private external fun __kk_string_toShort(str: String): Short
-
-@KsSymbolName("__kk_string_toShortOrNull")
-private external fun __kk_string_toShortOrNull(str: String): Short?
-
-@KsSymbolName("__kk_string_toByte")
-private external fun __kk_string_toByte(str: String): Byte
-
-@KsSymbolName("__kk_string_toByte_radix")
-private external fun __kk_string_toByte_radix(str: String, radix: Int): Byte
-
-@KsSymbolName("__kk_string_toByteOrNull")
-private external fun __kk_string_toByteOrNull(str: String): Byte?
-
-@KsSymbolName("__kk_string_toUByteOrNull")
-private external fun __kk_string_toUByteOrNull(str: String): UByte?
-
-@KsSymbolName("__kk_string_toUByteOrNull_radix")
-private external fun __kk_string_toUByteOrNull_radix(str: String, radix: Int): UByte?
-
-@KsSymbolName("__kk_string_toUShortOrNull")
-private external fun __kk_string_toUShortOrNull(str: String): UShort?
-
-@KsSymbolName("__kk_string_toUShortOrNull_radix")
-private external fun __kk_string_toUShortOrNull_radix(str: String, radix: Int): UShort?
-
-@KsSymbolName("__kk_string_toUIntOrNull")
-private external fun __kk_string_toUIntOrNull(str: String): UInt?
-
 @KsSymbolName("__kk_string_toUIntOrNull_radix")
 private external fun __kk_string_toUIntOrNull_radix(str: String, radix: Int): UInt?
-
-@KsSymbolName("__kk_string_toULongOrNull")
-private external fun __kk_string_toULongOrNull(str: String): ULong?
 
 @KsSymbolName("__kk_string_toULongOrNull_radix")
 private external fun __kk_string_toULongOrNull_radix(str: String, radix: Int): ULong?
@@ -108,41 +63,31 @@ public fun String.toBigDecimalOrNull(): BigDecimal? {
     return __kk_string_toBigDecimalOrNull(this)
 }
 
-public fun String.toInt(): Int {
-    return __kk_string_toInt(this)
-}
+public fun String.toInt(): Int = toInt(10)
 
 public fun String.toInt(radix: Int): Int {
     return __kk_string_toInt_radix(this, radix)
 }
 
-public fun String.toIntOrNull(): Int? {
-    return __kk_string_toIntOrNull(this)
-}
+public fun String.toIntOrNull(): Int? = toIntOrNull(10)
 
 public fun String.toIntOrNull(radix: Int): Int? {
     return __kk_string_toIntOrNull_radix(this, radix)
 }
 
-public fun String.toLong(): Long {
-    return __kk_string_toLong(this)
-}
+public fun String.toLong(): Long = toLong(10)
 
 public fun String.toLong(radix: Int): Long {
     return __kk_string_toLong_radix(this, radix)
 }
 
-public fun String.toLongOrNull(): Long? {
-    return __kk_string_toLongOrNull(this)
-}
+public fun String.toLongOrNull(): Long? = toLongOrNull(10)
 
 public fun String.toLongOrNull(radix: Int): Long? {
     return __kk_string_toLongOrNull_radix(this, radix)
 }
 
-public fun String.toShort(): Short {
-    return __kk_string_toShort(this)
-}
+public fun String.toShort(): Short = toShort(10)
 
 // java.lang.Short.parseShort(s, radix): unparsable input reports the Int
 // parse failure, out-of-range values report "Value out of range".
@@ -154,9 +99,7 @@ public fun String.toShort(radix: Int): Short {
     return value.toShort()
 }
 
-public fun String.toShortOrNull(): Short? {
-    return __kk_string_toShortOrNull(this)
-}
+public fun String.toShortOrNull(): Short? = toShortOrNull(10)
 
 public fun String.toShortOrNull(radix: Int): Short? {
     val value = toIntOrNull(radix) ?: return null
@@ -164,17 +107,17 @@ public fun String.toShortOrNull(radix: Int): Short? {
     return value.toShort()
 }
 
-public fun String.toByte(): Byte {
-    return __kk_string_toByte(this)
-}
+public fun String.toByte(): Byte = toByte(10)
 
 public fun String.toByte(radix: Int): Byte {
-    return __kk_string_toByte_radix(this, radix)
+    val value = toInt(radix)
+    if (value < -128 || value > 127) {
+        throw NumberFormatException("Value out of range. Value:\"$this\" Radix:$radix")
+    }
+    return value.toByte()
 }
 
-public fun String.toByteOrNull(): Byte? {
-    return __kk_string_toByteOrNull(this)
-}
+public fun String.toByteOrNull(): Byte? = toByteOrNull(10)
 
 public fun String.toByteOrNull(radix: Int): Byte? {
     val value = toIntOrNull(radix) ?: return null
@@ -190,12 +133,12 @@ public fun String.toUByte(radix: Int): UByte {
     return toUByteOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
-public fun String.toUByteOrNull(): UByte? {
-    return __kk_string_toUByteOrNull(this)
-}
+public fun String.toUByteOrNull(): UByte? = toUByteOrNull(10)
 
 public fun String.toUByteOrNull(radix: Int): UByte? {
-    return __kk_string_toUByteOrNull_radix(this, radix)
+    val value = toUIntOrNull(radix) ?: return null
+    if (value > 255u) return null
+    return value.toUByte()
 }
 
 public fun String.toUShort(): UShort {
@@ -206,12 +149,12 @@ public fun String.toUShort(radix: Int): UShort {
     return toUShortOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
-public fun String.toUShortOrNull(): UShort? {
-    return __kk_string_toUShortOrNull(this)
-}
+public fun String.toUShortOrNull(): UShort? = toUShortOrNull(10)
 
 public fun String.toUShortOrNull(radix: Int): UShort? {
-    return __kk_string_toUShortOrNull_radix(this, radix)
+    val value = toUIntOrNull(radix) ?: return null
+    if (value > 65535u) return null
+    return value.toUShort()
 }
 
 public fun String.toUInt(): UInt {
@@ -222,9 +165,7 @@ public fun String.toUInt(radix: Int): UInt {
     return toUIntOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
-public fun String.toUIntOrNull(): UInt? {
-    return __kk_string_toUIntOrNull(this)
-}
+public fun String.toUIntOrNull(): UInt? = toUIntOrNull(10)
 
 public fun String.toUIntOrNull(radix: Int): UInt? {
     return __kk_string_toUIntOrNull_radix(this, radix)
@@ -238,9 +179,7 @@ public fun String.toULong(radix: Int): ULong {
     return toULongOrNull(radix) ?: throw NumberFormatException("Invalid number format: '$this'")
 }
 
-public fun String.toULongOrNull(): ULong? {
-    return __kk_string_toULongOrNull(this)
-}
+public fun String.toULongOrNull(): ULong? = toULongOrNull(10)
 
 public fun String.toULongOrNull(radix: Int): ULong? {
     return __kk_string_toULongOrNull_radix(this, radix)
