@@ -188,6 +188,11 @@ extension ExprTypeChecker {
         }
         if !implicitReceiverLookupEntries.isEmpty {
             var memberType: TypeID?
+            // A member found on a nullable implicit receiver is unsafe: it
+            // loses to a non-null member on any outer receiver, and when it
+            // is the only member-scope match it reports UNSAFE_CALL like
+            // kotlinc (KUU-4504).
+            var sawUnsafeReceiverMember = false
             for (index, receiver) in implicitReceiverLookupEntries.enumerated() {
                 memberType = resolveImplicitReceiverMember(
                     id: id,
@@ -198,7 +203,8 @@ extension ExprTypeChecker {
                     interner: interner,
                     nameRange: nameRange,
                     emitDiagnosticOnFailure: index == implicitReceiverLookupEntries.count - 1
-                        && candidates.isEmpty && invisibleSyms.isEmpty && dslBlockedIDs.isEmpty
+                        && candidates.isEmpty && invisibleSyms.isEmpty && dslBlockedIDs.isEmpty,
+                    sawUnsafeMember: &sawUnsafeReceiverMember
                 )
                 if memberType != nil {
                     if memberType != sema.types.errorType, let receiverSymbol = receiver.symbol {
@@ -206,6 +212,15 @@ extension ExprTypeChecker {
                     }
                     break
                 }
+            }
+            if memberType == nil, sawUnsafeReceiverMember {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0026",
+                    "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                    range: nameRange ?? ctx.ast.arena.exprRange(id)
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
             }
             if let memberType, memberType != sema.types.errorType {
                 if let reference = ctx.dataFlow.resolveStableReference(
@@ -640,27 +655,18 @@ extension ExprTypeChecker {
         sema: SemaModule,
         interner: StringInterner,
         nameRange: SourceRange?,
-        emitDiagnosticOnFailure: Bool = true
+        emitDiagnosticOnFailure: Bool = true,
+        sawUnsafeMember: inout Bool
     ) -> TypeID? {
         let knownNames = KnownCompilerNames(interner: interner)
         let resolvedName = interner.resolve(name)
-        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        // A nullable tower entry's member scope exposes no properties — a
-        // bare read has no `?.` marker, so binding any member-shaped result
-        // is an unsafe call (KUU-4501).
+        // Kotlin's member scope of `T?` still surfaces `T`'s members as
+        // unsafe-call candidates: a bare read has no `?.` marker, so the hit
+        // is unsafe. A safe member on an outer receiver still outranks it —
+        // remember the hit and let the caller keep walking the tower; only a
+        // sole unsafe match reports UNSAFE_CALL (KUU-4501, KUU-4504).
         let receiverIsNullable = sema.types.nullability(of: receiverType) == .nullable
-        // Kotlin's member scope of `T?` still surfaces `T`'s members, but as
-        // unsafe-call candidates that win the tower — a nearer nullable hit
-        // reports SEMA-0026 rather than falling through to an outer receiver.
-        func unsafeNullableReceiverResult() -> TypeID {
-            ctx.sema.diagnostics.error(
-                "KSWIFTK-SEMA-0026",
-                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                range: nameRange
-            )
-            sema.bindings.bindExprType(id, type: sema.types.errorType)
-            return sema.types.errorType
-        }
+        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         var implicitMemberType: TypeID?
         if sema.types.isSubtype(nonNullReceiver, sema.types.stringType), resolvedName == "length" {
             implicitMemberType = sema.types.intType
@@ -688,7 +694,8 @@ extension ExprTypeChecker {
            }) == true
         {
             if receiverIsNullable {
-                return unsafeNullableReceiverResult()
+                sawUnsafeMember = true
+                return nil
             }
             // An expression-bodied function inferred ahead of source order
             // can still see a member property's header `Any?` placeholder.
@@ -827,7 +834,8 @@ extension ExprTypeChecker {
                 )
                 if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
                     if receiverIsNullable {
-                        return unsafeNullableReceiverResult()
+                        sawUnsafeMember = true
+                        return nil
                     }
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
                         id, chosen: chosen, resolved: resolved, sema: sema
@@ -873,7 +881,8 @@ extension ExprTypeChecker {
                 )
                 if resolved.diagnostic == nil, let chosen = resolved.chosenCallee {
                     if receiverIsNullable {
-                        return unsafeNullableReceiverResult()
+                        sawUnsafeMember = true
+                        return nil
                     }
                     let memberType = driver.callChecker.bindCallAndResolveReturnType(
                         id, chosen: chosen, resolved: resolved, sema: sema
@@ -886,7 +895,8 @@ extension ExprTypeChecker {
         }
         if let memberType = implicitMemberType {
             if receiverIsNullable {
-                return unsafeNullableReceiverResult()
+                sawUnsafeMember = true
+                return nil
             }
             sema.bindings.markImplicitReceiverMember(id, name: name, receiverType: nonNullReceiver)
             sema.bindings.bindExprType(id, type: memberType)
@@ -916,7 +926,7 @@ extension ExprTypeChecker {
             sema.bindings.bindExprType(id, type: staticMember.type)
             return staticMember.type
         }
-        if emitDiagnosticOnFailure {
+        if emitDiagnosticOnFailure, !sawUnsafeMember {
             // Inherited `private` members never enter member lookup (they are
             // not inherited), but the member still exists — report it as
             // inaccessible rather than unresolved, matching kotlinc

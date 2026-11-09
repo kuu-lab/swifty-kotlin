@@ -753,27 +753,37 @@ extension ExprTypeChecker {
         // over lexically scope-visible candidates just like
         // inferNameRefExpr does for plain reads.
         var implicitReceiverMember: (symbol: SemanticSymbol, type: TypeID, isMutable: Bool)?
+        var implicitReceiverMemberIsUnsafe = false
         for receiverType in ctx.implicitReceiverMemberLookupTypes() {
-            if let member = driver.helpers.lookupMemberPropertyForWrite(
+            guard let member = driver.helpers.lookupMemberPropertyForWrite(
                 named: name,
                 receiverType: sema.types.makeNonNullable(receiverType),
                 sema: sema
             ),
                let memberSymbol = ctx.cachedSymbol(member.writeSymbol ?? member.symbol)
-            {
-                // Same unsafe-call rule as `x = v`: a compound write through a
-                // nullable implicit receiver carries no `?.` marker (KUU-4501).
-                if sema.types.nullability(of: receiverType) == .nullable {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0026",
-                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                        range: range
-                    )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-                }
-                implicitReceiverMember = (memberSymbol, member.type, member.writeSymbol != nil)
-                break
+            else {
+                continue
             }
+            // A member on a nullable implicit receiver is unsafe: a safe
+            // member on an outer receiver outranks it, and a lone unsafe
+            // match binds with UNSAFE_CALL (KUU-4501, KUU-4504).
+            if sema.types.nullability(of: receiverType) == .nullable {
+                if implicitReceiverMember == nil {
+                    implicitReceiverMember = (memberSymbol, member.type, member.writeSymbol != nil)
+                    implicitReceiverMemberIsUnsafe = true
+                }
+                continue
+            }
+            implicitReceiverMember = (memberSymbol, member.type, member.writeSymbol != nil)
+            implicitReceiverMemberIsUnsafe = false
+            break
+        }
+        if implicitReceiverMemberIsUnsafe {
+            ctx.sema.diagnostics.error(
+                "KSWIFTK-SEMA-0026",
+                "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                range: range
+            )
         }
 
         // Same namespace rule as `inferLocalAssignExpr`: a tier binding the

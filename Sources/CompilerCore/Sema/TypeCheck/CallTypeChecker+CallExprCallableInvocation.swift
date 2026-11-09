@@ -490,11 +490,17 @@ extension CallTypeChecker {
     ) -> (symbol: SymbolID, type: TypeID, receiver: (type: TypeID, symbol: SymbolID?))? {
         let sema = ctx.sema
         for receiver in ctx.implicitReceiverMemberLookupEntries() {
-            guard let property = driver.helpers.lookupMemberProperty(
-                named: name,
-                receiverType: sema.types.makeNonNullable(receiver.type),
-                sema: sema
-            ) else {
+            // A callable property on a nullable implicit receiver is unsafe
+            // to invoke — kotlinc does not offer it, so `run()` inside
+            // `with(h: Handler?)` falls through to the scope candidates
+            // (`kotlin.run`) instead of binding `h.run` (KUU-4504).
+            guard sema.types.nullability(of: receiver.type) != .nullable,
+                  let property = driver.helpers.lookupMemberProperty(
+                      named: name,
+                      receiverType: sema.types.makeNonNullable(receiver.type),
+                      sema: sema
+                  )
+            else {
                 continue
             }
             // Private members do not participate in implicit-receiver

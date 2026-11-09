@@ -490,8 +490,10 @@ final class LocalDeclTypeChecker {
         }
 
         var implicitReceiverMember: (lookup: MemberPropertyLookupResult, receiverType: TypeID)?
+        var implicitReceiverMemberIsUnsafe = false
         for receiverType in ctx.implicitReceiverMemberLookupTypes() {
             let nonNullReceiverType = ctx.sema.types.makeNonNullable(receiverType)
+            var found: MemberPropertyLookupResult?
             if let entrySymbol = ctx.currentDeclSymbol,
                let member = driver.helpers.lookupEnumEntryMemberProperty(
                    named: name,
@@ -499,32 +501,40 @@ final class LocalDeclTypeChecker {
                    receiverType: nonNullReceiverType,
                    sema: ctx.sema
                ) {
-                implicitReceiverMember = (MemberPropertyLookupResult(
+                found = MemberPropertyLookupResult(
                     symbol: member.symbol, type: member.type, writeSymbol: nil
-                ), nonNullReceiverType)
-                break
+                )
+            } else {
+                found = driver.helpers.lookupMemberPropertyForWrite(
+                    named: name,
+                    receiverType: nonNullReceiverType,
+                    sema: ctx.sema
+                )
             }
-            if let member = driver.helpers.lookupMemberPropertyForWrite(
-                named: name,
-                receiverType: nonNullReceiverType,
-                sema: ctx.sema
-            ) {
-                // A bare `x = v` write supplies no `?.` marker, so a member on
-                // a nullable implicit receiver is an unsafe call (KUU-4501).
-                if ctx.sema.types.nullability(of: receiverType) == .nullable {
-                    ctx.sema.diagnostics.error(
-                        "KSWIFTK-SEMA-0026",
-                        "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
-                        range: range
-                    )
-                    return driver.helpers.bindAndReturnErrorType(id, sema: ctx.sema)
+            guard let member = found else { continue }
+            // A member on a nullable implicit receiver is unsafe to write:
+            // keep walking for a non-null owner, and only if none exists does
+            // the unsafe member bind and report UNSAFE_CALL (KUU-4501, KUU-4504).
+            if ctx.sema.types.nullability(of: receiverType) == .nullable {
+                if implicitReceiverMember == nil {
+                    implicitReceiverMember = (member, nonNullReceiverType)
+                    implicitReceiverMemberIsUnsafe = true
                 }
-                implicitReceiverMember = (member, nonNullReceiverType)
-                break
+                continue
             }
+            implicitReceiverMember = (member, nonNullReceiverType)
+            implicitReceiverMemberIsUnsafe = false
+            break
         }
         if let (member, receiverType) = implicitReceiverMember
         {
+            if implicitReceiverMemberIsUnsafe {
+                ctx.sema.diagnostics.error(
+                    "KSWIFTK-SEMA-0026",
+                    "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                    range: range
+                )
+            }
             let writeSymbol = member.writeSymbol ?? member.symbol
             let (_, invisible) = ctx.filterByVisibility([writeSymbol])
             if let property = invisible.first {

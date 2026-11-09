@@ -241,7 +241,7 @@ import Testing
         fun viaNullable(s: String?): Int = scopeOf(s) { firstCode() }
         """)
         try runSema(ctx)
-        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+        #expect(ctx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0026" })
     }
 
     /// The same fallback must keep resolving receivers whose nullability
