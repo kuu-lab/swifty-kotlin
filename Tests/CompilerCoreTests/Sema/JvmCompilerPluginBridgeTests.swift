@@ -4,7 +4,8 @@ import Foundation
 import Testing
 @testable import CompilerTestSupport
 
-/// Tests dynamic loading and inspection of real kotlinc compiler plugin JARs
+/// Tests dynamic loading, inspection, Sema transformations (Phase 2),
+/// and Lowering/IR transformations (Phase 3) of real kotlinc compiler plugin JARs
 /// via `JvmPluginHostClient` and `JvmCompilerPlugin`.
 @Suite
 struct JvmCompilerPluginBridgeTests {
@@ -12,6 +13,8 @@ struct JvmCompilerPluginBridgeTests {
     private let allOpenJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/allopen-compiler-plugin.jar"
     private let noArgJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/noarg-compiler-plugin.jar"
     private let parcelizeJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/parcelize-compiler.jar"
+
+    // MARK: - Phase 1: Inspection & Option Validation
 
     @Test
     func testHostInspectsAllOpenJar() throws {
@@ -77,6 +80,160 @@ struct JvmCompilerPluginBridgeTests {
             try runSema(ctx)
             let warnings = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-PLUGIN-0001" }
             #expect(!warnings.isEmpty, "expected warning KSWIFTK-PLUGIN-0001 for unknown option")
+        }
+    }
+
+    // MARK: - Phase 2: Sema Dynamic Transformation
+
+    @Test
+    func testDynamicAllOpenTransformsSema() throws {
+        guard FileManager.default.fileExists(atPath: allOpenJarPath) else {
+            return
+        }
+        let source = """
+        package com.example
+
+        annotation class OpenMe
+
+        @OpenMe
+        class Service {
+            fun doWork(): Int = 42
+        }
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let flags = [
+                "-Xplugin=\(allOpenJarPath)",
+                "plugin:org.jetbrains.kotlin.allopen:annotation=com.example.OpenMe",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+
+            let serviceSymbolID = try #require(lookupSymbol(named: "Service", in: sema, interner: ctx.interner))
+            let serviceSymbol = try #require(sema.symbols.symbol(serviceSymbolID))
+            #expect(serviceSymbol.flags.contains(.openType), "Class annotated with @OpenMe should become open")
+
+            let doWorkSymbolID = try #require(lookupMember(named: "doWork", on: serviceSymbolID, in: sema, interner: ctx.interner))
+            let doWorkSymbol = try #require(sema.symbols.symbol(doWorkSymbolID))
+            #expect(doWorkSymbol.flags.contains(.openType), "Member of @OpenMe class should become open")
+        }
+    }
+
+    // MARK: - Phase 3: Lowering & Synthetic Generation
+
+    @Test
+    func testDynamicNoArgTransformsSemaAndKIR() throws {
+        guard FileManager.default.fileExists(atPath: noArgJarPath) else {
+            return
+        }
+        let source = """
+        package com.example
+
+        annotation class MyEntity
+
+        @MyEntity
+        class User(val id: Int)
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let flags = [
+                "-Xplugin=\(noArgJarPath)",
+                "plugin:org.jetbrains.kotlin.noarg:annotation=com.example.MyEntity",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runToKIR(ctx)
+            let sema = try #require(ctx.sema)
+            let kir = try #require(ctx.kir)
+
+            let userSymbolID = try #require(lookupSymbol(named: "User", in: sema, interner: ctx.interner))
+            let ctors = sema.symbols.lookupAll(
+                fqName: sema.symbols.symbol(userSymbolID)!.fqName + [ctx.interner.intern("<init>")]
+            ).filter {
+                sema.symbols.symbol($0)?.kind == .constructor && sema.symbols.parentSymbol(for: $0) == userSymbolID
+            }
+
+            // Expect explicit primary constructor plus synthetic zero-arg constructor
+            let zeroArgCtor = ctors.first {
+                sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty == true
+            }
+            #expect(zeroArgCtor != nil, "Expected synthetic zero-arg constructor in Sema symbol table")
+
+            if let zeroArgCtor {
+                // In KIR, functions contain implicit receiver param; zero-arg ctor has params.count == 1
+                let fn = kir.arena.function(for: zeroArgCtor)
+                #expect(fn != nil, "Expected synthesized zero-arg constructor in KIR arena")
+                if let fn {
+                    #expect(fn.params.count == 1)
+                }
+            }
+        }
+    }
+
+    @Test
+    func testDynamicParcelizeTransformsSemaAndKIR() throws {
+        guard FileManager.default.fileExists(atPath: parcelizeJarPath) else {
+            return
+        }
+        let stub = """
+        package kotlinx.parcelize
+
+        annotation class Parcelize
+        """
+        let source = """
+        package com.example
+
+        import kotlinx.parcelize.Parcelize
+
+        @Parcelize
+        class Record(val id: Int)
+        """
+        try withTemporaryFiles(contents: [stub, source]) { paths in
+            let flags = [
+                "-Xplugin=\(parcelizeJarPath)",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runToKIR(ctx)
+            let sema = try #require(ctx.sema)
+            let kir = try #require(ctx.kir)
+
+            let recordSymbolID = try #require(lookupSymbol(named: "Record", in: sema, interner: ctx.interner))
+            let describeContentsID = lookupMember(named: "describeContents", on: recordSymbolID, in: sema, interner: ctx.interner)
+            #expect(describeContentsID != nil, "Expected synthetic describeContents in SymbolTable")
+
+            if let describeContentsID {
+                let kirFn = kir.arena.function(for: describeContentsID)
+                #expect(kirFn != nil, "Expected describeContents in KIR arena")
+                if let kirFn {
+                    #expect(!kirFn.body.isEmpty, "Expected lowered return instruction in describeContents")
+                }
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func lookupSymbol(named name: String, in sema: SemaModule, interner: StringInterner) -> SymbolID? {
+        let interned = interner.intern(name)
+        return sema.symbols.allSymbols().first { sym in
+            sym.name == interned && !sym.flags.contains(.importedLibrary)
+        }?.id
+    }
+
+    private func lookupMember(named name: String, on parentID: SymbolID, in sema: SemaModule, interner: StringInterner) -> SymbolID? {
+        let interned = interner.intern(name)
+        return sema.symbols.declaredChildren(of: parentID).first { childID in
+            sema.symbols.symbol(childID)?.name == interned
         }
     }
 }
