@@ -320,7 +320,9 @@ struct DeclarationPositionValidator {
             if modifier == .inline, isInlinePropertyWithCustomAccessors(decl, site: site) {
                 continue
             }
-            emitNotApplicable(name, to: target, range: decl.range)
+            // kotlinc names the generic 'property' target for `external`
+            // instead of the backing-field-refined description.
+            emitNotApplicable(name, to: modifier == .external ? "property" : target, range: decl.range)
         }
 
         if modifiers.contains(.companion) {
@@ -340,7 +342,8 @@ struct DeclarationPositionValidator {
             break
         case .nominal(let nominal):
             validateInterfaceMemberModifiers(
-                modifiers, site: nominal, excluding: conflictCovered, range: decl.range
+                modifiers, site: nominal, excluding: conflictCovered,
+                checksExternal: false, range: decl.range
             )
             if nominal.kind == .object, modifiers.contains(.protected),
                !conflictCovered.contains(.protected)
@@ -560,6 +563,7 @@ struct DeclarationPositionValidator {
         if modifiers.contains(.abstract)
             || modifiers.contains(.lateinit)
             || modifiers.contains(.expect)
+            || modifiers.contains(.external)
             || decl.initializer != nil
             || decl.delegateExpression != nil
             || decl.explicitBackingField != nil
@@ -1424,6 +1428,7 @@ struct DeclarationPositionValidator {
         _ modifiers: Modifiers,
         site: NominalSite,
         excluding conflictCovered: Modifiers = [],
+        checksExternal: Bool = true,
         range: SourceRange
     ) {
         guard site.kind == .interface else {
@@ -1437,7 +1442,7 @@ struct DeclarationPositionValidator {
         if modifiers.contains(.final), !conflictCovered.contains(.final) {
             emitInside("final", inside: "interface", range: range)
         }
-        if modifiers.contains(.external) {
+        if checksExternal, modifiers.contains(.external) {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0401",
                 "members of interfaces cannot be external.",
@@ -1452,7 +1457,7 @@ struct DeclarationPositionValidator {
         target: String,
         range: SourceRange
     ) {
-        validateInterfaceMemberModifiers(modifiers, site: site, range: range)
+        validateInterfaceMemberModifiers(modifiers, site: site, checksExternal: false, range: range)
         if site.kind == .object, modifiers.contains(.protected) {
             emitInside("protected", inside: site.name, range: range)
         }

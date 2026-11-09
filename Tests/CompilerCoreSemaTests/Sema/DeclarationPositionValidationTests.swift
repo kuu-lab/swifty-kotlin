@@ -1098,6 +1098,45 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
     }
 
+    @Test func externalPropertyReportsGenericTargetWithoutExtras() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            external val e1: Int
+            class C { external val e2: Int }
+            interface I { external val e3: Int }
+            object O { external val e4: Int }
+            class WithInit {
+                external val e5: Int
+                init {}
+            }
+            """)
+        // kotlinc names the generic 'property' target for `external` and does
+        // not stack 'must be initialized' or interface-external diagnostics.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == Array(
+            repeating: "modifier 'external' is not applicable to 'property'.",
+            count: 5
+        ))
+        assertNoDiagnostic("KSWIFTK-SEMA-0424", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
+    @Test func externalNestedClassInInterfaceReportsOnlyNotApplicable() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I {
+                external class NC
+                external object NO
+            }
+            """)
+        // 'members of interfaces cannot be external' is function-only in
+        // kotlinc; nominal members get the plain not-applicable error.
+        let notApplicable = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0400" }
+        #expect(notApplicable.map(\.message) == [
+            "modifier 'external' is not applicable to 'class'.",
+            "modifier 'external' is not applicable to 'class'.",
+        ])
+        assertNoDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+    }
+
     @Test func innerOnInterfaceAndEnumReportsKindOnly() throws {
         let ctx = try semaContext(for: """
             inner interface I2

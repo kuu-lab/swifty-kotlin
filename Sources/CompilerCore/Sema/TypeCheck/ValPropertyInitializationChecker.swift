@@ -163,6 +163,7 @@ final class ValPropertyInitializationChecker {
                   let field = sema.bindings.declSymbol(for: id),
                   !property.modifiers.contains(.abstract), !property.modifiers.contains(.lateinit),
                   !property.modifiers.contains(.expect), !property.modifiers.contains(.const),
+                  !property.modifiers.contains(.external),
                   property.receiverType == nil,
                   !isFieldless(property, symbol: field)
             else { return nil }
@@ -182,6 +183,7 @@ final class ValPropertyInitializationChecker {
                       !property.isSynthesizedPrimaryConstructorProperty,
                       !property.modifiers.contains(.abstract), !property.modifiers.contains(.lateinit),
                       !property.modifiers.contains(.expect), !property.modifiers.contains(.const),
+                      !property.modifiers.contains(.external),
                       property.receiverType == nil, property.initializer == nil,
                       property.delegateExpression == nil, property.explicitBackingField?.initializer == nil,
                       !isFieldless(property, symbol: field)
