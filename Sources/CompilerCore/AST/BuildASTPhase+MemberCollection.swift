@@ -128,7 +128,7 @@ extension BuildASTPhase {
                     hasBody: hasBody,
                     initBlocks: declarationInitBlocks(
                         from: entryNodeID, in: arena, interner: interner, astArena: astArena
-                    ),
+                    ).map(\.body),
                     classBodyInitOrder: declarationClassBodyInitOrder(
                         from: entryNodeID, in: arena, interner: interner
                     ),

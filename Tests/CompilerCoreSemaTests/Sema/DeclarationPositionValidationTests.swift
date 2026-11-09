@@ -1365,6 +1365,30 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
     }
 
+    @Test func annotationMemberDiagnosticsAnchorAtDeclarationKeywords() throws {
+        let ctx = try semaContext(for: """
+            annotation class A {
+                fun b() {}
+                val x = 1
+                constructor()
+                init {}
+                typealias T = Int
+            }
+            annotation class B {
+                private fun c() {}
+                internal var y = 0
+            }
+            """)
+        // kotlinc underlines the declaring keyword of each prohibited member
+        // (`fun`/`val`/`var`/`constructor`/`init`/`typealias`), one diagnostic
+        // per member in source order.
+        let positions = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-0419" }
+            .compactMap { $0.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start) } }
+            .map { "\($0.line):\($0.column)" }
+        #expect(positions == ["2:5", "3:5", "4:5", "5:5", "6:5", "9:13", "10:14"])
+    }
+
     @Test func annotationVarParameterIsRejected() throws {
         let ctx = try semaContext(for: """
             annotation class A(var x: Int)

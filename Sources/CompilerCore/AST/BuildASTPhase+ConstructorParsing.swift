@@ -7,13 +7,16 @@ extension BuildASTPhase {
         }
     }
 
+    /// Init blocks paired with the range of their `init` keyword — the
+    /// anchor kotlinc uses for 'members are prohibited in annotation
+    /// classes'. The `FunctionBody` range itself covers only `{...}`.
     func declarationInitBlocks(
         from nodeID: NodeID,
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena
-    ) -> [FunctionBody] {
-        var result: [FunctionBody] = []
+    ) -> [(body: FunctionBody, keywordRange: SourceRange)] {
+        var result: [(body: FunctionBody, keywordRange: SourceRange)] = []
         for bodyBlockID in blockChildren(of: nodeID, in: arena) {
             for bodyChild in arena.children(of: bodyBlockID) {
                 guard case let .node(statementID) = bodyChild,
@@ -29,6 +32,7 @@ extension BuildASTPhase {
                 else {
                     continue
                 }
+                let keywordRange = firstToken.range
 
                 if let nestedBlockID = blockChildren(of: statementID, in: arena).first {
                     let exprs = blockExpressions(
@@ -37,7 +41,7 @@ extension BuildASTPhase {
                         interner: interner,
                         astArena: astArena
                     )
-                    result.append(.block(exprs, arena.node(nestedBlockID).range))
+                    result.append((.block(exprs, arena.node(nestedBlockID).range), keywordRange))
                     continue
                 }
 
@@ -51,11 +55,11 @@ extension BuildASTPhase {
                     if let exprID = parser.parse(),
                        let range = astArena.exprRange(exprID)
                     {
-                        result.append(.expr(exprID, range))
+                        result.append((.expr(exprID, range), keywordRange))
                         continue
                     }
                 }
-                result.append(.unit)
+                result.append((.unit, keywordRange))
             }
         }
         return result
@@ -118,7 +122,8 @@ extension BuildASTPhase {
                     annotations: annotations,
                     valueParams: params,
                     delegationCall: delegationCall,
-                    body: body
+                    body: body,
+                    declarationKeywordRange: declarationKindKeywordRange(from: ctorNodeID, in: arena)
                 ))
             }
         }

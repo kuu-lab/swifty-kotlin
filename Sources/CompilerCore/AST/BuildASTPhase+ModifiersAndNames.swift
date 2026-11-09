@@ -71,6 +71,33 @@ extension BuildASTPhase {
         return modifiers
     }
 
+    /// Source range of the declaration-introducing keyword (`fun`, `val`,
+    /// `var`, `typealias`, `constructor`, ...) at top level in the
+    /// declaration's token stream — i.e. past leading modifiers and
+    /// annotations. kotlinc underlines this keyword for per-member
+    /// diagnostics like 'members are prohibited in annotation classes'.
+    func declarationKindKeywordRange(
+        from nodeID: NodeID,
+        in arena: SyntaxArena
+    ) -> SourceRange? {
+        let tokens = collectTokens(from: nodeID, in: arena)
+        var depth = BracketDepth()
+        for token in tokens {
+            depth.track(token.kind)
+            guard depth.isAtTopLevel else { continue }
+            switch token.kind {
+            case .keyword(.fun), .keyword(.val), .keyword(.var),
+                 .keyword(.class), .keyword(.object), .keyword(.interface),
+                 .keyword(.enum), .keyword(.typealias), .keyword(.constructor),
+                 .softKeyword(.constructor), .softKeyword(.`init`):
+                return token.range
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
     /// Source range of a specific modifier keyword on a declaration
     /// (e.g. `override`), at top level in its token stream. kotlinc
     /// underlines the modifier itself for modifier-scoped diagnostics like
