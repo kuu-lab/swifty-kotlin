@@ -224,6 +224,43 @@ struct ExplicitImportResolutionTests {
         }, "Imported calls must retain their singleton dispatch receiver: \(importedCalls)")
     }
 
+    /// KUU-4510: an imported member extension declared in a generic supertype
+    /// must specialize its class type parameters from the imported object —
+    /// `C : I<String>` binds `T` while the receiver binds `E`.
+    @Test(arguments: [false, true])
+    func importedGenericSupertypeMemberExtensionInfersMethodTypeParameter(useArtifact: Bool) throws {
+        let source = """
+        import C.fi
+
+        interface I<T> {
+            fun <E> E.fi(): E = this
+        }
+        object C : I<String>
+
+        fun importedExtension(): Int = 9.fi()
+        fun importedExtensionString(): String = "OK".fi()
+        """
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = try context(inputs: [path], useArtifact: useArtifact)
+        _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
+        try runSema(ctx)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected diagnostics: \(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let objectC = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("C")]))
+        let fiName = ctx.interner.intern("fi")
+        let importedReceivers = sema.bindings.callBindings.compactMap { expression, binding -> SymbolID? in
+            guard case let .memberCall(_, name, _, _, _) = ast.arena.expr(expression),
+                  name == fiName
+            else { return nil }
+            return binding.dispatchReceiverSymbol
+        }
+        #expect(importedReceivers == [objectC, objectC],
+                "Imported member extension calls must bind C as the dispatch receiver: \(importedReceivers)")
+    }
+
     @Test(arguments: [
         "", "import library.*", "import library.answer", "import library.answer as renamed",
         "import library.ordinary", "import library.ordinary as renamed",
