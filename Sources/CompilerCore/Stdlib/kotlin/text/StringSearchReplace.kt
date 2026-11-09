@@ -99,7 +99,7 @@ public fun String.split(regex: Regex, limit: Int): List<String> =
     regex.split(this, limit)
 
 public infix fun String.matches(regex: Regex): Boolean =
-    __kk_string_matches_regex(regex)
+    regex.matches(this)
 
 @kotlin.internal.InlineOnly
 public inline infix fun CharSequence.matches(regex: Regex): Boolean {
@@ -118,7 +118,7 @@ public inline infix fun CharSequence.matches(regex: Regex): Boolean {
 }
 
 public operator fun String.contains(regex: Regex): Boolean =
-    __kk_string_contains_regex(regex)
+    regex.containsMatchIn(this)
 
 public operator fun CharSequence.contains(regex: Regex): Boolean =
     regex.containsMatchIn(charSequenceRegexInput(this))
@@ -136,13 +136,13 @@ private fun charSequenceRegexInput(value: CharSequence): String {
 }
 
 public fun String.toRegex(): Regex =
-    __kk_string_toRegex()
+    Regex(this)
 
 public fun String.toRegex(option: RegexOption): Regex =
-    __kk_string_toRegex_with_option(option)
+    Regex(this, option)
 
 public fun String.toRegex(options: Set<RegexOption>): Regex =
-    __kk_string_toRegex_with_options(options)
+    Regex(this, options)
 
 public fun String.substringBefore(delimiter: String, missingDelimiterValue: String = this): String {
     val index = indexOf(delimiter)
@@ -223,21 +223,6 @@ public fun String.replaceBeforeLast(delimiter: Char, replacement: String, missin
     val index = lastIndexOf(delimiter)
     return if (index == -1) missingDelimiterValue else replacement + substring(index)
 }
-
-@KsSymbolName("__kk_string_matches_regex_flat")
-private external fun String.__kk_string_matches_regex(regex: Regex): Boolean
-
-@KsSymbolName("__kk_string_contains_regex_flat")
-private external fun String.__kk_string_contains_regex(regex: Regex): Boolean
-
-@KsSymbolName("__kk_string_toRegex_flat")
-private external fun String.__kk_string_toRegex(): Regex
-
-@KsSymbolName("__kk_string_toRegex_with_option_flat")
-private external fun String.__kk_string_toRegex_with_option(option: RegexOption): Regex
-
-@KsSymbolName("__kk_string_toRegex_with_options_flat")
-private external fun String.__kk_string_toRegex_with_options(options: Set<RegexOption>): Regex
 
 private fun __kk_appendStringRange(sb: StringBuilder, value: List<Char>, startIndex: Int, endIndex: Int) {
     var i = startIndex
