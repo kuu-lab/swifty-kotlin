@@ -496,5 +496,46 @@ struct FlowSemaTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         }
     }
+
+    /// KUU-4255: a generic expected Flow result must select the imported
+    /// `unsafeFlow as flow` builder over a same-package `flow` declaration.
+    @Test(arguments: [false, true])
+    func testGenericFlowBuilderAliasDoesNotAmbiguateFlattenConcat(includeStdlib: Bool) throws {
+        let sources = [
+            """
+            package model
+
+            class Flow<T>
+            class Collector<T>
+            fun <T> unsafeFlow(block: suspend Collector<T>.() -> Unit): Flow<T> = Flow()
+            """,
+            """
+            package repro
+            import model.Flow
+            import model.Collector
+            import model.unsafeFlow as flow
+
+            fun <T> flow(block: suspend Collector<T>.() -> Unit): Flow<T> = Flow()
+
+            fun <T> Flow<Flow<T>>.flattenConcat(): Flow<T> = flow { }
+            """
+        ]
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: includeStdlib)
+            try runSema(ctx)
+
+            let sourceDiagnostics = diagnosticsForPath(paths[1], in: ctx)
+            #expect(
+                sourceDiagnostics.allSatisfy { $0.severity != .error },
+                "\(sourceDiagnostics.filter { $0.severity == .error }.map(\.code))"
+            )
+            #expect(!sourceDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0003" })
+            let sema = try #require(ctx.sema)
+            let unsafeFlow = try #require(sema.symbols.lookup(fqName: [
+                ctx.interner.intern("model"), ctx.interner.intern("unsafeFlow"),
+            ]))
+            #expect(sema.bindings.callBindings.values.contains { $0.chosenCallee == unsafeFlow })
+        }
+    }
 }
 #endif
