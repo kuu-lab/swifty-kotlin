@@ -93,6 +93,19 @@ enum CompilerPluginRegistry {
         KotlinxSerializationPlugin(),
     ]
 
+    /// Resolves all active plugins for the compilation: built-in plugins plus
+    /// any dynamic JVM plugins supplied via `-Xplugin=<path.jar>`.
+    static func plugins(for options: CompilerOptions) -> [any CompilerPlugin] {
+        var result = builtins
+        for flag in options.frontendFlags where flag.hasPrefix("-Xplugin=") {
+            let jarPath = String(flag.dropFirst("-Xplugin=".count))
+            if let descriptor = try? JvmPluginHostClient.shared.inspectPlugin(pluginJarPath: jarPath) {
+                result.append(JvmCompilerPlugin(jarPath: jarPath, descriptor: descriptor))
+            }
+        }
+        return result
+    }
+
     static func semaContext(
         ast: ASTModule,
         symbols: SymbolTable,
@@ -142,12 +155,12 @@ extension DataFlowSemaPhase {
         )
         // Every plugin self-gates: configured plugins check their options,
         // fixed-trigger plugins check whether their annotation resolved.
-        for plugin in CompilerPluginRegistry.builtins {
+        for plugin in CompilerPluginRegistry.plugins(for: ctx.options) {
             plugin.applySemaTransform(pluginCtx)
         }
     }
 
-    /// Runs every built-in plugin's post-inheritance Sema transform.
+    /// Runs every active plugin's post-inheritance Sema transform.
     /// Invoked after `bindInheritanceEdges` and the bundled-supertype
     /// patches so `directSupertypes`/`supertypeTypeArgs` are populated,
     /// and before override/sealed/delegation validation.
@@ -169,7 +182,7 @@ extension DataFlowSemaPhase {
             options: ctx.options,
             sema: sema
         )
-        for plugin in CompilerPluginRegistry.builtins {
+        for plugin in CompilerPluginRegistry.plugins(for: ctx.options) {
             plugin.applyPostInheritanceSemaTransform(pluginCtx)
         }
     }
