@@ -399,14 +399,12 @@ extension CallTypeChecker {
             }
         }
 
-        // A generic destination parameter can be constrained from the call's
-        // expected result type even when its argument is an empty factory call:
-        // `fun <T, C : MutableCollection<T>> f(destination: C, value: T): C`
-        // must contextualize `f(mutableListOf(), 1)` as `C = MutableList<Int>`.
-        // The first eager pass intentionally keeps ordinary arguments cheap,
-        // so add a targeted override for parameters that are the same type
-        // variable returned by the sole viable candidate. The contextual pass
-        // then re-infers the nested factory with the concrete target.
+        // A generic call's expected result can constrain a direct argument
+        // typed as its return variable, such as `f(mutableListOf(), 1)` for
+        // `fun <T, C : MutableCollection<T>> f(destination: C, value: T): C`.
+        // It can also constrain a callback that returns that variable. Add a
+        // targeted contextual type so result-only calls inside the callback
+        // can infer before the generic call is solved.
         if let expectedType,
            expectedType != sema.types.errorType,
            candidates.count == 1,
@@ -418,6 +416,13 @@ extension CallTypeChecker {
             if let returnTypeVariable = typeVarBySymbol[returnTypeParam.symbol],
                let parameterMapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx)
             {
+                let returnParameterIndex = signature.typeParameterSymbols.firstIndex(of: returnTypeParam.symbol)
+                let hasExplicitReturnTypeArgument = returnParameterIndex.map { index in
+                    index >= signature.classTypeParameterCount
+                        && resolvedExplicitTypeArgument(
+                            at: index - signature.classTypeParameterCount, in: explicitTypeArgs
+                        ) != nil
+                } ?? false
                 for (argumentIndex, parameterIndex) in parameterMapping {
                     guard signature.parameterTypes.indices.contains(parameterIndex),
                           let parameterType = contextualCallArgumentType(
@@ -426,16 +431,49 @@ extension CallTypeChecker {
                     else {
                         continue
                     }
-                    guard case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
-                          parameterTypeParam.symbol == returnTypeParam.symbol
-                    else {
-                        continue
+                    if case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+                       parameterTypeParam.symbol == returnTypeParam.symbol
+                    {
+                        expectedTypeOverrides[argumentIndex] = sema.types.substituteTypeParameters(
+                            in: parameterType,
+                            substitution: [returnTypeVariable: expectedType],
+                            typeVarBySymbol: typeVarBySymbol
+                        )
+                    } else if !hasExplicitReturnTypeArgument,
+                              expectedTypeOverrides[argumentIndex] == nil,
+                              case let .functionType(functionType) = sema.types.kind(of: parameterType),
+                              case let .typeParam(callbackResultParam) = sema.types.kind(of: functionType.returnType),
+                              callbackResultParam.symbol == returnTypeParam.symbol,
+                              !(
+                                  functionType.contextReceivers + functionType.params
+                                      + (functionType.receiver.map { [$0] } ?? [])
+                              ).contains(where: { inputType in
+                                  signature.typeParameterSymbols
+                                      .dropFirst(signature.classTypeParameterCount)
+                                      .contains(where: {
+                                          sema.types.typeContainsTypeParam(inputType, symbol: $0)
+                                      })
+                              })
+                    {
+                        // The callback contributes the generic call's result just like a direct `R`
+                        // argument. Keep callbacks with unresolved function type parameters in their
+                        // inputs on the ordinary inference path; their inputs need substitutions
+                        // before rebuilding the contextual function type. For result-only callbacks,
+                        // this lets nested factories such as `ChannelResult.closed(cause)` infer from
+                        // the call's expected return type.
+                        let callbackExpectedReturn = callbackResultParam.nullability == .nullable
+                            ? sema.types.makeNullable(expectedType) : expectedType
+                        expectedTypeOverrides[argumentIndex] = sema.types.make(.functionType(FunctionType(
+                            contextReceivers: functionType.contextReceivers,
+                            receiver: functionType.receiver,
+                            params: functionType.params,
+                            returnType: callbackExpectedReturn,
+                            isSuspend: functionType.isSuspend,
+                            isCallableReference: functionType.isCallableReference,
+                            nullability: functionType.nullability,
+                            throws: functionType.throws
+                        )))
                     }
-                    expectedTypeOverrides[argumentIndex] = sema.types.substituteTypeParameters(
-                        in: parameterType,
-                        substitution: [returnTypeVariable: expectedType],
-                        typeVarBySymbol: typeVarBySymbol
-                    )
                 }
             }
         }
