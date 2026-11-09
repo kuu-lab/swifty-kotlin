@@ -346,8 +346,7 @@
     {
       "path": "declarations/Serializable.kt",
       "virtualPath": "<kswiftk-jvm>/serializable.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/CharFunctions.kt",

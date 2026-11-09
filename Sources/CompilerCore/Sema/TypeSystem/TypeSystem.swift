@@ -12,6 +12,7 @@ struct TypeSystemSemaSnapshot: Codable {
     let nominalTypeParameterSymbols: [SymbolID: [SymbolID]]
     let nominalSupertypeTypeArgs: [SymbolID: [SymbolID: [TypeArg]]]
     let comparableInterfaceSymbol: SymbolID?
+    let serializableInterfaceSymbol: SymbolID?
     let annotationInterfaceSymbol: SymbolID?
     let closeableInterfaceSymbol: SymbolID?
     let ioCloseableInterfaceSymbol: SymbolID?
@@ -122,6 +123,11 @@ public final class TypeSystem {
     static let maxNominalLUBDepth = 16
 
     public internal(set) var comparableInterfaceSymbol: SymbolID?
+
+    /// The JVM `java.io.Serializable` marker interface. Populated after JVM
+    /// headers are collected so builtin value representations can participate
+    /// in its nominal subtype checks.
+    public internal(set) var serializableInterfaceSymbol: SymbolID?
 
     public internal(set) var annotationInterfaceSymbol: SymbolID?
 
@@ -257,6 +263,7 @@ public final class TypeSystem {
         worker.nominalTypeParameterOwnerMap = nominalTypeParameterOwnerMap
         worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
         worker.comparableInterfaceSymbol = comparableInterfaceSymbol
+        worker.serializableInterfaceSymbol = serializableInterfaceSymbol
         worker.annotationInterfaceSymbol = annotationInterfaceSymbol
         worker.closeableInterfaceSymbol = closeableInterfaceSymbol
         worker.ioCloseableInterfaceSymbol = ioCloseableInterfaceSymbol
@@ -1115,6 +1122,7 @@ extension TypeSystem {
             nominalTypeParameterSymbols: nominalTypeParameterSymbolsMap,
             nominalSupertypeTypeArgs: nominalSupertypeTypeArgsMap,
             comparableInterfaceSymbol: comparableInterfaceSymbol,
+            serializableInterfaceSymbol: serializableInterfaceSymbol,
             annotationInterfaceSymbol: annotationInterfaceSymbol,
             closeableInterfaceSymbol: closeableInterfaceSymbol,
             ioCloseableInterfaceSymbol: ioCloseableInterfaceSymbol,

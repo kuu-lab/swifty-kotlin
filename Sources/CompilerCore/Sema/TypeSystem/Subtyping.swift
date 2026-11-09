@@ -114,6 +114,28 @@ extension TypeSystem {
             return nullabilitySubtype(lhsNullability, rhsClass.nullability)
         }
 
+        // On the JVM, boxed Kotlin primitives and String implement
+        // java.io.Serializable even though their canonical Sema types are
+        // unboxed value representations rather than nominal classes.
+        if case let .classType(rhsClass) = rhs,
+           let serializableSymbol = serializableInterfaceSymbol,
+           rhsClass.classSymbol == serializableSymbol
+        {
+            switch lhs {
+            case let .stringStruct(leftNullability):
+                return nullabilitySubtype(leftNullability, rhsClass.nullability)
+            case let .primitive(primitive, leftNullability):
+                switch primitive {
+                case .boolean, .char, .int, .long, .float, .double, .byte, .short:
+                    return nullabilitySubtype(leftNullability, rhsClass.nullability)
+                case .uint, .ulong, .ubyte, .ushort:
+                    break
+                }
+            default:
+                break
+            }
+        }
+
         // STDLIB-030-BUG-01: A type parameter T is a subtype of its upper bounds.
         // This allows `T : AutoCloseable` (which stores `Closeable` as its bound after
         // typealias expansion) to satisfy `T <: Closeable` in the constraint solver and
