@@ -432,5 +432,86 @@ struct CodegenBackendStringHOFEdgeCasesTests {
                 + "\n"
         )
     }
+
+    // TEST-TEXT-019: String number parsing overloads
+    @Test
+    func testCodegenStringPureKotlinNumberParsing() throws {
+        let source = """
+        fun main() {
+            println("42".toInt())
+            println("invalid".toIntOrNull())
+            println("123456789012".toLong())
+            println("bad".toLongOrNull())
+            println("100".toShort())
+            println("32767".toShort())
+            println("7fff".toShort(16))
+            println("bad".toShortOrNull())
+            println("40000".toShortOrNull())
+            println("120".toByte())
+            println("7f".toByte(16))
+            println("bad".toByteOrNull())
+            println("200".toByteOrNull())
+            println("255".toUByte())
+            println("ff".toUByte(16))
+            println("bad".toUByteOrNull())
+            println("256".toUByteOrNull())
+            println("65535".toUShort())
+            println("ffff".toUShort(16))
+            println("bad".toUShortOrNull())
+            println("65536".toUShortOrNull())
+            println("4000000000".toUInt())
+            println("bad".toUIntOrNull())
+            println("10000000000000000000".toULong())
+            println("bad".toULongOrNull())
+
+            try {
+                "128".toByte()
+            } catch (e: NumberFormatException) {
+                println("byte-out-of-range-caught")
+            }
+
+            try {
+                "32768".toShort()
+            } catch (e: NumberFormatException) {
+                println("short-out-of-range-caught")
+            }
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringPureKotlinNumberParsing",
+            expected:
+                """
+                42
+                null
+                123456789012
+                null
+                100
+                32767
+                32767
+                null
+                null
+                120
+                127
+                null
+                null
+                255
+                255
+                null
+                null
+                65535
+                65535
+                null
+                null
+                4000000000
+                null
+                10000000000000000000
+                null
+                byte-out-of-range-caught
+                short-out-of-range-caught
+                """
+                + "\n"
+        )
+    }
 }
 #endif
