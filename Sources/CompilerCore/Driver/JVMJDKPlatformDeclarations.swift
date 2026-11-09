@@ -7,8 +7,10 @@ extension JVMClasspathIndex {
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let comparator: JVMValueType = .reference("java/util/Comparator", nullable: false)
         let extractor: JVMValueType = .reference("java/util/function/ToIntFunction", nullable: false)
-        func method(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ result: JVMValueType, staticMember: Bool = false, interface: Bool = false) -> JVMForeignMethod {
-            JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + (name == "<init>" ? "V" : result.descriptor), parameters: parameters, result: result, isStatic: staticMember, isInterface: interface, isAbstract: interface && !staticMember)
+        func method(_ owner: String, _ name: String, _ parameters: [JVMValueType], _ result: JVMValueType, staticMember: Bool = false, interface: Bool = false, varargs: Bool = false) -> JVMForeignMethod {
+            var foreign = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + (name == "<init>" ? "V" : result.descriptor), parameters: parameters, result: result, isStatic: staticMember, isInterface: interface, isAbstract: interface && !staticMember)
+            foreign.isVarargs = varargs
+            return foreign
         }
         let objectArray = JVMValueType.reference("[Ljava/lang/Object;", nullable: false)
         let nullableObjectArray = JVMValueType.reference("[Ljava/lang/Object;", nullable: true)
@@ -77,6 +79,53 @@ extension JVMClasspathIndex {
         }
         arraysSource += "\n                }\n            }\n"
         let declarations: [(String, String, UInt16, String?, [JVMForeignMethod])] = [
+            ("java/lang/String", """
+            package java.lang
+            class String(value: kotlin.String) {
+                companion object {
+                    external fun valueOf(value: Boolean): String
+                    external fun valueOf(value: Char): String
+                    external fun valueOf(value: CharArray): String
+                    external fun valueOf(data: CharArray, offset: Int, count: Int): String
+                    external fun valueOf(value: Double): String
+                    external fun valueOf(value: Float): String
+                    external fun valueOf(value: Int): String
+                    external fun valueOf(value: Long): String
+                    external fun valueOf(value: Any?): String
+                    external fun join(delimiter: kotlin.CharSequence, vararg elements: kotlin.CharSequence): String
+                    external fun join(delimiter: kotlin.CharSequence, elements: kotlin.collections.Iterable<out kotlin.CharSequence>): String
+                    external fun copyValueOf(data: CharArray): String
+                    external fun copyValueOf(data: CharArray, offset: Int, count: Int): String
+                    external fun format(format: kotlin.String, vararg args: Any?): String
+                    external fun format(locale: java.util.Locale, format: kotlin.String, vararg args: Any?): String
+                }
+                external fun getChars(srcBegin: Int, srcEnd: Int, dst: CharArray, dstBegin: Int)
+                external fun contentEquals(other: kotlin.CharSequence): Boolean
+                external fun regionMatches(thisOffset: Int, other: kotlin.String, otherOffset: Int, length: Int): Boolean
+                external fun regionMatches(ignoreCase: Boolean, thisOffset: Int, other: kotlin.String, otherOffset: Int, length: Int): Boolean
+            }
+            """, 0x0011, "java/lang/Object", [
+                method("java/lang/String", "<init>", [.string], .reference("java/lang/String", nullable: false)),
+                method("java/lang/String", "valueOf", [.boolean], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.char], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.reference("[C", nullable: false)], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.reference("[C", nullable: false), .int, .int], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.double], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.float], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.int], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [.long], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "valueOf", [object], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "join", [.reference("java/lang/CharSequence", nullable: false), .reference("[Ljava/lang/CharSequence;", nullable: false)], .reference("java/lang/String", nullable: false), staticMember: true, varargs: true),
+                method("java/lang/String", "join", [.reference("java/lang/CharSequence", nullable: false), .reference("java/lang/Iterable", nullable: false)], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "copyValueOf", [.reference("[C", nullable: false)], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "copyValueOf", [.reference("[C", nullable: false), .int, .int], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/String", "format", [.string, .reference("[Ljava/lang/Object;", nullable: false)], .reference("java/lang/String", nullable: false), staticMember: true, varargs: true),
+                method("java/lang/String", "format", [.reference("java/util/Locale", nullable: false), .string, .reference("[Ljava/lang/Object;", nullable: false)], .reference("java/lang/String", nullable: false), staticMember: true, varargs: true),
+                method("java/lang/String", "getChars", [.int, .int, .reference("[C", nullable: false), .int], .unit),
+                method("java/lang/String", "contentEquals", [.reference("java/lang/CharSequence", nullable: false)], .boolean),
+                method("java/lang/String", "regionMatches", [.int, .string, .int, .int], .boolean),
+                method("java/lang/String", "regionMatches", [.boolean, .int, .string, .int, .int], .boolean),
+            ]),
             ("java/lang/Math", """
             package java.lang
             class Math private constructor() {

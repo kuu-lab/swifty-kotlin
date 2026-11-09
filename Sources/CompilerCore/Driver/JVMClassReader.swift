@@ -270,6 +270,7 @@ struct JVMClassReader {
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
+                method.isVarargs = access & 0x0080 != 0
                 if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }

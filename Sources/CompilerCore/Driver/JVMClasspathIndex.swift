@@ -351,14 +351,14 @@ final class JVMClasspathIndex {
     /// Binary class names the frontend already provides: bundled JVM stdlib
     /// sources (which include the JDK platform declarations, scanned after
     /// they are injected) plus synthetic java.* compatibility decls that
-    /// `nominalNames` cannot see, and the String/Object anchors `kotlinType`
-    /// maps onto kotlin.String/kotlin.Any. kotlin.*-mapped JDK names are
-    /// deliberately NOT covered: the Kotlin declarations are compile-time
+    /// `nominalNames` cannot see. java.lang.Object is covered because Kotlin
+    /// maps it to Any; java.lang.String stays importable as a classifier while
+    /// method signatures still map to kotlin.String. kotlin.*-mapped JDK names
+    /// are deliberately NOT covered: the Kotlin declarations are compile-time
     /// views, so the erased classfile still has to come from a stub.
     private func coveredClassNames(in ctx: CompilationContext) throws -> Set<String> {
         var covered = try JVMStdlibCatalog.nominalNames(in: ctx)
         covered.formUnion(Self.syntheticJavaNames)
-        covered.insert("java/lang/String")
         covered.insert("java/lang/Object")
         // kotlin.CharSequence is the mapped-type counterpart of
         // java.lang.CharSequence; covering it keeps stub signatures and
@@ -970,7 +970,17 @@ final class JVMClasspathIndex {
     }
 
     private func parameters(_ method: JVMForeignMethod) -> String {
-        method.parameters.enumerated().map { "p\($0.offset): " + kotlinType($0.element) }.joined(separator: ", ")
+        method.parameters.enumerated().map { index, parameter in
+            let isVararg = method.isVarargs && index == method.parameters.count - 1
+            let parameterType: String
+            if isVararg, let name = parameter.referenceName, name.hasPrefix("["),
+               let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
+                parameterType = kotlinType(element)
+            } else {
+                parameterType = kotlinType(parameter)
+            }
+            return (isVararg ? "vararg " : "") + "p\(index): " + parameterType
+        }.joined(separator: ", ")
     }
     private func overridesParent(_ method: JVMForeignMethod, in info: JVMClassInfo, visited: Set<String>) -> Bool {
         guard !visited.contains(info.name) else { return false }
@@ -1024,8 +1034,19 @@ final class JVMClasspathIndex {
             let isExtension = hasExtensionReceiver(symbol, in: ctx)
             if isExtension { extensionSymbols.insert(symbol.id) }
             let receiverTypes = isExtension ? signature.receiverType.map { [$0] } ?? [] : []
-            let descriptorTypes = receiverTypes + signature.parameterTypes
-            let descriptor = "(" + (try descriptorTypes.map { try Self.type($0, sema: sema, ctx: ctx).descriptor }).joined() + ")"
+            let descriptorTypes = try (receiverTypes + signature.parameterTypes).enumerated().map { index, type -> JVMValueType in
+                let mapped = try Self.type(type, sema: sema, ctx: ctx)
+                let valueIndex = index - receiverTypes.count
+                guard valueIndex >= 0,
+                      signature.valueParameterIsVararg.indices.contains(valueIndex),
+                      signature.valueParameterIsVararg[valueIndex]
+                else { return mapped }
+                let component: JVMValueType
+                if case .typeParam = sema.types.kind(of: type) { component = Self.boxed(mapped) }
+                else { component = mapped }
+                return .reference("[" + component.descriptor, nullable: false)
+            }
+            let descriptor = "(" + descriptorTypes.map(\.descriptor).joined() + ")"
             let staticMember = isTopLevel || isExtension || (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false)
             guard let method = info.methods.first(where: { $0.name == name && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember }) else { continue }
             methods[symbol.id] = method

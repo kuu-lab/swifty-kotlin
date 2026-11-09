@@ -19,7 +19,7 @@ struct TypeCheckScopeBuilder {
         for packagePath in defaultImportPackages {
             for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
                 if shouldSkipDefaultImport(importedSymbol, sema: sema)
-                    || shouldSkipPrimitiveWrapperDefaultImport(importedSymbol, sema: sema, interner: interner)
+                    || shouldSkipMappedJavaLangTypeDefaultImport(importedSymbol, sema: sema, interner: interner)
                     || isFilePrivateTopLevel(importedSymbol, sema: sema)
                 {
                     continue
@@ -28,7 +28,7 @@ struct TypeCheckScopeBuilder {
             }
             defaultImportScope.addPackage(packagePath) { [self, sema] symbolID in
                 !shouldSkipDefaultImport(symbolID, sema: sema)
-                    && !shouldSkipPrimitiveWrapperDefaultImport(symbolID, sema: sema, interner: interner)
+                    && !shouldSkipMappedJavaLangTypeDefaultImport(symbolID, sema: sema, interner: interner)
                     && !isFilePrivateTopLevel(symbolID, sema: sema)
             }
         }
@@ -909,9 +909,9 @@ struct TypeCheckScopeBuilder {
         return false
     }
 
-    /// Keep Java's primitive wrappers available by their qualified names, but
-    /// do not let the `java.lang.*` default import shadow Kotlin primitive types.
-    private func shouldSkipPrimitiveWrapperDefaultImport(
+    /// Keep Java's primitive wrappers and String available by qualified name,
+    /// but do not let the `java.lang.*` default import shadow Kotlin types.
+    private func shouldSkipMappedJavaLangTypeDefaultImport(
         _ symbolID: SymbolID,
         sema: SemaModule,
         interner: StringInterner
@@ -925,7 +925,7 @@ struct TypeCheckScopeBuilder {
         guard fqName.count == 3, fqName[0] == "java", fqName[1] == "lang" else {
             return false
         }
-        return ["Boolean", "Byte", "Double", "Float", "Long", "Short"].contains(fqName[2])
+        return ["Boolean", "Byte", "Double", "Float", "Long", "Short", "String"].contains(fqName[2])
     }
 
     func makeDefaultImportPackages(interner: StringInterner) -> [[InternedString]] {
