@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=diff_kotlinc_cached_stdlib.sh
+source "$SCRIPT_DIR/diff_kotlinc_cached_stdlib.sh"
+configure_diff_compiler_process
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 DIFF_KSWIFTC_FLAGS="${DIFF_KSWIFTC_FLAGS:-}"
@@ -14,6 +17,8 @@ TIMEOUT_CMD="${TIMEOUT:-timeout}"
 DIFF_REQUIRE_JDK21="${DIFF_REQUIRE_JDK21:-1}"
 DIFF_LOG_PASS="${DIFF_LOG_PASS:-1}"
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-120}"
+STDLIB_COMPILE_TIMEOUT="${DIFF_STDLIB_COMPILE_TIMEOUT:-600}"
+STDLIB_LIBRARY="${DIFF_STDLIB_LIBRARY:-${KSWIFTK_STDLIB_LIBRARY:-}}"
 KEEP_TEMP=0
 REPORT_PATH=""
 ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/diff_diagnostics}"
@@ -46,6 +51,13 @@ Environment:
   DIFF_REQUIRE_JDK21     Require JDK 21 or newer (default: 1; set to 0 locally)
   DIFF_LOG_PASS          If 0 or false, omit PASS lines (default: 1)
   DIFF_COMPILE_TIMEOUT   Per-compiler timeout in seconds
+  DIFF_STDLIB_COMPILE_TIMEOUT
+                         Stdlib artifact build/resolution timeout in seconds (default: 600)
+  DIFF_STDLIB_LIBRARY    Reuse an existing KSwiftKStdlib.kklib for candidate compiles
+  KSWIFTK_STDLIB_LIBRARY Same as DIFF_STDLIB_LIBRARY when the former is unset
+  DIFF_REUSE_STDLIB_CACHE
+                         Set to 0 to skip the compiler-validated stdlib cache (default: 1)
+  DIFF_USE_DAEMON        Set to 1 to allow the compile daemon for stdlib resolution (default: 0)
   TIMEOUT                timeout command (Coreutils timeout on macOS)
 
 Case directives:
@@ -311,7 +323,12 @@ run_case() {
   # Keep reference and candidate diagnostics separate so artifacts preserve the raw compiler output.
   "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KOTLINC" -Xcontext-parameters "${kotlinc_flags[@]}" "$case_path" \
     -d "$tmp_dir/reference.jar" >"$tmp_dir/reference.stdout" 2>"$tmp_dir/reference.stderr" || ref_exit=$?
-  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir ${DIFF_KSWIFTC_FLAGS:+$DIFF_KSWIFTC_FLAGS} "$case_path" \
+  local -a candidate_stdlib_args=()
+  if [[ -n "$STDLIB_ARTIFACT" ]]; then
+    candidate_stdlib_args=(--no-stdlib --stdlib-library "$STDLIB_ARTIFACT")
+  fi
+  "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir ${DIFF_KSWIFTC_FLAGS:+$DIFF_KSWIFTC_FLAGS} \
+    "${candidate_stdlib_args[@]}" "$case_path" \
     -o "$tmp_dir/candidate.kir" >"$tmp_dir/candidate.stdout" 2>"$tmp_dir/candidate.stderr" || candidate_exit=$?
 
   cat "$tmp_dir/reference.stdout" "$tmp_dir/reference.stderr" >"$tmp_dir/reference.diagnostics"
@@ -398,6 +415,17 @@ FAKE_REF
   cat >"$candidate_fake" <<'FAKE_CANDIDATE'
 #!/usr/bin/env bash
 set -eu
+if [[ " $* " == *" --stdlib-only "* ]]; then
+  output=""
+  previous=""
+  for argument in "$@"; do
+    if [[ "$previous" == "-o" ]]; then output="$argument"; fi
+    previous="$argument"
+  done
+  mkdir -p "$output"
+  : >"$output/manifest.json"
+  exit 0
+fi
 source_file=""
 for argument in "$@"; do
   if [[ "$argument" == *.kt ]]; then source_file="$argument"; break; fi
@@ -560,6 +588,40 @@ echo "JDK requirement: ${DIFF_REQUIRE_JDK21}"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
 echo "Target: $TARGET"
 echo "========================================"
+
+# Resolve the bundled-stdlib artifact once so each --emit kir case does not
+# pay a full stdlib build inside the per-case timeout — the same sharing
+# diff_kotlinc.sh and run_candidate_only.sh already do. A --stdlib-from-source
+# opt-out keeps the per-case compiler default.
+STDLIB_ARTIFACT=""
+if [[ "$DIFF_KSWIFTC_FLAGS" != *--stdlib-from-source* ]]; then
+  DIFF_STDLIB_LIBRARY="$STDLIB_LIBRARY"
+  resolve_cached_diff_stdlib || exit 1
+  if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
+    if [[ ! -d "$DIFF_STDLIB_LIBRARY" || ! -f "$DIFF_STDLIB_LIBRARY/manifest.json" ]]; then
+      echo "Stdlib library does not exist or is missing manifest.json: $DIFF_STDLIB_LIBRARY" >&2
+      exit 1
+    fi
+    STDLIB_ARTIFACT="$DIFF_STDLIB_LIBRARY"
+  else
+    mkdir -p "$ARTIFACT_ROOT"
+    STDLIB_ARTIFACT="$ARTIFACT_ROOT/KSwiftKStdlib.kklib"
+    echo "Building stdlib artifact: $STDLIB_ARTIFACT"
+    stdlib_build_exit=0
+    "$TIMEOUT_CMD" "$STDLIB_COMPILE_TIMEOUT" "$KSWIFTC" --stdlib-only --emit library \
+      -o "$STDLIB_ARTIFACT" >"$ARTIFACT_ROOT/stdlib_build.stdout" 2>"$ARTIFACT_ROOT/stdlib_build.stderr" || stdlib_build_exit=$?
+    if [[ "$stdlib_build_exit" -ne 0 ]]; then
+      if [[ "$stdlib_build_exit" -eq 124 ]]; then
+        echo "Failed to build stdlib artifact: timed out after ${STDLIB_COMPILE_TIMEOUT}s" >&2
+      else
+        echo "Failed to build stdlib artifact: exit=$stdlib_build_exit" >&2
+      fi
+      cat "$ARTIFACT_ROOT/stdlib_build.stdout" "$ARTIFACT_ROOT/stdlib_build.stderr" >&2
+      exit 1
+    fi
+  fi
+  echo "Stdlib artifact: $STDLIB_ARTIFACT"
+fi
 
 while IFS= read -r case_path; do
   if is_candidate_only_case "$case_path"; then
