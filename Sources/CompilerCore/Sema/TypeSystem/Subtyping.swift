@@ -1595,7 +1595,9 @@ extension TypeSystem {
         else { return nil }
         defer { activeNominalLUBInputs.remove(inputSet) }
 
-        let variances = allTypeParameterVariances(for: symbol)
+        let enclosingParameterCount = enclosingTypeParameterSymbols(for: symbol).count
+        let fallbackArity = max(0, first.count - enclosingParameterCount)
+        let variances = allTypeParameterVariances(for: symbol, fallbackArity: fallbackArity)
         let isArray = symbol == arrayClassSymbol
         var combined: [TypeArg] = []
         for index in first.indices {
@@ -1620,8 +1622,11 @@ extension TypeSystem {
                     // Invariant and `out` arguments both contribute their
                     // bound to the covariant join: `KS<Any?>` joined with
                     // `KS<out Any>` on an invariant `KS<T>` is `KS<out Any?>`.
+                    let declarationVariance = variances.indices.contains(index)
+                        ? variances[index]
+                        : .invariant
                     switch composedProjection(
-                        declarationVariance: variances[index], useSite: argument
+                        declarationVariance: declarationVariance, useSite: argument
                     ) {
                     case let .out(bound), let .invariant(bound):
                         upperBounds.append(bound)
