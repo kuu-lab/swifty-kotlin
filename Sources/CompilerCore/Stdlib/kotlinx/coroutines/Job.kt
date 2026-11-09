@@ -61,6 +61,22 @@ public interface Job : CoroutineContext.Element {
     // keep working end to end.
     @KsSymbolName("kk_job_attach_child")
     public fun attachChild(child: ChildJob): ChildHandle
+
+    // kotlinx declares these as Job members, so callers use them without an
+    // import; the default bodies dispatch through the same runtime bridge the
+    // former top-level extensions used.
+    public fun invokeOnCompletion(handler: CompletionHandler): DisposableHandle =
+        invokeOnCompletion(false, true, handler)
+
+    public fun invokeOnCompletion(
+        onCancelling: Boolean,
+        invokeImmediately: Boolean = true,
+        handler: CompletionHandler
+    ): DisposableHandle {
+        val id = __kkJobInvokeOnCompletion(this, onCancelling, invokeImmediately, handler)
+        if (id == 0) return NonDisposableHandle
+        return DisposableHandle { __kkJobDisposeCompletionHandler(this, id) }
+    }
 }
 
 public interface ChildJob : Job {
@@ -178,18 +194,8 @@ public fun Job.cancelChildren(cause: CancellationException? = null) {
     }
 }
 
-public fun Job.invokeOnCompletion(handler: CompletionHandler): DisposableHandle =
-    invokeOnCompletion(false, true, handler)
-
-public fun Job.invokeOnCompletion(
-    onCancelling: Boolean,
-    invokeImmediately: Boolean = true,
-    handler: CompletionHandler
-): DisposableHandle {
-    val id = __kkJobInvokeOnCompletion(this, onCancelling, invokeImmediately, handler)
-    if (id == 0) return NonDisposableHandle
-    return DisposableHandle { __kkJobDisposeCompletionHandler(this, id) }
-}
+// `invokeOnCompletion` lives on the Job interface (see above) to match the
+// upstream kotlinx.coroutines API shape — callers use it without an import.
 
 // Cancel first so `join()` waits for the job to actually finish winding down
 // instead of suspending on a still-running job.

@@ -11,7 +11,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.invokeOnCompletion
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 public fun Job.asCompletableFuture(): CompletableFuture<Unit> {
