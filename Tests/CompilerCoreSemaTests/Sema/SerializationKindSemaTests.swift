@@ -66,6 +66,47 @@ struct SerializationKindSemaTests {
     }
 
     @Test
+    func globalOptInMatchesDuplicateBundledSerializationMarker() throws {
+        let directory = "/tmp/serialization-kind-\(UUID().uuidString)"
+        let libDir = URL(fileURLWithPath: directory).appendingPathExtension("kklib")
+        try FileManager.default.createDirectory(at: libDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: libDir) }
+        try """
+        {"formatVersion": 1, "moduleName": "SerializationMarkerDuplicate", "metadata": "metadata.bin"}
+        """.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        let importedMarker = MetadataRecord(
+            kind: .annotationClass,
+            fqName: "kotlinx.serialization.SealedSerializationApi",
+            annotations: [MetadataAnnotationRecord(annotationFQName: "kotlin.RequiresOptIn")]
+        )
+        try Data(MetadataEncoder().serialize([importedMarker]).utf8)
+            .write(to: libDir.appendingPathComponent("metadata.bin"))
+
+        let input = "\(directory)/Child.kt"
+        let source = """
+        package kotlinx.serialization.internal
+        import kotlinx.serialization.descriptors.SerialDescriptor
+        class Sub: SerialDescriptor { override val serialName = "x" }
+        """
+        let options = CompilerOptions(
+            moduleName: "KotlinxSerialization",
+            inputs: [input],
+            outputPath: "\(directory)/KotlinxSerialization",
+            emit: .library,
+            searchPaths: [libDir.path],
+            target: defaultTargetTriple(),
+            frontendFlags: ["opt-in=kotlinx.serialization.SealedSerializationApi"],
+            allowDefaultStdlibLibrary: false
+        )
+        let context = CompilerDriver().runFrontend(
+            options: options,
+            inMemorySources: [input: Data(source.utf8)]
+        ).context
+        let diagnostics = context.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-SUBCLASS-OPT-IN" }
+        #expect(diagnostics.isEmpty, "\(context.diagnostics.diagnostics)")
+    }
+
+    @Test
     func sealedKindCannotBeSubclassedInAnotherPackage() {
         let context = analyze("""
         package external
