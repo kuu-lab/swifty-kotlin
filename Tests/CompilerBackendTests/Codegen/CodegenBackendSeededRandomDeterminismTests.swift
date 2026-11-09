@@ -8,19 +8,40 @@ import Testing
 struct CodegenBackendSeededRandomDeterminismTests {
 
     @Test
-    func testCodegenSeededIntRangeRandomMatchesKotlinValue() throws {
+    func testCodegenSeededRangeRandomMatchesKotlinValues() throws {
         let source = """
         import kotlin.random.Random
 
         fun main() {
             println((1..100).random(Random(42)))
+            println((1..100).randomOrNull(Random(42)))
+            println((1L..100L).random(Random(42)))
+            println((1L..100L).randomOrNull(Random(42)))
+            println(('a'..'z').random(Random(42)))
+            println(('a'..'z').randomOrNull(Random(42)))
+            println((1u..100u).random(Random(42)))
+            println((1u..100u).randomOrNull(Random(42)))
+            println((1uL..100uL).random(Random(42)))
+            println((1uL..100uL).randomOrNull(Random(42)))
         }
         """
 
         try assertKotlinOutput(
             source,
-            moduleName: "SeededIntRangeRandomParity",
-            expected: "34\n"
+            moduleName: "SeededRangeRandomParity",
+            expected:
+                """
+                34
+                34
+                9
+                9
+                f
+                f
+                34
+                34
+                9
+                9
+                """ + "\n"
         )
     }
 
