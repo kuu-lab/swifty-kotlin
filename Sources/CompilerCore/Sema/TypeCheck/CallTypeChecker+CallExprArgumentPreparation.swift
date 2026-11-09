@@ -447,14 +447,20 @@ extension CallTypeChecker {
                               !(
                                   functionType.contextReceivers + functionType.params
                                       + (functionType.receiver.map { [$0] } ?? [])
-                              ).contains(where: {
-                                  sema.types.typeContainsTypeParam($0, symbol: returnTypeParam.symbol)
+                              ).contains(where: { inputType in
+                                  signature.typeParameterSymbols
+                                      .dropFirst(signature.classTypeParameterCount)
+                                      .contains(where: {
+                                          sema.types.typeContainsTypeParam(inputType, symbol: $0)
+                                      })
                               })
                     {
                         // The callback contributes the generic call's result just like a direct `R`
-                        // argument. Contextualize its return before checking the lambda body so a
-                        // result-only nested factory such as `ChannelResult.closed(cause)` can infer
-                        // its type argument from the call's expected return type.
+                        // argument. Keep callbacks with unresolved function type parameters in their
+                        // inputs on the ordinary inference path; their inputs need substitutions
+                        // before rebuilding the contextual function type. For result-only callbacks,
+                        // this lets nested factories such as `ChannelResult.closed(cause)` infer from
+                        // the call's expected return type.
                         let callbackExpectedReturn = callbackResultParam.nullability == .nullable
                             ? sema.types.makeNullable(expectedType) : expectedType
                         expectedTypeOverrides[argumentIndex] = sema.types.make(.functionType(FunctionType(

@@ -6,6 +6,27 @@ import Testing
 @Suite
 struct ReceiveCatchingInlineTypeInferenceTests {
     @Test
+    func genericExtensionCallbackKeepsItsReceiverInputType() throws {
+        try withTemporaryFile(contents: """
+        class LetInput {
+            fun value(): Int = 1
+        }
+
+        private inline fun <T, R> T.letLike(block: (T) -> R): R = block(this)
+
+        fun readValue(input: LetInput): Int = input.letLike { it.value() }
+        """) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Expected the extension receiver to specialize the callback input, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
+
+    @Test
     func inlineReceiveImplUsesExpectedReturnForResultOnlyFactory() throws {
         try withTemporaryFile(contents: """
         // Mirrors the relevant bundled ChannelResult generic shape while keeping
