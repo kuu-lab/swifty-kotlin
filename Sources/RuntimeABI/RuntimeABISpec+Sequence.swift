@@ -3,12 +3,6 @@ private let abi = RuntimeABISectionBuilder("Sequence")
 public extension RuntimeABISpec {
     static let sequenceContainsSpec: RuntimeABIFunctionSpec = abi.nt("kk_sequence_contains", "seqRaw element")
     static let sequenceElementAtOrNullSpec: RuntimeABIFunctionSpec = abi.nt("kk_sequence_elementAtOrNull", "seqRaw index")
-    static let sequenceScanSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_scan", "seqRaw initial fnPtr closureRaw outThrown")
-    static let sequenceRunningFoldSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_runningFold", "seqRaw initial fnPtr closureRaw outThrown")
-    static let sequenceRunningReduceSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_runningReduce", "seqRaw fnPtr closureRaw outThrown")
-    static let sequenceRunningReduceIndexedSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_runningReduceIndexed", "seqRaw fnPtr closureRaw outThrown")
-    static let sequenceRunningFoldIndexedSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_runningFoldIndexed", "seqRaw initial fnPtr closureRaw outThrown")
-    static let sequenceScanIndexedSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_scanIndexed", "seqRaw initial fnPtr closureRaw outThrown")
     static let sequenceReduceIndexedSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_reduceIndexed", "seqRaw fnPtr closureRaw outThrown")
     static let sequenceReduceIndexedOrNullSpec: RuntimeABIFunctionSpec = abi.th("kk_sequence_reduceIndexedOrNull", "seqRaw fnPtr closureRaw outThrown")
 
@@ -87,21 +81,14 @@ public extension RuntimeABISpec {
         abi.nt("kk_sequence_toHashSet", "seqRaw"),
         abi.nt("kk_sequence_toCollection", "seqRaw destRaw"),
         abi.th("kk_sequence_unzip", "seqRaw"),
-        sequenceScanSpec,
-        sequenceRunningFoldSpec,
-        sequenceRunningReduceSpec,
-        sequenceRunningReduceIndexedSpec,
         abi.nt("kk_sequence_toSet", "seqRaw"),
         abi.nt("kk_sequence_toSortedSet", "seqRaw"),
         abi.th("kk_sequence_toMap", "seqRaw outThrown"),
-        abi.th(stdlibSequenceHOFName("groupBy", arity: 1, fallback: "kk_sequence_groupBy"), "seqRaw fnPtr closureRaw outThrown"),
         abi.th("kk_sequence_max", "seqRaw outThrown"),
         abi.nt("kk_sequence_maxOrNull", "seqRaw"),
         abi.nt("kk_sequence_minOrNull", "seqRaw"),
         abi.th("kk_sequence_min", "seqRaw outThrown"),
         abi.nt("kk_sequence_flatten", "seqRaw"),
-        sequenceRunningFoldIndexedSpec,
-        sequenceScanIndexedSpec,
         sequenceReduceIndexedSpec,
         sequenceReduceIndexedOrNullSpec,
         abi.th("kk_sequence_reduce", "seqRaw fnPtr closureRaw outThrown"),

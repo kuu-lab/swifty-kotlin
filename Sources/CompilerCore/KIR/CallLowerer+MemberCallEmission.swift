@@ -1621,14 +1621,11 @@ extension CallLowerer {
         "kk_sequence_reduceOrNull",
         "kk_sequence_reduceRight",
         "kk_sequence_reduce",
-        "kk_sequence_scan",
         "kk_sequence_reduceIndexed",
         "kk_sequence_reduceIndexedOrNull",
         "kk_sequence_reduceRightIndexed",
         "kk_sequence_reduceRightOrNull",
         "kk_sequence_reduceRightIndexedOrNull",
-        "kk_sequence_runningFold",
-        "kk_sequence_runningReduceIndexed",
         "kk_sequence_sortedBy",
         "kk_sequence_sortedByDescending",
         "kk_sequence_firstNotNullOf",
@@ -1652,8 +1649,6 @@ extension CallLowerer {
         "kk_sequence_singleOrNull",
         "kk_sequence_count",
         "kk_sequence_to_list",
-        "kk_sequence_runningFoldIndexed",
-        "kk_sequence_scanIndexed",
     ]
 
     private static let resultFunction1CalleeNames: Set<String> = [
