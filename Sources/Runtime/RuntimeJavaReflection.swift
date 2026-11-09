@@ -109,12 +109,6 @@ final class RuntimeJavaFieldRegistry: @unchecked Sendable {
         return RuntimeJavaFieldMetadata(name: name, annotations: annotations)
     }
 
-    func fieldNames(for typeToken: Int) -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
-        return Array(fieldsByTypeToken[typeToken]?.keys ?? Dictionary<String, [RuntimeAnnotationRecord]>().keys)
-    }
-
     func reset() {
         lock.lock()
         defer { lock.unlock() }

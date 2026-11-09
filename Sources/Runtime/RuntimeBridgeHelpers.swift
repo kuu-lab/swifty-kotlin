@@ -40,21 +40,3 @@ public func runtimeThrowingBridge<R: BinaryInteger>(
     }
 }
 
-/// Variant of `runtimeThrowingBridge` returning an optional pointer.
-@inline(__always)
-public func runtimeThrowingBridgePointer<P>(
-    _ outThrown: UnsafeMutablePointer<Int>?,
-    defaultOnFailure: P? = nil,
-    _ body: () throws -> P?
-) -> P? {
-    outThrown?.pointee = 0
-    do {
-        return try body()
-    } catch let thrown as RuntimeThrownHandle {
-        runtimeSetThrown(outThrown, thrown.handle)
-        return defaultOnFailure
-    } catch {
-        runtimeSetThrown(outThrown, runtimeAllocateException(message: String(describing: error)))
-        return defaultOnFailure
-    }
-}

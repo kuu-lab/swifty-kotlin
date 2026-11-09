@@ -530,8 +530,6 @@ enum RuntimeKParameterFlags {
 
 enum RuntimeKParameterCallableOwnerDiscriminator {
     static let property = 0
-    static let propertyGetter = 1
-    static let propertySetter = 2
 }
 
 final class RuntimeKParameterBox {

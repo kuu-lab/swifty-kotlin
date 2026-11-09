@@ -173,29 +173,6 @@ public func __kk_string_toIntOrNull_radix(
     runtimeStringIntegerOrNullRadix(strRaw, radix, as: Int32.self, caller: #function, outThrown) { Int($0) }
 }
 
-@_cdecl("__kk_string_toUByteOrNull")
-public func __kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
-    runtimeStringIntegerOrNull(strRaw, as: UInt8.self, caller: #function) { Int($0) }
-}
-
-@_cdecl("__kk_string_toUShortOrNull")
-public func __kk_string_toUShortOrNull(_ strRaw: Int) -> Int {
-    runtimeStringIntegerOrNull(strRaw, as: UInt16.self, caller: #function) { Int($0) }
-}
-
-@_cdecl("__kk_string_toUIntOrNull")
-public func __kk_string_toUIntOrNull(_ strRaw: Int) -> Int {
-    runtimeStringIntegerOrNull(strRaw, as: UInt32.self, caller: #function) { Int($0) }
-}
-
-@_cdecl("__kk_string_toULongOrNull")
-public func __kk_string_toULongOrNull(_ strRaw: Int) -> Int {
-    // ULong? slots hold box-or-sentinel: 2^63 bit-equals the sentinel (KUU-854).
-    return runtimeStringIntegerOrNull(strRaw, as: UInt64.self, caller: #function) {
-        kk_box_ulong_nonnull(Int(bitPattern: UInt($0)))
-    }
-}
-
 @_cdecl("__kk_string_toUByteOrNull_radix")
 public func __kk_string_toUByteOrNull_radix(
     _ strRaw: Int,

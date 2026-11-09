@@ -31,7 +31,6 @@ private final class RuntimeURLConnectionBox {
     var responseMessage: String?
     var headerFields: [(String, [String])] = []
     var bodyData = Data()
-    var connectFailed: String?
 
     init(spec: String) {
         self.spec = spec

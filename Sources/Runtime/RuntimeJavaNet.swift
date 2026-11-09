@@ -94,13 +94,6 @@ private func runtimeAllocateNoRouteToHostException(_ message: String) -> Int {
         ["java.net.SocketException", "java.io.IOException"], message)
 }
 
-private func runtimeAllocateHeadlessException() -> Int {
-    runtimeAllocateJavaNetExceptionShared(
-        "java.awt.HeadlessException", "HeadlessException",
-        ["java.lang.UnsupportedOperationException", "kotlin.UnsupportedOperationException",
-         "kotlin.RuntimeException"], nil)
-}
-
 private func javaNetString(_ raw: Int) -> String? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
           let surrogate = extractString(from: ptr)

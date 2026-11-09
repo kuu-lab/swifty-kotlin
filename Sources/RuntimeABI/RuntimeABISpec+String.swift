@@ -624,42 +624,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_string_toUByteOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_toUShortOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_toUIntOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_toULongOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_string_toUByteOrNull_radix",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
