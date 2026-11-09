@@ -203,6 +203,32 @@ final class RuntimeCoroutineContext: @unchecked Sendable {
         elementPair(for: slot)?.key == runtimeContinuationInterceptorKeyRaw
     }
 
+    /// Install a runtime-owned Job while keeping a synthesized element order
+    /// consistent with the context fields. The Job is inserted before any
+    /// interceptor slot, as `CoroutineContext.plus` does.
+    func installJobHandle(_ raw: Int) {
+        jobHandleRaw = raw
+        guard raw != 0, !elementOrder.contains(.job) else { return }
+        let insertionIndex = elementOrder.firstIndex(where: isInterceptorElementSlot) ?? elementOrder.endIndex
+        elementOrder.insert(.job, at: insertionIndex)
+    }
+
+    /// Install the runtime event-loop interceptor as the rightmost element,
+    /// preserving the recorded order of all non-interceptor elements.
+    func installDispatcherElementHandle(_ raw: Int) {
+        dispatcherHandleRaw = raw
+        guard raw != 0,
+              !elementOrder.contains(where: {
+                  if case .dispatcher = $0 { return true }
+                  return false
+              })
+        else {
+            return
+        }
+        let insertionIndex = elementOrder.firstIndex(where: isInterceptorElementSlot) ?? elementOrder.endIndex
+        elementOrder.insert(.dispatcher, at: insertionIndex)
+    }
+
     func extraElement(for keyRaw: Int) -> Int? {
         for pair in extras where pair.key == keyRaw {
             return pair.element
@@ -348,6 +374,32 @@ private struct RuntimeCoroutineContextIdentity: Hashable {
     }
 }
 
+/// Element membership for matching a reconstructed context to the source
+/// context held by its continuation. CoroutineContext equality is independent
+/// of fold order, while the canonical identity above keeps order so distinct
+/// fold/toString layouts do not share one runtime object.
+private struct RuntimeCoroutineContextContentIdentity {
+    let elements: Set<RuntimeContextElementPair>
+
+    init(_ context: RuntimeCoroutineContext) {
+        elements = context.memberElementPairs
+    }
+
+    func hasSameElements(as other: RuntimeCoroutineContextContentIdentity) -> Bool {
+        guard elements.count == other.elements.count else { return false }
+        var unmatched = Array(other.elements)
+        for element in elements {
+            guard let index = unmatched.firstIndex(where: {
+                $0.key == element.key && runtimeValuesEqual($0.element, element.element)
+            }) else {
+                return false
+            }
+            unmatched.remove(at: index)
+        }
+        return unmatched.isEmpty
+    }
+}
+
 private struct RuntimeWeakCoroutineContext {
     weak var context: RuntimeCoroutineContext?
 }
@@ -417,12 +469,16 @@ func runtimeCanonicalCoroutineContext(_ context: RuntimeCoroutineContext) -> Run
     RuntimeCoroutineContextCanonicalizer.shared.canonical(context)
 }
 
-/// Whether two runtime context models contain the same elements in the same order.
+/// Whether two runtime context models contain the same elements, regardless
+/// of their fold order. Kotlin context equality compares elements by key;
+/// iteration order only affects fold/toString and canonical object identity.
 func runtimeCoroutineContextsHaveSameContent(
     _ lhs: RuntimeCoroutineContext,
     _ rhs: RuntimeCoroutineContext
 ) -> Bool {
-    RuntimeCoroutineContextIdentity(lhs) == RuntimeCoroutineContextIdentity(rhs)
+    RuntimeCoroutineContextContentIdentity(lhs).hasSameElements(
+        as: RuntimeCoroutineContextContentIdentity(rhs)
+    )
 }
 
 /// The canonical object for the given content, creating it only on a miss so

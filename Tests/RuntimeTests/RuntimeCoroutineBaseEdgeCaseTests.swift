@@ -215,6 +215,95 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     // MARK: - CoroutineContext + (plus)
 
+    /// Matching a reconstructed context to its continuation is independent
+    /// of fold order, but canonical objects retain that order for fold/toString.
+    @Test func testContextContentMatchIgnoresFoldOrder() {
+        let nameRaw = kk_coroutine_name_create(0)
+        let jobRaw = kk_job_new()
+        let nameThenJob = RuntimeCoroutineContext(
+            name: "coroutine",
+            jobHandleRaw: jobRaw,
+            nameHandleRaw: nameRaw,
+            elementOrder: [.name, .job]
+        )
+        let jobThenName = RuntimeCoroutineContext(
+            name: "coroutine",
+            jobHandleRaw: jobRaw,
+            nameHandleRaw: nameRaw,
+            elementOrder: [.job, .name]
+        )
+
+        #expect(runtimeCoroutineContextsHaveSameContent(nameThenJob, jobThenName))
+
+        let canonicalNameThenJob = runtimeCanonicalCoroutineContext(nameThenJob)
+        let canonicalJobThenName = runtimeCanonicalCoroutineContext(jobThenName)
+        #expect(canonicalNameThenJob !== canonicalJobThenName)
+        #expect(canonicalNameThenJob.orderedElements.map(\.element) == [nameRaw, jobRaw])
+        #expect(canonicalJobThenName.orderedElements.map(\.element) == [jobRaw, nameRaw])
+    }
+
+    @Test func testContextContentMatchUsesResolvedDispatcherElement() {
+        let dispatcherTag = kk_dispatcher_default()
+        let dispatcherRaw = kk_dispatcher_named(0)
+        let tagContext = RuntimeCoroutineContext(dispatcher: dispatcherTag)
+        let handleContext = RuntimeCoroutineContext(dispatcherHandleRaw: dispatcherRaw)
+
+        #expect(tagContext.dispatcherElementHandle == dispatcherRaw)
+        #expect(runtimeCoroutineContextsHaveSameContent(tagContext, handleContext))
+    }
+
+    @Test func testInstallingRunBlockingElementsUpdatesFoldOrder() {
+        let nameRaw = kk_coroutine_name_create(0)
+        let dispatcherRaw = kk_dispatcher_named(0)
+        let jobRaw = kk_job_new()
+        let context = RuntimeCoroutineContext(
+            name: "coroutine",
+            nameHandleRaw: nameRaw,
+            elementOrder: [.name]
+        )
+
+        context.installDispatcherElementHandle(dispatcherRaw)
+        context.installJobHandle(jobRaw)
+
+        #expect(context.orderedElements.map(\.element) == [nameRaw, jobRaw, dispatcherRaw])
+    }
+
+    @Test func testCurrentContextReusesGeneratedContextWhenFoldOrderDiffers() {
+        let nameRaw = kk_coroutine_name_create(0)
+        let jobRaw = kk_job_new()
+        let dispatcherTag = kk_dispatcher_default()
+        let dispatcherRaw = kk_dispatcher_named(0)
+        let sourceContextRaw = runtimeRegisterObject(RuntimeCoroutineContext(
+            dispatcher: dispatcherTag,
+            name: "coroutine",
+            jobHandleRaw: jobRaw,
+            nameHandleRaw: nameRaw,
+            elementOrder: [.job, .name, .dispatcher]
+        ))
+        let completionRaw = kk_coroutine_continuation_factory(sourceContextRaw, 0)
+        let continuationState = RuntimeContinuationState(functionID: 0)
+        continuationState.inheritContinuationContext(from: completionRaw)
+        continuationState.jobHandle = runtimeJobHandle(from: jobRaw)
+        continuationState.scope = RuntimeCoroutineScope(context: RuntimeCoroutineContext(
+            name: "coroutine",
+            jobHandleRaw: jobRaw,
+            nameHandleRaw: nameRaw,
+            dispatcherHandleRaw: dispatcherRaw,
+            elementOrder: [.name, .job, .dispatcher]
+        ))
+        #expect(runtimeCoroutineContextsHaveSameContent(
+            resolveToCoroutineContext(sourceContextRaw),
+            continuationState.makeContinuationContext()
+        ))
+
+        let previousState = RuntimeContinuationState.current
+        defer { RuntimeContinuationState.current = previousState }
+        RuntimeContinuationState.current = continuationState
+
+        #expect(kk_coroutine_current_context() == sourceContextRaw)
+        #expect(kk_coroutine_current_context() == sourceContextRaw)
+    }
+
     /// EmptyCoroutineContext + element == element (left identity).
     @Test func testContextPlusEmptyLeftIsIdentity() {
         let nameRaw = kk_coroutine_name_create(0)  // "coroutine" default
