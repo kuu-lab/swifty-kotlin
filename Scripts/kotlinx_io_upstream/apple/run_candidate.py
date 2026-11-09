@@ -127,8 +127,13 @@ def testing_counts(log, expected_methods):
     # Swift Testing counts methods in its final summary. Case counts come from
     # successful method lines; XCTest's zero-test launcher summary is irrelevant.
     summaries=re.findall(STATUS_ICON+r'Test run with (\d+) tests? in (\d+) suites? passed after ([0-9.]+) seconds',log)
-    if len(summaries)!=1:
+    # swiftbuild runs every test product for a --filter invocation; products
+    # with no matching tests still emit an empty "0 tests" summary. Only the
+    # product that actually ran the selected suite reports a nonzero count.
+    nonempty=[s for s in summaries if int(s[0])>0]
+    if len(nonempty)!=1:
         raise RuntimeError(f'Expected exactly one observed Swift Testing PASS summary, got {summaries}')
+    summaries=nonempty
     lines=re.findall(r'^'+STATUS_ICON+r'Test (?!run with )([^\n]+?) passed after [0-9.]+ seconds\.$',log,re.MULTILINE)
     methods={}
     for line in lines:
