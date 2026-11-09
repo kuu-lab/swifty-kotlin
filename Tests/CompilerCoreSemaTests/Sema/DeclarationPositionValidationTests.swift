@@ -1086,6 +1086,18 @@ struct DeclarationPositionValidationTests {
         #expect(notApplicable.allSatisfy { $0.message == "modifier 'external' is not applicable to 'class'." })
     }
 
+    @Test func externalInterfaceMemberReportsOnlyNotApplicable() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            interface I1 {
+                external fun f(): Int
+            }
+            """)
+        // kotlinc reports only 'members of interfaces cannot be external';
+        // the reserved-stdlib diagnostic must not double-report.
+        assertHasDiagnostic("KSWIFTK-SEMA-0401", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
+    }
+
     @Test func innerOnInterfaceAndEnumReportsKindOnly() throws {
         let ctx = try semaContext(for: """
             inner interface I2
