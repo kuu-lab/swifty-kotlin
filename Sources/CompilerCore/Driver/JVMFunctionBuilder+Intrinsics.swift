@@ -442,7 +442,7 @@ extension JVMFunctionBuilder {
                 returns = .boolean
             case "removeAll", "retainAll": actual = member; parameters = [.reference("java/util/Collection", nullable: false)]; returns = .boolean
             case "removeAt": actual = "remove"; parameters = [.int]; returns = object
-            case "put": actual = member; parameters = [object, object]; returns = object
+            case "put", "getOrDefault": actual = member; parameters = [object, object]; returns = object
             case "clear": actual = member; parameters = []; returns = .unit
             default: throw fail("Unsupported JVM collection member: \(member).", id)
             }
