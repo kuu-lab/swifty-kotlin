@@ -25,3 +25,15 @@ public class FreezingException : RuntimeException {
 )
 @DeprecatedSinceKotlin(errorSince = "2.1")
 public fun <T> T.freeze(): T = this
+
+@Deprecated(
+    "Support for the legacy memory manager has been completely removed. Consequently, this property is always `false`.",
+    ReplaceWith("false")
+)
+@DeprecatedSinceKotlin(errorSince = "2.1")
+public val Any?.isFrozen: Boolean
+    get() = false
+
+@Deprecated("Support for the legacy memory manager has been completely removed. Usages of this function can be safely dropped.")
+@DeprecatedSinceKotlin(errorSince = "2.1")
+public fun Any.ensureNeverFrozen() {}
