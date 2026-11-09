@@ -296,7 +296,24 @@ extension NativeEmitter.FunctionEmissionContext {
         }
         let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
         let effectiveABISymbol = vtableABISymbol ?? effectiveSymbol
-        let isInternalCall = effectiveABISymbol.flatMap { internalFunctions[$0] } != nil
+        let isDynamicITableCall: Bool = if case .itableDynamic = dispatch { true } else { false }
+        // Dynamic itable calls invoke the resolved slot, not the source stub.
+        // Abstract member-extension accessor stubs can omit the extension
+        // receiver, so their LLVM type is not a valid indirect-call contract.
+        let effectiveInternalFunction: NativeEmitter.LLVMFunction? = {
+            guard !isDynamicITableCall, let effectiveABISymbol else {
+                return nil
+            }
+            let accessorProperty = symbols?.propertySymbol(forAccessor: effectiveABISymbol)
+                ?? symbols?.accessorOwnerProperty(for: effectiveABISymbol)
+            let isAbstractDeclaration = symbols?.symbol(effectiveABISymbol)?.flags.contains(.abstractType) == true
+                || accessorProperty.flatMap { symbols?.symbol($0)?.flags.contains(.abstractType) } == true
+            guard !isAbstractDeclaration else {
+                return nil
+            }
+            return internalFunctions[effectiveABISymbol]
+        }()
+        let isInternalCall = effectiveInternalFunction != nil
         let effectiveExternalName = effectiveABISymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
         let sourceExternalCallSignature = !isInternalCall
             ? sourceExternalSignature(
@@ -421,11 +438,9 @@ extension NativeEmitter.FunctionEmissionContext {
                 argumentCount: argumentValues.count,
                 appendThrownChannel: true
             )
-        } else if let effectiveABISymbol,
-                  let internalFunction = internalFunctions[effectiveABISymbol]
-        {
-            internalFunction
-        } else if let fallbackInternal {
+        } else if let effectiveInternalFunction {
+            effectiveInternalFunction
+        } else if !isDynamicITableCall, let fallbackInternal {
             fallbackInternal.function
         } else if calleeName.isEmpty {
             nil
