@@ -55,6 +55,25 @@ extension BundledStdlibExecutionTests {
         )
     }
 
+    /// KUU-4425: a literal passed to `runTest` must execute before control
+    /// returns to its caller when using the bundled `.kklib`.
+    @Test
+    func testRunTestExecutesBodyAndReturnsToCallerForKUU4425() throws {
+        try compileAndRunKotlin(
+            """
+            import kotlinx.coroutines.ExperimentalCoroutinesApi
+            import kotlinx.coroutines.test.*
+
+            @OptIn(ExperimentalCoroutinesApi::class)
+            fun main() {
+                runTest { println("in test") }
+                println("after")
+            }
+            """,
+            expectedOutput: "in test\nafter\n"
+        )
+    }
+
     @Test(arguments: [false, true])
     func testRunTestChildDelayUsesVirtualTime(allowDefaultStdlibLibrary: Bool) throws {
         try compileAndRunKotlin(
