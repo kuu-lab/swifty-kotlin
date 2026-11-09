@@ -190,10 +190,14 @@ public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
     }
     guard object.throwableWritableStackTrace else {
         object.throwableStackTraceAddresses = []
+        object.throwableStackTraceFrames = []
         return throwableRaw
     }
     if object.throwableStackTraceAddresses == nil {
         object.throwableStackTraceAddresses = runtimeCurrentStackTraceAddresses()
+    }
+    if object.throwableStackTraceFrames == nil {
+        object.throwableStackTraceFrames = runtimeCurrentLogicalStackTrace()
     }
     return throwableRaw
 }

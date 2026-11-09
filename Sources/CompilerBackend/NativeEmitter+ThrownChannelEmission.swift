@@ -66,6 +66,7 @@ extension NativeEmitter.FunctionEmissionContext {
             storeOutThrownIfNonNull(thrownValue, suffix: "\(namePrefix)throw_\(instructionIndex)")
             emitGCFrameLeave(returning: thrownValue)
             emitGCShadowPop(thrown: thrownValue)
+            emitRuntimeStackTraceExit()
             _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             currentBlock = continueBlock
@@ -175,6 +176,7 @@ extension NativeEmitter.FunctionEmissionContext {
         bindings.positionBuilder(builder, at: throwBlock)
         storeOutThrownIfNonNull(errorHandle, suffix: "soe")
         emitGCFrameLeave(returning: errorHandle)
+        emitRuntimeStackTraceExit()
         _ = bindings.buildRet(builder, value: zeroReturnValue)
 
         currentBlock = okBlock

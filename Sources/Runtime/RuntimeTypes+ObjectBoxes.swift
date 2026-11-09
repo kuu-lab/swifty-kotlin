@@ -276,6 +276,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     /// JVM parity for `Throwable.initCause` (see `RuntimeThrowableBox.causeInitialized`).
     var throwableCauseInitialized: Bool
     var throwableStackTraceAddresses: [Int]?
+    var throwableStackTraceFrames: [RuntimeLogicalStackTraceFrame]?
     var throwableStackTraceElementsRaw: Int
     var throwableSuppressed: [Int]
     var throwableSuppressionEnabled: Bool
@@ -295,6 +296,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.throwableCause = 0
         self.throwableCauseInitialized = false
         self.throwableStackTraceAddresses = nil
+        self.throwableStackTraceFrames = nil
         self.throwableStackTraceElementsRaw = 0
         self.throwableSuppressed = []
         self.throwableSuppressionEnabled = true

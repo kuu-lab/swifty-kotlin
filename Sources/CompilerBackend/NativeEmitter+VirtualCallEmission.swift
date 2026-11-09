@@ -1183,6 +1183,7 @@ extension NativeEmitter.FunctionEmissionContext {
         storeOutThrownIfNonNull(thrownValue, suffix: suffix)
         emitGCFrameLeave(returning: thrownValue)
         emitGCShadowPop(thrown: thrownValue)
+        emitRuntimeStackTraceExit()
         _ = bindings.buildRet(builder, value: zeroReturnValue)
     }
 

@@ -80,7 +80,8 @@ extension KIRLoweringDriver {
             returnType: returnType, body: Array(body),
             isSuspend: function.isSuspend, isInline: effectiveInline, isInlineOnly: isInlineOnly,
             isTailrec: function.isTailrec,
-            sourceRange: function.range
+            sourceRange: function.range,
+            instructionLocations: body.instructionLocations
         )))
         var declIDs: [KIRDeclID] = [kirID]
         appendDefaultStub(symbol: symbol, function: function, signature: signature, shared: shared, declIDs: &declIDs)

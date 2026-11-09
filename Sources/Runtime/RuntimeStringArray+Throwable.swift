@@ -203,6 +203,9 @@ func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
         if let frames = runtimeThrowableStackTraceElementLines(throwable.stackTraceElementsRaw) {
             return [header] + frames
         }
+        if !throwable.stackTraceFrames.isEmpty {
+            return [header] + runtimeThrowableStackTraceLines(throwable.stackTraceFrames)
+        }
         return [header] + runtimeThrowableStackFrameLines(throwable.stackTraceAddresses)
     }
     if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
@@ -210,6 +213,9 @@ func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [String] {
         let header = runtimeThrowableToString(throwableRaw) ?? "java.lang.Throwable"
         if let frames = runtimeThrowableStackTraceElementLines(object.throwableStackTraceElementsRaw) {
             return [header] + frames
+        }
+        if let stackTraceFrames = object.throwableStackTraceFrames, !stackTraceFrames.isEmpty {
+            return [header] + runtimeThrowableStackTraceLines(stackTraceFrames)
         }
         return [header] + runtimeThrowableStackFrameLines(object.throwableStackTraceAddresses ?? [])
     }
@@ -639,12 +645,14 @@ public func __kk_throwable_set_options(
         throwable.writableStackTrace = writableStackTrace
         if !writableStackTrace {
             throwable.stackTraceAddresses = []
+            throwable.stackTraceFrames = []
         }
     } else if let throwable = tryCast(ptr, to: RuntimeObjectBox.self) {
         throwable.throwableSuppressionEnabled = suppressionEnabled
         throwable.throwableWritableStackTrace = writableStackTrace
         if !writableStackTrace {
             throwable.throwableStackTraceAddresses = []
+            throwable.throwableStackTraceFrames = []
         }
     }
     return throwableRaw

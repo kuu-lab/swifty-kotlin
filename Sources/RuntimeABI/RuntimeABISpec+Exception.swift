@@ -22,6 +22,13 @@ public extension RuntimeABISpec {
     static let bridgeThrowableToStringSpec: RuntimeABIFunctionSpec = abi.th("__kk_throwable_toString", "throwableRaw outThrown")
     static let bridgePrintStderrSpec: RuntimeABIFunctionSpec = abi.nt("__kk_printStderr", "messageRaw")
     static let bridgeThrowableSuppressedRawSpec: RuntimeABIFunctionSpec = abi.nt("__kk_throwable_suppressedRaw", "throwableRaw")
+    static let runtimeStackTraceEnterSpec: RuntimeABIFunctionSpec = abi.nt(
+        "kk_runtime_stack_trace_enter", "classNameRaw methodNameRaw fileNameRaw line"
+    )
+    static let runtimeStackTraceSetLocationSpec: RuntimeABIFunctionSpec = abi.nt(
+        "kk_runtime_stack_trace_set_location", "fileNameRaw line"
+    )
+    static let runtimeStackTraceExitSpec: RuntimeABIFunctionSpec = abi.nt("kk_runtime_stack_trace_exit")
 
     static let exceptionFunctions: [RuntimeABIFunctionSpec] = [
         bridgeThrowableNewSpec,
@@ -145,6 +152,9 @@ public extension RuntimeABISpec {
         bridgeThrowableSetStackTraceSpec,
         bridgeThrowableToStringSpec,
         bridgePrintStderrSpec,
+        runtimeStackTraceEnterSpec,
+        runtimeStackTraceSetLocationSpec,
+        runtimeStackTraceExitSpec,
         abi.nt("__kk_throwable_setCause", "throwableRaw causeRaw"),
         // `Throwable.initCause` with the JVM guards (self-cause →
         // IllegalArgumentException, overwrite → IllegalStateException) through

@@ -62,6 +62,7 @@ extension NativeEmitter.FunctionEmissionContext {
             storeOutThrownIfNonNull(exceptionHandle, suffix: "len_npe_\(instructionIndex)")
             emitGCFrameLeave(returning: exceptionHandle)
             emitGCShadowPop(thrown: exceptionHandle)
+            emitRuntimeStackTraceExit()
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
 
