@@ -14,54 +14,20 @@ import kotlin.internal.KsSymbolName
 // operators use them only where their construction semantics still need a runtime
 // handle.
 
+internal fun __rangeUntil(a: Int, b: Int): IntRange =
+    if (b <= Int.MIN_VALUE) IntRange.EMPTY else a..(b - 1)
 
-@KsSymbolName("__kk_uint_rangeTo")
-internal external fun __uintRangeTo(a: UInt, b: UInt): UIntRange
+internal fun __rangeUntil(a: Long, b: Long): LongRange =
+    if (b <= Long.MIN_VALUE) LongRange.EMPTY else a..(b - 1L)
 
+internal fun __rangeUntil(a: Char, b: Char): CharRange =
+    if (b <= '\u0000') CharRange.EMPTY else a..(b.code - 1).toChar()
 
-@KsSymbolName("__kk_ulong_rangeTo")
-internal external fun __ulongRangeTo(a: ULong, b: ULong): ULongRange
+internal fun __rangeUntil(a: UInt, b: UInt): UIntRange =
+    if (b <= 0u) UIntRange.EMPTY else a..(b - 1u)
 
-
-@KsSymbolName("__kk_op_rangeUntil")
-internal external fun __rangeUntil(a: Int, b: Int): IntRange
-
-@KsSymbolName("__kk_long_rangeUntil")
-internal external fun __rangeUntil(a: Long, b: Long): LongRange
-
-@KsSymbolName("__kk_char_rangeUntil")
-internal external fun __rangeUntil(a: Char, b: Char): CharRange
-
-@KsSymbolName("__kk_uint_rangeUntil")
-internal external fun __rangeUntil(a: UInt, b: UInt): UIntRange
-
-@KsSymbolName("__kk_op_ulong_rangeUntil")
-internal external fun __ulongRangeUntil(a: ULong, b: ULong): ULongRange
-
-
-@KsSymbolName("__kk_op_step")
-internal external fun __intProgressionStep(range: IntProgression, step: Int): IntProgression
-
-@KsSymbolName("__kk_op_step")
-internal external fun __intRangeStep(range: IntRange, step: Int): IntProgression
-
-@KsSymbolName("__kk_op_step")
-internal external fun __longProgressionStep(range: LongProgression, step: Long): LongProgression
-
-@KsSymbolName("__kk_op_step")
-internal external fun __longRangeStep(range: LongRange, step: Long): LongProgression
-
-@KsSymbolName("__kk_char_range_step")
-internal external fun __charProgressionStep(range: CharProgression, step: Int): CharProgression
-
-@KsSymbolName("__kk_char_range_step")
-internal external fun __charRangeStep(range: CharRange, step: Int): CharProgression
-
-@KsSymbolName("__kk_uint_step")
-internal external fun __uintProgressionStep(range: UIntProgression, step: Int): UIntProgression
-
-@KsSymbolName("__kk_uint_step")
-internal external fun __uintRangeStep(range: UIntRange, step: Int): UIntProgression
+internal fun __ulongRangeUntil(a: ULong, b: ULong): ULongRange =
+    if (b <= 0uL) ULongRange.EMPTY else a..(b - 1uL)
 
 
 @KsSymbolName("__kk_int_progression_fromClosedRange")
@@ -160,49 +126,67 @@ public infix fun Char.until(to: Char): CharRange = __rangeUntil(this, to)
 public operator infix fun Char.rangeUntil(to: Char): CharRange = __rangeUntil(this, to)
 public operator infix fun Char.downTo(to: Char): CharProgression = CharProgression.fromClosedRange(this, to, -1)
 
-public operator fun UInt.rangeTo(to: UInt): UIntRange = __uintRangeTo(this, to)
+public operator fun UInt.rangeTo(to: UInt): UIntRange = UIntRange(this, to)
 public infix fun UInt.until(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.rangeUntil(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.downTo(to: UInt): UIntProgression = UIntProgression.fromClosedRange(this, to, -1)
 
-public operator fun UByte.rangeTo(to: UByte): UIntRange = __uintRangeTo(this.toUInt(), to.toUInt())
+public operator fun UByte.rangeTo(to: UByte): UIntRange = UIntRange(this.toUInt(), to.toUInt())
 public infix fun UByte.until(to: UByte): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
 public operator infix fun UByte.rangeUntil(to: UByte): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
 public operator infix fun UByte.downTo(to: UByte): UIntProgression =
     UIntProgression.fromClosedRange(this.toUInt(), to.toUInt(), -1)
 
-public operator fun UShort.rangeTo(to: UShort): UIntRange = __uintRangeTo(this.toUInt(), to.toUInt())
+public operator fun UShort.rangeTo(to: UShort): UIntRange = UIntRange(this.toUInt(), to.toUInt())
 public infix fun UShort.until(to: UShort): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
 public operator infix fun UShort.rangeUntil(to: UShort): UIntRange = __rangeUntil(this.toUInt(), to.toUInt())
 public operator infix fun UShort.downTo(to: UShort): UIntProgression =
     UIntProgression.fromClosedRange(this.toUInt(), to.toUInt(), -1)
 
-public operator fun ULong.rangeTo(to: ULong): ULongRange = __ulongRangeTo(this, to)
+public operator fun ULong.rangeTo(to: ULong): ULongRange = ULongRange(this, to)
 public infix fun ULong.until(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.rangeUntil(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.downTo(to: ULong): ULongProgression = ULongProgression.fromClosedRange(this, to, -1)
 
-public operator infix fun IntProgression.step(step: Int): IntProgression = __intProgressionStep(this, step)
-public operator infix fun LongProgression.step(step: Long): LongProgression = __longProgressionStep(this, step)
-public operator infix fun CharProgression.step(step: Int): CharProgression = __charProgressionStep(this, step)
+public operator infix fun IntProgression.step(step: Int): IntProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return IntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+}
+public operator infix fun LongProgression.step(step: Long): LongProgression {
+    require(step > 0L) { "Step must be positive, was: $step." }
+    return LongProgression.fromClosedRange(first, last, if (this.step > 0L) step else -step)
+}
+public operator infix fun CharProgression.step(step: Int): CharProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return CharProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+}
 public operator infix fun UIntProgression.step(step: Int): UIntProgression {
     require(step > 0) { "Step must be positive, was: $step." }
     return UIntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun ULongProgression.step(step: Long): ULongProgression {
     require(step > 0L) { "Step must be positive, was: $step." }
-    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+    return ULongProgression.fromClosedRange(first, last, if (this.step > 0L) step else -step)
 }
-public operator infix fun IntRange.step(step: Int): IntProgression = __intRangeStep(this, step)
-public operator infix fun LongRange.step(step: Long): LongProgression = __longRangeStep(this, step)
-public operator infix fun CharRange.step(step: Int): CharProgression = __charRangeStep(this, step)
+public operator infix fun IntRange.step(step: Int): IntProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return IntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+}
+public operator infix fun LongRange.step(step: Long): LongProgression {
+    require(step > 0L) { "Step must be positive, was: $step." }
+    return LongProgression.fromClosedRange(first, last, if (this.step > 0L) step else -step)
+}
+public operator infix fun CharRange.step(step: Int): CharProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return CharProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+}
 public operator infix fun UIntRange.step(step: Int): UIntProgression {
     require(step > 0) { "Step must be positive, was: $step." }
     return UIntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
 public operator infix fun ULongRange.step(step: Long): ULongProgression {
     require(step > 0L) { "Step must be positive, was: $step." }
-    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+    return ULongProgression.fromClosedRange(first, last, if (this.step > 0L) step else -step)
 }
 
 public fun IntProgression.Companion.fromClosedRange(start: Int, end: Int, step: Int): IntProgression = __intProgressionFromClosedRange(start, end, step)
