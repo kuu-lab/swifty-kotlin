@@ -50,6 +50,69 @@ struct NativePlatformBridgeTests {
     }
 
     @Test
+    func testBundledPosixPthreadSurface() throws {
+        let source = """
+        @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+        import kotlinx.cinterop.*
+        import platform.posix.*
+
+        fun usePthreadSurface(
+            mutex: CPointer<pthread_mutex_t>,
+            mutexAttr: CPointer<pthread_mutexattr_t>,
+            condition: CPointer<pthread_cond_t>,
+            conditionAttr: CPointer<pthread_condattr_t>,
+            deadline: CPointer<timespec>,
+            threadSlot: CPointer<pthread_tVar>,
+            threadAttr: CPointer<pthread_attr_t>,
+            thread: pthread_t,
+            startRoutine: CPointer<CFunction<(COpaquePointer?) -> COpaquePointer?>>?,
+            argument: COpaquePointer?,
+            qosClass: CPointer<UIntVar>,
+            relativePriority: CPointer<IntVar>
+        ): Int {
+            deadline.pointed.tv_sec = 1L
+            deadline.pointed.tv_nsec = 2L
+            val seconds = deadline.pointed.tv_sec + deadline.pointed.tv_nsec
+            val currentThread = pthread_self()
+            val sameThread = pthread_equal(thread, currentThread)
+            val created = pthread_create(threadSlot, threadAttr, startRoutine, argument)
+            val joined = pthread_join(thread, null)
+            val initialized = pthread_mutexattr_init(mutexAttr)
+            val attrType = pthread_mutexattr_settype(mutexAttr, PTHREAD_MUTEX_ERRORCHECK)
+            val conditionAttrStatus = pthread_condattr_init(conditionAttr)
+            val conditionStatus = pthread_cond_init(condition, conditionAttr)
+            val mutexStatus = pthread_mutex_init(mutex, mutexAttr)
+            val lockStatus = pthread_mutex_lock(mutex)
+            val condWaitStatus = pthread_cond_wait(condition, mutex)
+            val timedWaitStatus = pthread_cond_timedwait(condition, mutex, deadline)
+            val signalStatus = pthread_cond_signal(condition)
+            val broadcastStatus = pthread_cond_broadcast(condition)
+            val unlockStatus = pthread_mutex_unlock(mutex)
+            val conditionDestroyStatus = pthread_cond_destroy(condition)
+            val conditionAttrDestroyStatus = pthread_condattr_destroy(conditionAttr)
+            val mutexDestroyStatus = pthread_mutex_destroy(mutex)
+            val attrDestroyStatus = pthread_mutexattr_destroy(mutexAttr)
+            val timeStatus = clock_gettime(CLOCK_MONOTONIC, deadline)
+            val qos = qos_class_self()
+            val qosStatus = pthread_get_qos_class_np(thread, qosClass, relativePriority)
+            val override = pthread_override_qos_class_start_np(thread, qos, 0)
+            val overrideEndStatus = pthread_override_qos_class_end_np(override)
+            return seconds.toInt() + sameThread + created + joined + initialized + attrType + conditionStatus +
+                conditionAttrStatus + mutexStatus + lockStatus + condWaitStatus + timedWaitStatus + signalStatus +
+                broadcastStatus + unlockStatus +
+                conditionDestroyStatus + conditionAttrDestroyStatus + mutexDestroyStatus + attrDestroyStatus + timeStatus + qosStatus +
+                overrideEndStatus
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let context = makeCompilationContext(inputs: paths)
+            try runSema(context)
+            #expect(context.errorDiagnostics.isEmpty, "Bundled pthread API diagnostics: \(context.errorDiagnostics)")
+        }
+    }
+
+    @Test
     func testPlatformCharsetSubclassCanReturnExpectType() throws {
         let sources = [
             """
