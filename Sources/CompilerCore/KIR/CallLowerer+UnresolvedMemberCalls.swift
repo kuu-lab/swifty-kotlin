@@ -565,48 +565,6 @@ extension CallLowerer {
             }
         }
 
-        switch memberName {
-        // KSP-426: List sorting/extrema HOFs are bundled Kotlin source.
-        case "sortedByDescending":
-            return interner.intern("kk_list_sortedByDescending")
-        case "maxBy":
-            return interner.intern("kk_list_maxBy")
-        case "maxByOrNull":
-            return interner.intern("kk_list_maxByOrNull")
-        case "minByOrNull":
-            return interner.intern("kk_list_minByOrNull")
-        case "minBy":
-            return interner.intern("kk_list_minBy")
-        case "maxOf":
-            return interner.intern("kk_list_maxOf")
-        case "minOf":
-            return interner.intern("kk_list_minOf")
-        case "max":
-            return interner.intern("kk_list_max")
-        case "min":
-            return interner.intern("kk_list_min")
-        case "maxWith":
-            return interner.intern("kk_list_maxWith")
-        case "maxWithOrNull":
-            return interner.intern("kk_list_maxWithOrNull")
-        case "minWith":
-            return interner.intern("kk_list_minWith")
-        case "minWithOrNull":
-            return interner.intern("kk_list_minWithOrNull")
-        case "maxOfWith":
-            return interner.intern("kk_list_maxOfWith")
-        case "maxOfWithOrNull":
-            return interner.intern("kk_list_maxOfWithOrNull")
-        case "minOfWith":
-            return interner.intern("kk_list_minOfWith")
-        case "minOfWithOrNull":
-            return interner.intern("kk_list_minOfWithOrNull")
-        case "sortedWith":
-            return interner.intern("kk_list_sortedWith")
-        default:
-            break
-        }
-
         let useSequenceRuntimeForCollectionFallback = isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
             || isSequenceBoundTypeParameterType(nonNullReceiverType, sema: sema, interner: interner)
         let useIterableRuntimeForCollectionFallback = (sema.bindings.isCollectionExpr(receiverExpr)
