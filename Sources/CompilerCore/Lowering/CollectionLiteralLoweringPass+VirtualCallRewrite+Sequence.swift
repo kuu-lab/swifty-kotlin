@@ -301,46 +301,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // Args: initial, lambda (2 from Kotlin: initial + operation)
-        if callee == lookup.runningFoldIndexedName, arguments.count == 2,
-           state.contains(.sequence, receiver)
-        {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let hofResult = emitHOFCall(
-                kkName: lookup.kkSequenceRunningFoldIndexedName,
-                receiver: receiver,
-                arguments: [arguments[0]] + [arguments[1]] + [zeroExpr],
-                result: result,
-                origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult,
-                module: module,
-                loweredBody: &loweredBody
-            )
-            state.tagResult(.sequence, result, temporary: hofResult)
-            return true
-        }
-
-        // Args: initial, lambda (2 from Kotlin: initial + operation)
-        if callee == lookup.scanIndexedName, arguments.count == 2,
-           state.contains(.sequence, receiver)
-        {
-            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let hofResult = emitHOFCall(
-                kkName: lookup.kkSequenceScanIndexedName,
-                receiver: receiver,
-                arguments: [arguments[0]] + [arguments[1]] + [zeroExpr],
-                result: result,
-                origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult,
-                module: module,
-                loweredBody: &loweredBody
-            )
-            state.tagResult(.sequence, result, temporary: hofResult)
-            return true
-        }
-
         let sequencePlusMinusCallees = SequencePlusMinusRuntimeCallees(
             plus: lookup.kkSequencePlusName,
             minus: lookup.kkSequenceMinusName,
