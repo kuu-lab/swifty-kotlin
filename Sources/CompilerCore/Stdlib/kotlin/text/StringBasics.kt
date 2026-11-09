@@ -11,12 +11,6 @@ import kotlin.internal.KsSymbolName
 // and adding one here reproducibly broke `for (c in someString)` iteration
 // (CharSequence.length/get dispatch). A top-level parameter avoids it.
 
-@KsSymbolName("__kk_string_codePointCount")
-internal external fun __kk_string_codePointCount(cs: CharSequence): Int
-
-@KsSymbolName("__kk_string_codePointCount_from")
-internal external fun __kk_string_codePointCount_from(cs: CharSequence, startIndex: Int): Int
-
 @KsSymbolName("__kk_string_codePointCount_range")
 internal external fun __kk_string_codePointCount_range(cs: CharSequence, startIndex: Int, endIndex: Int): Int
 
@@ -35,9 +29,9 @@ public operator fun String.compareTo(other: String): Int = __kkStringCompareTo(o
 
 public fun String.intern(): String = __kkStringIntern()
 
-public fun CharSequence.codePointCount(): Int = __kk_string_codePointCount(this)
+public fun CharSequence.codePointCount(): Int = codePointCount(0, length)
 
-public fun CharSequence.codePointCount(startIndex: Int): Int = __kk_string_codePointCount_from(this, startIndex)
+public fun CharSequence.codePointCount(startIndex: Int): Int = codePointCount(startIndex, length)
 
 public fun CharSequence.codePointCount(startIndex: Int = 0, endIndex: Int): Int =
     __kk_string_codePointCount_range(this, startIndex, endIndex)
