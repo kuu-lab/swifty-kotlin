@@ -920,6 +920,9 @@ extension CallTypeChecker {
             }
             candidateType = local.type
         } else if let implicitReceiver = request.ctx.implicitReceiverType,
+                  // A callable property on a nullable implicit receiver is
+                  // unsafe to invoke — kotlinc does not offer it (KUU-4504).
+                  sema.types.nullability(of: implicitReceiver) != .nullable,
                   let property = driver.helpers.lookupMemberProperty(
                       named: name,
                       receiverType: sema.types.makeNonNullable(implicitReceiver),
