@@ -178,6 +178,7 @@ public class JvmPluginHost {
         boolean isParcelize = false;
         boolean isSerialization = false;
         boolean isSamWithReceiver = false;
+        boolean isAssignment = false;
         boolean noArgInvokeInitializers = false;
 
         // Try to identify from CommandLineProcessor
@@ -226,6 +227,9 @@ public class JvmPluginHost {
         } else if ("org.jetbrains.kotlin.samWithReceiver".equals(pluginId)
                 || jar.getEntry("org/jetbrains/kotlin/samWithReceiver/SamWithReceiverCommandLineProcessor.class") != null) {
             isSamWithReceiver = true;
+        } else if ("org.jetbrains.kotlin.assignment".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/assignment/plugin/AssignmentCommandLineProcessor.class") != null) {
+            isAssignment = true;
         }
 
         // Generic fallback: if "annotation" options were provided, include them
@@ -241,6 +245,7 @@ public class JvmPluginHost {
         List<String> syntheticMethods = new ArrayList<>();
         List<String> serializableClasses = new ArrayList<>();
         List<String> samWithReceiverInterfaces = new ArrayList<>();
+        List<String> assignmentOverloadTargets = new ArrayList<>();
 
         for (Map<String, Object> clazz : classes) {
             String fqName = (String) clazz.get("fqName");
@@ -296,6 +301,10 @@ public class JvmPluginHost {
             if (isSamWithReceiver) {
                 samWithReceiverInterfaces.add(fqName);
             }
+
+            if (isAssignment) {
+                assignmentOverloadTargets.add(fqName);
+            }
         }
 
         // Print Sema Transform Plan JSON
@@ -306,7 +315,8 @@ public class JvmPluginHost {
         sb.append("\"syntheticConstructors\":[").append(String.join(",", syntheticConstructors)).append("],");
         sb.append("\"syntheticMethods\":[").append(String.join(",", syntheticMethods)).append("],");
         sb.append("\"serializableClasses\":[").append(formatJsonStringArray(serializableClasses)).append("],");
-        sb.append("\"samWithReceiverInterfaces\":[").append(formatJsonStringArray(samWithReceiverInterfaces)).append("]");
+        sb.append("\"samWithReceiverInterfaces\":[").append(formatJsonStringArray(samWithReceiverInterfaces)).append("],");
+        sb.append("\"assignmentOverloadTargets\":[").append(formatJsonStringArray(assignmentOverloadTargets)).append("]");
         sb.append("}");
 
         System.out.println(sb.toString());
