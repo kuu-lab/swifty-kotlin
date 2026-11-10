@@ -186,7 +186,6 @@ public final class CodegenPhase: CompilerPhase {
         try fm.createDirectory(atPath: objectsDir, withIntermediateDirectories: true)
         try fm.createDirectory(atPath: inlineDir, withIntermediateDirectories: true)
 
-        let objectPath = objectsDir + "/\(ctx.options.moduleName)_0.o"
         // KUU-2814: `-Xfrontend stdlib-bitcode` also ships the optimized LLVM
         // module as bitcode (~2x the object size) for LTO experiments. Opt-in
         // because no consumer reads it: measured on hello.kt, importing the
@@ -212,9 +211,9 @@ public final class CodegenPhase: CompilerPhase {
                 }
                 .map(\.id))
         } ?? []
-        try backend.emitObject(
+        let relativeObjectPaths = try backend.emitLibraryObjects(
             module: module,
-            outputObjectPath: objectPath,
+            outputObjectsDir: objectsDir,
             interner: ctx.interner,
             typeSystem: ctx.sema?.types,
             symbols: ctx.sema?.symbols,
@@ -225,7 +224,7 @@ public final class CodegenPhase: CompilerPhase {
             linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs,
             bitcodeOutputPath: bitcodePath
         )
-        ctx.storeGeneratedObjectPath(objectPath)
+        ctx.storeGeneratedObjectPath(outputDir + "/" + (relativeObjectPaths.first ?? "objects/\(ctx.options.moduleName)_0.o"))
 
         try withSubPhaseTiming("inlineKIRArtifacts", timer: ctx.phaseTimer) {
             try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)
@@ -242,7 +241,7 @@ public final class CodegenPhase: CompilerPhase {
             "compilerVersion": CompilerBuildInfo.version,
             "sourceVarargStorageABI": "array-v1",
             "target": targetString,
-            "objects": ["objects/\(ctx.options.moduleName)_0.o"],
+            "objects": relativeObjectPaths,
             "metadata": "metadata.bin",
             "inlineKIRDir": "inline-kir",
             "runtimeReflectionMetadataScope": ctx.options.includeNonPublicReflectionMetadata || ctx.options.stdlibOnly

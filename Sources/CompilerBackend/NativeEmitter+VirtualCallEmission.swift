@@ -739,6 +739,21 @@ extension NativeEmitter.FunctionEmissionContext {
             name: "lookup_raw_\(instructionIndex)"
         ) else { return }
 
+        func resolveSourceDefaultFunction(for targetSymbol: SymbolID) -> NativeEmitter.LLVMFunction? {
+            if let internalFunction = internalFunctions[targetSymbol] {
+                return internalFunction
+            }
+            let targetExternalName = symbols?.externalLinkName(for: targetSymbol) ?? effectiveExternalName
+            if targetExternalName.hasPrefix("kk_fn_") {
+                return declareExternalFunction(
+                    named: targetExternalName,
+                    argumentCount: argumentValues.count,
+                    appendThrownChannel: shouldAppendThrownChannel
+                )
+            }
+            return nil
+        }
+
         // Runtime list boxes have no generated List itable. Only the
         // concrete Kotlin search defaults may fill that missing slot;
         // a source implementation's override still wins when present.
@@ -750,8 +765,9 @@ extension NativeEmitter.FunctionEmissionContext {
            symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
+           let defaultFunction = resolveSourceDefaultFunction(for: effectiveSymbol),
            let defaultPointer = bindings.buildPtrToInt(
-               builder, value: calleeFunction.value, type: int64Type,
+               builder, value: defaultFunction.value, type: int64Type,
                name: "list_search_default_\(instructionIndex)"
            ),
            let hasOverride = bindings.buildICmpNotEqual(
@@ -777,8 +793,9 @@ extension NativeEmitter.FunctionEmissionContext {
            symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "coroutines", "ContinuationInterceptor"],
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
+           let defaultFunction = resolveSourceDefaultFunction(for: effectiveSymbol),
            let defaultPointer = bindings.buildPtrToInt(
-               builder, value: calleeFunction.value, type: int64Type,
+               builder, value: defaultFunction.value, type: int64Type,
                name: "dispatcher_default_\(instructionIndex)"
            ),
            let selectMethod = declareExternalFunction(
