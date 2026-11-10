@@ -731,9 +731,14 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
-            guard !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
-                    || !hasNonHiddenCandidate
-            else { continue }
+            if isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols) {
+                // Synthetic declarations marked HIDDEN (such as compiler-plugin generated
+                // constructors or methods) must never be visible to Kotlin source calls,
+                // even when no other candidate exists.
+                if symbol.flags.contains(.synthetic) || hasNonHiddenCandidate {
+                    continue
+                }
+            }
             let accessibleInEnclosingClass = visibilityChecker.isAccessible(
                 symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol, usageRange: usageRange
             )

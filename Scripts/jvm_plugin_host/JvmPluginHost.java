@@ -265,11 +265,11 @@ public class JvmPluginHost {
 
             if (isParcelize) {
                 syntheticMethods.add(String.format(
-                        "{\"classFqName\":\"%s\",\"name\":\"describeContents\",\"returnType\":\"kotlin.Int\",\"defaultIntReturn\":0}",
+                        "{\"classFqName\":\"%s\",\"name\":\"describeContents\",\"returnType\":\"kotlin.Int\",\"defaultIntReturn\":0,\"instructions\":[{\"kind\":\"returnInt\",\"intValue\":0}]}",
                         escapeJson(fqName)
                 ));
                 syntheticMethods.add(String.format(
-                        "{\"classFqName\":\"%s\",\"name\":\"writeToParcel\",\"returnType\":\"kotlin.Unit\",\"params\":[{\"name\":\"parcel\",\"type\":\"android.os.Parcel\"},{\"name\":\"flags\",\"type\":\"kotlin.Int\"}]}",
+                        "{\"classFqName\":\"%s\",\"name\":\"writeToParcel\",\"returnType\":\"kotlin.Unit\",\"params\":[{\"name\":\"parcel\",\"type\":\"android.os.Parcel\"},{\"name\":\"flags\",\"type\":\"kotlin.Int\"}],\"instructions\":[{\"kind\":\"returnUnit\"}]}",
                         escapeJson(fqName)
                 ));
             }
