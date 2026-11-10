@@ -13,6 +13,7 @@ struct JvmCompilerPluginBridgeTests {
     private let allOpenJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/allopen-compiler-plugin.jar"
     private let noArgJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/noarg-compiler-plugin.jar"
     private let parcelizeJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/parcelize-compiler.jar"
+    private let serializationJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/kotlinx-serialization-compiler-plugin.jar"
 
     // MARK: - Phase 1: Inspection & Option Validation
 
@@ -309,6 +310,56 @@ struct JvmCompilerPluginBridgeTests {
                 }
                 #expect(hasStringReturn, "Custom method body must contain the string literal from instruction plan")
             }
+        }
+    }
+
+    @Test
+    func testHostInspectsSerializationJar() throws {
+        guard FileManager.default.fileExists(atPath: serializationJarPath) else {
+            return
+        }
+        let result = try JvmPluginHostClient.shared.inspectPlugin(pluginJarPath: serializationJarPath)
+        #expect(result.pluginId == "org.jetbrains.kotlinx.serialization")
+
+        let optionNames = Set(result.options.map(\.name))
+        #expect(optionNames.contains("disableIntrinsic"))
+    }
+
+    @Test
+    func testDynamicSerializationTransformsSema() throws {
+        guard FileManager.default.fileExists(atPath: serializationJarPath) else {
+            return
+        }
+        let stub = """
+        package kotlinx.serialization
+
+        annotation class Serializable
+        interface KSerializer<T>
+        """
+        let source = """
+        package com.example
+
+        import kotlinx.serialization.Serializable
+
+        @Serializable
+        class DynamicPayload(val name: String)
+        """
+        try withTemporaryFiles(contents: [stub, source]) { paths in
+            let flags = [
+                "-Xplugin=\(serializationJarPath)",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let payloadID = try #require(lookupSymbol(named: "DynamicPayload", in: sema, interner: ctx.interner))
+            let info = try #require(sema.serializationClasses[payloadID])
+            #expect(info.companionObjectSymbol != nil)
+            #expect(info.companionSerializerMethod != nil)
+            #expect(info.generatedSerializerClass != nil)
         }
     }
 

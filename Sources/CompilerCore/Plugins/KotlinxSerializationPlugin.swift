@@ -56,7 +56,7 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             }
 
             // 3. Generate serialization members
-            generateSerializationMembers(
+            Self.synthesizeSerializationMembers(
                 for: symbol,
                 context: context
             )
@@ -71,10 +71,13 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
         symbols.annotations(for: symbolID).contains { triggers.contains($0.annotationFQName) }
     }
 
-    private func generateSerializationMembers(
+    static func synthesizeSerializationMembers(
         for classSymbol: SemanticSymbol,
         context: CompilerPluginSemaContext
     ) {
+        if context.sema.serializationClasses[classSymbol.id] != nil {
+            return
+        }
         let symbols = context.symbols
         let types = context.types
         let interner = context.interner
@@ -250,7 +253,7 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
         )
     }
 
-    private func resolveKSerializerType(
+    private static func resolveKSerializerType(
         for classType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,

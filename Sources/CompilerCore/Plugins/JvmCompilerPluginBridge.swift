@@ -156,17 +156,20 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let membersToOpen: [String]
     public let syntheticConstructors: [JvmSyntheticConstructorPlan]
     public let syntheticMethods: [JvmSyntheticMethodPlan]
+    public let serializableClasses: [String]?
 
     public init(
         classesToOpen: [String] = [],
         membersToOpen: [String] = [],
         syntheticConstructors: [JvmSyntheticConstructorPlan] = [],
-        syntheticMethods: [JvmSyntheticMethodPlan] = []
+        syntheticMethods: [JvmSyntheticMethodPlan] = [],
+        serializableClasses: [String]? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
         self.syntheticConstructors = syntheticConstructors
         self.syntheticMethods = syntheticMethods
+        self.serializableClasses = serializableClasses
     }
 }
 
@@ -214,6 +217,8 @@ public final class JvmPluginHostClient: @unchecked Sendable {
         let commonCandidates = [
             "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/kotlin-compiler.jar",
             "/usr/local/Cellar/kotlin/2.4.21/libexec/lib/kotlin-compiler.jar",
+            "/opt/homebrew/opt/kotlin/libexec/lib/kotlin-compiler.jar",
+            "/usr/local/opt/kotlin/libexec/lib/kotlin-compiler.jar",
         ]
         for c in commonCandidates {
             if FileManager.default.fileExists(atPath: c) {
@@ -224,14 +229,27 @@ public final class JvmPluginHostClient: @unchecked Sendable {
     }
 
     public func findJvmPluginHostSource() -> String? {
-        let cwd = FileManager.default.currentDirectoryPath
-        let candidates = [
-            (cwd as NSString).appendingPathComponent("Scripts/jvm_plugin_host/JvmPluginHost.java"),
-            "/Users/kuu/ghq/github.com/kuu-lab/swifty-kotlin/Scripts/jvm_plugin_host/JvmPluginHost.java",
+        if let env = ProcessInfo.processInfo.environment["KSWIFTK_JVM_PLUGIN_HOST"],
+           FileManager.default.fileExists(atPath: env) {
+            return env
+        }
+
+        let relativeHostPath = "Scripts/jvm_plugin_host/JvmPluginHost.java"
+        let searchRoots: [URL] = [
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+            Bundle.main.bundleURL,
+            URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent(),
         ]
-        for c in candidates {
-            if FileManager.default.fileExists(atPath: c) {
-                return c
+        for root in searchRoots {
+            var current = root
+            for _ in 0 ..< 8 {
+                let candidate = current.appendingPathComponent(relativeHostPath).path
+                if FileManager.default.fileExists(atPath: candidate) {
+                    return candidate
+                }
+                let parent = current.deletingLastPathComponent()
+                if parent.path == current.path { break }
+                current = parent
             }
         }
         return nil
@@ -361,6 +379,7 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {
         let plan = fetchOrComputePlan(context)
         applySyntheticConstructors(plan, context: context)
+        applySerializableClasses(plan, context: context)
     }
 
     var loweringPasses: [any LoweringPass] {
@@ -396,7 +415,7 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         var classPayloads: [JvmSemaClassPayload] = []
         for symbol in symbols.allSymbols() {
-            guard symbol.kind == .class,
+            guard (symbol.kind == .class || symbol.kind == .object),
                   !symbol.flags.contains(.importedLibrary),
                   !symbol.flags.contains(.synthetic),
                   !symbol.flags.contains(.precomputedStdlibSynthetic)
@@ -660,6 +679,21 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
             context.sema.pluginGeneratedConstructors[ctorSymbol] = PluginGeneratedConstructorInfo(
                 runsInitializers: ctorPlan.runsInitializers
             )
+        }
+    }
+
+    private func applySerializableClasses(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let serializable = plan.serializableClasses, !serializable.isEmpty else { return }
+        let symbols = context.symbols
+        let interner = context.interner
+        for fqName in serializable {
+            let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
+            guard let symbolID = symbols.lookup(fqName: parts),
+                  let symbolInfo = symbols.symbol(symbolID),
+                  symbolInfo.kind == .class || symbolInfo.kind == .object,
+                  !symbolInfo.flags.contains(.innerClass)
+            else { continue }
+            KotlinxSerializationPlugin.synthesizeSerializationMembers(for: symbolInfo, context: context)
         }
     }
 }
