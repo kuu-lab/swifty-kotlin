@@ -244,12 +244,14 @@ extension DataFlowSemaPhase {
                 )
             }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
-            diagnoseReservedExternalFunctionUse(
-                funDecl,
-                sourceFileID: sourceFileID,
-                sourceManager: sourceManager,
-                diagnostics: diagnostics
-            )
+            if symbols.symbol(ownerSymbol)?.kind != .interface {
+                diagnoseReservedExternalFunctionUse(
+                    funDecl,
+                    sourceFileID: sourceFileID,
+                    sourceManager: sourceManager,
+                    diagnostics: diagnostics
+                )
+            }
             registerAnnotations(
                 for: decl,
                 symbol: memberSymbol,
