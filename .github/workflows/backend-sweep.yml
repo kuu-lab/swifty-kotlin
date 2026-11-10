@@ -283,6 +283,7 @@ jobs:
           DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_sweep_wasm_artifacts_shard${{ matrix.shard_index }}
           DIFF_COMPILE_TIMEOUT: "600"
           DIFF_RUN_TIMEOUT: "60"
+          DIFF_STDLIB_COMPILE_TIMEOUT: "1800"
           DIFF_LOG_PASS: "0"
           KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
         run: |

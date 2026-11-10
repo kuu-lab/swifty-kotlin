@@ -228,3 +228,34 @@ build_jvm_stdlib_jar() {
       return 1
     }
 }
+
+# DIFF_BACKEND=wasm compiles each case with `--target <wasm target>
+# --stdlib-library <kklib>` so the bundled stdlib is built once per run
+# (DIFF_WASM_STDLIB reuses an existing one) instead of being source-injected
+# into every case compile, which costs ~15 minutes per case.
+build_wasm_stdlib_kklib() {
+  if [[ -n "$DIFF_WASM_STDLIB" ]]; then
+    if [[ ! -d "$DIFF_WASM_STDLIB" ]]; then
+      echo "WASM stdlib kklib does not exist: $DIFF_WASM_STDLIB" >&2
+      return 1
+    fi
+    WASM_STDLIB="$DIFF_WASM_STDLIB"
+    return 0
+  fi
+
+  mkdir -p "$ARTIFACT_ROOT"
+  WASM_STDLIB="$ARTIFACT_ROOT/kswiftk-stdlib-wasm.kklib"
+  local build_stdout="$ARTIFACT_ROOT/wasm_stdlib_build.stdout"
+  local build_stderr="$ARTIFACT_ROOT/wasm_stdlib_build.stderr"
+
+  echo "Building WASM stdlib kklib: $WASM_STDLIB"
+  "$TIMEOUT_CMD" "$STDLIB_COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" \
+    --stdlib-only --emit library -o "$WASM_STDLIB" \
+    >"$build_stdout" 2>"$build_stderr" || {
+      echo "Failed to build WASM stdlib kklib" >&2
+      if [[ -s "$build_stderr" ]]; then
+        cat "$build_stderr" >&2
+      fi
+      return 1
+    }
+}

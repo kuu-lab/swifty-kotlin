@@ -949,11 +949,13 @@ jobs:
           DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_kotlinc_wasm_artifacts
           DIFF_COMPILE_TIMEOUT: "600"
           DIFF_RUN_TIMEOUT: "60"
+          DIFF_STDLIB_COMPILE_TIMEOUT: "1800"
           DIFF_LOG_PASS: "0"
           KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
         run: |
-          # Each marked case compiles the bundled stdlib to wasm inline; cap
-          # workers so parallel compiles do not exhaust the runner.
+          # The wasm stdlib kklib is built once per job; marked cases then
+          # compile in seconds. Cap workers so parallel compiles do not
+          # exhaust the runner.
           DIFF_WORKERS="2" \
             bash Scripts/diff_kotlinc.sh --report "$DIFF_REPORT" Scripts/diff_cases
       - name: Summarize WASM backend diff artifacts
