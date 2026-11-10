@@ -115,6 +115,10 @@ public final class SemaModule {
     /// Classes processed by the kotlinx.serialization plugin and their synthesized member symbols.
     public var serializationClasses: [SymbolID: SerializationClassInfo] = [:]
 
+    /// SAM (`fun interface`) interfaces transformed by the `sam-with-receiver` plugin so that
+    /// their single abstract method's first parameter becomes the lambda's implicit receiver.
+    public var samWithReceiverInterfaces: Set<SymbolID> = []
+
     public init(
         symbols: SymbolTable,
         types: TypeSystem,

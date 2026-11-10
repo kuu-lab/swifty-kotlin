@@ -177,6 +177,7 @@ public class JvmPluginHost {
         boolean isNoArg = false;
         boolean isParcelize = false;
         boolean isSerialization = false;
+        boolean isSamWithReceiver = false;
         boolean noArgInvokeInitializers = false;
 
         // Try to identify from CommandLineProcessor
@@ -222,6 +223,9 @@ public class JvmPluginHost {
             if (additional != null) {
                 targetAnnotations.addAll(additional);
             }
+        } else if ("org.jetbrains.kotlin.samWithReceiver".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/samWithReceiver/SamWithReceiverCommandLineProcessor.class") != null) {
+            isSamWithReceiver = true;
         }
 
         // Generic fallback: if "annotation" options were provided, include them
@@ -236,6 +240,7 @@ public class JvmPluginHost {
         List<String> syntheticConstructors = new ArrayList<>();
         List<String> syntheticMethods = new ArrayList<>();
         List<String> serializableClasses = new ArrayList<>();
+        List<String> samWithReceiverInterfaces = new ArrayList<>();
 
         for (Map<String, Object> clazz : classes) {
             String fqName = (String) clazz.get("fqName");
@@ -287,6 +292,10 @@ public class JvmPluginHost {
             if (isSerialization) {
                 serializableClasses.add(fqName);
             }
+
+            if (isSamWithReceiver) {
+                samWithReceiverInterfaces.add(fqName);
+            }
         }
 
         // Print Sema Transform Plan JSON
@@ -296,7 +305,8 @@ public class JvmPluginHost {
         sb.append("\"membersToOpen\":[").append(formatJsonStringArray(membersToOpen)).append("],");
         sb.append("\"syntheticConstructors\":[").append(String.join(",", syntheticConstructors)).append("],");
         sb.append("\"syntheticMethods\":[").append(String.join(",", syntheticMethods)).append("],");
-        sb.append("\"serializableClasses\":[").append(formatJsonStringArray(serializableClasses)).append("]");
+        sb.append("\"serializableClasses\":[").append(formatJsonStringArray(serializableClasses)).append("],");
+        sb.append("\"samWithReceiverInterfaces\":[").append(formatJsonStringArray(samWithReceiverInterfaces)).append("]");
         sb.append("}");
 
         System.out.println(sb.toString());
