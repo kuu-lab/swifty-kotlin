@@ -96,6 +96,7 @@ enum CompilerPluginRegistry {
         SamWithReceiverPlugin(),
         AssignmentPlugin(),
         PowerAssertPlugin(),
+        LombokPlugin(),
     ]
 
     private static let cacheLock = NSLock()

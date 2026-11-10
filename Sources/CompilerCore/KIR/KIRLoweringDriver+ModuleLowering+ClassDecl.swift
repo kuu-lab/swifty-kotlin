@@ -72,6 +72,12 @@ extension KIRLoweringDriver {
             shared: shared
         )
         finalDirectMembers.append(contentsOf: serializationDeclIDs)
+        let lombokDecls = synthesizeLombokMembers(
+            classDecl: classDecl,
+            classSymbol: symbol,
+            shared: shared
+        )
+        finalDirectMembers.append(contentsOf: lombokDecls.classMemberDecls)
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: finalDirectMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
@@ -79,6 +85,8 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: forwardingPropertyDeclIDs)
         declIDs.append(contentsOf: parcelizeDeclIDs)
         declIDs.append(contentsOf: serializationDeclIDs)
+        declIDs.append(contentsOf: lombokDecls.classMemberDecls)
+        declIDs.append(contentsOf: lombokDecls.moduleExtraDecls)
         declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
             ownerName: classDecl.name,
