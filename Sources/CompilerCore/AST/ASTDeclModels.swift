@@ -397,6 +397,10 @@ public struct FunDecl: Codable {
     /// statements. It is not a source-declared callable, so package-scope
     /// duplicate checks must not compare it against a user-declared `main`.
     public let isScriptEntryPoint: Bool
+    /// Source location of the `override` keyword, if present. kotlinc
+    /// underlines the modifier itself for 'X overrides nothing', which may
+    /// not be the declaration head (e.g. `abstract override`).
+    public let overrideKeywordRange: SourceRange?
 
     public init(
         range: SourceRange,
@@ -413,7 +417,8 @@ public struct FunDecl: Codable {
         isSuspend: Bool = false,
         isInline: Bool = false,
         isTailrec: Bool = false,
-        isScriptEntryPoint: Bool = false
+        isScriptEntryPoint: Bool = false,
+        overrideKeywordRange: SourceRange? = nil
     ) {
         self.range = range
         self.name = name
@@ -430,6 +435,7 @@ public struct FunDecl: Codable {
         self.isInline = isInline
         self.isTailrec = isTailrec
         self.isScriptEntryPoint = isScriptEntryPoint
+        self.overrideKeywordRange = overrideKeywordRange
     }
 
     public init(from decoder: Decoder) throws {
@@ -449,6 +455,7 @@ public struct FunDecl: Codable {
         isInline = try container.decode(Bool.self, forKey: .isInline)
         isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
         isScriptEntryPoint = try container.decodeIfPresent(Bool.self, forKey: .isScriptEntryPoint) ?? false
+        overrideKeywordRange = try container.decodeIfPresent(SourceRange.self, forKey: .overrideKeywordRange)
     }
 }
 
@@ -570,6 +577,9 @@ public struct PropertyDecl: Codable {
     public let contextReceivers: [ContextReceiverDecl]
     public let isSynthesizedPrimaryConstructorProperty: Bool
     public let explicitBackingField: ExplicitBackingField?
+    /// Source location of the `override` keyword, if present — see
+    /// `FunDecl.overrideKeywordRange`.
+    public let overrideKeywordRange: SourceRange?
 
     public var allAccessorsAreInline: Bool {
         modifiers.contains(.inline) || (getter?.isInline == true && (!isVar || setter?.isInline == true))
@@ -592,7 +602,8 @@ public struct PropertyDecl: Codable {
         receiverType: TypeRefID? = nil,
         contextReceivers: [ContextReceiverDecl] = [],
         isSynthesizedPrimaryConstructorProperty: Bool = false,
-        explicitBackingField: ExplicitBackingField? = nil
+        explicitBackingField: ExplicitBackingField? = nil,
+        overrideKeywordRange: SourceRange? = nil
     ) {
         self.range = range
         self.name = name
@@ -611,13 +622,14 @@ public struct PropertyDecl: Codable {
         self.contextReceivers = contextReceivers
         self.isSynthesizedPrimaryConstructorProperty = isSynthesizedPrimaryConstructorProperty
         self.explicitBackingField = explicitBackingField
+        self.overrideKeywordRange = overrideKeywordRange
     }
 
     private enum CodingKeys: String, CodingKey {
         case range, name, modifiers, annotations, typeParams, type, isVar, initializer
         case getter, setter, delegateExpression, delegateBody, delegateBodyParams
         case receiverType, contextReceivers, isSynthesizedPrimaryConstructorProperty
-        case explicitBackingField
+        case explicitBackingField, overrideKeywordRange
     }
 
     public init(from decoder: Decoder) throws {
@@ -641,6 +653,7 @@ public struct PropertyDecl: Codable {
             Bool.self, forKey: .isSynthesizedPrimaryConstructorProperty
         ) ?? false
         explicitBackingField = try container.decodeIfPresent(ExplicitBackingField.self, forKey: .explicitBackingField)
+        overrideKeywordRange = try container.decodeIfPresent(SourceRange.self, forKey: .overrideKeywordRange)
     }
 }
 

@@ -104,6 +104,49 @@ struct OverrideNothingTests {
     }
 
     @Test
+    func reportsOverrideNothingAtOverrideKeyword() throws {
+        // kotlinc underlines the `override` modifier token, not the
+        // declaration head (e.g. `abstract override` reports at the
+        // `override` column).
+        let source = """
+        class A { override fun f() {} }
+        abstract class B {
+            abstract override fun g(): Int
+        }
+        class C { final override fun h() = 1 }
+        class D { override val x = 3 }
+        class E { protected override fun y() {} }
+        """
+        let inputPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".kt").path
+        let ctx = makeCompilationContext(
+            inputs: [inputPath],
+            includeStdlib: false,
+            allowDefaultStdlibLibrary: false
+        )
+        _ = ctx.sourceManager.addFile(path: inputPath, contents: Data(source.utf8))
+        try runSema(ctx)
+
+        let positions = ctx.diagnostics.diagnostics.filter {
+            $0.severity == .error
+                && $0.code == "KSWIFTK-SEMA-OVERRIDE-NOTHING"
+        }.compactMap { diagnostic -> (line: Int, column: Int)? in
+            diagnostic.primaryRange.map {
+                let location = ctx.sourceManager.lineColumn(of: $0.start)
+                return (location.line, location.column)
+            }
+        }.sorted { ($0.line, $0.column) < ($1.line, $1.column) }
+        #expect(
+            positions.map(\.line) == [1, 3, 5, 6, 7],
+            "Got: \(ctx.diagnostics.diagnostics)"
+        )
+        #expect(
+            positions.map(\.column) == [11, 14, 17, 11, 21],
+            "Got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test
     func acceptsImplicitAnyOverrides() throws {
         let source = """
         class AnyOverrides {

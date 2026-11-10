@@ -168,7 +168,8 @@ struct ASTIDRemapper {
             isSuspend: value.isSuspend,
             isInline: value.isInline,
             isTailrec: value.isTailrec,
-            isScriptEntryPoint: value.isScriptEntryPoint
+            isScriptEntryPoint: value.isScriptEntryPoint,
+            overrideKeywordRange: value.overrideKeywordRange
         )
     }
 
@@ -220,7 +221,8 @@ struct ASTIDRemapper {
             receiverType: value.receiverType.map { remap($0) },
             contextReceivers: value.contextReceivers.map { remap($0) },
             isSynthesizedPrimaryConstructorProperty: value.isSynthesizedPrimaryConstructorProperty,
-            explicitBackingField: value.explicitBackingField.map { remap($0) }
+            explicitBackingField: value.explicitBackingField.map { remap($0) },
+            overrideKeywordRange: value.overrideKeywordRange
         )
     }
 

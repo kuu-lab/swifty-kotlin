@@ -1262,6 +1262,7 @@ extension DataFlowSemaPhase {
                     memberDecl: memberDecl,
                     memberName: memberMeta.name,
                     memberRange: memberMeta.range,
+                    overrideRange: memberMeta.overrideRange,
                     ownerSymbol: symbol,
                     memberSymbol: memberSymbol,
                     parameterTypes: memberMeta.parameterTypes,
@@ -1331,6 +1332,7 @@ extension DataFlowSemaPhase {
         /// from the overridden member instead (KUU-4159).
         let hasExplicitVisibility: Bool
         let isFunction: Bool
+        let overrideRange: SourceRange?
     }
 
     private func extractMemberMeta(
@@ -1367,7 +1369,8 @@ extension DataFlowSemaPhase {
                 hasFinal: fun.modifiers.contains(.final),
                 visibility: extractVisibility(from: fun.modifiers),
                 hasExplicitVisibility: explicitVisibility(fun.modifiers) != nil,
-                isFunction: true
+                isFunction: true,
+                overrideRange: fun.overrideKeywordRange
             )
         case let .propertyDecl(prop):
             return MemberMeta(
@@ -1381,7 +1384,8 @@ extension DataFlowSemaPhase {
                 hasFinal: prop.modifiers.contains(.final),
                 visibility: extractVisibility(from: prop.modifiers),
                 hasExplicitVisibility: explicitVisibility(prop.modifiers) != nil,
-                isFunction: false
+                isFunction: false,
+                overrideRange: prop.overrideKeywordRange
             )
         default:
             return nil
@@ -1990,6 +1994,7 @@ extension DataFlowSemaPhase {
         memberDecl: Decl,
         memberName: InternedString,
         memberRange: SourceRange,
+        overrideRange: SourceRange?,
         ownerSymbol: SymbolID,
         memberSymbol: SymbolID,
         parameterTypes: [TypeID]?,
@@ -2037,7 +2042,7 @@ extension DataFlowSemaPhase {
                    hasSourceBackedInheritedFunction(named: memberName, for: ownerSymbol, ctx: ctx)
                        || (hasCompleteInheritedMemberIndex(for: ownerSymbol, ctx: ctx)
                            && !hasInheritedFunctionNamesake(named: memberName, for: ownerSymbol, ctx: ctx)) {
-                    diagnoseOverrideNothing(memberName: memberName, memberRange: memberRange, ctx: ctx)
+                    diagnoseOverrideNothing(memberName: memberName, memberRange: overrideRange ?? memberRange, ctx: ctx)
                 }
             } else if hasCompleteInheritedMemberIndex(for: ownerSymbol, ctx: ctx) {
                 // memberExtension: the name-level findInheritedFunction scan
@@ -2045,7 +2050,7 @@ extension DataFlowSemaPhase {
                 // findInheritedMember scan found no same-named member. A
                 // missing namesake is only proof of 'overrides nothing' when
                 // every reachable supertype's member list is complete.
-                diagnoseOverrideNothing(memberName: memberName, memberRange: memberRange, ctx: ctx)
+                diagnoseOverrideNothing(memberName: memberName, memberRange: overrideRange ?? memberRange, ctx: ctx)
             }
             return
         }

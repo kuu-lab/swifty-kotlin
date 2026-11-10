@@ -345,7 +345,10 @@ extension BuildASTPhase {
             body: body,
             isSuspend: isSuspend,
             isInline: isInline,
-            isTailrec: isTailrec
+            isTailrec: isTailrec,
+            overrideKeywordRange: declarationModifierKeywordRange(
+                from: nodeID, in: arena, matching: .override
+            )
         )
     }
 
@@ -445,7 +448,10 @@ extension BuildASTPhase {
             delegateBodyParams: delegateBodyParams,
             receiverType: receiverType,
             contextReceivers: contextReceivers,
-            explicitBackingField: explicitField
+            explicitBackingField: explicitField,
+            overrideKeywordRange: declarationModifierKeywordRange(
+                from: nodeID, in: arena, matching: .override
+            )
         )
     }
 
