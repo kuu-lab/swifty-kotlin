@@ -54,10 +54,39 @@ public struct LombokClassInfo: Sendable {
 public struct ParcelizeClassInfo: Sendable {
     public var describeContentsMethod: SymbolID?
     public var writeToParcelMethod: SymbolID?
+    public var properties: [SymbolID]
+    public var creatorObjectSymbol: SymbolID?
+    public var createFromParcelMethod: SymbolID?
+    public var newArrayMethod: SymbolID?
+    public var parcelSymbol: SymbolID?
 
-    public init(describeContentsMethod: SymbolID? = nil, writeToParcelMethod: SymbolID? = nil) {
+    public init(
+        describeContentsMethod: SymbolID? = nil,
+        writeToParcelMethod: SymbolID? = nil,
+        properties: [SymbolID] = [],
+        creatorObjectSymbol: SymbolID? = nil,
+        createFromParcelMethod: SymbolID? = nil,
+        newArrayMethod: SymbolID? = nil,
+        parcelSymbol: SymbolID? = nil
+    ) {
         self.describeContentsMethod = describeContentsMethod
         self.writeToParcelMethod = writeToParcelMethod
+        self.properties = properties
+        self.creatorObjectSymbol = creatorObjectSymbol
+        self.createFromParcelMethod = createFromParcelMethod
+        self.newArrayMethod = newArrayMethod
+        self.parcelSymbol = parcelSymbol
+    }
+}
+
+/// Metadata for a single serializable property on an `@Serializable` class.
+public struct SerializationPropertyInfo: Sendable {
+    public let symbol: SymbolID
+    public let serialName: String
+
+    public init(symbol: SymbolID, serialName: String) {
+        self.symbol = symbol
+        self.serialName = serialName
     }
 }
 
@@ -66,15 +95,33 @@ public struct SerializationClassInfo: Sendable {
     public var companionSerializerMethod: SymbolID?
     public var generatedSerializerClass: SymbolID?
     public var companionObjectSymbol: SymbolID?
+    public var serializerConstructor: SymbolID?
+    public var descriptorProperty: SymbolID?
+    public var descriptorGetter: SymbolID?
+    public var serializeMethod: SymbolID?
+    public var deserializeMethod: SymbolID?
+    public var serializableProperties: [SerializationPropertyInfo]
 
     public init(
         companionSerializerMethod: SymbolID? = nil,
         generatedSerializerClass: SymbolID? = nil,
-        companionObjectSymbol: SymbolID? = nil
+        companionObjectSymbol: SymbolID? = nil,
+        serializerConstructor: SymbolID? = nil,
+        descriptorProperty: SymbolID? = nil,
+        descriptorGetter: SymbolID? = nil,
+        serializeMethod: SymbolID? = nil,
+        deserializeMethod: SymbolID? = nil,
+        serializableProperties: [SerializationPropertyInfo] = []
     ) {
         self.companionSerializerMethod = companionSerializerMethod
         self.generatedSerializerClass = generatedSerializerClass
         self.companionObjectSymbol = companionObjectSymbol
+        self.serializerConstructor = serializerConstructor
+        self.descriptorProperty = descriptorProperty
+        self.descriptorGetter = descriptorGetter
+        self.serializeMethod = serializeMethod
+        self.deserializeMethod = deserializeMethod
+        self.serializableProperties = serializableProperties
     }
 }
 

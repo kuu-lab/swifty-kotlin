@@ -886,11 +886,7 @@ extension KIRLoweringDriver {
         propertySymbol: SymbolID,
         sema: SemaModule
     ) -> Int? {
-        guard let layout = sema.symbols.nominalLayout(for: ownerClass) else {
-            return nil
-        }
-        let backingField = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-        return layout.fieldOffsets[backingField] ?? layout.fieldOffsets[propertySymbol]
+        resolvePluginPropertyOffset(ownerClass: ownerClass, propertySymbol: propertySymbol, sema: sema)
     }
 
     private func makeLombokReceiverParam(
@@ -898,15 +894,7 @@ extension KIRLoweringDriver {
         paramName: String = "$self",
         shared: KIRLoweringSharedContext
     ) -> SymbolID {
-        let name = shared.interner.intern(paramName)
-        return shared.sema.symbols.define(
-            kind: .valueParameter,
-            name: name,
-            fqName: ownerFQName + [name],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
+        makePluginSyntheticParam(ownerFQName: ownerFQName, paramName: paramName, shared: shared)
     }
 
     private func emitAllocateLombokInstance(
@@ -917,63 +905,13 @@ extension KIRLoweringDriver {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let intType = sema.types.intType
-        let slotCount = Int64(max(sema.symbols.nominalLayout(for: ownerSymbol)?.instanceSizeWords ?? 1, 1))
-        let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
-        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
-        let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
-            symbol: ownerSymbol,
+        emitAllocatePluginNominalInstance(
+            ownerSymbol: ownerSymbol,
+            resultType: resultType,
             sema: sema,
-            interner: interner
-        )
-        let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
-        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-        let allocatedObj = arena.appendTemporary(type: resultType)
-        instructions.append(.call(
-            callee: interner.intern("kk_object_new"),
-            arguments: [slotCountExpr, classIDExpr],
-            result: allocatedObj,
-            canThrow: false
-        ))
-        for superSymbol in sema.symbols.directSupertypes(for: ownerSymbol) {
-            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                symbol: superSymbol,
-                sema: sema,
-                interner: interner
-            )
-            let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-            instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-            let regCallee = sema.symbols.symbol(superSymbol)?.kind == .interface
-                ? interner.intern("kk_type_register_iface")
-                : interner.intern("kk_type_register_super")
-            let regResult = arena.appendTemporary(type: intType)
-            instructions.append(.call(
-                callee: regCallee,
-                arguments: [classIDExpr, parentExpr],
-                result: regResult,
-                canThrow: false
-            ))
-        }
-        appendObjectItableMethodRegistrations(
-            objectValue: allocatedObj,
-            nominalSymbol: ownerSymbol,
-            driver: self,
-            sema: sema,
-            cache: ctx.nominalDispatchCache,
             arena: arena,
             interner: interner,
             instructions: &instructions
         )
-        appendObjectVtableMethodRegistrations(
-            objectValue: allocatedObj,
-            nominalSymbol: ownerSymbol,
-            driver: self,
-            sema: sema,
-            cache: ctx.nominalDispatchCache,
-            arena: arena,
-            interner: interner,
-            instructions: &instructions
-        )
-        return allocatedObj
     }
 }
