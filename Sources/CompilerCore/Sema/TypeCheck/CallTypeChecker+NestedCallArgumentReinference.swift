@@ -428,11 +428,12 @@ extension CallTypeChecker {
                     break
                 }
                 let expectedType: TypeID
+                let rawParameterType = contextualCallArgumentType(
+                    args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
+                )
                 if let existingOverride = originalExpectedTypeOverrides[index] {
                     expectedType = existingOverride
-                } else if let parameterType = contextualCallArgumentType(
-                    args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx
-                ) {
+                } else if let parameterType = rawParameterType {
                     expectedType = ctx.sema.types.substituteTypeParameters(
                         in: parameterType,
                         substitution: substitution,
@@ -522,6 +523,38 @@ extension CallTypeChecker {
                 ) {
                     candidateExpectedType = erasedExpectedType
                     expectedTypeWasErased = true
+                }
+                // The parameter type can remain a bare type variable even
+                // after substitution — `takes(mutableMapOf())` binds nothing
+                // to `M` up front — or the propagated override can be a
+                // non-refining top type (`Any?` from `println`). The
+                // parameter's upper bound, specialized by the arguments
+                // already known, still supplies the concrete expected type
+                // the nested call needs (KUU-4511).
+                let expectedTypeNeedsBound = ctx.resolver.containsTypeVariable(
+                    candidateExpectedType,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.sema.types
+                ) || candidateExpectedType == ctx.sema.types.anyType
+                    || candidateExpectedType == ctx.sema.types.nullableAnyType
+                if expectedTypeNeedsBound, let rawParameterType,
+                   let boundExpectedType = deferredArgumentExpectedType(
+                       parameterType: rawParameterType,
+                       argumentType: originalArgumentTypes[index],
+                       argumentExpr: args[index].expr,
+                       signature: signature,
+                       partialSubstitution: substitution,
+                       typeVarBySymbol: typeVarBySymbol,
+                       allowPrimitiveErrorContext: false,
+                       ctx: ctx
+                   ),
+                   !ctx.resolver.containsTypeVariable(
+                       boundExpectedType,
+                       typeVarBySymbol: typeVarBySymbol,
+                       typeSystem: ctx.sema.types
+                   )
+                {
+                    candidateExpectedType = boundExpectedType
                 }
                 guard !ctx.resolver.containsTypeVariable(
                     candidateExpectedType,
