@@ -41,6 +41,7 @@ struct JVMTextOperation {
             }
         }
         add("substring", [p("startIndex", .int), p("endIndex", .int, "length")], owner: "java/lang/String", instance: true)
+        add("substring", [p("range", .reference("kotlin/ranges/IntRange", nullable: false))])
         add("codePointAt", [p("index", .int)], sourceResult: "Int", result: .int, owner: "java/lang/String", instance: true)
         let intStream = JVMValueType.reference("java/util/stream/IntStream", nullable: false)
         for name in ["chars", "codePoints"] {

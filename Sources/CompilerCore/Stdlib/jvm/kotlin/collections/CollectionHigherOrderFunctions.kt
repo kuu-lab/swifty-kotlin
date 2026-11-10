@@ -1,5 +1,13 @@
 @file:kotlin.jvm.JvmName("CollectionsKt")
 package kotlin.collections
+fun <T> Iterable<T>.isEmpty(): Boolean {
+    if (this is Collection<*>) return (this as Collection<*>).isEmpty()
+    return !iterator().hasNext()
+}
+fun <T> Iterable<T>.isNotEmpty(): Boolean {
+    if (this is Collection<*>) return !(this as Collection<*>).isEmpty()
+    return iterator().hasNext()
+}
 fun <T> Iterable<T>.any(): Boolean {
     if (this is Collection<*>) return !(this as Collection<*>).isEmpty()
     return iterator().hasNext()

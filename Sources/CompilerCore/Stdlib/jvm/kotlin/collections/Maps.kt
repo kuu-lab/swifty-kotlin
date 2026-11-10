@@ -152,4 +152,4 @@ public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K
     return optimizeOperatorMap(result)
 }
 
-public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key]
+public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key] ?: throw NoSuchElementException("Key " + key + " is missing in the map.")
