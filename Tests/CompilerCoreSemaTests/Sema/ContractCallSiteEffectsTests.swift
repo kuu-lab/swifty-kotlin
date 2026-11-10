@@ -349,6 +349,53 @@ struct ContractCallSiteEffectsTests {
         }
     }
 
+    @Test
+    func nestedCallValInitializedByContractLambdaIsNotReassignment() throws {
+        // KUU-4513: a `callsInPlace` lambda's captured-`val` initialization is
+        // folded back into the call site's locals, so re-inferring the call as
+        // another call's argument must not report "val cannot be reassigned".
+        let declarations = """
+        import kotlin.contracts.*
+        @OptIn(ExperimentalContracts::class)
+        fun runIt(tag: Int, f: () -> Int): Int {
+            contract { callsInPlace(f, InvocationKind.EXACTLY_ONCE) }
+            return f() + tag
+        }
+        @OptIn(ExperimentalContracts::class)
+        fun twice(f: () -> Int): Int {
+            contract { callsInPlace(f, InvocationKind.AT_LEAST_ONCE) }
+            return f() + f()
+        }
+        fun takesInt(x: Int) {}
+        """
+        let positive = [
+            "val d: Int\nprintln(runIt(f = { d = 5; d }, tag = 0))\nprintln(d)",
+            "val d: Int\ntakesInt(runIt(0) { d = 5; d })\nprintln(d)",
+            "val d: Int\nprintln(twice { d = 7; d })\nprintln(d)",
+        ]
+        let negative = [
+            // A `val` already initialized before the call is still a
+            // reassignment inside the contract lambda.
+            "val d = 0\ntakesInt(runIt(0) { d = 5; d })",
+            // The contract-guaranteed initialization is still the only one.
+            "val d: Int\nrunIt(0) { d = 5; d }\nd = 6",
+        ]
+        let sources = (positive + negative).enumerated().map { index, body in
+            "package nestedval\(index)\n" + declarations + "\nfun probe() {\n\(body)\n}"
+        }
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            for path in paths.prefix(positive.count) {
+                let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+                #expect(errors.isEmpty, "\(path): \(errors)")
+            }
+            for path in paths.dropFirst(positive.count) {
+                assertHasDiagnostic("KSWIFTK-SEMA-0014", in: diagnosticsForPath(path, in: ctx))
+            }
+        }
+    }
+
     @Test(arguments: [false, true])
     func importedImplicationsNarrowCallArguments(isType: Bool) throws {
         let libDir = FileManager.default.temporaryDirectory

@@ -167,6 +167,13 @@ final class DataFlowAnalyzer {
     let localStability = LocalVariableStabilityAnalyzer()
     var stableMutableReceivers: Set<SymbolID> = []
     var localDeclarations: [SymbolID: ExprID] = [:]
+    /// Assignment expressions that already performed a local `val`'s first
+    /// definite-assignment initialization. Re-inferring a call argument (for
+    /// example after a `callsInPlace` contract folded the lambda body's
+    /// initialization back into the call site's locals) must not turn that
+    /// same assignment into a spurious "val cannot be reassigned" error
+    /// (KUU-4513).
+    var valInitializingAssignmentExprs: Set<ExprID> = []
     init() {}
 
     func branchOnCondition(
