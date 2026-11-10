@@ -327,8 +327,24 @@ extension NativeEmitter.FunctionEmissionContext {
                   let symbols,
                   let typeSystem,
                   let signature = symbols.functionSignature(for: effectiveABISymbol),
-                  let linkName = symbols.externalLinkName(for: effectiveABISymbol),
-                  linkName.hasPrefix("kk_fn_"),
+                  !runtimeCallbackRawReturnSymbols.contains(effectiveABISymbol)
+            else {
+                return nil
+            }
+            let linkName = symbols.externalLinkName(for: effectiveABISymbol)
+            let isExternalKotlinFunction = linkName?.hasPrefix("kk_fn_") == true
+            let isSameModuleInterfaceMethod: Bool = {
+                guard isDynamicITableCall,
+                      linkName == nil || linkName?.isEmpty == true,
+                      let symInfo = symbols.symbol(effectiveABISymbol),
+                      !symInfo.flags.contains(.importedLibrary),
+                      !symInfo.flags.contains(.synthetic)
+                else {
+                    return false
+                }
+                return true
+            }()
+            guard isExternalKotlinFunction || isSameModuleInterfaceMethod,
                   (
                       stringAggregateBridge.isStringAggregateType(signature.returnType)
                           || [signature.receiverType].compactMap { $0 }.contains(where: stringAggregateBridge.isStringAggregateType)
@@ -370,8 +386,19 @@ extension NativeEmitter.FunctionEmissionContext {
                 if shouldAppendThrownChannel {
                     parameterTypes.append(outThrownPointerType)
                 }
+                let hasExternalLink = effectiveABISymbol.flatMap { symbols?.externalLinkName(for: $0) }?.isEmpty == false
+                let stubDeclName: String
+                if hasExternalLink {
+                    stubDeclName = effectiveExternalName
+                } else {
+                    let paramTag = sourceCallSignature.parameters.map {
+                        stringAggregateBridge.isStringAggregateType($0) ? "S" : "I"
+                    }.joined()
+                    let retTag = stringAggregateBridge.isStringAggregateType(sourceCallSignature.returnType) ? "S" : "I"
+                    stubDeclName = "\(effectiveExternalName)__vs_\(paramTag)_\(retTag)"
+                }
                 return declareExternalFunction(
-                    named: effectiveExternalName,
+                    named: stubDeclName,
                     parameterTypes: parameterTypes,
                     returnType: loweredLLVMType(
                         for: sourceCallSignature.returnType,
