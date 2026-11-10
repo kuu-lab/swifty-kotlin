@@ -123,10 +123,11 @@ extension ExprLowerer {
             case .any, .classType, .typeParam: true
             default: false
             }
+            let finalChecked: KIRExprID
             if sourceIsUnit, targetNeedsReferenceBox, let sourceType {
                 // The null assertion widens its result to the target type. Box
                 // Unit before that widening erases the builtin representation.
-                return boxValueForAnySlot(
+                finalChecked = boxValueForAnySlot(
                     checked,
                     sourceType: sourceType,
                     types: sema.types,
@@ -136,8 +137,16 @@ extension ExprLowerer {
                     resultType: targetType,
                     into: &instructions
                 )
+            } else {
+                finalChecked = checked
             }
-            return checked
+            if driver.ctx.hasActivePowerAssertCapture {
+                driver.ctx.recordPowerAssertCapturedValue(exprID: exprID, value: finalChecked)
+            }
+            return finalChecked
+        }
+        if driver.ctx.hasActivePowerAssertCapture {
+            driver.ctx.recordPowerAssertCapturedValue(exprID: exprID, value: value)
         }
         return value
     }
