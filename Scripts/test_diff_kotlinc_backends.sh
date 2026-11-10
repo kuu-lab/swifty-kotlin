@@ -216,14 +216,15 @@ grep -qF "Summary: total=1 failed=0 passed=1 skipped=0" "$OUTPUT_LOG" || fail "s
 
 # --- wasm lane: node engine runs only DIFF_WASM-marked cases ---
 : >"$KOTLINC_LOG"; : >"$KSWIFTC_LOG"; : >"$STUB_LOG"
-run_diff env DIFF_BACKEND=wasm DIFF_ENGINE=node bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel "$CASES_DIR" \
+run_diff env DIFF_BACKEND=wasm DIFF_ENGINE=node DIFF_STDLIB_LIBRARY="$TEMP_DIR/native_stdlib" bash "$ROOT_DIR/Scripts/diff_kotlinc.sh" --no-parallel "$CASES_DIR" \
   || fail "wasm/node sweep should pass"
 grep -qF "PASS $CASES_DIR/marked_both.kt" "$OUTPUT_LOG" || fail "DIFF_WASM case should PASS in wasm lane"
 grep -qF "SKIP $CASES_DIR/marked_jvm_only.kt (DIFF_BACKEND=wasm)" "$OUTPUT_LOG" || fail "jvm-only case should SKIP in wasm lane"
 grep -qF "SKIP $CASES_DIR/unmarked.kt (DIFF_BACKEND=wasm)" "$OUTPUT_LOG" || fail "unmarked case should SKIP in wasm lane"
 grep -qF "Summary: total=1 failed=0 passed=1 skipped=2" "$OUTPUT_LOG" || fail "wasm sweep should run 1 case, skip 2"
-grep -qF -- "--target wasm32-wasi" "$KSWIFTC_LOG" || fail "wasm lane should compile with --target wasm32-wasi"
-if grep -qF -- "--stdlib-library" "$KSWIFTC_LOG"; then
+grep -qF -- "--target wasm32-wasi --stdlib-only --emit library" "$KSWIFTC_LOG" || fail "wasm lane should build the shared wasm stdlib kklib"
+grep -qF -- "--no-stdlib --stdlib-library $TEMP_DIR/artifacts/kswiftk-stdlib-wasm.kklib" "$KSWIFTC_LOG" || fail "wasm lane should compile with the shared wasm stdlib kklib"
+if grep -qF -- "$TEMP_DIR/native_stdlib" "$KSWIFTC_LOG"; then
   fail "wasm lane must not use the native --stdlib-library path"
 fi
 grep -qF "wasi_node_runner.mjs" "$STUB_LOG" || fail "wasm/node lane should invoke the node WASI runner"

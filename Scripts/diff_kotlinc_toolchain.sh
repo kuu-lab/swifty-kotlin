@@ -244,14 +244,13 @@ build_wasm_stdlib_kklib() {
   fi
 
   mkdir -p "$ARTIFACT_ROOT"
-  local kklib_base="$ARTIFACT_ROOT/kswiftk-stdlib-wasm"
-  WASM_STDLIB="$kklib_base.kklib"
+  WASM_STDLIB="$ARTIFACT_ROOT/kswiftk-stdlib-wasm.kklib"
   local build_stdout="$ARTIFACT_ROOT/wasm_stdlib_build.stdout"
   local build_stderr="$ARTIFACT_ROOT/wasm_stdlib_build.stderr"
 
   echo "Building WASM stdlib kklib: $WASM_STDLIB"
   "$TIMEOUT_CMD" "$STDLIB_COMPILE_TIMEOUT" "$KSWIFTC" --target "$DIFF_WASM_TARGET" \
-    --stdlib-only --emit library -o "$kklib_base" \
+    --stdlib-only --emit library -o "$WASM_STDLIB" \
     >"$build_stdout" 2>"$build_stderr" || {
       echo "Failed to build WASM stdlib kklib" >&2
       if [[ -s "$build_stderr" ]]; then
