@@ -233,7 +233,7 @@ extension BuildASTPhase.ExpressionParser {
         guard blocks.count == 1 else {
             return nil
         }
-        return blocks[0]
+        return blocks[0].body
     }
 
     private func objectLiteralMemberRanges(in tokens: [Token]) -> [(Int, Int)] {

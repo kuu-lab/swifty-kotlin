@@ -72,7 +72,8 @@ struct ASTIDRemapper {
             annotations: value.annotations.map { remap($0) },
             valueParams: value.valueParams.map { remap($0) },
             delegationCall: value.delegationCall.map { remap($0) },
-            body: remap(value.body)
+            body: remap(value.body),
+            declarationKeywordRange: value.declarationKeywordRange
         )
     }
 
@@ -102,6 +103,7 @@ struct ASTIDRemapper {
             nestedTypeAliases: value.nestedTypeAliases.map { remap($0) },
             enumEntries: value.enumEntries.map { remap($0) },
             initBlocks: value.initBlocks.map { remap($0) },
+            initBlockRanges: value.initBlockRanges,
             classBodyInitOrder: value.classBodyInitOrder,
             secondaryConstructors: value.secondaryConstructors.map { remap($0) },
             memberFunctions: value.memberFunctions.map { remap($0) },
@@ -169,7 +171,8 @@ struct ASTIDRemapper {
             isInline: value.isInline,
             isTailrec: value.isTailrec,
             isScriptEntryPoint: value.isScriptEntryPoint,
-            overrideKeywordRange: value.overrideKeywordRange
+            overrideKeywordRange: value.overrideKeywordRange,
+            declarationKeywordRange: value.declarationKeywordRange
         )
     }
 
@@ -222,7 +225,8 @@ struct ASTIDRemapper {
             contextReceivers: value.contextReceivers.map { remap($0) },
             isSynthesizedPrimaryConstructorProperty: value.isSynthesizedPrimaryConstructorProperty,
             explicitBackingField: value.explicitBackingField.map { remap($0) },
-            overrideKeywordRange: value.overrideKeywordRange
+            overrideKeywordRange: value.overrideKeywordRange,
+            declarationKeywordRange: value.declarationKeywordRange
         )
     }
 
@@ -233,7 +237,8 @@ struct ASTIDRemapper {
             modifiers: value.modifiers,
             annotations: value.annotations.map { remap($0) },
             typeParams: value.typeParams.map { remap($0) },
-            underlyingType: value.underlyingType.map { remap($0) }
+            underlyingType: value.underlyingType.map { remap($0) },
+            declarationKeywordRange: value.declarationKeywordRange
         )
     }
 

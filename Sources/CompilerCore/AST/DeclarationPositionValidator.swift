@@ -1038,24 +1038,35 @@ struct DeclarationPositionValidator {
                     )
                 }
             }
-            let memberCount =
-                decl.memberFunctions.count
-                + decl.memberProperties.filter { propID in
-                    guard let memberDecl = astArena.decl(propID),
-                          case .propertyDecl(let prop) = memberDecl
-                    else {
-                        return false
-                    }
-                    return !prop.isSynthesizedPrimaryConstructorProperty
-                }.count
-                + decl.nestedTypeAliases.count
-                + decl.initBlocks.count
-                + decl.secondaryConstructors.count
-            if memberCount > 0 {
+            // kotlinc reports each prohibited member separately, underlining
+            // the declaring keyword (`fun`, `val`, `constructor`, `init`,
+            // `typealias`) in source order.
+            var memberRanges: [SourceRange] = []
+            for declID in decl.memberFunctions {
+                guard let memberDecl = astArena.decl(declID),
+                      case let .funDecl(fun) = memberDecl
+                else { continue }
+                memberRanges.append(fun.declarationKeywordRange ?? fun.range)
+            }
+            for declID in decl.memberProperties {
+                guard let memberDecl = astArena.decl(declID),
+                      case let .propertyDecl(prop) = memberDecl,
+                      !prop.isSynthesizedPrimaryConstructorProperty
+                else { continue }
+                memberRanges.append(prop.declarationKeywordRange ?? prop.range)
+            }
+            for alias in decl.nestedTypeAliases {
+                memberRanges.append(alias.declarationKeywordRange ?? alias.range)
+            }
+            memberRanges += decl.initBlockRanges
+            for ctor in decl.secondaryConstructors {
+                memberRanges.append(ctor.declarationKeywordRange ?? ctor.range)
+            }
+            for memberRange in memberRanges.sorted(by: { $0.start.offset < $1.start.offset }) {
                 diagnostics?.error(
                     "KSWIFTK-SEMA-0419",
                     "members are prohibited in annotation classes.",
-                    range: decl.range
+                    range: memberRange
                 )
             }
         }

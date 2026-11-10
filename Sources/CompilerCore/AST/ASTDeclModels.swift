@@ -75,6 +75,9 @@ public struct ConstructorDecl: Codable {
     public let valueParams: [ValueParamDecl]
     public let delegationCall: ConstructorDelegationCall?
     public let body: FunctionBody
+    /// Source location of the `constructor` keyword itself — see
+    /// `FunDecl.declarationKeywordRange`.
+    public let declarationKeywordRange: SourceRange?
 
     public init(
         range: SourceRange,
@@ -82,7 +85,8 @@ public struct ConstructorDecl: Codable {
         annotations: [AnnotationNode] = [],
         valueParams: [ValueParamDecl] = [],
         delegationCall: ConstructorDelegationCall? = nil,
-        body: FunctionBody = .unit
+        body: FunctionBody = .unit,
+        declarationKeywordRange: SourceRange? = nil
     ) {
         self.range = range
         self.modifiers = modifiers
@@ -90,6 +94,7 @@ public struct ConstructorDecl: Codable {
         self.valueParams = valueParams
         self.delegationCall = delegationCall
         self.body = body
+        self.declarationKeywordRange = declarationKeywordRange
     }
 }
 
@@ -165,6 +170,10 @@ public struct ClassDecl: Codable {
     public let nestedTypeAliases: [TypeAliasDecl]
     public let enumEntries: [EnumEntryDecl]
     public let initBlocks: [FunctionBody]
+    /// Source range of each `init` keyword, parallel to `initBlocks`.
+    /// kotlinc underlines it for 'members are prohibited in annotation
+    /// classes'; `FunctionBody` ranges point at the `{...}` body instead.
+    public let initBlockRanges: [SourceRange]
     /// Kotlin guarantees that these execute top-to-bottom in the order they
     /// appear in the class body (spec.md J7).
     public let classBodyInitOrder: [ClassBodyInitMember]
@@ -193,6 +202,7 @@ public struct ClassDecl: Codable {
         nestedTypeAliases: [TypeAliasDecl] = [],
         enumEntries: [EnumEntryDecl] = [],
         initBlocks: [FunctionBody] = [],
+        initBlockRanges: [SourceRange] = [],
         classBodyInitOrder: [ClassBodyInitMember] = [],
         secondaryConstructors: [ConstructorDecl] = [],
         memberFunctions: [DeclID] = [],
@@ -216,6 +226,7 @@ public struct ClassDecl: Codable {
         self.nestedTypeAliases = nestedTypeAliases
         self.enumEntries = enumEntries
         self.initBlocks = initBlocks
+        self.initBlockRanges = initBlockRanges
         self.classBodyInitOrder = classBodyInitOrder
         self.secondaryConstructors = secondaryConstructors
         self.memberFunctions = memberFunctions
@@ -401,6 +412,10 @@ public struct FunDecl: Codable {
     /// underlines the modifier itself for 'X overrides nothing', which may
     /// not be the declaration head (e.g. `abstract override`).
     public let overrideKeywordRange: SourceRange?
+    /// Source location of the `fun` keyword itself — the declaration
+    /// introducer past any modifiers/annotations. kotlinc underlines it for
+    /// per-member diagnostics like 'members are prohibited'.
+    public let declarationKeywordRange: SourceRange?
 
     public init(
         range: SourceRange,
@@ -418,7 +433,8 @@ public struct FunDecl: Codable {
         isInline: Bool = false,
         isTailrec: Bool = false,
         isScriptEntryPoint: Bool = false,
-        overrideKeywordRange: SourceRange? = nil
+        overrideKeywordRange: SourceRange? = nil,
+        declarationKeywordRange: SourceRange? = nil
     ) {
         self.range = range
         self.name = name
@@ -436,6 +452,7 @@ public struct FunDecl: Codable {
         self.isTailrec = isTailrec
         self.isScriptEntryPoint = isScriptEntryPoint
         self.overrideKeywordRange = overrideKeywordRange
+        self.declarationKeywordRange = declarationKeywordRange
     }
 
     public init(from decoder: Decoder) throws {
@@ -456,6 +473,7 @@ public struct FunDecl: Codable {
         isTailrec = try container.decode(Bool.self, forKey: .isTailrec)
         isScriptEntryPoint = try container.decodeIfPresent(Bool.self, forKey: .isScriptEntryPoint) ?? false
         overrideKeywordRange = try container.decodeIfPresent(SourceRange.self, forKey: .overrideKeywordRange)
+        declarationKeywordRange = try container.decodeIfPresent(SourceRange.self, forKey: .declarationKeywordRange)
     }
 }
 
@@ -580,6 +598,9 @@ public struct PropertyDecl: Codable {
     /// Source location of the `override` keyword, if present — see
     /// `FunDecl.overrideKeywordRange`.
     public let overrideKeywordRange: SourceRange?
+    /// Source location of the `val`/`var` keyword itself — see
+    /// `FunDecl.declarationKeywordRange`.
+    public let declarationKeywordRange: SourceRange?
 
     public var allAccessorsAreInline: Bool {
         modifiers.contains(.inline) || (getter?.isInline == true && (!isVar || setter?.isInline == true))
@@ -603,7 +624,8 @@ public struct PropertyDecl: Codable {
         contextReceivers: [ContextReceiverDecl] = [],
         isSynthesizedPrimaryConstructorProperty: Bool = false,
         explicitBackingField: ExplicitBackingField? = nil,
-        overrideKeywordRange: SourceRange? = nil
+        overrideKeywordRange: SourceRange? = nil,
+        declarationKeywordRange: SourceRange? = nil
     ) {
         self.range = range
         self.name = name
@@ -623,13 +645,14 @@ public struct PropertyDecl: Codable {
         self.isSynthesizedPrimaryConstructorProperty = isSynthesizedPrimaryConstructorProperty
         self.explicitBackingField = explicitBackingField
         self.overrideKeywordRange = overrideKeywordRange
+        self.declarationKeywordRange = declarationKeywordRange
     }
 
     private enum CodingKeys: String, CodingKey {
         case range, name, modifiers, annotations, typeParams, type, isVar, initializer
         case getter, setter, delegateExpression, delegateBody, delegateBodyParams
         case receiverType, contextReceivers, isSynthesizedPrimaryConstructorProperty
-        case explicitBackingField, overrideKeywordRange
+        case explicitBackingField, overrideKeywordRange, declarationKeywordRange
     }
 
     public init(from decoder: Decoder) throws {
@@ -654,6 +677,7 @@ public struct PropertyDecl: Codable {
         ) ?? false
         explicitBackingField = try container.decodeIfPresent(ExplicitBackingField.self, forKey: .explicitBackingField)
         overrideKeywordRange = try container.decodeIfPresent(SourceRange.self, forKey: .overrideKeywordRange)
+        declarationKeywordRange = try container.decodeIfPresent(SourceRange.self, forKey: .declarationKeywordRange)
     }
 }
 
@@ -664,6 +688,9 @@ public struct TypeAliasDecl: Codable {
     public let annotations: [AnnotationNode]
     public let typeParams: [TypeParamDecl]
     public let underlyingType: TypeRefID?
+    /// Source location of the `typealias` keyword itself — see
+    /// `FunDecl.declarationKeywordRange`.
+    public let declarationKeywordRange: SourceRange?
 
     public init(
         range: SourceRange,
@@ -671,7 +698,8 @@ public struct TypeAliasDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         typeParams: [TypeParamDecl] = [],
-        underlyingType: TypeRefID? = nil
+        underlyingType: TypeRefID? = nil,
+        declarationKeywordRange: SourceRange? = nil
     ) {
         self.range = range
         self.name = name
@@ -679,6 +707,7 @@ public struct TypeAliasDecl: Codable {
         self.annotations = annotations
         self.typeParams = typeParams
         self.underlyingType = underlyingType
+        self.declarationKeywordRange = declarationKeywordRange
     }
 }
 

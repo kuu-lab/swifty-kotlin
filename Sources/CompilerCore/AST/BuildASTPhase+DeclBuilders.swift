@@ -72,6 +72,7 @@ extension BuildASTPhase {
         let typeParams = applyWhereClauses(rawTypeParams, whereClauses: whereClauses)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        let initBlocks = declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena)
         return ClassDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
@@ -94,7 +95,8 @@ extension BuildASTPhase {
             enumEntries: modifiers.contains(.enumModifier)
                 ? declarationEnumEntries(from: nodeID, in: arena, interner: interner, astArena: astArena, diagnostics: diagnostics)
                 : [],
-            initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            initBlocks: initBlocks.map(\.body),
+            initBlockRanges: initBlocks.map(\.keywordRange),
             classBodyInitOrder: declarationClassBodyInitOrder(
                 from: nodeID, in: arena, interner: interner,
                 constructorPropertyCount: constructorProperties.count
@@ -213,7 +215,7 @@ extension BuildASTPhase {
             diagnostics?.error(
                 "KSWIFTK-SEMA-0408",
                 "anonymous initializers in interfaces are prohibited.",
-                range: functionBodySourceRange(initBody) ?? node.range
+                range: functionBodySourceRange(initBody.body) ?? node.range
             )
         }
         for constructor in declarationSecondaryConstructors(from: nodeID, in: arena, interner: interner, astArena: astArena) {
@@ -269,7 +271,7 @@ extension BuildASTPhase {
             superTypeEntries: superTypeEntries,
             superTypeConstructorArgs: superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? [],
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
-            initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena).map(\.body),
             classBodyInitOrder: declarationClassBodyInitOrder(from: nodeID, in: arena, interner: interner),
             memberFunctions: members.functions,
             memberProperties: members.properties,
@@ -348,7 +350,8 @@ extension BuildASTPhase {
             isTailrec: isTailrec,
             overrideKeywordRange: declarationModifierKeywordRange(
                 from: nodeID, in: arena, matching: .override
-            )
+            ),
+            declarationKeywordRange: declarationKindKeywordRange(from: nodeID, in: arena)
         )
     }
 
@@ -451,7 +454,8 @@ extension BuildASTPhase {
             explicitBackingField: explicitField,
             overrideKeywordRange: declarationModifierKeywordRange(
                 from: nodeID, in: arena, matching: .override
-            )
+            ),
+            declarationKeywordRange: declarationKindKeywordRange(from: nodeID, in: arena)
         )
     }
 
@@ -544,7 +548,8 @@ extension BuildASTPhase {
             modifiers: declarationModifiers(from: nodeID, in: arena),
             annotations: declarationAnnotations(from: nodeID, in: arena, interner: interner),
             typeParams: typeParams,
-            underlyingType: declarationTypeAliasRHS(from: nodeID, in: arena, interner: interner, astArena: astArena)
+            underlyingType: declarationTypeAliasRHS(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            declarationKeywordRange: declarationKindKeywordRange(from: nodeID, in: arena)
         )
     }
 
