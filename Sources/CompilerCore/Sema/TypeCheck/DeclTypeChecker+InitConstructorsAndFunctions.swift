@@ -1165,7 +1165,9 @@ extension DeclTypeChecker {
                 isMember
                     ? "function '\(ctx.interner.resolve(function.name))' without a body must be abstract."
                     : "function '\(ctx.interner.resolve(function.name))' must have a body.",
-                range: function.range
+                // kotlinc underlines the `fun` keyword, not leading
+                // modifiers.
+                range: function.declarationKeywordRange ?? function.range
             )
             return
         }
