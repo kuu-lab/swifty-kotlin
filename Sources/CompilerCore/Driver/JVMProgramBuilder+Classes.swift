@@ -12,6 +12,7 @@ final class JVMClassPlan {
     var outer: SymbolID?
     var isAnonymous = false
     var isLocalNominal = false
+    var foreignAnnotation: JVMClassInfo?
     var captures: [JVMAnonymousCapture] = []
     var escapesInline = false
     var isFacade = false
@@ -31,7 +32,7 @@ final class JVMClassPlan {
     var methods: [(FunDecl, JVMForeignMethod)] = []
     var methodSymbols: [String: SymbolID] = [:]
     var constructors: [(SymbolID, ConstructorDecl, Bool)] = []
-    var isAnnotation: Bool { declaration?.modifiers.contains(.annotationClass) == true }
+    var isAnnotation: Bool { declaration?.modifiers.contains(.annotationClass) == true || foreignAnnotation != nil }
     let isValue: Bool
     var isInterface: Bool { interface != nil || isAnnotation }
     var modifiers: Modifiers { declaration?.modifiers ?? interface!.modifiers }
