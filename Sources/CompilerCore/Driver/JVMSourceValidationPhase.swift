@@ -226,6 +226,7 @@ private struct JVMSourceGrammar {
             if take(.symbol(.lBrace)) {
                 if isEnum, kind != .symbol(.semicolon) && kind != .symbol(.rBrace) {
                     repeat {
+                        while kind == .symbol(.at) { try annotation() }
                         try name()
                         if kind == .symbol(.lParen) { try arguments() }
                         if take(.symbol(.lBrace)) {
