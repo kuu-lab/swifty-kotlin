@@ -81,7 +81,7 @@ extension JVMProgramBuilder {
             let component = try varargComponentType(signature.parameterTypes[i])
             parameters[i + offset] = .reference("[" + component.descriptor, nullable: false)
         }
-        let mappedResult = try type(signature.returnType)
+        let mappedResult = try functionReturnType(signature.returnType)
         let result = nominalRangeResultType(for: symbol, mapped: mappedResult) ?? mappedResult
         let unsigned = parameters.contains { $0.unsignedName != nil }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
@@ -92,17 +92,17 @@ extension JVMProgramBuilder {
         }
         return JVMFunctionReference(name: internalName, parameters: parameters, result: result, isSuspend: function.isSuspend)
     }
+    func functionReturnType(_ id: TypeID) throws -> JVMValueType {
+        let actual = specialized(id)
+        if case .nothing(.nullable) = sema.types.kind(of: actual) {
+            return .reference("java/lang/Void", nullable: true)
+        }
+        return try type(actual)
+    }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
         let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
         let parameters = try parameterTypes.map(type)
-        let unsupportedReturn: Bool
-        if case let .nothing(nullability) = sema.types.kind(of: signature.returnType) {
-            unsupportedReturn = nullability != .nonNull
-        } else {
-            unsupportedReturn = false
-        }
         guard !parameters.contains(.unit), parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
-              !unsupportedReturn,
               !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
         }
