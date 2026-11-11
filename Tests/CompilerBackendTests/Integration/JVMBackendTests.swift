@@ -114,13 +114,14 @@ struct JVMBackendTests {
     }
 
     @Test(arguments: [
-        "fun main(args: Array<String>) {}",
+        "fun main(args: Array<Int>) {}",
+        "fun main(args: Array<String>?) {}",
+        "fun main(args: Array<String?>) {}",
         "fun main(): Int = 1",
         "fun main() { unknown(\"wrong target\") }",
         "fun main() { print() }",
         "fun main() { println(missing = \"wrong argument\") }",
         "import other.println\nfun main() { println(\"wrong target\") }",
-        "@Deprecated(\"ignored\") fun main() {}",
         "fun main() { @Missing println(\"ignored annotation\") }",
         "fun main() where T : Any { println(\"ignored constraint\") }",
         "fun main() { println(\"ignored trailing token\") garbage }",

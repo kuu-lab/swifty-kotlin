@@ -160,15 +160,35 @@ final class JVMProgramBuilder {
         return ((package + [facade]).joined(separator: "/"), filename)
     }
 
+    private func isMainWithArguments(_ declaration: FunDecl, reference: JVMFunctionReference, symbol: SymbolID) -> Bool {
+        guard !reference.isSuspend, reference.descriptor == JVMProgram.launcherDescriptor,
+              let signature = sema.symbols.functionSignature(for: symbol),
+              let parameter = signature.parameterTypes.first ?? signature.receiverType else { return false }
+        let string = sema.types.stringType
+        if declaration.valueParams.first?.isVararg == true { return parameter == string }
+        guard case let .classType(array) = sema.types.kind(of: parameter), array.nullability == .nonNull else { return false }
+        return array.args == [.invariant(string)] || array.args == [.out(string)]
+    }
+
     func build() throws -> JVMProgram {
+        func isComputedExtension(_ property: PropertyDecl) -> Bool {
+            property.receiverType != nil && property.initializer == nil
+                && property.delegateExpression == nil && property.explicitBackingField == nil
+        }
+
         let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
         let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         if Set(names.map { $0.0 }).count != names.count {
             guard context.options.stdlibOnly else { throw JVMFrontendError(message: "Duplicate JVM file facade name.") }
             let repeated = Dictionary(grouping: names.indices, by: { names[$0].0 }).values.filter { $0.count > 1 }.flatMap { $0 }
-            guard repeated.allSatisfy({ index in !files[index].topLevelDecls.contains { if case .propertyDecl = ast.arena.decl($0) { return true }; return false } }) else {
-                throw JVMFrontendError(message: "A shared stdlib facade cannot contain top-level properties.")
+            guard repeated.allSatisfy({ index in
+                files[index].topLevelDecls.allSatisfy {
+                    guard case let .propertyDecl(property) = ast.arena.decl($0) else { return true }
+                    return isComputedExtension(property)
+                }
+            }) else {
+                throw JVMFrontendError(message: "A shared stdlib facade supports only computed extension properties.")
             }
         }
         facadeName = names[0].0
@@ -181,7 +201,7 @@ final class JVMProgramBuilder {
         try prepareClassDelegates()
         try prepareCollectionDelegationMarkers()
         var plans: [JVMClassPlan?] = []
-        var declarationsByFile: [[(FunDecl, JVMFunctionReference)]] = []
+        var declarationsByFile: [[(FunDecl, JVMFunctionReference, SymbolID)]] = []
         for (index, file) in files.enumerated() {
             facadeName = names[index].0; facadePlan = nil
             let propertyIDs = file.topLevelDecls.filter { if case .propertyDecl = ast.arena.decl($0) { return true }; return false }
@@ -192,7 +212,7 @@ final class JVMProgramBuilder {
                 try prepareProperties(plan, ids: propertyIDs)
             }
             guard !classes.values.contains(where: { $0.name == facadeName }) else { throw JVMFrontendError(message: "JVM facade name clashes with a class.") }
-            var declarations: [(FunDecl, JVMFunctionReference)] = []
+            var declarations: [(FunDecl, JVMFunctionReference, SymbolID)] = []
             var signatures: Set<String> = []
             for id in file.topLevelDecls {
                 guard case let .funDecl(f) = ast.arena.decl(id) else { continue }
@@ -200,7 +220,7 @@ final class JVMProgramBuilder {
                 let ref = try functionReference(f, symbol: symbol, member: false)
                 guard signatures.insert(ref.name + ref.descriptor).inserted else { throw JVMFrontendError(message: "Duplicate JVM method signature.", range: f.range) }
                 var owned = ref; owned.owner = facadeName
-                references[symbol] = owned; declarations.append((f, owned))
+                references[symbol] = owned; declarations.append((f, owned, symbol))
             }
             plans.append(facadePlan); declarationsByFile.append(declarations)
         }
@@ -209,15 +229,15 @@ final class JVMProgramBuilder {
             facadeName = names[index].0; facadePlan = plans[index]
             let declarations = declarationsByFile[index]
             let mains = declarations.filter { $0.1.name == "main" }
-            let hasMain = mains.contains { $0.0.typeParams.isEmpty && $0.1.parameters.isEmpty && $0.1.result == .unit }
+            let hasMain = mains.contains { declaration, reference, symbol in
+                declaration.typeParams.isEmpty && reference.result == .unit
+                    && (reference.parameters.isEmpty || isMainWithArguments(declaration, reference: reference, symbol: symbol))
+            }
             guard mains.isEmpty || hasMain else {
-                throw JVMFrontendError(message: "JVM entry point must be fun main(): Unit with no arguments.")
+                throw JVMFrontendError(message: "JVM entry point must be fun main(): Unit or fun main(args: Array<String>): Unit.")
             }
             guard Self.isIdentifier(context.options.moduleName) else { throw JVMFrontendError(message: "JVM module name requires an ASCII identifier.") }
-            let functions = try declarations.map { declaration, reference in
-                let symbol = file.topLevelDecls.compactMap { id -> SymbolID? in
-                    if case let .funDecl(f) = ast.arena.decl(id), f.range == declaration.range { return sema.bindings.declSymbol(for: id) }; return nil
-                }.first!
+            let functions = try declarations.map { declaration, reference, symbol in
                 let builder = JVMFunctionBuilder(program: self, declaration: declaration, reference: reference)
                 builder.functionSymbol = symbol
                 builder.semanticSignature = sema.symbols.functionSignature(for: symbol)
@@ -230,15 +250,17 @@ final class JVMProgramBuilder {
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
                 for (_, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, declaration, property) }
-                let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
-                for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
-                    let property = properties[symbol]!
-                    b.instructions.append(.putStatic(field, try b.convert(b.propertyToken(name: property.name, owner: plan.name, signature: property.getter.name + property.getter.descriptor, topLevel: true, mutable: property.setter != nil), to: field.type)))
+                if plan.properties.contains(where: { !isComputedExtension($0.1) }) {
+                    let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
+                    for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
+                        let property = properties[symbol]!
+                        b.instructions.append(.putStatic(field, try b.convert(b.propertyToken(name: property.name, owner: plan.name, signature: property.getter.name + property.getter.descriptor, topLevel: true, mutable: property.setter != nil), to: field.type)))
+                    }
+                    let placeholder = try b.constant(.null, .reference("java/lang/Object", nullable: true))
+                    try emitInitializers(plan, builder: b, object: placeholder)
+                    if !b.terminated { b.instructions.append(.returnValue(nil)) }
+                    var initializer = b.finish(); initializer.access = 8; facadeFunctions.append(initializer)
                 }
-                let placeholder = try b.constant(.null, .reference("java/lang/Object", nullable: true))
-                try emitInitializers(plan, builder: b, object: placeholder)
-                if !b.terminated { b.instructions.append(.returnValue(nil)) }
-                var initializer = b.finish(); initializer.access = 8; facadeFunctions.append(initializer)
             }
             var output = JVMProgram(internalClassName: facadeName, sourceFileName: names[index].1, functions: functions + defaults + facadeFunctions, hasMain: hasMain, moduleName: context.options.moduleName)
             output.properties = facadePlan?.properties.map { $0.2 } ?? []
@@ -251,6 +273,7 @@ final class JVMProgramBuilder {
             for facade in facades {
                 if let index = merged.firstIndex(where: { $0.internalClassName == facade.internalClassName }) {
                     merged[index].functions += facade.functions
+                    merged[index].properties += facade.properties
                     merged[index].typeAliases += facade.typeAliases
                 } else { merged.append(facade) }
             }

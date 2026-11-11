@@ -41,9 +41,14 @@ final class KlibBodyLowerer {
     private var currentCallableSymbol: SymbolID?
     /// `returnableBlock` symbol → (end label, result temp) so `return`s aimed
     /// at it jump to its epilogue instead of returning from the function.
-    private var returnableBlocks: [Int: (label: Int32, result: KIRExprID?)] = [:]
+    private var returnableBlocks: [Int: (label: Int32, result: KIRExprID?, finallyDepth: Int)] = [:]
     /// Kotlin `loopId` → KIR labels for `break`/`continue`.
-    private var loopLabels: [Int32: (continueLabel: Int32, breakLabel: Int32)] = [:]
+    private var loopLabels: [Int32: (continueLabel: Int32, breakLabel: Int32, finallyDepth: Int)] = [:]
+    private struct FinallyBlock {
+        let expression: KlibIrExpression
+        let exceptionHandlerDepth: Int
+    }
+    private var finallyBlocks: [FinallyBlock] = []
     /// The `this` binding of the current constructor (its dispatch-receiver
     /// parameter), used by `delegatingConstructorCall` and
     /// `instanceInitializerCall`.
@@ -188,7 +193,7 @@ final class KlibBodyLowerer {
     /// `(fileIndex, signatureIndex)` → consumer `SymbolID`. The materializer
     /// keyed every registered record; references outside this module (stdlib
     /// artifacts, `depends` klibs) resolve by fully-qualified name.
-    private func symbol(for ref: KlibSymbolRef) -> SymbolID? {
+    private func symbol(for ref: KlibSymbolRef, constructorAccess: KlibMemberAccess? = nil) -> SymbolID? {
         let key = KlibSignatureKey(fileIndex: fileIndex, signatureIndex: ref.signatureIndex)
         if let symbol = typeParameterSymbols[key] { return symbol }
         if let symbol = loaded.symbolBySignature[key] {
@@ -198,10 +203,14 @@ final class KlibBodyLowerer {
            let symbol = loaded.symbolByPublicSignature[signature] {
             return symbol
         }
-        return resolveExternalSymbol(ref)
+        return resolveExternalSymbol(ref, constructorAccess: constructorAccess)
     }
 
-    private func resolveExternalSymbol(_ ref: KlibSymbolRef, visited: Set<Int> = []) -> SymbolID? {
+    private func resolveExternalSymbol(
+        _ ref: KlibSymbolRef,
+        visited: Set<Int> = [],
+        constructorAccess: KlibMemberAccess? = nil
+    ) -> SymbolID? {
         guard !visited.contains(ref.signatureIndex), visited.count < 64 else { return nil }
         var visited = visited
         visited.insert(ref.signatureIndex)
@@ -220,7 +229,21 @@ final class KlibBodyLowerer {
             let fqName = segments.compactMap { try? ir.string($0, fileIndex: fileIndex) }
             guard fqName.count == segments.count else { return nil }
             let interned = fqName.map { interner.intern($0) }
-            return symbols.lookupAll(fqName: interned).first ?? symbols.lookup(fqName: interned)
+            let candidates = symbols.lookupAll(fqName: interned)
+            if let constructorAccess, candidates.count > 1,
+               let overload = externalConstructorOverload(in: candidates, access: constructorAccess) {
+                return overload
+            }
+            if let candidate = candidates.first ?? symbols.lookup(fqName: interned) {
+                return candidate
+            }
+
+            // Native may name a fake override such as IllegalArgumentException.message.
+            guard ref.kind == .property, let name = interned.last,
+                  let owner = symbols.lookup(fqName: Array(interned.dropLast()))
+            else { return nil }
+            let receiverType = types.make(.classType(ClassType(classSymbol: owner, args: [], nullability: .nonNull)))
+            return TypeCheckHelpers().lookupMemberProperty(named: name, receiverType: receiverType, sema: sema)?.symbol
         case .accessor(let propertySignature, let name, _, _, _):
             // External accessor → the property's synthetic accessor symbol,
             // mirroring `finalizeKlibModule`'s synthetic-key registration.
@@ -243,6 +266,30 @@ final class KlibBodyLowerer {
         case .fileLocal, .scopedLocal, .local, .file:
             return nil
         }
+    }
+
+    private func externalConstructorOverload(
+        in candidates: [SymbolID],
+        access: KlibMemberAccess
+    ) -> SymbolID? {
+        // A constructor call carries its value arguments without an instance receiver.
+        let arguments = if !access.arguments.isEmpty {
+            access.arguments.map(Optional.some)
+        } else if !access.argumentsPre240.isEmpty {
+            access.argumentsPre240
+        } else {
+            access.regularArguments
+        }
+        let argumentTypes = arguments.map { $0.flatMap { decodeType($0.typeIndex) } }
+        let applicable = candidates.filter { candidate in
+            guard let parameters = symbols.functionSignature(for: candidate)?.parameterTypes,
+                  parameters.count == argumentTypes.count
+            else { return false }
+            return zip(argumentTypes, parameters).allSatisfy { argument, parameter in
+                argument.map { types.isSubtype($0, parameter) } ?? true
+            }
+        }
+        return applicable.count == 1 ? applicable[0] : nil
     }
 
     /// FQ name of the declaration a symbol ref points at — used to detect
@@ -723,12 +770,17 @@ final class KlibBodyLowerer {
                 thisExpr = savedThis
                 currentCallableSymbol = savedCallable
             }
-            for declaration in emitCallableBody(
-                base: function.base, symbol: symbol, params: parameters, returnType: returnType,
-                bodyIndex: bodyIndex, isSuspend: false, isInline: false, isTailrec: false,
-                captures: captureParameters
-            ) {
-                driver.ctx.appendGeneratedCallableDecl(declaration)
+            // A lifted callable starts with its own handlers and finally scopes.
+            withFinallyStackDepth(0) {
+                driver.ctx.withExceptionHandlerStackDepth(0) {
+                    for declaration in emitCallableBody(
+                        base: function.base, symbol: symbol, params: parameters, returnType: returnType,
+                        bodyIndex: bodyIndex, isSuspend: false, isInline: false, isTailrec: false,
+                        captures: captureParameters
+                    ) {
+                        driver.ctx.appendGeneratedCallableDecl(declaration)
+                    }
+                }
             }
         }
         let captureArguments = lifted.captures.compactMap { capture in
@@ -1186,18 +1238,29 @@ final class KlibBodyLowerer {
                 if let result = blockTarget.result {
                     body.append(.copy(from: lowered, to: result))
                 }
+                inlineFinallyBlocks(leavingTo: blockTarget.finallyDepth, into: &body)
                 body.append(.jump(blockTarget.label))
             } else if returnTargetSignatureIndexes.contains(target.signatureIndex) {
                 if decodeType(value.typeIndex) == types.unitType {
+                    inlineFinallyBlocks(leavingTo: 0, into: &body)
                     body.append(.returnUnit)
                 } else {
-                    body.append(.returnValue(lowered))
+                    let returned: KIRExprID
+                    if finallyBlocks.isEmpty {
+                        returned = lowered
+                    } else {
+                        // Preserve the return value across cleanup that mutates locals.
+                        returned = arena.appendTemporary(type: arena.exprType(lowered))
+                        body.append(.copy(from: lowered, to: returned))
+                    }
+                    inlineFinallyBlocks(leavingTo: 0, into: &body)
+                    body.append(.returnValue(returned))
                 }
             } else {
                 // Return through an inlined lambda boundary.
                 body.append(.nonLocalReturn(lowered))
             }
-            return lowered
+            return arena.appendExpr(.unit, type: types.nothingType)
 
         case .when(let branches, _):
             return translateWhen(branches, resultType: resultType, into: &body)
@@ -1208,18 +1271,20 @@ final class KlibBodyLowerer {
             return translateLoop(loop, isDoWhile: true, into: &body)
         case .break(let loopId, _):
             if let labels = loopLabels[loopId] {
+                inlineFinallyBlocks(leavingTo: labels.finallyDepth, into: &body)
                 body.append(.jump(labels.breakLabel))
             } else {
                 reportUnsupported("break to unknown loop \(loopId)")
             }
-            return unitExpr(into: &body)
+            return arena.appendExpr(.unit, type: types.nothingType)
         case .continue(let loopId, _):
             if let labels = loopLabels[loopId] {
+                inlineFinallyBlocks(leavingTo: labels.finallyDepth, into: &body)
                 body.append(.jump(labels.continueLabel))
             } else {
                 reportUnsupported("continue to unknown loop \(loopId)")
             }
-            return unitExpr(into: &body)
+            return arena.appendExpr(.unit, type: types.nothingType)
 
         case .typeOp(let op, let operandType, let argument):
             return translateTypeOp(
@@ -1252,16 +1317,13 @@ final class KlibBodyLowerer {
         case .throw(let value):
             let thrown = translateExpression(value, into: &body)
             body.append(.rethrow(value: thrown))
-            return thrown
+            return arena.appendExpr(.unit, type: types.nothingType)
 
         case .try(let result, let catches, let finallyBody):
-            // KIR exception routing (`thrownTarget` + finally guards) is a
-            // dedicated lowering in source. Keep the value path and diagnose
-            // the missing catch/finally semantics for now.
-            if !catches.isEmpty || finallyBody != nil {
-                reportUnsupported("try/catch/finally")
-            }
-            return translateExpression(result, into: &body)
+            return translateTry(
+                result, catches: catches, finallyBody: finallyBody,
+                resultType: resultType, into: &body
+            )
 
         case .vararg(_, let elements):
             return translateVararg(
@@ -1291,6 +1353,117 @@ final class KlibBodyLowerer {
         case .errorExpression, .errorCallExpression, .missingExpression:
             reportUnsupported("error expression")
             return errorExpr(type: resultType, into: &body)
+        }
+    }
+
+    private func translateTry(
+        _ result: KlibIrExpression,
+        catches: [KlibIrStatement],
+        finallyBody: KlibIrExpression?,
+        resultType: TypeID,
+        into body: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        func lower(_ expression: KlibIrExpression, into instructions: inout [KIRInstruction]) -> KIRExprID {
+            var lowered = KIRLoweringEmitContext()
+            let value = translateExpression(expression, into: &lowered)
+            instructions.append(contentsOf: lowered.instructions)
+            return value
+        }
+
+        let clauses: [ControlFlowLowerer.TryCatchClause] = catches.compactMap { statement in
+            guard case .catch(let clause) = statement.kind,
+                  let type = decodeType(clause.parameter.nameType.typeIndex),
+                  type != types.errorType
+            else {
+                reportUnsupported("invalid catch parameter")
+                return nil
+            }
+
+            let index = clause.parameter.base.symbol.signatureIndex
+            return ControlFlowLowerer.TryCatchClause(parameterType: type, bindsParameter: true) { parameter, instructions in
+                let previousValue = self.valueExprs[index]
+                self.valueExprs[index] = parameter
+                defer { self.valueExprs[index] = previousValue }
+                return lower(clause.result, into: &instructions)
+            }
+        }
+
+        let finallyDepth = finallyBlocks.count
+        if let finallyBody {
+            finallyBlocks.append(FinallyBlock(
+                expression: finallyBody, exceptionHandlerDepth: driver.ctx.exceptionHandlerStack.count
+            ))
+        }
+        defer {
+            if finallyBody != nil {
+                finallyBlocks.removeLast()
+            }
+        }
+        let lowerFinally: ((inout [KIRInstruction]) -> Void)? = finallyBody.map { expression in
+            { instructions in
+                var cleanup = KIRLoweringEmitContext()
+                self.withFinallyStackDepth(finallyDepth) {
+                    self.translateFinally(expression, into: &cleanup)
+                }
+                instructions.append(contentsOf: cleanup.instructions)
+            }
+        }
+
+        var instructions: [KIRInstruction] = []
+        let value = driver.controlFlowLowerer.lowerTry(
+            resultType: resultType,
+            lowerBody: { lower(result, into: &$0) },
+            catches: clauses,
+            lowerFinally: lowerFinally,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions
+        )
+        body.append(contentsOf: instructions)
+        return value
+    }
+
+    private func withFinallyStackDepth<T>(_ depth: Int, _ lower: () -> T) -> T {
+        let removed = Array(finallyBlocks[depth...])
+        finallyBlocks.removeSubrange(depth...)
+        defer { finallyBlocks.append(contentsOf: removed) }
+        return lower()
+    }
+
+    private func translateFinally(_ expression: KlibIrExpression, into body: inout KIRLoweringEmitContext) {
+        // Each emitted copy needs its own storage for locals declared in finally.
+        let savedValues = valueExprs
+        let savedMutableValues = mutableValues
+        let savedCells = mutableCells
+        defer {
+            valueExprs = savedValues
+            mutableValues = savedMutableValues
+            mutableCells = savedCells
+        }
+        _ = translateExpression(expression, into: &body)
+    }
+
+    private func inlineFinallyBlocks(leavingTo depth: Int, into body: inout KIRLoweringEmitContext) {
+        for index in finallyBlocks.indices.dropFirst(depth).reversed() {
+            let block = finallyBlocks[index]
+            let outerHandler = driver.ctx.exceptionHandlerStack.prefix(block.exceptionHandlerDepth).last
+            let skipping = finallyBlocks.count - index
+
+            // A transfer from the cleanup itself can only unwind outer scopes.
+            var cleanup = KIRLoweringEmitContext()
+            withFinallyStackDepth(index) {
+                driver.ctx.withExceptionHandlerStackDepth(block.exceptionHandlerDepth) {
+                    translateFinally(block.expression, into: &cleanup)
+                }
+            }
+
+            var instructions: [KIRInstruction] = [.beginFinallyCleanup(skipping: skipping)]
+            driver.controlFlowLowerer.appendFinallyInstructions(
+                cleanup.instructions, outerHandler: outerHandler,
+                sema: sema, arena: arena, interner: interner,
+                into: &instructions
+            )
+            instructions.append(.endFinallyCleanup)
+            body.append(contentsOf: instructions)
         }
     }
 
@@ -1479,7 +1652,7 @@ final class KlibBodyLowerer {
             storeCell(values[0], cell: cell, into: &body)
             return cell
         }
-        guard let ctorSymbol = symbol(for: ref),
+        guard let ctorSymbol = symbol(for: ref, constructorAccess: memberAccess),
               let classSymbol = symbols.parentSymbol(for: ctorSymbol)
         else {
             reportUnsupported("unresolvable constructor \(debugName(of: ref))")
@@ -1487,13 +1660,21 @@ final class KlibBodyLowerer {
         }
         let signature = symbols.functionSignature(for: ctorSymbol)
         let objectType = signature?.receiverType ?? resultType
+        let split = splitArguments(memberAccess, signature: signature)
+        if driver.callLowerer.isRuntimeFactoryConstructor(ctorSymbol, sema: sema) {
+            let lowered = lowerArguments(split.regular, signature: signature, into: &body)
+            return driver.callLowerer.lowerRuntimeFactoryConstructorCall(
+                constructorSymbol: ctorSymbol, finalArgIDs: lowered.values, resultType: objectType,
+                sema: sema, arena: arena, interner: interner,
+                instructions: &body.instructions
+            )
+        }
 
         // The KIR convention allocates the instance at the call site and
         // passes it as `this` (arg 0) — same as source ctor calls.
         let (allocated, _) = emitObjectAllocation(
             classSymbol: classSymbol, objectType: objectType, into: &body
         )
-        let split = splitArguments(memberAccess, signature: signature)
         let lowered = lowerArguments(split.regular, signature: signature, into: &body)
         var arguments: [KIRExprID] = [allocated] + lowered.values
         let hasOmittedDefaults = lowered.masks.contains(where: { $0 != 0 })
@@ -1733,7 +1914,7 @@ final class KlibBodyLowerer {
             ? nil
             : arena.appendTemporary(type: resultType)
         let endLabel = driver.ctx.makeLoopLabel()
-        returnableBlocks[ref.signatureIndex] = (label: endLabel, result: result)
+        returnableBlocks[ref.signatureIndex] = (label: endLabel, result: result, finallyDepth: finallyBlocks.count)
         _ = translateStatementSequence(statements, into: &body)
         body.append(.label(endLabel))
         returnableBlocks.removeValue(forKey: ref.signatureIndex)
@@ -1784,7 +1965,7 @@ final class KlibBodyLowerer {
         let headLabel = driver.ctx.makeLoopLabel()
         let continueLabel = driver.ctx.makeLoopLabel()
         let breakLabel = driver.ctx.makeLoopLabel()
-        loopLabels[loop.loopId] = (continueLabel: continueLabel, breakLabel: breakLabel)
+        loopLabels[loop.loopId] = (continueLabel: continueLabel, breakLabel: breakLabel, finallyDepth: finallyBlocks.count)
         defer { loopLabels.removeValue(forKey: loop.loopId) }
         let boolType = types.booleanType
 
@@ -2044,6 +2225,27 @@ final class KlibBodyLowerer {
         guard parts.count >= 3, parts[0] == "kotlin" else { return nil }
         let owner = parts.dropLast().joined(separator: ".")
         let member = parts.last ?? ""
+
+        // Native serializes comparison operators as calls to IR built-ins.
+        if owner == "kotlin.internal.ir" {
+            let comparison: KIRBinaryOp? = switch member {
+            case "EQEQ": .equal
+            case "less": .lessThan
+            case "lessOrEqual": .lessOrEqual
+            case "greater": .greaterThan
+            case "greaterOrEqual": .greaterOrEqual
+            default: nil
+            }
+            guard let comparison else { return nil }
+            let arguments = intrinsicArguments(memberAccess, into: &body)
+            guard arguments.count == 2 else {
+                reportUnsupported("comparison intrinsic arguments")
+                return errorExpr(type: resultType, into: &body)
+            }
+            let result = arena.appendTemporary(type: resultType)
+            body.append(.binary(op: comparison, lhs: arguments[0], rhs: arguments[1], result: result))
+            return result
+        }
 
         if member == "invoke", let shape = KlibFunctionTypeShape(classifierName: owner), !shape.isSuspend {
             let arguments = intrinsicArguments(memberAccess, into: &body)

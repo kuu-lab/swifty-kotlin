@@ -2121,7 +2121,7 @@ extension CallTypeChecker {
         )
         // Check the whole lambda so loop variables and local declarations shadow
         // outer names during bootstrap. The real check uses the inferred element type.
-        if (yieldedExprs + yieldedCollectionExprs).contains(where: {
+        if sema.bindings.exprType(for: lambdaExprID) == nil || (yieldedExprs + yieldedCollectionExprs).contains(where: {
             sema.bindings.exprType(for: $0) == nil
         }), let scopeSymbol = sema.symbols.lookup(fqName: [
             interner.intern("kotlin"),
@@ -2144,7 +2144,7 @@ extension CallTypeChecker {
             )
             diagnosticEngine.truncate(to: snapshot)
         }
-        var elementTypes: [TypeID] = []
+        var elementTypes = sequenceBuilderExtensionElementTypes(lambdaExprID: lambdaExprID, ctx: ctx)
         for exprID in yieldedExprs {
             guard let inferredType = sema.bindings.exprType(for: exprID),
                   inferredType != sema.types.errorType

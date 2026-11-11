@@ -125,7 +125,10 @@ extension JVMFunctionBuilder {
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
         let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
         var dispatch: JVMValue?, prefix: [JVMValue] = []
-        if constructor, let plan, plan.isInner {
+        if constructor, let plan, plan.isLocalNominal, !plan.captures.isEmpty {
+            prefix = try localFunctionCaptureValues(plan.captures)
+            if plan.isInner, let outer = plan.outer { prefix.append(try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(outer)) }
+        } else if constructor, let plan, plan.isInner {
             prefix = [try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
         } else if let method, !method.isStatic && !constructor {
             dispatch = try (receiver != nil || receiverValue != nil) && !extensionCall ? receiverValue ?? requireValue(receiver!) : instance(id)

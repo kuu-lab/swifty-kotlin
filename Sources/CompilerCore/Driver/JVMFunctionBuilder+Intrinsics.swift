@@ -96,11 +96,12 @@ extension JVMFunctionBuilder {
                 // Arrays$ArrayList, LinkedHashSet, LinkedHashMap.
                 let kind = map ? "Map" : (set ? "Set" : "List")
                 if items.isEmpty {
-                    let owner = "kotlin/collections/Empty" + kind
-                    let emptyType: JVMValueType = .reference(owner, nullable: false)
-                    let result = try value(emptyType)
-                    instructions.append(.getStatic(JVMField(owner: owner, name: "INSTANCE", type: emptyType, access: 0x19), result))
-                    return JVMIntrinsicResult(value: try convert(result, to: resultType))
+                    // The singleton implementation classes need not be public.
+                    let facade = map ? "MapsKt" : (set ? "SetsKt" : "CollectionsKt")
+                    return JVMIntrinsicResult(value: try jdkCall(
+                        "kotlin/collections/" + facade, "empty" + kind, [],
+                        .reference("java/util/" + kind, nullable: false), resolved: resultType
+                    ))
                 }
                 if items.count == 1 {
                     if map {

@@ -59,9 +59,37 @@ struct JVMClassReader {
     }
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
-    mutating func attributes() throws {
+    private mutating func methodSignature() throws -> String? {
+        var signature: String?
         let count = try u2()
-        for _ in 0..<count { _ = try u2(); let size = try u4(); try skip(Int(size)) }
+        for _ in 0..<count {
+            let name = try text(Int(u2()))
+            let size = try u4()
+            if name == "Signature" {
+                guard signature == nil, size == 2 else { throw Invalid() }
+                signature = try text(Int(u2()))
+            } else {
+                try skip(Int(size))
+            }
+        }
+        return signature
+    }
+
+    /// Import `<T extends Bound> T method(...)` when the parameters use their
+    /// descriptor types. More complex generic signatures keep their erased form.
+    private static func genericResultParameter(in signature: String?, method: JVMForeignMethod) -> String? {
+        guard let signature, signature.first == "<", let colon = signature.firstIndex(of: ":"),
+              let parameterEnd = method.descriptor.firstIndex(of: ")"),
+              method.result.referenceName != nil, !method.isConstructor else { return nil }
+        let name = String(signature[signature.index(after: signature.startIndex)..<colon])
+        guard JVMProgramBuilder.isIdentifier(name) else { return nil }
+        let bound = method.result.descriptor
+        let tail = ">\(method.descriptor[...parameterEnd])T\(name);"
+        for separator in [":", "::"] {
+            let form = "<\(name)\(separator)\(bound)\(tail)"
+            if signature == form || signature.hasPrefix(form + "^") { return name }
+        }
+        return nil
     }
     /// Field attributes: returns the resolved `ConstantValue` payload, if any.
     mutating func fieldAttributes() throws -> JVMFieldConstant? {
@@ -262,6 +290,7 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
+            let genericSignature = try methodSignature()
             if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
@@ -271,10 +300,10 @@ struct JVMClassReader {
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
                 method.isVarargs = access & 0x0080 != 0
+                method.genericResultParameter = Self.genericResultParameter(in: genericSignature, method: method)
                 if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }
-            try attributes()
         }
         let classAttributes = try classAttributes()
         guard offset == bytes.count else { throw Invalid() }

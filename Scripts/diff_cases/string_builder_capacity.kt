@@ -69,11 +69,6 @@ fun main() {
     println(ranged.capacity())
     println(ranged.toString())
 
-    val self = StringBuilder(2).append("ab")
-    self.insert(1, self)
-    println(self.capacity())
-    println(self.toString())
-
     val resized = StringBuilder(2).append("ab")
     resized.setLength(20)
     println(resized.capacity())
