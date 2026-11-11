@@ -151,7 +151,6 @@ extension JVMProgramBuilder {
             let functionIDs = plan.declaration?.memberFunctions ?? plan.interface!.memberFunctions
             for id in functionIDs {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { throw JVMFrontendError(message: "Missing JVM member function.") }
-                guard !plan.isInterface || !f.modifiers.contains(.private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface methods.", range: f.range) }
                 let ref = try functionReference(f, symbol: symbol, member: true)
                 var method = JVMForeignMethod(owner: plan.name, name: ref.name, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
                 method.isSpecial = f.modifiers.contains(.private)
