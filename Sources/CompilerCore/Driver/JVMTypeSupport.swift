@@ -44,7 +44,7 @@ extension JVMClasspathIndex {
         switch arg {
         case let .invariant(t), let .out(t):
             let value = try type(t, sema: sema, ctx: ctx)
-            guard value != .unit else { throw JVMFrontendError(message: "JVM M5 does not support Unit array elements.") }
+            if value == .unit { return .reference("kotlin/Unit", nullable: false) }
             return boxed(value)
         case .in, .star: return .reference("java/lang/Object", nullable: true)
         }
@@ -53,7 +53,7 @@ extension JVMClasspathIndex {
 
 extension JVMProgramBuilder {
     func varargComponentType(_ id: TypeID) throws -> JVMValueType {
-        let component = try type(id)
+        let component = try parameterType(id)
         // Generic varargs use Array<T>, even when a final primitive bound
         // gives individual T values a primitive descriptor.
         if case .typeParam = sema.types.kind(of: id) { return JVMClasspathIndex.boxed(component) }
@@ -171,7 +171,7 @@ extension JVMProgramBuilder {
             return "L" + erased.referenceName! + (args.isEmpty ? "" : "<" + args + ">") + ";"
         default:
             let t = try type(id)
-            if boxed && t == .unit { return "Lkotlin/Unit;" }
+            if (boxed || parameterPosition) && t == .unit { return "Lkotlin/Unit;" }
             return (boxed ? JVMClasspathIndex.boxed(t) : t).descriptor
         }
     }
