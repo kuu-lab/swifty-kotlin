@@ -1,5 +1,8 @@
 package kotlin.collections
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 import kotlin.internal.KsSymbolName
 
 // KSP-431: Map's four runtime-backed property links and MutableMap's mutation
@@ -75,10 +78,33 @@ public fun <K, V> Map<K, V>.getOrDefault(key: K, defaultValue: V): V {
     return if (value != null || containsKey(key)) value as V else defaultValue
 }
 
+@OptIn(ExperimentalContracts::class)
 public inline fun <K, V> Map<K, V>.getOrElse(key: K, defaultValue: () -> V): V {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
     val value = this[key]
     if (value != null) return value
     return defaultValue()
+}
+
+@SinceKotlin("2.4")
+@kotlin.internal.InlineOnly
+@ExperimentalStdlibApi
+@OptIn(ExperimentalContracts::class)
+public inline fun <K, V> Map<K, V>.getOrElseIfNull(key: K, defaultValue: () -> V): V {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    return getOrElse(key, defaultValue)
+}
+
+@SinceKotlin("2.4")
+@kotlin.internal.InlineOnly
+@ExperimentalStdlibApi
+@OptIn(ExperimentalContracts::class)
+public inline fun <K, V> Map<K, V>.getOrElseIfMissing(key: K, defaultValue: () -> V): V {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    val value = this[key]
+    if (value == null && !containsKey(key)) return defaultValue()
+    @Suppress("UNCHECKED_CAST")
+    return value as V
 }
 
 public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V): V {
@@ -87,6 +113,32 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
     val answer = defaultValue()
     this[key] = answer
     return answer
+}
+
+@SinceKotlin("2.4")
+@kotlin.internal.InlineOnly
+@ExperimentalStdlibApi
+@OptIn(ExperimentalContracts::class)
+@Suppress("LEAKED_IN_PLACE_LAMBDA", "WRONG_INVOCATION_KIND")
+public inline fun <K, V> MutableMap<K, V>.getOrPutIfNull(key: K, crossinline defaultValue: () -> V): V {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    return getOrPut(key, defaultValue)
+}
+
+@SinceKotlin("2.4")
+@kotlin.internal.InlineOnly
+@ExperimentalStdlibApi
+@OptIn(ExperimentalContracts::class)
+public inline fun <K, V> MutableMap<K, V>.getOrPutIfMissing(key: K, crossinline defaultValue: () -> V): V {
+    contract { callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE) }
+    val value = this[key]
+    if (value == null && !containsKey(key)) {
+        val answer = defaultValue()
+        this[key] = answer
+        return answer
+    }
+    @Suppress("UNCHECKED_CAST")
+    return value as V
 }
 
 // KUU-4040: java.util.Map.compute — the remapping function always runs,
