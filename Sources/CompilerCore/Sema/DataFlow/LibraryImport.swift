@@ -121,6 +121,7 @@ extension DataFlowSemaPhase {
         let metadataPath: String
         let inlineKIRDir: String?
         let isStdlibArtifact: Bool
+        let isKlib: Bool
 
         init(_ binding: ImportedLibraryBinding) {
             record = binding.record
@@ -128,6 +129,7 @@ extension DataFlowSemaPhase {
             metadataPath = binding.metadataPath
             inlineKIRDir = binding.inlineKIRDir
             isStdlibArtifact = binding.isStdlibArtifact
+            isKlib = binding.isKlib
         }
 
         func makeBinding() -> ImportedLibraryBinding {
@@ -136,7 +138,8 @@ extension DataFlowSemaPhase {
                 symbol: symbol,
                 metadataPath: metadataPath,
                 inlineKIRDir: inlineKIRDir,
-                isStdlibArtifact: isStdlibArtifact
+                isStdlibArtifact: isStdlibArtifact,
+                isKlib: isKlib
             )
         }
     }
@@ -292,6 +295,7 @@ extension DataFlowSemaPhase {
             metadataPath: String,
             inlineKIRDir: String?,
             isStdlibArtifact: Bool,
+            isKlib: Bool = false,
             materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil,
             hasCompleteInitializerInfo: Bool = false,
             moduleFQN: InternedString?
@@ -485,6 +489,7 @@ extension DataFlowSemaPhase {
                 metadataPath: metadataPath,
                 inlineKIRDir: inlineKIRDir,
                 isStdlibArtifact: isStdlibArtifact,
+                isKlib: isKlib,
                 materializeBody: materializeBody
             )
             // Indexed inline bodies stay unparsed until lowering resolves the
@@ -556,6 +561,7 @@ extension DataFlowSemaPhase {
                             metadataPath: "\(libraryDir)/ir",
                             inlineKIRDir: nil,
                             isStdlibArtifact: stdlibArtifact,
+                            isKlib: true,
                             moduleFQN: klibModuleFQN
                         ) {
                             registered.append((record: record, symbol: symbol))
