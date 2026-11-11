@@ -397,7 +397,7 @@ CI は 2 つの workflow に分かれる。`.github/workflows/ci.yml` は PR と
 | ジョブ | 内容 |
 |---|---|
 | `repository-checks` | Action pin 検証、`TODO.md` タスク ID 重複、fuzzer キーワード、テスト並列度設定、npm ci 限定チェック、Kotlin compiler archive 検証ポリシー、`jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
-| `build-and-smoke` | `Scripts/build_swift_tests.sh` でコンパイラと全テストターゲットをデバッグビルドし、`SmokeTests` を実行 |
+| `swift-checks` | 全ターゲットのデバッグビルドと `SmokeTests` を別々のランナーで並列実行。両方で `Scripts/build_swift_tests.sh` を使い、SmokeTests 側は `KSWIFTK_CI_SMOKE_ONLY=1` でテストターゲットを `CompilerCoreTests` に絞る |
 | `ci-gate` | 上記全ジョブの成功を集約する。ジョブを増減しても ruleset の変更は不要 |
 
 `nightly-full.yml`:
@@ -423,13 +423,13 @@ macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（
 - [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux / macOS ランナーの共通準備
 - [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
 - [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
-- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-and-smoke`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`swift-checks`（ci.yml）と `build-debug-tests` / `build-release-kswiftc`（nightly-full.yml）が `save: "false"`（restore-only）で使用。全ターゲット用は `fast`、SmokeTests 用は `fast-smoke` のキーを使う
 
 `setup-llvm` で LLVM を明示的に導入するのは `verify-self-hosted` と `mutation-fuzzer`（`kotlinx-io-apple-candidate` は brew の LLVM を `KSWIFTK_LLVM_DYLIB` に設定する）。`verify-diff` / `verify-jvm-diff` / `verify-wasm` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2。WASM エミッタは LLVM 非依存）。
 
 ### ビルドとテスト実行の分離
 
-テストのビルドは `build-debug-tests` の 1 回だけで、`verify-core` / `verify-self-hosted` は artifact を展開して `swift test --skip-build`（`Scripts/swift_test.sh --skip-build` / `Scripts/shard_swift_tests.sh`）で実行する。ビルド時と `--skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、各ジョブは同一の `SWIFT_XSWIFTC_FLAGS` を共有する。
+Nightly は `build-debug-tests` でテストを 1 回ビルドし、`verify-core` / `verify-self-hosted` が artifact を展開して `swift test --skip-build`（`Scripts/swift_test.sh --skip-build` / `Scripts/shard_swift_tests.sh`）で実行する。ビルド時と `--skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、各ジョブは同一の `SWIFT_XSWIFTC_FLAGS` を共有する。
 
 `Scripts/build_swift_tests.sh` は既定で `swift build --build-tests` を実行する。`SWIFT_TEST_BUILD_TARGETS` を指定するとそのターゲットだけを `swift build --target <T>` で 1 つずつビルドする（SwiftPM の `--target` は累積しないためループ処理）。Swift 6.3 の `swiftbuild` ビルドシステム（`SWIFT_BUILD_SYSTEM=swiftbuild`）にも対応しており、その場合はテストターゲットごとの `<Target>-test-runner` プロダクトを `swift test --skip-build --test-product <Target>` で個別実行できる（`swift_test.sh` / `shard_swift_tests.sh` は `SWIFT_TEST_PRODUCT` または `--target-prefix` から `--test-product` を自動付加）。ただし Linux での断続的なクラッシュ（SIGSEGV/SIGBUS/SIGILL）を避けるため、CI は `native` を使う。
 
@@ -437,7 +437,7 @@ macOS runner 上での検証は `nightly-full.yml` の `kotlinx-io-reference`（
 
 `SWIFT_ENABLE_COMPILE_CACHE=1` を設定すると、`Scripts/lib/common.sh` が `-Xswiftc -explicit-module-build -Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <SWIFT_CAS_PATH>` を `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。`-explicit-module-build` は必須で、これがないと swift-driver が `warning: -cache-compile-job cannot be used without explicit module build, turn off caching` を出してキャッシュを**黙って無効化**する（ビルド自体は成功する）。`build_swift_tests.sh` はこの警告を検出するとビルドを失敗させる。
 
-CI では `build-and-smoke`（`ci.yml`）と `build-debug-tests` / `verify-core` / `verify-self-hosted` / `audits`（`nightly-full.yml`）が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の workflow にはない）。
+CI では `swift-checks`（`ci.yml`）と `build-debug-tests` / `verify-core` / `verify-self-hosted` / `audits`（`nightly-full.yml`）が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の workflow にはない）。
 
 `swiftbuild` を使う場合は、`kswiftk_setup_compile_cache_env` が `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を追加でエクスポートし、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` に成果物を蓄える。ローカル計測例（Swift 6.3.1、`CompilerCoreTests-test-runner`）: キャッシュなし初回ビルド約 170 秒、復元後の再ビルド約 7 秒。
 
