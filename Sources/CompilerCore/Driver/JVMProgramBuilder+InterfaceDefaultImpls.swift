@@ -55,7 +55,8 @@ extension JVMProgramBuilder {
         target: JVMForeignMethod,
         receiver: JVMForwardReceiver,
         argumentOffset: Int,
-        ownerIsInterface: Bool = false
+        ownerIsInterface: Bool = false,
+        passInstanceAsArgument: Bool = false
     ) -> JVMFunction {
         let hasInstance = access & 8 == 0
         var locals: [JVMValue] = []
@@ -70,6 +71,8 @@ extension JVMProgramBuilder {
             slot += type.width
         }
         let explicitParameters = Array(locals.dropFirst(hasInstance ? 1 : 0))
+        let arguments = (passInstanceAsArgument ? Array(locals.prefix(1)) : [])
+            + explicitParameters.dropFirst(argumentOffset)
         let targetReceiver: JVMValue?
         switch receiver {
         case .none: targetReceiver = nil
@@ -92,7 +95,7 @@ extension JVMProgramBuilder {
             access: access,
             locals: locals,
             instructions: [
-                .foreignCall(target, receiver: targetReceiver, arguments: Array(explicitParameters.dropFirst(argumentOffset)), result: returned),
+                .foreignCall(target, receiver: targetReceiver, arguments: arguments, result: returned),
                 .returnValue(returned),
             ]
         )
@@ -208,6 +211,7 @@ extension JVMProgramBuilder {
             for parent in sourceInterfaceParents(of: plan.symbol) {
                 signatures.formUnion(effectiveInterfaceMethods(parent).values.filter { !$0.isAbstract }.map(jvmMemberKey))
             }
+            signatures.formUnion(importedInterfaceDefaults(plan).map { jvmMemberKey($0.method) })
         }
         for parent in sourceClassParents(of: plan.symbol) {
             signatures.formUnion(inheritedClassMethodSignatures(parent, visited: visited))
@@ -245,7 +249,7 @@ extension JVMProgramBuilder {
                 }
             }
         }
-        return selected.keys.sorted().compactMap { key in
+        let sourceForwarders = selected.keys.sorted().compactMap { key -> JVMFunction? in
             guard !blocked.contains(key), let candidate = selected[key] else { return nil }
             let target = interfaceDefaultDispatchMethod(candidate.method, owner: candidate.interface.name, special: true)
             var function = forwarder(
@@ -260,6 +264,75 @@ extension JVMProgramBuilder {
             )
             function.isSynthetic = false
             return function
+        }
+        let occupied = blocked.union(sourceForwarders.map { $0.reference.name + $0.reference.descriptor })
+        let importedForwarders = importedInterfaceDefaults(plan).compactMap { method, target -> JVMFunction? in
+            guard !occupied.contains(jvmMemberKey(method)) else { return nil }
+            var function = forwarder(
+                owner: plan.name,
+                name: method.name,
+                parameters: method.parameters,
+                result: method.result,
+                access: 0x0001,
+                target: target,
+                receiver: .none,
+                argumentOffset: 0,
+                passInstanceAsArgument: true
+            )
+            function.isSynthetic = false
+            return function
+        }
+        return sourceForwarders + importedForwarders
+    }
+
+    private func importedInterfaceDefaults(_ plan: JVMClassPlan) -> [(method: JVMForeignMethod, target: JVMForeignMethod)] {
+        guard !plan.interfaces.isEmpty, let imports = context.jvmImports, !imports.classes.isEmpty else { return [] }
+        let sourceInterfaces = Dictionary(classes.values.filter(\.isInterface).map { ($0.name, $0) },
+                                          uniquingKeysWith: { first, _ in first })
+        var parents: [String: [String]] = [:]
+        var declarations: [String: [JVMForeignMethod]] = [:]
+        var pending = plan.interfaces
+        while let name = pending.popLast() {
+            guard parents[name] == nil else { continue }
+            let methods: [JVMForeignMethod]
+            let directParents: [String]
+            if let source = sourceInterfaces[name] {
+                methods = declaredInterfaceMethods(source)
+                directParents = source.interfaces
+            } else if let imported = imports.classes[name], imported.isInterface {
+                methods = imported.methods
+                directParents = imported.interfaces
+            } else {
+                continue
+            }
+            parents[name] = directParents
+            pending += directParents
+            for method in methods where method.owner == name && !method.isStatic && !method.isSpecial {
+                declarations[jvmMemberKey(method), default: []].append(method)
+            }
+        }
+        func inherits(_ name: String, from ancestor: String) -> Bool {
+            var pending = parents[name] ?? []
+            var visited: Set<String> = []
+            while let candidate = pending.popLast() {
+                guard visited.insert(candidate).inserted else { continue }
+                if candidate == ancestor { return true }
+                pending += parents[candidate] ?? []
+            }
+            return false
+        }
+        return declarations.keys.sorted().compactMap { key in
+            guard let methods = declarations[key] else { return nil }
+            let mostSpecific = methods.filter { method in
+                !methods.contains { inherits($0.owner, from: method.owner) }
+            }
+            // A declaration on a more specific interface can reabstract a
+            // legacy default or provide a real JVM default method.
+            guard mostSpecific.allSatisfy(\.isAbstract) else { return nil }
+            let targets = mostSpecific.compactMap { method in
+                imports.legacyInterfaceDefault(method).map { (method, $0) }
+            }
+            return targets.count == 1 ? targets[0] : nil
         }
     }
 }

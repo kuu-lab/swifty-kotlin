@@ -129,7 +129,8 @@ extension ExprTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID?,
-        expectedTypeIsHintOnly: Bool = false
+        expectedTypeIsHintOnly: Bool = false,
+        inferErasedReturnType: Bool = false
     ) -> TypeID {
         let previousFunctionScope = ctx.dataFlow.localStability.currentLocalFunctionScope
         ctx.dataFlow.localStability.currentLocalFunctionScope = nil
@@ -777,6 +778,7 @@ extension ExprTypeChecker {
                 || expectedReturnIsTypeParam
                 || expectedReturnHasUnresolvedOutputTypeParameter
                 || expectedReturnIsErasedNonHOFPlaceholder
+                || (inferErasedReturnType && expectedReturnIsCollectionHOFPlaceholder)
                 || hasAnnotatedUnresolvedUnitInput
                 || hasInferredUnresolvedUnitInput
                 || sema.bindings.isDirectlyInvokedLambdaExpr(id)

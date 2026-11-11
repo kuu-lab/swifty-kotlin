@@ -129,27 +129,20 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
         }
         var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
-        // Other file annotations have independent Sema effects. Resolve only
-        // possible JvmName spellings here and keep unsupported aliases strict.
-        var jvmNameSpellings: Set<String> = ["kotlin.jvm.JvmName", "JvmName"]
-        for imported in file.imports {
-            let importPath = imported.path.map(context.interner.resolve).joined(separator: ".")
-            if importPath == "kotlin.jvm.JvmName", let name = imported.alias ?? imported.path.last {
-                jvmNameSpellings.insert(context.interner.resolve(name))
-            } else if importPath == "kotlin.jvm", imported.isWildcard {
-                jvmNameSpellings.insert("JvmName")
-            } else if importPath == "kotlin.jvm", let alias = imported.alias {
-                jvmNameSpellings.insert(context.interner.resolve(alias) + ".JvmName")
-            }
-        }
+        let jvmNamePath = ["kotlin", "jvm", "JvmName"].map(context.interner.intern)
         let jvmNameAnnotations = file.annotations.filter { annotation in
-            jvmNameSpellings.contains(annotation.name)
+            guard let sema = context.sema else { return annotation.name == "kotlin.jvm.JvmName" }
+            let symbol = resolveAnnotationSymbol(
+                named: annotation.name, in: file, symbols: sema.symbols, interner: context.interner,
+                types: sema.types, allowGlobalShortNameFallback: false
+            )
+            return symbol.flatMap { sema.symbols.symbol($0)?.fqName } == jvmNamePath
         }
         guard jvmNameAnnotations.count <= 1 else {
-            throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.")
+            throw JVMFrontendError(message: "JVM supports one @file:JvmName annotation per file.")
         }
         if let annotation = jvmNameAnnotations.first {
-            guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
+            guard annotation.useSiteTarget == "file", annotation.arguments.count == 1,
                   let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                   let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
                   names.count == 1, isIdentifier(names[0]) else {
@@ -219,9 +212,12 @@ final class JVMProgramBuilder {
             facadeName = names[index].0; facadePlan = plans[index]
             let declarations = declarationsByFile[index]
             let mains = declarations.filter { $0.1.name == "main" }
-            let hasMain = mains.contains { $0.0.typeParams.isEmpty && $0.1.parameters.isEmpty && $0.1.result == .unit }
+            let hasMain = mains.contains { declaration, reference in
+                declaration.typeParams.isEmpty && declaration.receiverType == nil && !reference.isSuspend
+                    && ["()V", "([Ljava/lang/String;)V"].contains(reference.descriptor)
+            }
             guard mains.isEmpty || hasMain else {
-                throw JVMFrontendError(message: "JVM entry point must be fun main(): Unit with no arguments.")
+                throw JVMFrontendError(message: "JVM entry point must return Unit and accept no arguments or Array<String>.")
             }
             guard Self.isIdentifier(context.options.moduleName) else { throw JVMFrontendError(message: "JVM module name requires an ASCII identifier.") }
             let functions = try declarations.map { declaration, reference in
@@ -395,7 +391,7 @@ final class JVMFunctionBuilder {
     func requireValue(_ id: ExprID) throws -> JVMValue {
         let result = try expression(id)
         if terminated { throw JVMTerminatedExpression() }
-        if result == nil, program.sema.bindings.exprType(for: id) == program.sema.types.unitType {
+        if result == nil, try program.expressionType(id) == .unit {
             program.functionArities.insert(0)
             let unit: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(unit)
             instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), result))
@@ -586,7 +582,7 @@ final class JVMFunctionBuilder {
             if let result = try implicitReceiverProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
-                return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
+                return try convert(readProperty(property, receiver: implicitPropertyReceiver(property, at: id), at: id, special: false), to: program.expressionType(id))
             }
             if !scopes.contains(where: { $0[name] != nil }), let result = try textLibraryProperty(id) { return result }
             // Snapshot reads before evaluating later operands/arguments, which
@@ -653,8 +649,8 @@ final class JVMFunctionBuilder {
                 instructions.append(property.getter.isStatic ? .putStatic(field, result) : .putField(field, thisValue!, result)); return nil
             }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
-                let object = try instance(id), result = try requireValue(rhs)
-                try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject)
+                let object = try implicitPropertyReceiver(property, at: id), result = try requireValue(rhs)
+                try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject)
                 return nil
             }
             let local = try lookup(name)
@@ -684,7 +680,7 @@ final class JVMFunctionBuilder {
                 return arena.incrementDecrementReturnsValue(id) ? result : nil
             }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
-                return try propertyCompound(property, receiver: instance(id), op: op, rhs: rhs, id: id)
+                return try propertyCompound(property, receiver: implicitPropertyReceiver(property, at: id), op: op, rhs: rhs, id: id)
             }
             let local = try lookup(name)
             let loaded = try readLocal(local), old = try value(loaded.type)
@@ -771,7 +767,7 @@ final class JVMFunctionBuilder {
                 ? constant(.null, .reference("java/lang/Object", nullable: true))
                 : requireValue(receiver)
             let result = try requireValue(rhs)
-            try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
+            try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }

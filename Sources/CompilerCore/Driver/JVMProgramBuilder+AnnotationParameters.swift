@@ -55,7 +55,7 @@ extension JVMProgramBuilder {
         if isProperty {
             records = records.map { record in
                 guard record.useSiteTarget == nil,
-                      let owner = sema.symbols.lookup(fqName: record.annotationFQName.split(separator: ".").map { context.interner.intern(String($0)) }), classes[owner]?.isAnnotation == true,
+                      let owner = sema.symbols.lookup(fqName: record.annotationFQName.split(separator: ".").map { context.interner.intern(String($0)) }), annotationPlan(owner) != nil,
                       !annotationTargets(owner).contains("PROPERTY"), annotationTargets(owner).contains("FIELD") else { return record }
                 return MetadataAnnotationRecord(annotationFQName: record.annotationFQName, arguments: record.arguments, useSiteTarget: "field", retention: record.retention, usageID: record.usageID, factorySymbol: record.factorySymbol, factoryLinkName: record.factoryLinkName)
             }
@@ -63,7 +63,8 @@ extension JVMProgramBuilder {
         return records
     }
     func annotationOwner(_ node: AnnotationNode, symbol: SymbolID) -> SymbolID? {
-        guard let file = ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
+        guard let fileID = node.constructionTokens?.first?.range.start.file ?? sema.symbols.sourceFileID(for: symbol),
+              let file = ast.files.first(where: { $0.fileID == fileID }) else { return nil }
         return resolveAnnotationSymbol(named: node.name, in: file, symbols: sema.symbols, interner: context.interner, types: sema.types, enclosingFQName: Array((sema.symbols.symbol(symbol)?.fqName ?? []).dropLast()))
     }
     func annotationTargets(_ owner: SymbolID) -> Set<String> {

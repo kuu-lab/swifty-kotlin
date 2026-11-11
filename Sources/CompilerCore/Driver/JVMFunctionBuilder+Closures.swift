@@ -107,13 +107,13 @@ extension JVMFunctionBuilder {
            let property = program.properties[symbol],
            case let .functionType(signature) = program.sema.types.kind(of: bound.functionType) {
             let object = try requireValue(receiver)
-            let function = try readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver)
+            let function = try readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver)
             var values: [JVMValue] = signature.receiver != nil && args.count == signature.params.count ? [object] : []
             for arg in args { values.append(try requireValue(arg.expr)) }
             return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
         }
         if let bound = program.sema.bindings.invokeOperatorPropertyCalls[id], let property = program.properties[bound.property], case let .functionType(signature) = program.sema.types.kind(of: bound.propertyType) {
-            let function = try readProperty(property, receiver: requireValue(receiver), special: false)
+            let function = try readProperty(property, receiver: requireValue(receiver), at: id, special: false)
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))

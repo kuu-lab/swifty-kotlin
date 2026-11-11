@@ -12,7 +12,9 @@ struct JVMClassInfo {
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
+    var annotations: [JVMAnnotation] = []
     var isInterface: Bool { flags & 0x0200 != 0 }
+    var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
 
 struct JVMInnerClassInfo {
@@ -59,20 +61,28 @@ struct JVMClassReader {
     }
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
-    private mutating func methodSignature() throws -> String? {
+    private mutating func methodAttributes() throws -> (signature: String?, defaultValue: JVMAnnotationValue?) {
         var signature: String?
+        var defaultValue: JVMAnnotationValue?
         let count = try u2()
         for _ in 0..<count {
             let name = try text(Int(u2()))
-            let size = try u4()
-            if name == "Signature" {
+            let size = Int(try u4())
+            guard size <= bytes.count - offset else { throw Invalid() }
+            let end = offset + size
+            switch name {
+            case "Signature":
                 guard signature == nil, size == 2 else { throw Invalid() }
                 signature = try text(Int(u2()))
-            } else {
-                try skip(Int(size))
+            case "AnnotationDefault":
+                guard defaultValue == nil else { throw Invalid() }
+                defaultValue = try readAnnotationValue()
+            default:
+                try skip(size)
             }
+            guard offset == end else { throw Invalid() }
         }
-        return signature
+        return (signature, defaultValue)
     }
 
     /// Import `<T extends Bound> T method(...)` when the parameters use their
@@ -108,12 +118,16 @@ struct JVMClassReader {
         }
         return result
     }
-    private mutating func classAttributes() throws -> (signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool, hasEnclosingMethod: Bool) {
+    private mutating func classAttributes(isAnnotation: Bool) throws -> (
+        signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool,
+        hasEnclosingMethod: Bool, annotations: [JVMAnnotation]
+    ) {
         let count = try u2()
         var signature: String?
         var innerClasses: [JVMInnerClassInfo] = []
         var hasInnerClassesAttribute = false
         var hasEnclosingMethod = false
+        var annotations: [JVMAnnotation] = []
         for _ in 0..<count {
             let attributeName = try text(Int(u2()))
             let size = try u4()
@@ -144,12 +158,18 @@ struct JVMClassReader {
                 guard !hasEnclosingMethod, size == 4 else { throw Invalid() }
                 hasEnclosingMethod = true
                 try skip(Int(size))
+            case "RuntimeVisibleAnnotations", "RuntimeInvisibleAnnotations":
+                let count = Int(try u2())
+                for _ in 0..<count {
+                    let annotation = try readAnnotation(visible: attributeName == "RuntimeVisibleAnnotations")
+                    if isAnnotation || annotation.descriptor == "Lkotlin/Metadata;" { annotations.append(annotation) }
+                }
             default:
                 try skip(Int(size))
             }
             guard offset == end else { throw Invalid() }
         }
-        return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod)
+        return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod, annotations)
     }
 
     private static func classTypeParameterNames(in signature: String?) throws -> [String] {
@@ -290,7 +310,7 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let genericSignature = try methodSignature()
+            let attributes = try methodAttributes()
             if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
@@ -300,12 +320,14 @@ struct JVMClassReader {
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
                 method.isVarargs = access & 0x0080 != 0
-                method.genericResultParameter = Self.genericResultParameter(in: genericSignature, method: method)
+                method.genericResultParameter = Self.genericResultParameter(in: attributes.signature, method: method)
+                method.annotationDefault = attributes.defaultValue
+                method.genericSignature = attributes.signature
                 if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }
         }
-        let classAttributes = try classAttributes()
+        let classAttributes = try classAttributes(isAnnotation: flags & 0x2000 != 0)
         guard offset == bytes.count else { throw Invalid() }
         return JVMClassInfo(
             name: name,
@@ -318,7 +340,8 @@ struct JVMClassReader {
             classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
             innerClasses: classAttributes.innerClasses,
             hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,
-            hasEnclosingMethod: classAttributes.hasEnclosingMethod
+            hasEnclosingMethod: classAttributes.hasEnclosingMethod,
+            annotations: classAttributes.annotations
         )
     }
 }

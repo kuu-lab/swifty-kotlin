@@ -22,7 +22,6 @@ final class JVMPreparationPhase: CompilerPhase {
         }
         do {
             var classpath = o.jvmClasspath
-            var lazyPaths: Set<String> = []
             if o.emit == .apk, o.android.resourcePath != nil {
                 let toolchain = try AndroidSDKLocator.locate(
                     sdkPath: o.android.sdkPath, buildToolsVersion: o.android.buildToolsVersion,
@@ -45,13 +44,15 @@ final class JVMPreparationPhase: CompilerPhase {
                     compileSdk: o.android.compileSdk
                 )
                 let standardized = URL(fileURLWithPath: androidJar).standardizedFileURL.path
-                lazyPaths.insert(standardized)
                 if !classpath.contains(where: {
                     URL(fileURLWithPath: $0).standardizedFileURL.path == standardized
                 }) {
                     classpath.append(androidJar)
                 }
             }
+            // Unused classpath declarations do not need Sema symbols. Large
+            // SDKs and compiler JARs can exhaust the synthetic symbol space.
+            let lazyPaths = Set(classpath.map { URL(fileURLWithPath: $0).standardizedFileURL.path })
             let imports = try JVMClasspathIndex.load(
                 classpath, lazilyInjecting: lazyPaths,
                 fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? []

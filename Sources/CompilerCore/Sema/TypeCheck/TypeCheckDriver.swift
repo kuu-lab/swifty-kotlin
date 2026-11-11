@@ -237,7 +237,8 @@ final class TypeCheckDriver {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID? = nil,
-        isStatementContext: Bool = false
+        isStatementContext: Bool = false,
+        inferLambdaResultType: Bool = false
     ) -> TypeID {
         sema.types.attribution?.increment(.exprInferences)
         if let subjectType = ctx.whenSubjectTypes[id] {
@@ -252,7 +253,10 @@ final class TypeCheckDriver {
         // subtree only; the copied context keeps siblings unaffected.
         expressionContext = helpers.expressionOptInContext(id, ctx: expressionContext)
         let ctx = expressionContext.syncingImplicitReceiver(from: locals)
-        let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        let type = exprChecker.inferExpr(
+            id, ctx: ctx, locals: &locals, expectedType: expectedType,
+            isStatementContext: isStatementContext, inferLambdaResultType: inferLambdaResultType
+        )
         if let expectedType, sema.bindings.hasSourceDeclaredExpectedType(id) {
             recordGenericCallConsumer(id, type: expectedType)
         }

@@ -36,7 +36,8 @@ final class ExprTypeChecker {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID? = nil,
-        isStatementContext: Bool = false
+        isStatementContext: Bool = false,
+        inferLambdaResultType: Bool = false
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -881,7 +882,10 @@ final class ExprTypeChecker {
             return sema.types.nothingType
 
         case let .lambdaLiteral(params, body, _, _):
-            return inferLambdaLiteralExpr(id, params: params, body: body, ctx: ctx, locals: &locals, expectedType: expectedType)
+            return inferLambdaLiteralExpr(
+                id, params: params, body: body, ctx: ctx, locals: &locals,
+                expectedType: expectedType, inferErasedReturnType: inferLambdaResultType
+            )
 
         case let .objectLiteral(superTypes, declID, _):
             return inferObjectLiteralExpr(id, superTypes: superTypes, declID: declID, ctx: ctx, locals: &locals)

@@ -9,7 +9,7 @@ extension JVMFunctionBuilder {
         let object = try requireValue(receiver)
         let raw: JVMValue
         if let property = program.properties[binding.property] {
-            raw = try readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver)
+            raw = try readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver)
         } else if program.sema.symbols.externalLinkName(for: binding.property) == "kk_char_code" {
             raw = try convert(object, to: .int)
         } else { throw fail("Unsupported JVM callable property.", id) }

@@ -1603,9 +1603,10 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        importedFiles: Set<FileID> = []
     ) {
-        for file in ast.sortedFiles {
+        for file in ast.sortedFiles where !importedFiles.contains(file.fileID) {
             for declID in nominalDeclarationIDs(in: file, ast: ast) {
                 validateFunInterfaceContract(
                     declID: declID,

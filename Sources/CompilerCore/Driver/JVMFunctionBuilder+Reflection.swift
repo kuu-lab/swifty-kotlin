@@ -139,6 +139,11 @@ extension JVMFunctionBuilder {
         for (i, element) in values.enumerated() { instructions.append(.arraySet(result, try constant(.int(Int32(i)), .int), try convert(element, to: object))) }
         return result
     }
+    func runtimeClass(of source: JVMValue) throws -> JVMValue {
+        let receiver = try convert(source, to: .reference("java/lang/Object", nullable: false))
+        return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver)!
+    }
+
     func reflectionMember(_ receiverID: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let resolved = try? program.expressionType(receiverID)
         guard let sourceType = resolved ?? (program.sema.bindings.classRefTargetType(for: receiverID) == nil ? nil : .reference("kotlin/reflect/KClass", nullable: false)) else { return nil }
@@ -179,10 +184,7 @@ extension JVMFunctionBuilder {
         if isClass, name == "java", args.isEmpty {
             return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getJavaClass", [sourceType], .reference("java/lang/Class", nullable: false), arguments: [requireValue(receiverID)]))
         }
-        if name == "javaClass", args.isEmpty {
-            let receiver = try convert(requireValue(receiverID), to: .reference("java/lang/Object", nullable: false))
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver))
-        }
+        if name == "javaClass", args.isEmpty { return JVMIntrinsicResult(value: try runtimeClass(of: requireValue(receiverID))) }
         if ownerName == "java/lang/Class", name == "kotlin", args.isEmpty { return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getKotlinClass", [sourceType], .reference("kotlin/reflect/KClass", nullable: false), arguments: [requireValue(receiverID)])) }
         if isClass && ["memberProperties", "memberFunctions", "createInstance"].contains(name) {
             let result: JVMValueType = name == "createInstance" ? object : .reference("java/util/Collection", nullable: false)

@@ -7,7 +7,7 @@ enum JVMClassFile {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
         var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, pool: pool) }
-        if program.hasMain {
+        if program.hasMain, !program.functions.contains(where: { $0.reference.name == "main" && $0.reference.descriptor == "([Ljava/lang/String;)V" }) {
             var launcher = JVMBytes()
             launcher.u1(0xB8)
             launcher.u2(try pool.member(10, owner: program.internalClassName, name: "main", descriptor: "()V"))

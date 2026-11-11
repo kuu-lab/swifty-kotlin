@@ -5,11 +5,24 @@ extension JVMFunctionBuilder {
     }
     func importedCompanionValue(for ownerSymbol: SymbolID) throws -> JVMValue? {
         guard let companion = program.sema.symbols.companionObjectSymbol(for: ownerSymbol) else { return nil }
-        let owner = try program.className(ownerSymbol), companionName = try program.className(companion)
-        guard let imported = context.jvmImports?.classes[owner],
-              let field = imported.fields.first(where: { $0.name == "Companion" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(companionName);" }) else { return nil }
-        let type = JVMValueType.reference(companionName, nullable: false), result = try value(type)
-        instructions.append(.getStatic(JVMField(owner: owner, name: field.name, type: type, access: field.access), result))
+        return try importedSingleton(program.className(companion))
+    }
+    func importedSingleton(_ name: String) throws -> JVMValue? {
+        guard let imports = context.jvmImports, let info = imports.classes[name] else { return nil }
+        let descriptor = "L\(name);"
+        let fieldOwner: JVMClassInfo
+        let fieldName: String
+        if let marker = name.lastIndex(of: "$"), let outer = imports.classes[String(name[..<marker])],
+           imports.kotlinMetadata(info)?.isCompanion == true || name.hasSuffix("$Companion") {
+            fieldOwner = outer
+            fieldName = String(name[name.index(after: marker)...])
+        } else {
+            fieldOwner = info
+            fieldName = "INSTANCE"
+        }
+        guard let field = fieldOwner.fields.first(where: { $0.name == fieldName && $0.isPublic && $0.isStatic && $0.descriptor == descriptor }) else { return nil }
+        let type = JVMValueType.reference(name, nullable: false), result = try value(type)
+        instructions.append(.getStatic(JVMField(owner: fieldOwner.name, name: field.name, type: type, access: field.access), result))
         return result
     }
     func nominalValue(_ id: ExprID) throws -> JVMValue? {
@@ -36,6 +49,8 @@ extension JVMFunctionBuilder {
         if let plan = program.classes[symbol], plan.isObject { return try singleton(plan) }
         if let companion = program.sema.symbols.companionObjectSymbol(for: symbol), let plan = program.classes[companion], plan.isObject { return try singleton(plan) }
         if let result = try importedCompanionValue(for: symbol) { return result }
+        if program.sema.symbols.symbol(symbol)?.kind == .object,
+           let result = try importedSingleton(program.className(symbol)) { return result }
         if let entry = program.sema.symbols.symbol(symbol), entry.kind == .field,
            let parent = program.sema.symbols.parentSymbol(for: symbol), let plan = program.classes[parent], plan.isEnum,
            plan.declaration!.enumEntries.contains(where: { $0.name == entry.name }) {
@@ -99,6 +114,12 @@ extension JVMFunctionBuilder {
             guard args.count == params.count, args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM enum static call.", id) }
             let result = name == "entries" ? program.enumEntriesField(plan).type : (name == "values" ? program.enumValuesField(plan).type : .reference(plan.name, nullable: false))
             return JVMIntrinsicResult(value: try jdkCall(plan.name, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }))
+        }
+        if let symbol = receiverSymbol, program.sema.symbols.symbol(symbol)?.kind == .enumClass,
+           let imports = context.jvmImports, let info = imports.classes[try program.className(symbol)],
+           let method = info.methods.first(where: { $0.isStatic && $0.name == (name == "entries" ? "getEntries" : name) && $0.parameters.count == args.count }),
+           ["values", "valueOf", "entries"].contains(name) {
+            return JVMIntrinsicResult(value: try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: args.map { try requireValue($0.expr) }))
         }
         if let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic), program.sema.symbols.symbol(t.classSymbol)?.kind == .enumClass {
             if !arena.isExplicitCall(id), args.isEmpty, ["name", "ordinal"].contains(name) { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", name, [], name == "name" ? .string : .int, receiver: requireValue(receiver))) }

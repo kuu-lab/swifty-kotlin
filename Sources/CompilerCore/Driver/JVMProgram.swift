@@ -253,6 +253,8 @@ public struct JVMForeignMethod {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var annotationDefault: JVMAnnotationValue?
+    var genericSignature: String?
     var genericResultParameter: String?
     public var isConstructor: Bool { name == "<init>" }
 }
@@ -283,6 +285,7 @@ public struct JVMProperty {
     public var annotationsMethod: JVMForeignMethod? = nil
     public var customGetter: Bool = false
     public var customSetter: Bool = false
+    var isDirectField = false
 }
 
 public struct JVMRecordComponent {

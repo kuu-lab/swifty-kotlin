@@ -13,10 +13,13 @@ extension JVMProgramBuilder {
     }
 
     func defaultReference(_ symbol: SymbolID) throws -> JVMFunctionReference {
-        let method = methods[symbol], ref = references[symbol]
-        guard let params = sourceParameters[symbol], ref != nil || method != nil else { throw JVMFrontendError(message: "Missing JVM default declaration.") }
-        let masks = (params.count + 31) / 32
-        let parameters = (method.map { [JVMValueType.reference($0.owner, nullable: false)] } ?? []) + (ref?.parameters ?? method!.parameters) + Array(repeating: JVMValueType.int, count: masks) + [.reference("java/lang/Object", nullable: true)]
+        let method = methods[symbol] ?? context.jvmImports?.methods[symbol]
+        let ref = references[symbol]
+        let valueParameterCount = sourceParameters[symbol]?.count ?? sema.symbols.functionSignature(for: symbol)?.parameterTypes.count
+        guard let valueParameterCount, ref != nil || method != nil else { throw JVMFrontendError(message: "Missing JVM default declaration.") }
+        let masks = (valueParameterCount + 31) / 32
+        let dispatch = method.flatMap { $0.isStatic ? nil : JVMValueType.reference($0.owner, nullable: false) }
+        let parameters = [dispatch].compactMap { $0 } + (ref?.parameters ?? method!.parameters) + Array(repeating: JVMValueType.int, count: masks) + [.reference("java/lang/Object", nullable: true)]
         guard parameters.reduce(0, { $0 + $1.width }) + ((ref?.isSuspend ?? method?.isSuspend ?? false) ? 1 : 0) <= 255 else { throw JVMFrontendError(message: "JVM default method parameter slot limit exceeded.") }
         var result = JVMFunctionReference(name: (ref?.name ?? method!.name) + "$default", parameters: parameters, result: ref?.result ?? method!.result, owner: ref?.owner ?? method!.owner, ownerIsInterface: ref?.ownerIsInterface == true || method?.isInterface == true, isSuspend: ref?.isSuspend ?? method?.isSuspend ?? false)
         result.suspendDefaultMasks = result.isSuspend ? masks : 0

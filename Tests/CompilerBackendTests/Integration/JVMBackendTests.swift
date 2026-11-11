@@ -114,7 +114,7 @@ struct JVMBackendTests {
     }
 
     @Test(arguments: [
-        "fun main(args: Array<String>) {}",
+        "fun main(args: Array<Int>) {}",
         "fun main(): Int = 1",
         "fun main() { unknown(\"wrong target\") }",
         "fun main() { print() }",

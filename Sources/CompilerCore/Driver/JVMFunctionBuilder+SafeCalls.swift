@@ -31,7 +31,7 @@ extension JVMFunctionBuilder {
                 // attaching a separate value binding to the object qualifier.
                 object = try singleton(plan)
             } else { object = try requireValue(receiver) }
-            return try convert(readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
+            return try convert(readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver), to: program.expressionType(id))
         }
         if !arena.isExplicitCall(id), let result = try textLibraryProperty(id, receiver: receiver) { return result }
         if let result = try nominalPropertyInvocation(id, receiver: receiver, args: args) { return result.value }

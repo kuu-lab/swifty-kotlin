@@ -85,9 +85,7 @@ extension JVMProgramBuilder {
         let result = nominalRangeResultType(for: symbol, mapped: mappedResult) ?? mappedResult
         let unsigned = parameters.contains { $0.unsignedName != nil }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
-        if let annotation = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" }), let raw = annotation.arguments.first {
-            let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let explicit = names.first, (Self.isIdentifier(explicit) || context.options.stdlibOnly && Self.isIdentifier(explicit.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "Invalid JVM method name.") }
+        if let explicit = try jvmMethodNameOverride(for: symbol) {
             internalName += "$jvmName$" + explicit
         }
         return JVMFunctionReference(name: internalName, parameters: parameters, result: result, isSuspend: function.isSuspend)
@@ -185,11 +183,13 @@ extension JVMProgramBuilder {
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
-                  p.typeParams.isEmpty, (p.receiverType == nil || plan.isFacade), p.contextReceivers.isEmpty,
+                  p.typeParams.isEmpty, (p.receiverType == nil || plan.isFacade || p.delegateExpression == nil), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const]).isEmpty,
                   p.getter?.isInline != true, p.setter?.isInline != true,
-                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else {
+                throw JVMFrontendError(message: "Unsupported JVM property declaration.", range: ast.arena.decl(id)?.range)
+            }
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)

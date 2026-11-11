@@ -73,10 +73,12 @@ extension JVMProgramBuilder {
     func annotationPlan(_ symbol: SymbolID) -> JVMClassPlan? {
         if let plan = classes[symbol] { return plan.isAnnotation ? plan : nil }
         guard let name = sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve).joined(separator: "."),
-              ["kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin", "kotlin.DeprecatedSinceKotlin"].contains(name),
+              let binary = try? className(symbol),
+              context.jvmImports?.classes[binary]?.isAnnotation == true
+                || ["kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin", "kotlin.DeprecatedSinceKotlin"].contains(name),
               let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
-        return JVMClassPlan(symbol: symbol, name: name.replacingOccurrences(of: ".", with: "/"), declaration: c)
+        return JVMClassPlan(symbol: symbol, name: binary, declaration: c)
     }
 
     func annotationValue(_ symbol: SymbolID, construction: ExprID?) throws -> JVMAnnotation {
@@ -96,6 +98,10 @@ extension JVMProgramBuilder {
         }
         var values: [(String, JVMAnnotationValue)] = []
         for (i, parameter) in params.enumerated() {
+            // The classfile owns dependency annotation defaults. An omitted
+            // element must stay omitted from the consumer's annotation.
+            if provided[i] == nil, parameter.defaultValue != nil,
+               context.jvmImports?.classes[plan.name]?.isAnnotation == true { continue }
             if parameter.isVararg {
                 if provided[i] == nil, let initial = parameter.defaultValue {
                     values.append((context.interner.resolve(parameter.name), try annotationConstant(initial))); continue
@@ -121,10 +127,13 @@ extension JVMProgramBuilder {
     func annotationConstruction(_ record: MetadataAnnotationRecord) -> ExprID? {
         if let usage = record.usageID, let parsed = rawAnnotationConstructions[usage] { return parsed }
         if let factory = record.factorySymbol { return sema.bindings.annotationFactoryExpressions[factory] }
-        guard let usage = record.usageID, let offset = Int(usage.split(separator: ":").last ?? "") else { return nil }
+        guard let usage = record.usageID else { return nil }
+        let location = usage.split(separator: ":")
+        guard location.count == 2, let file = Int32(location[0]), let offset = Int(location[1]) else { return nil }
         return ast.arena.snapshot().expressions.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
-            guard ast.arena.exprRange(id)?.start.offset == offset, let binding = sema.bindings.callBinding(for: id), sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor else { return nil }
+            guard ast.arena.exprRange(id)?.start == SourceLocation(file: FileID(rawValue: file), offset: offset),
+                  let binding = sema.bindings.callBinding(for: id), sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor else { return nil }
             return id
         }.first
     }
@@ -227,12 +236,23 @@ extension JVMProgramBuilder {
         }
     }
 
+    func jvmMethodNameOverride(for symbol: SymbolID) throws -> String? {
+        guard let raw = sema.symbols.annotations(for: symbol).first(where: {
+            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget == nil
+        })?.arguments.first else { return nil }
+        let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = ("[" + literal + "]").data(using: .utf8),
+              let names = try? JSONSerialization.jsonObject(with: data) as? [String],
+              let name = names.first,
+              Self.isIdentifier(name) || context.options.stdlibOnly && Self.isIdentifier(name.replacingOccurrences(of: "-", with: "_"))
+        else { throw JVMFrontendError(message: "JVM @JvmName requires a constant ASCII identifier.") }
+        return name
+    }
+
     func annotated(_ function: JVMFunction, symbol: SymbolID) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
         applyDeprecation(f.annotations, to: &f)
-        if let raw = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first {
-            let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first, (Self.isIdentifier(name) || context.options.stdlibOnly && Self.isIdentifier(name.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "JVM @JvmName requires a constant ASCII identifier.") }
+        if let name = try jvmMethodNameOverride(for: symbol) {
             f.jvmName = name
             f.annotations.append(JVMAnnotation(descriptor: "Lkotlin/jvm/JvmName;", values: [("name", .constant(.string(name)))], visible: false))
         }

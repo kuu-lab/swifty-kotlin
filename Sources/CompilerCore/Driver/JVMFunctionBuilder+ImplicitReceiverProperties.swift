@@ -2,9 +2,17 @@ import Foundation
 
 extension JVMFunctionBuilder {
     func implicitReceiverProperty(_ id: ExprID, name: InternedString) throws -> JVMValue? {
-        let bindings = program.sema.bindings
-        guard !scopes.contains(where: { $0[name] != nil }),
-              bindings.implicitReceiverMemberNames[id] == name else { return nil }
+        guard !scopes.contains(where: { $0[name] != nil }) else { return nil }
+        let sema = program.sema
+        let bindings = sema.bindings
+        if context.interner.resolve(name) == "javaClass",
+           let selected = bindings.identifierSymbol(for: id) ?? bindings.callBinding(for: id)?.chosenCallee,
+           let property = sema.symbols.symbol(sema.symbols.accessorOwnerProperty(for: selected) ?? selected),
+           property.fqName.map(context.interner.resolve) == ["kotlin", "jvm", "javaClass"],
+           let receiver = implicitExtensionReceiver(id) {
+            return try runtimeClass(of: receiver)
+        }
+        guard bindings.implicitReceiverMemberNames[id] == name else { return nil }
 
         let selected = bindings.implicitReceiverOuterReceiver(for: id)
         guard let receiver = selected.flatMap({ contextualReceivers[$0] }) ?? extensionValue ?? thisValue else {

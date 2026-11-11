@@ -42,24 +42,28 @@ fun CharArray.concatToString(startIndex: Int = 0, endIndex: Int = this.size): St
     return result.toString()
 }
 fun CharSequence.split(vararg delimiters: String, ignoreCase: Boolean = false, limit: Int = 0): List<String> = splitStrings(this, delimiters, ignoreCase, limit)
+private fun splitDelimiterLength(input: CharSequence, delimiters: Array<out String>, search: Int, ignoreCase: Boolean): Int {
+    for (delimiter in delimiters) {
+        if (delimiter.length > input.length - search) continue
+        var i = 0
+        while (i < delimiter.length) {
+            val a = input[search + i]
+            val b = delimiter[i]
+            if (a != b && (!ignoreCase || __jvmLowerChar(__jvmUpperChar(a)) != __jvmLowerChar(__jvmUpperChar(b)))) break
+            i++
+        }
+        if (i == delimiter.length) return delimiter.length
+    }
+    return -1
+}
+
 private fun splitStrings(input: CharSequence, delimiters: Array<out String>, ignoreCase: Boolean, limit: Int): List<String> {
     if (limit < 0) throw IllegalArgumentException("Limit must be non-negative, but was $limit")
     val result = mutableListOf<String>()
     var start = 0
     var search = 0
     while (search <= input.length && (limit == 0 || result.size < limit - 1)) {
-        var matched = -1
-        for (delimiter in delimiters) {
-            if (search + delimiter.length <= input.length) {
-                var i = 0
-                while (i < delimiter.length) {
-                    val a = input[search + i]; val b = delimiter[i]
-                    if (a != b && (!ignoreCase || __jvmLowerChar(__jvmUpperChar(a)) != __jvmLowerChar(__jvmUpperChar(b)))) break
-                    i++
-                }
-                if (i == delimiter.length) { matched = delimiter.length; break }
-            }
-        }
+        val matched = splitDelimiterLength(input, delimiters, search, ignoreCase)
         if (matched >= 0) {
             result.add(input.subSequence(start, search).toString())
             start = search + matched
@@ -68,6 +72,38 @@ private fun splitStrings(input: CharSequence, delimiters: Array<out String>, ign
     }
     result.add(input.subSequence(start, input.length).toString())
     return result
+}
+
+fun CharSequence.splitToSequence(vararg delimiters: String, ignoreCase: Boolean = false, limit: Int = 0): kotlin.sequences.Sequence<String> {
+    if (limit < 0) throw IllegalArgumentException("Limit must be non-negative, but was $limit")
+    val input = this
+    return object : kotlin.sequences.Sequence<String> {
+        override fun iterator(): Iterator<String> = object : Iterator<String> {
+            var position = 0
+            var search = 0
+            var count = 0
+            var finished = false
+
+            override fun hasNext(): Boolean = !finished
+
+            override fun next(): String {
+                if (finished) throw NoSuchElementException()
+                while (search <= input.length && (limit == 0 || count < limit - 1)) {
+                    val matched = splitDelimiterLength(input, delimiters, search, ignoreCase)
+                    if (matched >= 0) {
+                        val part = input.subSequence(position, search).toString()
+                        position = search + matched
+                        search = position + if (matched == 0) 1 else 0
+                        count++
+                        return part
+                    }
+                    search++
+                }
+                finished = true
+                return input.subSequence(position, input.length).toString()
+            }
+        }
+    }
 }
 fun CharSequence.split(vararg delimiters: Char, ignoreCase: Boolean = false, limit: Int = 0): List<String> {
     val strings = Array<String>(delimiters.size) { delimiters[it].toString() }
