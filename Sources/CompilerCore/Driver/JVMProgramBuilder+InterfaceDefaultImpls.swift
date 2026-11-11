@@ -26,9 +26,9 @@ extension JVMProgramBuilder {
     }
 
     func declaredInterfaceMethods(_ plan: JVMClassPlan) -> [JVMForeignMethod] {
-        plan.methods.map(\.1) + plan.properties.flatMap { _, _, property in
+        plan.methods.map(\.1).filter { !$0.isSpecial } + plan.properties.flatMap { _, _, property in
             [property.getter] + (property.setter.map { [$0] } ?? [])
-        }
+        }.filter { !$0.isSpecial }
     }
 
     func effectiveInterfaceMethods(_ plan: JVMClassPlan, visited: Set<SymbolID> = []) -> [String: JVMForeignMethod] {

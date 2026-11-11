@@ -4,7 +4,7 @@ extension JVMClasspathIndex {
     static let wrappers: [String: String] = ["Int": "Integer", "Long": "Long", "Float": "Float", "Double": "Double", "Boolean": "Boolean", "Byte": "Byte", "Short": "Short", "Char": "Character"]
     static let primitiveArrays: [String: JVMValueType] = ["IntArray": .int, "LongArray": .long, "FloatArray": .float, "DoubleArray": .double, "BooleanArray": .boolean, "ByteArray": .byte, "ShortArray": .short, "CharArray": .char]
     static let collectionNames = ["Iterable": "java/lang/Iterable", "MutableIterable": "java/lang/Iterable", "Iterator": "java/util/Iterator", "MutableIterator": "java/util/Iterator", "ListIterator": "java/util/ListIterator", "MutableListIterator": "java/util/ListIterator", "Collection": "java/util/Collection", "MutableCollection": "java/util/Collection", "List": "java/util/List", "MutableList": "java/util/List", "Set": "java/util/Set", "MutableSet": "java/util/Set", "Map": "java/util/Map", "MutableMap": "java/util/Map"]
-    static let exceptionNames: Set<String> = ["NoSuchElementException", "UnsupportedOperationException", "Throwable", "Error", "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException", "ArrayIndexOutOfBoundsException", "ArithmeticException", "NumberFormatException", "NullPointerException", "ClassCastException", "NegativeArraySizeException"]
+    static let exceptionNames: Set<String> = ["NoSuchElementException", "UnsupportedOperationException", "Throwable", "Error", "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException", "ArrayIndexOutOfBoundsException", "ArithmeticException", "NumberFormatException", "NullPointerException", "ClassCastException", "NegativeArraySizeException", "OutOfMemoryError"]
     static func builtinName(_ name: String) -> String? {
         if name == "java/util/MapEntry" { return "java/util/Map$Entry" }
         if ["java/util/AbstractCollection", "java/util/RandomAccess", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
@@ -197,12 +197,17 @@ extension JVMProgramBuilder {
             return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: name + (isInterface ? "::" : ":") + bound, isReified: decl.isReified)
         }
     }
-    func describe(_ function: JVMFunction, signature: FunctionSignature, parameters: [TypeParamDecl]) throws -> JVMFunction {
+    func describe(
+        _ function: JVMFunction,
+        signature: FunctionSignature,
+        parameters: [TypeParamDecl],
+        sourceDeclaration explicitSourceDeclaration: (SymbolID, FunDecl)? = nil
+    ) throws -> JVMFunction {
         var f = function
         if f.reference.name.contains("$unsigned$") { f.sourceName = String(f.reference.name.components(separatedBy: "$unsigned$")[0]) }
         f.typeParameters = try typeParameters(Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)), declarations: parameters)
         f.kotlinParameters = try signature.parameterTypes.map(kotlinType)
-        let sourceDeclaration = sourceDeclarations.first {
+        let sourceDeclaration: (key: SymbolID, value: FunDecl)? = explicitSourceDeclaration.map { (key: $0.0, value: $0.1) } ?? sourceDeclarations.first {
             if let ref = references[$0.key] { return ref.name == function.reference.name && ref.owner == function.owner && ref.descriptor == function.reference.descriptor }
             if let method = methods[$0.key] { return method.name == function.reference.name && method.owner == function.owner && method.descriptor == function.reference.descriptor }
             return false

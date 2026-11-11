@@ -6,7 +6,6 @@ import kotlin.jvm.internal.markers.KMappedMarker
 // The Kotlin marker and mutators retain the read-only AbstractSet contract.
 public abstract class AbstractSet<out E> protected constructor(): java.util.AbstractSet<@UnsafeVariance E>(), Set<E>, Collection<E>, Iterable<E>, KMappedMarker {
     abstract override val size: Int
-    fun size(): Int = size
     abstract override fun iterator(): Iterator<E>
 
     open fun add(element: Any?): Boolean = throw UnsupportedOperationException("Operation is not supported for read-only collection")

@@ -12,6 +12,7 @@ final class JVMClassPlan {
     var outer: SymbolID?
     var isAnonymous = false
     var isLocalNominal = false
+    var foreignAnnotation: JVMClassInfo?
     var captures: [JVMAnonymousCapture] = []
     var escapesInline = false
     var isFacade = false
@@ -31,7 +32,7 @@ final class JVMClassPlan {
     var methods: [(FunDecl, JVMForeignMethod)] = []
     var methodSymbols: [String: SymbolID] = [:]
     var constructors: [(SymbolID, ConstructorDecl, Bool)] = []
-    var isAnnotation: Bool { declaration?.modifiers.contains(.annotationClass) == true }
+    var isAnnotation: Bool { declaration?.modifiers.contains(.annotationClass) == true || foreignAnnotation != nil }
     let isValue: Bool
     var isInterface: Bool { interface != nil || isAnnotation }
     var modifiers: Modifiers { declaration?.modifiers ?? interface!.modifiers }
@@ -72,7 +73,7 @@ extension JVMProgramBuilder {
         sourceParameters[symbol] = function.valueParams
         sourceDeclarations[symbol] = function
         let name = context.interner.resolve(function.name)
-        guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
+        guard Self.isUnqualifiedJvmMethodName(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
         try validateSignature(signature, instance: member, extensionReceiver: function.receiverType != nil)
         if function.receiverType != nil { extensionSymbols.insert(symbol) }
         var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(parameterType)
@@ -81,7 +82,7 @@ extension JVMProgramBuilder {
             let component = try varargComponentType(signature.parameterTypes[i])
             parameters[i + offset] = .reference("[" + component.descriptor, nullable: false)
         }
-        let mappedResult = try type(signature.returnType)
+        let mappedResult = try functionReturnType(signature.returnType)
         let result = nominalRangeResultType(for: symbol, mapped: mappedResult) ?? mappedResult
         let unsigned = parameters.contains { $0.unsignedName != nil }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
@@ -92,17 +93,17 @@ extension JVMProgramBuilder {
         }
         return JVMFunctionReference(name: internalName, parameters: parameters, result: result, isSuspend: function.isSuspend)
     }
+    func functionReturnType(_ id: TypeID) throws -> JVMValueType {
+        let actual = specialized(id)
+        if case .nothing(.nullable) = sema.types.kind(of: actual) {
+            return .reference("java/lang/Void", nullable: true)
+        }
+        return try type(actual)
+    }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
         let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
         let parameters = try parameterTypes.map(parameterType)
-        let unsupportedReturn: Bool
-        if case let .nothing(nullability) = sema.types.kind(of: signature.returnType) {
-            unsupportedReturn = nullability != .nonNull
-        } else {
-            unsupportedReturn = false
-        }
         guard parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
-              !unsupportedReturn,
               !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
         }
@@ -138,9 +139,8 @@ extension JVMProgramBuilder {
                 if name == "kotlin/Any" { continue }
                 if plan.isEnum && sourceName == "kotlin/Enum" { plan.superclass = "java/lang/Enum"; continue }
                 if !context.options.stdlibOnly && ["kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty"].contains(sourceName) { throw JVMFrontendError(message: "JVM does not support source implementations of reflection interfaces.") }
-                if sourceName == "kotlin/CharSequence" { throw JVMFrontendError(message: "JVM supports CharSequence inputs but not source implementations.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
-                if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
+                if !context.options.stdlibOnly && sourceName == "kotlin/Result" { throw JVMFrontendError(message: "JVM M7 does not support source implementations of Result.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
                 else {
@@ -151,7 +151,6 @@ extension JVMProgramBuilder {
             let functionIDs = plan.declaration?.memberFunctions ?? plan.interface!.memberFunctions
             for id in functionIDs {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { throw JVMFrontendError(message: "Missing JVM member function.") }
-                guard !plan.isInterface || !f.modifiers.contains(.private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface methods.", range: f.range) }
                 let ref = try functionReference(f, symbol: symbol, member: true)
                 var method = JVMForeignMethod(owner: plan.name, name: ref.name, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
                 method.isSpecial = f.modifiers.contains(.private)
@@ -164,17 +163,24 @@ extension JVMProgramBuilder {
             if let c = plan.declaration, !plan.isAnnotation, !plan.isObject, !plan.isAnonymous, plan.enumParent == nil {
                 let owner = sema.symbols.symbol(plan.symbol)!
                 for symbol in sema.symbols.lookupAll(fqName: owner.fqName + [context.interner.intern("<init>")]) {
+                    // The bundled collection registry can retain a synthetic
+                    // constructor shell alongside the JVM source declaration.
+                    if let entry = sema.symbols.symbol(symbol), entry.declSite == nil, entry.flags.contains(.synthetic) { continue }
                     guard let signature = sema.symbols.functionSignature(for: symbol), let site = sema.symbols.symbol(symbol)?.declSite else { throw JVMFrontendError(message: "Missing JVM constructor signature.") }
                     let primary = site == c.range
                     let declaration: ConstructorDecl
                     if primary { declaration = ConstructorDecl(range: c.range, modifiers: c.primaryConstructorModifiers, annotations: c.primaryConstructorAnnotations, valueParams: c.primaryConstructorParams) }
                     else if let secondary = c.secondaryConstructors.first(where: { $0.range == site }) { declaration = secondary }
                     else { throw JVMFrontendError(message: "Missing JVM secondary constructor.") }
-                    guard !declaration.valueParams.contains(where: \.isVararg) else { throw JVMFrontendError(message: "JVM vararg constructors are unsupported.", range: declaration.range) }
                     sourceParameters[symbol] = declaration.valueParams
                     guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
-                    let parameters = try hiddenConstructorTypes(plan) + signature.parameterTypes.map(parameterType)
+                    let valueParameters = try signature.parameterTypes.enumerated().map { index, parameter -> JVMValueType in
+                        guard declaration.valueParams.indices.contains(index), declaration.valueParams[index].isVararg else { return try parameterType(parameter) }
+                        let component = try varargComponentType(parameter)
+                        return .reference("[" + component.descriptor, nullable: false)
+                    }
+                    let parameters = try hiddenConstructorTypes(plan) + valueParameters
                     guard parameters.reduce(plan.isEnum ? 3 : 1, { $0 + $1.width }) <= 255 else { throw JVMFrontendError(message: "JVM constructor parameter slot limit exceeded.", range: declaration.range) }
                     methods[symbol] = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(plan.name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
                     plan.constructors.append((symbol, declaration, primary))
@@ -307,6 +313,7 @@ extension JVMProgramBuilder {
             functions += try bridges(plan, functions: functions)
             functions += try collectionDelegationMethods(plan, existing: functions)
             functions += try collectionPropertyAliases(plan, existing: functions)
+            functions += try charSequenceInteropMethods(plan, existing: functions)
             var signatures: Set<String> = []
             guard functions.allSatisfy({ signatures.insert($0.reference.name + $0.reference.descriptor).inserted }) else { throw JVMFrontendError(message: "Clashing JVM member/accessor signatures in \(plan.name).") }
             let visibility: UInt16 = plan.modifiers.contains(.private) && !plan.escapesInline ? 0 : 1

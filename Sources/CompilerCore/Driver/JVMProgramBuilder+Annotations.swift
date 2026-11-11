@@ -72,18 +72,33 @@ extension JVMProgramBuilder {
     }
     func annotationPlan(_ symbol: SymbolID) -> JVMClassPlan? {
         if let plan = classes[symbol] { return plan.isAnnotation ? plan : nil }
+        if let info = foreignAnnotationInfo(for: symbol) {
+            let plan = JVMClassPlan(symbol: symbol, name: info.name)
+            plan.foreignAnnotation = info
+            return plan
+        }
         guard let name = sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve).joined(separator: "."),
               [
                   "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
-                  "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn",
+                  "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
               ].contains(name),
               let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
         return JVMClassPlan(symbol: symbol, name: name.replacingOccurrences(of: ".", with: "/"), declaration: c)
     }
 
+    func foreignAnnotationInfo(for symbol: SymbolID) -> JVMClassInfo? {
+        guard let name = try? className(symbol),
+              let imports = context.jvmImports,
+              let info = imports.classes[name],
+              info.flags & 0x2000 != 0
+        else { return nil }
+        return info
+    }
+
     func annotationValue(_ symbol: SymbolID, construction: ExprID?) throws -> JVMAnnotation {
         guard let plan = annotationPlan(symbol) else { throw JVMFrontendError(message: "JVM annotation class is not available.") }
+        if let foreign = plan.foreignAnnotation { return try foreignAnnotationValue(foreign, construction: construction) }
         let params = plan.declaration!.primaryConstructorParams
         var provided: [Int: [CallArgument]] = [:]
         if let construction {
@@ -121,13 +136,49 @@ extension JVMProgramBuilder {
         }
         return JVMAnnotation(descriptor: "L" + plan.name + ";", values: checked)
     }
+
+    private func foreignAnnotationValue(_ info: JVMClassInfo, construction: ExprID?) throws -> JVMAnnotation {
+        let elements = context.jvmImports?.annotationElements(of: info) ?? []
+        var provided: [Int: JVMAnnotationValue] = [:]
+        if let construction {
+            let args: [CallArgument]
+            switch ast.arena.expr(construction) { case let .call(_, _, a, _), let .memberCall(_, _, _, a, _): args = a; default: args = [] }
+            let binding = sema.bindings.callBinding(for: construction)
+            for (i, arg) in args.enumerated() {
+                let label = arg.label.map { context.interner.resolve($0) }
+                let index = binding?.parameterMapping[i]
+                    ?? arg.label.flatMap { label in elements.firstIndex { $0.name == context.interner.resolve(label) } }
+                    ?? i
+                guard elements.indices.contains(index), label == nil || label == elements[index].name, provided[index] == nil else {
+                    throw JVMFrontendError(message: "Invalid JVM annotation argument mapping.", range: ast.arena.exprRange(arg.expr))
+                }
+                provided[index] = try annotationConstant(arg.expr)
+            }
+        }
+        var values: [(String, JVMAnnotationValue)] = []
+        for (index, element) in elements.enumerated() {
+            guard let explicit = provided[index] else {
+                if element.defaultValue == nil {
+                    throw JVMFrontendError(message: "Missing JVM annotation argument.", range: construction.flatMap { ast.arena.exprRange($0) })
+                }
+                continue
+            }
+            values.append((element.name, try checkedAnnotationValue(explicit, type: element.type)))
+        }
+        return JVMAnnotation(descriptor: "L" + info.name + ";", values: values)
+    }
+
     func annotationConstruction(_ record: MetadataAnnotationRecord) -> ExprID? {
         if let usage = record.usageID, let parsed = rawAnnotationConstructions[usage] { return parsed }
         if let factory = record.factorySymbol { return sema.bindings.annotationFactoryExpressions[factory] }
-        guard let usage = record.usageID, let offset = Int(usage.split(separator: ":").last ?? "") else { return nil }
+        guard let parts = record.usageID?.split(separator: ":"), parts.count == 2,
+              let file = Int32(parts[0]), let offset = Int(parts[1]) else { return nil }
         return ast.arena.snapshot().expressions.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
-            guard ast.arena.exprRange(id)?.start.offset == offset, let binding = sema.bindings.callBinding(for: id), sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor else { return nil }
+            guard let start = ast.arena.exprRange(id)?.start,
+                  start.file.rawValue == file, start.offset == offset,
+                  let binding = sema.bindings.callBinding(for: id),
+                  sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor else { return nil }
             return id
         }.first
     }
