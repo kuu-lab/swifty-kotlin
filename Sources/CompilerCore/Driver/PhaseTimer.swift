@@ -31,6 +31,7 @@ public final class PhaseTimer {
         }
     }
 
+    private let lock = NSLock()
     private var records: [PhaseRecord] = []
     private var currentPhaseName: String?
     private var currentPhaseStart: UInt64 = 0
@@ -44,20 +45,24 @@ public final class PhaseTimer {
 
     private var subPhaseStack: [SubPhase] = []
     private var accumulatedRecords: [PhaseRecord] = []
-    private var activeAccumulations: Set<String> = []
+    private var activeAccumulations: [String: Int] = [:]
 
     public init() {}
 
     public func beginPhase(_ name: String) {
+        lock.lock()
+        defer { lock.unlock() }
         currentPhaseName = name
         currentPhaseStart = DispatchTime.now().uptimeNanoseconds
         currentSubRecords = []
         subPhaseStack = []
         accumulatedRecords = []
-        activeAccumulations = []
+        activeAccumulations = [:]
     }
 
     public func endPhase() {
+        lock.lock()
+        defer { lock.unlock() }
         guard let name = currentPhaseName else { return }
         let endTime = DispatchTime.now().uptimeNanoseconds
         records.append(PhaseRecord(
@@ -72,6 +77,8 @@ public final class PhaseTimer {
     }
 
     public func recordSubPhase(_ name: String, startTime: UInt64, endTime: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
         appendSubRecord(PhaseRecord(name: name, startTime: startTime, endTime: endTime))
     }
 
@@ -110,33 +117,52 @@ public final class PhaseTimer {
         attributingAccumulationToCurrentSubPhase: Bool = false,
         _ body: () throws -> Result
     ) rethrows -> Result {
-        guard currentPhaseName != nil else { return try body() }
+        lock.lock()
+        guard currentPhaseName != nil else {
+            lock.unlock()
+            return try body()
+        }
         if accumulating {
-            guard activeAccumulations.insert(name).inserted else { return try body() }
+            let depth = activeAccumulations[name, default: 0]
+            activeAccumulations[name] = depth + 1
             let attributedName = attributingAccumulationToCurrentSubPhase
                 ? subPhaseStack.last.map { "\(name).\($0.name)" }
                 : nil
+            lock.unlock()
             let start = DispatchTime.now().uptimeNanoseconds
             defer {
                 let end = DispatchTime.now().uptimeNanoseconds
                 let duration = end - start
-                activeAccumulations.remove(name)
+                lock.lock()
+                let updated = (activeAccumulations[name] ?? 1) - 1
+                if updated <= 0 {
+                    activeAccumulations.removeValue(forKey: name)
+                } else {
+                    activeAccumulations[name] = updated
+                }
                 appendAccumulatedRecord(name: name, startTime: start, endTime: end, duration: duration)
                 if let attributedName {
                     appendAccumulatedRecord(
                         name: attributedName, startTime: start, endTime: end, duration: duration
                     )
                 }
+                lock.unlock()
             }
             return try body()
         }
         subPhaseStack.append(SubPhase(name: name, startTime: DispatchTime.now().uptimeNanoseconds))
+        lock.unlock()
         defer {
-            let scope = subPhaseStack.removeLast()
-            appendSubRecord(PhaseRecord(
-                name: scope.name, startTime: scope.startTime,
-                endTime: DispatchTime.now().uptimeNanoseconds, subRecords: scope.records
-            ))
+            let end = DispatchTime.now().uptimeNanoseconds
+            lock.lock()
+            if !subPhaseStack.isEmpty {
+                let scope = subPhaseStack.removeLast()
+                appendSubRecord(PhaseRecord(
+                    name: scope.name, startTime: scope.startTime,
+                    endTime: end, subRecords: scope.records
+                ))
+            }
+            lock.unlock()
         }
         return try body()
     }

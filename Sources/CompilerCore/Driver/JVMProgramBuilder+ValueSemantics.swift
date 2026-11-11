@@ -48,6 +48,7 @@ extension JVMProgramBuilder {
             f.kotlinParameters = name == "equals" ? [.named("kotlin/Any", [], nullable: true)] : []
             f.kotlinResult = .named("kotlin/" + (name == "equals" ? "Boolean" : (name == "hashCode" ? "Int" : "String")), [], nullable: false)
             f.parameterNames = name == "equals" ? ["other"] : []
+            f.javaParameters = f.parameterNames.map { JVMMethodParameter($0) }
             f.isOperator = name == "equals"; functions.append(f)
         }
         return functions

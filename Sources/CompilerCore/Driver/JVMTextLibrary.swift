@@ -182,7 +182,11 @@ extension JVMProgramBuilder {
                     }
                 }
             }
-            if ["<kswiftk-jvm>/javaCollections.kt", "<kswiftk-jvm>/indexed-value.kt"].contains(path) {
+            if [
+                "<kswiftk-jvm>/javaCollections.kt",
+                "<kswiftk-jvm>/indexed-value.kt",
+                "<kswiftk-jvm>/coroutine-context.kt",
+            ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
@@ -364,13 +368,18 @@ extension JVMFunctionBuilder {
             actual += try maskArguments(ordered.masks, constructor: false)
             params += Array(repeating: JVMValueType.int, count: ordered.masks.count) + [.reference("java/lang/Object", nullable: true)]
         }
-        if method.isSuspend {
-            guard !usesDefaults else { throw fail("Unsupported JVM library suspend defaults.", id) }
+        let superReceiver = receiver.flatMap { id -> ExprID? in
+            if case .superRef = arena.expr(id) { return id }
+            return nil
+        }
+        if method.isSuspend || superReceiver != nil {
+            guard !usesDefaults else { throw fail("Unsupported JVM library defaults for a suspend or super call.", id) }
+            let target = try superReceiver.map { try superMethod(method, receiver: $0) } ?? method
             var converted: [JVMValue] = []
             for (argument, parameter) in zip(actual, params) { converted.append(try convert(argument, to: parameter)) }
             let resultType = try expectedResult ?? program.expressionType(id)
             let result = resultType == .unit ? nil : try value(resultType)
-            instructions.append(.foreignCall(method, receiver: method.isStatic ? nil : object, arguments: converted, result: result))
+            instructions.append(.foreignCall(target, receiver: method.isStatic ? nil : object, arguments: converted, result: result))
             return JVMIntrinsicResult(value: result)
         }
         return JVMIntrinsicResult(value: try jdkCall(method.owner, method.name + (usesDefaults ? "$default" : ""), params, method.result, receiver: method.isStatic || usesDefaults ? nil : object, arguments: actual, interface: method.isInterface && !usesDefaults, resolved: expectedResult ?? program.expressionType(id)))

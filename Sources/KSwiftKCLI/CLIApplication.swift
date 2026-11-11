@@ -31,6 +31,8 @@ func printCLIError(_ error: CLIParseError) {
         print(message)
     case let .unsupportedJVMTarget(value):
         print("Unsupported JVM target: \(value) (expected 1.8 or 9–26)")
+    case .javaParametersRequireClassOrJar:
+        print("-java-parameters requires --emit class or jar")
     case .stdlibOnlyRequiresLibraryEmit:
         print("--stdlib-only requires --emit library")
     case let .unsupportedStdlibProfile(value):

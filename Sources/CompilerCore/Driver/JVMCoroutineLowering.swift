@@ -79,6 +79,7 @@ extension JVMProgramBuilder {
     private func coroutine(_ source: JVMFunction, stateName name: String, helperName: String, ownerIsInterface: Bool, valueResults: [String: JVMSuspendValueResult]) throws -> (wrapper: JVMFunction, helper: JVMFunction?, state: JVMClass?) {
         var wrapper = source
         wrapper.reference = source.reference.suspendABI
+        wrapper.javaParameters.append(JVMMethodParameter("$completion"))
         let owner = source.owner ?? facadeName
         let instance = source.access.map { $0 & 8 == 0 } ?? false
         guard wrapper.reference.parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255 else { throw JVMFrontendError(message: "JVM suspend method parameter slot limit exceeded.") }

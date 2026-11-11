@@ -42,13 +42,22 @@ enum JVMBuiltins {
         func property(_ name: String, _ type: Data) -> Data {
             var p = Proto(); p.int(11, 550); p.int(2, index(name)); p.data(3, type); p.int(7, 38); return p.bytes
         }
-        func declaration(_ name: String, flags: Int = 6, parameters: [(String, Int)] = [], supertypes: [Data] = [], functions: [Data] = [], properties: [Data] = [], constructor: Bool = false) {
+        func declaration(_ name: String, flags: Int = 6, parameters: [(String, Int)] = [], supertypes: [Data] = [], functions: [Data] = [], properties: [Data] = [], constructor: [(String, Data)]? = nil) {
             var p = Proto(); p.int(1, flags); p.int(3, qualified(name))
             for (i, pair) in parameters.enumerated() {
                 var t = Proto(); t.int(1, i); t.int(2, index(pair.0)); t.int(4, pair.1); t.data(5, type("kotlin/Any", nullable: true)); p.data(5, t.bytes)
             }
             for type in supertypes { p.data(6, type) }
-            if constructor { var c = Proto(); c.int(1, 6); p.data(8, c.bytes) }
+            if let constructor {
+                var c = Proto(); c.int(1, 6)
+                for (name, type) in constructor {
+                    var parameter = Proto()
+                    parameter.int(2, index(name))
+                    parameter.data(3, type)
+                    c.data(2, parameter.bytes)
+                }
+                p.data(8, c.bytes)
+            }
             for function in functions { p.data(9, function) }
             for property in properties { p.data(10, property) }
             classes.append(p.bytes)
@@ -72,7 +81,7 @@ enum JVMBuiltins {
     static func resources() -> [(String, Data)] {
         let root = Fragment("kotlin")
         let any = root.type("kotlin/Any"), int = root.type("kotlin/Int"), boolean = root.type("kotlin/Boolean")
-        root.declaration("kotlin/Any", flags: 22, functions: [root.function("equals", boolean, [("other", root.type("kotlin/Any", nullable: true))], flags: 278), root.function("hashCode", int, flags: 22), root.function("toString", root.type("kotlin/String"), flags: 22)], constructor: true)
+        root.declaration("kotlin/Any", flags: 22, functions: [root.function("equals", boolean, [("other", root.type("kotlin/Any", nullable: true))], flags: 278), root.function("hashCode", int, flags: 22), root.function("toString", root.type("kotlin/String"), flags: 22)], constructor: [])
         root.declaration("kotlin/Nothing", supertypes: [any])
         root.declaration("kotlin/Annotation", flags: 102, supertypes: [any])
         root.declaration("kotlin/Throwable", flags: 22, supertypes: [any], properties: [root.property("message", root.type("kotlin/String", nullable: true)), root.property("cause", root.type("kotlin/Throwable", nullable: true))])
@@ -110,6 +119,10 @@ enum JVMBuiltins {
             if conversions.contains(name) { functions += conversions.map { root.function("to" + $0, root.type("kotlin/" + $0), flags: 6) } }
             let parents = conversions.contains(name) ? [root.type("kotlin/Number"), root.type("kotlin/Comparable", [own])] : [any, root.type("kotlin/Comparable", [own])]
             root.declaration("kotlin/" + name, supertypes: parents, functions: functions)
+            root.declaration("kotlin/" + name + "Array", supertypes: [any], functions: [
+                root.function("get", own, [("index", int)], flags: 262),
+                root.function("set", root.type("kotlin/Unit"), [("index", int), ("value", own)], flags: 262),
+            ], properties: [root.property("size", int)], constructor: [("size", int)])
         }
         root.declaration("kotlin/CharSequence", flags: 102, supertypes: [any], functions: [root.function("get", root.type("kotlin/Char"), [("index", int)], flags: 294)], properties: [root.property("length", int)])
         root.declaration("kotlin/String", supertypes: [root.type("kotlin/CharSequence"), root.type("kotlin/Comparable", [root.type("kotlin/String")])], functions: [root.function("plus", root.type("kotlin/String"), [("other", root.type("kotlin/Any", nullable: true))], flags: 262)])

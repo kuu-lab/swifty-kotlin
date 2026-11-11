@@ -4,14 +4,17 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
-    "kotlin/OptIn.kt",
-    "kotlin/RequiresOptIn.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt"
   ],
   "declarations": [
     {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -159,6 +162,11 @@
     {
       "path": "declarations/Charsets.kt",
       "virtualPath": "<kswiftk-jvm>/charsets.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/KotlinIoPath.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -327,6 +335,12 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "kotlin/collections/ArrayMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/array-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/UnsignedArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/unsigned-array-with-index.kt",
       "excludeFromStdlibBuild": true,
@@ -357,6 +371,11 @@
     {
       "path": "declarations/Coroutines.kt",
       "virtualPath": "<kswiftk-jvm>/coroutines.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CoroutineContexts.kt",
+      "virtualPath": "<kswiftk-jvm>/coroutine-context.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -427,10 +446,9 @@
       "onlyForStdlibBuild": false
     },
     {
-      "path": "kotlin/OptIn.kt",
+      "path": "declarations/OptIn.kt",
       "virtualPath": "<kswiftk-jvm>/opt-in.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
+      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/ArraySequenceFunctions.kt",

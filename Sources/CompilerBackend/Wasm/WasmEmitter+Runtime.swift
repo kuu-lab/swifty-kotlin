@@ -18,6 +18,7 @@ enum WasmRuntimeHelpers {
 
     static let inlineCalleeNames: Set<String> = [
         "kk_int_narrow",
+        "kk_uint_narrow",
         "kk_abort_unreachable",
         "kk_lateinit_is_initialized",
         "kk_lateinit_get_or_throw",
@@ -86,6 +87,9 @@ enum WasmRuntimeHelpers {
             code.op(WasmOpcode.i64Shl)
             code.i64Const(32)
             code.op(WasmOpcode.i64ShrS)
+        case "kk_uint_narrow":
+            code.op(WasmOpcode.i32WrapI64)
+            code.op(WasmOpcode.i64ExtendI32U)
         case "kk_abort_unreachable":
             code.op(WasmOpcode.unreachable)
             code.i64Const(0)
@@ -360,6 +364,10 @@ enum WasmRuntimeHelpers {
         "kk_op_le": WasmOpcode.i64LeS,
         "kk_op_gt": WasmOpcode.i64GtS,
         "kk_op_ge": WasmOpcode.i64GeS,
+        "kk_op_ult": WasmOpcode.i64LtU,
+        "kk_op_ule": WasmOpcode.i64LeU,
+        "kk_op_ugt": WasmOpcode.i64GtU,
+        "kk_op_uge": WasmOpcode.i64GeU,
         "kk_op_and": WasmOpcode.i64And,
         "kk_op_or": WasmOpcode.i64Or,
         "kk_op_xor": WasmOpcode.i64Xor,
@@ -373,6 +381,7 @@ enum WasmRuntimeHelpers {
 
     private static let comparisonOpcodes: Set<String> = [
         "kk_op_eq", "kk_op_ne", "kk_op_lt", "kk_op_le", "kk_op_gt", "kk_op_ge",
+        "kk_op_ult", "kk_op_ule", "kk_op_ugt", "kk_op_uge",
     ]
 
     /// Kotlin throws ArithmeticException on /0 rather than trapping; signal it
@@ -642,28 +651,47 @@ enum WasmRuntimeHelpers {
         // Generic iterator entry points dispatch on the iterator type ID.
         "kk_iterator_hasNext",
         "kk_iterator_next",
-        // Signed range/progression boxes `{first@16, last@24, step@32}` plus
+        // Range/progression boxes `{first@16, last@24, step@32}` plus
         // the compiler-lowered for-in iterator `{cur@16, last@24, step@32}`
         // (RuntimeRangeAndDispatch.swift equivalents).
         "__kk_op_rangeTo",
         "__kk_long_rangeTo",
         "__kk_char_rangeTo",
+        "__kk_uint_rangeTo",
+        "__kk_ulong_rangeTo",
         "__kk_op_rangeUntil",
         "__kk_long_rangeUntil",
         "__kk_char_rangeUntil",
+        "__kk_uint_rangeUntil",
+        "__kk_op_ulong_rangeUntil",
         "__kk_op_downTo",
+        "__kk_uint_downTo",
+        "__kk_ulong_downTo",
         "__kk_op_step",
         "__kk_char_range_step",
+        "__kk_uint_step",
+        "__kk_ulong_step",
         "__kk_int_progression_fromClosedRange",
         "__kk_long_progression_fromClosedRange",
         "__kk_char_progression_fromClosedRange",
+        "__kk_uint_progression_fromClosedRange",
+        "__kk_ulong_progression_fromClosedRange",
         "__kk_int_range_induction_le",
         "__kk_int_range_induction_add",
         "__kk_range_first",
         "__kk_range_last",
+        "__kk_range_step",
+        "__kk_uint_range_step",
+        "__kk_ulong_range_step",
         "__kk_range_for_in_iterator",
         "__kk_range_for_in_hasNext",
         "__kk_range_for_in_next",
+        "__kk_uint_range_iterator",
+        "__kk_uint_range_hasNext",
+        "__kk_uint_range_next",
+        "__kk_ulong_range_iterator",
+        "__kk_ulong_range_hasNext",
+        "__kk_ulong_range_next",
         "__kk_range_to_list",
         "__kk_range_count",
         "__kk_range_isEmpty",
@@ -1792,12 +1820,14 @@ enum WasmRuntimeHelpers {
         case "kk_iterator_next":
             extraLocals = 1
             emitGenericIteratorDispatch(&code, ctx: ctx, methodSlot: 1)
-        case "__kk_op_rangeTo", "__kk_long_rangeTo", "__kk_char_rangeTo":
+        case "__kk_op_rangeTo", "__kk_long_rangeTo", "__kk_char_rangeTo",
+             "__kk_uint_rangeTo", "__kk_ulong_rangeTo":
             extraLocals = 1
             emitRangeBoxBody(
                 &code, ctx: ctx,
                 typeID: Self.rangeBoxTypeID(for: name),
                 objectLocal: argumentCount,
+                unsignedBounds: name == "__kk_uint_rangeTo" || name == "__kk_ulong_rangeTo",
                 emitFirst: { $0.localGet(0) },
                 emitLast: { $0.localGet(1) },
                 emitStep: { $0.i64Const(1) }
@@ -1828,19 +1858,46 @@ enum WasmRuntimeHelpers {
                 },
                 emitStep: { $0.i64Const(1) }
             )
-        case "__kk_op_downTo":
+        case "__kk_uint_rangeUntil", "__kk_op_ulong_rangeUntil":
+            extraLocals = 1
+            // An exclusive end of zero yields the canonical MAX_VALUE..0.
+            code.localGet(1)
+            code.op(WasmOpcode.i64Eqz)
+            code.openIf()
+            code.i64Const(name == "__kk_uint_rangeUntil" ? Int64(UInt32.max) : -1)
+            code.localSet(0)
+            code.elseBranch()
+            code.localGet(1)
+            code.i64Const(1)
+            code.op(WasmOpcode.i64Sub)
+            code.localSet(1)
+            code.end()
+            emitRangeBoxBody(
+                &code, ctx: ctx,
+                typeID: Self.rangeBoxTypeID(for: name),
+                objectLocal: argumentCount,
+                unsignedBounds: true,
+                emitFirst: { $0.localGet(0) },
+                emitLast: { $0.localGet(1) },
+                emitStep: { $0.i64Const(1) }
+            )
+        case "__kk_op_downTo", "__kk_uint_downTo", "__kk_ulong_downTo":
             extraLocals = 1
             emitRangeBoxBody(
                 &code, ctx: ctx,
                 typeID: Self.rangeBoxTypeID(for: name),
                 objectLocal: argumentCount,
+                unsignedBounds: name != "__kk_op_downTo",
                 emitFirst: { $0.localGet(0) },
                 emitLast: { $0.localGet(1) },
                 emitStep: { $0.i64Const(-1) }
             )
-        case "__kk_op_step", "__kk_char_range_step":
+        case "__kk_op_step", "__kk_char_range_step", "__kk_uint_step", "__kk_ulong_step":
             extraLocals = 3
-            emitRangeStepBody(&code, ctx: ctx, name: name, argumentCount: argumentCount)
+            emitRangeStepBody(
+                &code, ctx: ctx, name: name, argumentCount: argumentCount,
+                unsignedBounds: name == "__kk_uint_step" || name == "__kk_ulong_step"
+            )
         case "__kk_int_progression_fromClosedRange",
              "__kk_long_progression_fromClosedRange",
              "__kk_char_progression_fromClosedRange":
@@ -1852,6 +1909,11 @@ enum WasmRuntimeHelpers {
                 emitFirst: { $0.localGet(0) },
                 emitLast: { $0.localGet(1) },
                 emitStep: { $0.localGet(2) }
+            )
+        case "__kk_uint_progression_fromClosedRange", "__kk_ulong_progression_fromClosedRange":
+            extraLocals = 2
+            emitUnsignedProgressionFromClosedRangeBody(
+                &code, ctx: ctx, name: name, argumentCount: argumentCount
             )
         case "__kk_int_range_induction_le":
             extraLocals = 0
@@ -1870,16 +1932,24 @@ enum WasmRuntimeHelpers {
         case "__kk_range_last":
             extraLocals = 0
             emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        case "__kk_range_for_in_iterator":
-            extraLocals = 1
-            emitRangeForInIteratorBody(&code, ctx: ctx, argumentCount: argumentCount)
-        case "__kk_range_for_in_hasNext":
+        case "__kk_range_step", "__kk_uint_range_step", "__kk_ulong_range_step":
             extraLocals = 0
-            emitRangeHasNextExpr(&code)
+            emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
+        case "__kk_range_for_in_iterator", "__kk_uint_range_iterator", "__kk_ulong_range_iterator":
+            extraLocals = 1
+            emitRangeForInIteratorBody(
+                &code, ctx: ctx, argumentCount: argumentCount,
+                unsignedBounds: name != "__kk_range_for_in_iterator"
+            )
+        case "__kk_range_for_in_hasNext", "__kk_uint_range_hasNext", "__kk_ulong_range_hasNext":
+            extraLocals = 0
+            emitRangeHasNextExpr(&code, unsignedBounds: name != "__kk_range_for_in_hasNext")
             code.i64ExtendFromComparison()
-        case "__kk_range_for_in_next":
+        case "__kk_range_for_in_next", "__kk_uint_range_next", "__kk_ulong_range_next":
             extraLocals = 2
-            emitRangeForInNextBody(&code, argumentCount: argumentCount)
+            emitRangeForInNextBody(
+                &code, argumentCount: argumentCount, unsignedBounds: name != "__kk_range_for_in_next"
+            )
         case "__kk_range_to_list":
             extraLocals = 6
             emitRangeToListBody(&code, ctx: ctx, argumentCount: argumentCount)
@@ -2651,6 +2721,10 @@ enum WasmRuntimeHelpers {
             return stableNominalTypeID("kotlin.ranges.LongRange")
         case "__kk_char_rangeTo", "__kk_char_rangeUntil":
             return stableNominalTypeID("kotlin.ranges.CharRange")
+        case "__kk_uint_rangeTo", "__kk_uint_rangeUntil":
+            return stableNominalTypeID("kotlin.ranges.UIntRange")
+        case "__kk_ulong_rangeTo", "__kk_op_ulong_rangeUntil":
+            return stableNominalTypeID("kotlin.ranges.ULongRange")
         case "__kk_op_downTo", "__kk_op_step",
              "__kk_int_progression_fromClosedRange":
             return stableNominalTypeID("kotlin.ranges.IntProgression")
@@ -2658,6 +2732,10 @@ enum WasmRuntimeHelpers {
             return stableNominalTypeID("kotlin.ranges.LongProgression")
         case "__kk_char_range_step", "__kk_char_progression_fromClosedRange":
             return stableNominalTypeID("kotlin.ranges.CharProgression")
+        case "__kk_uint_downTo", "__kk_uint_step", "__kk_uint_progression_fromClosedRange":
+            return stableNominalTypeID("kotlin.ranges.UIntProgression")
+        case "__kk_ulong_downTo", "__kk_ulong_step", "__kk_ulong_progression_fromClosedRange":
+            return stableNominalTypeID("kotlin.ranges.ULongProgression")
         default:
             return stableNominalTypeID("kotlin.ranges.IntProgression")
         }
@@ -2670,6 +2748,7 @@ enum WasmRuntimeHelpers {
         ctx: WasmModuleContext,
         typeID: Int64,
         objectLocal: Int,
+        unsignedBounds: Bool = false,
         emitFirst: (inout WasmCode) -> Void,
         emitLast: (inout WasmCode) -> Void,
         emitStep: (inout WasmCode) -> Void
@@ -2687,6 +2766,14 @@ enum WasmRuntimeHelpers {
         emitAddress(&code, baseLocal: objectLocal, byteOffset: 32)
         emitStep(&code)
         code.i64Store(offset: 0)
+        if unsignedBounds {
+            // Leave lower interface slots available for ClosedRange and OpenEndRange.
+            emitIterableItableRegistration(
+                &code, ctx: ctx, objectLocal: objectLocal,
+                iteratorHelper: "__kk_uint_range_iterator",
+                interfaces: [("kotlin.collections.Iterable", Int64(L.itableBlocks - 1))]
+            )
+        }
         code.localGet(objectLocal)
     }
 
@@ -2694,14 +2781,14 @@ enum WasmRuntimeHelpers {
     /// state: `step>0 ? cur<=last : step<0 ? cur>=last : false`. Shared by
     /// `__kk_range_for_in_hasNext` and the advance path of `..._next`; zeroing
     /// step on overflow makes the recomputation a stable stop.
-    private static func emitRangeHasNextExpr(_ code: inout WasmCode) {
+    private static func emitRangeHasNextExpr(_ code: inout WasmCode, unsignedBounds: Bool) {
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
         code.openIf(result: .i32)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.op(WasmOpcode.i64LeS)
+        code.op(unsignedBounds ? WasmOpcode.i64LeU : WasmOpcode.i64LeS)
         code.elseBranch()
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
@@ -2709,22 +2796,22 @@ enum WasmRuntimeHelpers {
         code.openIf(result: .i32)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.op(WasmOpcode.i64GeS)
+        code.op(unsignedBounds ? WasmOpcode.i64GeU : WasmOpcode.i64GeS)
         code.elseBranch()
         code.i32Const(0)
         code.end()
         code.end()
     }
 
-    /// `__kk_range_for_in_iterator(range)` — copies `{first,last,step}` off the
-    /// range box into a fresh iterator box `{cur,last,step}`.
+    /// Copies `{first,last,step}` off the range box into a fresh iterator.
     private static func emitRangeForInIteratorBody(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
-        argumentCount: Int
+        argumentCount: Int,
+        unsignedBounds: Bool
     ) {
         code.i64Const(5)
-        code.i64Const(L.rangeForInIteratorTypeID)
+        code.i64Const(unsignedBounds ? L.unsignedRangeIteratorTypeID : L.rangeForInIteratorTypeID)
         code.call(ctx.emittedHelperIndex(for: "kk_object_new", argumentCount: 2))
         code.localSet(argumentCount)
         for offset in [Int64(16), 24, 32] {
@@ -2732,46 +2819,45 @@ enum WasmRuntimeHelpers {
             emitLoadAt(&code, baseLocal: 0, byteOffset: offset)
             code.i64Store(offset: 0)
         }
-        // `range.iterator()` (routed member) returns this box — generic
-        // `kk_iterator_hasNext`/`_next` must find the dedicated helpers via
-        // the Iterator itable rather than re-dispatching themselves.
+        // UInt and ULong share the same unsigned i64 iterator operations.
         emitIteratorItableRegistration(
             &code, ctx: ctx, objectLocal: argumentCount,
-            hasNextHelper: "__kk_range_for_in_hasNext",
-            nextHelper: "__kk_range_for_in_next"
+            hasNextHelper: unsignedBounds ? "__kk_uint_range_hasNext" : "__kk_range_for_in_hasNext",
+            nextHelper: unsignedBounds ? "__kk_uint_range_next" : "__kk_range_for_in_next"
         )
         code.localGet(argumentCount)
     }
 
-    /// `__kk_range_for_in_next(it)` — returns `cur` then advances by `step`.
-    /// An exhausted iterator returns `cur` unchanged; a wrapped add (the only
-    /// way `cur+step` can leave the i64 range, since step's sign is fixed)
-    /// zeroes `step` so the next `hasNext` is false — mirroring the native
-    /// `RuntimeSignedRangeForInIteratorBox.advance()` overflow stop.
-    private static func emitRangeForInNextBody(_ code: inout WasmCode, argumentCount: Int) {
+    /// Returns `cur` and advances by `step` while the iterator has elements.
+    /// A wrapped addition clears the step so subsequent bounds checks fail.
+    private static func emitRangeForInNextBody(
+        _ code: inout WasmCode,
+        argumentCount: Int,
+        unsignedBounds: Bool
+    ) {
         let cur = argumentCount
         let cand = argumentCount + 1
         emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
         code.localSet(cur)
-        emitRangeHasNextExpr(&code)
+        emitRangeHasNextExpr(&code, unsignedBounds: unsignedBounds)
         code.openIf(result: .i64)
         code.localGet(cur)
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.op(WasmOpcode.i64Add)
         code.localSet(cand)
-        // Overflow check per direction: step>0 wrapped iff cand<cur, step<0
-        // iff cand>cur.
+        // The comparison follows the endpoint type. A UInt candidate above
+        // UInt.MAX_VALUE still fits in i64 and fails the next bounds check.
         emitLoadAt(&code, baseLocal: 0, byteOffset: 32)
         code.i64Const(0)
         code.op(WasmOpcode.i64GtS)
         code.openIf(result: .i32)
         code.localGet(cand)
         code.localGet(cur)
-        code.op(WasmOpcode.i64LtS)
+        code.op(unsignedBounds ? WasmOpcode.i64LtU : WasmOpcode.i64LtS)
         code.elseBranch()
         code.localGet(cand)
         code.localGet(cur)
-        code.op(WasmOpcode.i64GtS)
+        code.op(unsignedBounds ? WasmOpcode.i64GtU : WasmOpcode.i64GtS)
         code.end()
         code.openIf(result: .i64)
         emitStoreAtConst(&code, baseLocal: 0, byteOffset: 32, value: 0)
@@ -2794,7 +2880,8 @@ enum WasmRuntimeHelpers {
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
         name: String,
-        argumentCount: Int
+        argumentCount: Int,
+        unsignedBounds: Bool
     ) {
         let obj = argumentCount
         let nextStep = argumentCount + 1
@@ -2803,7 +2890,25 @@ enum WasmRuntimeHelpers {
         code.i64Const(0)
         code.op(WasmOpcode.i64LeS)
         code.openIf(result: .i64)
-        emitLiteralString(&code, ctx: ctx, "Step must be positive.")
+        if unsignedBounds {
+            emitLiteralString(&code, ctx: ctx, "Step must be positive, was: ")
+            code.localGet(1)
+            code.i64Const(Int64.min)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf(result: .i64)
+            emitLiteralString(&code, ctx: ctx, String(Int64.min))
+            code.elseBranch()
+            code.localGet(1)
+            code.i64Const(1)
+            code.call(ctx.emittedHelperIndex(for: "kk_any_to_string", argumentCount: 2))
+            code.end()
+            let concat = ctx.emittedHelperIndex(for: "__kk_string_concat_flat", argumentCount: 2)
+            code.call(concat)
+            emitLiteralString(&code, ctx: ctx, ".")
+            code.call(concat)
+        } else {
+            emitLiteralString(&code, ctx: ctx, "Step must be positive.")
+        }
         code.call(ctx.emittedHelperIndex(
             for: "__kk_illegal_argument_exception_new_message",
             argumentCount: 1
@@ -2823,56 +2928,114 @@ enum WasmRuntimeHelpers {
         code.localGet(1)
         code.end()
         code.localSet(nextStep)
-        // alignedLast: positive → first<=last ? last - urem(last-first, step)
-        //              : last; negative → first>=last ? last + urem(first-last,
-        //              -step) : last. Empty progressions keep `last` like the
-        //              native path.
-        code.localGet(nextStep)
-        code.i64Const(0)
-        code.op(WasmOpcode.i64GtS)
-        code.openIf(result: .i64)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.op(WasmOpcode.i64LeS)
-        code.openIf(result: .i64)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        code.op(WasmOpcode.i64Sub)
-        code.localGet(nextStep)
-        code.op(WasmOpcode.i64RemU)
-        code.op(WasmOpcode.i64Sub)
-        code.elseBranch()
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.end()
-        code.elseBranch()
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.op(WasmOpcode.i64GeS)
-        code.openIf(result: .i64)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 16)
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.op(WasmOpcode.i64Sub)
-        code.i64Const(0)
-        code.localGet(nextStep)
-        code.op(WasmOpcode.i64Sub)
-        code.op(WasmOpcode.i64RemU)
-        code.op(WasmOpcode.i64Add)
-        code.elseBranch()
-        emitLoadAt(&code, baseLocal: 0, byteOffset: 24)
-        code.end()
-        code.end()
+        let emitFirst: (inout WasmCode) -> Void = { emitLoadAt(&$0, baseLocal: 0, byteOffset: 16) }
+        let emitLast: (inout WasmCode) -> Void = { emitLoadAt(&$0, baseLocal: 0, byteOffset: 24) }
+        emitAlignedProgressionLast(
+            &code, step: nextStep, unsignedBounds: unsignedBounds, emitFirst: emitFirst, emitLast: emitLast
+        )
         code.localSet(aligned)
         emitRangeBoxBody(
             &code, ctx: ctx,
             typeID: Self.rangeBoxTypeID(for: name),
             objectLocal: obj,
-            emitFirst: { code in emitLoadAt(&code, baseLocal: 0, byteOffset: 16) },
+            unsignedBounds: unsignedBounds,
+            emitFirst: emitFirst,
             emitLast: { $0.localGet(aligned) },
             emitStep: { $0.localGet(nextStep) }
         )
         code.end()
+    }
+
+    /// Empty progressions retain their original last bound. The distance
+    /// between non-empty bounds can occupy all 64 bits, so use unsigned remainder.
+    private static func emitAlignedProgressionLast(
+        _ code: inout WasmCode,
+        step: Int,
+        unsignedBounds: Bool,
+        emitFirst: (inout WasmCode) -> Void,
+        emitLast: (inout WasmCode) -> Void
+    ) {
+        code.localGet(step)
+        code.i64Const(0)
+        code.op(WasmOpcode.i64GtS)
+        code.openIf(result: .i64)
+        emitFirst(&code)
+        emitLast(&code)
+        code.op(unsignedBounds ? WasmOpcode.i64LeU : WasmOpcode.i64LeS)
+        code.openIf(result: .i64)
+        emitLast(&code)
+        emitLast(&code)
+        emitFirst(&code)
+        code.op(WasmOpcode.i64Sub)
+        code.localGet(step)
+        code.op(WasmOpcode.i64RemU)
+        code.op(WasmOpcode.i64Sub)
+        code.elseBranch()
+        emitLast(&code)
+        code.end()
+        code.elseBranch()
+        emitFirst(&code)
+        emitLast(&code)
+        code.op(unsignedBounds ? WasmOpcode.i64GeU : WasmOpcode.i64GeS)
+        code.openIf(result: .i64)
+        emitLast(&code)
+        emitFirst(&code)
+        emitLast(&code)
+        code.op(WasmOpcode.i64Sub)
+        code.i64Const(0)
+        code.localGet(step)
+        code.op(WasmOpcode.i64Sub)
+        code.op(WasmOpcode.i64RemU)
+        code.op(WasmOpcode.i64Add)
+        code.elseBranch()
+        emitLast(&code)
+        code.end()
+        code.end()
+    }
+
+    private static func emitUnsignedProgressionFromClosedRangeBody(
+        _ code: inout WasmCode,
+        ctx: WasmModuleContext,
+        name: String,
+        argumentCount: Int
+    ) {
+        // The Companion receiver precedes the endpoints and step.
+        let first = argumentCount - 3
+        let last = first + 1
+        let step = first + 2
+        let aligned = argumentCount + 1
+        let isUInt = name == "__kk_uint_progression_fromClosedRange"
+        let minimum = isUInt ? Int64(Int32.min) : Int64.min
+        let stepType = isUInt ? "Int" : "Long"
+        for (invalidStep, message) in [
+            (0, "Step must be non-zero."),
+            (minimum, "Step must be greater than \(stepType).MIN_VALUE to avoid overflow on negation."),
+        ] {
+            code.localGet(step)
+            code.i64Const(invalidStep)
+            code.op(WasmOpcode.i64Eq)
+            code.openIf()
+            emitLiteralString(&code, ctx: ctx, message)
+            code.call(ctx.emittedHelperIndex(for: "__kk_illegal_argument_exception_new_message", argumentCount: 1))
+            code.globalSet(ctx.thrownGlobal)
+            code.i64Const(0)
+            code.op(WasmOpcode.return)
+            code.end()
+        }
+        emitAlignedProgressionLast(
+            &code, step: step, unsignedBounds: true,
+            emitFirst: { $0.localGet(first) }, emitLast: { $0.localGet(last) }
+        )
+        code.localSet(aligned)
+        emitRangeBoxBody(
+            &code, ctx: ctx,
+            typeID: Self.rangeBoxTypeID(for: name),
+            objectLocal: argumentCount,
+            unsignedBounds: true,
+            emitFirst: { $0.localGet(first) },
+            emitLast: { $0.localGet(aligned) },
+            emitStep: { $0.localGet(step) }
+        )
     }
 
     /// `__kk_range_to_list(range)` — materializes `{first,last,step}` into a
@@ -4426,10 +4589,11 @@ enum WasmRuntimeHelpers {
         code.localGet(0)
         code.op(WasmOpcode.return)
         code.end()
-        // Heap string object (tag-agnostic): aligned pointers inside
+        // Heap string object: aligned pointers inside
         // [dataEnd, heap) carrying the string typeID are already their own
         // string — covers tag-1 dispatch of collection string elements
         // (`setOf("a","b").joinToString("+")` → "a+b", not raw addresses).
+        // UInt and ULong tags carry raw integers even at valid heap addresses.
         code.localGet(0)
         code.globalGet(ctx.dataEndGlobal)
         code.op(WasmOpcode.i64GeU)
@@ -4437,6 +4601,12 @@ enum WasmRuntimeHelpers {
         code.globalGet(ctx.heapGlobal)
         code.op(WasmOpcode.i64LtU)
         code.op(WasmOpcode.i32And)
+        for tag: Int64 in [7, 9] {
+            code.localGet(1)
+            code.i64Const(tag)
+            code.op(WasmOpcode.i64Ne)
+            code.op(WasmOpcode.i32And)
+        }
         code.openIf()
         code.localGet(0)
         code.i64Const(7)
@@ -7769,14 +7939,17 @@ enum WasmRuntimeHelpers {
         method(4, 2, "__kk_mutable_list_add", arity: 2)
     }
 
-    /// Registers `iterator()` (method slot 0) under `kotlin.collections.Iterable`
-    /// slot 0, `kotlin.sequences.Sequence` slot 1, and
-    /// `kotlin.collections.MutableIterable` slot 2 — all pointing at
-    /// `kk_list_iterator`, which understands the shared box layout.
+    /// Registers `iterator()` in method slot 0 for the box's iterable interfaces.
     private static func emitIterableItableRegistration(
         _ code: inout WasmCode,
         ctx: WasmModuleContext,
-        objectLocal: Int
+        objectLocal: Int,
+        iteratorHelper: String = "kk_list_iterator",
+        interfaces: [(String, Int64)] = [
+            ("kotlin.collections.Iterable", 0),
+            ("kotlin.sequences.Sequence", 1),
+            ("kotlin.collections.MutableIterable", 2),
+        ]
     ) {
         let regIface = ctx.emittedHelperIndex(
             for: "kk_object_register_itable_iface", argumentCount: 3
@@ -7785,13 +7958,9 @@ enum WasmRuntimeHelpers {
             for: "kk_object_register_itable_method", argumentCount: 4
         )
         let iteratorSlot = Int64(ctx.module.tableSlot(
-            forFunction: ctx.emittedHelperIndex(for: "kk_list_iterator", argumentCount: 1)
+            forFunction: ctx.emittedHelperIndex(for: iteratorHelper, argumentCount: 1)
         ))
-        for (fqName, ifaceSlot) in [
-            ("kotlin.collections.Iterable", Int64(0)),
-            ("kotlin.sequences.Sequence", Int64(1)),
-            ("kotlin.collections.MutableIterable", Int64(2)),
-        ] {
+        for (fqName, ifaceSlot) in interfaces {
             code.localGet(objectLocal)
             code.i64Const(stableNominalTypeID(fqName))
             code.i64Const(ifaceSlot)

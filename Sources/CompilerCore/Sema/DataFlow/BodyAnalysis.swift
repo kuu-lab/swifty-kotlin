@@ -46,6 +46,7 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine? = nil,
         recursionDepth: Int = 0,
         usageRange: SourceRange? = nil,
+        allowsTypeParameterArgumentsInTypeBounds: Bool = false,
         expandTypeAlias: Bool = true
     ) -> TypeID? {
         guard recursionDepth <= DataFlowSemaPhase.maxStructuralRecursionDepth else {
@@ -310,8 +311,17 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 )
+                if diagnostics != nil {
+                    symbols.recordTypeArgumentBoundCheck(
+                        symbol: resolved.id,
+                        arguments: resolvedArgs,
+                        range: usageRange,
+                        allowsTypeParameterArguments: allowsTypeParameterArgumentsInTypeBounds
+                    )
+                }
                 if resolved.kind != .typeAlias {
                     TypeProjectionValidator(symbols: symbols, types: types, interner: interner,
                                             diagnostics: diagnostics, range: usageRange)
@@ -457,7 +467,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 ) else {
                     return nil
                 }
@@ -478,7 +489,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 )
             }
             var paramTypes: [TypeID] = []
@@ -496,7 +508,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 ) else {
                     return nil
                 }
@@ -515,7 +528,8 @@ extension DataFlowSemaPhase {
                 imports: imports,
                 diagnostics: diagnostics,
                 recursionDepth: recursionDepth + 1,
-                usageRange: usageRange
+                usageRange: usageRange,
+                allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
             ) ?? types.unitType
             return types.make(.functionType(FunctionType(
                 contextReceivers: contextReceiverTypes,
@@ -540,7 +554,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 )
             }
             guard partTypes.count == partRefs.count else { return nil }
@@ -560,7 +575,8 @@ extension DataFlowSemaPhase {
                 imports: imports,
                 diagnostics: diagnostics,
                 recursionDepth: recursionDepth + 1,
-                usageRange: usageRange
+                usageRange: usageRange,
+                allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
             ) else {
                 return nil
             }
@@ -1139,7 +1155,8 @@ extension DataFlowSemaPhase {
         imports: [ImportDecl] = [],
         diagnostics: DiagnosticEngine? = nil,
         recursionDepth: Int = 0,
-        usageRange: SourceRange? = nil
+        usageRange: SourceRange? = nil,
+        allowsTypeParameterArgumentsInTypeBounds: Bool = false
     ) -> [TypeArg] {
         var result: [TypeArg] = []
         result.reserveCapacity(argRefs.count)
@@ -1159,7 +1176,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 ) ?? types.errorType
                 result.append(.invariant(resolved))
             case let .out(innerRef):
@@ -1176,7 +1194,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 ) ?? types.errorType
                 result.append(.out(resolved))
             case let .in(innerRef):
@@ -1193,7 +1212,8 @@ extension DataFlowSemaPhase {
                     imports: imports,
                     diagnostics: diagnostics,
                     recursionDepth: recursionDepth + 1,
-                    usageRange: usageRange
+                    usageRange: usageRange,
+                    allowsTypeParameterArgumentsInTypeBounds: allowsTypeParameterArgumentsInTypeBounds
                 ) ?? types.errorType
                 result.append(.in(resolved))
             case .star:
