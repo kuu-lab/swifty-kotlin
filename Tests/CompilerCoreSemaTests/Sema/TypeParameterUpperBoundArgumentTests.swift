@@ -182,5 +182,81 @@ struct TypeParameterUpperBoundArgumentTests {
             #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
         }
     }
+
+    @Test func declarationTypeArgumentUpperBoundsAreEnforced() throws {
+        let source = """
+        interface Marker
+        interface Bounded<T : Marker>
+        class Box<T>
+        class Wrong : Bounded<Any>
+        fun wrong(value: Bounded<Any>) {}
+        fun projected(value: Bounded<out Any>) {}
+        fun nested(value: Box<Bounded<Any>>) {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-BOUND" }
+            #expect(errors.count == 4, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func declarationTypeArgumentUpperBoundsAcceptValidArguments() throws {
+        let source = """
+        interface Marker
+        class Impl : Marker
+        interface Bounded<T : Marker>
+        class Box<T>
+        class Good : Bounded<Impl>
+        fun good(
+            value: Bounded<Impl>,
+            projected: Bounded<out Impl>,
+            contravariant: Bounded<in Impl>,
+            starred: Bounded<*>,
+            nested: Box<Bounded<Impl>>
+        ) {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func typeAliasUpperBoundArgumentsAreCheckedAfterExpansion() throws {
+        let source = """
+        interface Marker
+        class Impl : Marker
+        interface Bounded<T : Marker>
+        class Box<T>
+        typealias BadAlias = Bounded<Any>
+        typealias ParamAlias<T> = Bounded<T>
+        typealias BoxAlias<T> = Bounded<Box<T>>
+        fun badAlias(value: ParamAlias<Any>) {}
+        fun badBoxAlias(value: BoxAlias<Any>) {}
+        fun badBoxBoxAlias(value: BoxAlias<Impl>) {}
+        fun goodAlias(value: ParamAlias<Impl>) {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-BOUND" }
+            #expect(errors.count == 4, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test func recursiveTypeArgumentUpperBoundsUseInheritanceEdges() throws {
+        let source = """
+        interface Recursive<T : Recursive<T>>
+        class Impl : Recursive<Impl>
+        class Wrong : Recursive<Any>
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runSema(ctx)
+            let errors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-BOUND" }
+            #expect(errors.count == 1, "Got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
 }
 #endif

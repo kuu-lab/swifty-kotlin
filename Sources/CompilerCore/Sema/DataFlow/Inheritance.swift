@@ -237,6 +237,12 @@ extension DataFlowSemaPhase {
                         .validate(arguments: arguments, of: nominal)
                 }
             ) {
+                symbols.recordTypeArgumentBoundCheck(
+                    symbol: resolved.symbol,
+                    arguments: resolved.typeArgs,
+                    range: (index < superTypeEntries.count ? superTypeEntries[index].range : nil)
+                        ?? symbols.symbol(symbol)?.declSite
+                )
                 if superSymbols.contains(resolved.symbol) {
                     diagnostics.error(
                         "KSWIFTK-SEMA-0440",

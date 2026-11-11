@@ -114,7 +114,7 @@ RF-KIR-005 では、少なくとも次の分類に分けるとよい。
 
 enforcing 化で必要な検証単位:
 
-1. 登録済み Sema `externalLinkName` は `RuntimeABISpec.allFunctions` に含まれる。
+1. 登録済み Sema `externalLinkName` のうち runtime bridge (`kk_*` / `__kk_*`) は `RuntimeABISpec.allFunctions` に含まれる。`platform.posix` などの直接 C FFI 宣言は Runtime 実装を持たないため、別途 pinned signature で検証する。
 2. CompilerCore が literal として直接 emit する ABI link 名は `RuntimeABISpec.allFunctions` に含まれる。
 3. CompilerCore の dynamic prefix は、展開可能な Runtime/RuntimeABISpec 名集合に前方一致させ、対象外 prefix は理由付き allowlist に置く。
 4. `StdlibSurfaceSpec.collectionHOFMembers.map(\.runtimeLinkName)` は `RuntimeABISpec.allFunctions` に含まれる。

@@ -172,6 +172,16 @@ public enum JVMInstruction {
     case returnValue(JVMValue?)
 }
 
+public struct JVMMethodParameter {
+    public let name: String
+    public let access: UInt16
+
+    init(_ name: String, access: UInt16 = 0) {
+        self.name = name
+        self.access = access
+    }
+}
+
 public struct JVMFunction {
     public var reference: JVMFunctionReference
     public var isPrivate: Bool
@@ -179,6 +189,8 @@ public struct JVMFunction {
     public var parameterCount: Int
     public var instructions: [JVMInstruction]
     public var parameterNames: [String]
+    /// Java reflection names and flags in JVM descriptor order.
+    public var javaParameters: [JVMMethodParameter] = []
     public var isInternal: Bool
     public var owner: String? = nil
     public var access: UInt16? = nil
@@ -255,6 +267,8 @@ public struct JVMForeignMethod {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    // Classpath methods keep their physical descriptor until bound to a Kotlin call.
+    var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: String?
     public var isConstructor: Bool { name == "<init>" }
 }
@@ -322,6 +336,8 @@ public struct JVMClass {
     public var isFileFacade = false
     public var sourceFileName: String? = nil
     public var emitMetadata = true
+    // The bundled JVM runtime can supply this compiler-generated compatibility class.
+    package var isRuntimeFallback = false
     public var isObject = false
     public var isCompanion = false
     public var isData = false

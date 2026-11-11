@@ -26,7 +26,9 @@ enum JVMJarArchive {
         guard entries.count <= 65_535 else { throw JVMEmissionError.limit("JVM JAR entry limit exceeded.") }
         var archive = Data()
         var directory = Data()
+        var seen: Set<String> = []
         for (name, contents) in entries {
+            guard seen.insert(name).inserted else { throw JVMEmissionError.duplicateJarEntry(name) }
             let filename = Data(name.utf8)
             guard filename.count <= 65_535, contents.count <= Int(UInt32.max),
                   archive.count <= Int(UInt32.max) else {

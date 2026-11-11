@@ -4,10 +4,14 @@ import RuntimeABI
 
 enum JVMEmissionError: Error, CustomStringConvertible {
     case limit(String)
+    case duplicateJarEntry(String)
+    case runtimeBuildFailed(String)
 
     var description: String {
         switch self {
         case let .limit(message): message
+        case let .duplicateJarEntry(name): "Duplicate JVM JAR entry: \(name)."
+        case let .runtimeBuildFailed(message): "Cannot build the bundled JVM runtime: \(message)"
         }
     }
 }

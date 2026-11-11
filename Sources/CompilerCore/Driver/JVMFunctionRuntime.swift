@@ -6,9 +6,12 @@ extension JVMProgramBuilder {
         function.owner = owner; function.access = access; function.isConstructor = constructor; function.isAbstract = access & 0x0400 != 0; function.isSynthetic = true
         return function
     }
-    func rawClass(_ name: String, superclass: String = "java/lang/Object", interfaces: [String] = [], access: UInt16 = 0x1030, functions: [JVMFunction] = [], fields: [JVMField] = []) -> JVMClass {
+    func rawClass(_ name: String, superclass: String = "java/lang/Object", interfaces: [String] = [], access: UInt16 = 0x1030, functions: [JVMFunction] = [], fields: [JVMField] = [], isRuntimeFallback: Bool = false) -> JVMClass {
         var type = JVMClass(name: name, superclass: superclass, interfaces: interfaces, access: access, functions: functions, properties: [])
-        type.extraFields = fields; type.emitMetadata = false; return type
+        type.extraFields = fields
+        type.emitMetadata = false
+        type.isRuntimeFallback = isRuntimeFallback
+        return type
     }
     func objectConstructor() -> JVMForeignMethod {
         JVMForeignMethod(owner: "java/lang/Object", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Object", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
@@ -49,7 +52,7 @@ extension JVMProgramBuilder {
     func functionRuntime() -> [JVMClass] {
         guard !functionArities.isEmpty, !context.options.stdlibOnly else { return [] }
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
-        var marker = rawClass("kotlin/Function", access: 0x0601)
+        var marker = rawClass("kotlin/Function", access: 0x0601, isRuntimeFallback: true)
         marker.genericSignature = "<R:Ljava/lang/Object;>Ljava/lang/Object;"
         var result = context.jvmImports?.classes[marker.name] == nil ? [marker] : []
         for arity in functionArities.sorted() {
@@ -58,7 +61,7 @@ extension JVMProgramBuilder {
             let names = (0..<arity).map { "P\($0 + 1)" }
             var invoke = rawFunction(name, name: "invoke", parameters: Array(repeating: object, count: arity), result: object, access: 0x0401, locals: [], instructions: [])
             invoke.genericSignature = "(" + names.map { "T" + $0 + ";" }.joined() + ")TR;"
-            var type = rawClass(name, interfaces: ["kotlin/Function"], access: 0x0601, functions: [invoke])
+            var type = rawClass(name, interfaces: ["kotlin/Function"], access: 0x0601, functions: [invoke], isRuntimeFallback: true)
             type.genericSignature = "<" + (names + ["R"]).map { $0 + ":Ljava/lang/Object;" }.joined() + ">Ljava/lang/Object;Lkotlin/Function<TR;>;"
             result.append(type)
         }
@@ -70,7 +73,7 @@ extension JVMProgramBuilder {
         let field = JVMField(owner: name, name: "INSTANCE", type: unit, access: 0x19)
         let initializer = rawFunction(name, name: "<clinit>", parameters: [], result: .unit, access: 8, locals: [receiver], instructions: [.allocate(name, receiver), .foreignCall(own, receiver: receiver, arguments: [], result: nil), .putStatic(field, receiver), .returnValue(nil)])
         let description = rawFunction(name, name: "toString", parameters: [], result: .string, access: 0x11, locals: [receiver, text], instructions: [.constant(.string("kotlin.Unit"), text), .returnValue(text)])
-        var unitClass = rawClass(name, access: 0x31, functions: [constructor, initializer, description], fields: [field])
+        var unitClass = rawClass(name, access: 0x31, functions: [constructor, initializer, description], fields: [field], isRuntimeFallback: true)
         unitClass.isObject = true; unitClass.emitMetadata = true
         result.append(unitClass)
         return result

@@ -2020,20 +2020,16 @@ extension CallLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> Bool {
-        for rawDecl in ast.arena.decls.indices {
-            let declID = DeclID(rawValue: Int32(rawDecl))
-            guard sema.bindings.declSymbols[declID] == propertySymbol,
-                  let decl = ast.arena.decl(declID),
-                  case let .propertyDecl(propertyDecl) = decl
-            else {
-                continue
-            }
-            if let getter = propertyDecl.getter, getter.body != .unit {
-                return true
-            }
-            return propertyDecl.delegateExpression != nil
+        guard let declID = propertyDeclID(for: propertySymbol, ast: ast, sema: sema),
+              let decl = ast.arena.decl(declID),
+              case let .propertyDecl(propertyDecl) = decl
+        else {
+            return false
         }
-        return false
+        if let getter = propertyDecl.getter, getter.body != .unit {
+            return true
+        }
+        return propertyDecl.delegateExpression != nil
     }
 
     func memberPropertyUsesAccessor(
@@ -2053,20 +2049,16 @@ extension CallLowerer {
         if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
             return true
         }
-        for rawDecl in ast.arena.decls.indices {
-            let declID = DeclID(rawValue: Int32(rawDecl))
-            guard sema.bindings.declSymbols[declID] == propertySymbol,
-                  let decl = ast.arena.decl(declID),
-                  case let .propertyDecl(propertyDecl) = decl
-            else {
-                continue
-            }
-            if let getter = propertyDecl.getter, getter.body != .unit {
-                return true
-            }
-            return propertyDecl.delegateExpression != nil
+        guard let declID = propertyDeclID(for: propertySymbol, ast: ast, sema: sema),
+              let decl = ast.arena.decl(declID),
+              case let .propertyDecl(propertyDecl) = decl
+        else {
+            return false
         }
-        return false
+        if let getter = propertyDecl.getter, getter.body != .unit {
+            return true
+        }
+        return propertyDecl.delegateExpression != nil
     }
 
     func tryLowerClassNameMemberValueExpr(

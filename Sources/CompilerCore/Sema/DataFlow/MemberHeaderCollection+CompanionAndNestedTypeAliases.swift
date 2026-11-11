@@ -208,7 +208,8 @@ extension DataFlowSemaPhase {
                 currentPackageFQName: sourceFile?.packageFQName,
                 imports: sourceFile?.imports ?? [],
                 diagnostics: diagnostics,
-                usageRange: alias.range
+                usageRange: alias.range,
+                allowsTypeParameterArgumentsInTypeBounds: true
             ) {
                 symbols.setTypeAliasUnderlyingType(resolvedUnderlying, for: aliasSymbol)
             }
