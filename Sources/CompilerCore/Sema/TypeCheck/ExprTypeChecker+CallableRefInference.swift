@@ -2702,8 +2702,12 @@ extension ExprTypeChecker {
             // An imported singleton receiver must reach KIR lowering even
             // when the reference needs no signature adaptation — otherwise
             // the generated thunk calls the member without its receiver
-            // (KUU-4364).
-            if importedObjectCallableReferenceReceiver != nil,
+            // (KUU-4364). JVM inline expansion also uses the binding when
+            // the reference has no type arguments or adapted parameters.
+            let needsJVMInlineBinding = driver.compilationContext?.options.emit.isJVM == true
+                && signature.typeParameterSymbols.isEmpty
+                && sema.symbols.symbol(chosen)?.flags.contains(.inlineFunction) == true
+            if importedObjectCallableReferenceReceiver != nil || needsJVMInlineBinding,
                sema.bindings.callableReferenceBinding(for: id) == nil
             {
                 sema.bindings.bindCallableReference(id, binding: CallBinding(

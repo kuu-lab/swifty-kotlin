@@ -14,8 +14,11 @@ extension JVMBackendTests {
             fun main() {
                 println(parse("value"))
                 println(parse(""))
+                val filter: (String, (String) -> Boolean) -> String? = String::takeIf
+                println(filter("reference") { it.isNotEmpty() })
+                println(filter("reference") { it.isEmpty() })
             }
-            """, expected: "value\nempty\n", mode: .jvmJar, root: root)
+            """, expected: "value\nempty\nreference\nnull\n", mode: .jvmJar, root: root)
         }
     }
 }

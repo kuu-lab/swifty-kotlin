@@ -13,6 +13,7 @@ extension JVMBackendTests {
             try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
             try runM11("""
             import java.nio.file.LinkOption
+            import java.nio.file.Path as NioPath
             import kotlin.io.path.Path
             import kotlin.io.path.absolute
             import kotlin.io.path.isRegularFile
@@ -24,12 +25,15 @@ extension JVMBackendTests {
                 println(file.absolute() == file)
                 val relative = Path("present.txt")
                 println(relative.absolute() != relative)
+                val create: (String) -> NioPath = ::Path
+                val absolute: (NioPath) -> NioPath = NioPath::absolute
+                println(absolute(create("present.txt")) == relative.absolute())
                 println(file.isRegularFile())
                 println(link.isRegularFile())
                 println(link.isRegularFile(LinkOption.NOFOLLOW_LINKS))
                 println(Path("\(root.appendingPathComponent("absent.txt").path)").notExists())
             }
-            """, expected: "true\ntrue\ntrue\ntrue\nfalse\ntrue\n", mode: .jvmJar, root: root)
+            """, expected: "true\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\n", mode: .jvmJar, root: root)
         }
     }
 }
