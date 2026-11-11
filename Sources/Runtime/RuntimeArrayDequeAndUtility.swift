@@ -392,6 +392,117 @@ public func __kk_array_contentDeepToString(_ arrayRaw: Int) -> UnsafeMutableRawP
     return runtimeArrayStringPointer(runtimeArrayBoxDeepToString(raw: arrayRaw, box: array, visited: &visited))
 }
 
+// MARK: - JVM annotation proxy member rendering (KUU-4418)
+
+/// JVM `AnnotationInvocationHandler.memberValueToString`: String/Char are
+/// quoted, arrays render `{a, b}` with recursively formatted elements,
+/// KClass renders `<jvm binary name>.class`, annotations delegate to their
+/// own (materialization-aware) toString, and everything else falls back to
+/// the plain element rendering.
+func runtimeAnnotationMemberValueToString(_ raw: Int, visited: inout Set<Int>) -> String {
+    if raw == runtimeNullSentinelInt {
+        return "null"
+    }
+    if let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+       runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) })
+    {
+        if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
+            return "\"\(stringBox.value)\""
+        }
+        if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
+            return "'\(runtimeCharacterFromRaw(charBox.value))'"
+        }
+        if let kclassBox = runtimeKClassBox(from: raw) {
+            return runtimeAnnotationProxyKClassName(kclassBox) + ".class"
+        }
+        // RuntimeObjectBox subclasses RuntimeArrayBox, so object boxes must be
+        // tested first: annotation instances render through their own
+        // (materialization-aware) toString while only true array boxes take
+        // the `{…}` path.
+        if tryCast(ptr, to: RuntimeObjectBox.self) != nil {
+            if let rendered = runtimeAnyToStringOverrideText(raw) {
+                return rendered
+            }
+        } else if let array = runtimeArrayBox(from: raw) {
+            return runtimeAnnotationProxyArrayToString(raw: raw, box: array, visited: &visited)
+        }
+    }
+    return runtimeElementToString(raw)
+}
+
+private func runtimeAnnotationProxyArrayToString(
+    raw: Int,
+    box: RuntimeArrayBox,
+    visited: inout Set<Int>
+) -> String {
+    guard visited.insert(raw).inserted else {
+        return "{...}"
+    }
+    defer { visited.remove(raw) }
+    if let kind = runtimePrimitiveArrayElementKind(rawValue: raw) {
+        return "{" + box.elements
+            .map { runtimePrimitiveArrayElementToString($0, kind: kind) }
+            .joined(separator: ", ") + "}"
+    }
+    return "{" + box.elements
+        .map { runtimeAnnotationMemberValueToString($0, visited: &visited) }
+        .joined(separator: ", ") + "}"
+}
+
+/// JVM `Class.getName()` for the classifier behind a KClass literal:
+/// signed primitives spell `int`/`boolean`/…, everything else uses the
+/// Java binary name (`kotlin.String` -> `java.lang.String`).
+private func runtimeAnnotationProxyKClassName(_ box: RuntimeKClassBox) -> String {
+    runtimeAnnotationProxyKClassNameAndPrimitiveness(box).name
+}
+
+private func runtimeAnnotationProxyKClassNameAndPrimitiveness(
+    _ box: RuntimeKClassBox
+) -> (name: String, isPrimitive: Bool) {
+    let base = Int64(truncatingIfNeeded: box.typeToken) & RuntimeTypeTokenEncoding.baseMask
+    switch base {
+    case RuntimeTypeTokenEncoding.intBase: return ("int", true)
+    case RuntimeTypeTokenEncoding.booleanBase: return ("boolean", true)
+    case RuntimeTypeTokenEncoding.longBase: return ("long", true)
+    case RuntimeTypeTokenEncoding.doubleBase: return ("double", true)
+    case RuntimeTypeTokenEncoding.floatBase: return ("float", true)
+    case RuntimeTypeTokenEncoding.charBase: return ("char", true)
+    case RuntimeTypeTokenEncoding.byteBase: return ("byte", true)
+    case RuntimeTypeTokenEncoding.shortBase: return ("short", true)
+    default: break
+    }
+    return (runtimeJavaBinaryNameForTypeToken(box.typeToken, nameHint: box.nameHint), false)
+}
+
+@_cdecl("__kk_annotation_proxy_array_to_string")
+public func __kk_annotation_proxy_array_to_string(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        return runtimeArrayStringPointer("null")
+    }
+    var visited: Set<Int> = []
+    return runtimeArrayStringPointer(runtimeAnnotationProxyArrayToString(raw: arrayRaw, box: array, visited: &visited))
+}
+
+@_cdecl("__kk_annotation_proxy_kclass_to_string")
+public func __kk_annotation_proxy_kclass_to_string(_ kclassRaw: Int) -> UnsafeMutableRawPointer {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return runtimeArrayStringPointer("null")
+    }
+    return runtimeArrayStringPointer(runtimeAnnotationProxyKClassName(box) + ".class")
+}
+
+/// `java.lang.Class.toString()` for a KClass member of a directly constructed
+/// annotation: primitives spell `int`/`boolean`/…, reference types render
+/// `class <java binary name>` — matching kotlinc's annotation `toString`.
+@_cdecl("__kk_annotation_jvm_class_tostring")
+public func __kk_annotation_jvm_class_tostring(_ kclassRaw: Int) -> UnsafeMutableRawPointer {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return runtimeArrayStringPointer("null")
+    }
+    let (name, isPrimitive) = runtimeAnnotationProxyKClassNameAndPrimitiveness(box)
+    return runtimeArrayStringPointer(isPrimitive ? name : "class " + name)
+}
+
 private func runtimeArrayBoxDeepHash(
     raw: Int,
     box: RuntimeArrayBox,

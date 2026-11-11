@@ -687,7 +687,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         return primaryConstructorParamNames.compactMap { propertiesByName[$0] }
     }
 
-    private func primaryConstructorSymbol(owner: SemanticSymbol, symbols: SymbolTable) -> SemanticSymbol? {
+    func primaryConstructorSymbol(owner: SemanticSymbol, symbols: SymbolTable) -> SemanticSymbol? {
         symbols.children(of: owner.id)
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .constructor }
