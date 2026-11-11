@@ -599,12 +599,21 @@ public enum StdlibArtifactBuilder {
         let timing = StdlibBuildTiming.start(kind: "artifact-builder")
         var succeeded = false
         defer { timing?.finish(success: succeeded) }
+        let defaultJobs = min(max(ProcessInfo.processInfo.activeProcessorCount, 1), 8)
+        let jobs = ProcessInfo.processInfo.environment["KSWIFTK_STDLIB_JOBS"]
+            .flatMap(Int.init)
+            .map { max($0, 1) } ?? defaultJobs
+        let disableParallel = ProcessInfo.processInfo.environment["KSWIFTK_STDLIB_SERIAL"] == "1"
+        let frontendFlags: [String] = (!disableParallel && jobs > 1)
+            ? ["jobs=\(jobs)", "sema-parallel", "codegen-parallel"]
+            : []
         let options = CompilerOptions(
             moduleName: "KSwiftKStdlib",
             inputs: [],
             outputPath: outputBase,
             emit: .library,
             target: target,
+            frontendFlags: frontendFlags,
             runtimeFlags: ["reflection-metadata=all"],
             includeStdlib: true,
             stdlibOnly: true,

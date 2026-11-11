@@ -94,6 +94,137 @@ extension NativeEmitter {
         return retainedContexts
     }
 
+    /// Emits a library as a primary globals/metadata object plus one
+    /// independently compiled object file per function partition, running both
+    /// IR construction and LLVM machine-code emission in parallel across cores.
+    func emitPartitionedObjects(
+        outputObjectsDir: String,
+        moduleName: String
+    ) throws -> [String] {
+        let runtimeCallbackRawABISymbols = Self.collectRuntimeCallbackRawABISymbols(
+            module: module,
+            interner: interner
+        )
+        let emittableFunctions = try collectEmittableFunctionsForPartitioning(
+            runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
+        )
+        guard canEmitFunctionBodiesInParallel(emittableCount: emittableFunctions.count) else {
+            let relPath = "objects/\(moduleName)_0.o"
+            try emitObject(outputPath: outputObjectsDir + "/\(moduleName)_0.o", bitcodeOutputPath: nil)
+            return [relPath]
+        }
+
+        let workerCount = min(parallelJobs, emittableFunctions.count)
+        var buckets: [[(KIRFunction, String)]] = Array(repeating: [], count: workerCount)
+        for (index, item) in emittableFunctions.enumerated() {
+            buckets[index % workerCount].append(item)
+        }
+
+        let primaryRelPath = "objects/\(moduleName)_0.o"
+        let primaryOutPath = outputObjectsDir + "/\(moduleName)_0.o"
+        let partitionRelPaths = (0 ..< workerCount).map { "objects/\(moduleName)_\($0 + 1).o" }
+        let partitionOutPaths = (0 ..< workerCount).map { "\(outputObjectsDir)/\(moduleName)_\($0 + 1).o" }
+
+        let driver = PartitionedObjectEmissionDriver(
+            emitter: self,
+            buckets: buckets,
+            outputPaths: partitionOutPaths,
+            runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
+        )
+
+        PhaseTimer.measureSubPhase("IR+obj/partition parallel", timer: phaseTimer) {
+            DispatchQueue.concurrentPerform(iterations: workerCount + 1) { taskIndex in
+                if taskIndex == workerCount {
+                    driver.runPrimaryGlobalsWorker(outputPath: primaryOutPath)
+                } else {
+                    driver.runPartitionWorker(at: taskIndex)
+                }
+            }
+        }
+        try driver.rethrowFirstError()
+        return [primaryRelPath] + partitionRelPaths
+    }
+
+    private func collectEmittableFunctionsForPartitioning(
+        runtimeCallbackRawABISymbols: Set<SymbolID>
+    ) throws -> [(KIRFunction, String)] {
+        guard let probeContext = bindings.createContext(),
+              let probeModule = bindings.createModule(name: "kswiftk_probe", context: probeContext),
+              let int64Type = bindings.int64Type(context: probeContext),
+              let outThrownPointerType = bindings.pointerType(int64Type, addressSpace: 0)
+        else {
+            throw LLVMBackendError.nativeEmissionFailed("failed to probe emittable functions")
+        }
+        defer {
+            bindings.disposeModule(probeModule)
+            bindings.disposeContext(probeContext)
+        }
+        let typeLowering = makeLLVMTypeLowering(context: probeContext, int64Type: int64Type)
+        let declared = try declareFunctions(
+            llvmModule: probeModule,
+            int64Type: int64Type,
+            outThrownPointerType: outThrownPointerType,
+            typeLowering: typeLowering,
+            runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols,
+            definedSymbols: []
+        )
+        return declared.emittableFunctions
+    }
+
+    fileprivate func emitPrimaryGlobalsObject(outputPath: String) throws {
+        guard let context = bindings.createContext() else {
+            throw LLVMBackendError.nativeEmissionFailed("LLVMContextCreate returned null")
+        }
+        guard let llvmModule = bindings.createModule(name: "kswiftk_globals", context: context) else {
+            bindings.disposeContext(context)
+            throw LLVMBackendError.nativeEmissionFailed("LLVMModuleCreateWithNameInContext returned null")
+        }
+        defer {
+            bindings.disposeModule(llvmModule)
+            bindings.disposeContext(context)
+        }
+        guard let int64Type = bindings.int64Type(context: context) else {
+            throw LLVMBackendError.nativeEmissionFailed("LLVMInt64TypeInContext returned null")
+        }
+        var globalVariables = declareGlobals(
+            llvmModule: llvmModule,
+            int64Type: int64Type,
+            emitDefinitions: true
+        )
+        ensureImportedGlobalReferences(
+            module: module,
+            llvmModule: llvmModule,
+            int64Type: int64Type,
+            emitDefinitions: true,
+            globalVariables: &globalVariables
+        )
+        RuntimeReflectionMetadataEmitter.emitGlobals(
+            records: reflectionMetadataRecords,
+            bindings: bindings,
+            module: llvmModule,
+            context: context,
+            int64Type: int64Type,
+            symbolPrefix: reflectionMetadataSymbolPrefix
+        )
+        try emitModuleToObjectFile(llvmModule: llvmModule, outputPath: outputPath)
+    }
+
+    fileprivate func emitModuleToObjectFile(
+        llvmModule: LLVMCAPIBindings.LLVMModuleRef,
+        outputPath: String
+    ) throws {
+        try CodegenCriticalSection.withLinuxLLVMProcessLock(target: target) {
+            let targetMachine = try configuredTargetMachine(for: llvmModule)
+            defer { bindings.disposeTargetMachine(targetMachine) }
+            if let error = bindings.optimizeModule(llvmModule, targetMachine: targetMachine, optLevel: optLevel) {
+                throw LLVMBackendError.nativeEmissionFailed(error)
+            }
+            if let errorMessage = bindings.emitObject(targetMachine: targetMachine, module: llvmModule, outputPath: outputPath) {
+                throw LLVMBackendError.nativeEmissionFailed(errorMessage)
+            }
+        }
+    }
+
     /// Emits one partition's functions into a private context/module. The
     /// module gets extern declarations for every global and function (matching
     /// the primary module's declarations) plus definitions for the chunk's own
@@ -133,7 +264,8 @@ extension NativeEmitter {
                 int64Type: int64Type,
                 outThrownPointerType: outThrownPointerType,
                 typeLowering: typeLowering,
-                runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
+                runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols,
+                definedSymbols: Set(functions.map { $0.0.symbol })
             )
             let nameCounter = GeneratedNameCounter()
             for (function, _) in functions {
@@ -255,6 +387,69 @@ extension NativeEmitter {
                 guard case let .success(partition) = slot else { continue }
                 bindings.disposeModule(partition.module)
                 bindings.disposeContext(partition.context)
+            }
+        }
+    }
+
+    private final class PartitionedObjectEmissionDriver: @unchecked Sendable {
+        let emitter: NativeEmitter
+        let buckets: [[(KIRFunction, String)]]
+        let outputPaths: [String]
+        let runtimeCallbackRawABISymbols: Set<SymbolID>
+        private let lock = NSLock()
+        private var errors: [any Error] = []
+
+        init(
+            emitter: NativeEmitter,
+            buckets: [[(KIRFunction, String)]],
+            outputPaths: [String],
+            runtimeCallbackRawABISymbols: Set<SymbolID>
+        ) {
+            self.emitter = emitter
+            self.buckets = buckets
+            self.outputPaths = outputPaths
+            self.runtimeCallbackRawABISymbols = runtimeCallbackRawABISymbols
+        }
+
+        func runPrimaryGlobalsWorker(outputPath: String) {
+            do {
+                try emitter.emitPrimaryGlobalsObject(outputPath: outputPath)
+            } catch {
+                recordError(error)
+            }
+        }
+
+        func runPartitionWorker(at index: Int) {
+            do {
+                let partition = try emitter.emitFunctionPartitionModule(
+                    functions: ArraySlice(buckets[index]),
+                    runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols
+                )
+                defer {
+                    emitter.bindings.disposeModule(partition.module)
+                    emitter.bindings.disposeContext(partition.context)
+                }
+                try emitter.emitModuleToObjectFile(
+                    llvmModule: partition.module,
+                    outputPath: outputPaths[index]
+                )
+            } catch {
+                recordError(error)
+            }
+        }
+
+        private func recordError(_ error: any Error) {
+            lock.lock()
+            errors.append(error)
+            lock.unlock()
+        }
+
+        func rethrowFirstError() throws {
+            lock.lock()
+            let first = errors.first
+            lock.unlock()
+            if let first {
+                throw first
             }
         }
     }
