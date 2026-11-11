@@ -2,6 +2,7 @@ struct JVMCompose {
     static let composer = "androidx/compose/runtime/Composer"
     static let composerType = JVMValueType.reference(composer, nullable: false)
     static let suffix: [JVMValueType] = [composerType, .int]
+    static let lambdaFacade = "androidx/compose/runtime/internal/ComposableLambdaKt"
     static let currentComposer = ["androidx", "compose", "runtime", "currentComposer"]
     static let markers: Set<String> = [
         ComposePlugin.composableFQName,
@@ -22,6 +23,42 @@ struct JVMCompose {
 }
 
 extension JVMFunctionBuilder {
+    func composeContent(_ id: ExprID) throws -> JVMValue {
+        guard case .lambdaLiteral = arena.expr(id) else {
+            throw fail("ComposeView.setContent requires a JVM composable lambda literal.", id)
+        }
+        let body = try closure(id, composable: true)
+        let key = try constant(.int(composeCallKey(at: id)), .int)
+        let tracked = try constant(.boolean(true), .boolean)
+        let object = JVMValueType.reference("java/lang/Object", nullable: false)
+        let lambda = JVMValueType.reference("androidx/compose/runtime/internal/ComposableLambda", nullable: false)
+        return try jdkCall(JVMCompose.lambdaFacade, "composableLambdaInstance", [.int, .boolean, object], lambda,
+                           arguments: [key, tracked, body])!
+    }
+
+    func importedComposableCall(_ method: JVMForeignMethod, mask: Int32, args: [CallArgument], binding: CallBinding?, id: ExprID) throws -> JVMIntrinsicResult {
+        guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
+        guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
+        let declaredCount = method.parameters.count - JVMCompose.suffix.count - 1
+        guard let binding, let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),
+              signature.parameterTypes.count <= declaredCount
+        else { throw fail("Invalid JVM Compose library signature.", id) }
+        let logicalCount = signature.parameterTypes.count
+        let explicit = try arguments(args, binding: binding, parameters: Array(method.parameters.prefix(logicalCount)), declarations: nil, id: id)
+        let omitted = try method.parameters[logicalCount..<declaredCount].map(zero)
+        let changed = try constant(.int(0), .int)
+        let defaults = try constant(.int(mask), .int)
+        try beginComposeGroup(composer, key: composeCallKey(at: id))
+        instructions.append(.foreignCall(method, receiver: nil, arguments: explicit.values + omitted + [composer, changed, defaults], result: nil))
+        _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
+        return JVMIntrinsicResult(value: nil)
+    }
+
+    private func composeCallKey(at id: ExprID) -> Int32 {
+        let identity = (reference.owner ?? program.facadeName) + "." + reference.name + reference.descriptor
+        return JVMCompose.key(identity + "@" + String(arena.exprRange(id)?.start.offset ?? 0))
+    }
+
     func beginComposableBody() throws {
         guard let symbol = functionSymbol, program.jvmComposableFunctions.contains(symbol) else { return }
         let composer = try value(JVMCompose.composerType)
@@ -42,10 +79,8 @@ extension JVMFunctionBuilder {
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
         let needsGroup = !program.sema.readonlyComposableFunctions.contains(symbol)
         if needsGroup {
-            let identity = (reference.owner ?? program.facadeName) + "." + reference.name + reference.descriptor
-            let offset = arena.exprRange(id)?.start.offset ?? 0
             // Distinguish branches calling the same composable at different sites.
-            try beginComposeGroup(composer, key: JVMCompose.key(identity + "@" + String(offset)))
+            try beginComposeGroup(composer, key: composeCallKey(at: id))
         }
         let changed = try constant(.int(0), .int)
         instructions.append(.call(target, arguments + [composer, changed], result))
