@@ -17,7 +17,45 @@ extension JVMProgramBuilder {
         return JVMField(owner: plan.name, name: "this$0", type: .reference(try className(outer), nullable: false), access: 0x1012)
     }
     func hiddenConstructorTypes(_ plan: JVMClassPlan) throws -> [JVMValueType] {
-        try outerField(plan).map { [$0.type] } ?? []
+        try plan.captures.map(\.field.type) + (outerField(plan).map { [$0.type] } ?? [])
+    }
+    func prepareLocalNominalCaptures() throws {
+        for plan in classes.values where plan.isLocalNominal {
+            var captures: [JVMAnonymousCapture] = []
+            for symbol in sema.bindings.objectLiteralCaptureSymbols(for: plan.symbol) {
+                guard let info = sema.symbols.symbol(symbol), info.kind == .local || info.kind == .valueParameter,
+                      let semantic = sema.bindings.capturedLocalType(for: symbol) ?? sema.symbols.propertyType(for: symbol)
+                else { continue }
+                var element = try erasedType(semantic)
+                if element == .unit { element = .reference("kotlin/Unit", nullable: false) }
+                let mutable = info.flags.contains(.mutable)
+                let delegated = sema.symbols.delegateGetValueSymbol(for: symbol) != nil
+                let deferred = !mutable && sema.bindings.isContractCallsInPlaceInitializedSymbol(symbol)
+                let fieldType: JVMValueType
+                let cellType: JVMValueType?
+                if delegated {
+                    fieldType = .reference("[Ljava/lang/Object;", nullable: false); cellType = fieldType
+                } else if mutable || deferred {
+                    cellType = .reference("[" + element.descriptor, nullable: false); fieldType = cellType!
+                } else { fieldType = element; cellType = nil }
+                var template = JVMFunctionBuilder.Local(
+                    value: JVMValue(slot: 0, type: element),
+                    mutable: mutable,
+                    cell: cellType.map { JVMValue(slot: 0, type: $0) },
+                    symbol: symbol
+                )
+                if case let .functionType(f) = sema.types.kind(of: semantic) { template.functionType = f }
+                if delegated { template.delegateSymbol = symbol }
+                if info.flags.contains(.lateinitProperty) { template.lateName = context.interner.resolve(info.name) }
+                template.deferredInitialization = deferred
+                captures.append(JVMAnonymousCapture(
+                    field: JVMField(owner: plan.name, name: "$capture" + String(captures.count), type: fieldType, access: 0x1012),
+                    name: info.name,
+                    local: template
+                ))
+            }
+            plan.captures = captures
+        }
     }
     func objectSuper(_ plan: JVMClassPlan) throws -> (method: JVMForeignMethod, binding: CallBinding?) {
         let binding = sema.bindings.constructorDelegationCallBinding(for: plan.symbol)
@@ -58,15 +96,23 @@ extension JVMFunctionBuilder {
     func prepareEnclosingInstances(_ target: JVMClassPlan? = nil) throws {
         guard let owner = target ?? owner, let own = thisValue else { return }
         try bindEnclosingInstance(owner, value: own)
+        var inputs: [JVMValue] = []
+        for capture in owner.captures {
+            let input = try value(capture.field.type)
+            instructions.append(.getField(capture.field, own, input))
+            inputs.append(input)
+        }
+        try bindCaptureValues(owner.captures, values: inputs)
+    }
+    func bindCaptureValues(_ captures: [JVMAnonymousCapture], values: [JVMValue]) throws {
         var captured: [InternedString: Local] = [:]
         var tokenClasses: [SymbolID: JVMValue] = [:], tokenNullables: [SymbolID: JVMValue] = [:], tokenMutableKinds: [SymbolID: JVMValue] = [:]
-        for capture in owner.captures {
-            let input = try value(capture.field.type); instructions.append(.getField(capture.field, own, input))
+        for (capture, input) in zip(captures, values) {
             if let name = capture.name, let template = capture.local {
                 var local = template
                 if template.cell != nil { local = Local(value: try value(template.value.type), mutable: template.mutable, cell: input, functionType: template.functionType, symbol: template.symbol) }
                 else { local = Local(value: input, mutable: false, functionType: template.functionType, symbol: template.symbol) }
-                local.delegateSymbol = template.delegateSymbol; local.lateName = template.lateName
+                local.delegateSymbol = template.delegateSymbol; local.lateName = template.lateName; local.deferredInitialization = template.deferredInitialization
                 captured[name] = local
             }
             for symbol in capture.receiverSymbols { contextualReceivers[symbol] = input }

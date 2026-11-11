@@ -11,6 +11,7 @@ final class JVMClassPlan {
     var enumEntry: EnumEntryDecl?
     var outer: SymbolID?
     var isAnonymous = false
+    var isLocalNominal = false
     var captures: [JVMAnonymousCapture] = []
     var escapesInline = false
     var isFacade = false
@@ -115,8 +116,10 @@ extension JVMProgramBuilder {
                       let symbol = sema.bindings.declSymbol(for: id), classes[symbol] == nil,
                       case .classDecl = ast.arena.decl(id) {
                 try collectNominals([id])
+                classes[symbol]?.isLocalNominal = true
             }
         }
+        try prepareLocalNominalCaptures()
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
                 Self.isIdentifier(String(component))

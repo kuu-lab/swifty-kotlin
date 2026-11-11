@@ -423,7 +423,8 @@ extension JVMProgramBuilder {
         result.isSealed = plan.modifiers.contains(.sealed)
         result.isInner = plan.isInner
         if let field = try outerField(plan) { result.extraFields.append(field) }
-        if plan.isAnonymous { result.emitMetadata = false; result.extraFields += plan.captures.map(\.field) }
+        if plan.isAnonymous { result.emitMetadata = false }
+        if plan.isAnonymous || plan.isLocalNominal { result.extraFields += plan.captures.map(\.field) }
         result.enclosingMethod = plan.enclosingMethod
         if plan.isAnonymous {
             result.outerName = nil
