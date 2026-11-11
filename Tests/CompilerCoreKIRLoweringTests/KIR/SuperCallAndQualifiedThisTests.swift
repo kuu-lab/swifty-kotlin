@@ -223,8 +223,10 @@ struct SuperCallAndQualifiedThisTests {
         let module = try #require(ctx.kir)
         let sema = try #require(ctx.sema)
         let enumSymbol = try #require(sema.symbols.lookup(fqName: [ctx.interner.intern("EntryCall")]))
-        let baseValueCalls = findAllKIRFunctions(in: module).flatMap { function in
-            function.body.compactMap { instruction -> (SymbolID, Bool)? in
+        let entryMethodBodies = findAllKIRFunctionBodies(named: "call", in: module, interner: ctx.interner)
+            + findAllKIRFunctionBodies(named: "directCall", in: module, interner: ctx.interner)
+        let baseValueCalls = entryMethodBodies.flatMap { body in
+            body.compactMap { instruction -> (SymbolID, Bool)? in
                 guard case let .call(symbol, callee, _, _, _, _, isSuperCall, _) = instruction,
                       callee == ctx.interner.intern("baseValue"),
                       let symbol

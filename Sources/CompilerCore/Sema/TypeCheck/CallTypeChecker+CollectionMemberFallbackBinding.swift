@@ -1920,7 +1920,25 @@ extension CallTypeChecker {
         let arityMatched = arityCandidates.filter { candidate in
             sema.symbols.functionSignature(for: candidate)?.parameterTypes.count == argCount
         }
-        let selectionPool = arityMatched.isEmpty ? arityCandidates : arityMatched
+        // When multiple candidates share the same owner and arity (for example,
+        // a user `List<Int>.shuffled(seed: Int)` extension alongside stdlib's
+        // `List<T>.shuffled(random: Random)`), discard candidates whose concrete
+        // parameter types cannot accept the already-inferred call arguments so
+        // receiver-element ranking cannot pick a type-incompatible overload.
+        let conformingArityMatched: [SymbolID] = if arityMatched.count > 1, !argExprs.isEmpty {
+            arityMatched.filter { candidate in
+                collectionFallbackCandidateAcceptsKnownArguments(
+                    candidate,
+                    argExprs: argExprs,
+                    argLabels: argLabels,
+                    sema: sema
+                )
+            }
+        } else {
+            arityMatched
+        }
+        let effectiveArityMatched = conformingArityMatched.isEmpty ? arityMatched : conformingArityMatched
+        let selectionPool = effectiveArityMatched.isEmpty ? arityCandidates : effectiveArityMatched
         // KUU-3819: several same-arity stdlib overloads share the nominal
         // receiver owner and differ only in the receiver's element-type
         // argument (e.g. the bundled `Iterable<Double>`/`Iterable<Float>`/
@@ -2075,5 +2093,71 @@ extension CallTypeChecker {
             }
         }
         return genericMatch
+    }
+
+    private func collectionFallbackCandidateAcceptsKnownArguments(
+        _ candidate: SymbolID,
+        argExprs: [ExprID],
+        argLabels: [InternedString?],
+        sema: SemaModule
+    ) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: candidate),
+              signature.parameterTypes.count == argExprs.count
+        else {
+            return true
+        }
+        func typeContainsTypeParam(_ typeID: TypeID) -> Bool {
+            switch sema.types.kind(of: typeID) {
+            case .typeParam:
+                return true
+            case let .classType(classType):
+                return classType.args.contains { arg in
+                    switch arg {
+                    case let .invariant(inner), let .out(inner), let .in(inner):
+                        typeContainsTypeParam(inner)
+                    case .star:
+                        false
+                    }
+                }
+            case let .functionType(fnType):
+                return (fnType.receiver.map(typeContainsTypeParam) ?? false)
+                    || fnType.params.contains(where: typeContainsTypeParam)
+                    || typeContainsTypeParam(fnType.returnType)
+                    || fnType.contextReceivers.contains(where: typeContainsTypeParam)
+            case let .kClassType(kClass):
+                return typeContainsTypeParam(kClass.argument)
+            case let .intersection(parts):
+                return parts.contains(where: typeContainsTypeParam)
+            default:
+                return false
+            }
+        }
+        for (index, argExpr) in argExprs.enumerated() {
+            guard let argType = sema.bindings.exprTypes[argExpr],
+                  !typeContainsErrorType(argType, sema: sema)
+            else {
+                continue
+            }
+            let paramIndex: Int? = if index < argLabels.count, let label = argLabels[index] {
+                signature.valueParameterSymbols.firstIndex { paramSym in
+                    sema.symbols.symbol(paramSym)?.name == label
+                }
+            } else {
+                index
+            }
+            guard let resolvedParamIndex = paramIndex,
+                  resolvedParamIndex < signature.parameterTypes.count
+            else {
+                return false
+            }
+            let paramType = signature.parameterTypes[resolvedParamIndex]
+            guard !typeContainsTypeParam(paramType) else {
+                continue
+            }
+            if !sema.types.isSubtype(argType, paramType) {
+                return false
+            }
+        }
+        return true
     }
 }

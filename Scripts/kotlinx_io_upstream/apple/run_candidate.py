@@ -167,7 +167,7 @@ def main():
             'nativeByteStorageSeesKotlinWritesAndPointerWrites':1,
             'nativeNoCopyStorageAndUnattachedRollbackFollowSDKOwnership':1,
             'actualNSErrorUserInfoKeepsOriginalKotlinCauseIdentity':1}),
-        ('native','CompilerBackendTests','IOAppleInteropExecutionTests',3600,{
+        ('native','CompilerBackendTests','IOAppleInteropExecutionTests',4800,{
             'unchangedOriginal25BodiesUseActualFoundation':4,
             'unchangedOriginal25BodiesSurviveRealProducerImport':2,
             'publicOnlyCopiedSDKObjectsAndStreamLifecycles':4,

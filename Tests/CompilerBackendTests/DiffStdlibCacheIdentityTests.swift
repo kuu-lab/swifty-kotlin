@@ -55,6 +55,44 @@ struct DiffStdlibCacheIdentityTests {
     }
 
     @Test
+    func relevantEnvironmentIgnoresTransientCIAndDiffVariables() {
+        let base: [String: String] = [
+            "KSWIFTK_KIR_VERIFY": "1",
+            "KSWIFTK_LLVM_DYLIB": "/opt/llvm/lib/libLLVM.dylib",
+            "LD_LIBRARY_PATH": "/opt/llvm/lib",
+            "GITHUB_OUTPUT": "/tmp/step-1/output",
+            "GITHUB_STATE": "/tmp/step-1/state",
+            "DIFF_REPORT": "/tmp/report-1.tsv",
+            "DIFF_STDLIB_COMPILE_TIMEOUT": "1800",
+            "KSWIFTK_STDLIB_CACHE_DIR": "/tmp/cache-1",
+            "KSWIFTK_STDLIB_JOBS": "4",
+            "TMPDIR": "/tmp/run-1",
+        ]
+        let nextStep: [String: String] = [
+            "KSWIFTK_KIR_VERIFY": "1",
+            "KSWIFTK_LLVM_DYLIB": "/opt/llvm/lib/libLLVM.dylib",
+            "LD_LIBRARY_PATH": "/opt/llvm/lib",
+            "GITHUB_OUTPUT": "/tmp/step-2/output",
+            "GITHUB_STATE": "/tmp/step-2/state",
+            "DIFF_REPORT": "/tmp/report-2.tsv",
+            "DIFF_STDLIB_COMPILE_TIMEOUT": "600",
+            "KSWIFTK_STDLIB_CACHE_DIR": "/tmp/cache-2",
+            "KSWIFTK_STDLIB_JOBS": "8",
+            "TMPDIR": "/tmp/run-2",
+        ]
+        #expect(
+            DiffStdlibCache.relevantEnvironment(from: base)
+                == DiffStdlibCache.relevantEnvironment(from: nextStep)
+        )
+        var changedCompilerFlag = nextStep
+        changedCompilerFlag["KSWIFTK_KIR_VERIFY"] = "0"
+        #expect(
+            DiffStdlibCache.relevantEnvironment(from: base)
+                != DiffStdlibCache.relevantEnvironment(from: changedCompilerFlag)
+        )
+    }
+
+    @Test
     func llvmIdentityUsesFileContents() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

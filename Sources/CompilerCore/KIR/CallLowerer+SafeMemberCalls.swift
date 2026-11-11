@@ -1972,6 +1972,28 @@ func resolveVirtualDispatchKind(
     guard let parentID = sema.symbols.parentSymbol(for: callee),
           let parentSymbol = sema.symbols.symbol(parentID)
     else { return nil }
+    // Raw coroutine Job/Deferred handles returned by launch/async/Job() are
+    // opaque runtime handles with no Kotlin vtable/itable. Dispatching
+    // `Job.invokeOnCompletion` virtually via `itableDynamic` traps with
+    // KSWIFTK-RUNTIME-0001; route kotlinx.coroutines receivers directly to the
+    // compiled Job default implementation instead.
+    if calleeSymbol.name == interner.intern("invokeOnCompletion"),
+       parentSymbol.fqName == ["kotlinx", "coroutines", "Job"].map(interner.intern)
+    {
+        let receiverIsCoroutinePkg: Bool = if let receiverTypeID,
+                                              case let .classType(classType) = sema.types.kind(
+                                                  of: sema.types.makeNonNullable(receiverTypeID)
+                                              ),
+                                              let receiverSymbol = sema.symbols.symbol(classType.classSymbol)
+        {
+            receiverSymbol.fqName.starts(with: ["kotlinx", "coroutines"].map(interner.intern))
+        } else {
+            true
+        }
+        if receiverIsCoroutinePkg {
+            return nil
+        }
+    }
     // Members declared on a range/progression class are only ever invoked on
     // RuntimeRangeBox handles — the constructors are internal, so no
     // vtable-carrying subclass exists. Keep them on direct dispatch even when
