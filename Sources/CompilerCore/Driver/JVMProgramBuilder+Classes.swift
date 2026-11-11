@@ -72,7 +72,7 @@ extension JVMProgramBuilder {
         sourceParameters[symbol] = function.valueParams
         sourceDeclarations[symbol] = function
         let name = context.interner.resolve(function.name)
-        guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
+        guard Self.isUnqualifiedJvmMethodName(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
         try validateSignature(signature, instance: member, extensionReceiver: function.receiverType != nil)
         if function.receiverType != nil { extensionSymbols.insert(symbol) }
         var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(type)
