@@ -13,6 +13,7 @@ package enum JVMStdlibCatalog {
         let path: String
         let virtualPath: String
         let excludeFromStdlibBuild: Bool
+        let commonSource: Bool?
         let runtimeFacade: String?
         let onlyForStdlibBuild: Bool?
         let appendForConsumers: String?
@@ -29,9 +30,9 @@ package enum JVMStdlibCatalog {
         guard paths.count == Set(paths).count else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration path.") }
         return manifest
     }
-    static func read(_ path: String) throws -> Data {
+    static func read(_ path: String, commonSource: Bool = false) throws -> Data {
         guard !path.hasPrefix("/"), !path.split(separator: "/").contains("..") else { throw JVMFrontendError(message: "Invalid JVM stdlib resource path.") }
-        return try Data(contentsOf: resourceRoot().appendingPathComponent("jvm/" + path))
+        return try Data(contentsOf: resourceRoot().appendingPathComponent(commonSource ? path : "jvm/" + path))
     }
     /// Classpath imports must not redeclare types whose source contracts are
     /// already selected. Nested binary names are filtered by the class reader.
@@ -52,7 +53,7 @@ package enum JVMStdlibCatalog {
         for declaration in try manifest().declarations {
             if ctx.options.stdlibOnly && declaration.excludeFromStdlibBuild { continue }
             if !ctx.options.stdlibOnly && declaration.onlyForStdlibBuild == true { continue }
-            var source = try read(declaration.path)
+            var source = try read(declaration.path, commonSource: declaration.commonSource == true)
             if !ctx.options.stdlibOnly, let extra = declaration.appendForConsumers {
                 let content = String(decoding: try read(extra), as: UTF8.self)
                 source.append(Data(content.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().joined(separator: "\n").utf8))

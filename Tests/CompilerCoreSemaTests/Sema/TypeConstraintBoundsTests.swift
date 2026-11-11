@@ -145,6 +145,16 @@ struct TypeConstraintBoundsTests {
         }, "\(ctx.diagnostics.diagnostics)")
     }
 
+    @Test func nullableExpectedTypeInfersNonNullComparableBound() throws {
+        let ctx = makeContextFromSource("""
+        fun <T : Comparable<T>> select(element: () -> T): T? = element()
+        fun unsignedValue(): UInt? = select { 1u }
+        fun signedValue(): Int? = select { 1 }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testTypeConstraintBoundsSema() throws {
         let sources: [String] = [
             // upperBoundViolationEmitsBoundDiagnostic

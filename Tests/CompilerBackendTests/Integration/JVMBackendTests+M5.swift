@@ -159,6 +159,52 @@ extension JVMBackendTests {
             """, expected: "42\nbridge\n12\nbounded\n42\n", mode: mode, root: root)
         }
     }
+    @Test(arguments: [JVMTarget.java8, .java9, .java17])
+    func privateInterfaceMethodsExecuteWithoutBecomingPublic(target: JVMTarget) throws {
+        try withWorkspace { root in
+            let source = """
+            interface Counter {
+                private fun step(value: Int): Int = value + 1
+                fun count(): Int = step(2)
+            }
+            class CounterImpl : Counter
+            fun main() { println(CounterImpl().count()) }
+            """
+            let result = try compile(source, root: root, mode: .jvmJar, jvmTarget: target)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+
+            let jarPath = root.appendingPathComponent("hello.jar").path
+            let runtime = try m11Runtime()
+            let generated = try java(["-cp", jarPath + ":" + runtime, "HelloKt"])
+
+            try source.write(to: root.appendingPathComponent("Reference.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["Reference.kt", "-jvm-target", target.rawValue, "-include-runtime", "-d", "reference.jar"], root: root)
+            let reference = try java(["-jar", root.appendingPathComponent("reference.jar").path])
+            #expect(generated.stdout == "3\n")
+            #expect(generated.stdout == reference.stdout)
+            #expect(generated.stderr.isEmpty)
+
+            let counter = try javap(["-classpath", jarPath, "-p", "-c", "-verbose", "Counter"])
+            #expect(counter.stdout.contains("major version: \(target.classFileMajorVersion)"))
+            #expect(counter.stdout.contains("private int step(int);"))
+            let countMethod = counter.stdout
+                .components(separatedBy: "public default int count();")
+                .dropFirst()
+                .first?
+                .components(separatedBy: "public static int access$count$jd")
+                .first ?? ""
+            #expect(countMethod.contains("invokespecial"))
+            #expect(countMethod.contains("InterfaceMethod step:(I)I"))
+            #expect(!counter.stdout.contains("access$step"))
+
+            let implementation = try javap(["-classpath", jarPath, "-p", "CounterImpl"])
+            let defaults = try javap(["-classpath", jarPath, "-p", "Counter$DefaultImpls"])
+            #expect(!implementation.stdout.contains("step("))
+            #expect(defaults.stdout.contains("count(Counter)"))
+            #expect(!defaults.stdout.contains("step("))
+        }
+    }
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func finallyLexicalScopesOverridesAndPendingConstructors(mode: EmitMode) throws {
         try withWorkspace { root in

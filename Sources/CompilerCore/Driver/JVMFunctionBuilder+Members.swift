@@ -418,6 +418,11 @@ extension JVMProgramBuilder {
         } else if plan.isJvmRecord {
             delegate = JVMForeignMethod(owner: "java/lang/Record", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Record", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
         } else if let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target) { delegate = method }
+        else if arguments.isEmpty, let target, sema.symbols.symbol(target)?.flags.contains(.synthetic) == true,
+                let parent = sema.symbols.parentSymbol(for: target), let base = classes[parent], base.name == plan.superclass,
+                let emitted = base.constructors.compactMap({ methods[$0.0] }).first(where: { $0.parameters.isEmpty }) {
+            delegate = emitted
+        }
         else {
             guard arguments.isEmpty, plan.superclass == "java/lang/Object" else { throw JVMFrontendError(message: "Missing JVM superclass constructor binding.", range: declaration.range) }
             delegate = JVMForeignMethod(owner: "java/lang/Object", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Object", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
@@ -459,7 +464,19 @@ extension JVMProgramBuilder {
         var function = builder.finish(constructor: true)
         function.isSecondaryConstructor = !primary
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
-        function = try describe(function, signature: sema.symbols.functionSignature(for: symbol)!, parameters: [])
+        let metadataDeclaration = FunDecl(
+            range: declaration.range,
+            name: context.interner.intern("<init>"),
+            modifiers: declaration.modifiers,
+            valueParams: declaration.valueParams,
+            body: declaration.body
+        )
+        function = try describe(
+            function,
+            signature: sema.symbols.functionSignature(for: symbol)!,
+            parameters: [],
+            sourceDeclaration: (symbol, metadataDeclaration)
+        )
         if plan.isEnum {
             function.access = 0; function.isPrivate = true; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }; function.kotlinParameterOffset = 2
             function.genericSignature = "(Ljava/lang/String;I" + String(function.genericSignature!.dropFirst())

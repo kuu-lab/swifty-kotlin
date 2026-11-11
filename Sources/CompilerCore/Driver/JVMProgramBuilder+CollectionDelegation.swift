@@ -130,8 +130,18 @@ extension JVMProgramBuilder {
     }
 
     func collectionPropertyAliases(_ plan: JVMClassPlan, existing: [JVMFunction]) throws -> [JVMFunction] {
-        guard !context.options.stdlibOnly, !plan.delegateFields.isEmpty else { return [] }
-        let aliases = ["size": "getSize", "keySet": "getKeys", "values": "getValues", "entrySet": "getEntries"]
+        let runtimeSizeAlias = context.options.stdlibOnly && [
+            "kotlin/collections/AbstractMap", "kotlin/collections/AbstractMutableMap",
+            "kotlin/collections/AbstractCollection", "kotlin/collections/AbstractMutableCollection",
+            "kotlin/collections/AbstractMutableList", "kotlin/collections/AbstractSet", "kotlin/collections/AbstractMutableSet",
+        ].contains(plan.name)
+        let aliases: [String: String]
+        if runtimeSizeAlias {
+            aliases = ["getSize": "size"]
+        } else {
+            guard !context.options.stdlibOnly, !plan.delegateFields.isEmpty else { return [] }
+            aliases = ["size": "getSize", "keySet": "getKeys", "values": "getValues", "entrySet": "getEntries"]
+        }
         var signatures = Set(existing.map { $0.reference.name + $0.reference.descriptor })
         var functions: [JVMFunction] = []
         for property in plan.properties.map({ $0.2 }) + plan.delegatedProperties.map({ $0.0 }) {
@@ -141,9 +151,8 @@ extension JVMProgramBuilder {
             let result = try b.value(target.result)
             b.instructions.append(.foreignCall(target, receiver: b.thisValue!, arguments: [], result: result))
             b.instructions.append(.returnValue(result))
-            // Java consumers retain Kotlin's ordinary property getter ABI;
-            // the JDK entry remains the accessor recorded in Kotlin metadata.
-            var function = b.finish(); function.access = 1; function.isMetadataHidden = true
+            // Publish both JVM entry points without duplicating the logical Kotlin property.
+            var function = b.finish(); function.access = runtimeSizeAlias ? 0x11 : 1; function.isMetadataHidden = true
             function.genericSignature = "()" + (property.genericSignature ?? property.type.descriptor).replacingOccurrences(of: "+", with: "")
             functions.append(function)
         }
