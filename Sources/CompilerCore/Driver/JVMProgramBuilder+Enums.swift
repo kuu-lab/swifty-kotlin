@@ -60,6 +60,7 @@ extension JVMProgramBuilder {
         let value = try n.jdkCall("java/lang/Enum", "valueOf", [cls.type, .string], .reference("java/lang/Enum", nullable: false), arguments: [cls, n.locals[0]], resolved: type)!
         n.instructions.append(.returnValue(value))
         var valueOf = n.finish(); valueOf.access = 9
+        valueOf.javaParameters = [JVMMethodParameter("value")]
 
         let e = try nominalBuilder(plan, name: "getEntries", result: enumEntriesField(plan).type, staticBody: true)
         let all = try e.value(enumEntriesField(plan).type)

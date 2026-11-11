@@ -37,6 +37,8 @@ java -Xverify:all -jar hello.jar
 `Main-Class` を設定する。引数なしの `main` だけがある場合は JVM 用の `main(String[])` を生成する。
 両方が同じファイルにある場合、JVM は引数付きの `main` を起動する。
 `main` のないソースはライブラリとして出力する。
+`-java-parameters` を指定すると、Java リフレクションがパラメータ名を取得できる
+`MethodParameters` 属性を出力する。
 
 ## 対応範囲
 

@@ -69,6 +69,19 @@ struct CLIParserTests {
         }
     }
 
+    @Test(arguments: ["class", "jar"])
+    func parsesJavaParametersForClassfiles(mode: String) throws {
+        #expect(try CLIParser.parse(args: ["-java-parameters", "--emit", mode, "hello.kt"]).javaParameters)
+        #expect(try !CLIParser.parse(args: ["--emit", mode, "hello.kt"]).javaParameters)
+    }
+
+    @Test(arguments: ["executable", "dex", "apk"])
+    func rejectsJavaParametersForOtherOutputs(mode: String) {
+        #expect(throws: CLIParseError.javaParametersRequireClassOrJar) {
+            try CLIParser.parse(args: ["--emit", mode, "-java-parameters", "hello.kt"])
+        }
+    }
+
     @Test(arguments: ["--classpath", "-classpath", "-cp"])
     func parsesJVMClasspath(flag: String) throws {
         let options = try CLIParser.parse(args: ["--emit", "jar", flag, "a.jar::classes", flag, "b.jar", "hello.kt"])

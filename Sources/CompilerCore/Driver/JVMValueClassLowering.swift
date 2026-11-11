@@ -123,7 +123,13 @@ extension JVMProgramBuilder {
             result.access = (original.access ?? (original.isPrivate ? 2 : 1)) & ~UInt16(0x0408) | (b.isStaticBody ? 8 : 0)
             result.genericSignature = adaptedValueSignature(original, reference: reference, receiverOffset: offset, values: valueSignatures); result.metadataParameterOffset = offset
             result.sourceName = original.sourceName ?? original.reference.name
-            if offset > 0 { result.parameterAnnotations = Array(repeating: [], count: offset) + original.parameterAnnotations }
+            if offset > 0 {
+                result.parameterAnnotations = Array(repeating: [], count: offset) + original.parameterAnnotations
+                if original.kotlinReceiver != nil, let receiver = result.javaParameters.first {
+                    result.javaParameters[0] = JVMMethodParameter(receiver.name, access: 0x8000)
+                }
+                result.javaParameters.insert(JVMMethodParameter("arg0", access: 0x1000), at: 0)
+            }
             result.isConstructor = false; result.isAbstract = false
             return result
         }

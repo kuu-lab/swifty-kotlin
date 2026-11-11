@@ -15,6 +15,7 @@ enum CLIParseError: Error, Equatable {
     case incompatibleStdlibOptions(String)
     case incompatibleJVMTargetOptions(String)
     case unsupportedJVMTarget(String)
+    case javaParametersRequireClassOrJar
     case stdlibOnlyRequiresLibraryEmit
     case unsupportedStdlibProfile(String)
     case runRequiresExecutableEmit
@@ -38,6 +39,7 @@ enum CLIParser {
       --target <triple>      Target triple (arch-vendor-os[-version])
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
       -jvm-target <version>  JVM bytecode target (1.8, 9–26; default 1.8)
+      -java-parameters       Emit parameter names for Java reflection (class or jar)
       -include-runtime       Package the bundled Kotlin/JVM runtime with --emit jar
       --android-sdk <path>   Android SDK root (default: ANDROID_HOME, ANDROID_SDK_ROOT,
                              or the platform install location)
@@ -133,6 +135,7 @@ enum CLIParser {
         var jvmClasspath: [String] = []
         var jvmTarget = JVMTarget.java8
         var explicitJVMTarget = false
+        var javaParameters = false
         var includeJVMRuntime = false
         var android = AndroidOptions()
         var explicitAndroidOptions: Set<String> = []
@@ -225,6 +228,8 @@ enum CLIParser {
                 }
                 jvmTarget = parsed
                 explicitJVMTarget = true
+            case "-java-parameters":
+                javaParameters = true
             case "-include-runtime":
                 includeJVMRuntime = true
             case "--emit":
@@ -431,6 +436,9 @@ enum CLIParser {
         if explicitJVMTarget, !emitMode.isJVM {
             throw CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class, jar, dex or apk")
         }
+        if javaParameters, emitMode != .jvmClass, emitMode != .jvmJar {
+            throw CLIParseError.javaParametersRequireClassOrJar
+        }
         if includeJVMRuntime, emitMode != .jvmJar {
             throw CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar")
         }
@@ -474,6 +482,7 @@ enum CLIParser {
             entryPointFQName: entryPointFQName,
             jvmClasspath: jvmClasspath,
             jvmTarget: jvmTarget,
+            javaParameters: javaParameters,
             includeJVMRuntime: includeJVMRuntime,
             stdlibProfile: stdlibProfile,
             android: android
