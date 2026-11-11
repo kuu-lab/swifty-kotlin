@@ -12,6 +12,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/SinceKotlin.kt",
       "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
       "excludeFromStdlibBuild": true
@@ -402,8 +407,7 @@
     {
       "path": "declarations/OptIn.kt",
       "virtualPath": "<kswiftk-jvm>/opt-in.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/ArraySequenceFunctions.kt",
