@@ -184,6 +184,7 @@ final class WasmModuleContext {
         /// `lazy {}` delegate box: `{state@16, value@24, fnSlot@32}` —
         /// state 0 = uninitialized, 1 = initialized.
         static let lazyBoxTypeID: Int64 = -9_030
+        static let unsignedRangeIteratorTypeID: Int64 = -9_031
         /// Data-class marker bit OR'd into a type record's s3 slot by
         /// `kk_runtime_register_data_class`; the low bits carry the
         /// `kk_runtime_register_data_class_fields` slot mask.
@@ -713,6 +714,11 @@ final class WasmModuleContext {
             // run forward onto the range-box helpers — every nominal tag
             // shares the `{first@16, last@24, step@32}` layout.
             if components.count >= 2, components[1] == "ranges" {
+                if let helper = unsignedRangeIntrinsicName(
+                    member: member, symbol: symbol, argumentCount: argumentCount
+                ) {
+                    return helper
+                }
                 switch member {
                 case "until": return "__kk_op_rangeUntil"
                 case "downTo": return "__kk_op_downTo"
@@ -1104,6 +1110,55 @@ final class WasmModuleContext {
             }
         }
         return nil
+    }
+
+    private func unsignedRangeIntrinsicName(member: String, symbol: SymbolID, argumentCount: Int) -> String? {
+        guard let types, let symbols,
+              let receiver = symbols.functionSignature(for: symbol)?.receiverType
+        else { return nil }
+        let kind: String
+        switch types.kind(of: receiver) {
+        case .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
+            kind = "uint"
+        case .primitive(.ulong, _):
+            kind = "ulong"
+        case let .classType(receiverClass):
+            switch symbols.symbol(receiverClass.classSymbol)?.fqName.map(interner.resolve) {
+            case ["kotlin", "ranges", "UIntRange"], ["kotlin", "ranges", "UIntProgression"],
+                 ["kotlin", "ranges", "UIntProgression", "Companion"]:
+                kind = "uint"
+            case ["kotlin", "ranges", "ULongRange"], ["kotlin", "ranges", "ULongProgression"],
+                 ["kotlin", "ranges", "ULongProgression", "Companion"]:
+                kind = "ulong"
+            default:
+                return nil
+            }
+        default:
+            return nil
+        }
+        switch (member, argumentCount) {
+        case ("iterator", 1): return "__kk_\(kind)_range_iterator"
+        case ("step", 1): return "__kk_\(kind)_range_step"
+        case ("step", 2): return "__kk_\(kind)_step"
+        case ("rangeTo", 2): return "__kk_\(kind)_rangeTo"
+        case ("until", 2), ("rangeUntil", 2):
+            return kind == "uint" ? "__kk_uint_rangeUntil" : "__kk_op_ulong_rangeUntil"
+        case ("downTo", 2): return "__kk_\(kind)_downTo"
+        case ("fromClosedRange", 4): return "__kk_\(kind)_progression_fromClosedRange"
+        default: return nil
+        }
+    }
+
+    func primitiveCompanionGetterConstant(for getter: SymbolID?) -> KIRExprKind? {
+        guard let getter, let symbols, let types,
+              functionIndexBySymbol[getter] == nil,
+              let property = symbols.accessorOwnerProperty(for: getter),
+              symbols.extensionPropertyGetterAccessor(for: property) == getter,
+              symbols.isSourceBackedSymbol(property)
+        else { return nil }
+        return ConstPropertyEvaluator.primitiveCompanionConstant(
+            for: property, symbols: symbols, types: types, interner: interner
+        )
     }
 
     enum CalleeResolution {
