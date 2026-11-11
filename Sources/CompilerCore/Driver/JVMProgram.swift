@@ -267,6 +267,8 @@ public struct JVMForeignMethod {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    // Classpath methods keep their physical descriptor until bound to a Kotlin call.
+    var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: String?
     public var isConstructor: Bool { name == "<init>" }
 }
