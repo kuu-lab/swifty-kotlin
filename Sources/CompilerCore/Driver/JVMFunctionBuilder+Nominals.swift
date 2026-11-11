@@ -186,9 +186,8 @@ extension JVMFunctionBuilder {
             }
         }
         for branch in branches {
-            guard branch.guard_ == nil else { throw fail("JVM guarded when branches are unsupported.", id) }
             let selected = label(), next = label()
-            var selectedReachable = false
+            var selectedReachable = branch.conditions.isEmpty && branch.guard_ != nil
             for condition in branch.conditions {
                 let check: JVMValue
                 if case let .isCheck(_, target, negated, _) = arena.expr(condition), let snapshot {
@@ -217,8 +216,20 @@ extension JVMFunctionBuilder {
                 let alternative = label()
                 instructions.append(.jumpIfFalse(check, alternative)); jump(selected); selectedReachable = true; mark(alternative)
             }
-            if canTestNext { jump(next) }
-            if selectedReachable { mark(selected); try branchBody(branch.body) }
+            if canTestNext, !branch.conditions.isEmpty { jump(next) }
+            if selectedReachable {
+                mark(selected)
+                if let guardExpr = branch.guard_ {
+                    let guardValue = try expression(guardExpr)
+                    if !terminated {
+                        guard let guardValue, guardValue.type == .boolean else {
+                            throw fail("JVM when branch guard must produce Boolean.", guardExpr)
+                        }
+                        instructions.append(.jumpIfFalse(guardValue, next))
+                    }
+                }
+                if !terminated { try branchBody(branch.body) }
+            }
             if !canTestNext { break }
             mark(next)
         }
