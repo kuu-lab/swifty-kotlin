@@ -11,8 +11,18 @@ extension JVMProgramBuilder {
         JVMField(owner: plan.name, name: "$ENTRIES", type: .reference("kotlin/enums/EnumEntries", nullable: false), access: 0x101A)
     }
     func decorateEnum(_ plan: JVMClassPlan, result: inout JVMClass) throws {
-        result.enumEntries = plan.declaration!.enumEntries.map { context.interner.resolve($0.name) }
-        result.extraFields += result.enumEntries.map { enumField(plan, name: $0) } + [enumValuesField(plan), enumEntriesField(plan)]
+        let entries = plan.declaration!.enumEntries
+        let ownerName = sema.symbols.symbol(plan.symbol)!.fqName
+        result.enumEntries = entries.map { context.interner.resolve($0.name) }
+        let fields = try entries.map { entry -> JVMField in
+            var field = enumField(plan, name: context.interner.resolve(entry.name))
+            guard let symbol = sema.symbols.lookupAll(fqName: ownerName + [entry.name]).first(where: {
+                sema.symbols.symbol($0)?.kind == .field
+            }) else { throw JVMFrontendError(message: "Missing JVM enum entry symbol.", range: entry.range) }
+            field.annotations = try annotations(for: symbol, target: nil)
+            return field
+        }
+        result.extraFields += fields + [enumValuesField(plan), enumEntriesField(plan)]
     }
     func enumMethods(_ plan: JVMClassPlan) throws -> [JVMFunction] {
         let type = JVMValueType.reference(plan.name, nullable: false), arrayType = enumValuesField(plan).type
@@ -22,7 +32,6 @@ extension JVMProgramBuilder {
         let entries = plan.declaration!.enumEntries
         var values: [JVMValue] = []
         for (ordinal, entry) in entries.enumerated() {
-            guard entry.annotations.isEmpty else { throw JVMFrontendError(message: "JVM enum entry annotations are unsupported.", range: entry.range) }
             let name = context.interner.resolve(entry.name)
             let child = classes.values.first { $0.enumParent == plan.symbol && $0.enumEntry?.name == entry.name }
             let allocated = try b.value(.reference(child?.name ?? plan.name, nullable: false))
