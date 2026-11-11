@@ -42,8 +42,7 @@ with ZipFile(output / 'android-api.jar', 'w') as headers:
                 headers.writestr(entry, source.read(entry))
 PY
 
-"$compiler" "$fixture/MainActivity.kt" --emit class \
+"$compiler" "$fixture/MainActivity.kt" --emit jar \
     --classpath "$output/android-api.jar:$output/runtime.jar:$output/ui.jar:$output/foundation.jar:$output/layout.jar:$output/material3.jar:$output/kswiftk-stdlib.jar" \
-    -o "$output/counter"
-jar cf "$output/counter.jar" -C "$output/counter" .
+    -o "$output/counter.jar"
 gradle -p "$fixture" "$@" assembleDebug
