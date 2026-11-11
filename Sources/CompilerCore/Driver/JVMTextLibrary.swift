@@ -297,7 +297,7 @@ extension JVMFunctionBuilder {
            (evaluatedOperands[receiver]?.type ?? (try? program.expressionType(receiver)))?.numericCarrier != nil {
             return try scalarMember(receiver, name: "compareTo", args: args, id: id)
         }
-        // Collection factories are lowered to JDK collections by the intrinsic path so standalone jars need no kotlin-stdlib facade.
+        // The intrinsic path preserves the collection factories' concrete types and singleton identity.
         if entry.adaptation == "collectionFactory", ["kotlin/collections/CollectionsKt", "kotlin/collections/SetsKt", "kotlin/collections/MapsKt"].contains(method.owner),
            ["listOf", "mutableListOf", "setOf", "mutableSetOf", "emptyList", "emptySet", "mutableMapOf", "mapOf", "emptyMap"].contains(method.name),
            args.allSatisfy({ !$0.isSpread && $0.label == nil }) { return nil }

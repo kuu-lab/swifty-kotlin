@@ -44,6 +44,13 @@ inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Iterable<R>): List<R> { 
 inline fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T> { val result = mutableListOf<T>(); val seen = mutableSetOf<K>(); for (item in this) if (seen.add(selector(item))) result.add(item); return result }
 inline fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> { val result = mutableListOf<T>(); for (item in this) if (predicate(item)) result.add(item); return result }
 inline fun <T> Iterable<T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
+inline fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        action(index++, item)
+    }
+}
 inline fun <T, R> Iterable<T>.fold(initial: R, operation: (R, T) -> R): R { var result = initial; for (item in this) result = operation(result, item); return result }
 inline fun <T, K> kotlin.Array<out T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> { val result = mutableMapOf<K, MutableList<T>>(); for (item in this) { val key = keySelector(item); val list = result[key]; if (list == null) { val created = mutableListOf<T>(); result[key] = created; created.add(item) } else list.add(item) }; return result }
 inline fun <T, K, V> kotlin.Array<out T>.groupBy(keySelector: (T) -> K, valueTransform: (T) -> V): Map<K, List<V>> { val result = mutableMapOf<K, MutableList<V>>(); for (item in this) { val key = keySelector(item); var list = result[key]; if (list == null) { list = mutableListOf<V>(); result[key] = list }; list.add(valueTransform(item)) }; return result }

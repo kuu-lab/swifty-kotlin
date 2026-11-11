@@ -702,7 +702,9 @@ final class JVMClasspathIndex {
             case (.int(let v), "kotlin.Char"): literal = String(format: "'\\u%04X'", UInt32(bitPattern: v))
             case (.int(let v), let t) where ["kotlin.Byte", "kotlin.Short", "kotlin.Int"].contains(t):
                 literal = String(v)
-            case (.long(let v), "kotlin.Long"): literal = String(v)
+            case (.long(let v), "kotlin.Long"):
+                // The magnitude of Int64.min cannot be parsed as a signed literal.
+                literal = v == Int64.min ? "kotlin.Long.MIN_VALUE" : String(v)
             case (.float(let v), "kotlin.Float") where v.isFinite:
                 literal = "\(v)f"
             case (.double(let v), "kotlin.Double") where v.isFinite:
@@ -1089,6 +1091,7 @@ final class JVMClasspathIndex {
             let descriptor = "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor
             methods[symbol.id] = JVMForeignMethod(owner: "java/lang/Object", name: name, descriptor: descriptor, parameters: parameters, result: result, isStatic: false, isInterface: false, isAbstract: false)
         }
+        bindJDKResourceMethods(in: ctx, sema: sema)
     }
     private func hasExtensionReceiver(_ symbol: SemanticSymbol, in ctx: CompilationContext) -> Bool {
         guard let site = symbol.declSite, let ast = ctx.ast,
