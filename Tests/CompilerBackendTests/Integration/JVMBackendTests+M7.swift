@@ -41,6 +41,42 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func userDefinedCoroutineContextDispatchesThroughInterface(mode: EmitMode) throws {
+        try withWorkspace { root in
+            try runM7Coroutine("""
+            import kotlin.coroutines.*
+            private object ProbeKey : CoroutineContext.Key<CoroutineContext.Element>
+            class MyContext : CoroutineContext {
+                override fun <E : CoroutineContext.Element> get(key: CoroutineContext.Key<E>): E? = null
+                override fun <R> fold(initial: R, operation: (R, CoroutineContext.Element) -> R): R = initial
+                override fun minusKey(key: CoroutineContext.Key<*>): CoroutineContext = this
+            }
+            fun main() {
+                val context: CoroutineContext = MyContext()
+                println(context[ProbeKey] == null)
+                println(context.fold(3) { result, _ -> result + 1 })
+                println(context.minusKey(ProbeKey) === context)
+            }
+            """, expected: "true\n3\ntrue\n", mode: mode, root: root)
+        }
+    }
+
+    @Test
+    func unsupportedCharSequenceSourceImplementationRemainsRejected() throws {
+        try withWorkspace { root in
+            let result = try compile("""
+            class CustomSequence : CharSequence {
+                override val length: Int get() = 0
+                override fun get(index: Int): Char = 'x'
+                override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = this
+            }
+            """, root: root, mode: .jvmJar)
+            #expect(result.0 != 0)
+            #expect(result.1.contains { $0.code == "KSWIFTK-JVM-0001" && $0.message.contains("source implementations") })
+        }
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func suspensionResumesLocalsLoopsAndExceptionHandlers(mode: EmitMode) throws {
         try withWorkspace { root in
             try runM7Coroutine("""
