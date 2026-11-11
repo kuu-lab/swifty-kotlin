@@ -97,8 +97,8 @@ extension JVMProgramBuilder {
 
     func enumRuntime() -> [JVMClass] {
         guard classes.values.contains(where: \.isEnum) else { return [] }
-        let marker = rawClass("kotlin/jvm/internal/markers/KMappedMarker", access: 0x0601)
-        var entries = rawClass("kotlin/enums/EnumEntries", interfaces: ["java/util/List", marker.name], access: 0x0601)
+        let marker = rawClass("kotlin/jvm/internal/markers/KMappedMarker", access: 0x0601, isRuntimeFallback: true)
+        var entries = rawClass("kotlin/enums/EnumEntries", interfaces: ["java/util/List", marker.name], access: 0x0601, isRuntimeFallback: true)
         entries.genericSignature = "<E:Ljava/lang/Enum<TE;>;>Ljava/lang/Object;Ljava/util/List<TE;>;Lkotlin/jvm/internal/markers/KMappedMarker;"
         let name = facadeName + "$EnumEntries", array: JVMValueType = .reference("[Ljava/lang/Enum;", nullable: false)
         let own = JVMValue(slot: 0, type: .reference(name, nullable: false)), input = JVMValue(slot: 1, type: array)
