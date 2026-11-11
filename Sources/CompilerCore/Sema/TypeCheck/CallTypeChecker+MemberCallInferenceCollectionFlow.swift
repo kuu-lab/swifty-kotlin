@@ -105,6 +105,9 @@ extension CallTypeChecker {
         let isCollectionReceiver = receiverClassification.isCollectionReceiver
         let isIterableReceiver = receiverClassification.isIterableReceiver
         let isArrayReceiver = receiverClassification.isArrayReceiver
+        if isArrayReceiver, request.sema.requiresResolvedLibraryCalls, request.calleeName == request.knownNames.withIndex {
+            return nil
+        }
         let isMapReceiver = receiverClassification.isMapReceiver
         let isMutableListReceiver = receiverClassification.isMutableListReceiver
         let isListReceiver = receiverClassification.isListReceiver

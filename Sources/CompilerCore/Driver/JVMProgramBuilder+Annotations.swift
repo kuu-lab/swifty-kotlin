@@ -75,7 +75,7 @@ extension JVMProgramBuilder {
         guard let name = sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve).joined(separator: "."),
               [
                   "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
-                  "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn",
+                  "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
               ].contains(name),
               let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
@@ -124,10 +124,14 @@ extension JVMProgramBuilder {
     func annotationConstruction(_ record: MetadataAnnotationRecord) -> ExprID? {
         if let usage = record.usageID, let parsed = rawAnnotationConstructions[usage] { return parsed }
         if let factory = record.factorySymbol { return sema.bindings.annotationFactoryExpressions[factory] }
-        guard let usage = record.usageID, let offset = Int(usage.split(separator: ":").last ?? "") else { return nil }
+        guard let parts = record.usageID?.split(separator: ":"), parts.count == 2,
+              let file = Int32(parts[0]), let offset = Int(parts[1]) else { return nil }
         return ast.arena.snapshot().expressions.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
-            guard ast.arena.exprRange(id)?.start.offset == offset, let binding = sema.bindings.callBinding(for: id), sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor else { return nil }
+            guard let start = ast.arena.exprRange(id)?.start,
+                  start.file.rawValue == file, start.offset == offset,
+                  let binding = sema.bindings.callBinding(for: id),
+                  sema.symbols.symbol(binding.chosenCallee)?.kind == .constructor else { return nil }
             return id
         }.first
     }

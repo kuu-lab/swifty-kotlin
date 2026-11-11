@@ -717,6 +717,11 @@ extension JVMFunctionBuilder {
         let withIndexReceiver: ExprID? = {
             guard case let .memberCall(receiver, callee, _, args, _) = arena.expr(iterable),
                   context.interner.resolve(callee) == "withIndex", args.isEmpty else { return nil }
+            if let symbol = program.sema.bindings.callBinding(for: iterable)?.chosenCallee,
+               let declaration = program.sema.symbols.symbol(symbol)?.declSite,
+               context.sourceManager.origin(of: declaration.start.file) == .user {
+                return nil
+            }
             return receiver
         }()
         let source = try requireValue(withIndexReceiver ?? iterable)
