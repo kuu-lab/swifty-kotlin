@@ -237,7 +237,7 @@ final class JVMClasspathIndex {
         // their raw Java signatures are not importable declarations.
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
-        return name == "java/lang/String" || name == "java/lang/Object" || classes[name] != nil
+        return name == "java/lang/String" || name == "java/lang/Object" || name == "java/lang/Class" || classes[name] != nil
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
     func kotlinType(_ type: JVMValueType) -> String {
@@ -266,6 +266,7 @@ final class JVMClasspathIndex {
             switch name {
             case "java/lang/String": return "kotlin.String"
             case "java/lang/Object": return "kotlin.Any"
+            case "java/lang/Class": return "java.lang.Class<*>"
             default:
                 // Mirror kotlinc's JDK->Kotlin mapped types so foreign
                 // signatures render as the Kotlin declarations users expect
@@ -545,17 +546,38 @@ final class JVMClasspathIndex {
         if !info.isInterface {
             for interfaceName in info.interfaces { collectRequiredProperties(interfaceName) }
         }
-        /// Whether a visible superclass chain declares `setX(v)`; the subclass
-        /// then inherits both the `fun` and the `var` mutability.
-        func ancestorHasSetter(_ setterName: String, type: String) -> Bool {
+        func ancestorHasSetter(_ setterName: String, type: String, startingAt owner: String? = nil) -> Bool {
             var visited: Set<String> = [info.name]
-            var next = info.superclass
+            var next = owner ?? info.superclass
             while let name = next, visited.insert(name).inserted, let sup = classes[name] {
                 if sup.methods.contains(where: {
                     !$0.isStatic && !$0.isConstructor && $0.name == setterName
                         && $0.parameters.count == 1 && kotlinType($0.parameters[0]) == type
                 }) { return true }
                 next = sup.superclass
+            }
+            return false
+        }
+        /// Java can narrow a getter's return type while keeping the inherited
+        /// setter. Keep the inherited Kotlin property type and the narrower
+        /// Java method signature available independently.
+        func inheritsWiderMutableProperty(
+            _ getter: JVMForeignMethod, propertyName: String, setterName: String, type: String
+        ) -> Bool {
+            var visited: Set<String> = [info.name]
+            var next = info.superclass
+            while let name = next, visited.insert(name).inserted, let parent = classes[name] {
+                next = parent.superclass
+                guard !isCovered(name, covered: activeCoveredNames),
+                      !parent.methods.contains(where: { !$0.isStatic && $0.name == propertyName }),
+                      let inherited = parent.methods.first(where: {
+                          !$0.isStatic && $0.name == getter.name && $0.parameters.isEmpty
+                              && expose($0.result) && propertyShape($0) != nil
+                      }) else { continue }
+                let inheritedType = kotlinType(inherited.result)
+                if inheritedType != type, ancestorHasSetter(setterName, type: inheritedType, startingAt: name) {
+                    return true
+                }
             }
             return false
         }
@@ -588,6 +610,10 @@ final class JVMClasspathIndex {
             guard JVMProgramBuilder.isIdentifier(propertyName),
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
             let propertyType = kotlinType(getter.result)
+            if let setterName = shape.setterName,
+               inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
+                continue
+            }
             var modifiers = ""
             if getter.isProtected && !info.isInterface { modifiers += "protected " }
             if !info.isInterface && getter.isFinal { modifiers += "final " }
@@ -699,7 +725,9 @@ final class JVMClasspathIndex {
             case (.int(let v), "kotlin.Char"): literal = String(format: "'\\u%04X'", UInt32(bitPattern: v))
             case (.int(let v), let t) where ["kotlin.Byte", "kotlin.Short", "kotlin.Int"].contains(t):
                 literal = String(v)
-            case (.long(let v), "kotlin.Long"): literal = String(v)
+            case (.long(let v), "kotlin.Long"):
+                // The magnitude of Int64.min cannot be parsed as a signed literal.
+                literal = v == Int64.min ? "kotlin.Long.MIN_VALUE" : String(v)
             case (.float(let v), "kotlin.Float") where v.isFinite:
                 literal = "\(v)f"
             case (.double(let v), "kotlin.Double") where v.isFinite:

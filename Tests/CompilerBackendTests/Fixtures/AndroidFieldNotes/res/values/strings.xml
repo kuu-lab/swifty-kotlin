@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Field Notes</string>
+    <string name="tagline">A notebook on this device</string>
+    <string name="search">Search notes</string>
+    <string name="add">New note</string>
+    <string name="empty">No notes to show</string>
+    <string name="edit">Note editor</string>
+    <string name="title">Title</string>
+    <string name="body">Note</string>
+    <string name="save">Save note</string>
+    <string name="delete">Delete note</string>
+    <string name="required_title">Enter a title</string>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#285D50</item>
+        <item name="android:windowBackground">#F7F5EE</item>
+        <item name="android:statusBarColor">#20352F</item>
+        <item name="android:navigationBarColor">#20352F</item>
+    </style>
+</resources>

@@ -1,0 +1,17 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="20dp" android:focusableInTouchMode="true">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/edit" android:textSize="28sp" android:textStyle="bold"
+        android:textColor="#20352F" />
+    <EditText android:id="@+id/note_title" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_marginTop="12dp"
+        android:hint="@string/title" android:inputType="textCapSentences" />
+    <EditText android:id="@+id/note_body" android:layout_width="match_parent"
+        android:layout_height="0dp" android:layout_weight="1" android:gravity="top"
+        android:hint="@string/body" android:inputType="textCapSentences|textMultiLine" />
+    <Button android:id="@+id/save_note" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/save" />
+    <Button android:id="@+id/delete_note" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="@string/delete" />
+</LinearLayout>
