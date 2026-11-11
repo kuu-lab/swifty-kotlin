@@ -197,12 +197,17 @@ extension JVMProgramBuilder {
             return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: name + (isInterface ? "::" : ":") + bound, isReified: decl.isReified)
         }
     }
-    func describe(_ function: JVMFunction, signature: FunctionSignature, parameters: [TypeParamDecl]) throws -> JVMFunction {
+    func describe(
+        _ function: JVMFunction,
+        signature: FunctionSignature,
+        parameters: [TypeParamDecl],
+        sourceDeclaration explicitSourceDeclaration: (SymbolID, FunDecl)? = nil
+    ) throws -> JVMFunction {
         var f = function
         if f.reference.name.contains("$unsigned$") { f.sourceName = String(f.reference.name.components(separatedBy: "$unsigned$")[0]) }
         f.typeParameters = try typeParameters(Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)), declarations: parameters)
         f.kotlinParameters = try signature.parameterTypes.map(kotlinType)
-        let sourceDeclaration = sourceDeclarations.first {
+        let sourceDeclaration: (key: SymbolID, value: FunDecl)? = explicitSourceDeclaration.map { (key: $0.0, value: $0.1) } ?? sourceDeclarations.first {
             if let ref = references[$0.key] { return ref.name == function.reference.name && ref.owner == function.owner && ref.descriptor == function.reference.descriptor }
             if let method = methods[$0.key] { return method.name == function.reference.name && method.owner == function.owner && method.descriptor == function.reference.descriptor }
             return false
