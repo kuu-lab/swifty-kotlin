@@ -2,8 +2,17 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    @Test(arguments: [0, 2])
-    func testFutureConsumeExpandsCallbacksInSourceStdlib(optimization: Int) throws {
+    @Test
+    func testFutureConsumeSourceStdlibO0() throws {
+        try checkFutureConsumeCallbacks(optLevel: .O0)
+    }
+
+    @Test
+    func testFutureConsumeSourceStdlibO2() throws {
+        try checkFutureConsumeCallbacks(optLevel: .O2)
+    }
+
+    private func checkFutureConsumeCallbacks(optLevel: OptimizationLevel) throws {
         try compileAndRunKotlin(
             """
             @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
@@ -32,7 +41,7 @@ extension BundledStdlibExecutionTests {
             """,
             expectedOutput: "42\n42\ncallback\n",
             allowDefaultStdlibLibrary: false,
-            optLevel: try #require(OptimizationLevel(rawValue: optimization))
+            optLevel: optLevel
         )
     }
 

@@ -1042,6 +1042,55 @@ extension CallLowerer {
         )
     }
 
+    private func makeForwardedFunctionCallback(
+        functionValue: KIRExprID,
+        valueParameterCount: Int,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> (fnPtr: KIRExprID, closureRaw: KIRExprID) {
+        let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_runtime_callback_invoke_adapter_\(adapterSymbol.rawValue)")
+        let params = (0 ... valueParameterCount).map { _ in
+            KIRParameter(symbol: driver.ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.anyType)
+        }
+        var body: [KIRInstruction] = [.beginBlock]
+        let arguments = params.map { param in
+            let ref = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: ref, value: .symbolRef(param.symbol)))
+            return ref
+        }
+        let result = arena.appendTemporary(type: sema.types.nullableAnyType)
+        let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
+        body.append(.call(
+            callee: interner.intern(valueParameterCount == 0 ? "kk_function_invoke_0" : "kk_function_invoke"),
+            arguments: arguments,
+            result: result,
+            canThrow: true,
+            thrownResult: thrown
+        ))
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        body.append(.jumpIfNotNull(value: thrown, target: rethrowLabel))
+        body.append(.returnValue(result))
+        body.append(.label(rethrowLabel))
+        body.append(.rethrow(value: thrown))
+        body.append(.endBlock)
+        let decl = arena.appendDecl(.function(KIRFunction(
+            symbol: adapterSymbol,
+            name: adapterName,
+            params: params,
+            returnType: sema.types.nullableAnyType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )))
+        driver.ctx.appendGeneratedCallableDecl(decl)
+        let fnPtr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: fnPtr, value: .symbolRef(adapterSymbol)))
+        return (fnPtr, functionValue)
+    }
+
     /// Not private: also called from CallLowerer.swift's three generateSequence
     /// early-return special cases, none of which go through
     /// appendClosureArgumentsIfNeeded (each constructs its `.call` directly —
@@ -1065,45 +1114,10 @@ extension CallLowerer {
         if callableInfo == nil {
             // Forwarded function values can be raw noncapturing functions or
             // boxed closures. Let the erased invoke ABI dispatch either shape.
-            let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
-            let adapterName = interner.intern("kk_generate_sequence_invoke_adapter_\(adapterSymbol.rawValue)")
-            let params = (0 ... valueParameterCount).map { _ in
-                KIRParameter(symbol: driver.ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.anyType)
-            }
-            var body: [KIRInstruction] = [.beginBlock]
-            let arguments = params.map { param in
-                let ref = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
-                body.append(.constValue(result: ref, value: .symbolRef(param.symbol)))
-                return ref
-            }
-            let result = arena.appendTemporary(type: sema.types.nullableAnyType)
-            let thrown = arena.appendTemporary(type: sema.types.nullableAnyType)
-            body.append(.call(
-                callee: interner.intern(valueParameterCount == 0 ? "kk_function_invoke_0" : "kk_function_invoke"),
-                arguments: arguments,
-                result: result,
-                canThrow: true,
-                thrownResult: thrown
-            ))
-            let rethrowLabel = driver.ctx.makeLoopLabel()
-            body.append(.jumpIfNotNull(value: thrown, target: rethrowLabel))
-            body.append(.returnValue(result))
-            body.append(.label(rethrowLabel))
-            body.append(.rethrow(value: thrown))
-            body.append(.endBlock)
-            let decl = arena.appendDecl(.function(KIRFunction(
-                symbol: adapterSymbol,
-                name: adapterName,
-                params: params,
-                returnType: sema.types.nullableAnyType,
-                body: body,
-                isSuspend: false,
-                isInline: false
-            )))
-            driver.ctx.appendGeneratedCallableDecl(decl)
-            let fnPtr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
-            instructions.append(.constValue(result: fnPtr, value: .symbolRef(adapterSymbol)))
-            return (fnPtr, loweredArgID)
+            return makeForwardedFunctionCallback(
+                functionValue: loweredArgID, valueParameterCount: valueParameterCount,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
         }
         if let callableInfo {
             fnPtr = arena.appendExpr(.symbolRef(callableInfo.symbol), type: sema.types.intType)
@@ -1227,6 +1241,13 @@ extension CallLowerer {
         }
 
         if externalLinkName == "kk_future_invoke", loweredArguments.count == 2 {
+            if driver.ctx.callableValueInfo(for: loweredArguments[0]) == nil {
+                let callback = makeForwardedFunctionCallback(
+                    functionValue: loweredArguments[0], valueParameterCount: 1,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                return [callback.fnPtr, callback.closureRaw, loweredArguments[1]]
+            }
             return makeCollectionHOFExpandedArguments(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,

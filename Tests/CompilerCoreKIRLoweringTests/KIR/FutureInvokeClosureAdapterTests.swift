@@ -39,12 +39,19 @@ struct FutureInvokeClosureAdapterTests {
             #expect(fixture.kirArena.expr(expanded[0]) == .symbolRef(function))
             #expect(expanded[1] == environment)
         } else {
-            let calls = kirCalls(in: instructions)
-            #expect(calls.map { fixture.interner.resolve($0.callee) } == [
-                "kk_function_value_fn_ptr", "kk_function_value_closure_raw",
-            ])
-            #expect(calls.allSatisfy { $0.arguments == [callable] })
-            #expect(calls.map(\.result) == expanded.prefix(2).map(Optional.some))
+            #expect(expanded[1] == callable)
+            guard case let .symbolRef(adapterSymbol)? = fixture.kirArena.expr(expanded[0]) else {
+                Issue.record("Expected a forwarded callback adapter")
+                return
+            }
+            let adapter = try #require(fixture.kirArena.function(for: adapterSymbol))
+            #expect(adapter.params.count == 2)
+            let invoke = try #require(kirCalls(in: adapter.body).first)
+            #expect(fixture.interner.resolve(invoke.callee) == "kk_function_invoke")
+            #expect(invoke.arguments.count == 2)
+            #expect(invoke.canThrow)
+            let thrown = try #require(invoke.thrownResult)
+            #expect(adapter.body.contains(.rethrow(value: thrown)))
         }
     }
 
