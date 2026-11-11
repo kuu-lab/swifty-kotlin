@@ -235,6 +235,21 @@ struct GenericCallableReferenceInferenceTests {
         fun <I : Any> create(executorFactory: () -> Executor<I>) = executorFactory
         val f = create<Int>(::Bypass)
         """,
+        // KUU-4512: preserve the result type variables when a secondary
+        // no-argument constructor is selected from an overloaded class.
+        """
+        interface Executor<I, S>
+        class Bypass<I : Any, S : Any>(val name: String) : Executor<I, S> {
+            constructor() : this("bypass")
+            constructor(name: String, unused: Int) : this(name)
+        }
+        fun <I : Any, S : Any> create(executorFactory: () -> Executor<I, S>, s: S): () -> Executor<I, S> = executorFactory
+        fun <I : Any, S : Any> createBoth(executorFactory: () -> Executor<I, S>, i: I, s: S) = executorFactory
+        fun main() {
+            val inferred = create(::Bypass, 0)
+            val both = createBoth(::Bypass, "x", 1)
+        }
+        """,
     ])
     func infersGenericConstructorReferenceInsideGenericCall(source: String) throws {
         // KUU-3974: `::Bypass`-style constructor references must specialize

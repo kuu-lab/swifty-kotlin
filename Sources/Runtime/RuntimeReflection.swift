@@ -124,7 +124,36 @@ public func __kk_annotation_mark_reflection_materialized(_ raw: Int) -> Int {
           let box = tryCast(ptr, to: RuntimeObjectBox.self)
     else { return 0 }
     box.annotationReflectionMaterialized = true
+    // Nested annotation members (and annotation arrays) materialize through
+    // the same factory expression; mark them recursively so the JVM proxy
+    // format applies at every depth (KUU-4418).
+    var visited: Set<Int> = [raw]
+    for element in box.elements {
+        runtimeMarkAnnotationMaterializedDeep(element, visited: &visited)
+    }
     return 0
+}
+
+/// Marks `annotationReflectionMaterialized` on annotation instances nested
+/// inside a materialized annotation's member fields. Annotation member types
+/// are limited to primitives, String, enums, KClass, annotations and arrays
+/// thereof, so the reachable object graph stays small; the visited set guards
+/// against cycles through array elements.
+private func runtimeMarkAnnotationMaterializedDeep(_ raw: Int, visited: inout Set<Int>) {
+    guard visited.insert(raw).inserted,
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+          runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) })
+    else { return }
+    if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
+        objectBox.annotationReflectionMaterialized = true
+        for element in objectBox.elements {
+            runtimeMarkAnnotationMaterializedDeep(element, visited: &visited)
+        }
+    } else if let arrayBox = runtimeArrayBox(from: raw), type(of: arrayBox) == RuntimeArrayBox.self {
+        for element in arrayBox.elements {
+            runtimeMarkAnnotationMaterializedDeep(element, visited: &visited)
+        }
+    }
 }
 
 @_cdecl("__kk_annotation_reflection_materialized")
@@ -138,7 +167,12 @@ public func __kk_annotation_reflection_materialized(_ raw: Int) -> Int {
 func runtimeAnnotationValue(_ record: RuntimeAnnotationRecord, materializeFactory: Bool,
                             outThrown: UnsafeMutablePointer<Int>?) -> Int {
     if materializeFactory, record.factory != 0 {
-        return kk_function_invoke_0(record.factory, outThrown)
+        let result = kk_function_invoke_0(record.factory, outThrown)
+        // Source-backed factories mark themselves during lowering; imported
+        // `factoryLinkName` factories cannot, so mark the produced instance
+        // here to keep the JVM proxy toString format (KUU-4418).
+        _ = __kk_annotation_mark_reflection_materialized(result)
+        return result
     }
     return registerRuntimeObject(RuntimeAnnotationBox(
         annotationFQName: record.annotationFQName, arguments: record.arguments, annotationClassRaw: 0
