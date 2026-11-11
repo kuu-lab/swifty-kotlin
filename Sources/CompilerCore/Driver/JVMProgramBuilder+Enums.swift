@@ -27,7 +27,7 @@ extension JVMProgramBuilder {
     func enumMethods(_ plan: JVMClassPlan) throws -> [JVMFunction] {
         let type = JVMValueType.reference(plan.name, nullable: false), arrayType = enumValuesField(plan).type
         let primary = plan.constructors.first { $0.2 }
-        guard let primary, let constructor = methods[primary.0] else { throw JVMFrontendError(message: "Missing JVM enum primary constructor.") }
+        guard let primary, methods[primary.0] != nil else { throw JVMFrontendError(message: "Missing JVM enum primary constructor.") }
         let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
         let entries = plan.declaration!.enumEntries
         var values: [JVMValue] = []
@@ -39,7 +39,12 @@ extension JVMProgramBuilder {
             var args = [try b.constant(.string(name), .string), try b.constant(.int(Int32(ordinal)), .int)]
             let entrySymbol = sema.symbols.lookupAll(fqName: sema.symbols.symbol(plan.symbol)!.fqName + [entry.name]).first { sema.symbols.symbol($0)?.kind == .field }
             let binding = entrySymbol.flatMap { sema.bindings.enumEntryConstructorBinding(for: $0) }
-            let ordered = try b.arguments(entry.constructorArgs, binding: binding, parameters: constructor.parameters, declarations: sourceParameters[primary.0])
+            let constructorSymbol = binding?.chosenCallee ?? primary.0
+            guard plan.constructors.contains(where: { $0.0 == constructorSymbol }),
+                  let constructor = methods[constructorSymbol] else {
+                throw JVMFrontendError(message: "Missing JVM enum entry constructor.", range: entry.range)
+            }
+            let ordered = try b.arguments(entry.constructorArgs, binding: binding, parameters: constructor.parameters, declarations: sourceParameters[constructorSymbol])
             args += ordered.values
             if ordered.masks.contains(where: { $0 != 0 }) { args += try b.maskArguments(ordered.masks, constructor: true) }
             let params = args.map(\.type)
