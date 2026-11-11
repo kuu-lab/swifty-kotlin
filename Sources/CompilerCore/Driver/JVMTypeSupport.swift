@@ -191,10 +191,18 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(decl.name)
             guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "JVM type parameter needs an ASCII name.") }
             let bounds = sema.symbols.typeParameterUpperBounds(for: symbol)
-            guard bounds.count <= 1 else { throw JVMFrontendError(message: "JVM M5 supports one upper bound per type parameter.") }
-            let bound = try bounds.first.map { try signatureType($0, boxed: true) } ?? "Ljava/lang/Object;"
-            let isInterface = bounds.first.map { id in if case let .classType(t) = sema.types.kind(of: id) { return sema.symbols.symbol(t.classSymbol)?.kind == .interface }; return false } ?? false
-            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: name + (isInterface ? "::" : ":") + bound, isReified: decl.isReified)
+            let boundSignatures = try bounds.map { try signatureType($0, boxed: true) }
+            let firstBoundIsInterface = bounds.first.map { id in
+                if case let .classType(type) = sema.types.kind(of: id) {
+                    return sema.symbols.symbol(type.classSymbol)?.kind == .interface
+                }
+                return false
+            } ?? false
+            let signature = name
+                + (firstBoundIsInterface ? "::" : ":")
+                + (boundSignatures.first ?? "Ljava/lang/Object;")
+                + boundSignatures.dropFirst().map { ":" + $0 }.joined()
+            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: signature, isReified: decl.isReified)
         }
     }
     func describe(
