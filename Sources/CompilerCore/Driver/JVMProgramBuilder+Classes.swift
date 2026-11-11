@@ -138,7 +138,6 @@ extension JVMProgramBuilder {
                 if name == "kotlin/Any" { continue }
                 if plan.isEnum && sourceName == "kotlin/Enum" { plan.superclass = "java/lang/Enum"; continue }
                 if !context.options.stdlibOnly && ["kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty"].contains(sourceName) { throw JVMFrontendError(message: "JVM does not support source implementations of reflection interfaces.") }
-                if sourceName == "kotlin/CharSequence" { throw JVMFrontendError(message: "JVM supports CharSequence inputs but not source implementations.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
                 if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
@@ -310,6 +309,7 @@ extension JVMProgramBuilder {
             functions += try bridges(plan, functions: functions)
             functions += try collectionDelegationMethods(plan, existing: functions)
             functions += try collectionPropertyAliases(plan, existing: functions)
+            functions += try charSequenceInteropMethods(plan, existing: functions)
             var signatures: Set<String> = []
             guard functions.allSatisfy({ signatures.insert($0.reference.name + $0.reference.descriptor).inserted }) else { throw JVMFrontendError(message: "Clashing JVM member/accessor signatures in \(plan.name).") }
             let visibility: UInt16 = plan.modifiers.contains(.private) && !plan.escapesInline ? 0 : 1
