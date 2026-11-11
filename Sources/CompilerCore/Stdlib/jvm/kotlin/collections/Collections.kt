@@ -215,6 +215,25 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
 
 public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> = IndexingIterable(this)
 
+public fun <T> List<T>.getOrNull(index: Int): T? = if (index >= 0 && index < size) this[index] else null
+
+public operator fun <T> Iterable<T>.contains(element: T): Boolean {
+    @Suppress("UNCHECKED_CAST")
+    if (this is Collection<*>) return (this as Collection<T>).contains(element)
+    for (value in this) if (value == element) return true
+    return false
+}
+
+public fun Collection<Int>.toIntArray(): IntArray {
+    val result = IntArray(size)
+    var index = 0
+    for (value in this) {
+        result[index] = value
+        index += 1
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.first(): T {
     if (this is List<*>) return (this as List<T>).first()
     val iterator = this.iterator()
