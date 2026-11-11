@@ -731,9 +731,14 @@ struct TypeInferenceContext: CustomStringConvertible {
         }
         for candidate in candidates {
             guard let symbol = cachedSymbol(candidate) else { continue }
-            guard !isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols)
-                    || !hasNonHiddenCandidate
-            else { continue }
+            if isHiddenByDeprecationOrVersionAnnotation(candidate, symbols: sema.symbols) {
+                // Synthetic declarations marked HIDDEN (such as compiler-plugin generated
+                // constructors or methods) must never be visible to Kotlin source calls,
+                // even when no other candidate exists.
+                if symbol.flags.contains(.synthetic) || hasNonHiddenCandidate {
+                    continue
+                }
+            }
             let accessibleInEnclosingClass = visibilityChecker.isAccessible(
                 symbol, fromFile: currentFileID, enclosingClass: enclosingClassSymbol, usageRange: usageRange
             )
@@ -798,6 +803,15 @@ struct TypeInferenceContext: CustomStringConvertible {
             return true
         }
         if sema.symbols.enumOwnerSymbol(for: symbol) != nil {
+            return true
+        }
+        // Constructor-delegation and supertype-constructor argument scopes
+        // drop the not-yet-constructed receiver from the tower, but its
+        // members must still bind so the pre-instance checker can reject
+        // them with KSWIFTK-SEMA-0058 — an unresolved binding degrades the
+        // diagnostic to SEMA-0022 and wrongly rejects deferred-lambda reads
+        // that run after construction (KUU-4520).
+        if excludesEnclosingClassReceiver, ownerID == enclosingClassSymbol {
             return true
         }
         var companionSeeds: Set<SymbolID> = []

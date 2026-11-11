@@ -176,6 +176,12 @@ public class JvmPluginHost {
         boolean isAllOpen = false;
         boolean isNoArg = false;
         boolean isParcelize = false;
+        boolean isSerialization = false;
+        boolean isSamWithReceiver = false;
+        boolean isAssignment = false;
+        boolean isPowerAssert = false;
+        boolean isLombok = false;
+        boolean isCompose = false;
         boolean noArgInvokeInitializers = false;
 
         // Try to identify from CommandLineProcessor
@@ -213,6 +219,29 @@ public class JvmPluginHost {
             if (additional != null) {
                 targetAnnotations.addAll(additional);
             }
+        } else if ("org.jetbrains.kotlinx.serialization".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlinx/serialization/compiler/extensions/SerializationComponentRegistrar.class") != null) {
+            isSerialization = true;
+            targetAnnotations.add("kotlinx.serialization.Serializable");
+            List<String> additional = pluginOptions.get("additionalAnnotation");
+            if (additional != null) {
+                targetAnnotations.addAll(additional);
+            }
+        } else if ("org.jetbrains.kotlin.samWithReceiver".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/samWithReceiver/SamWithReceiverCommandLineProcessor.class") != null) {
+            isSamWithReceiver = true;
+        } else if ("org.jetbrains.kotlin.assignment".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/assignment/plugin/AssignmentCommandLineProcessor.class") != null) {
+            isAssignment = true;
+        } else if ("org.jetbrains.kotlin.powerassert".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/powerassert/PowerAssertCommandLineProcessor.class") != null) {
+            isPowerAssert = true;
+        } else if ("org.jetbrains.kotlin.lombok".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/lombok/LombokCommandLineProcessor.class") != null) {
+            isLombok = true;
+        } else if ("androidx.compose.compiler.plugins.kotlin".equals(pluginId)
+                || jar.getEntry("androidx/compose/compiler/plugins/kotlin/ComposeCommandLineProcessor.class") != null) {
+            isCompose = true;
         }
 
         // Generic fallback: if "annotation" options were provided, include them
@@ -226,6 +255,26 @@ public class JvmPluginHost {
         List<String> membersToOpen = new ArrayList<>();
         List<String> syntheticConstructors = new ArrayList<>();
         List<String> syntheticMethods = new ArrayList<>();
+        List<String> serializableClasses = new ArrayList<>();
+        List<String> samWithReceiverInterfaces = new ArrayList<>();
+        List<String> assignmentOverloadTargets = new ArrayList<>();
+        List<String> powerAssertFunctions = new ArrayList<>();
+        List<String> lombokConfigPaths = new ArrayList<>();
+
+        if (isPowerAssert) {
+            List<String> functions = pluginOptions.get("function");
+            if (functions != null && !functions.isEmpty()) {
+                powerAssertFunctions.addAll(functions);
+            } else {
+                powerAssertFunctions.add("kotlin.assert");
+            }
+        }
+        if (isLombok) {
+            List<String> configs = pluginOptions.get("config");
+            if (configs != null && !configs.isEmpty()) {
+                lombokConfigPaths.addAll(configs);
+            }
+        }
 
         for (Map<String, Object> clazz : classes) {
             String fqName = (String) clazz.get("fqName");
@@ -265,13 +314,25 @@ public class JvmPluginHost {
 
             if (isParcelize) {
                 syntheticMethods.add(String.format(
-                        "{\"classFqName\":\"%s\",\"name\":\"describeContents\",\"returnType\":\"kotlin.Int\",\"defaultIntReturn\":0}",
+                        "{\"classFqName\":\"%s\",\"name\":\"describeContents\",\"returnType\":\"kotlin.Int\",\"defaultIntReturn\":0,\"instructions\":[{\"kind\":\"returnInt\",\"intValue\":0}]}",
                         escapeJson(fqName)
                 ));
                 syntheticMethods.add(String.format(
-                        "{\"classFqName\":\"%s\",\"name\":\"writeToParcel\",\"returnType\":\"kotlin.Unit\",\"params\":[{\"name\":\"parcel\",\"type\":\"android.os.Parcel\"},{\"name\":\"flags\",\"type\":\"kotlin.Int\"}]}",
+                        "{\"classFqName\":\"%s\",\"name\":\"writeToParcel\",\"returnType\":\"kotlin.Unit\",\"params\":[{\"name\":\"parcel\",\"type\":\"android.os.Parcel\"},{\"name\":\"flags\",\"type\":\"kotlin.Int\"}],\"instructions\":[{\"kind\":\"returnUnit\"}]}",
                         escapeJson(fqName)
                 ));
+            }
+
+            if (isSerialization) {
+                serializableClasses.add(fqName);
+            }
+
+            if (isSamWithReceiver) {
+                samWithReceiverInterfaces.add(fqName);
+            }
+
+            if (isAssignment) {
+                assignmentOverloadTargets.add(fqName);
             }
         }
 
@@ -281,7 +342,14 @@ public class JvmPluginHost {
         sb.append("\"classesToOpen\":[").append(formatJsonStringArray(classesToOpen)).append("],");
         sb.append("\"membersToOpen\":[").append(formatJsonStringArray(membersToOpen)).append("],");
         sb.append("\"syntheticConstructors\":[").append(String.join(",", syntheticConstructors)).append("],");
-        sb.append("\"syntheticMethods\":[").append(String.join(",", syntheticMethods)).append("]");
+        sb.append("\"syntheticMethods\":[").append(String.join(",", syntheticMethods)).append("],");
+        sb.append("\"serializableClasses\":[").append(formatJsonStringArray(serializableClasses)).append("],");
+        sb.append("\"samWithReceiverInterfaces\":[").append(formatJsonStringArray(samWithReceiverInterfaces)).append("],");
+        sb.append("\"assignmentOverloadTargets\":[").append(formatJsonStringArray(assignmentOverloadTargets)).append("],");
+        sb.append("\"powerAssertFunctions\":[").append(formatJsonStringArray(powerAssertFunctions)).append("],");
+        sb.append("\"lombokEnabled\":").append(isLombok ? "true" : "false").append(",");
+        sb.append("\"lombokConfigPaths\":[").append(formatJsonStringArray(lombokConfigPaths)).append("],");
+        sb.append("\"composeEnabled\":").append(isCompose ? "true" : "false");
         sb.append("}");
 
         System.out.println(sb.toString());

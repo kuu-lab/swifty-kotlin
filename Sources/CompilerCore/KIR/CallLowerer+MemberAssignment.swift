@@ -71,6 +71,22 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        if let assignInfo = sema.pluginOverloadedAssignments[exprID] {
+            return lowerPluginOverloadedMemberAssign(
+                exprID,
+                assignInfo: assignInfo,
+                receiverID: receiverID,
+                receiverExpr: receiverExpr,
+                calleeName: calleeName,
+                valueExpr: valueExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let valueID = driver.lowerExpr(
             valueExpr,
             ast: ast, sema: sema, arena: arena, interner: interner,
@@ -1330,5 +1346,235 @@ extension CallLowerer {
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
+    }
+
+    func emitPluginOverloadedAssignCall(
+        assignInfo: PluginOverloadedAssignmentInfo,
+        targetReceiverID: KIRExprID,
+        valueID: KIRExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let normalized = driver.callSupportLowerer.normalizedCallArguments(
+            providedArguments: [valueID],
+            callBinding: assignInfo.callBinding,
+            chosenCallee: assignInfo.assignCallee,
+            spreadFlags: [false],
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        let assignName = sema.symbols.symbol(assignInfo.assignCallee)?.name ?? interner.intern("assign")
+        let callResult = arena.appendTemporary(type: sema.types.unitType)
+        instructions.append(driver.memberLowerer.dispatchedDelegateMemberCall(
+            symbol: assignInfo.assignCallee,
+            callee: assignName,
+            receiver: targetReceiverID,
+            extraArguments: normalized.arguments,
+            result: callResult,
+            sema: sema,
+            interner: interner
+        ))
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
+    private func lowerPluginOverloadedMemberAssign(
+        _ exprID: ExprID,
+        assignInfo: PluginOverloadedAssignmentInfo,
+        receiverID: KIRExprID,
+        receiverExpr: ExprID?,
+        calleeName: InternedString,
+        valueExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let propertySymbol = assignInfo.targetSymbol ?? sema.bindings.identifierSymbol(for: exprID)
+        let propType = assignInfo.targetType
+
+        let isObjectOwned: Bool = {
+            guard let propertySymbol,
+                  !sema.bindings.isObjectLiteralPropertySymbol(propertySymbol),
+                  let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+                  let ownerInfo = sema.symbols.symbol(ownerSymbol)
+            else {
+                return false
+            }
+            return ownerInfo.kind == .object
+        }()
+
+        let usesGetterAccessor: Bool = {
+            guard let propertySymbol else { return false }
+            return memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
+        }()
+
+        let fieldOffset: Int? = {
+            guard !isObjectOwned,
+                  let propertySymbol,
+                  let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
+                  let ownerInfo = sema.symbols.symbol(ownerSymbol),
+                  ownerInfo.kind == .class || ownerInfo.kind == .interface
+                      || (ownerInfo.kind == .object && sema.bindings.isObjectLiteralPropertySymbol(propertySymbol))
+            else {
+                return nil
+            }
+            return sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            ]
+        }()
+
+        let virtualGetterDispatch = propertySymbol.flatMap { propertySymbol in
+            if let receiverExpr {
+                return tryResolvePropertyAccessorVirtualDispatch(
+                    propertySymbol: propertySymbol,
+                    receiverExpr: receiverExpr,
+                    accessorKind: .getter,
+                    ast: ast,
+                    sema: sema,
+                    interner: interner
+                )
+            }
+            return resolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                accessorKind: .getter,
+                sema: sema
+            )
+        }
+
+        let effectiveReceiverID = receiverExpr == nil
+            ? propertySymbol.map {
+                resolvePropertyOwnerReceiver(
+                    receiverID,
+                    ownerOf: $0,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            } ?? receiverID
+            : receiverID
+
+        if isObjectOwned,
+           let propertySymbol,
+           let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
+        {
+            driver.emitObjectLazyInitGuardIfNeeded(
+                objectSymbol: ownerSymbol, arena: arena, sema: sema,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+
+        let targetExprID: KIRExprID
+        if isObjectOwned, !usesGetterAccessor, let propertySymbol {
+            let storageSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            let result = arena.appendExpr(.symbolRef(storageSymbol), type: propType)
+            instructions.append(.loadGlobal(result: result, symbol: storageSymbol))
+            targetExprID = result
+        } else if let propertySymbol,
+                  let itableValue = tryLowerInterfaceItablePropertyGetterRead(
+                      propertySymbol: propertySymbol,
+                      loweredReceiverID: effectiveReceiverID,
+                      resultType: propType,
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+        {
+            targetExprID = itableValue
+        } else if let virtualGetterDispatch {
+            let result = arena.appendTemporary(type: propType)
+            let virtualAccessorArguments = propertyAccessorArguments(
+                for: virtualGetterDispatch.accessorSymbol, arguments: [effectiveReceiverID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.virtualCall(
+                symbol: virtualGetterDispatch.accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: virtualAccessorArguments[0],
+                arguments: Array(virtualAccessorArguments.dropFirst()),
+                result: result,
+                canThrow: false,
+                dispatch: virtualGetterDispatch.dispatch
+            ))
+            targetExprID = result
+        } else if usesGetterAccessor, let propertySymbol {
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+            let result = arena.appendTemporary(type: propType)
+            let getterArguments = propertyAccessorArguments(
+                for: getterSymbol, arguments: [effectiveReceiverID], callExprID: exprID,
+                sema: sema, arena: arena, interner: interner, instructions: &instructions
+            )
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: getterArguments,
+                result: result,
+                canThrow: false
+            ))
+            targetExprID = result
+        } else if let fieldOffset {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+            let result = arena.appendTemporary(type: propType)
+            instructions.append(.call(
+                callee: interner.intern("kk_array_get_inbounds"),
+                arguments: [effectiveReceiverID, offsetExpr],
+                result: result,
+                canThrow: false
+            ))
+            targetExprID = result
+        } else {
+            let getterName = loweredMemberCalleeName(
+                chosenCallee: nil,
+                fallback: calleeName,
+                receiverExpr: receiverExpr ?? exprID,
+                argumentCount: 1,
+                sema: sema,
+                interner: interner,
+                receiverTypeOverride: nil
+            )
+            let result = arena.appendTemporary(type: propType)
+            emitNonThrowingCall(
+                callee: getterName,
+                arg: effectiveReceiverID,
+                result: result,
+                into: &instructions
+            )
+            targetExprID = result
+        }
+
+        let valueID = driver.lowerExpr(
+            valueExpr,
+            ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        return emitPluginOverloadedAssignCall(
+            assignInfo: assignInfo,
+            targetReceiverID: targetExprID,
+            valueID: valueID,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
     }
 }

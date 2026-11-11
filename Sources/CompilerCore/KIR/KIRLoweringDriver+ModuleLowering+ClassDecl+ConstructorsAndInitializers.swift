@@ -211,6 +211,32 @@ extension KIRLoweringDriver {
                     classDecl: classDecl, shared: shared, body: &body
                 )
             }
+            if let propParams = pluginCtorInfo?.propertyParameters,
+               !propParams.isEmpty,
+               let receiverID = ctx.activeImplicitReceiverExprID(),
+               let signature = sema.symbols.functionSignature(for: ctorSymbol),
+               let layout = sema.symbols.nominalLayout(for: ownerSymbol)
+            {
+                let intType = sema.types.intType
+                for (index, propSym) in propParams.enumerated() {
+                    guard signature.valueParameterSymbols.indices.contains(index),
+                          let paramExpr = ctx.localValue(for: signature.valueParameterSymbols[index])
+                    else { continue }
+                    let backingField = sema.symbols.backingFieldSymbol(for: propSym) ?? propSym
+                    guard let fieldOffset = layout.fieldOffsets[backingField] ?? layout.fieldOffsets[propSym] else {
+                        continue
+                    }
+                    let offsetExpr = shared.arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: intType)
+                    body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                    let unusedResult = shared.arena.appendTemporary(type: sema.types.anyType)
+                    body.append(.call(
+                        callee: shared.interner.intern("kk_array_set"),
+                        arguments: [receiverID, offsetExpr, paramExpr],
+                        result: unusedResult,
+                        canThrow: false
+                    ))
+                }
+            }
         }
         if isSecondary {
             emitSecondaryConstructorBody(

@@ -62,6 +62,8 @@ final class TypeCheckDriver {
     var isCheckingAnnotationConstruction = false
     /// Lexical boundaries retained until overload and lambda inference finish.
     var callSuspensionContexts: [ExprID: SuspensionContext] = [:]
+    /// Lexical boundaries for `@Composable` invocations validated post-inference.
+    var callComposableContexts: [ExprID: SuspensionContext] = [:]
     /// Compiler-special calls that suspend without an ordinary call binding.
     var specialSuspendingCallNames: [ExprID: String] = [:]
     /// Reads of the restricted `kotlin.coroutines.coroutineContext` property
@@ -267,6 +269,9 @@ final class TypeCheckDriver {
         }
         if !suspendingCallNames(for: id).isEmpty {
             callSuspensionContexts[id] = ctx.suspensionContext
+        }
+        if !composableCallTargets(for: id).isEmpty {
+            callComposableContexts[id] = ctx.suspensionContext
         }
         if isCoroutineContextPropertyRead(id) {
             coroutineContextPropertySuspensionContexts[id] = ctx.suspensionContext

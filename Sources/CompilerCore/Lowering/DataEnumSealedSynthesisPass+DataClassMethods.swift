@@ -1026,7 +1026,38 @@ extension DataEnumSealedSynthesisPass {
             annotationMaterializedZero = zero
         }
 
-        for (index, property) in properties.enumerated() {
+        // JVM renders reflection-materialized annotation instances through
+        // AnnotationInvocationHandler: String/Char quoted, arrays as `{a, b}`,
+        // KClass as `<name>.class`, and members in memberValues insertion
+        // order. Directly constructed instances keep the kotlinc-style
+        // declaration-order, bare-value rendering. Emit both paths and select
+        // on the flag.
+        // AnnotationInvocationHandler seeds memberValues from
+        // AnnotationType.memberDefaults — a java.util.HashMap holding the
+        // members that declare defaults — so defaulted members keep that hash
+        // iteration order while required members append in declaration order.
+        let proxyOrderedProperties: [SemanticSymbol] = {
+            guard owner.kind == .annotationClass else { return properties }
+            return jvmAnnotationProxyMemberOrder(
+                properties: properties, owner: owner, sema: sema, interner: interner
+            )
+        }()
+        func isKClassMemberType(_ type: TypeID) -> Bool {
+            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+            case .kClassType:
+                return true
+            case let .classType(classType):
+                return sema.symbols.symbol(classType.classSymbol)?.fqName
+                    .map { interner.resolve($0) } == ["kotlin", "reflect", "KClass"]
+            default:
+                return false
+            }
+        }
+        func emitToStringMembers(proxyFormat: Bool) {
+            let orderedProperties: [SemanticSymbol] = proxyFormat
+                ? proxyOrderedProperties
+                : properties
+            for (index, property) in orderedProperties.enumerated() {
             let propName = interner.resolve(property.name)
             let labelStr: String = index == 0 ? "\(propName)=" : ", \(propName)="
             let labelInterned = interner.intern(labelStr)
@@ -1092,7 +1123,20 @@ extension DataEnumSealedSynthesisPass {
             // construct a CallLowerer).
             if owner.kind == .annotationClass, isAnnotationArrayType(propType, sema: sema, interner: interner) {
                 body.append(.call(
-                    callee: interner.intern("__kk_array_contentDeepToString"),
+                    callee: interner.intern(proxyFormat
+                        ? "__kk_annotation_proxy_array_to_string"
+                        : "__kk_array_contentDeepToString"),
+                    arguments: [propValue], result: propStr, canThrow: false
+                ))
+            } else if owner.kind == .annotationClass, isKClassMemberType(propType) {
+                // Proxy mode renders `<java binary name>.class`
+                // (`int.class`, `java.lang.String.class`); the kotlinc direct
+                // form renders `java.lang.Class.toString` (`int`,
+                // `class java.lang.String`).
+                body.append(.call(
+                    callee: interner.intern(proxyFormat
+                        ? "__kk_annotation_proxy_kclass_to_string"
+                        : "__kk_annotation_jvm_class_tostring"),
                     arguments: [propValue], result: propStr, canThrow: false
                 ))
             } else if let arrayToStringSymbol = dataClassArrayContentToStringSymbol(
@@ -1301,15 +1345,13 @@ extension DataEnumSealedSynthesisPass {
                 }
             }
 
-            // JVM quotes String/Char-valued members of reflection-materialized
-            // annotation instances (`@A(v="x")`, `c='q'`); directly constructed
-            // instances and data classes keep the bare value.
+            // The JVM proxy format quotes String/Char-valued members
+            // (`@A(v="x")`, `c='q'`); directly constructed instances and data
+            // classes keep the bare value. Nullable members quote only
+            // non-null values, matching the value-driven
+            // AnnotationInvocationHandler.memberValueToString.
             let proxyQuote: InternedString? = {
-                guard owner.kind == .annotationClass,
-                      !propIsNullable,
-                      annotationMaterializedFlag != nil,
-                      annotationMaterializedZero != nil
-                else { return nil }
+                guard proxyFormat, owner.kind == .annotationClass else { return nil }
                 switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
                 case .stringStruct:
                     return interner.intern("\"")
@@ -1319,42 +1361,49 @@ extension DataEnumSealedSynthesisPass {
                     return nil
                 }
             }()
-            if let proxyQuote,
-               let materializedFlag = annotationMaterializedFlag,
-               let materializedZero = annotationMaterializedZero
-            {
-                let skipQuoteLabel = allocateLabel()
-                let endQuoteLabel = allocateLabel()
+            if let proxyQuote {
                 let quoteExpr = module.arena.appendTemporary(type: stringType)
                 body.append(.constValue(result: quoteExpr, value: .stringLiteral(proxyQuote)))
-                body.append(.jumpIfEqual(lhs: materializedFlag, rhs: materializedZero, target: skipQuoteLabel))
-                body.append(.call(
-                    callee: interner.intern("__kk_string_builder_append_obj"),
-                    arguments: [builderExpr, quoteExpr],
-                    result: builderExpr,
-                    canThrow: false
-                ))
-                body.append(.call(
-                    callee: interner.intern("__kk_string_builder_append_obj"),
-                    arguments: [builderExpr, propStr],
-                    result: builderExpr,
-                    canThrow: false
-                ))
-                body.append(.call(
-                    callee: interner.intern("__kk_string_builder_append_obj"),
-                    arguments: [builderExpr, quoteExpr],
-                    result: builderExpr,
-                    canThrow: false
-                ))
-                body.append(.jump(endQuoteLabel))
-                body.append(.label(skipQuoteLabel))
-                body.append(.call(
-                    callee: interner.intern("__kk_string_builder_append_obj"),
-                    arguments: [builderExpr, propStr],
-                    result: builderExpr,
-                    canThrow: false
-                ))
-                body.append(.label(endQuoteLabel))
+                let appendQuoted = {
+                    body.append(.call(
+                        callee: interner.intern("__kk_string_builder_append_obj"),
+                        arguments: [builderExpr, quoteExpr],
+                        result: builderExpr,
+                        canThrow: false
+                    ))
+                    body.append(.call(
+                        callee: interner.intern("__kk_string_builder_append_obj"),
+                        arguments: [builderExpr, propStr],
+                        result: builderExpr,
+                        canThrow: false
+                    ))
+                    body.append(.call(
+                        callee: interner.intern("__kk_string_builder_append_obj"),
+                        arguments: [builderExpr, quoteExpr],
+                        result: builderExpr,
+                        canThrow: false
+                    ))
+                }
+                if propIsNullable {
+                    let nonNullLabel = allocateLabel()
+                    let endQuoteLabel = allocateLabel()
+                    let nullStr = interner.intern("null")
+                    let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                    body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                    body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                    body.append(.call(
+                        callee: interner.intern("__kk_string_builder_append_obj"),
+                        arguments: [builderExpr, nullStrExpr],
+                        result: builderExpr,
+                        canThrow: false
+                    ))
+                    body.append(.jump(endQuoteLabel))
+                    body.append(.label(nonNullLabel))
+                    appendQuoted()
+                    body.append(.label(endQuoteLabel))
+                } else {
+                    appendQuoted()
+                }
             } else {
                 body.append(.call(
                     callee: interner.intern("__kk_string_builder_append_obj"),
@@ -1363,6 +1412,23 @@ extension DataEnumSealedSynthesisPass {
                     canThrow: false
                 ))
             }
+            }
+        }
+
+        if owner.kind == .annotationClass,
+           let materializedFlag = annotationMaterializedFlag,
+           let materializedZero = annotationMaterializedZero
+        {
+            let directLabel = allocateLabel()
+            let endLabel = allocateLabel()
+            body.append(.jumpIfEqual(lhs: materializedFlag, rhs: materializedZero, target: directLabel))
+            emitToStringMembers(proxyFormat: true)
+            body.append(.jump(endLabel))
+            body.append(.label(directLabel))
+            emitToStringMembers(proxyFormat: false)
+            body.append(.label(endLabel))
+        } else {
+            emitToStringMembers(proxyFormat: false)
         }
 
         let suffixStr = interner.intern(")")
@@ -1628,6 +1694,119 @@ extension DataEnumSealedSynthesisPass {
             params: [receiverParam, otherParam],
             body: body
         )
+    }
+
+    /// JVM `AnnotationInvocationHandler` member order for a proxy-rendered
+    /// annotation `toString`: `memberValues` is a `LinkedHashMap` seeded from
+    /// `AnnotationType.memberDefaults` (a `java.util.HashMap` holding only the
+    /// members that declare defaults), then explicit elements overwrite or
+    /// append. Defaulted members therefore keep the memberDefaults hash
+    /// iteration order and required members append in declaration order.
+    private func jvmAnnotationProxyMemberOrder(
+        properties: [SemanticSymbol],
+        owner: SemanticSymbol,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SemanticSymbol] {
+        guard let constructor = primaryConstructorSymbol(owner: owner, symbols: sema.symbols),
+              let signature = sema.symbols.functionSignature(for: constructor.id)
+        else {
+            return properties
+        }
+        var hasDefaultByName: [String: Bool] = [:]
+        for (index, paramSymbol) in signature.valueParameterSymbols.enumerated() {
+            guard let param = sema.symbols.symbol(paramSymbol) else { continue }
+            let hasDefault = index < signature.valueParameterHasDefaultValues.count
+                ? signature.valueParameterHasDefaultValues[index]
+                : false
+            hasDefaultByName[interner.resolve(param.name)] = hasDefault
+        }
+        var defaulted: [SemanticSymbol] = []
+        var required: [SemanticSymbol] = []
+        for property in properties {
+            if hasDefaultByName[interner.resolve(property.name)] == true {
+                defaulted.append(property)
+            } else {
+                required.append(property)
+            }
+        }
+        guard !defaulted.isEmpty else { return properties }
+        let orderedNames = jvmHashMapZeroIterationOrder(defaulted.map { interner.resolve($0.name) })
+        let defaultedByName = Dictionary(
+            uniqueKeysWithValues: defaulted.map { (interner.resolve($0.name), $0) }
+        )
+        return orderedNames.compactMap { defaultedByName[$0] } + required
+    }
+
+    /// Iteration order of `java.util.HashMap` built with initial capacity 0
+    /// and the default 0.75 load factor — the structure behind
+    /// `AnnotationType.memberDefaults`. Faithfully reproduces the JDK resize
+    /// sequence (`tableSizeFor(0) == 1` threshold, power-of-two doubling with
+    /// `(int)(capacity * 0.75)` thresholds) and `String.hashCode` spread
+    /// `h ^ (h >>> 16)` bucketing. Insertion order is declaration order; JVM
+    /// `getDeclaredMethods` order can differ only for same-bucket collisions.
+    private func jvmHashMapZeroIterationOrder(_ keys: [String]) -> [String] {
+        guard !keys.isEmpty else { return [] }
+        var table: [[String]] = []
+        var capacity = 0
+        var threshold = 1 // tableSizeFor(0)
+        var size = 0
+
+        func jvmHash(_ string: String) -> Int32 {
+            var hash: Int32 = 0
+            for unit in string.utf16 {
+                hash = hash &* 31 &+ Int32(unit)
+            }
+            return hash
+        }
+        func spread(_ hash: Int32) -> Int32 {
+            let bits = UInt32(bitPattern: hash)
+            return Int32(bitPattern: bits ^ (bits >> 16))
+        }
+        func bucketIndex(_ key: String, capacity: Int) -> Int {
+            Int(spread(jvmHash(key)) & Int32(capacity - 1))
+        }
+        func resize() {
+            let oldCapacity = capacity
+            let oldThreshold = threshold
+            var newCapacity: Int
+            var newThreshold = 0
+            if oldCapacity > 0 {
+                newCapacity = oldCapacity << 1
+                if oldCapacity >= 16 {
+                    newThreshold = oldThreshold << 1
+                }
+            } else if oldThreshold > 0 {
+                newCapacity = oldThreshold
+            } else {
+                newCapacity = 16
+                newThreshold = 12
+            }
+            if newThreshold == 0 {
+                newThreshold = Int(Double(newCapacity) * 0.75)
+            }
+            threshold = newThreshold
+            capacity = newCapacity
+            var newTable = [[String]](repeating: [], count: newCapacity)
+            for bucket in table {
+                for key in bucket {
+                    newTable[bucketIndex(key, capacity: newCapacity)].append(key)
+                }
+            }
+            table = newTable
+        }
+
+        for key in keys {
+            if table.isEmpty {
+                resize()
+            }
+            table[bucketIndex(key, capacity: capacity)].append(key)
+            size += 1
+            if size > threshold {
+                resize()
+            }
+        }
+        return table.flatMap { $0 }
     }
 
 }

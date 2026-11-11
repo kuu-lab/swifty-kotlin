@@ -58,6 +58,7 @@ enum CLIParser {
       --android-key-pass <pass>    Key password (default: store password)
       -Xfrontend <flag>      Frontend feature flag (e.g. time-phases, incremental-stats,
                              common-module)
+      -Xplugin=<path>        Load external compiler plugin JAR (comma-separated paths allowed)
       -P <arg>               Compiler plugin option (plugin:<id>:<key>=<value>,
                              e.g. -P plugin:org.jetbrains.kotlin.allopen:annotation=com.example.Entity)
       --incremental         Enable incremental compilation (default: on for native
@@ -249,6 +250,20 @@ enum CLIParser {
                 frontendFlags.append("opt-in=\(String(arg.dropFirst("-Xopt-in=".count)))")
             case "-Xfrontend":
                 try frontendFlags.append(requireValue(option: arg, args: args, index: &index))
+            case "-Xplugin":
+                let value = try requireValue(option: arg, args: args, index: &index)
+                for path in value.split(separator: ",").map(String.init) where !path.isEmpty {
+                    frontendFlags.append("-Xplugin=\(path)")
+                }
+            case _ where arg.hasPrefix("-Xplugin="):
+                let value = String(arg.dropFirst("-Xplugin=".count))
+                let paths = value.split(separator: ",").map(String.init).filter { !$0.isEmpty }
+                guard !paths.isEmpty else {
+                    throw CLIParseError.missingValue("-Xplugin=")
+                }
+                for path in paths {
+                    frontendFlags.append("-Xplugin=\(path)")
+                }
             case "-P":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard value.hasPrefix("plugin:") else {

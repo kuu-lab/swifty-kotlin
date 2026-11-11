@@ -105,7 +105,13 @@ extension ExprTypeChecker {
             let writeType = driver.helpers.memberPropertyWriteType(
                 symbol: writeSymbol, receiverType: memberWriteReceiverType, fallback: member.type, sema: sema
             )
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
+            let isValProperty = member.writeSymbol == nil
+                && !(ctx.allowsValPropertyInitialization && isInitializingOwnProperty(receiver, property: member.symbol, ctx: ctx))
+            let assignmentEligible = driver.helpers.isAssignmentOverloadEligible(
+                targetType: writeType, targetSymbol: writeSymbol, sema: sema, interner: ctx.interner
+            )
+            let expectedRHS: TypeID? = (isValProperty && assignmentEligible) ? nil : writeType
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedRHS)
             driver.recordGenericCallConsumer(
                 value, type: sema.symbols.propertyType(for: writeSymbol) ?? writeType
             )
@@ -128,9 +134,25 @@ extension ExprTypeChecker {
                     driver.helpers.emitVisibilityError(
                         for: property, name: ctx.interner.resolve(name), range: range, diagnostics: sema.diagnostics
                     )
-                } else if member.writeSymbol == nil,
-                          !(ctx.allowsValPropertyInitialization && isInitializingOwnProperty(receiver, property: member.symbol, ctx: ctx)) {
-                    sema.diagnostics.error("KSWIFTK-SEMA-0014", "Val cannot be reassigned.", range: range)
+                } else if isValProperty {
+                    if !isSafeCall, sema.types.nullability(of: receiverType) == .nullable {
+                        sema.diagnostics.error(
+                            "KSWIFTK-SEMA-0026",
+                            "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
+                            range: range
+                        )
+                    } else if let overloaded = tryResolvePluginOverloadedAssignment(
+                        exprID: id,
+                        targetType: writeType,
+                        targetSymbol: writeSymbol,
+                        valueType: valueType,
+                        range: range,
+                        ctx: ctx
+                    ) {
+                        return overloaded
+                    } else {
+                        sema.diagnostics.error("KSWIFTK-SEMA-0014", "Val cannot be reassigned.", range: range)
+                    }
                 } else {
                     if let visibility = sema.symbols.propertySetterVisibility(for: writeSymbol) {
                         let setter = SemanticSymbol(

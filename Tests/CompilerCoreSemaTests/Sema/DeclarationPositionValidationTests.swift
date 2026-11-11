@@ -2028,6 +2028,22 @@ struct DeclarationPositionValidationTests {
         #expect(diags.last?.message == "function 'tf' must have a body.")
     }
 
+    @Test func bodilessFunctionDiagnosticsAnchorAtFunKeyword() throws {
+        // kotlinc underlines the `fun` keyword for bodiless diagnostics, not
+        // the declaration head (leading modifiers).
+        let ctx = try semaContext(for: """
+            private fun t1()
+            abstract class C {
+                private fun m1()
+            }
+            """)
+        let positions = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-0009" }
+            .compactMap { $0.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start) } }
+            .map { "\($0.line):\($0.column)" }
+        #expect(positions == ["1:9", "3:13"], "diagnostics: \(positions)")
+    }
+
     @Test func bodilessLocalFunctionInsideMemberAlsoReportsMustBeAbstract() throws {
         // kotlinc emits both 'without a body must be abstract' and 'must have
         // a body' for a local function lexically inside a class member.

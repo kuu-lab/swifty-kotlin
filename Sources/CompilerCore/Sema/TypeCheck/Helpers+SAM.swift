@@ -224,13 +224,21 @@ extension TypeCheckHelpers {
             }
             return substituted
         }
+        var receiverType: TypeID? = includeMemberExtensionReceiver
+            && sema.symbols.memberExtensionOwnerSymbol(for: method) != nil
+            ? signature.receiverType.map(substitute)
+            : nil
+        var paramTypes = signature.parameterTypes.map(substitute)
+        if receiverType == nil,
+           sema.samWithReceiverInterfaces.contains(classType.classSymbol),
+           !paramTypes.isEmpty
+        {
+            receiverType = paramTypes.removeFirst()
+        }
         return FunctionType(
             contextReceivers: signature.contextReceiverTypes.map(substitute),
-            receiver: includeMemberExtensionReceiver
-                && sema.symbols.memberExtensionOwnerSymbol(for: method) != nil
-                ? signature.receiverType.map(substitute)
-                : nil,
-            params: signature.parameterTypes.map(substitute),
+            receiver: receiverType,
+            params: paramTypes,
             returnType: substitute(signature.returnType),
             isSuspend: signature.isSuspend,
             nullability: .nonNull

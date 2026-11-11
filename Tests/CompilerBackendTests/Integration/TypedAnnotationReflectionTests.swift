@@ -53,6 +53,45 @@ struct TypedAnnotationReflectionTests {
         #expect(result.stdout == (try fixture("expected")))
     }
 
+    @Test(arguments: [false, true], [0, 2])
+    func annotationProxyToStringMatchesJVM(fromSource: Bool, optimization: Int) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = try String(contentsOf: repository.appendingPathComponent(
+            "Scripts/diff_cases/annotation_reflection_tostring_proxy.kt"
+        ), encoding: .utf8)
+        let input = directory.appendingPathComponent("proxy.kt").path
+        let output = directory.appendingPathComponent("proxy").path
+        try source.write(toFile: input, atomically: true, encoding: .utf8)
+        try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            moduleName: "AnnotationProxyToString", inputs: [input], outputPath: output, emit: .executable,
+            target: defaultTargetTriple(), optLevel: try #require(OptimizationLevel(rawValue: optimization)),
+            stdlibLibraryPath: fromSource ? nil : try testStdlibArtifactPath(), allowDefaultStdlibLibrary: !fromSource
+        )))
+        let result = try CommandRunner.run(executable: output, arguments: [])
+        #expect(result.exitCode == 0, "\(result.stderr)")
+        #expect(result.stdout == """
+        @M(a=7, z="d")
+        @Arr(names={"p", "r"})
+        @K(k=java.lang.String.class)
+        @Outer(inner=@M(a=2, z="q"), tag="t")
+        @Mixed(b=5, a=1, c="c")
+        @Defs(p="z", r=true, q=9)
+        @Full(flag=true, e=CLASS, nums={4, 5}, k=int.class)
+        @Wrap(items={@M(a=1, z="x"), @M(a=7, z="d")})
+        ---
+        @M(z=d, a=7)
+        @Arr(names=[p, r])
+        @Outer(inner=@M(z=q, a=2), tag=t)
+        @Mixed(a=1, b=5, c=c)
+        @Defs(p=z, q=9, r=true)
+        @Full(e=CLASS, nums=[4, 5], k=int, flag=true)
+        @Wrap(items=[@M(z=x, a=1), @M(z=d, a=7)])
+
+        """)
+    }
+
     @Test(arguments: [0, 2])
     func libraryFactoryPreservesProducerConstruction(optimization: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

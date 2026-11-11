@@ -23,6 +23,20 @@ extension LambdaLowerer {
             return nil
         }
 
+        // When `sam-with-receiver` transforms a normal SAM method `fun invoke(target: T, ...)`
+        // into a receiver-bearing lambda `T.(...) -> R`, the interface's actual ABI method still
+        // takes `target` as a regular parameter (not a member extension receiver). Keep the
+        // wrapper method's signature aligned with the underlying interface method.
+        let isSamWithReceiver = sema.samWithReceiverInterfaces.contains(interfaceSymbol)
+            && !samMethod.info.flags.contains(.memberExtension)
+            && samMethodReceiverType != nil
+        let effectiveWrapperReceiverType: TypeID? = isSamWithReceiver ? nil : samMethodReceiverType
+        let effectiveWrapperParamTypes: [TypeID] = if isSamWithReceiver, let samMethodReceiverType {
+            [samMethodReceiverType] + samMethodParamTypes
+        } else {
+            samMethodParamTypes
+        }
+
         let wrapperName = interner.intern("kk_sam_wrapper_\(exprID.rawValue)")
         let wrapperFQName = [wrapperName]
         let wrapperSymbol = sema.symbols.define(
@@ -65,7 +79,7 @@ extension LambdaLowerer {
 
         let methodName = samMethod.info.name
         var methodFlags: SymbolFlags = [.synthetic]
-        if samMethodReceiverType != nil {
+        if effectiveWrapperReceiverType != nil {
             methodFlags.insert(.memberExtension)
         }
         let methodSymbol = sema.symbols.define(
@@ -78,7 +92,7 @@ extension LambdaLowerer {
         )
         sema.symbols.setParentSymbol(wrapperSymbol, for: methodSymbol)
 
-        let methodParamSymbols: [SymbolID] = samMethodParamTypes.enumerated().map { index, type in
+        let methodParamSymbols: [SymbolID] = effectiveWrapperParamTypes.enumerated().map { index, type in
             let paramName = interner.intern("$p\(index)")
             let paramSymbol = sema.symbols.define(
                 kind: .valueParameter,
@@ -106,11 +120,11 @@ extension LambdaLowerer {
         }
         sema.symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: samMethodReceiverType ?? wrapperType,
+                receiverType: effectiveWrapperReceiverType ?? wrapperType,
                 contextReceiverTypes: samMethodContextParameterTypes,
                 contextParameterSymbols: methodContextParamSymbols,
                 contextParameterTypes: samMethodContextParameterTypes,
-                parameterTypes: samMethodParamTypes,
+                parameterTypes: effectiveWrapperParamTypes,
                 returnType: lambdaReturnType,
                 isSuspend: samMethod.signature.isSuspend,
                 valueParameterSymbols: methodParamSymbols,
@@ -155,20 +169,20 @@ extension LambdaLowerer {
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: wrapperType)
         driver.ctx.setImplicitReceiver(symbol: receiverSymbol, exprID: receiverExpr)
 
-        let extensionReceiverSymbol = samMethodReceiverType.map { _ in
+        let extensionReceiverSymbol = effectiveWrapperReceiverType.map { _ in
             driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: methodSymbol)
         }
-        let extensionReceiverExpr: KIRExprID? = if let extensionReceiverSymbol, let samMethodReceiverType {
-            arena.appendExpr(.symbolRef(extensionReceiverSymbol), type: samMethodReceiverType)
+        let extensionReceiverExpr: KIRExprID? = if let extensionReceiverSymbol, let effectiveWrapperReceiverType {
+            arena.appendExpr(.symbolRef(extensionReceiverSymbol), type: effectiveWrapperReceiverType)
         } else {
             nil
         }
         let methodParams = [KIRParameter(symbol: receiverSymbol, type: wrapperType)]
             + (extensionReceiverSymbol.map { symbol in
-                [KIRParameter(symbol: symbol, type: samMethodReceiverType ?? sema.types.anyType)]
+                [KIRParameter(symbol: symbol, type: effectiveWrapperReceiverType ?? sema.types.anyType)]
             } ?? [])
             + zip(methodContextParamSymbols, samMethodContextParameterTypes).map { KIRParameter(symbol: $0.0, type: $0.1) }
-            + zip(methodParamSymbols, samMethodParamTypes).map { KIRParameter(symbol: $0.0, type: $0.1) }
+            + zip(methodParamSymbols, effectiveWrapperParamTypes).map { KIRParameter(symbol: $0.0, type: $0.1) }
         var methodBody: [KIRInstruction] = [.beginBlock]
         methodBody.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
         if let extensionReceiverSymbol, let extensionReceiverExpr {
@@ -202,7 +216,7 @@ extension LambdaLowerer {
             loadedCaptureExprs.append(loadedExpr)
         }
 
-        let loweredMethodParamExprs = zip(methodParamSymbols, samMethodParamTypes).map { symbol, type in
+        let loweredMethodParamExprs = zip(methodParamSymbols, effectiveWrapperParamTypes).map { symbol, type in
             let expr = arena.appendExpr(.symbolRef(symbol), type: type)
             methodBody.append(.constValue(result: expr, value: .symbolRef(symbol)))
             return expr

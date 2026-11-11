@@ -9,6 +9,41 @@ extension ExprLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
+        if let assignInfo = sema.pluginOverloadedAssignments[exprID],
+           case let .localAssign(name, _, _) = ast.arena.expr(exprID)
+        {
+            let targetID = lowerNameRefExpr(
+                name: name,
+                exprID: exprID,
+                boundType: assignInfo.targetType,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let valueID = lowerExpr(
+                valueExpr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            return driver.callLowerer.emitPluginOverloadedAssignCall(
+                assignInfo: assignInfo,
+                targetReceiverID: targetID,
+                valueID: valueID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         let valueID = lowerExpr(
             valueExpr,
             ast: ast,

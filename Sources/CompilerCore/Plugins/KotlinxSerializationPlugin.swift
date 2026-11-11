@@ -56,7 +56,7 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             }
 
             // 3. Generate serialization members
-            generateSerializationMembers(
+            Self.synthesizeSerializationMembers(
                 for: symbol,
                 context: context
             )
@@ -71,10 +71,13 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
         symbols.annotations(for: symbolID).contains { triggers.contains($0.annotationFQName) }
     }
 
-    private func generateSerializationMembers(
+    static func synthesizeSerializationMembers(
         for classSymbol: SemanticSymbol,
         context: CompilerPluginSemaContext
     ) {
+        if context.sema.serializationClasses[classSymbol.id] != nil {
+            return
+        }
         let symbols = context.symbols
         let types = context.types
         let interner = context.interner
@@ -240,17 +243,254 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                 for: ctorSym
             )
 
+            // Attach KSerializer<T> supertype to $serializer
+            if let kSerializerSym = resolveKSerializerSymbol(symbols: symbols, interner: interner) {
+                symbols.setDirectSupertypes([kSerializerSym], for: genSym)
+                symbols.setSupertypeTypeArgs([.invariant(classType)], for: genSym, supertype: kSerializerSym)
+            }
+
+            let serialDescriptorType = resolveSerializationType(
+                fqName: ["kotlinx", "serialization", "descriptors", "SerialDescriptor"],
+                shortName: "SerialDescriptor",
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            let encoderType = resolveSerializationType(
+                fqName: ["kotlinx", "serialization", "encoding", "Encoder"],
+                shortName: "Encoder",
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            let decoderType = resolveSerializationType(
+                fqName: ["kotlinx", "serialization", "encoding", "Decoder"],
+                shortName: "Decoder",
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+
+            // Synthesize override val descriptor: SerialDescriptor + getter
+            let descName = interner.intern("descriptor")
+            let descPropSym = symbols.define(
+                kind: .property,
+                name: descName,
+                fqName: genSerializerFQName + [descName],
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .overrideMember]
+            )
+            symbols.setParentSymbol(genSym, for: descPropSym)
+            symbols.setPropertyType(serialDescriptorType, for: descPropSym)
+
+            let descGetterSym = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: descPropSym)
+            symbols.setExtensionPropertyGetterAccessor(descGetterSym, for: descPropSym)
+            symbols.setAccessorOwnerProperty(descPropSym, for: descGetterSym)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: genType,
+                    parameterTypes: [],
+                    returnType: serialDescriptorType,
+                    valueParameterSymbols: [],
+                    typeParameterSymbols: typeParamSymbols,
+                    classTypeParameterCount: typeParamSymbols.count
+                ),
+                for: descGetterSym
+            )
+
+            // Synthesize override fun serialize(encoder: Encoder, value: T): Unit
+            let serializeName = interner.intern("serialize")
+            let serializeFQ = genSerializerFQName + [serializeName]
+            let serializeSym = symbols.define(
+                kind: .function,
+                name: serializeName,
+                fqName: serializeFQ,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .overrideMember]
+            )
+            symbols.setParentSymbol(genSym, for: serializeSym)
+            let encParamName = interner.intern("encoder")
+            let encParamSym = symbols.define(
+                kind: .valueParameter,
+                name: encParamName,
+                fqName: serializeFQ + [encParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(serializeSym, for: encParamSym)
+            let valParamName = interner.intern("value")
+            let valParamSym = symbols.define(
+                kind: .valueParameter,
+                name: valParamName,
+                fqName: serializeFQ + [valParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(serializeSym, for: valParamSym)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: genType,
+                    parameterTypes: [encoderType, classType],
+                    returnType: types.unitType,
+                    valueParameterSymbols: [encParamSym, valParamSym],
+                    valueParameterHasDefaultValues: [false, false],
+                    valueParameterIsVararg: [false, false],
+                    typeParameterSymbols: typeParamSymbols,
+                    classTypeParameterCount: typeParamSymbols.count
+                ),
+                for: serializeSym
+            )
+
+            // Synthesize override fun deserialize(decoder: Decoder): T
+            let deserializeName = interner.intern("deserialize")
+            let deserializeFQ = genSerializerFQName + [deserializeName]
+            let deserializeSym = symbols.define(
+                kind: .function,
+                name: deserializeName,
+                fqName: deserializeFQ,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .overrideMember]
+            )
+            symbols.setParentSymbol(genSym, for: deserializeSym)
+            let decParamName = interner.intern("decoder")
+            let decParamSym = symbols.define(
+                kind: .valueParameter,
+                name: decParamName,
+                fqName: deserializeFQ + [decParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(deserializeSym, for: decParamSym)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: genType,
+                    parameterTypes: [decoderType],
+                    returnType: classType,
+                    valueParameterSymbols: [decParamSym],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: typeParamSymbols,
+                    classTypeParameterCount: typeParamSymbols.count
+                ),
+                for: deserializeSym
+            )
+
             generatedSerializerClassSymbol = genSym
+
+            let serializableProps = collectSerializableProperties(
+                for: classID,
+                symbols: symbols,
+                interner: interner
+            )
+
+            context.sema.serializationClasses[classID] = SerializationClassInfo(
+                companionSerializerMethod: companionSerializerSymbol,
+                generatedSerializerClass: generatedSerializerClassSymbol,
+                companionObjectSymbol: compID,
+                serializerConstructor: ctorSym,
+                descriptorProperty: descPropSym,
+                descriptorGetter: descGetterSym,
+                serializeMethod: serializeSym,
+                deserializeMethod: deserializeSym,
+                serializableProperties: serializableProps
+            )
+            return
         }
+
+        let serializableProps = collectSerializableProperties(
+            for: classID,
+            symbols: symbols,
+            interner: interner
+        )
 
         context.sema.serializationClasses[classID] = SerializationClassInfo(
             companionSerializerMethod: companionSerializerSymbol,
             generatedSerializerClass: generatedSerializerClassSymbol,
-            companionObjectSymbol: compID
+            companionObjectSymbol: compID,
+            serializableProperties: serializableProps
         )
     }
 
-    private func resolveKSerializerType(
+    private static func collectSerializableProperties(
+        for classID: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> [SerializationPropertyInfo] {
+        symbols.declaredChildren(of: classID).compactMap { childID -> SerializationPropertyInfo? in
+            guard let child = symbols.symbol(childID),
+                  child.kind == .property,
+                  !child.flags.contains(.synthetic),
+                  !child.flags.contains(.static)
+            else { return nil }
+            let anns = symbols.annotations(for: childID)
+            if anns.contains(where: { $0.annotationFQName == "kotlinx.serialization.Transient" }) {
+                return nil
+            }
+            var serialName = interner.resolve(child.name)
+            if let snAnn = anns.first(where: { $0.annotationFQName == "kotlinx.serialization.SerialName" }),
+               let arg = snAnn.arguments.first
+            {
+                let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "value=", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.count >= 2, trimmed.hasPrefix("\""), trimmed.hasSuffix("\"") {
+                    serialName = String(trimmed.dropFirst().dropLast())
+                } else if !trimmed.isEmpty {
+                    serialName = trimmed
+                }
+            }
+            return SerializationPropertyInfo(symbol: childID, serialName: serialName)
+        }
+    }
+
+    private static func resolveKSerializerSymbol(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let kSerializerFQName = [
+            interner.intern("kotlinx"),
+            interner.intern("serialization"),
+            interner.intern("KSerializer"),
+        ]
+        if let sym = symbols.lookup(fqName: kSerializerFQName) { return sym }
+        if let sym = symbols.lookup(fqName: [interner.intern("KSerializer")]) { return sym }
+        return symbols.lookupByShortName(interner.intern("KSerializer")).first(where: {
+            let k = symbols.symbol($0)?.kind
+            return k == .interface || k == .class
+        })
+    }
+
+    private static func resolveSerializationType(
+        fqName: [String],
+        shortName: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let internedFQ = fqName.map { interner.intern($0) }
+        if let sym = symbols.lookup(fqName: internedFQ)
+            ?? symbols.lookup(fqName: [interner.intern(shortName)])
+            ?? symbols.lookupByShortName(interner.intern(shortName)).first(where: {
+                let k = symbols.symbol($0)?.kind
+                return k == .interface || k == .class
+            })
+        {
+            return types.make(.classType(ClassType(
+                classSymbol: sym,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+        return types.anyType
+    }
+
+    private static func resolveKSerializerType(
         for classType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,

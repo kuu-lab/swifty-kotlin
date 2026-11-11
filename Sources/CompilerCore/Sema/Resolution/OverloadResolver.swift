@@ -13,6 +13,9 @@ public struct CallArg {
     /// literals adopt a receiver-function expected type, which function
     /// *values* of matching shape cannot (KUU-4456).
     public let isLambdaLiteral: Bool
+    /// True when this argument is a callable reference whose type may have
+    /// been specialized from the candidate's expected function type.
+    public let isCallableReference: Bool
     /// Synthetic operator-set calls bind the assigned value to the setter's
     /// final parameter, skipping any defaulted parameters between the indices
     /// and that value.
@@ -26,6 +29,7 @@ public struct CallArg {
         unsignedIntegerLiteral: UInt64? = nil,
         isTrailingLambda: Bool? = nil,
         isLambdaLiteral: Bool = false,
+        isCallableReference: Bool = false,
         bindsToLastParameter: Bool = false
     ) {
         self.label = label
@@ -35,6 +39,7 @@ public struct CallArg {
         self.unsignedIntegerLiteral = unsignedIntegerLiteral
         self.isTrailingLambda = isTrailingLambda
         self.isLambdaLiteral = isLambdaLiteral
+        self.isCallableReference = isCallableReference
         self.bindsToLastParameter = bindsToLastParameter
     }
 
@@ -56,6 +61,11 @@ public struct CallArg {
             isLambdaLiteral: {
                 guard let expr = ast.arena.expr(argument.expr) else { return false }
                 if case .lambdaLiteral = expr { return true }
+                return false
+            }(),
+            isCallableReference: {
+                guard let expr = ast.arena.expr(argument.expr) else { return false }
+                if case .callableRef = expr { return true }
                 return false
             }()
         )

@@ -161,6 +161,10 @@ final class TypeCheckSemaPhase: CompilerPhase {
                 inlineLambdaArguments: inlineLambdaArguments,
                 suspendLambdaArguments: suspendLambdaArguments
             )
+            driver.validateComposableContexts(
+                inlineLambdaArguments: inlineLambdaArguments,
+                inlineAnonymousFunctionArguments: inlineAnonymousFunctionArguments
+            )
         }
 
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {

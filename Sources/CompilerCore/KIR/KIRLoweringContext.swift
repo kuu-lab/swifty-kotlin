@@ -805,5 +805,27 @@ final class KIRLoweringContext {
         objectInitializerSymbols.removeAll(keepingCapacity: true)
         enumLazyInitByOwner.removeAll(keepingCapacity: true)
         enumEntryStorageSlots.removeAll(keepingCapacity: true)
+        powerAssertCaptureStack.removeAll(keepingCapacity: true)
+    }
+
+    private var powerAssertCaptureStack: [(activeIDs: Set<ExprID>, values: [ExprID: KIRExprID])] = []
+
+    var hasActivePowerAssertCapture: Bool {
+        !powerAssertCaptureStack.isEmpty
+    }
+
+    func pushPowerAssertCapture(_ targetIDs: Set<ExprID>) {
+        powerAssertCaptureStack.append((targetIDs, [:]))
+    }
+
+    func recordPowerAssertCapturedValue(exprID: ExprID, value: KIRExprID) {
+        for index in powerAssertCaptureStack.indices where powerAssertCaptureStack[index].activeIDs.contains(exprID) {
+            powerAssertCaptureStack[index].values[exprID] = value
+        }
+    }
+
+    func popPowerAssertCapture() -> [ExprID: KIRExprID] {
+        guard !powerAssertCaptureStack.isEmpty else { return [:] }
+        return powerAssertCaptureStack.removeLast().values
     }
 }

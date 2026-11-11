@@ -44,6 +44,7 @@ public final class LoweringPhase: CompilerPhase {
             EnumNameAccessLoweringPass(),
             LambdaClosureConversionPass(),
             InlineLoweringPass(),
+            ComposeLoweringPass(),
             ReifiedEnumValuesLoweringPass(),
             CoroutineLoweringPass(),
             TailrecAfterInlineLoweringPass(),

@@ -95,6 +95,27 @@ public struct JvmSyntheticConstructorPlan: Codable, Sendable {
     }
 }
 
+public struct JvmKIRInstructionPlan: Codable, Sendable {
+    public enum Kind: String, Codable, Sendable {
+        case returnUnit
+        case returnInt
+        case returnString
+        case returnBoolean
+    }
+
+    public let kind: Kind
+    public let intValue: Int?
+    public let stringValue: String?
+    public let boolValue: Bool?
+
+    public init(kind: Kind, intValue: Int? = nil, stringValue: String? = nil, boolValue: Bool? = nil) {
+        self.kind = kind
+        self.intValue = intValue
+        self.stringValue = stringValue
+        self.boolValue = boolValue
+    }
+}
+
 public struct JvmSyntheticMethodParam: Codable, Sendable {
     public let name: String
     public let type: String
@@ -111,13 +132,22 @@ public struct JvmSyntheticMethodPlan: Codable, Sendable {
     public let returnType: String
     public let defaultIntReturn: Int?
     public let params: [JvmSyntheticMethodParam]?
+    public let instructions: [JvmKIRInstructionPlan]?
 
-    public init(classFqName: String, name: String, returnType: String, defaultIntReturn: Int? = nil, params: [JvmSyntheticMethodParam]? = nil) {
+    public init(
+        classFqName: String,
+        name: String,
+        returnType: String,
+        defaultIntReturn: Int? = nil,
+        params: [JvmSyntheticMethodParam]? = nil,
+        instructions: [JvmKIRInstructionPlan]? = nil
+    ) {
         self.classFqName = classFqName
         self.name = name
         self.returnType = returnType
         self.defaultIntReturn = defaultIntReturn
         self.params = params
+        self.instructions = instructions
     }
 }
 
@@ -126,17 +156,38 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let membersToOpen: [String]
     public let syntheticConstructors: [JvmSyntheticConstructorPlan]
     public let syntheticMethods: [JvmSyntheticMethodPlan]
+    public let serializableClasses: [String]?
+    public let samWithReceiverInterfaces: [String]?
+    public let assignmentOverloadTargets: [String]?
+    public let powerAssertFunctions: [String]?
+    public let lombokEnabled: Bool?
+    public let lombokConfigPaths: [String]?
+    public let composeEnabled: Bool?
 
     public init(
         classesToOpen: [String] = [],
         membersToOpen: [String] = [],
         syntheticConstructors: [JvmSyntheticConstructorPlan] = [],
-        syntheticMethods: [JvmSyntheticMethodPlan] = []
+        syntheticMethods: [JvmSyntheticMethodPlan] = [],
+        serializableClasses: [String]? = nil,
+        samWithReceiverInterfaces: [String]? = nil,
+        assignmentOverloadTargets: [String]? = nil,
+        powerAssertFunctions: [String]? = nil,
+        lombokEnabled: Bool? = nil,
+        lombokConfigPaths: [String]? = nil,
+        composeEnabled: Bool? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
         self.syntheticConstructors = syntheticConstructors
         self.syntheticMethods = syntheticMethods
+        self.serializableClasses = serializableClasses
+        self.samWithReceiverInterfaces = samWithReceiverInterfaces
+        self.assignmentOverloadTargets = assignmentOverloadTargets
+        self.powerAssertFunctions = powerAssertFunctions
+        self.lombokEnabled = lombokEnabled
+        self.lombokConfigPaths = lombokConfigPaths
+        self.composeEnabled = composeEnabled
     }
 }
 
@@ -184,6 +235,8 @@ public final class JvmPluginHostClient: @unchecked Sendable {
         let commonCandidates = [
             "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/kotlin-compiler.jar",
             "/usr/local/Cellar/kotlin/2.4.21/libexec/lib/kotlin-compiler.jar",
+            "/opt/homebrew/opt/kotlin/libexec/lib/kotlin-compiler.jar",
+            "/usr/local/opt/kotlin/libexec/lib/kotlin-compiler.jar",
         ]
         for c in commonCandidates {
             if FileManager.default.fileExists(atPath: c) {
@@ -194,14 +247,27 @@ public final class JvmPluginHostClient: @unchecked Sendable {
     }
 
     public func findJvmPluginHostSource() -> String? {
-        let cwd = FileManager.default.currentDirectoryPath
-        let candidates = [
-            (cwd as NSString).appendingPathComponent("Scripts/jvm_plugin_host/JvmPluginHost.java"),
-            "/Users/kuu/ghq/github.com/kuu-lab/swifty-kotlin/Scripts/jvm_plugin_host/JvmPluginHost.java",
+        if let env = ProcessInfo.processInfo.environment["KSWIFTK_JVM_PLUGIN_HOST"],
+           FileManager.default.fileExists(atPath: env) {
+            return env
+        }
+
+        let relativeHostPath = "Scripts/jvm_plugin_host/JvmPluginHost.java"
+        let searchRoots: [URL] = [
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+            Bundle.main.bundleURL,
+            URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent(),
         ]
-        for c in candidates {
-            if FileManager.default.fileExists(atPath: c) {
-                return c
+        for root in searchRoots {
+            var current = root
+            for _ in 0 ..< 8 {
+                let candidate = current.appendingPathComponent(relativeHostPath).path
+                if FileManager.default.fileExists(atPath: candidate) {
+                    return candidate
+                }
+                let parent = current.deletingLastPathComponent()
+                if parent.path == current.path { break }
+                current = parent
             }
         }
         return nil
@@ -326,11 +392,28 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         // Apply synthetic methods (e.g. describeContents, writeToParcel)
         applySyntheticMethods(plan, context: context)
+
+        // Apply sam-with-receiver interfaces
+        applySamWithReceiverInterfaces(plan, context: context)
+
+        // Apply assignment overload targets
+        applyAssignmentOverloadTargets(plan, context: context)
+
+        // Apply power-assert target functions
+        applyPowerAssertFunctions(plan, context: context)
+
+        if plan.composeEnabled == true {
+            ComposePlugin.applyCompose(context: context)
+        }
     }
 
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {
         let plan = fetchOrComputePlan(context)
         applySyntheticConstructors(plan, context: context)
+        applySerializableClasses(plan, context: context)
+        if plan.lombokEnabled == true {
+            LombokPlugin.applyLombok(configPaths: plan.lombokConfigPaths ?? [], context: context)
+        }
     }
 
     var loweringPasses: [any LoweringPass] {
@@ -366,7 +449,7 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         var classPayloads: [JvmSemaClassPayload] = []
         for symbol in symbols.allSymbols() {
-            guard symbol.kind == .class,
+            guard (symbol.kind == .class || symbol.kind == .object || symbol.kind == .interface),
                   !symbol.flags.contains(.importedLibrary),
                   !symbol.flags.contains(.synthetic),
                   !symbol.flags.contains(.precomputedStdlibSynthetic)
@@ -460,6 +543,10 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
             let returnTypeID: TypeID
             if methodPlan.returnType == "kotlin.Int" {
                 returnTypeID = types.intType
+            } else if methodPlan.returnType == "kotlin.String" {
+                returnTypeID = types.stringType
+            } else if methodPlan.returnType == "kotlin.Boolean" {
+                returnTypeID = types.booleanType
             } else if methodPlan.returnType == "kotlin.Unit" {
                 returnTypeID = types.unitType
             } else {
@@ -628,6 +715,61 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
             )
         }
     }
+
+    private func applySerializableClasses(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let serializable = plan.serializableClasses, !serializable.isEmpty else { return }
+        let symbols = context.symbols
+        let interner = context.interner
+        for fqName in serializable {
+            let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
+            guard let symbolID = symbols.lookup(fqName: parts),
+                  let symbolInfo = symbols.symbol(symbolID),
+                  symbolInfo.kind == .class || symbolInfo.kind == .object,
+                  !symbolInfo.flags.contains(.innerClass)
+            else { continue }
+            KotlinxSerializationPlugin.synthesizeSerializationMembers(for: symbolInfo, context: context)
+        }
+    }
+
+    private func applySamWithReceiverInterfaces(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let interfaces = plan.samWithReceiverInterfaces, !interfaces.isEmpty else { return }
+        let symbols = context.symbols
+        let interner = context.interner
+        for fqName in interfaces {
+            let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
+            guard let symbolID = symbols.lookup(fqName: parts),
+                  let symbolInfo = symbols.symbol(symbolID),
+                  symbolInfo.kind == .interface,
+                  symbolInfo.flags.contains(.funInterface)
+            else { continue }
+            context.sema.samWithReceiverInterfaces.insert(symbolID)
+        }
+    }
+
+    private func applyAssignmentOverloadTargets(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let targets = plan.assignmentOverloadTargets, !targets.isEmpty else { return }
+        let symbols = context.symbols
+        let interner = context.interner
+        for fqName in targets {
+            let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
+            guard let symbolID = symbols.lookup(fqName: parts),
+                  let symbolInfo = symbols.symbol(symbolID)
+            else { continue }
+            switch symbolInfo.kind {
+            case .class, .interface, .object, .enumClass:
+                context.sema.assignmentOverloadTypes.insert(symbolID)
+            case .property, .field:
+                context.sema.assignmentOverloadProperties.insert(symbolID)
+            default:
+                break
+            }
+        }
+    }
+
+    private func applyPowerAssertFunctions(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let functions = plan.powerAssertFunctions, !functions.isEmpty else { return }
+        context.sema.powerAssertFunctions.formUnion(functions)
+    }
 }
 
 // MARK: - Phase 3 Lowering Pass
@@ -655,6 +797,42 @@ final class JvmPluginLoweringPass: LoweringPass {
             return
         }
 
+        // 1. Synthesize KIRFunctions for synthetic methods that were not emitted during class lowering
+        for (symbol, plan) in planBox.syntheticMethodSymbols {
+            if module.arena.function(for: symbol) == nil {
+                guard let signature = sema.symbols.functionSignature(for: symbol),
+                      let classSymbol = sema.symbols.parentSymbol(for: symbol)
+                else { continue }
+
+                var instructions: [KIRInstruction] = []
+                buildInstructions(for: plan, instructions: &instructions, sema: sema, arena: module.arena, interner: ctx.interner)
+
+                let receiverType = signature.receiverType ?? sema.types.anyType
+                var params: [KIRParameter] = [
+                    KIRParameter(symbol: classSymbol, type: receiverType)
+                ]
+                for (idx, paramType) in signature.parameterTypes.enumerated() {
+                    let paramSym = signature.valueParameterSymbols.indices.contains(idx)
+                        ? signature.valueParameterSymbols[idx]
+                        : classSymbol
+                    params.append(KIRParameter(symbol: paramSym, type: paramType))
+                }
+
+                let methodName = ctx.interner.intern(plan.name)
+                let kirFunc = KIRFunction(
+                    symbol: symbol,
+                    name: methodName,
+                    params: params,
+                    returnType: signature.returnType,
+                    body: instructions,
+                    isSuspend: false,
+                    isInline: false
+                )
+                _ = module.arena.appendDecl(.function(kirFunc))
+            }
+        }
+
+        // 2. For any pre-existing function declarations whose body is empty, populate instructions
         module.arena.transformFunctions { function in
             guard let plan = self.planBox.syntheticMethodSymbols[function.symbol],
                   function.body.isEmpty
@@ -662,17 +840,49 @@ final class JvmPluginLoweringPass: LoweringPass {
 
             var updated = function
             var instructions: [KIRInstruction] = []
-
-            if let intRet = plan.defaultIntReturn {
-                let constExpr = module.arena.appendExpr(.intLiteral(Int64(intRet)), type: sema.types.intType)
-                instructions.append(.returnValue(constExpr))
-            } else {
-                instructions.append(.returnUnit)
-            }
-
+            self.buildInstructions(for: plan, instructions: &instructions, sema: sema, arena: module.arena, interner: ctx.interner)
             updated.replaceBody(instructions, locations: Array(repeating: nil, count: instructions.count))
             return updated
         }
         module.recordLowering(Self.name)
+    }
+
+    private func buildInstructions(
+        for plan: JvmSyntheticMethodPlan,
+        instructions: inout [KIRInstruction],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) {
+        if let instructionPlans = plan.instructions, !instructionPlans.isEmpty {
+            for instr in instructionPlans {
+                switch instr.kind {
+                case .returnUnit:
+                    instructions.append(.returnUnit)
+                case .returnInt:
+                    let val = instr.intValue ?? 0
+                    let expr = arena.appendExpr(.intLiteral(Int64(val)), type: sema.types.intType)
+                    instructions.append(.constValue(result: expr, value: .intLiteral(Int64(val))))
+                    instructions.append(.returnValue(expr))
+                case .returnString:
+                    let val = instr.stringValue ?? ""
+                    let internedStr = interner.intern(val)
+                    let expr = arena.appendExpr(.stringLiteral(internedStr), type: sema.types.stringType)
+                    instructions.append(.constValue(result: expr, value: .stringLiteral(internedStr)))
+                    instructions.append(.returnValue(expr))
+                case .returnBoolean:
+                    let val = instr.boolValue ?? false
+                    let expr = arena.appendExpr(.boolLiteral(val), type: sema.types.booleanType)
+                    instructions.append(.constValue(result: expr, value: .boolLiteral(val)))
+                    instructions.append(.returnValue(expr))
+                }
+            }
+        } else if let intRet = plan.defaultIntReturn {
+            let constExpr = arena.appendExpr(.intLiteral(Int64(intRet)), type: sema.types.intType)
+            instructions.append(.constValue(result: constExpr, value: .intLiteral(Int64(intRet))))
+            instructions.append(.returnValue(constExpr))
+        } else {
+            instructions.append(.returnUnit)
+        }
     }
 }
