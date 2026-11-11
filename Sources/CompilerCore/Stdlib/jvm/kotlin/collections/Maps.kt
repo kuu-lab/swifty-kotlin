@@ -153,3 +153,12 @@ public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K
 }
 
 public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key] ?: throw NoSuchElementException("Key " + key + " is missing in the map.")
+
+public fun <K, V> Map<K, V>.getValue(key: K): V {
+    val value = this[key]
+    if (value != null || containsKey(key)) {
+        @Suppress("UNCHECKED_CAST")
+        return value as V
+    }
+    throw NoSuchElementException("Key $key is missing in the map.")
+}
