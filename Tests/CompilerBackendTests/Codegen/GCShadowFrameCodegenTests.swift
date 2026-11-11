@@ -5,6 +5,11 @@ import Testing
 
 @Suite
 struct GCShadowFrameCodegenTests {
+    private func containsStore(_ text: Substring, value: String, pointer: String) -> Bool {
+        ["store i64 \(value), ptr \(pointer)", "store i64 \(value), i64* \(pointer)"]
+            .contains { text.contains($0) }
+    }
+
     @Test(arguments: [false, true], [0, 2])
     func referenceParametersAreInitializedBeforeFrameRegistration(withoutTypeInformation: Bool, optimization: Int) throws {
         let interner = StringInterner()
@@ -32,9 +37,17 @@ struct GCShadowFrameCodegenTests {
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
         let push = try #require(ir.range(of: "call i64 @kk_gc_push_root_frame("))
         let beforePush = ir[..<push.lowerBound]
-        #expect(beforePush.contains("store i64 %0, ptr %gc_param_root_0")
-            || beforePush.contains("store i64 %0, ptr %gc_root_slots"))
-        #expect(beforePush.contains("store i64 %1, ptr %gc_param_root_1"))
+        #expect(containsStore(beforePush, value: "%0", pointer: "%gc_param_root_0")
+            || containsStore(beforePush, value: "%0", pointer: "%gc_root_slots"))
+        #expect(containsStore(beforePush, value: "%1", pointer: "%gc_param_root_1"))
+        let pushDeclaration = try #require(ir.split(separator: "\n").first {
+            $0.hasPrefix("declare i64 @kk_gc_push_root_frame(")
+        })
+        let storeDeclaration = try #require(ir.split(separator: "\n").first {
+            $0.hasPrefix("declare i64 @kk_gc_root_store(")
+        })
+        #expect(pushDeclaration.contains("(i8*, i64)") || pushDeclaration.contains("(ptr, i64)"))
+        #expect(storeDeclaration.contains("(i64*, i64)") || storeDeclaration.contains("(ptr, i64)"))
         let overflowCheck = try #require(ir.range(of: "call i64 @kk_stack_overflow_check("))
         #expect(overflowCheck.lowerBound < push.lowerBound)
         #expect(!beforePush.contains("call i64 @kk_gc_frame_leave("))
@@ -64,10 +77,13 @@ struct GCShadowFrameCodegenTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
         let push = try #require(ir.range(of: "call i64 @kk_gc_push_root_frame("))
-        let conversion = try #require(ir.range(of: "call ptr @kk_string_to_flat("))
+        let conversion = try #require(
+            ir.range(of: "call ptr @kk_string_to_flat(")
+                ?? ir.range(of: "call i8* @kk_string_to_flat(")
+        )
         let beforePush = ir[..<push.lowerBound]
-        #expect(beforePush.contains("store i64 %0, ptr %gc_param_root_0")
-            || beforePush.contains("store i64 %0, ptr %gc_root_slots"))
+        #expect(containsStore(beforePush, value: "%0", pointer: "%gc_param_root_0")
+            || containsStore(beforePush, value: "%0", pointer: "%gc_root_slots"))
         #expect(push.lowerBound < conversion.lowerBound)
     }
 

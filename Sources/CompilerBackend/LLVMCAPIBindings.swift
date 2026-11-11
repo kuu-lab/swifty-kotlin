@@ -94,6 +94,7 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildGlobalStringPtrFn = @convention(c) (LLVMBuilderRef?, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildPtrToIntFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildIntToPtrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
+    typealias LLVMBuildPointerCastFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMTypeRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildCall2Fn = @convention(c) (
         LLVMBuilderRef?,
         LLVMTypeRef?,
@@ -322,6 +323,7 @@ final class LLVMCAPIBindings {
     let buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?
     let buildPtrToIntFn: LLVMBuildPtrToIntFn?
     let buildIntToPtrFn: LLVMBuildIntToPtrFn?
+    let buildPointerCastFn: LLVMBuildPointerCastFn?
     let buildCall2Fn: LLVMBuildCall2Fn?
     let buildCallFn: LLVMBuildCallFn?
     let constIntFn: LLVMConstIntFn
@@ -439,6 +441,7 @@ final class LLVMCAPIBindings {
         buildGlobalStringPtrFn: LLVMBuildGlobalStringPtrFn?,
         buildPtrToIntFn: LLVMBuildPtrToIntFn?,
         buildIntToPtrFn: LLVMBuildIntToPtrFn?,
+        buildPointerCastFn: LLVMBuildPointerCastFn?,
         buildCall2Fn: LLVMBuildCall2Fn?,
         buildCallFn: LLVMBuildCallFn?,
         constIntFn: @escaping LLVMConstIntFn,
@@ -556,6 +559,7 @@ final class LLVMCAPIBindings {
         self.buildGlobalStringPtrFn = buildGlobalStringPtrFn
         self.buildPtrToIntFn = buildPtrToIntFn
         self.buildIntToPtrFn = buildIntToPtrFn
+        self.buildPointerCastFn = buildPointerCastFn
         self.buildCall2Fn = buildCall2Fn
         self.buildCallFn = buildCallFn
         self.constIntFn = constIntFn
