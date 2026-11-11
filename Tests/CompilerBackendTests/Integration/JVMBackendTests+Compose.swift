@@ -79,12 +79,14 @@ extension JVMBackendTests {
                 import androidx.compose.foundation.text.BasicText
                 import androidx.compose.runtime.Composable
                 import androidx.compose.ui.platform.ComposeView
+                import fixture.Bridge
 
                 @Composable private fun Screen(text: String) { BasicText(text) }
 
                 fun main() {
                     val text = "Kotlin Compose"
                     ComposeView().setContent { Screen(text) }
+                    Bridge.checkClosed(3)
                 }
                 """
             let classpath = [dependencies.path, stdlib.path]
@@ -93,6 +95,42 @@ extension JVMBackendTests {
             let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
             #expect(run.exitCode == 0, "\(run.stderr)")
             #expect(run.stdout == "Kotlin Compose\n")
+        }
+    }
+
+    @Test
+    func jvmComposeColumnAndButtonReceiveScopedContent() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let dependencies = try composeJVMFixture(root, stdlib: stdlib)
+            let source = """
+                import androidx.compose.foundation.layout.Column
+                import androidx.compose.material3.Button
+                import androidx.compose.runtime.currentComposer
+                import androidx.compose.ui.platform.ComposeView
+                import fixture.Bridge
+
+                fun main() {
+                    var clicks = 0
+                    ComposeView().setContent {
+                        Column {
+                            println(this.columnLabel())
+                            Button(content = {
+                                println(this.buttonLabel())
+                                println(Bridge.depth(currentComposer))
+                            }, onClick = { clicks += 1 })
+                        }
+                    }
+                    Bridge.checkClosed(2)
+                    println(clicks)
+                }
+                """
+            let classpath = [dependencies.path, stdlib.path]
+            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: classpath)
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "column\nbutton\n2\n1\n")
         }
     }
 
@@ -178,19 +216,27 @@ extension JVMBackendTests {
                 import androidx.compose.runtime.Composer;
                 import kotlin.Unit;
                 import kotlin.jvm.functions.Function2;
-                public interface ComposableLambda extends Function2<Composer, Integer, Unit> {}
+                import kotlin.jvm.functions.Function3;
+                public interface ComposableLambda extends Function2<Composer, Integer, Unit>, Function3<Object, Composer, Integer, Unit> {}
                 """,
             "ComposableLambdaKt.java": """
                 package androidx.compose.runtime.internal;
                 import androidx.compose.runtime.Composer;
                 import kotlin.Unit;
                 import kotlin.jvm.functions.Function2;
+                import kotlin.jvm.functions.Function3;
                 public class ComposableLambdaKt {
                     @SuppressWarnings("unchecked")
                     public static ComposableLambda composableLambdaInstance(int key, boolean tracked, Object body) {
                         if (!tracked) throw new AssertionError("untracked content");
-                        Function2<Composer, Integer, Unit> content = (Function2<Composer, Integer, Unit>) body;
-                        return content::invoke;
+                        return new ComposableLambda() {
+                            public Unit invoke(Composer composer, Integer changed) {
+                                return ((Function2<Composer, Integer, Unit>) body).invoke(composer, changed);
+                            }
+                            public Unit invoke(Object scope, Composer composer, Integer changed) {
+                                return ((Function3<Object, Composer, Integer, Unit>) body).invoke(scope, composer, changed);
+                            }
+                        };
                     }
                 }
                 """,
@@ -205,7 +251,6 @@ extension JVMBackendTests {
                     public void setContent(Function2<? super Composer, ? super Integer, Unit> content) {
                         if (!(content instanceof ComposableLambda)) throw new AssertionError("missing Compose wrapper");
                         if (content.invoke(Bridge.COMPOSER, 0) != Unit.INSTANCE) throw new AssertionError("missing Unit");
-                        Bridge.checkClosed(3);
                     }
                     public void setViewCompositionStrategy(ViewCompositionStrategy strategy) {}
                 }
@@ -243,6 +288,65 @@ extension JVMBackendTests {
             "Modifier.java": "package androidx.compose.ui; public interface Modifier {}",
             "TextStyle.java": "package androidx.compose.ui.text; public class TextStyle {}",
             "ColorProducer.java": "package androidx.compose.ui.graphics; public interface ColorProducer {}",
+            "ColumnScope.java": "package androidx.compose.foundation.layout; public interface ColumnScope { String columnLabel(); }",
+            "RowScope.java": "package androidx.compose.foundation.layout; public interface RowScope { String buttonLabel(); }",
+            "Arrangement.java": "package androidx.compose.foundation.layout; public class Arrangement { public interface Vertical {} }",
+            "Alignment.java": "package androidx.compose.ui; public class Alignment { public interface Horizontal {} }",
+            "Shape.java": "package androidx.compose.ui.graphics; public interface Shape {}",
+            "ButtonColors.java": "package androidx.compose.material3; public class ButtonColors {}",
+            "ButtonElevation.java": "package androidx.compose.material3; public class ButtonElevation {}",
+            "BorderStroke.java": "package androidx.compose.foundation; public class BorderStroke {}",
+            "PaddingValues.java": "package androidx.compose.foundation.layout; public interface PaddingValues {}",
+            "MutableInteractionSource.java": "package androidx.compose.foundation.interaction; public interface MutableInteractionSource {}",
+            "ColumnKt.java": """
+                package androidx.compose.foundation.layout;
+                import androidx.compose.runtime.Composer;
+                import androidx.compose.runtime.internal.ComposableLambda;
+                import androidx.compose.ui.Alignment;
+                import androidx.compose.ui.Modifier;
+                import fixture.Bridge;
+                import kotlin.Unit;
+                import kotlin.jvm.functions.Function3;
+                public class ColumnKt {
+                    public static void Column(Modifier modifier, Arrangement.Vertical vertical, Alignment.Horizontal horizontal,
+                            Function3<? super ColumnScope, Composer, Integer, Unit> content, Composer composer, int changed, int defaults) {
+                        if (modifier != null || vertical != null || horizontal != null || defaults != 7
+                                || changed != 0 || Bridge.depth(composer) != 1 || !(content instanceof ComposableLambda))
+                            throw new AssertionError("incorrect Column call");
+                        ColumnScope scope = () -> "column";
+                        content.invoke(scope, composer, changed);
+                    }
+                }
+                """,
+            "ButtonKt.java": """
+                package androidx.compose.material3;
+                import androidx.compose.foundation.BorderStroke;
+                import androidx.compose.foundation.interaction.MutableInteractionSource;
+                import androidx.compose.foundation.layout.PaddingValues;
+                import androidx.compose.foundation.layout.RowScope;
+                import androidx.compose.runtime.Composer;
+                import androidx.compose.runtime.internal.ComposableLambda;
+                import androidx.compose.ui.Modifier;
+                import androidx.compose.ui.graphics.Shape;
+                import fixture.Bridge;
+                import kotlin.Unit;
+                import kotlin.jvm.functions.Function0;
+                import kotlin.jvm.functions.Function3;
+                public class ButtonKt {
+                    public static void Button(Function0<Unit> onClick, Modifier modifier, boolean enabled, Shape shape,
+                            ButtonColors colors, ButtonElevation elevation, BorderStroke border, PaddingValues padding,
+                            MutableInteractionSource interaction, Function3<? super RowScope, Composer, Integer, Unit> content,
+                            Composer composer, int changed, int defaults) {
+                        if (modifier != null || enabled || shape != null || colors != null || elevation != null || border != null
+                                || padding != null || interaction != null || defaults != 0x1FE
+                                || changed != 0 || Bridge.depth(composer) != 2 || !(content instanceof ComposableLambda))
+                            throw new AssertionError("incorrect Button call");
+                        if (onClick.invoke() != Unit.INSTANCE) throw new AssertionError("incorrect click callback");
+                        RowScope scope = () -> "button";
+                        content.invoke(scope, composer, changed);
+                    }
+                }
+                """,
         ]
     }
 }
