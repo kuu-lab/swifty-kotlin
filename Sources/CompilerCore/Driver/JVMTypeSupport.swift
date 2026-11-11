@@ -8,7 +8,7 @@ extension JVMClasspathIndex {
     static func builtinName(_ name: String) -> String? {
         if name == "java/util/MapEntry" { return "java/util/Map$Entry" }
         if ["java/util/AbstractCollection", "java/util/RandomAccess", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
-        if name == "kotlin/collections/AbstractSet" { return name }
+        if name == "kotlin/collections/AbstractList" || name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
         if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
         if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/IllegalAccessException", "java/lang/StringIndexOutOfBoundsException", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler", "java/nio/charset/Charset"].contains(name) { return name }
