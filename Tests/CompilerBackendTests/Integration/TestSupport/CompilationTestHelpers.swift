@@ -32,7 +32,7 @@ func makeTestOptions(
         inputs: inputs,
         outputPath: outputPath,
         emit: emit,
-        target: defaultTargetTriple(),
+        target: allowDefaultStdlibLibrary ? defaultTargetTriple() : .hostDefault(),
         optLevel: optLevel,
         // Matches the makeCompilationContext default in Pipeline.swift: Backend
         // tests link the precompiled stdlib artifact rather than compiling

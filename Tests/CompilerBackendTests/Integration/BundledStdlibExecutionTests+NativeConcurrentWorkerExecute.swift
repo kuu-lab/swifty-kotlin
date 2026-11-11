@@ -15,12 +15,13 @@ extension BundledStdlibExecutionTests {
 
             fun main() {
                 withWorker {
-                    println(execute(TransferMode.SAFE, { 40 }) { it + 1 }.consume { it + 1 })
+                    println(execute(TransferMode.SAFE, { 40 }) { value: Int -> value + 1 }
+                        .consume { value: Int -> value + 1 })
                     val offset = 7
                     val code: (Int) -> Int = { it + offset }
-                    println(consumeWith(execute(TransferMode.SAFE, { 35 }) { it }, code))
+                    println(consumeWith(execute(TransferMode.SAFE, { 35 }) { value: Int -> value }, code))
                     try {
-                        execute(TransferMode.SAFE, { 1 }) { it }.consume<Int> {
+                        execute(TransferMode.SAFE, { 1 }) { value: Int -> value }.consume<Int> {
                             throw IllegalStateException("callback")
                         }
                     } catch (e: IllegalStateException) {
