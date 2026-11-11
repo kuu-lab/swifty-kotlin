@@ -245,6 +245,7 @@ private struct JVMSourceGrammar {
             try propertyName()
             if take(.symbol(.colon)) { try type() }
             if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
+            var sawExplicitBackingField = false
             while true {
                 let saved = index
                 semicolons(); modifiers()
@@ -256,6 +257,12 @@ private struct JVMSourceGrammar {
                         if take(.symbol(.colon)) { try type() }
                         try require(.symbol(.rParen))
                     } else { continue }
+                } else if take(.softKeyword(.field)) {
+                    guard !sawExplicitBackingField else { throw Unsupported() }
+                    sawExplicitBackingField = true
+                    if take(.symbol(.colon)) { try type() }
+                    try require(.symbol(.assign))
+                    try expression()
                 } else { index = saved; break }
                 if take(.symbol(.assign)) { try expression() }
                 else if kind == .symbol(.lBrace) { try block() }

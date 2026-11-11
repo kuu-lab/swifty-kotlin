@@ -15,7 +15,8 @@
     {
       "path": "kotlin/RequiresOptIn.kt",
       "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
-      "excludeFromStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
     },
     {
       "path": "kotlin/SinceKotlin.kt",
@@ -245,12 +246,6 @@
       "path": "declarations/IndexedValue.kt",
       "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "kotlin/RequiresOptIn.kt",
-      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
     },
     {
       "path": "kotlin/annotations/ExperimentalUnsignedTypes.kt",
