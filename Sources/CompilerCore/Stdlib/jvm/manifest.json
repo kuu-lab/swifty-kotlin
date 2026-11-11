@@ -3,7 +3,10 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
-    "kotlin/Unit.kt"
+    "kotlin/Unit.kt",
+    "kotlin/OptIn.kt",
+    "kotlin/RequiresOptIn.kt",
+    "kotlin/annotations/ExperimentalUnsignedTypes.kt"
   ],
   "declarations": [
     {
@@ -236,6 +239,18 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+      "virtualPath": "<kswiftk-jvm>/experimental-unsigned-types.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
       "path": "declarations/Pair.kt",
       "virtualPath": "<kswiftk-jvm>/m20-pairs.kt",
       "excludeFromStdlibBuild": true
@@ -304,6 +319,18 @@
       "path": "declarations/ArrayUtilities.kt",
       "virtualPath": "<kswiftk-jvm>/m20-arrays-utility-runtime.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/ArrayWithIndex.kt",
+      "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
+      "path": "declarations/UnsignedArrayWithIndex.kt",
+      "virtualPath": "<kswiftk-jvm>/unsigned-array-with-index.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/unsigned/UArraysKt"
     },
     {
       "path": "declarations/UnsignedArrayOperations.kt",
@@ -400,10 +427,10 @@
       "onlyForStdlibBuild": false
     },
     {
-      "path": "declarations/OptIn.kt",
+      "path": "kotlin/OptIn.kt",
       "virtualPath": "<kswiftk-jvm>/opt-in.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
     },
     {
       "path": "declarations/ArraySequenceFunctions.kt",

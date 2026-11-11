@@ -103,6 +103,10 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> [SymbolID] {
         let knownNames = KnownCompilerNames(interner: interner)
+        // JVM withIndex overloads participate in ordinary extension scope resolution.
+        if sema.requiresResolvedLibraryCalls, calleeName == knownNames.withIndex {
+            return []
+        }
         guard knownNames.primitiveArraySourceMemberNames.contains(calleeName),
               let receiverClass = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
               let receiverSymbol = sema.symbols.symbol(receiverClass),
