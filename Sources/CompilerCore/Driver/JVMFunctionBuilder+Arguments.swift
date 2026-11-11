@@ -142,12 +142,10 @@ extension JVMFunctionBuilder {
         let types = Array(allTypes.dropFirst(prefix.count))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
-        // Value constructors are static source operations: evaluate their
-        // arguments before allocating the internal box, including suspension.
-        let deferredValueBox = constructor && plan?.isValue == true
         let object = constructor ? try value(method!.result) : nil
-        if let object, !deferredValueBox { instructions.append(.allocate(method!.owner, object)); pendingAllocations.append(object) }
-        defer { if object != nil && !deferredValueBox { pendingAllocations.removeLast() } }
+        // Constructor arguments can suspend, so allocate only after every
+        // argument has completed. An uninitialized reference cannot cross a
+        // continuation boundary on the JVM.
         let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id)
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
@@ -159,7 +157,7 @@ extension JVMFunctionBuilder {
         // A safe Unit call has logical type Unit?, but its ordinary entry
         // still returns void. The safe-call join materializes Unit afterward.
         let result = constructor || physicalResult == .unit || resultType == .unit ? nil : try value(resultType)
-        if deferredValueBox, let object { instructions.append(.allocate(method!.owner, object)) }
+        if let object { instructions.append(.allocate(method!.owner, object)) }
         if usesDefaults {
             if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)
