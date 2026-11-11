@@ -795,16 +795,21 @@ final class JVMClasspathIndex {
         "java/io/Closeable", "java/io/File", "java/io/InputStream",
         "java/io/OutputStream", "java/io/ByteArrayInputStream",
         "java/io/ByteArrayOutputStream", "java/io/BufferedInputStream",
+        "java/io/BufferedReader", "java/io/BufferedWriter",
         "java/io/Reader", "java/io/SequenceInputStream", "java/io/Writer",
         // java.lang compatibility anchors.
         "java/lang/AutoCloseable", "java/lang/ClassLoader",
-        // java.util.concurrent.atomic scalar/reference family
+        // java.math/java.util anchors from the String/Char stub registrations.
+        "java/math/BigDecimal", "java/util/Locale",
+        // java.util.concurrent.atomic scalar/reference/array family
         // (HeaderHelpers+SyntheticAtomicResidualRegistry).
         "java/util/concurrent/atomic/AtomicInteger",
         "java/util/concurrent/atomic/AtomicLong",
         "java/util/concurrent/atomic/AtomicBoolean",
         "java/util/concurrent/atomic/AtomicReference",
         "java/util/concurrent/atomic/AtomicReferenceArray",
+        "java/util/concurrent/atomic/AtomicIntegerArray",
+        "java/util/concurrent/atomic/AtomicLongArray",
         // java.lang names that would shadow Kotlin declarations through the
         // java.lang auto-import or same-package resolution. Other java.lang
         // classes (CharSequence, Comparable, exceptions, ...) are still
