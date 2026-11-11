@@ -39,7 +39,7 @@ extension JVMFunctionBuilder {
     /// Evaluate explicit arguments in source order, then arrange parameter slots.
     /// Missing values are placeholders; the callee's default bridge evaluates
     /// defaults in declaration order after all explicit expressions have run.
-    func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
+    func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil, composableParameter: Int? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
             ?? signature?.valueParameterIsVararg.firstIndex(of: true)
@@ -61,7 +61,7 @@ extension JVMFunctionBuilder {
             }
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
-            let evaluated = try expression(arg.expr)
+            let evaluated = try index == composableParameter ? composeContent(arg.expr) : expression(arg.expr)
             if terminated { throw JVMTerminatedExpression() }
             let sourceValue: JVMValue
             if let evaluated { sourceValue = evaluated }
@@ -120,8 +120,8 @@ extension JVMFunctionBuilder {
         let reference = program.references[symbol]
         let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
         guard reference != nil || method != nil else { return nil }
-        if let method, let mask = context.jvmImports?.composeDefaults[symbol] {
-            return try importedComposableCall(method, mask: mask, args: args, binding: binding, id: id)
+        if let method, let contract = context.jvmImports?.importedComposables[symbol] {
+            return try importedComposableCall(method, contract: contract, args: args, binding: binding, id: id)
         }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
