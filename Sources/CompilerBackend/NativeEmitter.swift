@@ -578,7 +578,7 @@ struct NativeEmitter {
         }
     }
 
-    private func configuredTargetMachine(for llvmModule: LLVMCAPIBindings.LLVMModuleRef) throws -> LLVMCAPIBindings.LLVMTargetMachineRef {
+    func configuredTargetMachine(for llvmModule: LLVMCAPIBindings.LLVMModuleRef) throws -> LLVMCAPIBindings.LLVMTargetMachineRef {
         let triple = targetTripleString()
         bindings.setTarget(llvmModule, triple: triple)
 
@@ -992,7 +992,8 @@ struct NativeEmitter {
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
         outThrownPointerType: LLVMCAPIBindings.LLVMTypeRef,
         typeLowering: LLVMTypeLowering?,
-        runtimeCallbackRawABISymbols: Set<SymbolID>
+        runtimeCallbackRawABISymbols: Set<SymbolID>,
+        definedSymbols: Set<SymbolID>? = nil
     ) throws -> DeclaredFunctions {
         var declared = DeclaredFunctions()
 
@@ -1042,7 +1043,8 @@ struct NativeEmitter {
             else {
                 throw LLVMBackendError.nativeEmissionFailed("failed to declare function '\(functionName)'")
             }
-            if linkOnceODRSymbols.contains(function.symbol) {
+            let isDefinedHere = definedSymbols?.contains(function.symbol) ?? true
+            if isDefinedHere && linkOnceODRSymbols.contains(function.symbol) {
                 bindings.setLinkOnceODRLinkage(functionValue)
             }
             declared.internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)

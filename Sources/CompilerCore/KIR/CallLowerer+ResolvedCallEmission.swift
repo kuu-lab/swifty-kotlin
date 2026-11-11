@@ -143,7 +143,7 @@ extension CallLowerer {
         }
     }
 
-    private func lowerAtomicScalarConstructorCall(
+    func lowerRuntimeFactoryConstructorCall(
         constructorSymbol: SymbolID,
         finalArgIDs: [KIRExprID],
         resultType: TypeID,
@@ -417,7 +417,7 @@ extension CallLowerer {
                 valueArgOffsetOverride: 0,
                 callBinding: callBinding
             )
-            return lowerAtomicScalarConstructorCall(
+            return lowerRuntimeFactoryConstructorCall(
                 constructorSymbol: chosen,
                 finalArgIDs: finalArgIDs,
                 resultType: boundType ?? sema.types.anyType,

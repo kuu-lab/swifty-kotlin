@@ -33,12 +33,14 @@ java -Xverify:all -jar hello.jar
 （既定 `./main.jar`）を指定する。JAR の親ディレクトリは事前に作成しておく。
 ファイル名の先頭を大文字にして `Kt` を付けたクラス名を生成する。
 たとえば `package demo` を持つ `hello.kt` は `demo/HelloKt.class` を生成する。
-`main(): Unit` がある場合は launcher と Manifest の `Main-Class` を生成する。
+`main(): Unit` または `main(args: Array<String>): Unit` がある場合は JAR の Manifest に
+`Main-Class` を設定する。引数なしの `main` だけがある場合は JVM 用の `main(String[])` を生成する。
+両方が同じファイルにある場合、JVM は引数付きの `main` を起動する。
 `main` のないソースはライブラリとして出力する。
 
 ## 対応範囲
 
-- 入力は Kotlin ファイル 1 個。トップレベル関数を複数宣言でき、実行用の `main` は引数なし・Unit 戻り値。ライブラリでは省略できる。
+- トップレベル関数を複数宣言できる。実行用の `main` は `Unit` を返し、`Array<String>` でコマンドライン引数を受け取れる。
 - 型は`Int`、`Long`、`Float`、`Double`、`Boolean`、`String`、`Any` と classpath の参照型。nullable primitive は wrapper に boxing し、参照型とともに `null`、`!!`、`?:` に対応する。関数の戻り値には `Unit` も使用できる。数値／Boolean を `Any` に渡す場合は JVM の wrapper に boxing する。
 - ローカル `val` / `var`、型推論、型注釈、代入、数値の `+=` / `-=` / `*=` / `/=` / `%=`、前置／後置 `++` / `--`。型注釈があれば宣言と初回代入を分けられる。
 - 数値の `+` / `-` / `*` / `/` / `%`、単項符号、比較。数値型の混合演算と `toInt` / `toLong` / `toFloat` / `toDouble`。
@@ -1039,7 +1041,7 @@ nightly CI（`nightly-full.yml` の `verify-jvm-diff`）はこの jar を毎晩�
 
 外部 field／property、
 明示的な backing field 宣言、
-main の配列引数、複数上限の where 制約、
+引数付きの suspend main、複数上限の where 制約、
 拡張プロパティ、ローカル関数、
 複数 parameter のユーザー定義 vararg と vararg constructor（単独 vararg 関数・対応済み API の spread は使用可能）、
 enum の secondary constructor、when の guard／範囲条件、ループラベル、`until` / `step` は未対応。

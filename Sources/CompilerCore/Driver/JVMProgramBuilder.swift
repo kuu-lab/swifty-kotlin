@@ -153,6 +153,16 @@ final class JVMProgramBuilder {
         return ((package + [facade]).joined(separator: "/"), filename)
     }
 
+    private func isMainWithArguments(_ declaration: FunDecl, reference: JVMFunctionReference, symbol: SymbolID) -> Bool {
+        guard !reference.isSuspend, reference.descriptor == JVMProgram.launcherDescriptor,
+              let signature = sema.symbols.functionSignature(for: symbol),
+              let parameter = signature.parameterTypes.first ?? signature.receiverType else { return false }
+        let string = sema.types.stringType
+        if declaration.valueParams.first?.isVararg == true { return parameter == string }
+        guard case let .classType(array) = sema.types.kind(of: parameter), array.nullability == .nonNull else { return false }
+        return array.args == [.invariant(string)] || array.args == [.out(string)]
+    }
+
     func build() throws -> JVMProgram {
         func isComputedExtension(_ property: PropertyDecl) -> Bool {
             property.receiverType != nil && property.initializer == nil
@@ -184,7 +194,7 @@ final class JVMProgramBuilder {
         try prepareClassDelegates()
         try prepareCollectionDelegationMarkers()
         var plans: [JVMClassPlan?] = []
-        var declarationsByFile: [[(FunDecl, JVMFunctionReference)]] = []
+        var declarationsByFile: [[(FunDecl, JVMFunctionReference, SymbolID)]] = []
         for (index, file) in files.enumerated() {
             facadeName = names[index].0; facadePlan = nil
             let propertyIDs = file.topLevelDecls.filter { if case .propertyDecl = ast.arena.decl($0) { return true }; return false }
@@ -195,7 +205,7 @@ final class JVMProgramBuilder {
                 try prepareProperties(plan, ids: propertyIDs)
             }
             guard !classes.values.contains(where: { $0.name == facadeName }) else { throw JVMFrontendError(message: "JVM facade name clashes with a class.") }
-            var declarations: [(FunDecl, JVMFunctionReference)] = []
+            var declarations: [(FunDecl, JVMFunctionReference, SymbolID)] = []
             var signatures: Set<String> = []
             for id in file.topLevelDecls {
                 guard case let .funDecl(f) = ast.arena.decl(id) else { continue }
@@ -203,7 +213,7 @@ final class JVMProgramBuilder {
                 let ref = try functionReference(f, symbol: symbol, member: false)
                 guard signatures.insert(ref.name + ref.descriptor).inserted else { throw JVMFrontendError(message: "Duplicate JVM method signature.", range: f.range) }
                 var owned = ref; owned.owner = facadeName
-                references[symbol] = owned; declarations.append((f, owned))
+                references[symbol] = owned; declarations.append((f, owned, symbol))
             }
             plans.append(facadePlan); declarationsByFile.append(declarations)
         }
@@ -212,18 +222,15 @@ final class JVMProgramBuilder {
             facadeName = names[index].0; facadePlan = plans[index]
             let declarations = declarationsByFile[index]
             let mains = declarations.filter { $0.1.name == "main" }
-            let hasMain = mains.contains { declaration, reference in
-                declaration.typeParams.isEmpty && declaration.receiverType == nil && !reference.isSuspend
-                    && ["()V", "([Ljava/lang/String;)V"].contains(reference.descriptor)
+            let hasMain = mains.contains { declaration, reference, symbol in
+                declaration.typeParams.isEmpty && reference.result == .unit
+                    && (reference.parameters.isEmpty || isMainWithArguments(declaration, reference: reference, symbol: symbol))
             }
             guard mains.isEmpty || hasMain else {
-                throw JVMFrontendError(message: "JVM entry point must return Unit and accept no arguments or Array<String>.")
+                throw JVMFrontendError(message: "JVM entry point must be fun main(): Unit or fun main(args: Array<String>): Unit.")
             }
             guard Self.isIdentifier(context.options.moduleName) else { throw JVMFrontendError(message: "JVM module name requires an ASCII identifier.") }
-            let functions = try declarations.map { declaration, reference in
-                let symbol = file.topLevelDecls.compactMap { id -> SymbolID? in
-                    if case let .funDecl(f) = ast.arena.decl(id), f.range == declaration.range { return sema.bindings.declSymbol(for: id) }; return nil
-                }.first!
+            let functions = try declarations.map { declaration, reference, symbol in
                 let builder = JVMFunctionBuilder(program: self, declaration: declaration, reference: reference)
                 builder.functionSymbol = symbol
                 builder.semanticSignature = sema.symbols.functionSignature(for: symbol)
