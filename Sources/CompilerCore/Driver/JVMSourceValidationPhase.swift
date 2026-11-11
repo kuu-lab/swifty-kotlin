@@ -106,6 +106,14 @@ private struct JVMSourceGrammar {
             try require(.symbol(.greaterThan))
         }
     }
+    mutating func whereConstraints() throws {
+        guard take(.softKeyword(.where)) else { return }
+        repeat {
+            try name()
+            try require(.symbol(.colon))
+            try type()
+        } while take(.symbol(.comma))
+    }
     mutating func file() throws {
         while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.package)) { try type(nullable: false); try separator() }
@@ -199,6 +207,7 @@ private struct JVMSourceGrammar {
             catch { index = start; try name() }
             try parameters()
             if take(.symbol(.colon)) { try type() }
+            try whereConstraints()
             if take(.symbol(.assign)) { try expression() }
             else if kind == .symbol(.lBrace) { try block() }
             else if !member { throw Unsupported() }
