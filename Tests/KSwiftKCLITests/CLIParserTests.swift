@@ -521,5 +521,25 @@ struct CLIParserTests {
             try CLIParser.parse(args: ["--help"])
         }
     }
+
+    @Test
+    func parsesXpluginFlagVariants() throws {
+        let single = try CLIParser.parse(args: ["-Xplugin=/tmp/allopen.jar", "main.kt"])
+        #expect(single.frontendFlags.contains("-Xplugin=/tmp/allopen.jar"))
+
+        let multi = try CLIParser.parse(args: ["-Xplugin=/tmp/a.jar,/tmp/b.jar", "main.kt"])
+        #expect(multi.frontendFlags.contains("-Xplugin=/tmp/a.jar"))
+        #expect(multi.frontendFlags.contains("-Xplugin=/tmp/b.jar"))
+
+        let spaced = try CLIParser.parse(args: ["-Xplugin", "/tmp/noarg.jar", "main.kt"])
+        #expect(spaced.frontendFlags.contains("-Xplugin=/tmp/noarg.jar"))
+    }
+
+    @Test
+    func rejectsEmptyXpluginEquals() {
+        #expect(throws: CLIParseError.missingValue("-Xplugin=")) {
+            try CLIParser.parse(args: ["-Xplugin=", "main.kt"])
+        }
+    }
 }
 #endif

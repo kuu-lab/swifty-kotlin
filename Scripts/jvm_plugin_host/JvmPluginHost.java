@@ -176,6 +176,7 @@ public class JvmPluginHost {
         boolean isAllOpen = false;
         boolean isNoArg = false;
         boolean isParcelize = false;
+        boolean isSerialization = false;
         boolean noArgInvokeInitializers = false;
 
         // Try to identify from CommandLineProcessor
@@ -213,6 +214,14 @@ public class JvmPluginHost {
             if (additional != null) {
                 targetAnnotations.addAll(additional);
             }
+        } else if ("org.jetbrains.kotlinx.serialization".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlinx/serialization/compiler/extensions/SerializationComponentRegistrar.class") != null) {
+            isSerialization = true;
+            targetAnnotations.add("kotlinx.serialization.Serializable");
+            List<String> additional = pluginOptions.get("additionalAnnotation");
+            if (additional != null) {
+                targetAnnotations.addAll(additional);
+            }
         }
 
         // Generic fallback: if "annotation" options were provided, include them
@@ -226,6 +235,7 @@ public class JvmPluginHost {
         List<String> membersToOpen = new ArrayList<>();
         List<String> syntheticConstructors = new ArrayList<>();
         List<String> syntheticMethods = new ArrayList<>();
+        List<String> serializableClasses = new ArrayList<>();
 
         for (Map<String, Object> clazz : classes) {
             String fqName = (String) clazz.get("fqName");
@@ -273,6 +283,10 @@ public class JvmPluginHost {
                         escapeJson(fqName)
                 ));
             }
+
+            if (isSerialization) {
+                serializableClasses.add(fqName);
+            }
         }
 
         // Print Sema Transform Plan JSON
@@ -281,7 +295,8 @@ public class JvmPluginHost {
         sb.append("\"classesToOpen\":[").append(formatJsonStringArray(classesToOpen)).append("],");
         sb.append("\"membersToOpen\":[").append(formatJsonStringArray(membersToOpen)).append("],");
         sb.append("\"syntheticConstructors\":[").append(String.join(",", syntheticConstructors)).append("],");
-        sb.append("\"syntheticMethods\":[").append(String.join(",", syntheticMethods)).append("]");
+        sb.append("\"syntheticMethods\":[").append(String.join(",", syntheticMethods)).append("],");
+        sb.append("\"serializableClasses\":[").append(formatJsonStringArray(serializableClasses)).append("]");
         sb.append("}");
 
         System.out.println(sb.toString());
