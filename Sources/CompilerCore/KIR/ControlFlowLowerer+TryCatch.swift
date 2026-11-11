@@ -1,5 +1,11 @@
 
 extension ControlFlowLowerer {
+    struct TryCatchClause {
+        let parameterType: TypeID
+        let bindsParameter: Bool
+        let lowerBody: (KIRExprID?, inout [KIRInstruction]) -> KIRExprID
+    }
+
     func lowerTryExpr(
         _ exprID: ExprID,
         bodyExpr: ExprID,
@@ -12,9 +18,79 @@ extension ControlFlowLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
-        let boundType = sema.bindings.exprTypes[exprID]
-        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
-        let intType = sema.types.make(.primitive(.int, .nonNull))
+        func lower(_ expr: ExprID, into instructions: inout [KIRInstruction]) -> KIRExprID {
+            driver.lowerExpr(
+                expr,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
+        let catches = catchClauses.map { clause in
+            let binding = resolveCatchClauseBinding(clause, ast: ast, sema: sema, interner: interner)
+            return TryCatchClause(
+                parameterType: binding.parameterType,
+                bindsParameter: clause.paramName != nil && binding.parameterSymbol != .invalid
+            ) { parameter, instructions in
+                let previousValue = self.driver.ctx.localValue(for: binding.parameterSymbol)
+                if let parameter {
+                    self.driver.ctx.setLocalValue(parameter, for: binding.parameterSymbol)
+                }
+                defer {
+                    if parameter != nil {
+                        if let previousValue {
+                            self.driver.ctx.setLocalValue(previousValue, for: binding.parameterSymbol)
+                        } else {
+                            self.driver.ctx.clearLocalValue(for: binding.parameterSymbol)
+                        }
+                    }
+                }
+                return lower(clause.body, into: &instructions)
+            }
+        }
+
+        let finallyDepth = driver.ctx.finallyBlockStack.count
+        if let finallyExpr {
+            driver.ctx.pushFinallyBlock(finallyExpr)
+        }
+        defer {
+            if finallyExpr != nil {
+                driver.ctx.popFinallyBlock()
+            }
+        }
+        let lowerFinally: ((inout [KIRInstruction]) -> Void)? = finallyExpr.map { expr in
+            { instructions in
+                self.driver.ctx.withFinallyStackDepth(finallyDepth) {
+                    _ = lower(expr, into: &instructions)
+                }
+            }
+        }
+        return lowerTry(
+            resultType: sema.bindings.exprTypes[exprID] ?? sema.types.errorType,
+            lowerBody: { lower(bodyExpr, into: &$0) },
+            catches: catches,
+            lowerFinally: lowerFinally,
+            sema: sema, arena: arena, interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    func lowerTry(
+        resultType: TypeID,
+        lowerBody: (inout [KIRInstruction]) -> KIRExprID,
+        catches: [TryCatchClause],
+        lowerFinally: ((inout [KIRInstruction]) -> Void)?,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boolType = sema.types.booleanType
+        let intType = sema.types.intType
         let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
         let exceptionTypeSlot = arena.appendTemporary(type: intType)
         let nullExceptionValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
@@ -24,108 +100,74 @@ extension ControlFlowLowerer {
         instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
         instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
 
-        let tryResult = arena.appendTemporary(type: boundType ?? sema.types.errorType)
-
+        let tryResult = arena.appendTemporary(type: resultType)
         let catchDispatchLabel = driver.ctx.makeLoopLabel()
         let finallyLabel = driver.ctx.makeLoopLabel()
         let rethrowLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
 
-        let nonLocalReturnLabel = finallyExpr.map { _ in driver.ctx.makeLoopLabel() }
+        let nonLocalReturnLabel = lowerFinally.map { _ in driver.ctx.makeLoopLabel() }
         let nonLocalReturnValue = arena.appendTemporary(type: nil)
         let returningNonLocally = arena.appendTemporary(type: boolType)
-        let notReturning = arena.appendExpr(.boolLiteral(false), type: boolType)
+        let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
         if let nonLocalReturnLabel {
-            instructions.append(.constValue(result: notReturning, value: .boolLiteral(false)))
-            instructions.append(.copy(from: notReturning, to: returningNonLocally))
+            instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
+            instructions.append(.copy(from: falseValue, to: returningNonLocally))
             instructions.append(.beginNonLocalReturnScope(value: nonLocalReturnValue, target: nonLocalReturnLabel))
         }
 
-        let catchBindings = catchClauses.map { resolveCatchClauseBinding($0, ast: ast, sema: sema, interner: interner) }
-        let catchCheckLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
-        let catchMissLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
-        let catchBodyLabels = catchClauses.map { _ in driver.ctx.makeLoopLabel() }
-        let unmatchedCatchLabel = driver.ctx.makeLoopLabel()
-
-        let enclosingExceptionHandlerDepth = driver.ctx.exceptionHandlerStack.count
-
-        // CODE-001: Push finally block so that return/break/continue inside the
-        // try body or catch bodies will inline the finally code before transferring.
-        // The block is popped explicitly before lowering the finally body itself
-        // (see the pop site below) so that the finally body does not see itself
-        // on the stack.
-        if let finallyExpr {
-            driver.ctx.pushFinallyBlock(
-                finallyExpr,
-                exceptionHandlerDepth: enclosingExceptionHandlerDepth
+        // Guard routed instructions so an enclosing try cannot intercept a
+        // call before this try has handled its exception and run its finally.
+        func appendProtected(
+            _ lowered: [KIRInstruction],
+            thrownTarget: Int32,
+            into instructions: inout [KIRInstruction]
+        ) {
+            instructions.append(.beginFinallyGuard)
+            appendThrowAwareInstructions(
+                lowered,
+                exceptionSlot: exceptionSlot,
+                exceptionTypeSlot: exceptionTypeSlot,
+                thrownTarget: thrownTarget,
+                sema: sema, interner: interner, arena: arena,
+                instructions: &instructions
             )
+            instructions.append(.endFinallyGuard)
         }
+
         driver.ctx.pushExceptionHandler(
             exceptionSlot: exceptionSlot,
             exceptionTypeSlot: exceptionTypeSlot,
             thrownTarget: catchDispatchLabel
         )
-        var exceptionHandlerIsActive = true
-        defer {
-            if exceptionHandlerIsActive {
-                _ = driver.ctx.popExceptionHandler()
-            }
-        }
-
         var bodyInstructions: [KIRInstruction] = []
-        let bodyResultID = driver.lowerExpr(
-            bodyExpr,
-            ast: ast,
-            sema: sema,
-            arena: arena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers,
-            instructions: &bodyInstructions
-        )
-
-        // CODE-001: Wrap the body's throw-routing output in a finally-guard
-        // region so that, if this try is itself nested inside an outer
-        // try/catch body, the outer's own appendThrowAwareInstructions pass
-        // does not re-wrap calls that are already routed to this try's
-        // exceptionSlot. Without this, the outer pass would insert its own
-        // jumpIfNotNull immediately after such a call — racing ahead of this
-        // try's own follow-up (catch dispatch / finally) and skipping it
-        // whenever the exception is actually thrown.
-        instructions.append(.beginFinallyGuard)
-        appendThrowAwareInstructions(
-            bodyInstructions,
-            exceptionSlot: exceptionSlot,
-            exceptionTypeSlot: exceptionTypeSlot,
-            thrownTarget: catchDispatchLabel,
-            sema: sema,
-            interner: interner,
-            arena: arena,
-            instructions: &instructions
-        )
-        instructions.append(.endFinallyGuard)
-
-        let bodyTerminated = isTerminatedExpr(bodyResultID, arena: arena, sema: sema)
-        if !bodyTerminated {
-            instructions.append(.copy(from: bodyResultID, to: tryResult))
+        let bodyResult = lowerBody(&bodyInstructions)
+        appendProtected(bodyInstructions, thrownTarget: catchDispatchLabel, into: &instructions)
+        if !isTerminatedExpr(bodyResult, arena: arena, sema: sema) {
+            instructions.append(.copy(from: bodyResult, to: tryResult))
             instructions.append(.jump(finallyLabel))
         }
 
         instructions.append(.label(catchDispatchLabel))
-        if catchClauses.isEmpty {
-            instructions.append(.jump(finallyLabel))
-        } else if catchClauses.count == 1 {
-            let clause = catchClauses[0]
-            let binding = catchBindings[0]
+        let catchKinds = catches.map { clause in
+            (
+                catchAll: isCatchAllType(clause.parameterType, sema: sema, interner: interner),
+                cancellation: isCancellationExceptionType(clause.parameterType, sema: sema, interner: interner)
+            )
+        }
+        if nonLocalReturnLabel == nil, catchKinds.contains(where: { !$0.catchAll }) {
+            instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
+        }
+        let trueValue = arena.appendExpr(.boolLiteral(true), type: boolType)
+        if catchKinds.contains(where: { !$0.catchAll && !$0.cancellation }) {
+            instructions.append(.constValue(result: trueValue, value: .boolLiteral(true)))
+        }
 
-            let noMatchLabel = driver.ctx.makeLoopLabel()
-            if !isCatchAllType(binding.parameterType, sema: sema, interner: interner) {
-                let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
-                instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
-
+        for (clause, kind) in zip(catches, catchKinds) {
+            let nextCatchLabel = driver.ctx.makeLoopLabel()
+            if !kind.catchAll {
                 let matchResult = arena.appendTemporary(type: boolType)
-                if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
-                    // Cancellation check only needs falseValue for the jump;
-                    // trueValue/sharedUnknownToken are not used.
+                if kind.cancellation {
                     emitNonThrowingCall(
                         callee: interner.intern("kk_throwable_is_cancellation"),
                         arg: exceptionSlot,
@@ -133,237 +175,44 @@ extension ControlFlowLowerer {
                         into: &instructions
                     )
                 } else {
-                    // Only emit trueValue/sharedUnknownToken when actually needed
-                    // by emitExceptionTypeCheck (avoids dead constValue instructions).
-                    let trueValue = arena.appendExpr(.boolLiteral(true), type: boolType)
-                    let sharedUnknownToken = arena.appendExpr(.intLiteral(0), type: intType)
-                    instructions.append(.constValue(result: trueValue, value: .boolLiteral(true)))
-                    instructions.append(.constValue(result: sharedUnknownToken, value: .intLiteral(0)))
-
                     emitExceptionTypeCheck(
-                        catchType: binding.parameterType,
+                        catchType: clause.parameterType,
                         exceptionSlot: exceptionSlot,
                         exceptionTypeSlot: exceptionTypeSlot,
                         matchResult: matchResult,
-                        unknownTypeToken: sharedUnknownToken,
+                        unknownTypeToken: zeroTypeToken,
                         trueValue: trueValue,
                         boolType: boolType,
                         intType: intType,
-                        sema: sema,
-                        interner: interner,
-                        arena: arena,
+                        sema: sema, interner: interner, arena: arena,
                         instructions: &instructions
                     )
                 }
-                instructions.append(.jumpIfEqual(lhs: matchResult, rhs: falseValue, target: noMatchLabel))
+                instructions.append(.jumpIfEqual(lhs: matchResult, rhs: falseValue, target: nextCatchLabel))
             }
 
-            var previousCatchParamValue: KIRExprID?
-            if clause.paramName != nil, binding.parameterSymbol != .invalid {
-                let paramID = arena.appendTemporary(type: binding.parameterType)
-                instructions.append(.copy(from: exceptionSlot, to: paramID))
-                previousCatchParamValue = driver.ctx.localValue(for: binding.parameterSymbol)
-                driver.ctx.setLocalValue(paramID, for: binding.parameterSymbol)
+            let parameter = clause.bindsParameter ? arena.appendTemporary(type: clause.parameterType) : nil
+            if let parameter {
+                instructions.append(.copy(from: exceptionSlot, to: parameter))
             }
             instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
             instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
 
-            var catchBodyInstructions: [KIRInstruction] = []
-            let catchBodyResult = driver.ctx.withExceptionHandlerTarget(finallyLabel) {
-                driver.lowerExpr(
-                    clause.body,
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &catchBodyInstructions
-                )
+            var catchInstructions: [KIRInstruction] = []
+            let catchResult = driver.ctx.withExceptionHandlerTarget(finallyLabel) {
+                clause.lowerBody(parameter, &catchInstructions)
             }
-            // CODE-001: see the matching guard around the body's own
-            // appendThrowAwareInstructions call above — a nested try inside
-            // this catch body would otherwise have its exception routing
-            // re-wrapped (and its own finally skipped) by an outer try.
-            instructions.append(.beginFinallyGuard)
-            appendThrowAwareInstructions(
-                catchBodyInstructions,
-                exceptionSlot: exceptionSlot,
-                exceptionTypeSlot: exceptionTypeSlot,
-                thrownTarget: finallyLabel,
-                sema: sema,
-                interner: interner,
-                arena: arena,
-                instructions: &instructions
-            )
-            instructions.append(.endFinallyGuard)
-
-            if clause.paramName != nil, binding.parameterSymbol != .invalid {
-                if let previousCatchParamValue {
-                    driver.ctx.setLocalValue(previousCatchParamValue, for: binding.parameterSymbol)
-                } else {
-                    driver.ctx.clearLocalValue(for: binding.parameterSymbol)
-                }
-            }
-
-            let catchTerminated = isTerminatedExpr(catchBodyResult, arena: arena, sema: sema)
-            if !catchTerminated {
-                instructions.append(.copy(from: catchBodyResult, to: tryResult))
+            appendProtected(catchInstructions, thrownTarget: finallyLabel, into: &instructions)
+            if !isTerminatedExpr(catchResult, arena: arena, sema: sema) {
+                instructions.append(.copy(from: catchResult, to: tryResult))
             }
             instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
             instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
             instructions.append(.jump(finallyLabel))
-
-            instructions.append(.label(noMatchLabel))
-            instructions.append(.jump(finallyLabel))
-        } else {
-            // Emit shared falseValue for any non-catch-all clause (used by
-            // both cancellation checks and runtime type checks for the jump).
-            let hasTypedCatch = catchBindings.contains { binding in
-                !isCatchAllType(binding.parameterType, sema: sema, interner: interner)
-            }
-            // Only emit trueValue/sharedUnknownToken when at least one clause
-            // actually needs emitExceptionTypeCheck (i.e., non-catch-all AND
-            // non-cancellation-exception). This avoids dead constValue
-            // instructions when all typed clauses are cancellation checks.
-            let needsRuntimeTypeCheck = catchBindings.contains { binding in
-                !isCatchAllType(binding.parameterType, sema: sema, interner: interner)
-                    && !isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner)
-            }
-            var falseValue: KIRExprID?
-            var trueValue: KIRExprID?
-            var sharedUnknownToken: KIRExprID?
-            if hasTypedCatch {
-                let fv = arena.appendExpr(.boolLiteral(false), type: boolType)
-                instructions.append(.constValue(result: fv, value: .boolLiteral(false)))
-                falseValue = fv
-            }
-            if needsRuntimeTypeCheck {
-                let tv = arena.appendExpr(.boolLiteral(true), type: boolType)
-                let ut = arena.appendExpr(.intLiteral(0), type: intType)
-                instructions.append(.constValue(result: tv, value: .boolLiteral(true)))
-                instructions.append(.constValue(result: ut, value: .intLiteral(0)))
-                trueValue = tv
-                sharedUnknownToken = ut
-            }
-            instructions.append(.jump(catchCheckLabels[0]))
-
-            for index in catchClauses.indices {
-                let clause = catchClauses[index]
-                let binding = catchBindings[index]
-                instructions.append(.label(catchCheckLabels[index]))
-
-                if !isCatchAllType(binding.parameterType, sema: sema, interner: interner) {
-                    // Safe to force-unwrap: hasTypedCatch guarantees falseValue is set
-                    let fv = falseValue!
-                    let matchResult = arena.appendTemporary(type: boolType)
-                    if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
-                        // Cancellation check only needs falseValue for the jump;
-                        // trueValue/sharedUnknownToken are not used.
-                        emitNonThrowingCall(
-                            callee: interner.intern("kk_throwable_is_cancellation"),
-                            arg: exceptionSlot,
-                            result: matchResult,
-                            into: &instructions
-                        )
-                    } else {
-                        // Safe to force-unwrap: needsRuntimeTypeCheck guarantees these are set
-                        let tv = trueValue!
-                        let ut = sharedUnknownToken!
-                        emitExceptionTypeCheck(
-                            catchType: binding.parameterType,
-                            exceptionSlot: exceptionSlot,
-                            exceptionTypeSlot: exceptionTypeSlot,
-                            matchResult: matchResult,
-                            unknownTypeToken: ut,
-                            trueValue: tv,
-                            boolType: boolType,
-                            intType: intType,
-                            sema: sema,
-                            interner: interner,
-                            arena: arena,
-                            instructions: &instructions
-                        )
-                    }
-                    instructions.append(.jumpIfEqual(lhs: matchResult, rhs: fv, target: catchMissLabels[index]))
-                }
-                instructions.append(.jump(catchBodyLabels[index]))
-                instructions.append(.label(catchBodyLabels[index]))
-
-                var previousCatchParamValue: KIRExprID?
-                if clause.paramName != nil, binding.parameterSymbol != .invalid {
-                    let paramID = arena.appendTemporary(type: binding.parameterType)
-                    instructions.append(.copy(from: exceptionSlot, to: paramID))
-                    previousCatchParamValue = driver.ctx.localValue(for: binding.parameterSymbol)
-                    driver.ctx.setLocalValue(paramID, for: binding.parameterSymbol)
-                }
-                instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
-                instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
-
-                var catchBodyInstructions: [KIRInstruction] = []
-                let catchBodyResult = driver.ctx.withExceptionHandlerTarget(finallyLabel) {
-                    driver.lowerExpr(
-                        clause.body,
-                        ast: ast,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        propertyConstantInitializers: propertyConstantInitializers,
-                        instructions: &catchBodyInstructions
-                    )
-                }
-                // CODE-001: see the matching guard around the body's own
-                // appendThrowAwareInstructions call above — a nested try
-                // inside this catch body would otherwise have its exception
-                // routing re-wrapped (and its own finally skipped) by an
-                // outer try.
-                instructions.append(.beginFinallyGuard)
-                appendThrowAwareInstructions(
-                    catchBodyInstructions,
-                    exceptionSlot: exceptionSlot,
-                    exceptionTypeSlot: exceptionTypeSlot,
-                    thrownTarget: finallyLabel,
-                    sema: sema,
-                    interner: interner,
-                    arena: arena,
-                    instructions: &instructions
-                )
-                instructions.append(.endFinallyGuard)
-
-                if clause.paramName != nil, binding.parameterSymbol != .invalid {
-                    if let previousCatchParamValue {
-                        driver.ctx.setLocalValue(previousCatchParamValue, for: binding.parameterSymbol)
-                    } else {
-                        driver.ctx.clearLocalValue(for: binding.parameterSymbol)
-                    }
-                }
-
-                let catchTerminated = isTerminatedExpr(catchBodyResult, arena: arena, sema: sema)
-                if !catchTerminated {
-                    instructions.append(.copy(from: catchBodyResult, to: tryResult))
-                }
-                instructions.append(.copy(from: nullExceptionValue, to: exceptionSlot))
-                instructions.append(.copy(from: zeroTypeToken, to: exceptionTypeSlot))
-                instructions.append(.jump(finallyLabel))
-
-                instructions.append(.label(catchMissLabels[index]))
-                if index + 1 < catchClauses.count {
-                    instructions.append(.jump(catchCheckLabels[index + 1]))
-                } else {
-                    instructions.append(.jump(unmatchedCatchLabel))
-                }
-            }
-
-            instructions.append(.label(unmatchedCatchLabel))
-            instructions.append(.jump(finallyLabel))
+            instructions.append(.label(nextCatchLabel))
         }
-
-        // CODE-001: Pop the finally block before lowering the finally label itself,
-        // so that the finally body lowering does not see itself on the stack.
-        if finallyExpr != nil {
-            driver.ctx.popFinallyBlock()
-        }
-        _ = driver.ctx.popExceptionHandler()
-        exceptionHandlerIsActive = false
+        instructions.append(.jump(finallyLabel))
+        driver.ctx.popExceptionHandler()
 
         if let nonLocalReturnLabel {
             instructions.append(.endNonLocalReturnScope)
@@ -373,77 +222,13 @@ extension ControlFlowLowerer {
         }
 
         instructions.append(.label(finallyLabel))
-        if let finallyExpr {
+        if let lowerFinally {
             var finallyInstructions: [KIRInstruction] = []
-            _ = driver.lowerExpr(
-                finallyExpr,
-                ast: ast,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                propertyConstantInitializers: propertyConstantInitializers,
-                instructions: &finallyInstructions
+            lowerFinally(&finallyInstructions)
+            appendFinallyInstructions(
+                finallyInstructions, sema: sema, arena: arena, interner: interner,
+                into: &instructions
             )
-
-            let hasThrowableCall = finallyInstructions.contains { (instr: KIRInstruction) -> Bool in
-                switch instr {
-                case .call,
-                     .virtualCall,
-                     .nullAssert,
-                     .rethrow:
-                    return true
-                default:
-                    return false
-                }
-            }
-
-            if hasThrowableCall {
-                // Allocate separate slots for exceptions thrown *inside* the
-                // finally body.  Using the outer exceptionSlot would destroy
-                // the pending exception when a finally call succeeds (writes
-                // null to the slot), silently swallowing the in-flight error.
-                let finallyExSlot = arena.appendTemporary(type: sema.types.nullableAnyType
-                )
-                let finallyExTypeSlot = arena.appendTemporary(type: intType
-                )
-                let finallyNullValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
-                let finallyZeroValue = arena.appendExpr(.intLiteral(0), type: intType)
-
-                // Wrap with guard sentinels so that an outer
-                // appendThrowAwareInstructions pass does not double-wrap the
-                // already-routed exception handling inside this finally block.
-                instructions.append(.beginFinallyGuard)
-
-                instructions.append(.constValue(result: finallyNullValue, value: .null))
-                instructions.append(.constValue(result: finallyZeroValue, value: .intLiteral(0)))
-                instructions.append(.copy(from: finallyNullValue, to: finallyExSlot))
-                instructions.append(.copy(from: finallyZeroValue, to: finallyExTypeSlot))
-
-                let finallyRethrowLabel = driver.ctx.makeLoopLabel()
-                let finallyAfterLabel = driver.ctx.makeLoopLabel()
-
-                appendThrowAwareInstructions(
-                    finallyInstructions,
-                    exceptionSlot: finallyExSlot,
-                    exceptionTypeSlot: finallyExTypeSlot,
-                    thrownTarget: finallyRethrowLabel,
-                    sema: sema,
-                    interner: interner,
-                    arena: arena,
-                    instructions: &instructions
-                )
-                instructions.append(.jump(finallyAfterLabel))
-                instructions.append(.endFinallyGuard)
-
-                // Finally body itself threw — rethrow that exception (replaces
-                // the original in-flight exception per Kotlin semantics).
-                instructions.append(.label(finallyRethrowLabel))
-                instructions.append(.rethrow(value: finallyExSlot))
-
-                instructions.append(.label(finallyAfterLabel))
-            } else {
-                instructions.append(contentsOf: finallyInstructions)
-            }
         }
         instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))
         instructions.append(.jump(endLabel))
@@ -461,16 +246,70 @@ extension ControlFlowLowerer {
         instructions.append(.label(endLabel))
         if nonLocalReturnLabel != nil {
             let afterReturnLabel = driver.ctx.makeLoopLabel()
-            instructions.append(.jumpIfEqual(lhs: returningNonLocally, rhs: notReturning, target: afterReturnLabel))
+            instructions.append(.jumpIfEqual(lhs: returningNonLocally, rhs: falseValue, target: afterReturnLabel))
             instructions.append(.resumeNonLocalReturn(nonLocalReturnValue))
             instructions.append(.label(afterReturnLabel))
         }
-        if boundType == sema.types.nothingType {
-            let terminated = arena.appendExpr(.unit, type: sema.types.nothingType)
+        if resultType == sema.types.nothingType {
+            let terminated = arena.appendExpr(.unit, type: resultType)
             instructions.append(.constValue(result: terminated, value: .unit))
             return terminated
         }
         return tryResult
+    }
+
+    func appendFinallyInstructions(
+        _ lowered: [KIRInstruction],
+        outerHandler: KIRLoweringContext.ExceptionHandler? = nil,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        into instructions: inout [KIRInstruction]
+    ) {
+        guard lowered.contains(where: { instruction in
+            switch instruction {
+            case .call, .virtualCall, .nullAssert, .rethrow: true
+            default: false
+            }
+        }) else {
+            instructions.append(contentsOf: lowered)
+            return
+        }
+
+        // A successful call in finally must preserve any pending exception.
+        let exceptionSlot = arena.appendTemporary(type: sema.types.nullableAnyType)
+        let typeSlot = arena.appendTemporary(type: sema.types.intType)
+        let nullValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+        let zeroValue = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        let rethrowLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+
+        instructions.append(.beginFinallyGuard)
+        instructions.append(.constValue(result: nullValue, value: .null))
+        instructions.append(.constValue(result: zeroValue, value: .intLiteral(0)))
+        instructions.append(.copy(from: nullValue, to: exceptionSlot))
+        instructions.append(.copy(from: zeroValue, to: typeSlot))
+        appendThrowAwareInstructions(
+            lowered,
+            exceptionSlot: exceptionSlot,
+            exceptionTypeSlot: typeSlot,
+            thrownTarget: rethrowLabel,
+            sema: sema, interner: interner, arena: arena,
+            instructions: &instructions
+        )
+        instructions.append(.jump(endLabel))
+        instructions.append(.endFinallyGuard)
+
+        // A throw from finally replaces the pending exception or control transfer.
+        instructions.append(.label(rethrowLabel))
+        if let outerHandler {
+            instructions.append(.copy(from: exceptionSlot, to: outerHandler.exceptionSlot))
+            instructions.append(.copy(from: zeroValue, to: outerHandler.exceptionTypeSlot))
+            instructions.append(.jump(outerHandler.thrownTarget))
+        } else {
+            instructions.append(.rethrow(value: exceptionSlot))
+        }
+        instructions.append(.label(endLabel))
     }
 
     /// This first performs a fast integer comparison against the encoded catch type token.

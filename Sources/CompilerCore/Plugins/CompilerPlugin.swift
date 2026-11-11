@@ -93,6 +93,11 @@ enum CompilerPluginRegistry {
         NoArgPlugin(),
         ParcelizePlugin(),
         KotlinxSerializationPlugin(),
+        SamWithReceiverPlugin(),
+        AssignmentPlugin(),
+        PowerAssertPlugin(),
+        LombokPlugin(),
+        ComposePlugin(),
     ]
 
     private static let cacheLock = NSLock()

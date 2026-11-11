@@ -127,6 +127,7 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        maybeRecordPowerAssertCall(callExprID: id, chosenCallee: chosen, sema: sema)
         // Resolve imports, aliases, bounds and the receiver normally before
         // recording the reified argument for the native KClass fast path.
         if sema.symbols.symbol(chosen)?.fqName == ["kotlin", "reflect", "full", "findAnnotation"].map(driver.interner.intern),

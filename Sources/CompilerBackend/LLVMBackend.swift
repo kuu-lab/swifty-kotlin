@@ -59,28 +59,100 @@ final class LLVMBackend {
             context: "object",
             nativeEmit: { bindings in
                 let emitter = withSubPhaseTiming("initEmitter", timer: phaseTimer) {
-                    NativeEmitter(
-                        target: target,
-                        optLevel: optLevel,
-                        debugInfo: debugInfo,
+                    makeEmitter(
                         bindings: bindings,
-                        reusableContext: reusableContext,
                         module: module,
                         interner: interner,
-                        moduleName: moduleName,
                         typeSystem: typeSystem,
                         symbols: symbols,
                         sourceManager: sourceManager,
                         fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                         reflectionMetadataRecords: reflectionMetadataRecords,
                         reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-                        linkOnceODRSymbols: linkOnceODRSymbols,
-                        parallelJobs: parallelJobs,
-                        phaseTimer: phaseTimer
+                        linkOnceODRSymbols: linkOnceODRSymbols
                     )
                 }
                 try emitter.emitObject(outputPath: outputObjectPath, bitcodeOutputPath: bitcodeOutputPath)
             }
+        )
+    }
+
+    func emitLibraryObjects(
+        module: KIRModule,
+        outputObjectsDir: String,
+        interner: StringInterner,
+        typeSystem: TypeSystem? = nil,
+        symbols: SymbolTable? = nil,
+        sourceManager: SourceManager? = nil,
+        fileFacadeNamesByFileID: [Int32: String] = [:],
+        reflectionMetadataRecords: [MetadataRecord] = [],
+        reflectionMetadataSymbolPrefix: String? = nil,
+        linkOnceODRSymbols: Set<SymbolID> = [],
+        bitcodeOutputPath: String? = nil
+    ) throws -> [String] {
+        var relativeObjectPaths: [String] = []
+        try emitNative(
+            context: "library objects",
+            nativeEmit: { bindings in
+                let emitter = withSubPhaseTiming("initEmitter", timer: phaseTimer) {
+                    makeEmitter(
+                        bindings: bindings,
+                        module: module,
+                        interner: interner,
+                        typeSystem: typeSystem,
+                        symbols: symbols,
+                        sourceManager: sourceManager,
+                        fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                        reflectionMetadataRecords: reflectionMetadataRecords,
+                        reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+                        linkOnceODRSymbols: linkOnceODRSymbols
+                    )
+                }
+                if parallelJobs > 1, bitcodeOutputPath == nil {
+                    relativeObjectPaths = try emitter.emitPartitionedObjects(
+                        outputObjectsDir: outputObjectsDir,
+                        moduleName: moduleName
+                    )
+                } else {
+                    let objectPath = outputObjectsDir + "/\(moduleName)_0.o"
+                    try emitter.emitObject(outputPath: objectPath, bitcodeOutputPath: bitcodeOutputPath)
+                    relativeObjectPaths = ["objects/\(moduleName)_0.o"]
+                }
+            }
+        )
+        return relativeObjectPaths
+    }
+
+    private func makeEmitter(
+        bindings: LLVMCAPIBindings,
+        module: KIRModule,
+        interner: StringInterner,
+        typeSystem: TypeSystem?,
+        symbols: SymbolTable?,
+        sourceManager: SourceManager?,
+        fileFacadeNamesByFileID: [Int32: String],
+        reflectionMetadataRecords: [MetadataRecord],
+        reflectionMetadataSymbolPrefix: String?,
+        linkOnceODRSymbols: Set<SymbolID>
+    ) -> NativeEmitter {
+        NativeEmitter(
+            target: target,
+            optLevel: optLevel,
+            debugInfo: debugInfo,
+            bindings: bindings,
+            reusableContext: reusableContext,
+            module: module,
+            interner: interner,
+            moduleName: moduleName,
+            typeSystem: typeSystem,
+            symbols: symbols,
+            sourceManager: sourceManager,
+            fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+            reflectionMetadataRecords: reflectionMetadataRecords,
+            reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+            linkOnceODRSymbols: linkOnceODRSymbols,
+            parallelJobs: parallelJobs,
+            phaseTimer: phaseTimer
         )
     }
 

@@ -175,5 +175,84 @@ struct ParallelCodegenEmissionTests {
             #expect(result.exitCode == 0)
         }
     }
+
+    @Test
+    func libraryPartitionedEmissionProducesMultipleObjectsAndLinks() throws {
+        try withTemporaryFile(contents: Self.source) { libSourcePath in
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+
+            let libBase = directory.appendingPathComponent("ParLib").path
+            let ctx = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "ParLib",
+                    inputs: [libSourcePath],
+                    outputPath: libBase,
+                    emit: .library,
+                    target: TargetTriple.hostDefault(),
+                    frontendFlags: ["codegen-parallel", "jobs=4"],
+                    includeStdlib: false
+                ),
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            let timer = PhaseTimer()
+            ctx.installPhaseTimer(timer)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            timer.beginPhase("Codegen")
+            try CodegenPhase().run(ctx)
+            timer.endPhase()
+
+            func namesIn(_ records: [PhaseTimer.PhaseRecord]) -> [String] {
+                records.flatMap { [$0.name] + namesIn($0.subRecords) }
+            }
+            let phase = try #require(timer.phaseRecords.first)
+            #expect(namesIn(phase.subRecords).contains("IR+obj/partition parallel"))
+
+            let kklibDir = libBase + ".kklib"
+            let manifestURL = URL(fileURLWithPath: kklibDir).appendingPathComponent("manifest.json")
+            let manifestData = try Data(contentsOf: manifestURL)
+            let manifest = try #require(JSONSerialization.jsonObject(with: manifestData) as? [String: Any])
+            let objects = try #require(manifest["objects"] as? [String])
+            #expect(objects.count == 5)
+            for relPath in objects {
+                let objPath = URL(fileURLWithPath: kklibDir).appendingPathComponent(relPath).path
+                #expect(FileManager.default.fileExists(atPath: objPath))
+            }
+
+            let mainPath = directory.appendingPathComponent("main.kt").path
+            let exePath = directory.appendingPathComponent("main_out").path
+            try """
+            fun main() {
+                topVar = add(fib(5), Derived(3).describe()) + Singleton.v
+            }
+            """.write(toFile: mainPath, atomically: true, encoding: .utf8)
+
+            let mainCtx = CompilationContext(
+                options: CompilerOptions(
+                    moduleName: "UseParLib",
+                    inputs: [mainPath],
+                    outputPath: exePath,
+                    emit: .executable,
+                    searchPaths: [kklibDir],
+                    target: TargetTriple.hostDefault(),
+                    includeStdlib: false
+                ),
+                sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(),
+                interner: StringInterner()
+            )
+            try runToKIR(mainCtx)
+            try LoweringPhase().run(mainCtx)
+            try CodegenPhase().run(mainCtx)
+            try LinkPhase().run(mainCtx)
+
+            let result = try CommandRunner.run(executable: exePath, arguments: [])
+            #expect(result.exitCode == 0, "\(result.stderr)")
+        }
+    }
 }
 #endif

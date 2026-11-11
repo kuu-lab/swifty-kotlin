@@ -195,7 +195,7 @@ struct ParcelizePlugin: CompilerPlugin {
             )
             symbols.setParentSymbol(classID, for: writeSym)
 
-            let parcelType = resolveParcelType(symbols: symbols, types: types, interner: interner)
+            let (parcelType, _) = resolveParcelTypeAndSymbol(symbols: symbols, types: types, interner: interner)
             let destName = interner.intern("dest")
             let flagsName = interner.intern("flags")
 
@@ -233,46 +233,201 @@ struct ParcelizePlugin: CompilerPlugin {
             writeToParcelSymbol = writeSym
         }
 
+        // 3. Collect serializable properties (skipping @IgnoredOnParcel)
+        let ignoredAnnotations: Set<String> = [
+            "kotlinx.parcelize.IgnoredOnParcel",
+            "kotlin.android.parcel.IgnoredOnParcel",
+        ]
+        let parcelProperties = symbols.declaredChildren(of: classID).filter { childID in
+            guard let child = symbols.symbol(childID),
+                  child.kind == .property,
+                  !child.flags.contains(.synthetic),
+                  !child.flags.contains(.static)
+            else { return false }
+            let anns = symbols.annotations(for: childID)
+            return !anns.contains { ignoredAnnotations.contains($0.annotationFQName) }
+        }
+
+        // 4. Synthesize CREATOR object (`createFromParcel(parcel: Parcel): T`, `newArray(size: Int): Array<T?>`)
+        let (_, resolvedParcelSymbol) = resolveParcelTypeAndSymbol(symbols: symbols, types: types, interner: interner)
+        let (parcelTypeForCreator, _) = resolveParcelTypeAndSymbol(symbols: symbols, types: types, interner: interner)
+        let creatorName = interner.intern("CREATOR")
+        let creatorFQ = classSymbol.fqName + [creatorName]
+        var creatorSymbol: SymbolID? = symbols.lookupAll(fqName: creatorFQ).first {
+            symbols.parentSymbol(for: $0) == classID
+                && (symbols.symbol($0)?.kind == .object || symbols.symbol($0)?.kind == .property)
+        }
+        var createFromParcelSymbol: SymbolID? = nil
+        var newArraySymbol: SymbolID? = nil
+
+        if creatorSymbol == nil {
+            let objSym = symbols.define(
+                kind: .object,
+                name: creatorName,
+                fqName: creatorFQ,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(classID, for: objSym)
+            if let creatorIface = resolveParcelableCreatorSymbol(symbols: symbols, interner: interner) {
+                symbols.setDirectSupertypes([creatorIface], for: objSym)
+                symbols.setSupertypeTypeArgs([.invariant(classType)], for: objSym, supertype: creatorIface)
+            }
+            creatorSymbol = objSym
+
+            let creatorType = types.make(.classType(ClassType(
+                classSymbol: objSym,
+                args: [],
+                nullability: .nonNull
+            )))
+
+            // createFromParcel(parcel: Parcel): T
+            let createName = interner.intern("createFromParcel")
+            let createFQ = creatorFQ + [createName]
+            let createSym = symbols.define(
+                kind: .function,
+                name: createName,
+                fqName: createFQ,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(objSym, for: createSym)
+            let parcelParamName = interner.intern("parcel")
+            let parcelParamSym = symbols.define(
+                kind: .valueParameter,
+                name: parcelParamName,
+                fqName: createFQ + [parcelParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(createSym, for: parcelParamSym)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: creatorType,
+                    parameterTypes: [parcelTypeForCreator],
+                    returnType: classType,
+                    valueParameterSymbols: [parcelParamSym],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: typeParamSymbols,
+                    classTypeParameterCount: typeParamSymbols.count
+                ),
+                for: createSym
+            )
+            createFromParcelSymbol = createSym
+
+            // newArray(size: Int): Array<T?>
+            let newArrayName = interner.intern("newArray")
+            let newArrayFQ = creatorFQ + [newArrayName]
+            let newArraySym = symbols.define(
+                kind: .function,
+                name: newArrayName,
+                fqName: newArrayFQ,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(objSym, for: newArraySym)
+            let sizeName = interner.intern("size")
+            let sizeParamSym = symbols.define(
+                kind: .valueParameter,
+                name: sizeName,
+                fqName: newArrayFQ + [sizeName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(newArraySym, for: sizeParamSym)
+            let nullableClassType = types.makeNullable(classType)
+            let arrayReturnType: TypeID = if let arraySym = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")]) {
+                types.make(.classType(ClassType(
+                    classSymbol: arraySym,
+                    args: [.invariant(nullableClassType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                types.anyType
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: creatorType,
+                    parameterTypes: [types.intType],
+                    returnType: arrayReturnType,
+                    valueParameterSymbols: [sizeParamSym],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: typeParamSymbols,
+                    classTypeParameterCount: typeParamSymbols.count
+                ),
+                for: newArraySym
+            )
+            newArraySymbol = newArraySym
+        }
+
         context.sema.parcelizeClasses[classID] = ParcelizeClassInfo(
             describeContentsMethod: describeContentsSymbol,
-            writeToParcelMethod: writeToParcelSymbol
+            writeToParcelMethod: writeToParcelSymbol,
+            properties: parcelProperties,
+            creatorObjectSymbol: creatorSymbol,
+            createFromParcelMethod: createFromParcelSymbol,
+            newArrayMethod: newArraySymbol,
+            parcelSymbol: resolvedParcelSymbol
         )
     }
 
-    private func resolveParcelType(
+    private func resolveParcelableCreatorSymbol(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let fq = [
+            interner.intern("android"),
+            interner.intern("os"),
+            interner.intern("Parcelable"),
+            interner.intern("Creator"),
+        ]
+        if let sym = symbols.lookup(fqName: fq) {
+            return sym
+        }
+        return symbols.lookup(fqName: [interner.intern("Parcelable"), interner.intern("Creator")])
+    }
+
+    private func resolveParcelTypeAndSymbol(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
-    ) -> TypeID {
+    ) -> (TypeID, SymbolID?) {
         let parcelFQName = [
             interner.intern("android"),
             interner.intern("os"),
             interner.intern("Parcel"),
         ]
         if let parcelSym = symbols.lookup(fqName: parcelFQName) {
-            return types.make(.classType(ClassType(
+            return (types.make(.classType(ClassType(
                 classSymbol: parcelSym,
                 args: [],
                 nullability: .nonNull
-            )))
+            ))), parcelSym)
         }
         if let parcelSym = symbols.lookup(fqName: [interner.intern("Parcel")]) {
-            return types.make(.classType(ClassType(
+            return (types.make(.classType(ClassType(
                 classSymbol: parcelSym,
                 args: [],
                 nullability: .nonNull
-            )))
+            ))), parcelSym)
         }
         if let parcelSym = symbols.lookupByShortName(interner.intern("Parcel")).first(where: {
             let k = symbols.symbol($0)?.kind
             return k == .interface || k == .class
         }) {
-            return types.make(.classType(ClassType(
+            return (types.make(.classType(ClassType(
                 classSymbol: parcelSym,
                 args: [],
                 nullability: .nonNull
-            )))
+            ))), parcelSym)
         }
-        return types.anyType
+        return (types.anyType, nil)
     }
 }

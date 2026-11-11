@@ -391,12 +391,16 @@ extension JVMProgramBuilder {
     }
     func emitConstructor(_ plan: JVMClassPlan, _ symbol: SymbolID, _ declaration: ConstructorDecl, primary: Bool) throws -> JVMFunction {
         let method = methods[symbol]!
-        let hidden = plan.isEnum ? [ValueParamDecl(name: context.interner.intern("$name"), type: nil), ValueParamDecl(name: context.interner.intern("$ordinal"), type: nil)] : (plan.isInner ? [ValueParamDecl(name: context.interner.intern("$outer"), type: nil)] : [])
+        let hidden = plan.captures.map { ValueParamDecl(name: context.interner.intern($0.field.name), type: nil) }
+            + (plan.isEnum ? [ValueParamDecl(name: context.interner.intern("$name"), type: nil), ValueParamDecl(name: context.interner.intern("$ordinal"), type: nil)] : (plan.isInner ? [ValueParamDecl(name: context.interner.intern("$outer"), type: nil)] : []))
         let f = FunDecl(range: declaration.range, name: context.interner.intern("<init>"), modifiers: declaration.modifiers, valueParams: hidden + declaration.valueParams, body: declaration.body)
         let builder = JVMFunctionBuilder(program: self, declaration: f, reference: JVMFunctionReference(name: "<init>", parameters: (plan.isEnum ? [.string, .int] : []) + method.parameters, result: .unit), owner: plan)
         try builder.prepareParameters(); builder.beforeDelegation = true
         if plan.isInner, let outer = plan.outer { try builder.bindEnclosingInstance(classes[outer]!, value: builder.locals[1]) }
         let object = builder.thisValue!
+        let captureInputs = Array(builder.locals.dropFirst().prefix(plan.captures.count))
+        for (capture, input) in zip(plan.captures, captureInputs) { builder.instructions.append(.putField(capture.field, object, input)) }
+        if !plan.captures.isEmpty { try builder.bindCaptureValues(plan.captures, values: captureInputs) }
         let target = sema.bindings.constructorDelegationTarget(for: symbol)
         let arguments = primary ? (plan.declaration?.superTypeEntries.first(where: { !$0.constructorArgs.isEmpty })?.constructorArgs ?? []) : (declaration.delegationCall?.args ?? [])
         let delegate: JVMForeignMethod
@@ -454,7 +458,13 @@ extension JVMProgramBuilder {
             function.genericSignature = "(Ljava/lang/String;I" + String(function.genericSignature!.dropFirst())
         } else if plan.isInner {
             function.kotlinParameterOffset = 1; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }
-        } else if plan.modifiers.contains(.sealed), declaration.modifiers.isEmpty { function.access = 4 }
+        } else {
+            if !plan.captures.isEmpty {
+                function.kotlinParameterOffset = plan.captures.count
+                function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }
+            }
+            if plan.modifiers.contains(.sealed), declaration.modifiers.isEmpty { function.access = 4 }
+        }
         return function
     }
     func bridges(_ plan: JVMClassPlan, functions: [JVMFunction]) throws -> [JVMFunction] {

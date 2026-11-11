@@ -1,3 +1,5 @@
+import Foundation
+
 /// Concurrency model:
 /// mutable context fields are written on the main pipeline thread between phases,
 /// while parallel phase workers operate on per-phase local data.
@@ -18,6 +20,10 @@ public final class CompilationContext: @unchecked Sendable {
     public internal(set) var jvmProgram: JVMProgram?
     var jvmImports: JVMClasspathIndex?
     var jvmRuntimeClassAliases: [String: String] = [:]
+    package var androidResourceLink: AndroidResourceLink?
+    package var androidResourceClassFiles: [(String, Data)] {
+        jvmImports?.fallbackClassFiles ?? []
+    }
 
     /// Classfile entry names (`a/b/C.class`) of the classpath stubs injected
     /// for Sema (`<kswiftk-jvm-import>` sources). Android packaging excludes

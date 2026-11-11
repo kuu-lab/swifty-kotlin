@@ -6,6 +6,14 @@ import Testing
 
 @Suite
 struct RuntimeABIExternalLinkValidationTests {
+    @Test func testPlatformForeignLinksAreNotRuntimeBridges() {
+        #expect(!requiresRuntimeABISpec("pthread_self", isPlatformDeclaration: true))
+        #expect(!requiresRuntimeABISpec("clock_gettime", isPlatformDeclaration: true))
+        #expect(requiresRuntimeABISpec("kk_missing_bridge", isPlatformDeclaration: true))
+        #expect(requiresRuntimeABISpec("__kk_missing_bridge", isPlatformDeclaration: true))
+        #expect(requiresRuntimeABISpec("missing_bridge", isPlatformDeclaration: false))
+    }
+
     @Test func testObjectBridgeIsAZeroArgumentHandleGetter() {
         let declarations = bundledKsSymbolNameDeclarations(in: """
         class Element {
@@ -47,8 +55,12 @@ struct RuntimeABIExternalLinkValidationTests {
         try runSema(ctx)
         let sema = try #require(ctx.sema)
         let runtimeABINames = Set(RuntimeABISpec.allFunctions.map(\.name))
-        let linkNames = Set(sema.symbols.allSymbols().compactMap { symbol in
-            sema.symbols.externalLinkName(for: symbol.id)
+        let platform = ctx.interner.intern("platform")
+        let linkNames = Set(sema.symbols.allSymbols().compactMap { symbol -> String? in
+            guard let name = sema.symbols.externalLinkName(for: symbol.id),
+                  requiresRuntimeABISpec(name, isPlatformDeclaration: symbol.fqName.first == platform)
+            else { return nil }
+            return name
         }.filter { !$0.isEmpty })
         let missing = linkNames
             .subtracting(runtimeABINames)
@@ -302,6 +314,10 @@ struct RuntimeABIExternalLinkValidationTests {
         }
     }
 
+    private func requiresRuntimeABISpec(_ name: String, isPlatformDeclaration: Bool) -> Bool {
+        !isPlatformDeclaration || name.hasPrefix("kk_") || name.hasPrefix("__kk_")
+    }
+
     private var allowedCompilerExternalLinks: Set<String> {
         [
             "kk_for_lowered",
@@ -413,7 +429,9 @@ struct RuntimeABIExternalLinkValidationTests {
             guard resourceValues.isRegularFile == true else { continue }
             let source = try String(contentsOf: fileURL, encoding: .utf8)
             let relativePath = fileURL.path.replacingOccurrences(of: stdlibRoot.path + "/", with: "")
-            declarations.append(contentsOf: bundledKsSymbolNameDeclarations(in: source, relativePath: relativePath))
+            declarations.append(contentsOf: bundledKsSymbolNameDeclarations(in: source, relativePath: relativePath).filter {
+                requiresRuntimeABISpec($0.linkName, isPlatformDeclaration: relativePath.hasPrefix("platform/"))
+            })
         }
         return declarations
     }
