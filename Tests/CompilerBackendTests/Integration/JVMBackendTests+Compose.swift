@@ -205,7 +205,7 @@ extension JVMBackendTests {
                     public void setContent(Function2<? super Composer, ? super Integer, Unit> content) {
                         if (!(content instanceof ComposableLambda)) throw new AssertionError("missing Compose wrapper");
                         if (content.invoke(Bridge.COMPOSER, 0) != Unit.INSTANCE) throw new AssertionError("missing Unit");
-                        Bridge.checkClosed(2);
+                        Bridge.checkClosed(3);
                     }
                     public void setViewCompositionStrategy(ViewCompositionStrategy strategy) {}
                 }
@@ -230,8 +230,9 @@ extension JVMBackendTests {
                     public static void BasicText_VhcvRP8(String text, Modifier modifier, TextStyle style, Function1 callback,
                             int overflow, boolean softWrap, int maxLines, int minLines, ColorProducer color,
                             Composer composer, int changed, int defaults) {
-                        if (Bridge.depth(composer) != 2 || changed != 0 || defaults != 0x1FE)
-                            throw new AssertionError("incorrect Compose call");
+                        int depth = Bridge.depth(composer);
+                        if (depth != 3 || changed != 0 || defaults != 0x1FE)
+                            throw new AssertionError("depth=" + depth + ", changed=" + changed + ", defaults=" + defaults);
                         if (modifier != null || style != null || callback != null || overflow != 0 || softWrap
                                 || maxLines != 0 || minLines != 0 || color != null)
                             throw new AssertionError("incorrect default placeholders");
