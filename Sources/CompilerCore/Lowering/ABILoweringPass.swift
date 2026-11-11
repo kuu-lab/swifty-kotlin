@@ -311,12 +311,19 @@ final class ABILoweringPass: LoweringPass {
             }
         }
 
-        // Inline expansion can substitute a raw concrete enum ordinal into
-        // the compiler-owned abstract Enum.name bridge. Restore its erased
-        // receiver contract so normal enum boxing runs at this boundary.
         if let types {
+            // Inline expansion can substitute a raw concrete enum ordinal into
+            // the compiler-owned abstract Enum.name bridge. Restore its erased
+            // receiver contract so normal enum boxing runs at this boundary.
             boundaryBridgeSignatureByLinkName[ctx.interner.intern("__kk_enum_name")] = FunctionSignature(
                 parameterTypes: [types.anyType], returnType: types.stringType
+            )
+
+            // MutableSet and HashSet share this bridge with different declared
+            // receiver and element types. A symbol-less call still takes a set
+            // handle and a boxed element, including non-null floating values.
+            boundaryBridgeSignatureByLinkName[ctx.interner.intern("__kk_mutable_set_add")] = FunctionSignature(
+                parameterTypes: [types.anyType, types.nullableAnyType], returnType: types.booleanType
             )
         }
 

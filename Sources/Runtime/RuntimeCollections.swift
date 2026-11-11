@@ -159,14 +159,15 @@ func runtimeElementKeyHash(_ value: Int, into hasher: inout Hasher, depth: Int =
         hasher.combine(ulongBox.value)
         return
     }
+    // Boxed equality treats all NaN payloads as equal and distinguishes signed zeros.
     if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
         hasher.combine(1)
-        hasher.combine(Int(floatBox.value.bitPattern))
+        hasher.combine(kk_float_to_bits(floatBox.value.isNaN ? .nan : floatBox.value))
         return
     }
     if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
         hasher.combine(1)
-        hasher.combine(Int(bitPattern: UInt(truncatingIfNeeded: doubleBox.value.bitPattern)))
+        hasher.combine(kk_double_to_bits(doubleBox.value.isNaN ? .nan : doubleBox.value))
         return
     }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
