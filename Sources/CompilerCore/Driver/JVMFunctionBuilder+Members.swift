@@ -464,7 +464,19 @@ extension JVMProgramBuilder {
         var function = builder.finish(constructor: true)
         function.isSecondaryConstructor = !primary
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
-        function = try describe(function, signature: sema.symbols.functionSignature(for: symbol)!, parameters: [])
+        let metadataDeclaration = FunDecl(
+            range: declaration.range,
+            name: context.interner.intern("<init>"),
+            modifiers: declaration.modifiers,
+            valueParams: declaration.valueParams,
+            body: declaration.body
+        )
+        function = try describe(
+            function,
+            signature: sema.symbols.functionSignature(for: symbol)!,
+            parameters: [],
+            sourceDeclaration: (symbol, metadataDeclaration)
+        )
         if plan.isEnum {
             function.access = 0; function.isPrivate = true; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }; function.kotlinParameterOffset = 2
             function.genericSignature = "(Ljava/lang/String;I" + String(function.genericSignature!.dropFirst())

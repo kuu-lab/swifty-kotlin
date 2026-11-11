@@ -172,11 +172,15 @@ extension JVMProgramBuilder {
                     if primary { declaration = ConstructorDecl(range: c.range, modifiers: c.primaryConstructorModifiers, annotations: c.primaryConstructorAnnotations, valueParams: c.primaryConstructorParams) }
                     else if let secondary = c.secondaryConstructors.first(where: { $0.range == site }) { declaration = secondary }
                     else { throw JVMFrontendError(message: "Missing JVM secondary constructor.") }
-                    guard !declaration.valueParams.contains(where: \.isVararg) else { throw JVMFrontendError(message: "JVM vararg constructors are unsupported.", range: declaration.range) }
                     sourceParameters[symbol] = declaration.valueParams
                     guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
-                    let parameters = try hiddenConstructorTypes(plan) + signature.parameterTypes.map(type)
+                    let valueParameters = try signature.parameterTypes.enumerated().map { index, parameter -> JVMValueType in
+                        guard declaration.valueParams.indices.contains(index), declaration.valueParams[index].isVararg else { return try type(parameter) }
+                        let component = try varargComponentType(parameter)
+                        return .reference("[" + component.descriptor, nullable: false)
+                    }
+                    let parameters = try hiddenConstructorTypes(plan) + valueParameters
                     guard parameters.reduce(plan.isEnum ? 3 : 1, { $0 + $1.width }) <= 255 else { throw JVMFrontendError(message: "JVM constructor parameter slot limit exceeded.", range: declaration.range) }
                     methods[symbol] = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(plan.name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
                     plan.constructors.append((symbol, declaration, primary))
