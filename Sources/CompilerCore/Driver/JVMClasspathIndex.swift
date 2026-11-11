@@ -1822,22 +1822,26 @@ final class JVMClasspathIndex {
             return
         }
         methods[symbol.id] = method
-        let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
-        sema.symbols.setFunctionSignature(FunctionSignature(
-            receiverType: signature.receiverType.map(platform),
-            contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
-            contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
-            returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
-            valueParameterSymbols: signature.valueParameterSymbols,
-            valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
-            valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-            valueParameterIsVararg: signature.valueParameterIsVararg,
-            valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
-            hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
-            hasStableParameterNames: signature.hasStableParameterNames,
-            typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
-            typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
-        ), for: symbol.id)
+        // Keep the authored Kotlin types on the declaration of this JVM
+        // stdlib base so imported methods can satisfy Kotlin List members.
+        if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {
+            let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
+            sema.symbols.setFunctionSignature(FunctionSignature(
+                receiverType: signature.receiverType.map(platform),
+                contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
+                returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+                hasStableParameterNames: signature.hasStableParameterNames,
+                typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
+            ), for: symbol.id)
+        }
     }
 
     /// Foreign stubs enter the normal lookup tables with their source headers.
