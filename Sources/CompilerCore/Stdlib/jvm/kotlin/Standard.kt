@@ -28,3 +28,7 @@ public inline fun <T> T.also(block: (T) -> Unit): T {
     block(this)
     return this
 }
+
+@kotlin.internal.InlineOnly
+public inline fun <T> T.takeIf(predicate: (T) -> Boolean): T? =
+    if (predicate(this)) this else null

@@ -159,6 +159,18 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/io/path/PathFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/path-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/path/PathsKt"
+    },
+    {
+      "path": "declarations/PathPredicates.kt",
+      "virtualPath": "<kswiftk-jvm>/path-predicates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "java/nio/file/Files"
+    },
+    {
       "path": "declarations/TextRuntimeFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
       "excludeFromStdlibBuild": true

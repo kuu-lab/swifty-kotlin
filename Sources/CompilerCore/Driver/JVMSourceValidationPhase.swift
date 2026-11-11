@@ -374,7 +374,8 @@ private struct JVMSourceGrammar {
     }
     mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
         try primary()
-        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() {
+        while let level = precedence(), level >= minimum,
+              allowNewlines || kind == .symbol(.questionColon) || !newlineBeforeCurrent() {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {
@@ -440,7 +441,9 @@ private struct JVMSourceGrammar {
             var handled = false
             while take(.keyword(.catch)) {
                 handled = true
-                try require(.symbol(.lParen)); try name(); try require(.symbol(.colon)); try type()
+                try require(.symbol(.lParen))
+                while kind == .symbol(.at) { try annotation() }
+                try name(); try require(.symbol(.colon)); try type()
                 try require(.symbol(.rParen)); try block()
             }
             if take(.keyword(.finally)) { handled = true; try block() }

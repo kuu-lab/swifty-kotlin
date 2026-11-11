@@ -51,3 +51,5 @@ fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? = null
 fun <T> Iterable<T>.elementAt(index: Int): T = null!!
 fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T = null!!
 fun <T> Iterable<T>.elementAtOrNull(index: Int): T? = null!!
+
+fun <T> List<T>.slice(indices: IntRange): List<T> = null!!
