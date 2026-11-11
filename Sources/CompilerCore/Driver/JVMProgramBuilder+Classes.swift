@@ -139,7 +139,7 @@ extension JVMProgramBuilder {
                 if plan.isEnum && sourceName == "kotlin/Enum" { plan.superclass = "java/lang/Enum"; continue }
                 if !context.options.stdlibOnly && ["kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty"].contains(sourceName) { throw JVMFrontendError(message: "JVM does not support source implementations of reflection interfaces.") }
                 if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
-                if !context.options.stdlibOnly && ["kotlin/coroutines/CoroutineContext", "kotlin/Result"].contains(sourceName) { throw JVMFrontendError(message: "JVM M7 does not support source implementations of CoroutineContext or Result.") }
+                if !context.options.stdlibOnly && sourceName == "kotlin/Result" { throw JVMFrontendError(message: "JVM M7 does not support source implementations of Result.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
                 else {
