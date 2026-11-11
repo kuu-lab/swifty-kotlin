@@ -159,5 +159,28 @@ extension LoweringPassRegressionTests {
                     "the kotlin.Any binding must be rewritten away; callees: \(callees)")
         }
     }
+
+    // KUU-4525: `Char.category` / `Char.directionality` return bundled source
+    // enums whose declarations are omitted from `.kirDump` KIR. Printing them
+    // still needs the synthesized ordinal-to-name helpers, so the enum nominal
+    // must be retained whenever an expression has one of those enum types.
+    @Test
+    func testCharEnumPropertiesLowersToBundledEnumNameHelpers() throws {
+        let source = """
+        fun main() {
+            println('a'.category)
+            println('a'.directionality)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "CharEnumPrint", emit: .kirDump)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError)
+
+            let module = try #require(ctx.kir)
+            _ = try findKIRFunction(named: "$enumOrdinalToName$6kotlin4text12CharCategory", in: module, interner: ctx.interner)
+            _ = try findKIRFunction(named: "$enumOrdinalToName$6kotlin4text18CharDirectionality", in: module, interner: ctx.interner)
+        }
+    }
 }
 #endif

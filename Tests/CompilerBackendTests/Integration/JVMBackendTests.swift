@@ -13,7 +13,7 @@ struct JVMBackendTests {
         try body(root)
     }
 
-    func compile(_ source: String, root: URL, mode: EmitMode, flags: [String] = [], classpath: [String] = [], jvmTarget: JVMTarget = .java8, additionalSources: [(String, String)] = []) throws -> (Int, [Diagnostic]) {
+    func compile(_ source: String, root: URL, mode: EmitMode, flags: [String] = [], classpath: [String] = [], jvmTarget: JVMTarget = .java8, javaParameters: Bool = false, additionalSources: [(String, String)] = []) throws -> (Int, [Diagnostic]) {
         let input = root.appendingPathComponent("hello.kt")
         try source.write(to: input, atomically: true, encoding: .utf8)
         let extraInputs = try additionalSources.map { name, contents in
@@ -25,7 +25,7 @@ struct JVMBackendTests {
             moduleName: "JVMTest", inputs: [input.path] + extraInputs,
             outputPath: root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path,
             emit: mode, target: .hostDefault(), frontendFlags: flags, jvmClasspath: classpath,
-            jvmTarget: jvmTarget
+            jvmTarget: jvmTarget, javaParameters: javaParameters
         )
         // Default options deliberately request stdlib, to catch accidental
         // Native artifact preparation or source injection in the JVM route.
@@ -114,13 +114,14 @@ struct JVMBackendTests {
     }
 
     @Test(arguments: [
-        "fun main(args: Array<String>) {}",
+        "fun main(args: Array<Int>) {}",
+        "fun main(args: Array<String>?) {}",
+        "fun main(args: Array<String?>) {}",
         "fun main(): Int = 1",
         "fun main() { unknown(\"wrong target\") }",
         "fun main() { print() }",
         "fun main() { println(missing = \"wrong argument\") }",
         "import other.println\nfun main() { println(\"wrong target\") }",
-        "@Deprecated(\"ignored\") fun main() {}",
         "fun main() { @Missing println(\"ignored annotation\") }",
         "fun main() where T : Any { println(\"ignored constraint\") }",
         "fun main() { println(\"ignored trailing token\") garbage }",

@@ -244,6 +244,7 @@ extension LLVMCAPIBindings {
                 buildGlobalStringPtrFn: loadSymbol(handle: handle, name: "LLVMBuildGlobalStringPtr", as: LLVMBuildGlobalStringPtrFn.self),
                 buildPtrToIntFn: loadSymbol(handle: handle, name: "LLVMBuildPtrToInt", as: LLVMBuildPtrToIntFn.self),
                 buildIntToPtrFn: loadSymbol(handle: handle, name: "LLVMBuildIntToPtr", as: LLVMBuildIntToPtrFn.self),
+                buildPointerCastFn: loadSymbol(handle: handle, name: "LLVMBuildPointerCast", as: LLVMBuildPointerCastFn.self),
                 buildCall2Fn: buildCall2,
                 buildCallFn: buildCall,
                 constIntFn: constInt,

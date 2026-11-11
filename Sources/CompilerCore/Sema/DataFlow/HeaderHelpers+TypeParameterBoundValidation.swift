@@ -33,6 +33,16 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics
             )
         }
+
+        let argumentBoundsValidator = TypeArgumentBoundsValidator(symbols: symbols, types: types, diagnostics: diagnostics)
+        for pending in symbols.typeArgumentBoundChecksPendingValidation() {
+            argumentBoundsValidator.validate(
+                symbol: pending.symbol,
+                arguments: pending.arguments,
+                range: pending.range,
+                allowsTypeParameterArguments: pending.allowsTypeParameterArguments
+            )
+        }
     }
 
     static func checkConflictingClassUpperBounds(

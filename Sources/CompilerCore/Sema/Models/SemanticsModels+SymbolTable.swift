@@ -1,6 +1,20 @@
 // swiftlint:disable file_length
 import Foundation
 
+public struct PendingTypeArgumentBoundCheck {
+    public let symbol: SymbolID
+    public let arguments: [TypeArg]
+    public let range: SourceRange?
+    public let allowsTypeParameterArguments: Bool
+
+    public init(symbol: SymbolID, arguments: [TypeArg], range: SourceRange?, allowsTypeParameterArguments: Bool = false) {
+        self.symbol = symbol
+        self.arguments = arguments
+        self.range = range
+        self.allowsTypeParameterArguments = allowsTypeParameterArguments
+    }
+}
+
 extension SymbolTable {
     /// Anonymous function literals are represented by local functions. A
     /// source label can replace the internal name, so literal semantics come
@@ -303,6 +317,7 @@ public final class SymbolTable {
     private var defaultPropertyAccessorSymbols: Set<SymbolID> = []
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
     private var pendingTypeParameterBoundConflictChecks: [(symbol: SymbolID, declSite: SourceRange?)] = []
+    private var pendingTypeArgumentBoundChecks: [PendingTypeArgumentBoundCheck] = []
     private var sourceFileIDs: [SymbolID: FileID] = [:]
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
@@ -475,6 +490,7 @@ public final class SymbolTable {
         worker.defaultPropertyAccessorSymbols = defaultPropertyAccessorSymbols
         worker.typeParameterUpperBoundsMap = typeParameterUpperBoundsMap
         worker.pendingTypeParameterBoundConflictChecks = pendingTypeParameterBoundConflictChecks
+        worker.pendingTypeArgumentBoundChecks = pendingTypeArgumentBoundChecks
         worker.sourceFileIDs = sourceFileIDs
         worker.importedStdlibSymbolIDs = importedStdlibSymbolIDs
         worker.importedRuntimeReflectionScopes = importedRuntimeReflectionScopes
@@ -2031,6 +2047,28 @@ public final class SymbolTable {
 
     public func typeParametersPendingBoundConflictCheck() -> [(symbol: SymbolID, declSite: SourceRange?)] {
         pendingTypeParameterBoundConflictChecks
+    }
+
+    /// DEBT-SEMA-002: explicit type arguments are resolved while headers and
+    /// inheritance are still being built. Defer their upper-bound checks until
+    /// `bindInheritanceEdges` has populated the class hierarchy used by
+    /// `TypeSystem.isSubtype`.
+    public func recordTypeArgumentBoundCheck(
+        symbol: SymbolID,
+        arguments: [TypeArg],
+        range: SourceRange?,
+        allowsTypeParameterArguments: Bool = false
+    ) {
+        pendingTypeArgumentBoundChecks.append(PendingTypeArgumentBoundCheck(
+            symbol: symbol,
+            arguments: arguments,
+            range: range,
+            allowsTypeParameterArguments: allowsTypeParameterArguments
+        ))
+    }
+
+    public func typeArgumentBoundChecksPendingValidation() -> [PendingTypeArgumentBoundCheck] {
+        pendingTypeArgumentBoundChecks
     }
 
     func markImportedStdlibSymbol(_ symbol: SymbolID) {

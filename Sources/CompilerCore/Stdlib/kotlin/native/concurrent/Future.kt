@@ -23,9 +23,8 @@ public val FutureState.entries: kotlin.enums.EnumEntries<FutureState>
 @PublishedApi
 internal external fun <T> __kkFutureConsume(id: Int): T
 
-@KsSymbolName("kk_future_invoke")
 @PublishedApi
-internal external fun <T, R> __kkFutureInvoke(code: (T) -> R, value: T): R
+internal inline fun <T, R> __kkFutureInvoke(code: (T) -> R, value: T): R = code(value)
 
 @KsSymbolName("kk_future_getState")
 private external fun __kkFutureGetState(id: Int): Int

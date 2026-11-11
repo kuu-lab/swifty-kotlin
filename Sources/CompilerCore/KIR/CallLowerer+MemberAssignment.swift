@@ -1261,28 +1261,24 @@ extension CallLowerer {
         if sema.symbols.classDelegationForwardingPropertyInfo(for: propertySymbol) != nil {
             return true
         }
-        for rawDecl in ast.arena.decls.indices {
-            let declID = DeclID(rawValue: Int32(rawDecl))
-            guard sema.bindings.declSymbols[declID] == propertySymbol,
-                  let decl = ast.arena.decl(declID),
-                  case let .propertyDecl(propertyDecl) = decl
-            else {
-                continue
-            }
-            // KUU-2943, KUU-2946: a delegated `var` always writes through the
-            // synthesized setValue-forwarding setter accessor, so it must
-            // win this check before the setter-body test. A bare
-            // `private set`/`protected set` clause records only a
-            // visibility restriction — its `.unit` body would otherwise
-            // downgrade the write to direct field storage, which lands on
-            // a dead slot since the property has no backing field.
-            if propertyDecl.delegateExpression != nil {
-                return true
-            }
-            if let setter = propertyDecl.setter {
-                return setter.body != .unit
-            }
+        guard let declID = propertyDeclID(for: propertySymbol, ast: ast, sema: sema),
+              let decl = ast.arena.decl(declID),
+              case let .propertyDecl(propertyDecl) = decl
+        else {
             return false
+        }
+        // KUU-2943, KUU-2946: a delegated `var` always writes through the
+        // synthesized setValue-forwarding setter accessor, so it must
+        // win this check before the setter-body test. A bare
+        // `private set`/`protected set` clause records only a
+        // visibility restriction — its `.unit` body would otherwise
+        // downgrade the write to direct field storage, which lands on
+        // a dead slot since the property has no backing field.
+        if propertyDecl.delegateExpression != nil {
+            return true
+        }
+        if let setter = propertyDecl.setter {
+            return setter.body != .unit
         }
         return false
     }

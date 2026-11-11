@@ -27,7 +27,7 @@ extension NativeEmitter.FunctionEmissionContext {
               ),
               let storeFunction = declareExternalFunction(
                   named: "kk_gc_root_store",
-                  parameterTypes: [pointerType, int64Type],
+                  parameterTypes: [outThrownPointerType, int64Type],
                   returnType: int64Type
               ),
               let leaveFunction = declareExternalFunction(
@@ -95,11 +95,19 @@ extension NativeEmitter.FunctionEmissionContext {
             gcRootFrameActive = false
             throw LLVMBackendError.nativeEmissionFailed("failed to create GC root count")
         }
+        guard let rootFramePointer = bindings.buildPointerCast(
+            builder,
+            value: arrayPointer,
+            type: pointerType,
+            name: nameCounter.nextName("gc_root_frame_")
+        ) else {
+            throw LLVMBackendError.nativeEmissionFailed("failed to cast GC root frame pointer")
+        }
         guard bindings.buildCall(
             builder,
             functionType: pushFunction.type,
             callee: pushFunction.value,
-            arguments: [arrayPointer, countValue],
+            arguments: [rootFramePointer, countValue],
             name: nameCounter.nextName("gc_push_frame_")
         ) != nil else {
             throw LLVMBackendError.nativeEmissionFailed("failed to register GC root frame")
