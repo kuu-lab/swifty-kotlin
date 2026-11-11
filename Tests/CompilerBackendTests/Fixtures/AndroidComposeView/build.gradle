@@ -15,11 +15,6 @@ android {
     }
 }
 
-configurations {
-    composeRuntimeAar { canBeConsumed = false; transitive = false }
-    composeUiAar { canBeConsumed = false; transitive = false }
-}
-
 configurations.configureEach {
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib'
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-common'
@@ -28,25 +23,31 @@ configurations.configureEach {
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-reflect'
 }
 
-def composeRuntime = 'androidx.compose.runtime:runtime-android:1.7.8'
-def composeUi = 'androidx.compose.ui:ui-android:1.7.8'
+def androidApis = [
+    activity: 'androidx.activity:activity:1.9.3',
+    core: 'androidx.core:core:1.13.1',
+    runtime: 'androidx.compose.runtime:runtime-android:1.7.8',
+    ui: 'androidx.compose.ui:ui-android:1.7.8',
+    foundation: 'androidx.compose.foundation:foundation-android:1.7.8',
+]
 dependencies {
-    composeRuntimeAar "${composeRuntime}@aar"
-    composeUiAar "${composeUi}@aar"
     implementation files('build/kswiftk/kswiftk-stdlib.jar', 'build/kswiftk/counter.jar')
-    implementation 'androidx.activity:activity:1.9.3'
-    implementation composeRuntime
-    implementation composeUi
+}
+androidApis.each { name, coordinates ->
+    configurations.create(name + 'Aar') {
+        canBeConsumed = false
+        transitive = false
+    }
+    dependencies.add(name + 'Aar', coordinates + '@aar')
+    dependencies.add('implementation', coordinates)
 }
 
 tasks.register('extractComposeApis', Copy) {
-    from({ zipTree(configurations.composeRuntimeAar.singleFile) }) {
-        include 'classes.jar'
-        rename { 'compose-runtime.jar' }
-    }
-    from({ zipTree(configurations.composeUiAar.singleFile) }) {
-        include 'classes.jar'
-        rename { 'compose-ui.jar' }
+    androidApis.keySet().each { name ->
+        from({ zipTree(configurations[name + 'Aar'].singleFile) }) {
+            include 'classes.jar'
+            rename { name + '.jar' }
+        }
     }
     into layout.buildDirectory.dir('kswiftk')
 }
