@@ -2006,25 +2006,34 @@ final class KlibBodyLowerer {
         resultType: TypeID,
         into body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
-        let intType = types.intType
-        let sizeExpr = arena.appendExpr(.intLiteral(Int64(elements.count)), type: intType)
-        body.append(.constValue(result: sizeExpr, value: .intLiteral(Int64(elements.count))))
-        let array = arena.appendTemporary(type: resultType)
-        body.append(.call(callee: interner.intern("kk_array_new"), arguments: [sizeExpr], result: array, canThrow: false))
-        for (index, element) in elements.enumerated() {
-            switch element {
-            case .expression(let elementExpr):
-                let value = translateExpression(elementExpr, into: &body)
-                let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-                body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-                let store = arena.appendTemporary(type: types.anyType)
-                body.append(.call(callee: interner.intern("kk_array_set"), arguments: [array, indexExpr, value], result: store, canThrow: true))
-            case .spread(let spread, _, _):
-                reportUnsupported("vararg spread")
-                _ = translateExpression(spread, into: &body)
+        var arguments: [KIRExprID] = []
+        var spreadFlags: [Bool] = []
+        // Evaluate each operand once in serialized order before packing the array.
+        for element in elements {
+            let (expression, isSpread): (KlibIrExpression, Bool) = switch element {
+            case .expression(let value): (value, false)
+            case .spread(let value, _, _): (value, true)
             }
+            arguments.append(translateExpression(expression, into: &body))
+            spreadFlags.append(isSpread)
         }
-        return array
+        return driver.callSupportLowerer.packVarargArguments(
+            argIndices: Array(arguments.indices),
+            providedArguments: arguments,
+            spreadFlags: spreadFlags,
+            listifyResult: false,
+            boxPrimitiveElements: referenceArrayElementType(resultType, sema: sema, interner: interner) != nil,
+            resultType: resultType,
+            forceSpreadPacking: true,
+            arena: arena,
+            interner: interner,
+            intType: types.intType,
+            anyType: types.anyType,
+            types: types,
+            symbols: symbols,
+            sema: sema,
+            instructions: &body.instructions
+        )
     }
 
 
