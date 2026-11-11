@@ -421,6 +421,12 @@ enum InlineErasedLambdaABI {
         else {
             return returnedExpr
         }
+        let returnedKind = resolveValueClassKind(
+            sema.types.kind(of: returnedType), types: sema.types, symbols: sema.symbols
+        )
+        // A spliced lambda can return the raw payload of a nullable argument.
+        // The erased slot needs a box for that payload and must preserve null.
+        let requireNonNull: Bool = if case .primitive = returnedKind { false } else { true }
         return boxValueForAnySlot(
             returnedExpr,
             sourceType: returnedType,
@@ -429,7 +435,7 @@ enum InlineErasedLambdaABI {
             interner: ctx.interner,
             arena: module.arena,
             resultType: resultType ?? sema.types.anyType,
-            requireNonNull: true,
+            requireNonNull: requireNonNull,
             sema: sema,
             cache: ctx.nominalDispatchCache,
             into: &body.instructions
