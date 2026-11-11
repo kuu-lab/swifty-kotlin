@@ -27,6 +27,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requiresOptIn.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/Numbers.kt",
       "virtualPath": "<kswiftk-jvm>/number-predicates.kt",
       "excludeFromStdlibBuild": true,
