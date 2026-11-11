@@ -1,8 +1,9 @@
-# Kotlin/Native 2.4.21 fixture
+# Kotlin/Native 2.4.21 fixtures
 
-`basics.klib` is compiled from the three `.kt` files here with the official
-Kotlin/Native 2.4.21 compiler for `macos_arm64`. It contains ABI 2.4.0, metadata
-2.4.0, and IR signature versions 1 and 2.
+`basics.klib` is compiled from `Basics.kt`, `CrossFile.kt`, and
+`ManyDefaults.kt` with the official Kotlin/Native 2.4.21 compiler for
+`macos_arm64`. It contains ABI 2.4.0, metadata 2.4.0, and IR signature
+versions 1 and 2.
 
 The fixture covers dependent defaults, constructor/member/extension defaults,
 empty and populated varargs, 31-parameter virtual defaults, explicit super calls, visibility,
@@ -36,3 +37,23 @@ against its published SHA-256:
 
 Fixture SHA-256:
 `7f3e2e68455a97f91bad7d555ae8bc397bbbc2dbde24c1557498d6caf30cd562`.
+
+## Try, catch, and finally
+
+`try-catch-finally.klib` is compiled from `TryCatchFinally.kt` with the same
+producer and target. `KlibTryCatchFinallyExecutionTests` runs
+`TryCatchFinallyConsumer.kt` against both the KLIB and the producer source
+at O0 and O2. Its expected output comes from compiling the two sources with
+Kotlin/JVM 2.4.21.
+
+Regenerate from the repository root:
+
+```sh
+fixture_dir="$PWD/Tests/CompilerCoreTests/Klib/Fixtures/Kotlin2_4_21"
+"$KOTLIN_NATIVE_DIR/bin/konanc" "$fixture_dir/TryCatchFinally.kt" \
+  -target macos_arm64 -produce library -module-name klibexceptions \
+  "-Xklib-relative-path-base=$fixture_dir" -o "$fixture_dir/try-catch-finally"
+```
+
+Fixture SHA-256:
+`1bf8bbaee11dc4ddeb3e4081659d9d4f4a4dbb23fc398a702997a58402a389e6`.
