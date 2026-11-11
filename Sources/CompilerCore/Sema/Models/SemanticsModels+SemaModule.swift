@@ -37,6 +37,15 @@ public struct SerializationClassInfo: Sendable {
     }
 }
 
+/// Records an assignment expression rewritten by the `assignment` compiler plugin
+/// from `lhs = rhs` to `lhs.assign(rhs)`.
+struct PluginOverloadedAssignmentInfo {
+    let assignCallee: SymbolID
+    let targetType: TypeID
+    let targetSymbol: SymbolID?
+    let callBinding: CallBinding
+}
+
 public final class SemaModule {
     var independentBodyCount = 0
 
@@ -118,6 +127,15 @@ public final class SemaModule {
     /// SAM (`fun interface`) interfaces transformed by the `sam-with-receiver` plugin so that
     /// their single abstract method's first parameter becomes the lambda's implicit receiver.
     public var samWithReceiverInterfaces: Set<SymbolID> = []
+
+    /// Nominal types eligible for assignment overloading (`x = v` -> `x.assign(v)`).
+    public var assignmentOverloadTypes: Set<SymbolID> = []
+
+    /// Properties eligible for assignment overloading (`prop = v` -> `prop.assign(v)`).
+    public var assignmentOverloadProperties: Set<SymbolID> = []
+
+    /// Assignment expressions (`ExprID`) rewritten to `assign(...)` calls by the assignment plugin.
+    var pluginOverloadedAssignments: [ExprID: PluginOverloadedAssignmentInfo] = [:]
 
     public init(
         symbols: SymbolTable,

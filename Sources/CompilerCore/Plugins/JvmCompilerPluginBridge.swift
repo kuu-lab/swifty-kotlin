@@ -158,6 +158,7 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let syntheticMethods: [JvmSyntheticMethodPlan]
     public let serializableClasses: [String]?
     public let samWithReceiverInterfaces: [String]?
+    public let assignmentOverloadTargets: [String]?
 
     public init(
         classesToOpen: [String] = [],
@@ -165,7 +166,8 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         syntheticConstructors: [JvmSyntheticConstructorPlan] = [],
         syntheticMethods: [JvmSyntheticMethodPlan] = [],
         serializableClasses: [String]? = nil,
-        samWithReceiverInterfaces: [String]? = nil
+        samWithReceiverInterfaces: [String]? = nil,
+        assignmentOverloadTargets: [String]? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
@@ -173,6 +175,7 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         self.syntheticMethods = syntheticMethods
         self.serializableClasses = serializableClasses
         self.samWithReceiverInterfaces = samWithReceiverInterfaces
+        self.assignmentOverloadTargets = assignmentOverloadTargets
     }
 }
 
@@ -380,6 +383,9 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         // Apply sam-with-receiver interfaces
         applySamWithReceiverInterfaces(plan, context: context)
+
+        // Apply assignment overload targets
+        applyAssignmentOverloadTargets(plan, context: context)
     }
 
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {
@@ -715,6 +721,26 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
                   symbolInfo.flags.contains(.funInterface)
             else { continue }
             context.sema.samWithReceiverInterfaces.insert(symbolID)
+        }
+    }
+
+    private func applyAssignmentOverloadTargets(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let targets = plan.assignmentOverloadTargets, !targets.isEmpty else { return }
+        let symbols = context.symbols
+        let interner = context.interner
+        for fqName in targets {
+            let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
+            guard let symbolID = symbols.lookup(fqName: parts),
+                  let symbolInfo = symbols.symbol(symbolID)
+            else { continue }
+            switch symbolInfo.kind {
+            case .class, .interface, .object, .enumClass:
+                context.sema.assignmentOverloadTypes.insert(symbolID)
+            case .property, .field:
+                context.sema.assignmentOverloadProperties.insert(symbolID)
+            default:
+                break
+            }
         }
     }
 }

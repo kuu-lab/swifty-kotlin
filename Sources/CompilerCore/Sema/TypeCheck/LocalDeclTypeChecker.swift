@@ -406,16 +406,30 @@ final class LocalDeclTypeChecker {
             if case .lambdaLiteral = ast.arena.expr(value) {
                 locals[name] = (local.type, local.symbol, local.isMutable, true)
             }
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: declaredType)
-            driver.recordGenericCallConsumer(value, type: declaredType)
-            ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
             // A `val`'s single initializing assignment stays valid however
             // many times the enclosing expression is re-inferred: contract
             // effects (`callsInPlace`) or candidate probes can mark the local
             // initialized before a later pass re-checks this same assignment
             // (KUU-4513).
             let repeatsValInitialization = ctx.dataFlow.valInitializingAssignmentExprs.contains(id)
+            let assignmentEligible = driver.helpers.isAssignmentOverloadEligible(
+                targetType: declaredType, targetSymbol: local.symbol, sema: ctx.sema, interner: interner
+            )
+            let expectedRHS: TypeID? = (!local.isMutable && local.isInitialized && !repeatsValInitialization && assignmentEligible) ? nil : declaredType
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedRHS)
+            driver.recordGenericCallConsumer(value, type: declaredType)
+            ctx.sema.bindings.bindIdentifier(id, symbol: local.symbol)
             if !local.isMutable, local.isInitialized, !repeatsValInitialization {
+                if let overloaded = driver.exprChecker.tryResolvePluginOverloadedAssignment(
+                    exprID: id,
+                    targetType: declaredType,
+                    targetSymbol: local.symbol,
+                    valueType: valueType,
+                    range: range,
+                    ctx: ctx
+                ) {
+                    return overloaded
+                }
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
@@ -558,7 +572,11 @@ final class LocalDeclTypeChecker {
             let writeType = driver.helpers.memberPropertyWriteType(
                 symbol: writeSymbol, receiverType: receiverType, fallback: member.type, sema: ctx.sema
             )
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: writeType)
+            let assignmentEligible = driver.helpers.isAssignmentOverloadEligible(
+                targetType: writeType, targetSymbol: writeSymbol, sema: ctx.sema, interner: interner
+            )
+            let expectedRHS: TypeID? = (member.writeSymbol == nil && !ctx.allowsValPropertyInitialization && assignmentEligible) ? nil : writeType
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedRHS)
             driver.recordGenericCallConsumer(
                 value, type: ctx.sema.symbols.propertyType(for: writeSymbol) ?? writeType
             )
@@ -576,6 +594,16 @@ final class LocalDeclTypeChecker {
                member.writeSymbol == nil,
                !ctx.allowsValPropertyInitialization
             {
+                if let overloaded = driver.exprChecker.tryResolvePluginOverloadedAssignment(
+                    exprID: id,
+                    targetType: writeType,
+                    targetSymbol: writeSymbol,
+                    valueType: valueType,
+                    range: range,
+                    ctx: ctx
+                ) {
+                    return overloaded
+                }
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
@@ -698,7 +726,11 @@ final class LocalDeclTypeChecker {
         }
         if let propSymbol = writableCandidates.first(where: { $0.kind == .property }) {
             let propType = ctx.sema.symbols.propertyType(for: propSymbol.id) ?? ctx.sema.types.anyType
-            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: propType)
+            let assignmentEligible = driver.helpers.isAssignmentOverloadEligible(
+                targetType: propType, targetSymbol: propSymbol.id, sema: ctx.sema, interner: interner
+            )
+            let expectedRHS: TypeID? = (!propSymbol.flags.contains(.mutable) && !ctx.allowsValPropertyInitialization && assignmentEligible) ? nil : propType
+            let valueType = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedRHS)
             driver.recordGenericCallConsumer(value, type: propType)
             ctx.sema.bindings.bindIdentifier(id, symbol: propSymbol.id)
             driver.helpers.checkDeprecation(
@@ -710,6 +742,16 @@ final class LocalDeclTypeChecker {
                 diagnostics: ctx.sema.diagnostics
             )
             if !propSymbol.flags.contains(.mutable), !ctx.allowsValPropertyInitialization {
+                if let overloaded = driver.exprChecker.tryResolvePluginOverloadedAssignment(
+                    exprID: id,
+                    targetType: propType,
+                    targetSymbol: propSymbol.id,
+                    valueType: valueType,
+                    range: range,
+                    ctx: ctx
+                ) {
+                    return overloaded
+                }
                 ctx.sema.diagnostics.error(
                     "KSWIFTK-SEMA-0014",
                     "Val cannot be reassigned.",
