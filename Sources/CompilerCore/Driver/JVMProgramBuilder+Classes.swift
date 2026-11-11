@@ -75,7 +75,7 @@ extension JVMProgramBuilder {
         guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
         try validateSignature(signature, instance: member, extensionReceiver: function.receiverType != nil)
         if function.receiverType != nil { extensionSymbols.insert(symbol) }
-        var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(type)
+        var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(parameterType)
         let offset = function.receiverType == nil ? 0 : 1
         for (i, parameter) in function.valueParams.enumerated() where parameter.isVararg {
             let component = try varargComponentType(signature.parameterTypes[i])
@@ -94,14 +94,14 @@ extension JVMProgramBuilder {
     }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
         let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
-        let parameters = try parameterTypes.map(type)
+        let parameters = try parameterTypes.map(parameterType)
         let unsupportedReturn: Bool
         if case let .nothing(nullability) = sema.types.kind(of: signature.returnType) {
             unsupportedReturn = nullability != .nonNull
         } else {
             unsupportedReturn = false
         }
-        guard !parameters.contains(.unit), parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
+        guard parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
               !unsupportedReturn,
               !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
@@ -174,7 +174,7 @@ extension JVMProgramBuilder {
                     sourceParameters[symbol] = declaration.valueParams
                     guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
-                    let parameters = try hiddenConstructorTypes(plan) + signature.parameterTypes.map(type)
+                    let parameters = try hiddenConstructorTypes(plan) + signature.parameterTypes.map(parameterType)
                     guard parameters.reduce(plan.isEnum ? 3 : 1, { $0 + $1.width }) <= 255 else { throw JVMFrontendError(message: "JVM constructor parameter slot limit exceeded.", range: declaration.range) }
                     methods[symbol] = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: "(" + parameters.map(\.descriptor).joined() + ")V", parameters: parameters, result: .reference(plan.name, nullable: false), isStatic: false, isInterface: false, isAbstract: false)
                     plan.constructors.append((symbol, declaration, primary))

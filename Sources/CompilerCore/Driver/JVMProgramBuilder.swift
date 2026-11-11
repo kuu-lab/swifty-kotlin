@@ -43,6 +43,10 @@ final class JVMProgramBuilder {
         noteFunctionTypes(actual)
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
+    func parameterType(_ id: TypeID) throws -> JVMValueType {
+        let value = try type(id)
+        return value == .unit ? .reference("kotlin/Unit", nullable: false) : value
+    }
     func hasSourceRangeOperator(_ id: ExprID) -> Bool {
         if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
            methods[symbol] != nil || references[symbol] != nil || inlineDeclarations[symbol] != nil {
