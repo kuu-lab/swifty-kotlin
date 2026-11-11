@@ -7,12 +7,17 @@ enum JVMClassFile {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
         var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, pool: pool) }
-        if program.hasMain {
+        let launcherDescriptor = JVMProgram.launcherDescriptor
+        // A declared main(String[]) already occupies the launcher signature.
+        let hasArrayMain = program.functions.contains {
+            $0.reference.name == "main" && $0.reference.descriptor == launcherDescriptor
+        }
+        if program.hasMain && !hasArrayMain {
             var launcher = JVMBytes()
             launcher.u1(0xB8)
             launcher.u2(try pool.member(10, owner: program.internalClassName, name: "main", descriptor: "()V"))
             launcher.u1(0xB1)
-            methods.append(JVMMethodCode(name: try pool.utf8("main"), descriptor: try pool.utf8("([Ljava/lang/String;)V"), access: 0x0009, code: launcher.data, stack: 0, locals: 1, frames: nil))
+            methods.append(JVMMethodCode(name: try pool.utf8("main"), descriptor: try pool.utf8(launcherDescriptor), access: 0x0009, code: launcher.data, stack: 0, locals: 1, frames: nil))
         }
         let metadata = try JVMMetadata.annotation(program, pool: pool)
         return try write(name: program.internalClassName, superclass: "java/lang/Object", interfaces: [], access: 0x0031, fields: program.properties.compactMap(\.field) + program.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: program.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: program.sourceFileName, metadata: metadata, annotations: program.annotations, signature: nil, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), majorVersion: target.classFileMajorVersion, pool: pool)

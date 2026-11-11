@@ -222,6 +222,8 @@ public struct JVMFunction {
 }
 
 public struct JVMProgram {
+    public static let launcherDescriptor = "([Ljava/lang/String;)V"
+
     public init(internalClassName: String, sourceFileName: String, functions: [JVMFunction], hasMain: Bool, moduleName: String, classes: [JVMClass] = []) {
         self.internalClassName = internalClassName; self.sourceFileName = sourceFileName
         self.functions = functions; self.hasMain = hasMain; self.moduleName = moduleName; self.classes = classes
