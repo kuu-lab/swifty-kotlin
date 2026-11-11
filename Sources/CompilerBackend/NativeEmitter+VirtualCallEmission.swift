@@ -694,8 +694,14 @@ extension NativeEmitter.FunctionEmissionContext {
                symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlinx", "coroutines", "CoroutineDispatcher"],
                !member.flags.contains(.abstractType),
                symbols.isSourceBackedSymbol(effectiveSymbol),
+               let defaultFunction = sourceDefaultImplementationFunction(
+                   for: effectiveSymbol,
+                   fallbackExternalName: effectiveExternalName,
+                   argumentCount: argumentValues.count,
+                   appendThrownChannel: shouldAppendThrownChannel
+               ),
                let defaultPointer = bindings.buildPtrToInt(
-                   builder, value: calleeFunction.value, type: int64Type,
+                   builder, value: defaultFunction.value, type: int64Type,
                    name: "dispatcher_needed_default_\(instructionIndex)"
                )
             {
@@ -739,21 +745,6 @@ extension NativeEmitter.FunctionEmissionContext {
             name: "lookup_raw_\(instructionIndex)"
         ) else { return }
 
-        func resolveSourceDefaultFunction(for targetSymbol: SymbolID) -> NativeEmitter.LLVMFunction? {
-            if let internalFunction = internalFunctions[targetSymbol] {
-                return internalFunction
-            }
-            let targetExternalName = symbols?.externalLinkName(for: targetSymbol) ?? effectiveExternalName
-            if targetExternalName.hasPrefix("kk_fn_") {
-                return declareExternalFunction(
-                    named: targetExternalName,
-                    argumentCount: argumentValues.count,
-                    appendThrownChannel: shouldAppendThrownChannel
-                )
-            }
-            return nil
-        }
-
         // Runtime list boxes have no generated List itable. Only the
         // concrete Kotlin search defaults may fill that missing slot;
         // a source implementation's override still wins when present.
@@ -765,7 +756,12 @@ extension NativeEmitter.FunctionEmissionContext {
            symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
-           let defaultFunction = resolveSourceDefaultFunction(for: effectiveSymbol),
+           let defaultFunction = sourceDefaultImplementationFunction(
+               for: effectiveSymbol,
+               fallbackExternalName: effectiveExternalName,
+               argumentCount: argumentValues.count,
+               appendThrownChannel: shouldAppendThrownChannel
+           ),
            let defaultPointer = bindings.buildPtrToInt(
                builder, value: defaultFunction.value, type: int64Type,
                name: "list_search_default_\(instructionIndex)"
@@ -793,7 +789,12 @@ extension NativeEmitter.FunctionEmissionContext {
            symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "coroutines", "ContinuationInterceptor"],
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
-           let defaultFunction = resolveSourceDefaultFunction(for: effectiveSymbol),
+           let defaultFunction = sourceDefaultImplementationFunction(
+               for: effectiveSymbol,
+               fallbackExternalName: effectiveExternalName,
+               argumentCount: argumentValues.count,
+               appendThrownChannel: shouldAppendThrownChannel
+           ),
            let defaultPointer = bindings.buildPtrToInt(
                builder, value: defaultFunction.value, type: int64Type,
                name: "dispatcher_default_\(instructionIndex)"
@@ -824,18 +825,12 @@ extension NativeEmitter.FunctionEmissionContext {
            (ownerName == ["kotlin", "collections", "MutableMap"] && interner.resolve(member.name) == "asJsMapView"
             || ownerName == ["kotlin", "collections", "MutableSet"] && interner.resolve(member.name) == "asJsSetView")
         {
-            let defaultFunction: NativeEmitter.LLVMFunction? = if let internalFunction = internalFunctions[effectiveSymbol] {
-                internalFunction
-            } else if effectiveExternalName.hasPrefix("kk_fn_") {
-                declareExternalFunction(
-                    named: effectiveExternalName,
-                    argumentCount: argumentValues.count,
-                    appendThrownChannel: shouldAppendThrownChannel
-                )
-            } else {
-                nil
-            }
-            if let defaultFunction,
+            if let defaultFunction = sourceDefaultImplementationFunction(
+                for: effectiveSymbol,
+                fallbackExternalName: effectiveExternalName,
+                argumentCount: argumentValues.count,
+                appendThrownChannel: shouldAppendThrownChannel
+            ),
                let defaultPointer = bindings.buildPtrToInt(
                    builder, value: defaultFunction.value, type: int64Type,
                    name: "collection_view_default_\(instructionIndex)"
@@ -865,18 +860,12 @@ extension NativeEmitter.FunctionEmissionContext {
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol)
         {
-            let defaultFunction: NativeEmitter.LLVMFunction? = if let internalFunction = internalFunctions[effectiveSymbol] {
-                internalFunction
-            } else if effectiveExternalName.hasPrefix("kk_fn_") {
-                declareExternalFunction(
-                    named: effectiveExternalName,
-                    argumentCount: argumentValues.count,
-                    appendThrownChannel: shouldAppendThrownChannel
-                )
-            } else {
-                nil
-            }
-            if let defaultFunction,
+            if let defaultFunction = sourceDefaultImplementationFunction(
+                for: effectiveSymbol,
+                fallbackExternalName: effectiveExternalName,
+                argumentCount: argumentValues.count,
+                appendThrownChannel: shouldAppendThrownChannel
+            ),
                let defaultPointer = bindings.buildPtrToInt(
                    builder, value: defaultFunction.value, type: int64Type,
                    name: "list_view_default_\(instructionIndex)"
@@ -1217,6 +1206,30 @@ extension NativeEmitter.FunctionEmissionContext {
         emitGCShadowPop(thrown: thrownValue)
         emitRuntimeStackTraceExit()
         _ = bindings.buildRet(builder, value: zeroReturnValue)
+    }
+
+    /// Resolve the real default implementation function for a source-backed
+    /// interface or base-class member when falling back past a missing
+    /// runtime-box vtable/itable entry. Never fall back to the virtual call's
+    /// unnamed `__v` indirect-call type carrier.
+    private func sourceDefaultImplementationFunction(
+        for effectiveSymbol: SymbolID,
+        fallbackExternalName: String,
+        argumentCount: Int,
+        appendThrownChannel: Bool
+    ) -> NativeEmitter.LLVMFunction? {
+        if let internalFunction = internalFunctions[effectiveSymbol] {
+            return internalFunction
+        }
+        let externalName = symbols?.externalLinkName(for: effectiveSymbol) ?? fallbackExternalName
+        if externalName.hasPrefix("kk_fn_") {
+            return declareExternalFunction(
+                named: externalName,
+                argumentCount: argumentCount,
+                appendThrownChannel: appendThrownChannel
+            )
+        }
+        return nil
     }
 
 }
