@@ -359,7 +359,6 @@ extension JVMBackendTests {
         "fun main() { val a: MutableList<out Int> = mutableListOf(1); a[0] = 2 }",
         "fun main() { val a: Array<out Int> = arrayOf(1); a[0] = 2 }",
         "fun main() { val pair = Pair(1) }",
-        "abstract class CustomNumber: Number()",
         "fun main() { try { throw 1 } catch(e: String) {} }",
         "fun main() { try { println(1) } }",
         "fun first(x: List<Int>): Int = 1; fun first(x: List<String>): Int = 2",

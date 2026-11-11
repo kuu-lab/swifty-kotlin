@@ -49,6 +49,20 @@ final class JVMClassPlan {
 }
 
 extension JVMProgramBuilder {
+    private func isKotlinNumberSubclass(_ symbol: SymbolID) -> Bool {
+        var pending = [symbol]
+        var visited = Set<SymbolID>()
+        while let current = pending.popLast() {
+            guard visited.insert(current).inserted,
+                  let declaration = sema.symbols.symbol(current) else { continue }
+            if declaration.fqName.map(context.interner.resolve) == ["kotlin", "Number"] {
+                return true
+            }
+            pending.append(contentsOf: sema.symbols.directSupertypes(for: current))
+        }
+        return false
+    }
+
     func className(_ symbol: SymbolID) throws -> String {
         guard let declaration = sema.symbols.symbol(symbol) else { throw JVMFrontendError(message: "Missing JVM class symbol.") }
         return JVMClasspathIndex.binaryName(declaration.id, sema: sema, ctx: context)
@@ -122,6 +136,7 @@ extension JVMProgramBuilder {
         }
         try prepareLocalNominalCaptures()
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
+            let numberSubclass = isKotlinNumberSubclass(plan.symbol)
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
                 Self.isIdentifier(String(component))
                     || plan.isAnonymous && !component.isEmpty && component.utf8.allSatisfy { (48...57).contains($0) }
@@ -139,7 +154,6 @@ extension JVMProgramBuilder {
                 if name == "kotlin/Any" { continue }
                 if plan.isEnum && sourceName == "kotlin/Enum" { plan.superclass = "java/lang/Enum"; continue }
                 if !context.options.stdlibOnly && ["kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty"].contains(sourceName) { throw JVMFrontendError(message: "JVM does not support source implementations of reflection interfaces.") }
-                if sourceName == "kotlin/Number" { throw JVMFrontendError(message: "JVM M5 does not support source subclasses of kotlin.Number.") }
                 if !context.options.stdlibOnly && sourceName == "kotlin/Result" { throw JVMFrontendError(message: "JVM M7 does not support source implementations of Result.") }
                 guard classes[parent] != nil || context.jvmImports?.classes[name] != nil || JVMClasspathIndex.builtinName(sourceName) != nil else { throw JVMFrontendError(message: "Unsupported JVM supertype: \(name)") }
                 if sema.symbols.symbol(parent)?.kind == .interface { plan.interfaces.append(name) }
@@ -152,7 +166,19 @@ extension JVMProgramBuilder {
             for id in functionIDs {
                 guard case let .funDecl(f) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id) else { throw JVMFrontendError(message: "Missing JVM member function.") }
                 let ref = try functionReference(f, symbol: symbol, member: true)
-                var method = JVMForeignMethod(owner: plan.name, name: ref.name, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
+                let sourceName = context.interner.resolve(f.name)
+                let numberMethodNames = [
+                    "toByte": "byteValue",
+                    "toShort": "shortValue",
+                    "toInt": "intValue",
+                    "toLong": "longValue",
+                    "toFloat": "floatValue",
+                    "toDouble": "doubleValue",
+                ]
+                let methodName = numberSubclass && ref.parameters.isEmpty
+                    ? numberMethodNames[sourceName] ?? ref.name
+                    : ref.name
+                var method = JVMForeignMethod(owner: plan.name, name: methodName, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
                 method.isSpecial = f.modifiers.contains(.private)
                 method.isSuspend = f.isSuspend
                 methods[symbol] = method; plan.methods.append((f, method))
