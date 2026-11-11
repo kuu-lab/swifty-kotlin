@@ -46,6 +46,23 @@ struct PluginOverloadedAssignmentInfo {
     let callBinding: CallBinding
 }
 
+/// Captures a sub-expression inside a power-assert argument along with its
+/// column offset relative to the call line text.
+struct PowerAssertCaptureExpr {
+    let exprID: ExprID
+    let columnOffset: Int
+}
+
+/// Records a call expression eligible for power-assert transformation (rewriting
+/// `fn(cond)` into `fn(cond) { "<diagram>" }`).
+struct PowerAssertCallInfo {
+    let originalCallee: SymbolID
+    let messageOverloadCallee: SymbolID
+    let callLineText: String
+    let argExprID: ExprID
+    let captureExprs: [PowerAssertCaptureExpr]
+}
+
 public final class SemaModule {
     var independentBodyCount = 0
 
@@ -136,6 +153,12 @@ public final class SemaModule {
 
     /// Assignment expressions (`ExprID`) rewritten to `assign(...)` calls by the assignment plugin.
     var pluginOverloadedAssignments: [ExprID: PluginOverloadedAssignmentInfo] = [:]
+
+    /// Fully qualified function names configured for the `power-assert` compiler plugin.
+    public var powerAssertFunctions: Set<String> = []
+
+    /// Call expressions (`ExprID`) recorded by Sema for power-assert diagram rewriting in KIR.
+    var powerAssertCalls: [ExprID: PowerAssertCallInfo] = [:]
 
     public init(
         symbols: SymbolTable,

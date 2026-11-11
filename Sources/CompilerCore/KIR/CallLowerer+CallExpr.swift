@@ -63,6 +63,20 @@ extension CallLowerer {
             return unit
         }
 
+        if let paInfo = sema.powerAssertCalls[exprID] {
+            return lowerPowerAssertCallExpr(
+                exprID,
+                info: paInfo,
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
         // KUU-4431: `isArrayOf<T>()` spelled without a receiver inside an
         // `Array<*>` scope (`with(arr) { isArrayOf<Int>() }`) resolves to the
         // same bundled intrinsic as the member-call spelling.

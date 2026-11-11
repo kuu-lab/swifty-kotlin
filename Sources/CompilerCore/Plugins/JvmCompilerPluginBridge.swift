@@ -159,6 +159,7 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let serializableClasses: [String]?
     public let samWithReceiverInterfaces: [String]?
     public let assignmentOverloadTargets: [String]?
+    public let powerAssertFunctions: [String]?
 
     public init(
         classesToOpen: [String] = [],
@@ -167,7 +168,8 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         syntheticMethods: [JvmSyntheticMethodPlan] = [],
         serializableClasses: [String]? = nil,
         samWithReceiverInterfaces: [String]? = nil,
-        assignmentOverloadTargets: [String]? = nil
+        assignmentOverloadTargets: [String]? = nil,
+        powerAssertFunctions: [String]? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
@@ -176,6 +178,7 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         self.serializableClasses = serializableClasses
         self.samWithReceiverInterfaces = samWithReceiverInterfaces
         self.assignmentOverloadTargets = assignmentOverloadTargets
+        self.powerAssertFunctions = powerAssertFunctions
     }
 }
 
@@ -386,6 +389,9 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         // Apply assignment overload targets
         applyAssignmentOverloadTargets(plan, context: context)
+
+        // Apply power-assert target functions
+        applyPowerAssertFunctions(plan, context: context)
     }
 
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {
@@ -742,6 +748,11 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
                 break
             }
         }
+    }
+
+    private func applyPowerAssertFunctions(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let functions = plan.powerAssertFunctions, !functions.isEmpty else { return }
+        context.sema.powerAssertFunctions.formUnion(functions)
     }
 }
 
