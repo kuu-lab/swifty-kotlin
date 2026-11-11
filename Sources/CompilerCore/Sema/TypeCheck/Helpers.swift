@@ -1189,10 +1189,11 @@ struct TypeCheckHelpers {
                             diagnostics: diagnostics,
                             projectionRange: usageRange
                         ) {
-                            if nullability == .nullable {
-                                return applyNullabilityForTypeCheck(expanded, types: sema.types)
-                            }
-                            return expanded
+                            let result = nullability == .nullable
+                                ? applyNullabilityForTypeCheck(expanded, types: sema.types)
+                                : expanded
+                            validateTypeArgumentBoundsForTypeCheck(result, sema: sema, diagnostics: diagnostics, range: usageRange)
+                            return result
                         }
                         // Fall through to classType for error recovery
                     }
@@ -1205,11 +1206,13 @@ struct TypeCheckHelpers {
                         if let firstArg = resolvedArgs.first {
                             switch firstArg {
                             case .star, .in, .out:
-                                return sema.types.make(.classType(ClassType(
+                                let result = sema.types.make(.classType(ClassType(
                                     classSymbol: symbolID,
                                     args: resolvedArgs,
                                     nullability: nullability
                                 )))
+                                validateTypeArgumentBoundsForTypeCheck(result, sema: sema, diagnostics: diagnostics, range: usageRange)
+                                return result
                             case .invariant:
                                 break
                             }
@@ -1226,7 +1229,9 @@ struct TypeCheckHelpers {
                         } else {
                             sema.types.anyType
                         }
-                        return sema.types.makeKClassType(argument: argumentType, nullability: nullability)
+                        let kClassType = sema.types.makeKClassType(argument: argumentType, nullability: nullability)
+                        validateTypeArgumentBoundsForTypeCheck(kClassType, sema: sema, diagnostics: diagnostics, range: usageRange)
+                        return kClassType
                     }
                     // Qualified inner-class references (`Outer<V>.Inner`) supply the
                     // qualifier's arguments; route through the nominal split so they
@@ -1247,11 +1252,13 @@ struct TypeCheckHelpers {
                             nominalArgs = Array(implicitEnclosing.prefix(enclosingCount - resolvedArgs.count)) + resolvedArgs
                         }
                     }
-                    return sema.types.make(.classType(sema.types.classType(
+                    let result = sema.types.make(.classType(sema.types.classType(
                         for: symbolID,
                         arguments: nominalArgs,
                         nullability: nullability
                     )))
+                    validateTypeArgumentBoundsForTypeCheck(result, sema: sema, diagnostics: diagnostics, range: usageRange)
+                    return result
                 }
                 // A `private` nested classifier on a supertype is not
                 // inherited and never reached the candidate lists — report it
@@ -1360,6 +1367,17 @@ struct TypeCheckHelpers {
             args: functionArgs,
             nullability: .nonNull
         )))
+    }
+
+    func validateTypeArgumentBoundsForTypeCheck(
+        _ type: TypeID,
+        sema: SemaModule,
+        diagnostics: DiagnosticEngine?,
+        range: SourceRange?
+    ) {
+        guard let diagnostics else { return }
+        TypeArgumentBoundsValidator(symbols: sema.symbols, types: sema.types, diagnostics: diagnostics)
+            .validate(type: type, range: range)
     }
 
     func resolveTypeArgRefsForTypeCheck(
