@@ -73,7 +73,10 @@ extension JVMProgramBuilder {
     func annotationPlan(_ symbol: SymbolID) -> JVMClassPlan? {
         if let plan = classes[symbol] { return plan.isAnnotation ? plan : nil }
         guard let name = sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve).joined(separator: "."),
-              ["kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin", "kotlin.DeprecatedSinceKotlin"].contains(name),
+              [
+                  "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
+                  "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn",
+              ].contains(name),
               let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
         return JVMClassPlan(symbol: symbol, name: name.replacingOccurrences(of: ".", with: "/"), declaration: c)
