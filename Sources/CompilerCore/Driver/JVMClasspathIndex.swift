@@ -8,8 +8,8 @@ final class JVMClasspathIndex {
     var sourceClasses: [FileID: JVMClassInfo] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
-    var composeStaticContracts: [FileID: (method: JVMForeignMethod, defaultMask: Int32?)] = [:]
-    var composeDefaults: [SymbolID: Int32] = [:]
+    var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
+    var importedComposables: [SymbolID: JVMCompose.ImportedCall] = [:]
     var composeContentSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
     /// Classes loaded from `lazilyInjecting` classpath entries (the Android
@@ -431,6 +431,7 @@ final class JVMClasspathIndex {
     func inject(into ctx: CompilationContext) throws {
         let covered = try coveredClassNames(in: ctx)
         activeCoveredNames = covered
+        injectComposeUIContracts(into: ctx)
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(into: ctx, covered: covered)
         let hasIntStateContract = composeIntStateFactory != nil
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
@@ -441,7 +442,7 @@ final class JVMClasspathIndex {
             let isLazy = lazyClassNames.contains(info.name)
             let isComposer = hasComposeRuntime && info.name == JVMCompose.composer
             let isIntState = hasIntStateContract && info.name == Self.mutableIntState
-            if isLazy, !isComposer, !isIntState, neededLazy?.contains(info.name) != true { continue }
+            if isLazy, !isComposer, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
             guard let short = parts.last else { throw JVMClassReader.Invalid() }
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
@@ -540,7 +541,6 @@ final class JVMClasspathIndex {
                 """
             _ = ctx.sourceManager.addFile(path: Self.composeIntrinsicPath, contents: Data(source.utf8), origin: .residualStdlib)
         }
-        injectComposeUIContracts(into: ctx)
     }
 
     /// Member declarations shared by top-level stubs and nested-class shells:
@@ -957,7 +957,10 @@ final class JVMClasspathIndex {
             }
         }
 
-        for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.origin(of: file) == .user {
+        // Projected Compose calls can name a scope that the app only uses as
+        // an implicit lambda receiver, so their signatures also seed the closure.
+        for file in ctx.sourceManager.fileIDs()
+        where ctx.sourceManager.origin(of: file) == .user || composeStaticContracts[file] != nil {
             let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
             var identifiers = Set<String>()
@@ -1143,7 +1146,7 @@ final class JVMClasspathIndex {
             let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
             if let contract = composeStaticContracts[site.start.file], symbol.kind == .function {
                 methods[symbol.id] = contract.method
-                composeDefaults[symbol.id] = contract.defaultMask
+                importedComposables[symbol.id] = contract.composable
                 continue
             }
             if name == "setContent", sourceClasses[site.start.file]?.name == Self.composeView,

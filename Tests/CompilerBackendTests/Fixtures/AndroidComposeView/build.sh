@@ -29,12 +29,7 @@ inputs = {
         'android/os/Bundle',
         'android/view/ContextThemeWrapper',
         'android/view/View',
-        'android/view/View$OnClickListener',
         'android/view/ViewGroup',
-        'android/widget/Button',
-        'android/widget/LinearLayout',
-        'android/widget/TextView',
-        'java/lang/CharSequence',
     ],
     output / 'activity.jar': ['androidx/activity/ComponentActivity'],
     output / 'core.jar': ['androidx/core/app/ComponentActivity'],
@@ -48,7 +43,7 @@ with ZipFile(output / 'android-api.jar', 'w') as headers:
 PY
 
 "$compiler" "$fixture/MainActivity.kt" --emit class \
-    --classpath "$output/android-api.jar:$output/runtime.jar:$output/ui.jar:$output/foundation.jar:$output/kswiftk-stdlib.jar" \
+    --classpath "$output/android-api.jar:$output/runtime.jar:$output/ui.jar:$output/foundation.jar:$output/layout.jar:$output/material3.jar:$output/kswiftk-stdlib.jar" \
     -o "$output/counter"
 jar cf "$output/counter.jar" -C "$output/counter" .
 gradle -p "$fixture" "$@" assembleDebug
