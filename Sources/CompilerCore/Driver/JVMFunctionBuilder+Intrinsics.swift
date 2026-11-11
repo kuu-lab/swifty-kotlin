@@ -610,7 +610,9 @@ extension JVMFunctionBuilder {
             return try jdkCall(owner, "charAt", [.int], .char, receiver: source, arguments: [index], interface: owner == "java/lang/CharSequence")!
         }
         if object.type.referenceName?.hasPrefix("[") == true {
-            let index = try convert(index, to: .int), result = try value(type)
+            let index = try convert(index, to: .int)
+            let elementType = type == .unit ? try arrayComponent(object.type) : type
+            let result = try value(elementType)
             instructions.append(.arrayGet(object, index, result)); return result
         }
         guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }

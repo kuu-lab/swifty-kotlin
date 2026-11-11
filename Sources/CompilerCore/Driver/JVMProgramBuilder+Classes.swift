@@ -76,7 +76,7 @@ extension JVMProgramBuilder {
         guard Self.isUnqualifiedJvmMethodName(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
         try validateSignature(signature, instance: member, extensionReceiver: function.receiverType != nil)
         if function.receiverType != nil { extensionSymbols.insert(symbol) }
-        var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(type)
+        var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(parameterType)
         let offset = function.receiverType == nil ? 0 : 1
         for (i, parameter) in function.valueParams.enumerated() where parameter.isVararg {
             let component = try varargComponentType(signature.parameterTypes[i])
@@ -102,8 +102,8 @@ extension JVMProgramBuilder {
     }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
         let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
-        let parameters = try parameterTypes.map(type)
-        guard !parameters.contains(.unit), parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
+        let parameters = try parameterTypes.map(parameterType)
+        guard parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
               !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
         }
@@ -176,7 +176,7 @@ extension JVMProgramBuilder {
                     guard declaration.modifiers.subtracting([.public, .protected, .internal, .private]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM constructor modifiers.") }
                     try validateSignature(signature, instance: true)
                     let valueParameters = try signature.parameterTypes.enumerated().map { index, parameter -> JVMValueType in
-                        guard declaration.valueParams.indices.contains(index), declaration.valueParams[index].isVararg else { return try type(parameter) }
+                        guard declaration.valueParams.indices.contains(index), declaration.valueParams[index].isVararg else { return try parameterType(parameter) }
                         let component = try varargComponentType(parameter)
                         return .reference("[" + component.descriptor, nullable: false)
                     }
