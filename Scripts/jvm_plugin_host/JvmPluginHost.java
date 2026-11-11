@@ -180,6 +180,7 @@ public class JvmPluginHost {
         boolean isSamWithReceiver = false;
         boolean isAssignment = false;
         boolean isPowerAssert = false;
+        boolean isLombok = false;
         boolean noArgInvokeInitializers = false;
 
         // Try to identify from CommandLineProcessor
@@ -234,6 +235,9 @@ public class JvmPluginHost {
         } else if ("org.jetbrains.kotlin.powerassert".equals(pluginId)
                 || jar.getEntry("org/jetbrains/kotlin/powerassert/PowerAssertCommandLineProcessor.class") != null) {
             isPowerAssert = true;
+        } else if ("org.jetbrains.kotlin.lombok".equals(pluginId)
+                || jar.getEntry("org/jetbrains/kotlin/lombok/LombokCommandLineProcessor.class") != null) {
+            isLombok = true;
         }
 
         // Generic fallback: if "annotation" options were provided, include them
@@ -251,6 +255,7 @@ public class JvmPluginHost {
         List<String> samWithReceiverInterfaces = new ArrayList<>();
         List<String> assignmentOverloadTargets = new ArrayList<>();
         List<String> powerAssertFunctions = new ArrayList<>();
+        List<String> lombokConfigPaths = new ArrayList<>();
 
         if (isPowerAssert) {
             List<String> functions = pluginOptions.get("function");
@@ -258,6 +263,12 @@ public class JvmPluginHost {
                 powerAssertFunctions.addAll(functions);
             } else {
                 powerAssertFunctions.add("kotlin.assert");
+            }
+        }
+        if (isLombok) {
+            List<String> configs = pluginOptions.get("config");
+            if (configs != null && !configs.isEmpty()) {
+                lombokConfigPaths.addAll(configs);
             }
         }
 
@@ -331,7 +342,9 @@ public class JvmPluginHost {
         sb.append("\"serializableClasses\":[").append(formatJsonStringArray(serializableClasses)).append("],");
         sb.append("\"samWithReceiverInterfaces\":[").append(formatJsonStringArray(samWithReceiverInterfaces)).append("],");
         sb.append("\"assignmentOverloadTargets\":[").append(formatJsonStringArray(assignmentOverloadTargets)).append("],");
-        sb.append("\"powerAssertFunctions\":[").append(formatJsonStringArray(powerAssertFunctions)).append("]");
+        sb.append("\"powerAssertFunctions\":[").append(formatJsonStringArray(powerAssertFunctions)).append("],");
+        sb.append("\"lombokEnabled\":").append(isLombok ? "true" : "false").append(",");
+        sb.append("\"lombokConfigPaths\":[").append(formatJsonStringArray(lombokConfigPaths)).append("]");
         sb.append("}");
 
         System.out.println(sb.toString());

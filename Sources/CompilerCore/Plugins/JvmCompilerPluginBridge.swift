@@ -160,6 +160,8 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let samWithReceiverInterfaces: [String]?
     public let assignmentOverloadTargets: [String]?
     public let powerAssertFunctions: [String]?
+    public let lombokEnabled: Bool?
+    public let lombokConfigPaths: [String]?
 
     public init(
         classesToOpen: [String] = [],
@@ -169,7 +171,9 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         serializableClasses: [String]? = nil,
         samWithReceiverInterfaces: [String]? = nil,
         assignmentOverloadTargets: [String]? = nil,
-        powerAssertFunctions: [String]? = nil
+        powerAssertFunctions: [String]? = nil,
+        lombokEnabled: Bool? = nil,
+        lombokConfigPaths: [String]? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
@@ -179,6 +183,8 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         self.samWithReceiverInterfaces = samWithReceiverInterfaces
         self.assignmentOverloadTargets = assignmentOverloadTargets
         self.powerAssertFunctions = powerAssertFunctions
+        self.lombokEnabled = lombokEnabled
+        self.lombokConfigPaths = lombokConfigPaths
     }
 }
 
@@ -398,6 +404,9 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
         let plan = fetchOrComputePlan(context)
         applySyntheticConstructors(plan, context: context)
         applySerializableClasses(plan, context: context)
+        if plan.lombokEnabled == true {
+            LombokPlugin.applyLombok(configPaths: plan.lombokConfigPaths ?? [], context: context)
+        }
     }
 
     var loweringPasses: [any LoweringPass] {
