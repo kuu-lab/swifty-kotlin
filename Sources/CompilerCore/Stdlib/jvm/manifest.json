@@ -347,6 +347,17 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "kotlin/collections/ListMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/Deque.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-deque-runtime.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/UnsignedArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/unsigned-array-with-index.kt",
       "excludeFromStdlibBuild": true,
