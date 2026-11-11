@@ -1,6 +1,7 @@
 package kotlin.ranges
 
 external fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long
+external fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double
 
 public infix fun Int.until(to: Int): IntRange =
     if (to == Int.MIN_VALUE) IntRange(1, 0) else IntRange(this, to - 1)

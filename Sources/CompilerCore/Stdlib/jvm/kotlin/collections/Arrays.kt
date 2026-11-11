@@ -4,6 +4,8 @@ import kotlin.sequences.*
 import kotlin.sequences.emptySequence
 import kotlin.sequences.joinToString
 
+public val Array<*>.lastIndex: Int get() = size - 1
+
 public fun <T> Array<out T>.indexOf(element: T): Int {
     var index = 0
     while (index < size) {
