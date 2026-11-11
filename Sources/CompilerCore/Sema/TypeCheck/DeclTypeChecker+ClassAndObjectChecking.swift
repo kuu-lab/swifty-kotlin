@@ -464,6 +464,11 @@ extension DeclTypeChecker {
                     && sema.symbols.parentSymbol(for: $0) == superclassSymbol
             }
         guard !candidates.isEmpty else { return }
+        var delegation = companionHeaderDelegationContext(
+            superclassSymbol: superclassSymbol,
+            ctx: ctx,
+            locals: locals
+        )
         let resolved = inferConstructorDelegationArguments(
             objectDecl.superTypeConstructorArgs,
             candidates: candidates,
@@ -471,8 +476,8 @@ extension DeclTypeChecker {
             targetType: constructorSuperclassType(
                 ownerSymbol: symbol, superclassSymbol: superclassSymbol, ctx: ctx
             ),
-            ctx: ctx,
-            locals: &locals
+            ctx: delegation.ctx,
+            locals: &delegation.locals
         )
         guard let chosenCallee = resolved.chosenCallee else { return }
         sema.bindings.bindConstructorDelegationCall(
@@ -1036,14 +1041,18 @@ extension DeclTypeChecker {
             // scope. Use the same candidate preparation, overload selection,
             // literal adaptation, and contextual lambda inference as an
             // ordinary constructor call, then retain its exact mapping for KIR.
-            var locals: LocalBindings = [:]
+            var delegation = companionHeaderDelegationContext(
+                superclassSymbol: symbol,
+                ctx: argCtx,
+                locals: [:]
+            )
             let resolved = inferConstructorDelegationArguments(
                 entry.constructorArgs,
                 candidates: constructors,
                 range: entry.range,
                 targetType: enumType,
-                ctx: argCtx,
-                locals: &locals
+                ctx: delegation.ctx,
+                locals: &delegation.locals
             )
             guard let chosenCallee = resolved.chosenCallee else {
                 if resolved.diagnostic == nil {
@@ -1070,7 +1079,10 @@ extension DeclTypeChecker {
                         typeVarBySymbol: typeVarBySymbol
                     )
                     let actualType = driver.inferExpr(
-                        argument.expr, ctx: argCtx, locals: &locals, expectedType: expectedType
+                        argument.expr,
+                        ctx: delegation.ctx,
+                        locals: &delegation.locals,
+                        expectedType: expectedType
                     )
                     driver.emitSubtypeConstraint(
                         left: actualType,

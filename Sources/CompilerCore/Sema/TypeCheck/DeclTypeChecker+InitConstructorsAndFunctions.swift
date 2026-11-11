@@ -202,6 +202,13 @@ extension DeclTypeChecker {
             ).excludingEnclosingClassReceiver()
              .demotingReceiverBelowCompanion(superclassSymbol)
         }
+        let delegation = companionHeaderDelegationContext(
+            superclassSymbol: superclassSymbol,
+            ctx: delegationCtx,
+            locals: locals
+        )
+        delegationCtx = delegation.ctx
+        locals = delegation.locals
 
         let candidates = sema.symbols
             .lookupAll(fqName: superclassInfo.fqName + [ctx.interner.intern("<init>")])
@@ -671,6 +678,19 @@ extension DeclTypeChecker {
                     delegationArgCtx = delegationArgCtx
                         .demotingReceiverBelowCompanion(targetOwner)
                 }
+                var delegationLocals = locals
+                if let companionOwner = delegation.kind == .this
+                    ? ownerSymbol
+                    : (explicitSuperclassSymbol ?? ownerSymbol)
+                {
+                    let delegationHeader = companionHeaderDelegationContext(
+                        superclassSymbol: companionOwner,
+                        ctx: delegationArgCtx,
+                        locals: locals
+                    )
+                    delegationArgCtx = delegationHeader.ctx
+                    delegationLocals = delegationHeader.locals
+                }
                 let resolved = inferConstructorDelegationArguments(
                     delegation.args,
                     candidates: candidates,
@@ -683,7 +703,7 @@ extension DeclTypeChecker {
                             ctx: ctx
                         ),
                     ctx: delegationArgCtx,
-                    locals: &locals
+                    locals: &delegationLocals
                 )
                 if let chosenCallee = resolved.chosenCallee, let currentCtorSymbolID {
                     sema.bindings.bindConstructorDelegationCall(
