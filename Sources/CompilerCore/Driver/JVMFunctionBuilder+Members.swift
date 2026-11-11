@@ -189,9 +189,11 @@ extension JVMFunctionBuilder {
                               let cinfo = context.jvmImports?.classes[current] {
                             found = cinfo.methods.first(where: {
                                 $0.name == setterName && $0.isStatic == imported.isStatic && !$0.isConstructor
+                                    && context.jvmImports?.kotlinFunction($0)?.isSuspend != true
                                     && $0.parameters.count == 1 && $0.parameters[0].descriptor == type.descriptor
                             }) ?? cinfo.methods.first(where: {
                                 $0.name == setterName && $0.isStatic == imported.isStatic && !$0.isConstructor
+                                    && context.jvmImports?.kotlinFunction($0)?.isSuspend != true
                                     && $0.parameters.count == 1
                             })
                             if found != nil { break }

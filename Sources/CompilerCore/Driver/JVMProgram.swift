@@ -270,6 +270,7 @@ public struct JVMForeignMethod {
     var annotationDefault: JVMAnnotationValue?
     var genericSignature: String?
     var genericResultParameter: String?
+    var classpathDeclarationOwner: String?
     public var isConstructor: Bool { name == "<init>" }
 }
 

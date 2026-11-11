@@ -183,6 +183,7 @@ final class JVMClasspathIndex {
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
             result.genericSignature = method.genericSignature
+            result.classpathDeclarationOwner = method.classpathDeclarationOwner ?? method.owner
             return result
         }
         func interfaceInherits(_ subtype: String, _ supertype: String, visited: Set<String> = []) -> Bool {
@@ -275,10 +276,15 @@ final class JVMClasspathIndex {
         // their raw Java signatures are not importable declarations.
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
-        return name == "java/lang/String" || name == "java/lang/Object" || classes[name] != nil
+        return name == "java/lang/String" || name == "java/lang/Object" || name == "kotlin/coroutines/Continuation" || classes[name] != nil
             || Self.jdkToKotlinTypeNames[name] != nil
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
+
+    func declaringClass(for method: JVMForeignMethod) -> JVMClassInfo? {
+        let name = method.classpathDeclarationOwner ?? method.owner
+        return hierarchyClasses[name] ?? classes[name]
+    }
 
     func legacyInterfaceDefault(_ method: JVMForeignMethod) -> JVMForeignMethod? {
         guard method.isInterface, method.isAbstract,
@@ -315,6 +321,7 @@ final class JVMClasspathIndex {
             switch name {
             case "java/lang/String": return "kotlin.String"
             case "java/lang/Object": return "kotlin.Any"
+            case "kotlin/coroutines/Continuation": return "kotlin.coroutines.Continuation<*>"
             // Erased Java Class references are wildcard Class<*> in Kotlin; this keeps
             // generic Class<T> extensions usable on Java classpath receivers (KUU-4524).
             case "java/lang/Class": return "java.lang.Class<*>"
@@ -1212,18 +1219,40 @@ final class JVMClasspathIndex {
                 else { component = mapped }
                 return .reference("[" + component.descriptor, nullable: false)
             }
-            let descriptor = "(" + descriptorTypes.map(\.descriptor).joined() + ")"
+            let parameterDescriptors = descriptorTypes.map(\.descriptor).joined()
+            let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
+            let descriptor = "(" + parameterDescriptors + continuation + ")"
             let staticMember = isTopLevel || (kotlinMetadata(info)?.isCompanion != true && (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false))
-            let candidates = info.methods.filter { method in
-                (method.name == name || kotlinFunction(method)?.name == name)
-                    && method.descriptor.hasPrefix(descriptor) && method.isStatic == staticMember
+            let candidates = info.methods.compactMap { method -> (method: JVMForeignMethod, kotlin: JVMKotlinFunctionInfo?)? in
+                guard method.descriptor.hasPrefix(descriptor), method.isStatic == staticMember else { return nil }
+                let kotlin = kotlinFunction(method)
+                guard (method.name == name || kotlin?.name == name),
+                      (kotlin?.isSuspend == true) == signature.isSuspend else { return nil }
+                return (method, kotlin)
             }
-            let resultDescriptor = symbol.kind == .constructor ? "V" : (try? Self.type(signature.returnType, sema: sema, ctx: ctx))?.descriptor
-            let exact = resultDescriptor.flatMap { result in candidates.first { $0.descriptor == descriptor + result } }
-            guard let method = exact ?? (candidates.count == 1 ? candidates.first : nil) else { continue }
+            let resultDescriptor: String? = if symbol.kind == .constructor { "V" }
+            else if signature.isSuspend { "Ljava/lang/Object;" }
+            else { (try? Self.type(signature.returnType, sema: sema, ctx: ctx))?.descriptor }
+            let exact = resultDescriptor.flatMap { result in candidates.first { $0.method.descriptor == descriptor + result } }
+            guard let (method, kotlin) = exact ?? (candidates.count == 1 ? candidates.first : nil) else { continue }
             if isExtension { extensionSymbols.insert(symbol.id) }
+            if signature.isSuspend {
+                // Coroutine lowering supplies the continuation and restores the
+                // JVM descriptor when it emits this logical call.
+                let parameters = Array(method.parameters.dropLast())
+                let result = try Self.type(signature.returnType, sema: sema, ctx: ctx)
+                methods[symbol.id] = JVMForeignMethod(
+                    owner: method.owner, name: method.name,
+                    descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + result.descriptor,
+                    parameters: parameters, result: result,
+                    isStatic: method.isStatic, isInterface: method.isInterface, isAbstract: method.isAbstract,
+                    isFinal: method.isFinal, isSpecial: method.isSpecial, isVarargs: method.isVarargs,
+                    isSuspend: true, isProtected: method.isProtected
+                )
+                continue
+            }
             methods[symbol.id] = method
-            if kotlinFunction(method) != nil || kotlinConstructor(method) != nil { continue }
+            if kotlin != nil || kotlinConstructor(method) != nil { continue }
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
                 receiverType: signature.receiverType.map(platform),

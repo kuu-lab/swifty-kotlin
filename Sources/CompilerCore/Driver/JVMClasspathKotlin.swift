@@ -9,7 +9,7 @@ extension JVMClasspathIndex {
     }
 
     func kotlinFunction(_ method: JVMForeignMethod) -> JVMKotlinFunctionInfo? {
-        guard let owner = classes[method.owner], let metadata = kotlinMetadata(owner) else { return nil }
+        guard let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
         let candidates = metadata.functions.filter {
             $0.jvmName == method.name && ($0.isPublic || $0.isProtected)
                 && $0.parameters.count + ($0.receiver == nil ? 0 : 1) + ($0.isSuspend ? 1 : 0) == method.parameters.count
@@ -18,10 +18,14 @@ extension JVMClasspathIndex {
             if let descriptor = function.descriptor { return descriptor == method.descriptor }
             let parameters = [function.receiver].compactMap { $0 } + function.parameters.map(\.type)
             let typeParameters = metadata.typeParameters + function.typeParameters
+            let parameterDescriptors = parameters.map { kotlinErasure($0, parameters: typeParameters) }.joined()
+            if function.isSuspend {
+                return method.descriptor == "(" + parameterDescriptors + "Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+            }
             let result: String
             if case .named("kotlin/Unit", _, false) = function.result { result = "V" }
             else { result = kotlinErasure(function.result, parameters: typeParameters) }
-            let descriptor = "(" + parameters.map { kotlinErasure($0, parameters: typeParameters) }.joined() + ")" + result
+            let descriptor = "(" + parameterDescriptors + ")" + result
             return method.descriptor == descriptor
         }) { return exact }
         if candidates.count == 1, candidates[0].descriptor == nil,
@@ -49,7 +53,7 @@ extension JVMClasspathIndex {
     }
 
     func kotlinConstructor(_ method: JVMForeignMethod) -> JVMKotlinConstructorInfo? {
-        guard method.isConstructor, let owner = classes[method.owner], let metadata = kotlinMetadata(owner) else { return nil }
+        guard method.isConstructor, let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
         let candidates = metadata.constructors.filter {
             ($0.isPublic || $0.isProtected) && $0.parameters.count == method.parameters.count
         }

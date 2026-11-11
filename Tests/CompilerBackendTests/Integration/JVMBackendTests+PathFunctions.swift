@@ -22,6 +22,9 @@ extension JVMBackendTests {
             fun main() {
                 val file = Path("\(file.path)")
                 val link = Path("\(link.path)")
+                val joined: Path = Path("\(root.path)", "present.txt")
+                println(joined == file)
+                println(Path("\(root.path)", *arrayOf("present.txt")) == file)
                 println(file.absolute() == file)
                 val relative = Path("present.txt")
                 println(relative.absolute() != relative)
@@ -33,7 +36,7 @@ extension JVMBackendTests {
                 println(link.isRegularFile(LinkOption.NOFOLLOW_LINKS))
                 println(Path("\(root.appendingPathComponent("absent.txt").path)").notExists())
             }
-            """, expected: "true\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\n", mode: .jvmJar, root: root)
+            """, expected: "true\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\ntrue\n", mode: .jvmJar, root: root)
         }
     }
 }
