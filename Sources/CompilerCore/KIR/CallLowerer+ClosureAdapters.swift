@@ -1226,6 +1226,17 @@ extension CallLowerer {
             return loweredArguments
         }
 
+        if externalLinkName == "kk_future_invoke", loweredArguments.count == 2 {
+            return makeCollectionHOFExpandedArguments(
+                loweredArgID: loweredArguments[0],
+                argExprID: originalArgs[0].expr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) + [loweredArguments[1]]
+        }
+
         if externalLinkName == "__kk_job_invoke_on_completion", loweredArguments.count == 4 {
             let handler = loweredArguments[3]
             if driver.ctx.callableValueInfo(for: handler) != nil {

@@ -1,6 +1,40 @@
+@testable import CompilerCore
 import Testing
 
 extension BundledStdlibExecutionTests {
+    @Test(arguments: [OptimizationLevel.O0, .O2])
+    func testFutureConsumeExpandsCallbacksInSourceStdlib(optLevel: OptimizationLevel) throws {
+        try compileAndRunKotlin(
+            """
+            @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+            import kotlin.native.concurrent.Future
+            import kotlin.native.concurrent.TransferMode
+            import kotlin.native.concurrent.withWorker
+
+            fun consumeWith(future: Future<Int>, code: (Int) -> Int): Int = future.consume(code)
+
+            fun main() {
+                withWorker {
+                    println(execute(TransferMode.SAFE, { 40 }) { it + 1 }.consume { it + 1 })
+                    val offset = 7
+                    val code: (Int) -> Int = { it + offset }
+                    println(consumeWith(execute(TransferMode.SAFE, { 35 }) { it }, code))
+                    try {
+                        execute(TransferMode.SAFE, { 1 }) { it }.consume<Int> {
+                            throw IllegalStateException("callback")
+                        }
+                    } catch (e: IllegalStateException) {
+                        println(e.message)
+                    }
+                }
+            }
+            """,
+            expectedOutput: "42\n42\ncallback\n",
+            allowDefaultStdlibLibrary: false,
+            optLevel: optLevel
+        )
+    }
+
     @Test(arguments: [false, true])
     func testWithWorkerWithoutQueuedJobsCompletesNormally(
         allowDefaultStdlibLibrary: Bool
