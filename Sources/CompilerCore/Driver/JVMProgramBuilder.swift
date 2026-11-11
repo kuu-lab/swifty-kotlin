@@ -118,6 +118,18 @@ final class JVMProgramBuilder {
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
     }
 
+    /// Checks the JVMS unqualified-name restrictions for user-defined methods.
+    static func isUnqualifiedJvmMethodName(_ value: String) -> Bool {
+        guard !value.isEmpty else { return false }
+        for scalar in value.unicodeScalars {
+            switch scalar.value {
+            case 0x2E, 0x3B, 0x5B, 0x2F, 0x3C, 0x3E: return false
+            default: continue
+            }
+        }
+        return true
+    }
+
     static func fileIdentity(for file: ASTFile, context: CompilationContext) throws -> (String, String) {
         guard file.scriptBody.isEmpty else {
             throw JVMFrontendError(message: "JVM source files cannot contain scripts.")
