@@ -1,4 +1,42 @@
 extension DeclTypeChecker {
+    /// Supertype delegation arguments check inside the nominal's own header
+    /// scope, where the superclass's companion object is the innermost
+    /// implicit receiver: an unqualified `this` binds to the companion and
+    /// its members resolve without a qualifier — `Sub : Base(this)` passes
+    /// `Base.Companion`, not an enclosing receiver (KUU-4517). Returns the
+    /// updated context and locals, or the inputs unchanged when the
+    /// superclass declares no companion.
+    func companionHeaderDelegationContext(
+        superclassSymbol: SymbolID,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings
+    ) -> (ctx: TypeInferenceContext, locals: LocalBindings) {
+        let sema = ctx.sema
+        guard let companion = sema.symbols.companionObjectSymbol(for: superclassSymbol) else {
+            return (ctx, locals)
+        }
+        let companionType = sema.symbols.propertyType(for: companion)
+            ?? sema.types.make(.classType(ClassType(
+                classSymbol: companion,
+                args: [],
+                nullability: .nonNull
+            )))
+        var delegationLocals = locals
+        delegationLocals[ctx.interner.intern("this")] = (
+            type: companionType,
+            symbol: companion,
+            isMutable: false,
+            isInitialized: true
+        )
+        let delegationCtx = ctx.copying(implicitReceiverType: .some(nil))
+            .withOuterReceiver(
+                label: sema.symbols.symbol(companion)?.name
+                    ?? ctx.interner.intern("Companion"),
+                type: companionType
+            )
+        return (delegationCtx, delegationLocals)
+    }
+
     func contextualConstructorThisArgumentReceivers(
         args: [CallArgument],
         argTypes: [TypeID],

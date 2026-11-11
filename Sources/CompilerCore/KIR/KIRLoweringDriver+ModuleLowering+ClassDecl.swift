@@ -60,25 +60,34 @@ extension KIRLoweringDriver {
             compilationCtx: compilationCtx
         )
         finalDirectMembers.append(contentsOf: forwardingPropertyDeclIDs)
-        let parcelizeDeclIDs = synthesizeParcelizeMethods(
+        let parcelizeDecls = synthesizeParcelizeMembers(
             classDecl: classDecl,
             classSymbol: symbol,
             shared: shared
         )
-        finalDirectMembers.append(contentsOf: parcelizeDeclIDs)
-        let serializationDeclIDs = synthesizeSerializationMethods(
+        finalDirectMembers.append(contentsOf: parcelizeDecls.classMemberDecls)
+        let serializationDeclIDs = synthesizeSerializationMembers(
             classDecl: classDecl,
             classSymbol: symbol,
             shared: shared
         )
         finalDirectMembers.append(contentsOf: serializationDeclIDs)
+        let lombokDecls = synthesizeLombokMembers(
+            classDecl: classDecl,
+            classSymbol: symbol,
+            shared: shared
+        )
+        finalDirectMembers.append(contentsOf: lombokDecls.classMemberDecls)
         let kirID = arena.appendDecl(.nominalType(KIRNominalType(symbol: symbol, memberDecls: finalDirectMembers)))
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDeclIDs)
         declIDs.append(contentsOf: forwardingPropertyDeclIDs)
-        declIDs.append(contentsOf: parcelizeDeclIDs)
+        declIDs.append(contentsOf: parcelizeDecls.classMemberDecls)
+        declIDs.append(contentsOf: parcelizeDecls.moduleExtraDecls)
         declIDs.append(contentsOf: serializationDeclIDs)
+        declIDs.append(contentsOf: lombokDecls.classMemberDecls)
+        declIDs.append(contentsOf: lombokDecls.moduleExtraDecls)
         declIDs.append(contentsOf: synthesizeNominalReflectionInitializer(
             ownerSymbol: symbol,
             ownerName: classDecl.name,
@@ -1406,124 +1415,5 @@ extension KIRLoweringDriver {
         default:
             return nil
         }
-    }
-
-    /// Synthesizes KIR bodies for Parcelize compiler-plugin generated methods
-    /// (`describeContents` and `writeToParcel`).
-    func synthesizeParcelizeMethods(
-        classDecl _: ClassDecl,
-        classSymbol: SymbolID,
-        shared: KIRLoweringSharedContext
-    ) -> [KIRDeclID] {
-        guard let info = shared.sema.parcelizeClasses[classSymbol] else { return [] }
-        var declIDs: [KIRDeclID] = []
-        let arena = shared.arena
-        let sema = shared.sema
-        let interner = shared.interner
-
-        // 1. describeContents(): Int -> returns 0
-        if let describeContentsSymbol = info.describeContentsMethod,
-           arena.function(for: describeContentsSymbol) == nil {
-            if let signature = sema.symbols.functionSignature(for: describeContentsSymbol) {
-                var body: [KIRInstruction] = []
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                body.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                body.append(.returnValue(zeroExpr))
-
-                let receiverType = signature.receiverType ?? sema.types.anyType
-                let kirFunc = KIRFunction(
-                    symbol: describeContentsSymbol,
-                    name: interner.intern("describeContents"),
-                    params: [KIRParameter(symbol: classSymbol, type: receiverType)],
-                    returnType: sema.types.intType,
-                    body: body,
-                    isSuspend: false,
-                    isInline: false
-                )
-                declIDs.append(arena.appendDecl(.function(kirFunc)))
-            }
-        }
-
-        // 2. writeToParcel(dest: Parcel, flags: Int): Unit -> returns Unit
-        if let writeToParcelSymbol = info.writeToParcelMethod,
-           arena.function(for: writeToParcelSymbol) == nil {
-            if let signature = sema.symbols.functionSignature(for: writeToParcelSymbol) {
-                var body: [KIRInstruction] = []
-                body.append(.returnUnit)
-
-                let receiverType = signature.receiverType ?? sema.types.anyType
-                var params: [KIRParameter] = [
-                    KIRParameter(symbol: classSymbol, type: receiverType)
-                ]
-                for (idx, paramType) in signature.parameterTypes.enumerated() {
-                    let paramSym = signature.valueParameterSymbols.indices.contains(idx)
-                        ? signature.valueParameterSymbols[idx]
-                        : classSymbol
-                    params.append(KIRParameter(symbol: paramSym, type: paramType))
-                }
-
-                let kirFunc = KIRFunction(
-                    symbol: writeToParcelSymbol,
-                    name: interner.intern("writeToParcel"),
-                    params: params,
-                    returnType: sema.types.unitType,
-                    body: body,
-                    isSuspend: false,
-                    isInline: false
-                )
-                declIDs.append(arena.appendDecl(.function(kirFunc)))
-            }
-        }
-
-        return declIDs
-    }
-
-    /// Synthesizes KIR bodies for kotlinx.serialization compiler-plugin generated methods
-    /// (`serializer()`).
-    func synthesizeSerializationMethods(
-        classDecl _: ClassDecl,
-        classSymbol: SymbolID,
-        shared: KIRLoweringSharedContext
-    ) -> [KIRDeclID] {
-        guard let info = shared.sema.serializationClasses[classSymbol] else { return [] }
-        var declIDs: [KIRDeclID] = []
-        let arena = shared.arena
-        let sema = shared.sema
-        let interner = shared.interner
-
-        // Companion serializer() method
-        if let serializerSym = info.companionSerializerMethod,
-           arena.function(for: serializerSym) == nil {
-            if let signature = sema.symbols.functionSignature(for: serializerSym) {
-                var body: [KIRInstruction] = []
-                let dummyResult = arena.appendExpr(.null, type: signature.returnType)
-                body.append(.constValue(result: dummyResult, value: .null))
-                body.append(.returnValue(dummyResult))
-
-                let receiverType = signature.receiverType ?? sema.types.anyType
-                var params: [KIRParameter] = [
-                    KIRParameter(symbol: info.companionObjectSymbol ?? classSymbol, type: receiverType)
-                ]
-                for (idx, paramType) in signature.parameterTypes.enumerated() {
-                    let paramSym = signature.valueParameterSymbols.indices.contains(idx)
-                        ? signature.valueParameterSymbols[idx]
-                        : classSymbol
-                    params.append(KIRParameter(symbol: paramSym, type: paramType))
-                }
-
-                let kirFunc = KIRFunction(
-                    symbol: serializerSym,
-                    name: interner.intern("serializer"),
-                    params: params,
-                    returnType: signature.returnType,
-                    body: body,
-                    isSuspend: false,
-                    isInline: false
-                )
-                declIDs.append(arena.appendDecl(.function(kirFunc)))
-            }
-        }
-
-        return declIDs
     }
 }

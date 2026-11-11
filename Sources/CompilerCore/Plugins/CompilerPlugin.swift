@@ -1,3 +1,5 @@
+import Foundation
+
 /// Built-in compiler plugin support — the KSwiftK equivalent of kotlinc's
 /// `-Xplugin` mechanism. Plugins are compiled into the compiler and run at
 /// fixed pipeline hook points. Configuration uses the kotlinc-compatible
@@ -91,11 +93,30 @@ enum CompilerPluginRegistry {
         NoArgPlugin(),
         ParcelizePlugin(),
         KotlinxSerializationPlugin(),
+        SamWithReceiverPlugin(),
+        AssignmentPlugin(),
+        PowerAssertPlugin(),
+        LombokPlugin(),
+        ComposePlugin(),
     ]
+
+    private static let cacheLock = NSLock()
+    private nonisolated(unsafe) static var dynamicPluginsCache: [String: [any CompilerPlugin]] = [:]
 
     /// Resolves all active plugins for the compilation: built-in plugins plus
     /// any dynamic JVM plugins supplied via `-Xplugin=<path.jar>`.
     static func plugins(for options: CompilerOptions) -> [any CompilerPlugin] {
+        let pluginFlags = options.frontendFlags.filter { $0.hasPrefix("-Xplugin=") || $0.hasPrefix("plugin:") }
+        guard !pluginFlags.isEmpty else {
+            return builtins
+        }
+        let cacheKey = pluginFlags.joined(separator: "\n")
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = dynamicPluginsCache[cacheKey] {
+            return cached
+        }
+
         var result = builtins
         for flag in options.frontendFlags where flag.hasPrefix("-Xplugin=") {
             let jarPath = String(flag.dropFirst("-Xplugin=".count))
@@ -103,7 +124,14 @@ enum CompilerPluginRegistry {
                 result.append(JvmCompilerPlugin(jarPath: jarPath, descriptor: descriptor))
             }
         }
+        dynamicPluginsCache[cacheKey] = result
         return result
+    }
+
+    static func clearDynamicPluginsCache() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        dynamicPluginsCache.removeAll()
     }
 
     static func semaContext(

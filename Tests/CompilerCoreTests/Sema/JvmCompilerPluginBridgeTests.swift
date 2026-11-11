@@ -13,6 +13,7 @@ struct JvmCompilerPluginBridgeTests {
     private let allOpenJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/allopen-compiler-plugin.jar"
     private let noArgJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/noarg-compiler-plugin.jar"
     private let parcelizeJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/parcelize-compiler.jar"
+    private let serializationJarPath = "/opt/homebrew/Cellar/kotlin/2.4.21/libexec/lib/kotlinx-serialization-compiler-plugin.jar"
 
     // MARK: - Phase 1: Inspection & Option Validation
 
@@ -218,6 +219,147 @@ struct JvmCompilerPluginBridgeTests {
                     #expect(!kirFn.body.isEmpty, "Expected lowered return instruction in describeContents")
                 }
             }
+        }
+    }
+
+    @Test
+    func testDynamicPluginInstructionPlanLowersCustomMethod() throws {
+        CompilerPluginRegistry.clearDynamicPluginsCache()
+        defer { CompilerPluginRegistry.clearDynamicPluginsCache() }
+        guard FileManager.default.fileExists(atPath: parcelizeJarPath) else {
+            return
+        }
+        let source = """
+        package com.example
+
+        class CustomService
+        """
+        try withTemporaryFiles(contents: [source]) { paths in
+            let flags = [
+                "-Xplugin=\(parcelizeJarPath)",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+
+            // Inject an arbitrary instruction plan to verify the generic IR generation engine
+            let serviceID = try #require(lookupSymbol(named: "CustomService", in: sema, interner: ctx.interner))
+            let methodName = ctx.interner.intern("greeting")
+            let methodSym = sema.symbols.define(
+                kind: .function,
+                name: methodName,
+                fqName: sema.symbols.symbol(serviceID)!.fqName + [methodName],
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            sema.symbols.setParentSymbol(serviceID, for: methodSym)
+            let methodType = sema.types.make(.classType(ClassType(classSymbol: serviceID, args: [], nullability: .nonNull)))
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: methodType,
+                    parameterTypes: [],
+                    returnType: sema.types.stringType,
+                    valueParameterSymbols: [],
+                    typeParameterSymbols: [],
+                    classTypeParameterCount: 0
+                ),
+                for: methodSym
+            )
+
+            // Find the dynamic plugin and register the plan
+            let plugins = CompilerPluginRegistry.plugins(for: ctx.options)
+            let dynamicPlugin = plugins.first(where: { $0 is JvmCompilerPlugin }) as? JvmCompilerPlugin
+            let planBox = try #require(dynamicPlugin?.planBox)
+            planBox.syntheticMethodSymbols[methodSym] = JvmSyntheticMethodPlan(
+                classFqName: "com.example.CustomService",
+                name: "greeting",
+                returnType: "kotlin.String",
+                instructions: [
+                    JvmKIRInstructionPlan(kind: .returnString, stringValue: "Hello from dynamic IR!")
+                ]
+            )
+
+            try BuildKIRPhase().run(ctx)
+            try LoweringPhase().run(ctx)
+            let kir = try #require(ctx.kir)
+            let fn = kir.arena.function(for: methodSym)
+            #expect(fn != nil, "Custom method must be lowered into KIR")
+            if let fn {
+                #expect(!fn.body.isEmpty, "Custom method must have generated instructions")
+                let hasStringReturn = fn.body.contains { instr in
+                    switch instr {
+                    case let .constValue(_, val):
+                        if case let .stringLiteral(interned) = val {
+                            return ctx.interner.resolve(interned) == "Hello from dynamic IR!"
+                        }
+                    case let .returnValue(expr):
+                        let idx = Int(expr.rawValue)
+                        if idx >= 0 && idx < kir.arena.expressions.count,
+                           case let .stringLiteral(interned) = kir.arena.expressions[idx] {
+                            return ctx.interner.resolve(interned) == "Hello from dynamic IR!"
+                        }
+                    default:
+                        break
+                    }
+                    return false
+                }
+                #expect(hasStringReturn, "Custom method body must contain the string literal from instruction plan")
+            }
+        }
+    }
+
+    @Test
+    func testHostInspectsSerializationJar() throws {
+        guard FileManager.default.fileExists(atPath: serializationJarPath) else {
+            return
+        }
+        let result = try JvmPluginHostClient.shared.inspectPlugin(pluginJarPath: serializationJarPath)
+        #expect(result.pluginId == "org.jetbrains.kotlinx.serialization")
+
+        let optionNames = Set(result.options.map(\.name))
+        #expect(optionNames.contains("disableIntrinsic"))
+    }
+
+    @Test
+    func testDynamicSerializationTransformsSema() throws {
+        guard FileManager.default.fileExists(atPath: serializationJarPath) else {
+            return
+        }
+        let stub = """
+        package kotlinx.serialization
+
+        annotation class Serializable
+        interface KSerializer<T>
+        """
+        let source = """
+        package com.example
+
+        import kotlinx.serialization.Serializable
+
+        @Serializable
+        class DynamicPayload(val name: String)
+        """
+        try withTemporaryFiles(contents: [stub, source]) { paths in
+            let flags = [
+                "-Xplugin=\(serializationJarPath)",
+            ]
+            let ctx = makeCompilationContext(
+                inputs: paths,
+                emit: .kirDump,
+                frontendFlags: flags
+            )
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let payloadID = try #require(lookupSymbol(named: "DynamicPayload", in: sema, interner: ctx.interner))
+            let info = try #require(sema.serializationClasses[payloadID])
+            #expect(info.companionObjectSymbol != nil)
+            #expect(info.companionSerializerMethod != nil)
+            #expect(info.generatedSerializerClass != nil)
         }
     }
 
