@@ -907,10 +907,7 @@ extension JVMFunctionBuilder {
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
         if method.isConstructor {
             object = try value(method.result)
-            instructions.append(.allocate(method.owner, object!))
-            pendingAllocations.append(object!)
         }
-        defer { if method.isConstructor { pendingAllocations.removeLast() } }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {
             let (arg, type) = pair
@@ -931,6 +928,7 @@ extension JVMFunctionBuilder {
         }
         let resultType = method.isConstructor ? method.result : try program.expressionType(id)
         let result = method.isConstructor || method.result == .unit || resultType == .unit ? nil : try value(resultType)
+        if method.isConstructor, let object { instructions.append(.allocate(method.owner, object)) }
         instructions.append(.foreignCall(method, receiver: object, arguments: values, result: result))
         return method.isConstructor ? object : result
     }
