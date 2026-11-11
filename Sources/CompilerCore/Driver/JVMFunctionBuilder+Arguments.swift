@@ -139,7 +139,8 @@ extension JVMFunctionBuilder {
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
-        let types = Array(allTypes.dropFirst(prefix.count))
+        let isComposable = program.jvmComposableFunctions.contains(symbol)
+        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         // Value constructors are static source operations: evaluate their
@@ -178,7 +179,10 @@ extension JVMFunctionBuilder {
         } else if var method {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
-        } else if let reference { instructions.append(.call(reference, values, result)) }
+        } else if let reference {
+            if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
+            else { instructions.append(.call(reference, values, result)) }
+        }
         return JVMIntrinsicResult(value: object ?? result)
     }
 }
