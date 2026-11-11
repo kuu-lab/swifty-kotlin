@@ -11,6 +11,7 @@ extension CallExpr {
                 signedIntegerLiteral: arg.signedIntegerLiteral,
                 unsignedIntegerLiteral: arg.unsignedIntegerLiteral,
                 isTrailingLambda: arg.isTrailingLambda,
+                isCallableReference: arg.isCallableReference,
                 bindsToLastParameter: arg.bindsToLastParameter
             )
         }
@@ -1935,10 +1936,23 @@ extension OverloadResolver {
         // subtype side when invariant arguments decompose in both directions,
         // and marking it rigid there would constrain the candidate's own
         // variable against itself (KUU-4461).
-        func rigidSubtypeTypeParameters(of type: TypeID) -> Set<SymbolID> {
-            Set(typeVarBySymbol.keys.filter {
+        func rigidSubtypeTypeParameters(
+            of type: TypeID,
+            against expectedType: TypeID,
+            argument: CallArg
+        ) -> Set<SymbolID> {
+            var symbols = Set(typeVarBySymbol.keys.filter {
                 typeSystem.typeContainsTypeParam(type, symbol: $0)
             })
+            // Callable references can be specialized from this candidate's
+            // expected function type. A type parameter occurring on both sides
+            // is therefore a solver variable, not a rigid caller input (KUU-4512).
+            if argument.isCallableReference {
+                symbols.subtract(typeVarBySymbol.keys.filter {
+                    typeSystem.typeContainsTypeParam(expectedType, symbol: $0)
+                })
+            }
+            return symbols
         }
         var processedAll = true
         for argIndex in call.args.indices {
@@ -2010,7 +2024,9 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: call.range,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(of: elementType)
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(
+                        of: elementType, against: paramType, argument: arg
+                    )
                 ).map { $0.withOrigin(.callArgument) })
                 continue
             }
@@ -2033,7 +2049,9 @@ extension OverloadResolver {
                     typeVarBySymbol: typeVarBySymbol,
                     typeSystem: typeSystem,
                     blameRange: call.range,
-                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(of: elementType)
+                    rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(
+                        of: elementType, against: paramType, argument: arg
+                    )
                 )
                 constraints.append(contentsOf: decomposed.map { $0.withOrigin(.callArgument) })
                 continue
@@ -2099,7 +2117,9 @@ extension OverloadResolver {
                 typeVarBySymbol: typeVarBySymbol,
                 typeSystem: typeSystem,
                 blameRange: call.range,
-                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(of: constraintArgumentType)
+                rigidSubtypeTypeParameters: rigidSubtypeTypeParameters(
+                    of: constraintArgumentType, against: constraintParameterType, argument: arg
+                )
             )
             // An unsuffixed integer literal keeps its JVM literal-type
             // provenance through constraint recording: the join can then tell
