@@ -87,7 +87,7 @@ extension JVMProgramBuilder {
             if program.classes.contains(where: { $0.name == "kotlin/jvm/internal/DefaultConstructorMarker" }) {
                 guard context.options.stdlibOnly else { throw JVMFrontendError(message: "Generated JVM constructor marker clashes with a source class.") }
             } else if context.jvmImports?.classes["kotlin/jvm/internal/DefaultConstructorMarker"] == nil {
-                program.classes.append(rawClass("kotlin/jvm/internal/DefaultConstructorMarker", access: 0x31))
+                program.classes.append(rawClass("kotlin/jvm/internal/DefaultConstructorMarker", access: 0x31, isRuntimeFallback: true))
             }
         }
         return program

@@ -11,10 +11,16 @@ final class JVMCodegenPhase: CompilerPhase {
         }
         do {
             // Validate and construct all bytes before touching the destination.
-            let classFile = try JVMClassFile.emit(program, target: ctx.options.jvmTarget, javaParameters: ctx.options.javaParameters)
-            var classes = try program.classes.map { type in
-                (type.name + ".class", try JVMClassFile.emit(type, program: program, target: ctx.options.jvmTarget, javaParameters: ctx.options.javaParameters))
+            let target = ctx.options.jvmTarget
+            let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters)
+            let runtime = ctx.options.emit == .jvmJar && ctx.options.includeJVMRuntime && !ctx.options.stdlibOnly
+                ? try runtimeEntries(for: ctx.options)
+                : []
+            let runtimePaths = Set(runtime.map(\.0))
+            let applicationClasses = program.classes.filter { type in
+                !type.isRuntimeFallback || !runtimePaths.contains(type.name + ".class")
             }
+            var classes = try emitClasses(applicationClasses, in: program, target: target, javaParameters: ctx.options.javaParameters)
             if ctx.options.stdlibOnly {
                 let coverage = try JVMStdlibCoverage.report(program, classFiles: [(program.internalClassName + ".class", classFile)] + classes)
                 classes.append(("META-INF/kswiftk-stdlib-coverage.json", coverage))
@@ -25,12 +31,14 @@ final class JVMCodegenPhase: CompilerPhase {
                 }.sorted().joined(separator: "\n") + "\n"
                 classes.append(("META-INF/kswiftk-stdlib-sources.list", Data(sources.utf8)))
             }
-            let module = JVMMetadata.module(program)
-            let modulePath = "META-INF/" + program.moduleName + ".kotlin_module"
+            let (modulePath, module) = moduleEntry(for: program)
             let output = URL(fileURLWithPath: ctx.options.outputPath)
             switch ctx.options.emit {
             case .jvmJar:
-                let archive = try JVMJarArchive.emit(className: program.internalClassName, classFile: classFile, hasMain: program.hasMain, module: (modulePath, module), classes: classes)
+                let archive = try JVMJarArchive.emit(
+                    className: program.internalClassName, classFile: classFile, hasMain: program.hasMain,
+                    module: (modulePath, module), classes: classes + runtime
+                )
                 try archive.write(to: output, options: .atomic)
             case .jvmClass:
                 for (name, bytes) in [(program.internalClassName + ".class", classFile)] + classes {
@@ -76,5 +84,35 @@ final class JVMCodegenPhase: CompilerPhase {
             ctx.diagnostics.error("KSWIFTK-JVM-0002", "Cannot emit JVM output: \(error)", range: nil)
             throw CompilerPipelineError.outputUnavailable
         }
+    }
+
+    private func runtimeEntries(for application: CompilerOptions) throws -> [(String, Data)] {
+        let moduleName = application.moduleName == "KSwiftKStdlib" ? "KSwiftKStdlibRuntime" : "KSwiftKStdlib"
+        let options = CompilerOptions(
+            moduleName: moduleName, inputs: [], outputPath: application.outputPath, emit: .jvmJar,
+            target: application.target, stdlibOnly: true, jvmTarget: application.jvmTarget
+        )
+        let result = CompilerDriver().runFrontend(options: options)
+        guard !result.context.diagnostics.hasError, let program = result.context.jvmProgram else {
+            let errors = result.diagnostics.filter { $0.severity == .error }
+            let message = errors.map { "\($0.code): \($0.message)" }.joined(separator: "\n")
+            throw JVMEmissionError.runtimeBuildFailed(message.isEmpty ? "No JVM program was generated." : message)
+        }
+        let classFile = try JVMClassFile.emit(program, target: options.jvmTarget)
+        let classes = try emitClasses(program.classes, in: program, target: options.jvmTarget)
+        return [(program.internalClassName + ".class", classFile)] + classes
+            + JVMBuiltins.resources() + [moduleEntry(for: program)]
+    }
+
+    private func emitClasses(
+        _ classes: [JVMClass], in program: JVMProgram, target: JVMTarget, javaParameters: Bool = false
+    ) throws -> [(String, Data)] {
+        try classes.map { type in
+            (type.name + ".class", try JVMClassFile.emit(type, program: program, target: target, javaParameters: javaParameters))
+        }
+    }
+
+    private func moduleEntry(for program: JVMProgram) -> (String, Data) {
+        ("META-INF/" + program.moduleName + ".kotlin_module", JVMMetadata.module(program))
     }
 }

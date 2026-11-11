@@ -245,6 +245,8 @@ public struct CompilerOptions: Equatable {
     public var jvmTarget: JVMTarget
     /// Emit MethodParameters for Java reflection.
     public var javaParameters: Bool
+    /// Package the bundled Kotlin/JVM runtime in an application JAR.
+    public var includeJVMRuntime: Bool
     /// Android SDK toolchain options for `dex`/`apk` emission.
     public var android: AndroidOptions
 
@@ -386,6 +388,7 @@ public struct CompilerOptions: Equatable {
         jvmClasspath: [String] = [],
         jvmTarget: JVMTarget = .java8,
         javaParameters: Bool = false,
+        includeJVMRuntime: Bool = false,
         stdlibProfile: StdlibProfile = .full,
         android: AndroidOptions = AndroidOptions()
     ) {
@@ -423,6 +426,7 @@ public struct CompilerOptions: Equatable {
         self.jvmClasspath = jvmClasspath
         self.jvmTarget = jvmTarget
         self.javaParameters = javaParameters
+        self.includeJVMRuntime = includeJVMRuntime
         self.stdlibProfile = stdlibProfile
         self.android = android
     }

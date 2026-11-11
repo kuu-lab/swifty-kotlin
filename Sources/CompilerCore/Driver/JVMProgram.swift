@@ -334,6 +334,8 @@ public struct JVMClass {
     public var isFileFacade = false
     public var sourceFileName: String? = nil
     public var emitMetadata = true
+    // The bundled JVM runtime can supply this compiler-generated compatibility class.
+    package var isRuntimeFallback = false
     public var isObject = false
     public var isCompanion = false
     public var isData = false

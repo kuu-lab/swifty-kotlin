@@ -326,14 +326,17 @@ final class ConsolePrintLoweringPass: LoweringPass {
                 thrownResult: nil,
                 isSuperCall: false
             ))
-            // Boolean needs its dedicated kk_any_to_string tag: a raw or
-            // identity-boxed value carries no runtime type info, so tag 1
-            // would render "1"/"0" instead of "true"/"false". Char gets its
-            // tag for the same reason (code point → character rendering).
-            // The other scalar tags keep flowing through the generic path.
+            // Wasm uses raw integers for these boxed values. The renderer
+            // needs their static tags to recover the Kotlin values.
+            let tag: Int64 = switch (primitive, requireNonNull) {
+            case (.boolean, _), (.char, _), (.uint, true), (.ulong, true):
+                computeAnyFallbackTag(for: argType, sema: sema)
+            default:
+                1
+            }
             return appendAnyToString(
                 argument: boxed,
-                tag: primitive == .boolean ? 2 : primitive == .char ? 4 : 1,
+                tag: tag,
                 arena: arena,
                 intType: intType,
                 stringType: stringType,

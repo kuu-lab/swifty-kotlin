@@ -40,6 +40,7 @@ enum CLIParser {
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
       -jvm-target <version>  JVM bytecode target (1.8, 9–26; default 1.8)
       -java-parameters       Emit parameter names for Java reflection (class or jar)
+      -include-runtime       Package the bundled Kotlin/JVM runtime with --emit jar
       --android-sdk <path>   Android SDK root (default: ANDROID_HOME, ANDROID_SDK_ROOT,
                              or the platform install location)
       --android-build-tools <version>
@@ -135,6 +136,7 @@ enum CLIParser {
         var jvmTarget = JVMTarget.java8
         var explicitJVMTarget = false
         var javaParameters = false
+        var includeJVMRuntime = false
         var android = AndroidOptions()
         var explicitAndroidOptions: Set<String> = []
         var runImmediately = false
@@ -228,6 +230,8 @@ enum CLIParser {
                 explicitJVMTarget = true
             case "-java-parameters":
                 javaParameters = true
+            case "-include-runtime":
+                includeJVMRuntime = true
             case "--emit":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard let mode = parseEmitMode(value) else {
@@ -435,6 +439,9 @@ enum CLIParser {
         if javaParameters, emitMode != .jvmClass, emitMode != .jvmJar {
             throw CLIParseError.javaParametersRequireClassOrJar
         }
+        if includeJVMRuntime, emitMode != .jvmJar {
+            throw CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar")
+        }
         let isAndroidEmit = emitMode == .dex || emitMode == .apk
         if emitMode != .apk {
             let apkOnly = explicitAndroidOptions.filter {
@@ -476,6 +483,7 @@ enum CLIParser {
             jvmClasspath: jvmClasspath,
             jvmTarget: jvmTarget,
             javaParameters: javaParameters,
+            includeJVMRuntime: includeJVMRuntime,
             stdlibProfile: stdlibProfile,
             android: android
         )
