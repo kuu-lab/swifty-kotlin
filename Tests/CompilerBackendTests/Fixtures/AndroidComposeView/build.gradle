@@ -1,0 +1,31 @@
+plugins {
+    id 'com.android.application' version '9.5.1'
+}
+
+android {
+    namespace 'org.swiftykotlin.composeprobe'
+    compileSdkVersion 'android-36.1'
+    buildToolsVersion '36.1.0'
+    defaultConfig {
+        applicationId 'org.swiftykotlin.composeprobe'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+}
+
+configurations.configureEach {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-common'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-reflect'
+}
+
+dependencies {
+    implementation files('build/kswiftk/kswiftk-stdlib.jar')
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.compose.runtime:runtime-android:1.7.8'
+    implementation 'androidx.compose.ui:ui-android:1.7.8'
+}

@@ -12,6 +12,20 @@ fun Float.coerceAtMost(maximumValue: Float): Float = if (this > maximumValue) ma
 fun Double.coerceAtLeast(minimumValue: Double): Double = if (this < minimumValue) minimumValue else this
 fun Double.coerceAtMost(maximumValue: Double): Double = if (this > maximumValue) maximumValue else this
 
+public fun Int.coerceIn(minimumValue: Int, maximumValue: Int): Int {
+    if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    if (this < minimumValue) return minimumValue
+    if (this > maximumValue) return maximumValue
+    return this
+}
+
+public fun Float.coerceIn(minimumValue: Float, maximumValue: Float): Float {
+    if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    if (this < minimumValue) return minimumValue
+    if (this > maximumValue) return maximumValue
+    return this
+}
+
 public infix fun Int.until(to: Int): IntRange =
     if (to == Int.MIN_VALUE) IntRange(1, 0) else IntRange(this, to - 1)
 

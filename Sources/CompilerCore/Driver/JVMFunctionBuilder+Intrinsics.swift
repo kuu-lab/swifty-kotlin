@@ -60,6 +60,16 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall("kotlin/Result", "unbox-impl", [], object, receiver: first))
             }
             if name == "__jvmResume", values.count == 2 { return JVMIntrinsicResult(value: try jdkCall("kotlin/coroutines/Continuation", "resumeWith", [object], .unit, receiver: values[0], arguments: [values[1]], interface: true)) }
+            if name == "__jvmListModified", let list = values.first {
+                let field = JVMField(owner: "java/util/AbstractList", name: "modCount", type: .int, access: 4)
+                let old = try value(.int)
+                instructions.append(.getField(field, list, old))
+                let one = try constant(.int(1), .int)
+                let next = try value(.int)
+                instructions.append(.binary(.add, old, one, next))
+                instructions.append(.putField(field, list, next))
+                return JVMIntrinsicResult(value: nil)
+            }
             if let operation = program.platformOperations[name] { return JVMIntrinsicResult(value: try platformOperation(operation, arguments: values, result: resultType)) }
             if ["__jvmPrint", "__jvmPrintln", "__jvmNewline"].contains(name) {
                 instructions.append(.print(values.first, newline: name != "__jvmPrint")); return JVMIntrinsicResult(value: nil)
