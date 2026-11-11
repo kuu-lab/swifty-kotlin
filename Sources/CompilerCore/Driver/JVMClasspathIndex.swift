@@ -266,6 +266,9 @@ final class JVMClasspathIndex {
             switch name {
             case "java/lang/String": return "kotlin.String"
             case "java/lang/Object": return "kotlin.Any"
+            // Erased Java Class references are wildcard Class<*> in Kotlin; this keeps
+            // generic Class<T> extensions usable on Java classpath receivers (KUU-4524).
+            case "java/lang/Class": return "java.lang.Class<*>"
             default:
                 // Mirror kotlinc's JDK->Kotlin mapped types so foreign
                 // signatures render as the Kotlin declarations users expect
