@@ -252,7 +252,8 @@ final class JVMClasspathIndex {
         // their raw Java signatures are not importable declarations.
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
-        return name == "java/lang/String" || name == "java/lang/Object" || name == "kotlin/coroutines/Continuation" || classes[name] != nil
+        return name == "java/lang/String" || name == "java/lang/Object" || name == "java/lang/Class"
+            || name == "kotlin/coroutines/Continuation" || classes[name] != nil
     }
 
     private func exposeSuspendType(_ type: JVMValueType) -> Bool {
@@ -587,16 +588,37 @@ final class JVMClasspathIndex {
         if !info.isInterface {
             for interfaceName in info.interfaces { collectRequiredProperties(interfaceName) }
         }
-        /// Whether a visible superclass chain declares `setX(v)`; the subclass
-        /// then inherits both the `fun` and the `var` mutability.
-        func ancestorHasSetter(_ setterName: String, type: String) -> Bool {
+        func ancestorHasSetter(_ setterName: String, type: String, startingAt owner: String? = nil) -> Bool {
             var visited: Set<String> = [info.name]
-            var next = info.superclass
+            var next = owner ?? info.superclass
             while let name = next, visited.insert(name).inserted, let sup = classes[name] {
                 if sup.methods.contains(where: {
                     matchesSetter($0, name: setterName, type: type)
                 }) { return true }
                 next = sup.superclass
+            }
+            return false
+        }
+        /// Java can narrow a getter's return type while keeping the inherited
+        /// setter. Keep the inherited Kotlin property type and the narrower
+        /// Java method signature available independently.
+        func inheritsWiderMutableProperty(
+            _ getter: JVMForeignMethod, propertyName: String, setterName: String, type: String
+        ) -> Bool {
+            var visited: Set<String> = [info.name]
+            var next = info.superclass
+            while let name = next, visited.insert(name).inserted, let parent = classes[name] {
+                next = parent.superclass
+                guard !isCovered(name, covered: activeCoveredNames),
+                      !parent.methods.contains(where: { !$0.isStatic && $0.name == propertyName }),
+                      let inherited = parent.methods.first(where: {
+                          !$0.isStatic && $0.name == getter.name && $0.parameters.isEmpty
+                              && expose($0.result) && propertyShape($0) != nil
+                      }) else { continue }
+                let inheritedType = kotlinType(inherited.result)
+                if inheritedType != type, ancestorHasSetter(setterName, type: inheritedType, startingAt: name) {
+                    return true
+                }
             }
             return false
         }
@@ -629,6 +651,10 @@ final class JVMClasspathIndex {
             guard JVMProgramBuilder.isIdentifier(propertyName),
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
             let propertyType = kotlinType(getter.result)
+            if let setterName = shape.setterName,
+               inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
+                continue
+            }
             var modifiers = ""
             if getter.isProtected && !info.isInterface { modifiers += "protected " }
             if !info.isInterface && getter.isFinal { modifiers += "final " }

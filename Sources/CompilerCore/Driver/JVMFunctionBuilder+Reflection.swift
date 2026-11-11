@@ -21,22 +21,29 @@ extension JVMFunctionBuilder {
         instructions.append(.classLiteral(type.unsignedName ?? type.referenceName!, result))
         return result
     }
+
+    private func javaClassForClassReference(_ id: ExprID, receiver: ExprID?) throws -> JVMValue {
+        guard let semantic = program.sema.bindings.classRefTargetType(for: id) else {
+            throw fail("Missing JVM class literal type.", id)
+        }
+        if program.sema.bindings.boundClassRefExprs.contains(id), let receiver {
+            let object = try convert(requireValue(receiver), to: .reference("java/lang/Object", nullable: false))
+            return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: object)!
+        }
+        if let token = try runtimeReifiedToken(semantic) { return token.klass }
+        if let name = program.reifiedUse(semantic) {
+            let klass = try value(.reference("java/lang/Class", nullable: false))
+            instructions.append(.reifiedOperation(4, name, nil, klass))
+            return klass
+        }
+        let token = try program.classTokenType(program.specialized(semantic))
+        guard program.isReifiedParameter(semantic) else { return try javaClass(token) }
+        return try javaClass(token == .unit ? .reference("kotlin/Unit", nullable: false) : JVMClasspathIndex.boxed(token))
+    }
+
     func reflectionReference(_ id: ExprID, receiver: ExprID?, member: InternedString) throws -> JVMValue {
         if context.interner.resolve(member) == "class" {
-            guard let semantic = program.sema.bindings.classRefTargetType(for: id) else { throw fail("Missing JVM class literal type.", id) }
-            let klass: JVMValue
-            if program.sema.bindings.boundClassRefExprs.contains(id), let receiver {
-                let object = try convert(requireValue(receiver), to: .reference("java/lang/Object", nullable: false))
-                klass = try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: object)!
-            } else if let token = try runtimeReifiedToken(semantic) {
-                klass = token.klass
-            } else if let name = program.reifiedUse(semantic) {
-                klass = try value(.reference("java/lang/Class", nullable: false))
-                instructions.append(.reifiedOperation(4, name, nil, klass))
-            } else {
-                let token = try program.classTokenType(program.specialized(semantic))
-                klass = try javaClass(program.isReifiedParameter(semantic) ? (token == .unit ? .reference("kotlin/Unit", nullable: false) : JVMClasspathIndex.boxed(token)) : token)
-            }
+            let klass = try javaClassForClassReference(id, receiver: receiver)
             return try jdkCall("kotlin/jvm/internal/Reflection", "getOrCreateKotlinClass", [klass.type], .reference("kotlin/reflect/KClass", nullable: false), arguments: [klass])!
         }
         guard let symbol = program.sema.bindings.callableReferenceBinding(for: id)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { throw fail("Missing JVM callable reference binding.", id) }
@@ -177,6 +184,12 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.reference("java/lang/Class", nullable: false)], .reference("java/lang/annotation/Annotation", nullable: true), receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)], resolved: program.expressionType(id)))
         }
         if isClass, name == "java", args.isEmpty {
+            // A class reference already has a JVM Class token. Only a
+            // standalone KClass value needs the Kotlin reflection wrapper.
+            if case let .callableRef(receiver, member, _) = arena.expr(receiverID),
+               context.interner.resolve(member) == "class" {
+                return JVMIntrinsicResult(value: try javaClassForClassReference(receiverID, receiver: receiver))
+            }
             return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getJavaClass", [sourceType], .reference("java/lang/Class", nullable: false), arguments: [requireValue(receiverID)]))
         }
         if name == "javaClass", args.isEmpty {
