@@ -243,6 +243,8 @@ public struct CompilerOptions: Equatable {
     public var jvmClasspath: [String]
     /// Target Java release for generated JVM classfiles.
     public var jvmTarget: JVMTarget
+    /// Emit MethodParameters for Java reflection.
+    public var javaParameters: Bool
     /// Android SDK toolchain options for `dex`/`apk` emission.
     public var android: AndroidOptions
 
@@ -383,6 +385,7 @@ public struct CompilerOptions: Equatable {
         entryPointFQName: String? = nil,
         jvmClasspath: [String] = [],
         jvmTarget: JVMTarget = .java8,
+        javaParameters: Bool = false,
         stdlibProfile: StdlibProfile = .full,
         android: AndroidOptions = AndroidOptions()
     ) {
@@ -419,6 +422,7 @@ public struct CompilerOptions: Equatable {
         self.entryPointFQName = entryPointFQName
         self.jvmClasspath = jvmClasspath
         self.jvmTarget = jvmTarget
+        self.javaParameters = javaParameters
         self.stdlibProfile = stdlibProfile
         self.android = android
     }

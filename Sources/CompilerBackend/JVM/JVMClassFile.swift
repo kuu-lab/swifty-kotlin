@@ -3,10 +3,10 @@ import CompilerCore
 
 /// JVM classfile output with verifier frames for the typed JVM CFG.
 enum JVMClassFile {
-    static func emit(_ program: JVMProgram, target: JVMTarget = .java8) throws -> Data {
+    static func emit(_ program: JVMProgram, target: JVMTarget = .java8, javaParameters: Bool = false) throws -> Data {
         let pool = JVMConstantPool()
         guard program.functions.count < 65_535 else { throw JVMEmissionError.limit("JVM class exceeds the method-count limit.") }
-        var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, pool: pool) }
+        var methods = try program.functions.map { try emitMethod($0, owner: program.internalClassName, javaParameters: javaParameters, pool: pool) }
         if program.hasMain {
             var launcher = JVMBytes()
             launcher.u1(0xB8)
@@ -17,23 +17,46 @@ enum JVMClassFile {
         let metadata = try JVMMetadata.annotation(program, pool: pool)
         return try write(name: program.internalClassName, superclass: "java/lang/Object", interfaces: [], access: 0x0031, fields: program.properties.compactMap(\.field) + program.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: program.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: program.sourceFileName, metadata: metadata, annotations: program.annotations, signature: nil, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), majorVersion: target.classFileMajorVersion, pool: pool)
     }
-    static func emit(_ type: JVMClass, program: JVMProgram, target: JVMTarget = .java8) throws -> Data {
+    static func emit(_ type: JVMClass, program: JVMProgram, target: JVMTarget = .java8, javaParameters: Bool = false) throws -> Data {
         if type.isFileFacade {
             var facade = JVMProgram(internalClassName: type.name, sourceFileName: type.sourceFileName ?? program.sourceFileName, functions: type.functions, hasMain: false, moduleName: program.moduleName)
             facade.properties = type.properties; facade.extraFields = type.extraFields; facade.typeAliases = type.typeAliases
             facade.classes = program.classes
-            return try emit(facade, target: target)
+            return try emit(facade, target: target, javaParameters: javaParameters)
         }
         let pool = JVMConstantPool()
-        let methods = try type.functions.map { try emitMethod($0, owner: type.name, pool: pool) }
+        let methods = try type.functions.map { try emitMethod($0, owner: type.name, javaParameters: javaParameters, pool: pool) }
         return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, recordComponents: type.recordComponents, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
     }
-    private static func emitMethod(_ function: JVMFunction, owner: String, pool: JVMConstantPool) throws -> JVMMethodCode {
+    private static func emitMethod(_ function: JVMFunction, owner: String, javaParameters: Bool, pool: JVMConstantPool) throws -> JVMMethodCode {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
         method.annotations = function.annotations; method.parameterAnnotations = function.parameterAnnotations
         method.isDeprecated = function.isDeprecated
         method.annotationDefault = function.annotationDefault
+        // Each descriptor parameter gets one entry, regardless of its local slot width.
+        if javaParameters, method.access & 0x1000 == 0,
+           function.javaParameters.count == function.reference.parameters.count {
+            method.javaParameters = function.javaParameters
+        }
         return method
+    }
+    private static func methodAttributes(_ method: JVMMethodCode, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
+        var attributes = try JVMAnnotations.methodAttributes(method, pool: pool)
+        guard !method.javaParameters.isEmpty else { return attributes }
+        guard let count = UInt8(exactly: method.javaParameters.count) else {
+            throw JVMEmissionError.limit("JVM MethodParameters count exceeds the classfile limit.")
+        }
+        let forbiddenNameCharacters = CharacterSet(charactersIn: ".;[/")
+        var data = JVMBytes()
+        data.u1(count)
+        for parameter in method.javaParameters {
+            // Zero denotes an unnamed entry when the source name is invalid in a classfile.
+            let validName = !parameter.name.isEmpty && parameter.name.rangeOfCharacter(from: forbiddenNameCharacters) == nil
+            data.u2(validName ? try pool.utf8(parameter.name) : 0)
+            data.u2(parameter.access)
+        }
+        attributes.append((try pool.utf8("MethodParameters"), data.data))
+        return attributes
     }
     private static func innerClasses(_ program: JVMProgram) -> [(String, String?, String?, UInt16)] {
         program.classes.compactMap { type in
@@ -100,7 +123,7 @@ enum JVMClassFile {
             return try pool.constant(constant)
         }
         let fieldAnnotations = try fields.map { try JVMAnnotations.attributes($0.annotations, deprecated: $0.isDeprecated, pool: pool) }
-        let methodAnnotations = try methods.map { try JVMAnnotations.methodAttributes($0, pool: pool) }
+        let methodAttributes = try methods.map { try self.methodAttributes($0, pool: pool) }
         let recordAttributeName: UInt16? = recordComponents.isEmpty ? nil : try pool.utf8("Record")
         let recordComponentIndices = try recordComponents.map { component in
             (try pool.utf8(component.name), try pool.utf8(component.type.descriptor), try component.genericSignature.map { try pool.utf8($0) })
@@ -143,7 +166,7 @@ enum JVMClassFile {
         bytes.u2(UInt16(methods.count))
         for (i, pair) in zip(methods, methodSignatures).enumerated() {
             let (method, generic) = pair
-            let attributes = methodAnnotations[i]
+            let attributes = methodAttributes[i]
             guard method.exceptions.count <= 65_535 else { throw JVMEmissionError.limit("JVM exception table exceeds the classfile limit.") }
             if method.access & 0x0400 != 0 {
                 bytes.u2(method.access); bytes.u2(method.name); bytes.u2(method.descriptor); bytes.u2(UInt16((generic == nil ? 0 : 1) + attributes.count))

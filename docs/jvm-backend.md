@@ -35,6 +35,8 @@ java -Xverify:all -jar hello.jar
 たとえば `package demo` を持つ `hello.kt` は `demo/HelloKt.class` を生成する。
 `main(): Unit` がある場合は launcher と Manifest の `Main-Class` を生成する。
 `main` のないソースはライブラリとして出力する。
+`-java-parameters` を指定すると、Java リフレクションがパラメータ名を取得できる
+`MethodParameters` 属性を出力する。
 
 ## 対応範囲
 

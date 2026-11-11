@@ -366,6 +366,13 @@ extension JVMProgramBuilder {
             }
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
             let setter = f.reference.result == .unit
+            if declaration.receiverType != nil {
+                f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
+            }
+            if setter {
+                let name = declaration.setter?.parameterName.map(context.interner.resolve) ?? "<set-?>"
+                f.javaParameters.append(JVMMethodParameter(name))
+            }
             let syntheticTarget = setter ? "set" : "get"
             if let symbol = propertySymbol,
                sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == "kotlin.jvm.JvmSynthetic" && $0.useSiteTarget == syntheticTarget }) {
@@ -450,9 +457,15 @@ extension JVMProgramBuilder {
         if plan.isEnum {
             function.access = 0; function.isPrivate = true; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }; function.kotlinParameterOffset = 2
             function.genericSignature = "(Ljava/lang/String;I" + String(function.genericSignature!.dropFirst())
+            function.javaParameters = [
+                JVMMethodParameter("$enum$name", access: 0x1000),
+                JVMMethodParameter("$enum$ordinal", access: 0x1000),
+            ]
         } else if plan.isInner {
             function.kotlinParameterOffset = 1; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }
+            function.javaParameters = [JVMMethodParameter("this$0", access: 0x8000)]
         } else if plan.modifiers.contains(.sealed), declaration.modifiers.isEmpty { function.access = 4 }
+        function.javaParameters += function.parameterNames.map { JVMMethodParameter($0) }
         return function
     }
     func bridges(_ plan: JVMClassPlan, functions: [JVMFunction]) throws -> [JVMFunction] {

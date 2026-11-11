@@ -15,6 +15,7 @@ enum CLIParseError: Error, Equatable {
     case incompatibleStdlibOptions(String)
     case incompatibleJVMTargetOptions(String)
     case unsupportedJVMTarget(String)
+    case javaParametersRequireClassOrJar
     case stdlibOnlyRequiresLibraryEmit
     case unsupportedStdlibProfile(String)
     case runRequiresExecutableEmit
@@ -38,6 +39,7 @@ enum CLIParser {
       --target <triple>      Target triple (arch-vendor-os[-version])
       --classpath <paths>    JVM JAR/class directories, separated by ':' (also -cp)
       -jvm-target <version>  JVM bytecode target (1.8, 9–26; default 1.8)
+      -java-parameters       Emit parameter names for Java reflection (class or jar)
       --android-sdk <path>   Android SDK root (default: ANDROID_HOME, ANDROID_SDK_ROOT,
                              or the platform install location)
       --android-build-tools <version>
@@ -132,6 +134,7 @@ enum CLIParser {
         var jvmClasspath: [String] = []
         var jvmTarget = JVMTarget.java8
         var explicitJVMTarget = false
+        var javaParameters = false
         var android = AndroidOptions()
         var explicitAndroidOptions: Set<String> = []
         var runImmediately = false
@@ -223,6 +226,8 @@ enum CLIParser {
                 }
                 jvmTarget = parsed
                 explicitJVMTarget = true
+            case "-java-parameters":
+                javaParameters = true
             case "--emit":
                 let value = try requireValue(option: arg, args: args, index: &index)
                 guard let mode = parseEmitMode(value) else {
@@ -427,6 +432,9 @@ enum CLIParser {
         if explicitJVMTarget, !emitMode.isJVM {
             throw CLIParseError.incompatibleJVMTargetOptions("-jvm-target requires --emit class, jar, dex or apk")
         }
+        if javaParameters, emitMode != .jvmClass, emitMode != .jvmJar {
+            throw CLIParseError.javaParametersRequireClassOrJar
+        }
         let isAndroidEmit = emitMode == .dex || emitMode == .apk
         if emitMode != .apk {
             let apkOnly = explicitAndroidOptions.filter {
@@ -467,6 +475,7 @@ enum CLIParser {
             entryPointFQName: entryPointFQName,
             jvmClasspath: jvmClasspath,
             jvmTarget: jvmTarget,
+            javaParameters: javaParameters,
             stdlibProfile: stdlibProfile,
             android: android
         )
