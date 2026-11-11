@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">KSwiftK Counter</string>
+    <string name="counter_initial">Count: 0</string>
+    <string name="increment">Increment</string>
+</resources>

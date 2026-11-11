@@ -253,6 +253,7 @@ public struct JVMForeignMethod {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    var genericResultParameter: String?
     public var isConstructor: Bool { name == "<init>" }
 }
 

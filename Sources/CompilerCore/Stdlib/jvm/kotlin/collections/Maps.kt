@@ -38,6 +38,7 @@ public inline operator fun <K, V> MutableMap<K, V>.set(key: K, value: V) { this.
 
 public inline operator fun <K, V> Map<K, V>.contains(key: K): Boolean = this.containsKey(key)
 
+public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !isEmpty()
 
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> {
     if (this.size == 0) return emptyMap<K, V>()
@@ -153,3 +154,12 @@ public operator fun <K, V> Map<out K, V>.minus(keys: kotlin.sequences.Sequence<K
 }
 
 public fun <K, V> Map<K, V>.getOrImplicitDefaultNullable(key: K): V? = this[key] ?: throw NoSuchElementException("Key " + key + " is missing in the map.")
+
+public fun <K, V> Map<K, V>.getValue(key: K): V {
+    val value = this[key]
+    if (value != null || containsKey(key)) {
+        @Suppress("UNCHECKED_CAST")
+        return value as V
+    }
+    throw NoSuchElementException("Key $key is missing in the map.")
+}

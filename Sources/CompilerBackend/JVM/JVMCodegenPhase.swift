@@ -57,8 +57,8 @@ final class JVMCodegenPhase: CompilerPhase {
                     try AndroidPackaging.emitAPK(
                         options: ctx.options, className: program.internalClassName,
                         classFile: classFile, hasMain: program.hasMain,
-                        module: (modulePath, module), classes: dexClasses,
-                        phaseTimer: ctx.phaseTimer
+                        module: (modulePath, module), classes: dexClasses + ctx.androidResourceClassFiles,
+                        linkedResources: ctx.androidResourceLink, phaseTimer: ctx.phaseTimer
                     )
                 }
             default:
