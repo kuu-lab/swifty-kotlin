@@ -37,6 +37,9 @@ extension JVMFunctionBuilder {
         if let result = try nominalPropertyInvocation(id, receiver: receiver, args: args) { return result.value }
         if let result = try textLibraryCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try inlineCall(args, receiver: receiver, id: id) { return result.value }
+        // Route KCallable.call through reflection before generic vararg binding.
+        if member == "call",
+           let result = try reflectionMember(receiver, name: member, args: args, id: id) { return result.value }
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result.value }
         if let result = try extensionOrInvoke(receiver, name: name, args: args, id: id) { return result.value }
         if let result = try intrinsicMember(receiver, name: name, args: args, id: id) { return result.value }
