@@ -252,6 +252,10 @@ extension JVMProgramBuilder {
         f.kotlinResult = try kotlinType(signature.returnType)
         if !f.isConstructor && f.reference.parameters.count == signature.parameterTypes.count + 1 { f.kotlinReceiver = try signature.receiverType.map(kotlinType) }
         f.genericSignature = (f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">") + "(" + (try ((f.kotlinReceiver == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (f.isConstructor ? "V" : try signatureType(signature.returnType))
+        if let symbol = sourceDeclaration?.key, jvmComposableFunctions.contains(symbol),
+           let closing = f.genericSignature?.lastIndex(of: ")") {
+            f.genericSignature?.insert(contentsOf: JVMCompose.suffix.map(\.descriptor).joined(), at: closing)
+        }
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
             f.genericSignature = prefix + "(" + (try f.kotlinReceiver == nil ? "" : signatureType(signature.receiverType!, parameterPosition: true)) + (try signature.parameterTypes.enumerated().map { i, parameter in (declaration.valueParams[i].isVararg ? "[" : "") + (try signatureType(parameter, parameterPosition: true)) }).joined() + ")" + (try signatureType(signature.returnType))

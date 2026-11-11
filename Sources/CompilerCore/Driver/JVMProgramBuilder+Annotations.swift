@@ -197,6 +197,12 @@ extension JVMProgramBuilder {
             if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
             let annotationOwner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) })
             if isPlanlessKotlinInternalAnnotation(name, owner: annotationOwner) { continue }
+            if JVMCompose.markers.contains(name), context.jvmImports?.hasComposeRuntime == true,
+               let owner = annotationOwner, annotationPlan(owner) == nil,
+               context.jvmImports?.classes[name.replacingOccurrences(of: ".", with: "/")]?.isAnnotation == true {
+                result.append(JVMAnnotation(descriptor: "L" + name.replacingOccurrences(of: ".", with: "/") + ";", visible: false))
+                continue
+            }
             guard let owner = annotationOwner, annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
             let retention = annotationRetention(owner)
             if retention == "SOURCE" { continue }
