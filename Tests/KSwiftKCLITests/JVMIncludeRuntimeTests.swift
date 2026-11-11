@@ -66,6 +66,38 @@ struct JVMIncludeRuntimeTests {
         }
     }
 
+    @Test
+    func unicodeAndAsciiClassNamesRunFromBundledJar() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kswiftk-unicode-class-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let input = root.appendingPathComponent("UnicodeMain.kt")
+        try """
+        class 物(val n: Int)
+        class Plain(val n: Int)
+        fun main() {
+            println(物(42).n)
+            println(Plain(7).n)
+        }
+        """.write(to: input, atomically: true, encoding: .utf8)
+
+        let runnableJAR = root.appendingPathComponent("unicode.jar")
+        let arguments = ["--emit", "jar", "-m", "KSwiftKStdlib", input.path, "-include-runtime", "-o", runnableJAR.path]
+        try #require(CLICompilerService.shared.run(args: arguments) == 0)
+
+        let runnable = try ZipArchive(data: Data(contentsOf: runnableJAR))
+        #expect(runnable.entry(named: "物.class") != nil)
+        #expect(runnable.entry(named: "Plain.class") != nil)
+        #expect(runnable.entry(named: "kotlin/Unit.class") != nil)
+
+        let java = CommandRunner.resolveExecutable("java", fallback: "/usr/bin/java")
+        let result = try CommandRunner.run(executable: java, arguments: ["-Xverify:all", "-jar", runnableJAR.path], timeout: 20)
+        #expect(result.stdout == "42\n7\n")
+        #expect(result.stderr.isEmpty)
+    }
+
     @Test(arguments: ["executable", "class", "dex", "apk"])
     func requiresJarEmission(mode: String) {
         #expect(throws: CLIParseError.incompatibleStdlibOptions("-include-runtime requires --emit jar")) {
