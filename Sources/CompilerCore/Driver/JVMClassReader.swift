@@ -12,6 +12,7 @@ struct JVMClassInfo {
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
+    var isKotlinFileFacade: Bool?
     var isInterface: Bool { flags & 0x0200 != 0 }
 }
 
@@ -80,12 +81,16 @@ struct JVMClassReader {
         }
         return result
     }
-    private mutating func classAttributes() throws -> (signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool, hasEnclosingMethod: Bool) {
+    private mutating func classAttributes(hasKotlinMetadata: Bool) throws -> (
+        signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool,
+        hasEnclosingMethod: Bool, kotlinMetadata: JVMKotlinMetadata?
+    ) {
         let count = try u2()
         var signature: String?
         var innerClasses: [JVMInnerClassInfo] = []
         var hasInnerClassesAttribute = false
         var hasEnclosingMethod = false
+        var kotlinMetadata: JVMKotlinMetadata?
         for _ in 0..<count {
             let attributeName = try text(Int(u2()))
             let size = try u4()
@@ -116,12 +121,86 @@ struct JVMClassReader {
                 guard !hasEnclosingMethod, size == 4 else { throw Invalid() }
                 hasEnclosingMethod = true
                 try skip(Int(size))
+            case "RuntimeVisibleAnnotations", "RuntimeInvisibleAnnotations":
+                if hasKotlinMetadata, kotlinMetadata == nil {
+                    var annotationReader = JVMClassReader(bytes: Array(bytes[offset..<end]), strings: strings, constants: constants)
+                    kotlinMetadata = try? annotationReader.readKotlinMetadata()
+                }
+                offset = end
             default:
                 try skip(Int(size))
             }
             guard offset == end else { throw Invalid() }
         }
-        return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod)
+        return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod, kotlinMetadata)
+    }
+
+    private mutating func readKotlinMetadata() throws -> JVMKotlinMetadata? {
+        let count = try u2()
+        for _ in 0..<count {
+            let descriptor = try text(Int(u2()))
+            let elementCount = try u2()
+            if descriptor != "Lkotlin/Metadata;" {
+                for _ in 0..<elementCount {
+                    try skip(2)
+                    try skipAnnotationValue(tag: u1())
+                }
+                continue
+            }
+            var metadata = JVMKotlinMetadata()
+            for _ in 0..<elementCount {
+                let name = try text(Int(u2()))
+                let tag = try u1()
+                switch (name, tag) {
+                case ("k", 73):
+                    metadata.kind = try annotationInt()
+                case ("mv", 91):
+                    let length = try u2()
+                    metadata.version = try (0..<length).map { _ in
+                        guard try u1() == 73 else { throw Invalid() }
+                        return try annotationInt()
+                    }
+                case ("d1", 91), ("d2", 91):
+                    let length = try u2()
+                    let values = try (0..<length).map { _ in
+                        guard try u1() == 115 else { throw Invalid() }
+                        return try text(Int(u2()))
+                    }
+                    if name == "d1" { metadata.data1 = values } else { metadata.data2 = values }
+                default:
+                    try skipAnnotationValue(tag: tag)
+                }
+            }
+            return metadata
+        }
+        return nil
+    }
+
+    private mutating func annotationInt() throws -> Int32 {
+        guard case let .int(value)? = constants[Int(try u2())] else { throw Invalid() }
+        return value
+    }
+
+    private mutating func skipAnnotationValue(tag: UInt8, depth: Int = 0) throws {
+        guard depth < 64 else { throw Invalid() }
+        switch tag {
+        case 66, 67, 68, 70, 73, 74, 83, 90, 99, 115: // Primitive, class and string.
+            try skip(2)
+        case 101: // Enum.
+            try skip(4)
+        case 64: // Annotation.
+            try skip(2)
+            let count = try u2()
+            for _ in 0..<count {
+                try skip(2)
+                try skipAnnotationValue(tag: u1(), depth: depth + 1)
+            }
+        case 91: // Array.
+            let count = try u2()
+            for _ in 0..<count { try skipAnnotationValue(tag: u1(), depth: depth + 1) }
+        default:
+            throw Invalid()
+        }
     }
 
     private static func classTypeParameterNames(in signature: String?) throws -> [String] {
@@ -191,6 +270,7 @@ struct JVMClassReader {
         _ = try u2(); guard try u2() >= 45 else { throw Invalid() }
         let count = Int(try u2())
         var index = 1
+        var hasKotlinMetadata = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
         // pool; resolve those references once the pool is fully read.
         var pendingStringRefs: [Int: Int] = [:]
@@ -213,7 +293,9 @@ struct JVMClassReader {
                         units.append(UInt16(first & 15) << 12 | UInt16(b & 63) << 6 | UInt16(c & 63))
                     } else { throw Invalid() }
                 }
-                strings[index] = String(decoding: units, as: UTF16.self)
+                let string = String(decoding: units, as: UTF16.self)
+                strings[index] = string
+                if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
             case 7: classes[index] = Int(try u2())
             case 3:
                 constants[index] = .int(Int32(bitPattern: try u4()))
@@ -276,8 +358,19 @@ struct JVMClassReader {
             }
             try attributes()
         }
-        let classAttributes = try classAttributes()
+        let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata)
         guard offset == bytes.count else { throw Invalid() }
+        if let metadata = classAttributes.kotlinMetadata,
+           methods.contains(where: Self.hasSuspendDescriptor),
+           let functions = try? metadata.suspendFunctions(byteLimit: bytes.count) {
+            for index in methods.indices where Self.hasSuspendDescriptor(methods[index]) {
+                let method = methods[index]
+                guard let function = functions[method.name + method.descriptor],
+                      method.parameters.count == function.parameters.count + (function.receiverIsNullable == nil ? 1 : 2)
+                else { continue }
+                methods[index].kotlinSuspendFunction = function
+            }
+        }
         return JVMClassInfo(
             name: name,
             flags: flags,
@@ -289,8 +382,14 @@ struct JVMClassReader {
             classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
             innerClasses: classAttributes.innerClasses,
             hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,
-            hasEnclosingMethod: classAttributes.hasEnclosingMethod
+            hasEnclosingMethod: classAttributes.hasEnclosingMethod,
+            isKotlinFileFacade: classAttributes.kotlinMetadata?.isFileFacade
         )
+    }
+
+    private static func hasSuspendDescriptor(_ method: JVMForeignMethod) -> Bool {
+        method.result.referenceName == "java/lang/Object"
+            && method.parameters.last?.referenceName == "kotlin/coroutines/Continuation"
     }
 }
 
