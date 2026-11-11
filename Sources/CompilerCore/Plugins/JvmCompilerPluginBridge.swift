@@ -157,19 +157,22 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let syntheticConstructors: [JvmSyntheticConstructorPlan]
     public let syntheticMethods: [JvmSyntheticMethodPlan]
     public let serializableClasses: [String]?
+    public let samWithReceiverInterfaces: [String]?
 
     public init(
         classesToOpen: [String] = [],
         membersToOpen: [String] = [],
         syntheticConstructors: [JvmSyntheticConstructorPlan] = [],
         syntheticMethods: [JvmSyntheticMethodPlan] = [],
-        serializableClasses: [String]? = nil
+        serializableClasses: [String]? = nil,
+        samWithReceiverInterfaces: [String]? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
         self.syntheticConstructors = syntheticConstructors
         self.syntheticMethods = syntheticMethods
         self.serializableClasses = serializableClasses
+        self.samWithReceiverInterfaces = samWithReceiverInterfaces
     }
 }
 
@@ -374,6 +377,9 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         // Apply synthetic methods (e.g. describeContents, writeToParcel)
         applySyntheticMethods(plan, context: context)
+
+        // Apply sam-with-receiver interfaces
+        applySamWithReceiverInterfaces(plan, context: context)
     }
 
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {
@@ -415,7 +421,7 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         var classPayloads: [JvmSemaClassPayload] = []
         for symbol in symbols.allSymbols() {
-            guard (symbol.kind == .class || symbol.kind == .object),
+            guard (symbol.kind == .class || symbol.kind == .object || symbol.kind == .interface),
                   !symbol.flags.contains(.importedLibrary),
                   !symbol.flags.contains(.synthetic),
                   !symbol.flags.contains(.precomputedStdlibSynthetic)
@@ -694,6 +700,21 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
                   !symbolInfo.flags.contains(.innerClass)
             else { continue }
             KotlinxSerializationPlugin.synthesizeSerializationMembers(for: symbolInfo, context: context)
+        }
+    }
+
+    private func applySamWithReceiverInterfaces(_ plan: JvmSemaTransformPlan, context: CompilerPluginSemaContext) {
+        guard let interfaces = plan.samWithReceiverInterfaces, !interfaces.isEmpty else { return }
+        let symbols = context.symbols
+        let interner = context.interner
+        for fqName in interfaces {
+            let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
+            guard let symbolID = symbols.lookup(fqName: parts),
+                  let symbolInfo = symbols.symbol(symbolID),
+                  symbolInfo.kind == .interface,
+                  symbolInfo.flags.contains(.funInterface)
+            else { continue }
+            context.sema.samWithReceiverInterfaces.insert(symbolID)
         }
     }
 }
