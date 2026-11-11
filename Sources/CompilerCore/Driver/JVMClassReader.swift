@@ -8,6 +8,7 @@ struct JVMClassInfo {
     let methods: [JVMForeignMethod]
     var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
+    var defaultArgumentMethods: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
@@ -369,12 +370,14 @@ struct JVMClassReader {
         }
         var methods: [JVMForeignMethod] = []
         var bridgeMethods: [JVMForeignMethod] = []
+        var defaultArgumentMethods: [JVMForeignMethod] = []
         let methodCount = try u2()
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             let genericSignature = try methodSignature()
-            if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
+            let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
+            if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -384,7 +387,8 @@ struct JVMClassReader {
                 method.isProtected = access & 0x0004 != 0
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: genericSignature, method: method)
-                if access & 0x0040 != 0 { bridgeMethods.append(method) }
+                if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
+                else if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }
         }
@@ -409,6 +413,7 @@ struct JVMClassReader {
             methods: methods,
             fields: fields,
             bridgeMethods: bridgeMethods,
+            defaultArgumentMethods: defaultArgumentMethods,
             classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
             innerClasses: classAttributes.innerClasses,
             hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,

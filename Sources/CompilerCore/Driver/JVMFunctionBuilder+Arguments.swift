@@ -120,8 +120,9 @@ extension JVMFunctionBuilder {
         let reference = program.references[symbol]
         let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
         guard reference != nil || method != nil else { return nil }
-        if let method, let contract = context.jvmImports?.importedComposables[symbol] {
-            return try importedComposableCall(method, contract: contract, args: args, binding: binding, id: id)
+        if let method, let contract = context.jvmImports?.importedComposeCalls[symbol] {
+            return try importedComposeCall(method, contract: contract, args: args, binding: binding,
+                                           receiver: receiver, receiverValue: receiverValue, expectedResult: expectedResult, id: id)
         }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
