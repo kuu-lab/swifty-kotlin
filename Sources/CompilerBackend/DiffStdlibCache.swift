@@ -126,9 +126,44 @@ public enum DiffStdlibCache {
             executable: executable,
             sources: sources,
             dependencies: dependencies,
-            environment: ProcessInfo.processInfo.environment,
+            environment: relevantEnvironment(from: ProcessInfo.processInfo.environment),
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString
         )
+    }
+
+    private static let ignoredCompilerEnvironmentKeys: Set<String> = [
+        "KSWIFTK_DAEMON_SOCKET",
+        "KSWIFTK_STDLIB_CACHE_DIR",
+        "KSWIFTK_STDLIB_JOBS",
+        "KSWIFTK_STDLIB_SERIAL",
+        "KSWIFTK_STDLIB_TIMINGS",
+    ]
+
+    private static let relevantLoaderEnvironmentKeys: Set<String> = [
+        "C_INCLUDE_PATH",
+        "DEVELOPER_DIR",
+        "DYLD_FALLBACK_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+        "LD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "LIBRARY_PATH",
+        "SDKROOT",
+    ]
+
+    /// Filter out transient CI / shell / diff-harness variables (such as
+    /// `GITHUB_*`, `DIFF_*`, or `TMPDIR`) that vary between workflow steps on
+    /// the same runner without affecting the stdlib `.kklib` build output.
+    static func relevantEnvironment(from environment: [String: String]) -> [String: String] {
+        var filtered: [String: String] = [:]
+        for (key, value) in environment {
+            if key.hasPrefix("KSWIFTK_"), !ignoredCompilerEnvironmentKeys.contains(key) {
+                filtered[key] = value
+            } else if relevantLoaderEnvironmentKeys.contains(key) {
+                filtered[key] = value
+            }
+        }
+        return filtered
     }
 
     static func dependencyIdentity(path: String) -> (String, String)? {
