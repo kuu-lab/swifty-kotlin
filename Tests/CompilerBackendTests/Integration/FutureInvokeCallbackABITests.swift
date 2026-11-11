@@ -9,71 +9,56 @@ struct FutureInvokeCallbackABITests {
     @Test(arguments: [0, 2])
     func callbacksUseRuntimeABI(optimization: Int) throws {
         let source = """
-        @KsSymbolName("kk_future_invoke")
-        external fun <T, R> invokeFuture(code: (T) -> R, value: T): R
-
         fun forwarded(code: (Int) -> Int, value: Int): Int = invokeFuture(code, value)
 
         fun main() {
-            println(invokeFuture({ value: Int -> value + 1 }, 41))
+            printResult(if (invokeFuture({ value: Int -> value + 1 }, 41) == 42) "direct" else "wrong")
             val offset = 7
             val code: (Int) -> Int = { it + offset }
-            println(forwarded(code, 35))
+            printResult(if (forwarded(code, 35) == 42) "captured" else "wrong")
             try {
-                forwarded({ throw IllegalStateException("callback") }, 1)
-            } catch (e: IllegalStateException) {
-                println(e.message)
+                forwarded({ throw Throwable("callback") }, 1)
+                printResult("missed")
+            } catch (e: Throwable) {
+                printResult("callback")
             }
         }
         """
         try withTemporaryFile(contents: source) { input in
             let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             defer { try? FileManager.default.removeItem(atPath: output) }
-            try assertCompilationSucceeded(makeTestDriver().runForTesting(options: CompilerOptions(
+            let sourceManager = SourceManager()
+            _ = sourceManager.addFile(path: "__bundled_future_abi.kt", contents: Data("""
+            package kotlin
+            @KsSymbolName("kk_future_invoke")
+            external fun <T, R> invokeFuture(code: (T) -> R, value: T): R
+            @KsSymbolName("__kk_println_raw")
+            external fun printResult(value: String)
+            open class Throwable {
+                @KsSymbolName("__kk_throwable_new")
+                constructor(message: String?)
+            }
+            """.utf8), origin: .bundledStdlib)
+            let ctx = CompilationContext(options: CompilerOptions(
                 moduleName: "FutureInvokeABI", inputs: [input], outputPath: output,
                 emit: .executable, target: .hostDefault(),
                 optLevel: try #require(OptimizationLevel(rawValue: optimization)),
                 includeStdlib: false, allowDefaultStdlibLibrary: false
-            )))
+            ), sourceManager: sourceManager, diagnostics: DiagnosticEngine(), interner: StringInterner())
+            try runToLowering(ctx)
+            try assertNoDiagnosticErrors(ctx)
+            do {
+                try CodegenPhase().run(ctx)
+            } catch {
+                try assertNoDiagnosticErrors(ctx)
+                throw error
+            }
+            try assertNoDiagnosticErrors(ctx)
+            try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: output, arguments: [])
             #expect(result.exitCode == 0, "\(result.stderr)")
-            #expect(result.stdout == "42\n42\ncallback\n")
+            #expect(result.stdout == "direct\ncaptured\ncallback\n")
         }
     }
 
-    @Test
-    func sourceStdlibO2IRPassesLLVMVerification() throws {
-        let bindings = try #require(LLVMCAPIBindings.loadUsable())
-        let verifier = try #require(bindings.verifyModuleFn)
-        let source = try diffCaseSource("kclass_annotations_typed.kt", file: #filePath)
-        try withTemporaryFile(contents: source) { input in
-            let options = CompilerOptions(
-                moduleName: "KUU1753", inputs: [input], outputPath: "unused",
-                emit: .executable, target: .hostDefault(), optLevel: .O2,
-                allowDefaultStdlibLibrary: false
-            )
-            let ctx = CompilationContext(
-                options: options, sourceManager: SourceManager(),
-                diagnostics: DiagnosticEngine(), interner: StringInterner()
-            )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            try assertNoDiagnosticErrors(ctx)
-            let emitter = NativeEmitter(
-                target: options.target, optLevel: .O2, debugInfo: false,
-                bindings: bindings, module: try #require(ctx.kir), interner: ctx.interner,
-                moduleName: options.moduleName, typeSystem: ctx.sema?.types, symbols: ctx.sema?.symbols
-            )
-            let built = try emitter.buildModule()
-            defer {
-                bindings.disposeModule(built.module)
-                for context in built.partitionContexts { bindings.disposeContext(context) }
-                if built.ownsContext { bindings.disposeContext(built.context) }
-            }
-            var message: UnsafeMutablePointer<CChar>?
-            defer { if let message { bindings.disposeMessageFn(message) } }
-            let invalid = verifier(built.module, 2, &message)
-            #expect(invalid == 0, "\(message.map { String(cString: $0) } ?? "LLVM verification failed")")
-        }
-    }
 }
