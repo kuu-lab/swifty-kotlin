@@ -245,9 +245,66 @@ extension JVMBackendTests {
         }
     }
 
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func enumSecondaryConstructorsDelegateAndInitializeEntries(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let source = """
+            enum class Color(val code: Int) {
+                RED, NAMED("ab"), BLUE(2);
+                constructor() : this(1)
+                constructor(label: String, offset: Int = 0) : this(label.length + offset)
+            }
+            fun main() {
+                println(Color.RED.code)
+                println(Color.RED.name)
+                println(Color.RED.ordinal)
+                println(Color.NAMED.code)
+                println(Color.NAMED.name)
+                println(Color.NAMED.ordinal)
+                println(Color.BLUE.code)
+                println(Color.BLUE.name)
+                println(Color.BLUE.ordinal)
+            }
+            """
+            let expected = "1\nRED\n0\n2\nNAMED\n1\n2\nBLUE\n2\n"
+            let result = try compile(source, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+            let arguments = mode == .jvmJar
+                ? ["-jar", root.appendingPathComponent("hello.jar").path]
+                : ["-cp", root.appendingPathComponent("classes").path, "HelloKt"]
+            let execution = try java(arguments)
+            #expect(execution.stdout == expected)
+            #expect(execution.stderr.isEmpty)
+            if mode == .jvmJar {
+                _ = try jvmTool("kotlinc", ["hello.kt", "-include-runtime", "-d", "reference.jar"], root: root)
+                let reference = try java(["-jar", root.appendingPathComponent("reference.jar").path])
+                #expect(reference.stdout == execution.stdout)
+            }
+        }
+    }
+
+    @Test
+    func enumSecondaryConstructorInvalidDelegationIsRejectedBySema() throws {
+        try withWorkspace { root in
+            let output = root.appendingPathComponent("hello.jar"), previous = Data("previous jar".utf8)
+            try previous.write(to: output)
+            let result = try compile("""
+            enum class Broken(val code: Int) {
+                VALUE;
+                constructor() : this("wrong")
+            }
+            fun main() {}
+            """, root: root, mode: .jvmJar)
+            #expect(result.0 == 1)
+            #expect(result.1.contains { $0.code == "KSWIFTK-SEMA-0473" })
+            #expect(!result.1.contains { $0.code == "KSWIFTK-JVM-0001" && $0.message.contains("enum secondary constructors") })
+            #expect(try Data(contentsOf: output) == previous)
+        }
+    }
+
     @Test(arguments: [
         "package kotlin.jvm.internal\nclass DefaultConstructorMarker; sealed class Base; fun main() {}",
-        "enum class E { A; constructor(value: Int): this() }; fun main() {}",
         "data class Bad(vararg val values: Int); fun main() {}",
         "sealed class Base; fun main() { Base() }",
         "enum class E { A }; fun main() { E() }",

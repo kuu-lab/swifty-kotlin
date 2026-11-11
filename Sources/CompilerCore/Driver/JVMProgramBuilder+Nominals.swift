@@ -209,7 +209,6 @@ extension JVMProgramBuilder {
             case let .classDecl(c):
                 guard
                       c.modifiers.subtracting([.public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
-                guard !c.modifiers.contains(.enumModifier) || c.secondaryConstructors.isEmpty else { throw JVMFrontendError(message: "JVM M8 does not support enum secondary constructors.", range: c.range) }
                 let hasJvmInline = c.annotations.contains {
                     $0.name == "JvmInline" || $0.name == "kotlin.jvm.JvmInline"
                 } || sema.symbols.annotations(for: symbol).contains {

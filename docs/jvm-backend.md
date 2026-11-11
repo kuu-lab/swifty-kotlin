@@ -1053,7 +1053,8 @@ nightly CI（`nightly-full.yml` の `verify-jvm-diff`）はこの jar を毎晩�
 引数付きの suspend main、複数上限の where 制約、
 拡張プロパティ、ローカル関数、
 複数 parameter のユーザー定義 vararg と vararg constructor（単独 vararg 関数・対応済み API の spread は使用可能）、
-enum の secondary constructor、when の guard／範囲条件、ループラベル、`until` / `step` は未対応。
+when の guard／範囲条件、ループラベル、`until` / `step` は未対応。
+enum の secondary constructor は、enum entry からの呼び出しと `this(...)` による委譲に対応する。
 Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引数へ渡す Unit 式、関数型の戻り値、Continuation／Result の型引数と resume(Unit) を除く）、AbstractSet 派生以外の collection のユーザー実装、kotlin.Number のユーザー派生クラス、
 上記以外の高階 collection 操作・builder、data class／Pair／MatchGroup／MatchResult.Destructured 以外や for ヘッダでの destructuring は未対応。
 関数型は context receiver なし、receiver を含め22引数まで（suspend 関数型は Continuation 分を除き21引数まで）。
