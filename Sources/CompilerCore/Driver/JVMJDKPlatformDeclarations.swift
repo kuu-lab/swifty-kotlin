@@ -16,6 +16,7 @@ extension JVMClasspathIndex {
         let nullableObjectArray = JVMValueType.reference("[Ljava/lang/Object;", nullable: true)
         var arraysMethods = [
             method("java/util/Arrays", "copyOf", [objectArray, .int], objectArray, staticMember: true),
+            method("java/util/Arrays", "fill", [objectArray, .int, .int, object], .unit, staticMember: true),
             method("java/util/Arrays", "equals", [nullableObjectArray, nullableObjectArray], .boolean, staticMember: true),
             method("java/util/Arrays", "hashCode", [nullableObjectArray], .int, staticMember: true),
             method("java/util/Arrays", "toString", [nullableObjectArray], .string, staticMember: true),
@@ -33,6 +34,7 @@ extension JVMClasspathIndex {
             class Arrays private constructor() {
                 companion object {
                     external fun <T> copyOf(a: Array<out T>, newLength: Int): Array<T>
+                    external fun fill(a: Array<out Any?>, fromIndex: Int, toIndex: Int, value: Any?): Unit
                     external fun equals(a: Array<out Any?>?, b: Array<out Any?>?): Boolean
                     external fun hashCode(a: Array<out Any?>?): Int
                     external fun toString(a: Array<out Any?>?): String
@@ -66,6 +68,10 @@ extension JVMClasspathIndex {
             arraysMethods.append(method("java/util/Arrays", "hashCode", [nullableArray], .int, staticMember: true))
             arraysMethods.append(method("java/util/Arrays", "toString", [nullableArray], .string, staticMember: true))
             arraysMethods.append(method("java/util/Arrays", "copyOf", [array, .int], array, staticMember: true))
+            if ["Int", "Long"].contains(spec.name) {
+                arraysSource += "\n                    external fun fill(a: \(spec.type), fromIndex: Int, toIndex: Int, value: \(spec.name)): Unit"
+                arraysMethods.append(method("java/util/Arrays", "fill", [array, .int, .int, spec.element], .unit, staticMember: true))
+            }
             if spec.canSort {
                 arraysSource += "\n                    external fun sort(a: \(spec.type)): Unit"
                 arraysSource += "\n                    external fun sort(a: \(spec.type), fromIndex: Int, toIndex: Int): Unit"
@@ -401,6 +407,16 @@ extension JVMClasspathIndex {
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
             classes[name] = info
+        }
+        // `kotlin.io.path.Path` is a typealias over this JDK interface. Keep a
+        // memberless fallback only when the classpath did not supply the real
+        // interface; classpath classes keep their full member surface.
+        if classes["java/nio/file/Path"] == nil {
+            let info = JVMClassInfo(name: "java/nio/file/Path", flags: 0x0601, superclass: nil, interfaces: [], methods: [])
+            let path = "<kswiftk-jvm>/platform/java/nio/file/Path.kt"
+            let file = ctx.sourceManager.addFile(path: path, contents: Data("package java.nio.file\ninterface Path {}\n".utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[info.name] = info
         }
 
         // The generic Kotlin declaration provides the Java collection shape;

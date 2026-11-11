@@ -158,8 +158,9 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
   （`LayoutSynthesis.orderedOwnMethods`）とクラスデリゲーションの forwarder 合成
   （`Inheritance.swift`）から除外される。実行時ディスパッチには影響しないため、
   「通常引数に取るトップレベル関数＋非 external ラッパー」の2段構成は不要（KUU-545）
-- **ABI 突合を機械化する**: 「stdlib ソース中の全 `@KsSymbolName` 値が `RuntimeABISpec` に宣言され、
-  型署名が一致する」ことをテストで enforcing にする。これにより
+- **ABI 突合を機械化する**: runtime bridge の `@KsSymbolName` (`kk_*` / `__kk_*`) は `RuntimeABISpec` に宣言され、
+  型署名が一致することをテストで enforcing にする。`platform.posix` のような直接 C FFI 宣言は Runtime 実装を持たないため、
+  pinned signature で別途検証する。これにより
   `runtime-abi-external-link-validation-gaps.md` の検証ギャップは注釈⇔Spec の突合に一本化される
 
 ### `kk_*` → `__kk_*` の縮小

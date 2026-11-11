@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application' version '9.5.1'
+}
+
+android {
+    namespace 'org.swiftykotlin.composeprobe'
+    compileSdkVersion 'android-36.1'
+    buildToolsVersion '36.1.0'
+    defaultConfig {
+        applicationId 'org.swiftykotlin.composeprobe'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+}
+
+configurations {
+    composeRuntimeAar {
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
+configurations.configureEach {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-common'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-reflect'
+}
+
+def composeRuntime = 'androidx.compose.runtime:runtime-android:1.7.8'
+dependencies {
+    composeRuntimeAar "${composeRuntime}@aar"
+    implementation composeRuntime
+    implementation files('build/kswiftk/kswiftk-stdlib.jar', 'build/kswiftk/activity.jar')
+}
+
+tasks.register('extractComposeRuntime', Copy) {
+    from({ zipTree(configurations.composeRuntimeAar.singleFile) }) {
+        include 'classes.jar'
+        rename { 'compose-runtime.jar' }
+    }
+    into layout.buildDirectory.dir('kswiftk')
+}

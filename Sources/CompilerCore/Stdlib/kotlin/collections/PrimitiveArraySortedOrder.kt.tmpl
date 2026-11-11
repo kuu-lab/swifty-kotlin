@@ -1,0 +1,96 @@
+//@ file PrimitiveArraySortedOrder Byte Short Int Long Float Double Boolean Char
+//@ file UnsignedArraySortedOrder UByte UShort UInt ULong
+//@ header
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Derived from kotlin-stdlib libraries/stdlib/common/src/generated/_Arrays.kt and _UArrays.kt.
+ */
+
+package kotlin.collections
+
+import kotlin.comparisons.compareValues
+
+//@ body
+@SinceKotlin("2.4")
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public fun {{T}}Array.isSorted(): Boolean {
+    var index = 1
+    while (index < size) {
+//@ only Float Double
+        // compareTo gives NaN and signed zeros the same order as sorting.
+        if (this[index - 1].compareTo(this[index]) > 0) return false
+//@ else
+        if (this[index - 1] > this[index]) return false
+//@ end
+        index += 1
+    }
+    return true
+}
+
+@SinceKotlin("2.4")
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public fun {{T}}Array.isSortedDescending(): Boolean {
+    var index = 1
+    while (index < size) {
+//@ only Float Double
+        if (this[index - 1].compareTo(this[index]) < 0) return false
+//@ else
+        if (this[index - 1] < this[index]) return false
+//@ end
+        index += 1
+    }
+    return true
+}
+
+@SinceKotlin("2.4")
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public fun {{T}}Array.isSortedWith(comparator: Comparator<in {{T}}>): Boolean {
+    var index = 1
+    while (index < size) {
+        if (comparator.compare(this[index - 1], this[index]) > 0) return false
+        index += 1
+    }
+    return true
+}
+
+@SinceKotlin("2.4")
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public inline fun <R : Comparable<R>> {{T}}Array.isSortedBy(selector: ({{T}}) -> R?): Boolean {
+    if (size < 2) return true
+    var previous = selector(this[0])
+    var index = 1
+    while (index < size) {
+        val current = selector(this[index])
+        if (compareValues(previous, current) > 0) return false
+        previous = current
+        index += 1
+    }
+    return true
+}
+
+@SinceKotlin("2.4")
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public inline fun <R : Comparable<R>> {{T}}Array.isSortedByDescending(selector: ({{T}}) -> R?): Boolean {
+    if (size < 2) return true
+    var previous = selector(this[0])
+    var index = 1
+    while (index < size) {
+        val current = selector(this[index])
+        if (compareValues(previous, current) < 0) return false
+        previous = current
+        index += 1
+    }
+    return true
+}

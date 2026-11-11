@@ -1,4 +1,4 @@
-final class ConstPropertyEvaluator {
+package final class ConstPropertyEvaluator {
     private let ast: ASTModule
     private let sema: SemaModule
     private let interner: StringInterner
@@ -74,7 +74,9 @@ final class ConstPropertyEvaluator {
     private func constant(for symbol: SymbolID) -> KIRExprKind? {
         if properties[symbol] == nil || evaluated.contains(symbol),
            let value = sema.symbols.constValueExprKind(for: symbol) { return value }
-        if let value = primitiveCompanionConstant(for: symbol) { return value }
+        if let value = Self.primitiveCompanionConstant(
+            for: symbol, symbols: sema.symbols, types: sema.types, interner: interner
+        ) { return value }
         guard !failed.contains(symbol), evaluating.count < DataFlowSemaPhase.maxStructuralRecursionDepth,
               let property = properties[symbol], !property.isVar,
               let initializer = property.initializer,
@@ -101,7 +103,9 @@ final class ConstPropertyEvaluator {
         }
         if let symbol = sema.bindings.identifierSymbol(for: expr) ?? property,
            let info = sema.symbols.symbol(symbol), info.kind == .property,
-           info.flags.contains(.constValue) || primitiveCompanionConstant(for: symbol) != nil
+           info.flags.contains(.constValue) || Self.primitiveCompanionConstant(
+               for: symbol, symbols: sema.symbols, types: sema.types, interner: interner
+           ) != nil
         {
             return constant(for: symbol)
         }
@@ -441,12 +445,14 @@ final class ConstPropertyEvaluator {
 
     // Kotlin's primitive companion constants remain compile-time constants
     // even when their source-backed stdlib declarations use getters.
-    private func primitiveCompanionConstant(for symbol: SymbolID) -> KIRExprKind? {
-        guard let info = sema.symbols.symbol(symbol), info.kind == .property,
+    package static func primitiveCompanionConstant(
+        for symbol: SymbolID, symbols: SymbolTable, types: TypeSystem, interner: StringInterner
+    ) -> KIRExprKind? {
+        guard let info = symbols.symbol(symbol), info.kind == .property,
               info.fqName == [interner.intern("kotlin"), info.name],
-              let receiver = sema.symbols.extensionPropertyReceiverType(for: symbol),
-              case let .classType(receiverClass) = sema.types.kind(of: receiver),
-              let owner = sema.symbols.symbol(receiverClass.classSymbol)
+              let receiver = symbols.extensionPropertyReceiverType(for: symbol),
+              case let .classType(receiverClass) = types.kind(of: receiver),
+              let owner = symbols.symbol(receiverClass.classSymbol)
         else { return nil }
         let path = owner.fqName.map { interner.resolve($0) }
         guard path.count == 3, path[0] == "kotlin", path[2] == "Companion" else { return nil }

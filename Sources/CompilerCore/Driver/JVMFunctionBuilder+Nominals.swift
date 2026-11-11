@@ -33,6 +33,8 @@ extension JVMFunctionBuilder {
             let field: JVMField?
             if path == ["kotlin", "text", "Regex"] || path == ["kotlin", "text", "Regex", "Companion"] {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
+            } else if path == ["kotlin", "coroutines", "ContinuationInterceptor"] || path == ["kotlin", "coroutines", "ContinuationInterceptor", "Key"] {
+                field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
             } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "text", "RegexOption"] {
                 field = JVMField(owner: "kotlin/text/RegexOption", name: path[3], type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
             } else { field = nil }

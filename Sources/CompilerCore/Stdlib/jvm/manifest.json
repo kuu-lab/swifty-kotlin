@@ -12,6 +12,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/SinceKotlin.kt",
       "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
       "excludeFromStdlibBuild": true
@@ -171,16 +176,9 @@
       "excludeFromStdlibBuild": true
     },
     {
-      "path": "kotlin/io/path/PathFunctions.kt",
-      "virtualPath": "<kswiftk-jvm>/path-functions.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/io/path/PathsKt"
-    },
-    {
-      "path": "declarations/PathPredicates.kt",
-      "virtualPath": "<kswiftk-jvm>/path-predicates.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "java/nio/file/Files"
+      "path": "declarations/KotlinIoPath.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/TextRuntimeFunctions.kt",
@@ -330,6 +328,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/collections/ArrayMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/array-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/UnsignedArrayOperations.kt",
       "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
       "excludeFromStdlibBuild": true,
@@ -354,6 +358,11 @@
     {
       "path": "declarations/Coroutines.kt",
       "virtualPath": "<kswiftk-jvm>/coroutines.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CoroutineContexts.kt",
+      "virtualPath": "<kswiftk-jvm>/coroutine-context.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -426,8 +435,7 @@
     {
       "path": "declarations/OptIn.kt",
       "virtualPath": "<kswiftk-jvm>/opt-in.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/ArraySequenceFunctions.kt",

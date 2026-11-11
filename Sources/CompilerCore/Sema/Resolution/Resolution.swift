@@ -1555,20 +1555,31 @@ extension OverloadResolver {
             )))
         }
 
-        // KUU-4463: a variable solved to a nullable type — for example a
-        // caller's `T : Any` forwarded through `Lazy<T?>` — records `T?` as
-        // its value even though the non-null core `T` satisfies every
-        // constraint and the declared bounds. Prefer the non-null core when
-        // it re-verifies against all constraints and declared upper bounds;
-        // otherwise keep the solved type so genuine violations still fail.
+        // KUU-4463: retry a nullable solution with its non-null form when
+        // an upper bound rejects it. A valid nullable solution must keep its
+        // nullability, even when its non-null form also satisfies the constraints.
         for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
             guard let typeVar = typeVarBySymbol[typeParamSymbol],
+                  explicitTypeSubstitution[typeVar] == nil,
                   let solved = substitution[typeVar],
                   solved != ctx.types.errorType,
                   ctx.types.nullability(of: solved) == .nullable
             else {
                 continue
             }
+            let signatureBounds = signature.typeParameterUpperBoundsList.indices.contains(index)
+                ? signature.typeParameterUpperBoundsList[index] : []
+            let upperBounds = signatureBounds + ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+                .filter { !signatureBounds.contains($0) }
+            let violatesUpperBound = upperBounds.contains { bound in
+                let substitutedBound = ctx.types.substituteTypeParameters(
+                    in: bound,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                return !ctx.types.isSubtype(solved, substitutedBound)
+            }
+            guard violatesUpperBound else { continue }
             let nonNullSolved = ctx.types.makeNonNullable(solved)
             guard nonNullSolved != solved else { continue }
 
@@ -1603,11 +1614,7 @@ extension OverloadResolver {
             }
             guard verified else { continue }
 
-            let signatureBounds: [TypeID] = index < signature.typeParameterUpperBoundsList.count
-                ? signature.typeParameterUpperBoundsList[index]
-                : []
-            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
-            for bound in signatureBounds + symbolBounds where !signatureBounds.contains(bound) {
+            for bound in upperBounds {
                 let substitutedBound = ctx.types.substituteTypeParameters(
                     in: bound,
                     substitution: trialSubstitution,

@@ -1,3 +1,4 @@
+import Foundation
 
 final class CallLowerer {
     /// Bitmask of object slot indices holding a data class's primary-constructor properties.
@@ -37,9 +38,35 @@ final class CallLowerer {
     }
 
     unowned let driver: KIRLoweringDriver
+    private var propertyDeclIDsBySymbol: [SymbolID: DeclID] = [:]
+    private var propertyDeclIDsModule: ObjectIdentifier?
+    private let propertyDeclIDsLock = NSLock()
 
     init(driver: KIRLoweringDriver) {
         self.driver = driver
+    }
+
+    func propertyDeclID(for propertySymbol: SymbolID, ast: ASTModule, sema: SemaModule) -> DeclID? {
+        let moduleID = ObjectIdentifier(ast)
+        propertyDeclIDsLock.lock()
+        defer { propertyDeclIDsLock.unlock() }
+        if propertyDeclIDsModule != moduleID {
+            var index: [SymbolID: DeclID] = [:]
+            for rawDecl in ast.arena.decls.indices {
+                let declID = DeclID(rawValue: Int32(rawDecl))
+                guard let symbol = sema.bindings.declSymbols[declID],
+                      index[symbol] == nil,
+                      let decl = ast.arena.decl(declID),
+                      case .propertyDecl = decl
+                else {
+                    continue
+                }
+                index[symbol] = declID
+            }
+            propertyDeclIDsBySymbol = index
+            propertyDeclIDsModule = moduleID
+        }
+        return propertyDeclIDsBySymbol[propertySymbol]
     }
 
     /// Kotlin permits a direct lambda argument to use a label-free return to

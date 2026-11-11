@@ -95,7 +95,12 @@ extension JVMProgramBuilder {
             let signature = sema.symbols.functionSignature(for: symbol)!
             f.kotlinParameters = try signature.parameterTypes.map(kotlinType); f.kotlinResult = try kotlinType(signature.returnType)
             f.parameterNames = method.name == "copy" ? props.map(\.name) : method.parameters.indices.map { "p\($0)" }
-            if method.name == "copy" { f.parameterDefaultFlags = Array(repeating: true, count: props.count) }
+            if method.name == "copy" {
+                f.parameterDefaultFlags = Array(repeating: true, count: props.count)
+                f.javaParameters = f.parameterNames.map { JVMMethodParameter($0) }
+            } else if method.name == "equals" {
+                f.javaParameters = [JVMMethodParameter("other")]
+            }
             f.genericSignature = "(" + (try signature.parameterTypes.map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (try signatureType(signature.returnType))
             generated.append(f)
         }

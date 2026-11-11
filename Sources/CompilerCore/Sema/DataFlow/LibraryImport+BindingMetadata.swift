@@ -224,7 +224,10 @@ extension DataFlowSemaPhase {
                 if case .primitive(_, .nonNull) = types.kind(of: signature.parameterTypes[index]) { return false }
                 return true
             }
-            if usesLegacyABI, hasReferenceVararg, CallLowerer.isSourceBackedLinkName(record.externalLinkName) {
+            // KLIB bodies are lowered locally and use the compiler's array storage.
+            if !binding.isKlib, usesLegacyABI, hasReferenceVararg,
+               CallLowerer.isSourceBackedLinkName(record.externalLinkName)
+            {
                 diagnostics.error(
                     "KSWIFTK-LIB-0034",
                     "Source reference-vararg storage ABI is incompatible; rebuild the library with this compiler.",
