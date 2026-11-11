@@ -1479,6 +1479,9 @@ final class JVMClasspathIndex {
                 continue
             }
             methods[symbol.id] = method
+            // Keep the authored Kotlin types on the declaration of this JVM
+            // stdlib base so imported methods can satisfy Kotlin List members.
+            if ctx.sourceManager.path(of: site.start.file) == "<kswiftk-jvm>/abstractList.kt" { continue }
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
                 receiverType: signature.receiverType.map(platform),
