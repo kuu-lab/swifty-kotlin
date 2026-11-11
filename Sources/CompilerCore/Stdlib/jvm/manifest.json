@@ -164,6 +164,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/KotlinIoPath.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/TextRuntimeFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
       "excludeFromStdlibBuild": true

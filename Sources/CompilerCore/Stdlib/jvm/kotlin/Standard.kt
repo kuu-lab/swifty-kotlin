@@ -11,6 +11,8 @@ public inline fun repeat(times: Int, action: (Int) -> Unit) {
 
 public inline fun <T, R> T.let(block: (T) -> R): R = block(this)
 
+public inline fun <T> T.takeIf(predicate: (T) -> Boolean): T? = if (predicate(this)) this else null
+
 public inline fun <T, R> T.run(block: T.() -> R): R = block()
 
 public inline fun <R> run(block: () -> R): R = block()
