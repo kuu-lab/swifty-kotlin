@@ -472,6 +472,11 @@ extension JVMProgramBuilder {
         } else if plan.isJvmRecord {
             delegate = JVMForeignMethod(owner: "java/lang/Record", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Record", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
         } else if let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target) { delegate = method }
+        else if arguments.isEmpty, let target, sema.symbols.symbol(target)?.flags.contains(.synthetic) == true,
+                let parent = sema.symbols.parentSymbol(for: target), let base = classes[parent], base.name == plan.superclass,
+                let emitted = base.constructors.compactMap({ methods[$0.0] }).first(where: { $0.parameters.isEmpty }) {
+            delegate = emitted
+        }
         else {
             guard arguments.isEmpty, plan.superclass == "java/lang/Object" else { throw JVMFrontendError(message: "Missing JVM superclass constructor binding.", range: declaration.range) }
             delegate = JVMForeignMethod(owner: "java/lang/Object", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Object", nullable: false), isStatic: false, isInterface: false, isAbstract: false)

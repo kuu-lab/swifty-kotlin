@@ -423,12 +423,26 @@ extension CallTypeChecker {
                     ) != nil
                 for (argumentIndex, parameterIndex) in parameterMapping {
                     guard signature.parameterTypes.indices.contains(parameterIndex),
-                          let parameterType = contextualCallArgumentType(
+                          let declaredParameterType = contextualCallArgumentType(
                               args[argumentIndex], parameterIndex: parameterIndex, in: signature, ctx: ctx
                           )
                     else {
                         continue
                     }
+                    let parameterType = applyReceiverBoundFunctionTypeArgs(
+                        to: applyReceiverClassTypeArgs(
+                            to: declaredParameterType,
+                            signature: signature,
+                            candidate: candidate,
+                            receiverType: receiverType,
+                            classTypeParametersOnly: true,
+                            sema: ctx.sema
+                        ),
+                        signature: signature,
+                        candidate: candidate,
+                        receiverType: receiverType,
+                        sema: ctx.sema
+                    )
                     if case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
                        parameterTypeParam.symbol == returnTypeParam.symbol
                     {

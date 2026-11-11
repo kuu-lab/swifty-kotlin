@@ -10,7 +10,7 @@ struct JVMStdlibCatalogTests {
         #expect(manifest.commonSources.contains("kotlin/Function.kt"))
         #expect(manifest.commonSources.contains("kotlin/Unit.kt"))
         for declaration in manifest.declarations {
-            let data = try JVMStdlibCatalog.read(declaration.path)
+            let data = try JVMStdlibCatalog.read(declaration.path, commonSource: declaration.commonSource == true)
             #expect(!data.isEmpty)
             #expect(String(decoding: data, as: UTF8.self).contains("package "))
         }

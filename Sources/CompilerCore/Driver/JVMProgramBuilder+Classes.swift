@@ -162,6 +162,9 @@ extension JVMProgramBuilder {
             if let c = plan.declaration, !plan.isAnnotation, !plan.isObject, !plan.isAnonymous, plan.enumParent == nil {
                 let owner = sema.symbols.symbol(plan.symbol)!
                 for symbol in sema.symbols.lookupAll(fqName: owner.fqName + [context.interner.intern("<init>")]) {
+                    // The bundled collection registry can retain a synthetic
+                    // constructor shell alongside the JVM source declaration.
+                    if let entry = sema.symbols.symbol(symbol), entry.declSite == nil, entry.flags.contains(.synthetic) { continue }
                     guard let signature = sema.symbols.functionSignature(for: symbol), let site = sema.symbols.symbol(symbol)?.declSite else { throw JVMFrontendError(message: "Missing JVM constructor signature.") }
                     let primary = site == c.range
                     let declaration: ConstructorDecl
