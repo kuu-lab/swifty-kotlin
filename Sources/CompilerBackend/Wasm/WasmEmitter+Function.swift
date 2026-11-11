@@ -646,6 +646,13 @@ final class WasmFunctionEmission {
     ) {
         let name = ctx.interner.resolve(callee)
 
+        // The Wasm stdlib artifact carries declarations for these getters.
+        if arguments.count == 1, let constant = ctx.primitiveCompanionGetterConstant(for: symbol) {
+            emitExprValue(constant, for: result ?? arguments[0])
+            emitCallResult(result: result, canThrow: false, thrownResult: thrownResult)
+            return
+        }
+
         // Inline builtins consume pushed args directly.
         if WasmRuntimeHelpers.isInlineCallee(name) {
             for argument in arguments { resolveValue(argument) }
@@ -674,7 +681,10 @@ final class WasmFunctionEmission {
         case let .stub(stubName):
             code.call(ctx.stubIndex(for: stubName, argumentCount: arguments.count))
         }
-        emitCallResult(result: result, canThrow: canThrow, thrownResult: thrownResult)
+        // The unsigned step helpers have a non-throwing native ABI. Their
+        // Wasm implementations use the thrown global to reject invalid steps.
+        let checksThrown = canThrow || name == "__kk_uint_step" || name == "__kk_ulong_step"
+        emitCallResult(result: result, canThrow: checksThrown, thrownResult: thrownResult)
     }
 
     private func emitVirtualCall(
