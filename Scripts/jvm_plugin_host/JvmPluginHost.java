@@ -181,6 +181,7 @@ public class JvmPluginHost {
         boolean isAssignment = false;
         boolean isPowerAssert = false;
         boolean isLombok = false;
+        boolean isCompose = false;
         boolean noArgInvokeInitializers = false;
 
         // Try to identify from CommandLineProcessor
@@ -238,6 +239,9 @@ public class JvmPluginHost {
         } else if ("org.jetbrains.kotlin.lombok".equals(pluginId)
                 || jar.getEntry("org/jetbrains/kotlin/lombok/LombokCommandLineProcessor.class") != null) {
             isLombok = true;
+        } else if ("androidx.compose.compiler.plugins.kotlin".equals(pluginId)
+                || jar.getEntry("androidx/compose/compiler/plugins/kotlin/ComposeCommandLineProcessor.class") != null) {
+            isCompose = true;
         }
 
         // Generic fallback: if "annotation" options were provided, include them
@@ -344,7 +348,8 @@ public class JvmPluginHost {
         sb.append("\"assignmentOverloadTargets\":[").append(formatJsonStringArray(assignmentOverloadTargets)).append("],");
         sb.append("\"powerAssertFunctions\":[").append(formatJsonStringArray(powerAssertFunctions)).append("],");
         sb.append("\"lombokEnabled\":").append(isLombok ? "true" : "false").append(",");
-        sb.append("\"lombokConfigPaths\":[").append(formatJsonStringArray(lombokConfigPaths)).append("]");
+        sb.append("\"lombokConfigPaths\":[").append(formatJsonStringArray(lombokConfigPaths)).append("],");
+        sb.append("\"composeEnabled\":").append(isCompose ? "true" : "false");
         sb.append("}");
 
         System.out.println(sb.toString());

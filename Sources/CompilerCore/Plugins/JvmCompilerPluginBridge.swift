@@ -162,6 +162,7 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
     public let powerAssertFunctions: [String]?
     public let lombokEnabled: Bool?
     public let lombokConfigPaths: [String]?
+    public let composeEnabled: Bool?
 
     public init(
         classesToOpen: [String] = [],
@@ -173,7 +174,8 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         assignmentOverloadTargets: [String]? = nil,
         powerAssertFunctions: [String]? = nil,
         lombokEnabled: Bool? = nil,
-        lombokConfigPaths: [String]? = nil
+        lombokConfigPaths: [String]? = nil,
+        composeEnabled: Bool? = nil
     ) {
         self.classesToOpen = classesToOpen
         self.membersToOpen = membersToOpen
@@ -185,6 +187,7 @@ public struct JvmSemaTransformPlan: Codable, Sendable {
         self.powerAssertFunctions = powerAssertFunctions
         self.lombokEnabled = lombokEnabled
         self.lombokConfigPaths = lombokConfigPaths
+        self.composeEnabled = composeEnabled
     }
 }
 
@@ -398,6 +401,10 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
 
         // Apply power-assert target functions
         applyPowerAssertFunctions(plan, context: context)
+
+        if plan.composeEnabled == true {
+            ComposePlugin.applyCompose(context: context)
+        }
     }
 
     func applyPostInheritanceSemaTransform(_ context: CompilerPluginSemaContext) {
