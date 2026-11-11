@@ -690,7 +690,7 @@ final class JVMClasspathIndex {
                 // Composer's implementation types out of the source closure.
                 source += "interface `\(short)` {\n"
                 for method in info.methods where [JVMCompose.begin, JVMCompose.end].contains(method.name) {
-                    source += methodDeclaration(method) + "\n"
+                    source += functionDeclaration(method) + "\n"
                 }
                 source += "}\n"
             } else if isIntState {
