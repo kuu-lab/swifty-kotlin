@@ -1,5 +1,8 @@
 package kotlin.collections
 
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !isEmpty()
+
 public fun <K, V> linkedMapOf(vararg pairs: Pair<K, V>): java.util.LinkedHashMap<K, V> = null!!
 
 public fun <K, V> sortedMapOf(vararg pairs: Pair<K, V>): java.util.SortedMap<K, V> = null!!

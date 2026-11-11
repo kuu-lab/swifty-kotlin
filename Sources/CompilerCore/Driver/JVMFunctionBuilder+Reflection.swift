@@ -61,8 +61,11 @@ extension JVMFunctionBuilder {
             args += [klass, try constant(.string(property.name), .string), signature, try constant(.int(property.getter.isStatic ? 1 : 0), .int)]
             return try constructJDK(name, parameters: params, arguments: args)
         }
-        if program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
-            return try reifiedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
+        let inlineOnly = program.inlineDeclarations[symbol]?.annotations.contains {
+            KnownCompilerAnnotation.inlineOnly.matches($0.name)
+        } == true
+        if inlineOnly || program.sema.symbols.functionSignature(for: symbol)?.reifiedTypeParameterIndices.isEmpty == false {
+            return try inlinedReference(id, symbol: symbol, receiver: receiver, unbound: unbound)
         }
         if let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
            let signature = program.sema.symbols.functionSignature(for: symbol) {

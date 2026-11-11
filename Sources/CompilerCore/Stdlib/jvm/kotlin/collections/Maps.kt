@@ -38,6 +38,7 @@ public inline operator fun <K, V> MutableMap<K, V>.set(key: K, value: V) { this.
 
 public inline operator fun <K, V> Map<K, V>.contains(key: K): Boolean = this.containsKey(key)
 
+public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !isEmpty()
 
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> {
     if (this.size == 0) return emptyMap<K, V>()
