@@ -47,6 +47,16 @@ extension JVMFunctionBuilder {
         let name = context.interner.resolve(symbol.name)
         let resultType = try program.expressionType(id)
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        if fq == "kotlin/io/path/Path", name == "Path", args.count >= 1, args.allSatisfy({ !$0.isSpread }) {
+            let path = try convert(requireValue(args[0].expr), to: .string)
+            let more = Array(args.dropFirst())
+            let strings = try value(.reference("[Ljava/lang/String;", nullable: false))
+            instructions.append(.newArray(.string, count: try constant(.int(Int32(more.count)), .int), result: strings))
+            for (index, arg) in more.enumerated() {
+                instructions.append(.arraySet(strings, try constant(.int(Int32(index)), .int), try convert(requireValue(arg.expr), to: .string)))
+            }
+            return JVMIntrinsicResult(value: try jdkCall("java/nio/file/Paths", "get", [.string, .reference("[Ljava/lang/String;", nullable: false)], .reference("java/nio/file/Path", nullable: false), arguments: [path, strings], resolved: resultType))
+        }
         if context.options.stdlibOnly, fq.hasPrefix("kotlin/jvm/internal/__jvm") {
             let values = try args.map { try requireValue($0.expr) }
             if ["__jvmMonitorEnter", "__jvmMonitorExit"].contains(name), values.count == 1 {
@@ -166,6 +176,22 @@ extension JVMFunctionBuilder {
             }
             if member == "equals", args.count == 1 {
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [.reference("java/lang/Object", nullable: true)], .boolean, receiver: object, arguments: [requireValue(args[0].expr)]))
+            }
+        }
+        if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/nio/file/Path", args.isEmpty {
+            let pathType: JVMValueType = .reference("java/nio/file/Path", nullable: false)
+            let path = try convert(requireValue(receiverID), to: pathType)
+            switch member {
+            case "absolute":
+                return JVMIntrinsicResult(value: try jdkCall("java/nio/file/Path", "toAbsolutePath", [], pathType, receiver: path, interface: true, resolved: program.expressionType(id)))
+            case "notExists", "isRegularFile":
+                let linkOption: JVMValueType = .reference("java/nio/file/LinkOption", nullable: false)
+                let optionsType = JVMValueType.reference("[Ljava/nio/file/LinkOption;", nullable: false)
+                let options = try value(optionsType)
+                instructions.append(.newArray(linkOption, count: try constant(.int(0), .int), result: options))
+                return JVMIntrinsicResult(value: try jdkCall("java/nio/file/Files", member, [pathType, optionsType], .boolean, arguments: [path, options], resolved: program.expressionType(id)))
+            default:
+                break
             }
         }
         if let text = try stringMember(receiverID, name: member, args: args, id: id) { return text }
@@ -418,6 +444,20 @@ extension JVMFunctionBuilder {
                 actual = member
                 parameters = args.isEmpty ? [] : [.int]
                 returns = .reference("java/util/ListIterator", nullable: false)
+            case "slice":
+                guard owner == "java/util/List", values.count == 1,
+                      (try? program.expressionType(args[0].expr))?.referenceName == "kotlin/ranges/IntRange" else {
+                    throw fail("Unsupported JVM collection member: \(member).", id)
+                }
+                let range = values[0]
+                let integer = JVMValueType.reference("java/lang/Integer", nullable: false)
+                let startBoxed = try jdkCall("kotlin/ranges/IntRange", "getStart", [], integer, receiver: range)!
+                let start = try convert(startBoxed, to: .int)
+                let endBoxed = try jdkCall("kotlin/ranges/IntRange", "getEndInclusive", [], integer, receiver: range)!
+                let end = try convert(endBoxed, to: .int)
+                let exclusive = try value(.int)
+                instructions.append(.binary(.add, end, try constant(.int(1), .int), exclusive))
+                return JVMIntrinsicResult(value: try jdkCall("java/util/List", "subList", [.int, .int], .reference("java/util/List", nullable: false), receiver: source, arguments: [start, exclusive], interface: true, resolved: result))
             case "subList": actual = member; parameters = [.int, .int]; returns = .reference("java/util/List", nullable: false)
             case "next", "previous": actual = member; parameters = []; returns = object
             case "get": actual = member; parameters = [["java/util/List", "kotlin/enums/EnumEntries"].contains(owner) ? .int : object]; returns = object
