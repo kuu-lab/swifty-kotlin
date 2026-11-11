@@ -161,14 +161,24 @@ final class JVMProgramBuilder {
     }
 
     func build() throws -> JVMProgram {
+        func isComputedExtension(_ property: PropertyDecl) -> Bool {
+            property.receiverType != nil && property.initializer == nil
+                && property.delegateExpression == nil && property.explicitBackingField == nil
+        }
+
         let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
         let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
         if Set(names.map { $0.0 }).count != names.count {
             guard context.options.stdlibOnly else { throw JVMFrontendError(message: "Duplicate JVM file facade name.") }
             let repeated = Dictionary(grouping: names.indices, by: { names[$0].0 }).values.filter { $0.count > 1 }.flatMap { $0 }
-            guard repeated.allSatisfy({ index in !files[index].topLevelDecls.contains { if case .propertyDecl = ast.arena.decl($0) { return true }; return false } }) else {
-                throw JVMFrontendError(message: "A shared stdlib facade cannot contain top-level properties.")
+            guard repeated.allSatisfy({ index in
+                files[index].topLevelDecls.allSatisfy {
+                    guard case let .propertyDecl(property) = ast.arena.decl($0) else { return true }
+                    return isComputedExtension(property)
+                }
+            }) else {
+                throw JVMFrontendError(message: "A shared stdlib facade supports only computed extension properties.")
             }
         }
         facadeName = names[0].0
@@ -230,15 +240,17 @@ final class JVMProgramBuilder {
             var facadeFunctions: [JVMFunction] = []
             if let plan = facadePlan {
                 for (_, declaration, property) in plan.properties { facadeFunctions += try emitAccessors(plan, declaration, property) }
-                let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
-                for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
-                    let property = properties[symbol]!
-                    b.instructions.append(.putStatic(field, try b.convert(b.propertyToken(name: property.name, owner: plan.name, signature: property.getter.name + property.getter.descriptor, topLevel: true, mutable: property.setter != nil), to: field.type)))
+                if plan.properties.contains(where: { !isComputedExtension($0.1) }) {
+                    let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
+                    for (symbol, field) in plan.propertyTokens.sorted(by: { $0.value.name < $1.value.name }) {
+                        let property = properties[symbol]!
+                        b.instructions.append(.putStatic(field, try b.convert(b.propertyToken(name: property.name, owner: plan.name, signature: property.getter.name + property.getter.descriptor, topLevel: true, mutable: property.setter != nil), to: field.type)))
+                    }
+                    let placeholder = try b.constant(.null, .reference("java/lang/Object", nullable: true))
+                    try emitInitializers(plan, builder: b, object: placeholder)
+                    if !b.terminated { b.instructions.append(.returnValue(nil)) }
+                    var initializer = b.finish(); initializer.access = 8; facadeFunctions.append(initializer)
                 }
-                let placeholder = try b.constant(.null, .reference("java/lang/Object", nullable: true))
-                try emitInitializers(plan, builder: b, object: placeholder)
-                if !b.terminated { b.instructions.append(.returnValue(nil)) }
-                var initializer = b.finish(); initializer.access = 8; facadeFunctions.append(initializer)
             }
             var output = JVMProgram(internalClassName: facadeName, sourceFileName: names[index].1, functions: functions + defaults + facadeFunctions, hasMain: hasMain, moduleName: context.options.moduleName)
             output.properties = facadePlan?.properties.map { $0.2 } ?? []
@@ -251,6 +263,7 @@ final class JVMProgramBuilder {
             for facade in facades {
                 if let index = merged.firstIndex(where: { $0.internalClassName == facade.internalClassName }) {
                     merged[index].functions += facade.functions
+                    merged[index].properties += facade.properties
                     merged[index].typeAliases += facade.typeAliases
                 } else { merged.append(facade) }
             }

@@ -23,6 +23,9 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
+public val Collection<*>.indices: IntRange get() = this.indices()
+public val List<*>.lastIndex: Int get() = this.lastIndex()
+
 public fun Collection<*>.indices(): IntRange = 0..this.size - 1
 public fun <T> List<T>.indices(): IntRange = 0..this.size - 1
 public fun <T> List<T>.lastIndex(): Int = this.size - 1

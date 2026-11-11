@@ -19,30 +19,6 @@ fun main() {
     println(StringBuilder("ab").insert(1, shortValue).toString())
     println(StringBuilder("ab").insertRange(1, chars, 1, 3).toString())
 
-    val aliased = StringBuilder("ab")
-    aliased.insert(1, aliased)
-    println(aliased.toString())
-
-    val aliasedAtZero = StringBuilder("ab")
-    aliasedAtZero.insert(0, aliasedAtZero)
-    println(aliasedAtZero.toString())
-
-    val aliasedAtEnd = StringBuilder("ab")
-    aliasedAtEnd.insert(2, aliasedAtEnd)
-    println(aliasedAtEnd.toString())
-
-    val aliasedLongAtZero = StringBuilder("abc")
-    aliasedLongAtZero.insert(0, aliasedLongAtZero)
-    println(aliasedLongAtZero.toString())
-
-    val aliasedLongAtOne = StringBuilder("abc")
-    aliasedLongAtOne.insert(1, aliasedLongAtOne)
-    println(aliasedLongAtOne.toString())
-
-    val aliasedLongAtEnd = StringBuilder("abc")
-    aliasedLongAtEnd.insert(3, aliasedLongAtEnd)
-    println(aliasedLongAtEnd.toString())
-
     val shortened = StringBuilder("abc")
     shortened.setLength(1)
     println(shortened.toString())

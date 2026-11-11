@@ -27,6 +27,27 @@ struct RuntimeFloatingPointToStringTests {
     }
 
     @Test
+    func testDoubleShortestRoundTrip() {
+        let cases: [(Double, String)] = [
+            (2.718281828459045, "2.718281828459045"),
+            (2.7182818284590455, "2.7182818284590455"),
+            (-0.49999999999999983, "-0.49999999999999983"),
+            (0.10000000000000002, "0.10000000000000002"),
+            (1.2345678901234567, "1.2345678901234567"),
+            (1.2345678901234567e20, "1.2345678901234567E20"),
+            (1.2345678901234567e-20, "1.2345678901234567E-20"),
+            (Double.leastNormalMagnitude, "2.2250738585072014E-308"),
+        ]
+        for (value, expected) in cases {
+            let rendered = runtimeFormatFloatingPoint(value)
+            #expect(rendered == expected)
+            #expect(Double(rendered)?.bitPattern == value.bitPattern)
+        }
+        #expect(Double("2.718281828459045")?.bitPattern == 0x4005_BF0A_8B14_5769)
+        #expect(Double("2.7182818284590455")?.bitPattern == 0x4005_BF0A_8B14_576A)
+    }
+
+    @Test
     func testDoubleScientificRange() {
         // |x| < 1e-3 or >= 1e7 switches to scientific notation.
         #expect(runtimeFormatFloatingPoint(0.0001) == "1.0E-4")

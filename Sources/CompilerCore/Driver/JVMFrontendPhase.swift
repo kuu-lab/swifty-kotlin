@@ -23,6 +23,15 @@ final class JVMPreparationPhase: CompilerPhase {
         do {
             var classpath = o.jvmClasspath
             var lazyPaths: Set<String> = []
+            if o.emit == .apk, o.android.resourcePath != nil {
+                let toolchain = try AndroidSDKLocator.locate(
+                    sdkPath: o.android.sdkPath, buildToolsVersion: o.android.buildToolsVersion,
+                    compileSdk: o.android.compileSdk
+                )
+                ctx.androidResourceLink = try AndroidResourceLink.prepare(
+                    options: o.android, toolchain: toolchain, phaseTimer: ctx.phaseTimer
+                )
+            }
             if o.emit == .dex || o.emit == .apk {
                 // The Android framework resolves like any other classpath
                 // dependency so `android.*` types are visible to Sema. The
@@ -31,7 +40,7 @@ final class JVMPreparationPhase: CompilerPhase {
                 // from user sources gets a Kotlin stub, since eagerly
                 // importing thousands of framework classes exhausts the
                 // symbol table.
-                let androidJar = try AndroidSDKLocator.androidJarPath(
+                let androidJar = try ctx.androidResourceLink?.androidJarPath ?? AndroidSDKLocator.androidJarPath(
                     sdkPath: o.android.sdkPath,
                     compileSdk: o.android.compileSdk
                 )
@@ -43,10 +52,16 @@ final class JVMPreparationPhase: CompilerPhase {
                     classpath.append(androidJar)
                 }
             }
-            let imports = try JVMClasspathIndex.load(classpath, lazilyInjecting: lazyPaths)
+            let imports = try JVMClasspathIndex.load(
+                classpath, lazilyInjecting: lazyPaths,
+                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? []
+            )
             ctx.jvmImports = imports
         } catch let error as AndroidSDKError {
             ctx.diagnostics.error("KSWIFTK-ANDROID-0001", error.description, range: nil)
+            return
+        } catch let error as AndroidPackagingError {
+            ctx.diagnostics.error("KSWIFTK-ANDROID-0002", error.description, range: nil)
             return
         } catch {
             ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot read JVM classpath: \(error)", range: nil)
