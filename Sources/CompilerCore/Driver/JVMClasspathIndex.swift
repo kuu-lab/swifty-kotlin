@@ -14,6 +14,11 @@ final class JVMClasspathIndex {
     private weak var boundSymbols: SymbolTable?
     private var methodsByOwnerAndName: [String: [String: [JVMForeignMethod]]] = [:]
     private(set) var classpathStubFiles: Set<FileID> = []
+
+    var composeStaticContracts: [FileID: (method: JVMForeignMethod, defaultMask: Int32?)] = [:]
+    var composeDefaults: [SymbolID: Int32] = [:]
+    var composeContentSymbols: Set<SymbolID> = []
+
     private(set) var fallbackClassFiles: [(String, Data)] = []
     /// Classes kept indexed for signature mapping and d8 input while
     /// `inject(into:)` emits Kotlin stubs only for the subset reachable from
@@ -826,6 +831,7 @@ final class JVMClasspathIndex {
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
         importInheritedMembers(for: neededLazy ?? [])
+        let hasIntStateContract = composeIntStateFactory != nil
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
             guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
@@ -833,7 +839,8 @@ final class JVMClasspathIndex {
             if isCovered(info.name, covered: covered) { continue }
             let isLazy = lazyClassNames.contains(info.name)
             let isComposer = hasComposeRuntime && info.name == JVMCompose.composer
-            if isLazy, !isComposer, neededLazy?.contains(info.name) != true { continue }
+            let isIntState = hasIntStateContract && info.name == Self.mutableIntState
+            if isLazy, !isComposer, !isIntState, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
             guard let short = parts.last else { throw JVMClassReader.Invalid() }
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
@@ -851,6 +858,8 @@ final class JVMClasspathIndex {
                     source += functionDeclaration(method) + "\n"
                 }
                 source += "}\n"
+            } else if isIntState {
+                source += "interface `\(short)` { var intValue: Int }\n"
             } else if isFileFacade {
                 // The facade class itself stays importable: `import api.HelloKt`
                 // resolves the nominal and `HelloKt.member(...)` reaches its
@@ -923,6 +932,9 @@ final class JVMClasspathIndex {
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods)
+                if info.name == Self.composeView, composeContentMethod != nil {
+                    source += "external fun setContent(content: @androidx.compose.runtime.Composable () -> Unit): Unit\n"
+                }
                 source += nestedClassDeclarations(of: info.name)
                 source += "}\n"
                 }
@@ -944,6 +956,7 @@ final class JVMClasspathIndex {
                 """
             _ = ctx.sourceManager.addFile(path: Self.composeIntrinsicPath, contents: Data(source.utf8), origin: .residualStdlib)
         }
+        injectComposeUIContracts(into: ctx)
     }
 
     /// Member declarations shared by top-level stubs and nested-class shells:
@@ -1735,6 +1748,17 @@ final class JVMClasspathIndex {
         guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
               let signature = sema.symbols.functionSignatureIfKnown(for: symbol.id) else { return }
         let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
+        if let contract = composeStaticContracts[site.start.file], symbol.kind == .function {
+            methods[symbol.id] = contract.method
+            composeDefaults[symbol.id] = contract.defaultMask
+            return
+        }
+        if name == "setContent", sourceClasses[site.start.file]?.name == Self.composeView,
+           let method = composeContentMethod {
+            methods[symbol.id] = method
+            composeContentSymbols.insert(symbol.id)
+            return
+        }
         let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol)
         let sourceClass = sourceClasses[site.start.file]
         let topLevel = sourceClass.flatMap { _ in topLevelFunction(at: site, in: ctx) }

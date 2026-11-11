@@ -146,6 +146,9 @@ extension JVMFunctionBuilder {
         let reference = program.references[symbol]
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol)
         guard reference != nil || method != nil else { return nil }
+        if let method, let mask = context.jvmImports?.composeDefaults[symbol] {
+            return try importedComposableCall(method, mask: mask, args: args, binding: binding, id: id)
+        }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
@@ -158,6 +161,12 @@ extension JVMFunctionBuilder {
             prefix = [try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
         } else if let method, !method.isStatic && !constructor {
             dispatch = try (receiver != nil || receiverValue != nil) && !extensionCall ? receiverValue ?? requireValue(receiver!) : instance(id)
+        }
+        if let method, context.jvmImports?.composeContentSymbols.contains(symbol) == true {
+            guard let dispatch, args.count == 1 else { throw fail("Invalid JVM ComposeView.setContent call.", id) }
+            let content = try composeContent(args[0].expr)
+            instructions.append(.foreignCall(method, receiver: dispatch, arguments: [content], result: nil))
+            return JVMIntrinsicResult(value: nil)
         }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)
