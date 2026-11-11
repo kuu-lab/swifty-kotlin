@@ -13,6 +13,25 @@ struct JVMKotlinSuspendFunction {
     let receiverIsNullable: Bool?
 }
 
+/// The Kotlin source signature of a classpath function whose erased JVM
+/// parameters include function types. The physical descriptor stays on
+/// `JVMForeignMethod`; this carries only the declaration shape Sema needs.
+struct JVMKotlinFunction {
+    struct Parameter {
+        let name: String?
+        let sourceType: String
+        let isVararg: Bool
+    }
+
+    let name: String
+    let jvmName: String?
+    let descriptor: String?
+    let result: String
+    let parameters: [Parameter]
+    let receiver: String?
+    let isSuspend: Bool
+}
+
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
 /// numbers follow metadata.proto and jvm_metadata.proto.
 struct JVMKotlinMetadata {
@@ -120,6 +139,172 @@ struct JVMKotlinMetadata {
             guard (try? JVMDescriptor.parse("()L" + carrier + ";")) != nil else { return nil }
             return .reference(carrier, nullable: nullable)
         }
+    }
+
+    /// Functions whose Kotlin signature cannot be recovered from the erased
+    /// JVM descriptor. Only function-typed signatures are returned; ordinary
+    /// methods continue through the descriptor-based importer.
+    func functions(byteLimit: Int) throws -> [JVMKotlinFunction] {
+        guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
+        let bytes = try decodedData(limit: byteLimit)
+        var cursor = ProtoCursor(bytes[...])
+        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
+        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
+        let declaration = try ProtoFields(bytes[cursor.position...])
+        let classTypes = try TypeTable(declaration.message(30))
+        var result: [JVMKotlinFunction] = []
+        for function in try declaration.messages(isFileFacade ? 3 : 9) {
+            guard let name = try names.resolve(function.int32(2)) else { continue }
+            let signature = try function.message(100)
+            let jvmName: String?
+            let descriptor: String?
+            if let signature {
+                jvmName = try names.resolve(signature.int32(1))
+                descriptor = try names.resolve(signature.int32(2))
+            } else {
+                jvmName = nil
+                descriptor = nil
+            }
+            let types = try function.message(30).map(TypeTable.init) ?? classTypes
+            guard let returnResolved = try types.resolve(function, inline: 3, indexed: 7),
+                  let resultType = try Self.sourceType(returnResolved, types: types, names: names) else { continue }
+            let receiver = try types.resolve(function, inline: 5, indexed: 8)
+            let receiverType = try receiver.flatMap { try Self.sourceType($0, types: types, names: names) }
+            let parameterMessages = try function.messages(6)
+            var parameters: [JVMKotlinFunction.Parameter] = []
+            var hasFunctionTypes = resultType.contains("->") || (receiverType?.contains("->") ?? false)
+            var valid = true
+            for parameter in parameterMessages {
+                let parameterName = try names.resolve(parameter.int32(2))
+                if let vararg = try types.resolve(parameter, inline: 4, indexed: 6) {
+                    guard let element = try Self.sourceType(vararg, types: types, names: names) else {
+                        valid = false
+                        break
+                    }
+                    parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: element, isVararg: true))
+                    hasFunctionTypes = hasFunctionTypes || element.contains("->")
+                    continue
+                }
+                guard let resolved = try types.resolve(parameter, inline: 3, indexed: 5),
+                      let type = try Self.sourceType(resolved, types: types, names: names) else {
+                    valid = false
+                    break
+                }
+                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false))
+                hasFunctionTypes = hasFunctionTypes || type.contains("->")
+            }
+            guard valid, hasFunctionTypes else { continue }
+            let isSuspend = ((function.int32(9) ?? 0) & (1 << 13)) != 0
+            result.append(JVMKotlinFunction(
+                name: name,
+                jvmName: jvmName,
+                descriptor: descriptor,
+                result: resultType,
+                parameters: parameters,
+                receiver: receiverType,
+                isSuspend: isSuspend
+            ))
+        }
+        return result
+    }
+
+    private static func sourceType(
+        _ resolved: (type: ProtoFields, nullable: Bool),
+        types: TypeTable,
+        names: JVMMetadataNames,
+        depth: Int = 0
+    ) throws -> String? {
+        guard depth < 64 else { return nil }
+        let (type, nullable) = resolved
+        let suffix = nullable ? "?" : ""
+        switch try names.resolve(type.int32(6)) {
+        case "kotlin/Any": return "kotlin.Any" + suffix
+        case "kotlin/String": return "kotlin.String" + suffix
+        case "kotlin/Unit": return "kotlin.Unit" + suffix
+        case "kotlin/Nothing": return "kotlin.Nothing" + suffix
+        default: break
+        }
+        guard let name = try names.resolve(type.int32(6)) else { return nil }
+        if let arity = functionArity(name) {
+            let arguments = try type.messages(2)
+            guard arguments.count == arity + 1 else { return nil }
+            var rendered: [String] = []
+            for argument in arguments {
+                guard let argumentType = try argumentSource(argument, types: types, names: names, depth: depth + 1) else { return nil }
+                rendered.append(argumentType)
+            }
+            let isSuspendFunction = name.hasPrefix("kotlin/SuspendFunction")
+            let isExtension = try isExtensionFunctionType(type, names: names)
+            let returnType = rendered[arity]
+            let inputs = Array(rendered.dropLast())
+            let receiver: String?
+            let parameters: [String]
+            if isExtension {
+                guard !inputs.isEmpty else { return nil }
+                receiver = inputs[0]
+                parameters = Array(inputs.dropFirst())
+            } else {
+                receiver = nil
+                parameters = inputs
+            }
+            guard parameters.count + (receiver == nil ? 0 : 1) == arity else { return nil }
+            let parameterList = parameters.joined(separator: ", ")
+            let body: String
+            if let receiver {
+                body = receiver + ".(" + parameterList + ") -> " + returnType
+            } else {
+                body = "(" + parameterList + ") -> " + returnType
+            }
+            let functionType = (isSuspendFunction ? "suspend " : "") + body
+            return nullable ? "(" + functionType + ")?" : functionType
+        }
+        var base = sourceClassName(name)
+        let arguments = try type.messages(2)
+        if !arguments.isEmpty {
+            var rendered: [String] = []
+            for argument in arguments {
+                guard let argumentType = try argumentSource(argument, types: types, names: names, depth: depth + 1) else { return nil }
+                rendered.append(argumentType)
+            }
+            base += "<" + rendered.joined(separator: ", ") + ">"
+        }
+        return base + suffix
+    }
+
+    private static func argumentSource(
+        _ argument: ProtoFields,
+        types: TypeTable,
+        names: JVMMetadataNames,
+        depth: Int
+    ) throws -> String? {
+        let projection = argument.int32(1) ?? 2
+        if projection == 3 { return "*" }
+        guard let resolved = try types.resolve(argument, inline: 2, indexed: 3),
+              var type = try sourceType(resolved, types: types, names: names, depth: depth + 1) else { return nil }
+        switch projection {
+        case 0: type = "in " + type
+        case 1: type = "out " + type
+        default: break
+        }
+        return type
+    }
+
+    private static func isExtensionFunctionType(_ type: ProtoFields, names: JVMMetadataNames) throws -> Bool {
+        for annotation in try type.messages(100) {
+            if try names.resolve(annotation.int32(1)) == "kotlin/ExtensionFunctionType" { return true }
+        }
+        return false
+    }
+
+    private static func functionArity(_ name: String) -> Int? {
+        for prefix in ["kotlin/SuspendFunction", "kotlin/Function"] {
+            if name.hasPrefix(prefix), let arity = Int(name.dropFirst(prefix.count)) { return arity }
+        }
+        return nil
+    }
+
+    private static func sourceClassName(_ name: String) -> String {
+        name.replacingOccurrences(of: "/", with: ".")
     }
 
     private func decodedData(limit: Int) throws -> [UInt8] {

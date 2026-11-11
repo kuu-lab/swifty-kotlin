@@ -55,7 +55,7 @@ extension JVMProgramBuilder {
         if isProperty {
             records = records.map { record in
                 guard record.useSiteTarget == nil,
-                      let owner = sema.symbols.lookup(fqName: record.annotationFQName.split(separator: ".").map { context.interner.intern(String($0)) }), classes[owner]?.isAnnotation == true,
+                      let owner = sema.symbols.lookup(fqName: record.annotationFQName.split(separator: ".").map { context.interner.intern(String($0)) }), annotationPlan(owner)?.isAnnotation == true,
                       !annotationTargets(owner).contains("PROPERTY"), annotationTargets(owner).contains("FIELD") else { return record }
                 return MetadataAnnotationRecord(annotationFQName: record.annotationFQName, arguments: record.arguments, useSiteTarget: "field", retention: record.retention, usageID: record.usageID, factorySymbol: record.factorySymbol, factoryLinkName: record.factoryLinkName)
             }
