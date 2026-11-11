@@ -24,6 +24,20 @@ public fun IntArray.copyInto(destination: IntArray, destinationOffset: Int = 0, 
     return destination
 }
 
+public operator fun IntArray.plus(element: Int): IntArray {
+    val result = IntArray(size + 1)
+    java.lang.System.arraycopy(this, 0, result, 0, size)
+    result[size] = element
+    return result
+}
+
+public operator fun IntArray.plus(elements: IntArray): IntArray {
+    val result = IntArray(size + elements.size)
+    java.lang.System.arraycopy(this, 0, result, 0, size)
+    java.lang.System.arraycopy(elements, 0, result, size, elements.size)
+    return result
+}
+
 public fun LongArray.copyInto(destination: LongArray, destinationOffset: Int = 0, startIndex: Int = 0, endIndex: Int = size): LongArray {
     java.lang.System.arraycopy(this, startIndex, destination, destinationOffset, endIndex - startIndex)
     return destination
