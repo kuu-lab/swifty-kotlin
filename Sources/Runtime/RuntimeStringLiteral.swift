@@ -11,7 +11,7 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
     // Swift String equality normalizes Unicode. Kotlin identity pooling must
     // keep distinct UTF-8/UTF-16 sequences (e.g. composed/decomposed accents).
     private var boxesByBytes: [[UInt8]: RuntimeWeakLiteralBox] = [:]
-    private var insertionsSincePruning = 0
+    private var insertionsUntilPruning = 64
 
     @discardableResult
     func pruneReleasedEntries() -> Int {
@@ -27,7 +27,10 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
             let raw = Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
             return runtimeStringBox(fromRaw: raw) === box
         }
-        insertionsSincePruning = 0
+        // Pay for the next full scan with at least one insertion per retained
+        // entry. Live startup literals then trigger geometrically spaced scans,
+        // while the floor keeps small pools from scanning on every insertion.
+        insertionsUntilPruning = max(64, boxesByBytes.count)
         return previousCount - boxesByBytes.count
     }
 
@@ -43,8 +46,8 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
         // Weak values alone would retain the byte-array keys indefinitely.
         // Periodically remove both entries and keys after their object dies or
         // is explicitly released from the runtime registry.
-        insertionsSincePruning += 1
-        if insertionsSincePruning >= 64 {
+        insertionsUntilPruning -= 1
+        if insertionsUntilPruning == 0 {
             _ = pruneReleasedEntriesWhileLocked()
         }
         let box = preferred ?? RuntimeStringBox(String(decoding: bytes, as: UTF8.self))
