@@ -2,24 +2,6 @@ import Foundation
 
 import CompilerCore
 
-/// Failures from the Android SDK packaging pipeline (`--emit dex`/`apk`).
-enum AndroidPackagingError: Error, CustomStringConvertible {
-    /// An SDK toolchain lookup problem; carries the locator's description.
-    case toolchain(String)
-    /// An external build-tool invocation failed.
-    case commandFailed(tool: String, detail: String)
-    /// A user-supplied packaging input is missing or invalid.
-    case invalidInput(String)
-
-    var description: String {
-        switch self {
-        case let .toolchain(detail): detail
-        case let .commandFailed(tool, detail): "\(tool) failed: \(detail)"
-        case let .invalidInput(detail): detail
-        }
-    }
-}
-
 /// Post-processes JVM classfiles into Android artifacts using the SDK
 /// build-tools: `d8` for DEX, then `aapt2`/`zip`/`zipalign`/`apksigner` for a
 /// signed APK. All work happens in a private temporary directory; the final
@@ -35,7 +17,7 @@ enum AndroidPackaging {
         classes: [(String, Data)],
         phaseTimer: PhaseTimer?
     ) throws {
-        let work = try makeWorkDirectory()
+        let work = try AndroidBuildTool.makeWorkDirectory()
         defer { try? FileManager.default.removeItem(at: work) }
 
         let toolchain = try resolveToolchain(options: options)
@@ -61,8 +43,8 @@ enum AndroidPackaging {
         try installArtifact(from: dexArchive, to: options.outputPath)
     }
 
-    /// `--emit apk`: classes.jar -> d8 -> aapt2 link -> add dex -> zipalign
-    /// -> apksigner sign.
+    /// `--emit apk`: add the program's dex files to the aapt2-linked APK,
+    /// align it and sign it.
     static func emitAPK(
         options: CompilerOptions,
         className: String,
@@ -70,27 +52,20 @@ enum AndroidPackaging {
         hasMain: Bool,
         module: (String, Data)?,
         classes: [(String, Data)],
+        linkedResources: AndroidResourceLink?,
         phaseTimer: PhaseTimer?
     ) throws {
-        let work = try makeWorkDirectory()
-        defer { try? FileManager.default.removeItem(at: work) }
-
-        let toolchain = try resolveToolchain(options: options)
-        guard let aapt2 = toolchain.aapt2Path else {
-            throw AndroidPackagingError.toolchain(
-                AndroidSDKError.toolMissing("aapt2").description
-            )
-        }
+        let toolchain = try linkedResources?.toolchain ?? resolveToolchain(options: options)
         guard let apksigner = toolchain.apksignerPath else {
             throw AndroidPackagingError.toolchain(
                 AndroidSDKError.toolMissing("apksigner").description
             )
         }
-        guard let androidJar = toolchain.androidJarPath else {
-            throw AndroidPackagingError.toolchain(
-                AndroidSDKError.platformNotFound("No platforms/android-*/android.jar.").description
-            )
-        }
+        let resources = try linkedResources ?? AndroidResourceLink.prepare(
+            options: options.android, toolchain: toolchain, phaseTimer: phaseTimer
+        )
+        let androidJar = resources.androidJarPath
+        let work = resources.directory
 
         // 1. DEX the program jar plus every classpath jar into a directory.
         let jar = try JVMJarArchive.emit(
@@ -113,58 +88,22 @@ enum AndroidPackaging {
             throw AndroidPackagingError.invalidInput("d8 produced no classes*.dex output.")
         }
 
-        // 2. aapt2 link produces the unsigned APK skeleton.
-        let manifest = try resolveManifest(options: options)
-        let unsignedAPK = work.appendingPathComponent("unsigned.apk").path
-        var linkArguments = ["link", "-o", unsignedAPK, "-I", androidJar,
-                             "--manifest", manifest]
-        if let minAPI = options.android.minAPI {
-            linkArguments.append("--min-sdk-version")
-            linkArguments.append(String(minAPI))
-        }
-        if let assets = options.android.assetPath {
-            linkArguments.append("-A")
-            linkArguments.append(assets)
-        }
-        if let resources = options.android.resourcePath {
-            let resURL = URL(fileURLWithPath: resources).standardizedFileURL
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: resURL.path, isDirectory: &isDirectory),
-                  isDirectory.boolValue
-            else {
-                throw AndroidPackagingError.invalidInput(
-                    "--android-res must be a resource directory: \(resources)"
-                )
-            }
-            let resArchive = work.appendingPathComponent("res.zip").path
-            _ = try runTool(
-                tool: "aapt2", executable: aapt2,
-                arguments: ["compile", "--dir", resURL.path, "-o", resArchive],
-                phaseTimer: phaseTimer, subPhaseName: "Android/aapt2-compile"
-            )
-            linkArguments.append(resArchive)
-        }
-        _ = try runTool(
-            tool: "aapt2", executable: aapt2,
-            arguments: linkArguments,
-            phaseTimer: phaseTimer, subPhaseName: "Android/aapt2-link"
-        )
-
-        // 3. Add the dex files at the APK root, stored uncompressed so the
+        // 2. Add the dex files at the APK root, stored uncompressed so the
         // runtime can map them directly.
+        let unsignedAPK = resources.unsignedAPK
         let zip = CommandRunner.resolveExecutable("zip", fallback: "/usr/bin/zip")
-        _ = try runTool(
+        try AndroidBuildTool.run(
             tool: "zip", executable: zip,
             arguments: ["-q", "-0", unsignedAPK] + dexFiles,
             currentDirectoryPath: dexDirectory.path,
             phaseTimer: phaseTimer, subPhaseName: "Android/add-dex"
         )
 
-        // 4. Align, then sign.
+        // 3. Align, then sign.
         var alignedAPK = unsignedAPK
         if let zipalign = toolchain.zipalignPath {
             alignedAPK = work.appendingPathComponent("aligned.apk").path
-            _ = try runTool(
+            try AndroidBuildTool.run(
                 tool: "zipalign", executable: zipalign,
                 arguments: ["-f", "-p", "4", unsignedAPK, alignedAPK],
                 phaseTimer: phaseTimer, subPhaseName: "Android/zipalign"
@@ -174,7 +113,7 @@ enum AndroidPackaging {
         let signing = try signingArguments(options: options, phaseTimer: phaseTimer)
         // apksigner stops parsing options at the first positional argument,
         // so every flag must precede the input APK.
-        _ = try runTool(
+        try AndroidBuildTool.run(
             tool: "apksigner", executable: apksigner,
             arguments: ["sign"] + signing + ["--out", signedAPK, alignedAPK],
             phaseTimer: phaseTimer, subPhaseName: "Android/apksigner"
@@ -255,7 +194,7 @@ enum AndroidPackaging {
             arguments.append(entry)
         }
         arguments.append(contentsOf: programInputs)
-        _ = try runTool(
+        try AndroidBuildTool.run(
             tool: "d8", executable: toolchain.d8Path,
             arguments: arguments,
             phaseTimer: phaseTimer, subPhaseName: "Android/d8"
@@ -270,29 +209,6 @@ enum AndroidPackaging {
     }
 
     // MARK: - APK packaging
-
-    /// Manifest lookup: explicit `--manifest`, then the conventional
-    /// Gradle-style locations relative to the working directory.
-    private static func resolveManifest(options: CompilerOptions) throws -> String {
-        if let explicit = options.android.manifestPath {
-            guard FileManager.default.fileExists(atPath: explicit) else {
-                throw AndroidPackagingError.invalidInput(
-                    "--manifest does not exist: \(explicit)"
-                )
-            }
-            return explicit
-        }
-        for candidate in [
-            "AndroidManifest.xml",
-            "app/src/main/AndroidManifest.xml",
-            "src/main/AndroidManifest.xml",
-        ] where FileManager.default.fileExists(atPath: candidate) {
-            return candidate
-        }
-        throw AndroidPackagingError.invalidInput(
-            "AndroidManifest.xml not found; pass --manifest <path>."
-        )
-    }
 
     /// apksigner arguments for the resolved keystore. The default debug
     /// keystore at `~/.android/debug.keystore` is generated via `keytool`
@@ -338,7 +254,7 @@ enum AndroidPackaging {
         let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let keytool = CommandRunner.resolveExecutable("keytool", fallback: "/usr/bin/keytool")
-        _ = try runTool(
+        try AndroidBuildTool.run(
             tool: "keytool", executable: keytool,
             arguments: [
                 "-genkeypair", "-keystore", path, "-storepass", storePassword,
@@ -348,52 +264,6 @@ enum AndroidPackaging {
             ],
             phaseTimer: phaseTimer, subPhaseName: "Android/keytool"
         )
-    }
-
-    // MARK: - Process helpers
-
-    private static func runTool(
-        tool: String,
-        executable: String,
-        arguments: [String],
-        currentDirectoryPath: String? = nil,
-        phaseTimer: PhaseTimer?,
-        subPhaseName: String
-    ) throws -> CommandResult {
-        do {
-            return try CommandRunner.run(
-                executable: executable, arguments: arguments,
-                currentDirectoryPath: currentDirectoryPath,
-                phaseTimer: phaseTimer, subPhaseName: subPhaseName,
-                timeout: 600
-            )
-        } catch let error as CommandRunnerError {
-            throw AndroidPackagingError.commandFailed(tool: tool, detail: describe(error))
-        } catch {
-            throw AndroidPackagingError.commandFailed(tool: tool, detail: String(describing: error))
-        }
-    }
-
-    private static func describe(_ error: CommandRunnerError) -> String {
-        switch error {
-        case let .launchFailed(reason):
-            return "failed to launch: \(reason)"
-        case let .nonZeroExit(result):
-            let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            var output = [stdout, stderr].filter { !$0.isEmpty }.joined(separator: "\n")
-            if output.count > 4_000 { output = String(output.prefix(4_000)) + "…" }
-            return "exit \(result.exitCode)\(output.isEmpty ? "" : ": \(output)")"
-        case let .timedOut(reason):
-            return "timed out: \(reason)"
-        }
-    }
-
-    private static func makeWorkDirectory() throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kswiftk-android-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory
     }
 
     /// Moves the finished artifact into place, replacing any previous output.

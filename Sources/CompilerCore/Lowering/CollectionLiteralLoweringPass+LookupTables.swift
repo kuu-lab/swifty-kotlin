@@ -1,7 +1,7 @@
 import RuntimeABI
 
 // swiftformat:disable redundantMemberwiseInit
-struct CollectionLiteralLookupTables {
+final class CollectionLiteralLookupTables {
     let listLookup: ListLookupNames
     let setLookup: SetLookupNames
     let mapLookup: MapLookupNames

@@ -3,12 +3,13 @@ import Foundation
 extension JVMFunctionBuilder {
     /// Invocation uses a specialized body; reflection still describes the source
     /// declaration, exactly as FunctionReferenceImpl does for Kotlin references.
-    func reifiedReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue {
+    func inlinedReference(_ id: ExprID, symbol: SymbolID, receiver: ExprID?, unbound: Bool) throws -> JVMValue {
         guard let declaration = program.inlineDeclarations[symbol], let signature = program.sema.symbols.functionSignature(for: symbol),
               let binding = program.sema.bindings.callableReferenceBinding(for: id), let function = functionType(id),
-              function.contextReceivers.isEmpty, binding.boundContextParameterTypes.isEmpty else { throw fail("Missing JVM reified reference specialization.", id) }
-        let method = program.methods[symbol], ref = program.references[symbol]
-        guard method != nil || ref != nil else { throw fail("Missing JVM reified reference declaration.", id) }
+              function.contextReceivers.isEmpty, binding.boundContextParameterTypes.isEmpty else { throw fail("Missing JVM inline reference specialization.", id) }
+        let method = program.methods[symbol] ?? program.textLibraryMethods[symbol]?.method
+        let ref = program.references[symbol]
+        guard method != nil || ref != nil else { throw fail("Missing JVM inline reference declaration.", id) }
         let member = method?.isStatic == false, extensionMember = declaration.receiverType != nil
         let bound = unbound || (!member && !extensionMember) ? nil : try receiver.map(requireValue) ?? instance(id)
         let dispatch = member && extensionMember ? try instance(id) : nil
@@ -35,7 +36,7 @@ extension JVMFunctionBuilder {
         switch declaration.body {
         case let .expr(body, _): tokenTypes = reifiedCaptureTypes(body)
         case let .block(body, _): tokenTypes = Array(Set(body.flatMap { reifiedCaptureTypes($0) })).sorted { $0.rawValue < $1.rawValue }
-        case .unit: throw fail("Reified reference requires a body.", id)
+        case .unit: throw fail("Inline reference requires a body.", id)
         }
         tokenTypes = Array(Set(tokenTypes + declaration.valueParams.compactMap(\.defaultValue).flatMap { reifiedCaptureTypes($0) })).sorted { $0.rawValue < $1.rawValue }
         tokenTypes.removeAll { type in
@@ -48,7 +49,7 @@ extension JVMFunctionBuilder {
         }
         let helperRef = JVMFunctionReference(name: "$lambdaReified" + String(number), parameters: captures.map { $0.1.type } + inputTypes, result: resultType, owner: container, ownerIsInterface: owner?.isInterface == true)
         guard helperRef.parameters.reduce(0, { $0 + $1.width }) + (function.isSuspend ? 1 : 0) <= 255,
-              captures.reduce(1, { $0 + $1.1.type.width }) <= 255 else { throw fail("JVM reified reference parameter slot limit exceeded.", id) }
+              captures.reduce(1, { $0 + $1.1.type.width }) <= 255 else { throw fail("JVM inline reference parameter slot limit exceeded.", id) }
         let helper = JVMFunctionBuilder(program: program, declaration: FunDecl(range: declaration.range, name: context.interner.intern(helperRef.name), modifiers: [], body: .unit), reference: helperRef, owner: owner)
         helper.isStaticBody = true; helper.isSuspendBody = function.isSuspend; helper.functionSymbol = symbol
         helper.inlineStack = inlineStack.union([symbol])
@@ -82,7 +83,7 @@ extension JVMFunctionBuilder {
             let input: JVMValue
             if let value = supplied[i] { input = try helper.convert(value, to: program.type(signature.parameterTypes[i])) }
             else if let expression = parameter.defaultValue { input = try helper.requireValue(expression) }
-            else { throw fail("Missing reified reference argument.", id) }
+            else { throw fail("Missing inline reference argument.", id) }
             var local = Local(value: input, mutable: false, symbol: signature.valueParameterSymbols.indices.contains(i) ? signature.valueParameterSymbols[i] : nil)
             if case let .functionType(f) = program.sema.types.kind(of: program.specialized(signature.parameterTypes[i])) { local.functionType = f }
             helper.scopes[0][parameter.name] = local

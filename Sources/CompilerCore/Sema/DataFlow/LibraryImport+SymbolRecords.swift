@@ -242,6 +242,7 @@ extension DataFlowSemaPhase {
         let metadataPath: String
         let inlineKIRDir: String?
         let isStdlibArtifact: Bool
+        let isKlib: Bool
         let qualifiedNameString: String?
         private let materializeBody: (() -> ImportedLibrarySymbolRecord?)?
         private(set) var isMaterialized: Bool
@@ -252,6 +253,7 @@ extension DataFlowSemaPhase {
             metadataPath: String,
             inlineKIRDir: String?,
             isStdlibArtifact: Bool,
+            isKlib: Bool = false,
             materializeBody: (() -> ImportedLibrarySymbolRecord?)? = nil,
             qualifiedNameString: String? = nil
         ) {
@@ -260,6 +262,7 @@ extension DataFlowSemaPhase {
             self.metadataPath = metadataPath
             self.inlineKIRDir = inlineKIRDir
             self.isStdlibArtifact = isStdlibArtifact
+            self.isKlib = isKlib
             self.materializeBody = materializeBody
             self.qualifiedNameString = qualifiedNameString
             self.isMaterialized = materializeBody == nil

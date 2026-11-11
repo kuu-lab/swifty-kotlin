@@ -6,6 +6,26 @@ import Testing
 
 extension LoweringPassRegressionTests {
     @Test
+    func testCoroutineLoweringPreservesDeclaredZeroArgumentYield() throws {
+        let source = """
+        fun yield() {}
+        object ThreadLike { fun yield() {} }
+        fun caller() { yield(); ThreadLike.yield() }
+        suspend fun unrelated() {}
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "caller", in: module, interner: ctx.interner)
+            let calls = kirCalls(in: body)
+            #expect(calls.filter { ctx.interner.resolve($0.callee) == "yield" }.count == 2)
+            #expect(!calls.contains { ctx.interner.resolve($0.callee) == "kk_coroutine_yield" })
+        }
+    }
+
+    @Test
     func testInlineSuspendCallDoesNotRewriteLocalZeroArgumentDelayToRuntimeBridge() throws {
         let source = """
         suspend fun delay(): Unit {}

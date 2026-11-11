@@ -97,6 +97,7 @@ extension JVMProgramBuilder {
         let values = Array(b.locals.dropFirst()), hidden = original.kotlinParameterOffset
         b.scopes = [[:]]
         if plan.isInner, let outer = plan.outer { try b.bindEnclosingInstance(classes[outer]!, value: values[0]) }
+        if !plan.captures.isEmpty { try b.bindCaptureValues(plan.captures, values: Array(values.prefix(plan.captures.count))) }
         let inputs = Array(values.dropFirst(hidden).prefix(declaration.valueParams.count))
         try applyDefaults(b, parameters: declaration.valueParams, inputs: inputs, masks: Array(values.dropFirst(original.reference.parameters.count).prefix(masks)))
         let target = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: original.reference.descriptor, parameters: original.reference.parameters, result: b.thisValue!.type, isStatic: false, isInterface: false, isAbstract: false)
