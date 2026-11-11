@@ -688,7 +688,7 @@ extension JVMFunctionBuilder {
             )
         }()
         if withIndexReceiver == nil, source.type.referenceName == "java/util/Map" {
-            try mapEntryLoop(name, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel)
+            try mapEntryLoop(name, source, body, id, destructuringNames: destructuringNames, label: loopLabel)
             return
         }
         let explicitElementType: TypeID? = {
