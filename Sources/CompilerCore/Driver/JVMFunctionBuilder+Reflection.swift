@@ -146,6 +146,29 @@ extension JVMFunctionBuilder {
         for (i, element) in values.enumerated() { instructions.append(.arraySet(result, try constant(.int(Int32(i)), .int), try convert(element, to: object))) }
         return result
     }
+    func reflectionCallArgumentArray(_ args: [CallArgument]) throws -> JVMValue {
+        guard args.contains(where: \.isSpread) else {
+            return try objectArray(args.map { try requireValue($0.expr) })
+        }
+
+        let list = try constructJDK("java/util/ArrayList")
+        let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let objectArrayType: JVMValueType = .reference("[Ljava/lang/Object;", nullable: false)
+        let collection: JVMValueType = .reference("java/util/Collection", nullable: false)
+        let listType: JVMValueType = .reference("java/util/List", nullable: false)
+        for argument in args {
+            let value = try requireValue(argument.expr)
+            if argument.isSpread {
+                let array = try convert(value, to: objectArrayType)
+                let elements = try jdkCall("java/util/Arrays", "asList", [objectArrayType], listType, arguments: [array])!
+                _ = try jdkCall("java/util/ArrayList", "addAll", [collection], .boolean, receiver: list, arguments: [elements])!
+            } else {
+                _ = try jdkCall("java/util/ArrayList", "add", [object], .boolean, receiver: list, arguments: [try convert(value, to: object)])!
+            }
+        }
+        let empty = try objectArray([])
+        return try jdkCall("java/util/ArrayList", "toArray", [empty.type], empty.type, receiver: list, arguments: [empty])!
+    }
     func reflectionMember(_ receiverID: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let resolved = try? program.expressionType(receiverID)
         guard let sourceType = resolved ?? (program.sema.bindings.classRefTargetType(for: receiverID) == nil ? nil : .reference("kotlin/reflect/KClass", nullable: false)) else { return nil }
@@ -204,9 +227,7 @@ extension JVMFunctionBuilder {
         guard isCallable || ownerName == "java/lang/Class" else { return nil }
         let receiver = try requireValue(receiverID)
         if name == "call", isCallable {
-            var values: [JVMValue] = []
-            for arg in args { guard !arg.isSpread else { throw fail("JVM reflection call spread arguments are unsupported.", id) }; values.append(try requireValue(arg.expr)) }
-            let array = try objectArray(values)
+            let array = try reflectionCallArgumentArray(args)
             let logical = try program.expressionType(id)
             let resultType: JVMValueType = logical == .unit ? .reference("kotlin/Unit", nullable: false) : logical
             return JVMIntrinsicResult(value: try jdkCall("kotlin/reflect/KCallable", "call", [array.type], object, receiver: convert(receiver, to: .reference("kotlin/reflect/KCallable", nullable: false)), arguments: [array], interface: true, resolved: resultType))
