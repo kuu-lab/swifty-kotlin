@@ -62,14 +62,23 @@ struct RuntimeABIExternalLinkValidationTests {
             else { return nil }
             return name
         }.filter { !$0.isEmpty })
-        let missing = linkNames
+        let runtimeBridgeLinkNames = Set(linkNames.filter { isRuntimeABIBridgeLinkName($0) })
+        let directCInteropLinkNames = linkNames.subtracting(runtimeBridgeLinkNames)
+        let missing = runtimeBridgeLinkNames
             .subtracting(runtimeABINames)
             .subtracting(allowedCompilerExternalLinks)
+            .sorted()
+        let unpinnedDirectCInteropLinkNames = directCInteropLinkNames
+            .subtracting(pinnedNativeCInteropLinkNames)
             .sorted()
 
         #expect(
             missing.isEmpty,
-            Comment(rawValue: "Compiler synthetic externalLinkName values missing from RuntimeABISpec: \(missing.joined(separator: ", "))")
+            Comment(rawValue: "Runtime bridge externalLinkName values missing from RuntimeABISpec: \(missing.joined(separator: ", "))")
+        )
+        #expect(
+            unpinnedDirectCInteropLinkNames.isEmpty,
+            Comment(rawValue: "Direct C interop externalLinkName values missing from pinned native C interop signatures: \(unpinnedDirectCInteropLinkNames.joined(separator: ", "))")
         )
     }
 
@@ -160,12 +169,13 @@ struct RuntimeABIExternalLinkValidationTests {
 
     @Test func testBundledKsSymbolNameDeclarationsMatchRuntimeABIArity() throws {
         let annotatedDeclarations = try collectBundledKsSymbolNameDeclarations()
+        let runtimeBridgeDeclarations = annotatedDeclarations.filter { isRuntimeABIBridgeLinkName($0.linkName) }
         let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
         var failures: [String] = []
 
         // Overloads (notably constructors) can share one link name, so a spec is
         // satisfied as soon as any declaration bound to that name matches it.
-        for (linkName, declarations) in annotatedDeclarations.groupedByLinkName {
+        for (linkName, declarations) in runtimeBridgeDeclarations.groupedByLinkName {
             guard let specs = runtimeABIByName[linkName], !specs.isEmpty else {
                 let paths = declarations.relativePathList
                 failures.append("\(linkName) in \(paths) is missing from RuntimeABISpec")
@@ -186,7 +196,7 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
 
-        #expect(!annotatedDeclarations.isEmpty, "@KsSymbolName coverage should not be empty")
+        #expect(!runtimeBridgeDeclarations.isEmpty, "Runtime ABI bridge @KsSymbolName coverage should not be empty")
         #expect(
             failures.isEmpty,
             Comment(rawValue: "Bundled @KsSymbolName declarations disagree with RuntimeABISpec: \(failures.joined(separator: "; "))")
@@ -195,10 +205,11 @@ struct RuntimeABIExternalLinkValidationTests {
 
     @Test func testBundledKsSymbolNameDeclarationsMatchRuntimeABISignature() throws {
         let annotatedDeclarations = try collectBundledKsSymbolNameDeclarations()
+        let runtimeBridgeDeclarations = annotatedDeclarations.filter { isRuntimeABIBridgeLinkName($0.linkName) }
         let runtimeABIByName = Dictionary(grouping: RuntimeABISpec.allFunctions, by: \.name)
         var failures: [String] = []
 
-        for (linkName, declarations) in annotatedDeclarations.groupedByLinkName {
+        for (linkName, declarations) in runtimeBridgeDeclarations.groupedByLinkName {
             guard let specs = runtimeABIByName[linkName], !specs.isEmpty else {
                 failures.append("\(linkName) in \(declarations.relativePathList) is missing from RuntimeABISpec")
                 continue
@@ -254,10 +265,61 @@ struct RuntimeABIExternalLinkValidationTests {
             }
         }
 
-        #expect(!annotatedDeclarations.isEmpty, "@KsSymbolName coverage should not be empty")
+        #expect(!runtimeBridgeDeclarations.isEmpty, "Runtime ABI bridge @KsSymbolName coverage should not be empty")
         #expect(
             failures.isEmpty,
             Comment(rawValue: "Bundled @KsSymbolName declarations disagree with RuntimeABISpec: \(failures.joined(separator: "; "))")
+        )
+    }
+
+    @Test func testBundledNativeCInteropDeclarationsMatchPinnedSignatures() throws {
+        let annotatedDeclarations = try collectBundledKsSymbolNameDeclarations()
+        let directCInteropDeclarations = annotatedDeclarations.filter { !isRuntimeABIBridgeLinkName($0.linkName) }
+        var failures: [String] = []
+        var declaredLinkNames: Set<String> = []
+
+        for declaration in directCInteropDeclarations {
+            declaredLinkNames.insert(declaration.linkName)
+            guard let expected = nativeCInteropFunctionSignatures[declaration.linkName] else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) is neither a RuntimeABI bridge nor a pinned native C interop declaration")
+                continue
+            }
+            guard declaration.isExternal else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) is not external")
+                continue
+            }
+            guard declaration.arity == expected.parameterTypes.count,
+                  declaration.valueParameterTypes == expected.parameterTypes
+            else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) has Kotlin parameter types \(declaration.valueParameterTypes), pinned native C interop parameter types \(expected.parameterTypes)")
+                continue
+            }
+            guard declaration.returnType == expected.returnType else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) has Kotlin return type \(declaration.returnType ?? "nil"), pinned native C interop return type \(expected.returnType)")
+                continue
+            }
+            guard !declaration.hasReceiver,
+                  !declaration.isInObjectScope,
+                  !declaration.isSuspend,
+                  !declaration.isConstructor
+            else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) is not a top-level non-suspend external function")
+                continue
+            }
+            guard !declaration.valueParameterIsVararg.contains(true) else {
+                failures.append("\(declaration.linkName) in \(declaration.relativePath) has a vararg parameter")
+                continue
+            }
+        }
+
+        for linkName in pinnedNativeCInteropLinkNames.subtracting(declaredLinkNames).sorted() {
+            failures.append("\(linkName) is pinned as native C interop but has no bundled @KsSymbolName declaration")
+        }
+
+        #expect(!directCInteropDeclarations.isEmpty, "Native C interop @KsSymbolName coverage should not be empty")
+        #expect(
+            failures.isEmpty,
+            Comment(rawValue: "Bundled native C interop declarations disagree with pinned signatures: \(failures.joined(separator: "; "))")
         )
     }
 
@@ -361,6 +423,54 @@ struct RuntimeABIExternalLinkValidationTests {
         ]
     }
 
+    private struct NativeCInteropFunctionSignature {
+        let parameterTypes: [String]
+        let returnType: String
+
+        init(_ parameterTypes: [String], _ returnType: String) {
+            self.parameterTypes = parameterTypes
+            self.returnType = returnType
+        }
+    }
+
+    // Direct C FFI declarations are not implemented by Sources/Runtime, so they
+    // intentionally have no RuntimeABISpec entry. Pin their Kotlin-visible FFI
+    // signatures here instead of weakening the runtime-bridge checks above.
+    private let nativeCInteropFunctionSignatures: [String: NativeCInteropFunctionSignature] = [
+        "clock_gettime": .init(["Int", "CPointer<timespec>"], "Int"),
+        "pthread_cond_broadcast": .init(["CPointer<pthread_cond_t>"], "Int"),
+        "pthread_cond_destroy": .init(["CPointer<pthread_cond_t>"], "Int"),
+        "pthread_cond_init": .init(["CPointer<pthread_cond_t>", "CPointer<pthread_condattr_t>?"], "Int"),
+        "pthread_cond_signal": .init(["CPointer<pthread_cond_t>"], "Int"),
+        "pthread_cond_timedwait": .init(["CPointer<pthread_cond_t>", "CPointer<pthread_mutex_t>", "CPointer<timespec>"], "Int"),
+        "pthread_cond_wait": .init(["CPointer<pthread_cond_t>", "CPointer<pthread_mutex_t>"], "Int"),
+        "pthread_condattr_destroy": .init(["CPointer<pthread_condattr_t>"], "Int"),
+        "pthread_condattr_init": .init(["CPointer<pthread_condattr_t>"], "Int"),
+        "pthread_create": .init(["CPointer<pthread_tVar>", "CPointer<pthread_attr_t>?", "CPointer<CFunction<(COpaquePointer?) -> COpaquePointer?>>?", "COpaquePointer?"], "Int"),
+        "pthread_equal": .init(["pthread_t", "pthread_t"], "Int"),
+        "pthread_get_qos_class_np": .init(["pthread_t", "CPointer<UIntVar>", "CPointer<IntVar>"], "Int"),
+        "pthread_join": .init(["pthread_t", "CPointer<COpaquePointerVar>?"], "Int"),
+        "pthread_mutex_destroy": .init(["CPointer<pthread_mutex_t>"], "Int"),
+        "pthread_mutex_init": .init(["CPointer<pthread_mutex_t>", "CPointer<pthread_mutexattr_t>?"], "Int"),
+        "pthread_mutex_lock": .init(["CPointer<pthread_mutex_t>"], "Int"),
+        "pthread_mutex_unlock": .init(["CPointer<pthread_mutex_t>"], "Int"),
+        "pthread_mutexattr_destroy": .init(["CPointer<pthread_mutexattr_t>"], "Int"),
+        "pthread_mutexattr_init": .init(["CPointer<pthread_mutexattr_t>"], "Int"),
+        "pthread_mutexattr_settype": .init(["CPointer<pthread_mutexattr_t>", "Int"], "Int"),
+        "pthread_override_qos_class_end_np": .init(["pthread_override_t?"], "Int"),
+        "pthread_override_qos_class_start_np": .init(["pthread_t", "qos_class_t", "Int"], "pthread_override_t?"),
+        "pthread_self": .init([], "pthread_t"),
+        "qos_class_self": .init([], "qos_class_t"),
+    ]
+
+    private var pinnedNativeCInteropLinkNames: Set<String> {
+        Set(nativeCInteropFunctionSignatures.keys)
+    }
+
+    private func isRuntimeABIBridgeLinkName(_ linkName: String) -> Bool {
+        linkName.hasPrefix("kk_") || linkName.hasPrefix("__kk_")
+    }
+
     private func packageRoot(file: StaticString = #filePath) -> URL {
         URL(fileURLWithPath: "\(file)")
             .deletingLastPathComponent()
@@ -399,6 +509,7 @@ struct RuntimeABIExternalLinkValidationTests {
 
     fileprivate struct BundledKsSymbolNameDeclaration {
         let linkName: String
+        let isExternal: Bool
         let arity: Int
         let functionTypedParameterCount: Int
         let hasReceiver: Bool
@@ -493,6 +604,7 @@ struct RuntimeABIExternalLinkValidationTests {
                             declarations.append(
                                 BundledKsSymbolNameDeclaration(
                                     linkName: constructorLinkName,
+                                    isExternal: false,
                                     arity: signature.valueParameterTypes.count,
                                     functionTypedParameterCount: signature.functionTypedParameterCount,
                                     hasReceiver: false,
@@ -518,6 +630,7 @@ struct RuntimeABIExternalLinkValidationTests {
                 for linkName in pendingLinkNames {
                     declarations.append(BundledKsSymbolNameDeclaration(
                         linkName: linkName,
+                        isExternal: false,
                         arity: 0,
                         functionTypedParameterCount: 0,
                         hasReceiver: false,
@@ -560,10 +673,14 @@ struct RuntimeABIExternalLinkValidationTests {
             let hasReceiver = !isConstructor
                 && ((scopeKind == .classLike) || functionHeaderHasExtensionReceiver(functionHeader))
             let isSuspend = functionHeader.contains("suspend fun")
+            let isExternal = functionHeader
+                .split(whereSeparator: { $0 == " " || $0 == "\t" })
+                .contains { $0 == "external" }
             for linkName in pendingLinkNames {
                 declarations.append(
                     BundledKsSymbolNameDeclaration(
                         linkName: linkName,
+                        isExternal: isExternal,
                         arity: signature.valueParameterTypes.count,
                         functionTypedParameterCount: signature.functionTypedParameterCount,
                         hasReceiver: hasReceiver,

@@ -268,8 +268,7 @@ extension JVMFunctionBuilder {
     ) throws {
         let loopName = name ?? context.interner.intern("__jvm_for_destructuring_\(id.rawValue)")
         if let destructuringNames {
-            guard loopLabel == nil else { throw fail("JVM loop labels are not supported.", id) }
-            try sequenceLoop(loopName, iterable, body, id, destructuringNames: destructuringNames)
+            try sequenceLoop(loopName, iterable, body, id, destructuringNames: destructuringNames, label: loopLabel)
             return
         }
         if case let .binary(op, _, _, _) = arena.expr(iterable), op == .rangeTo,
@@ -321,13 +320,12 @@ extension JVMFunctionBuilder {
 
     func mapEntryLoop(
         _ name: InternedString?,
-        _ iterable: ExprID,
+        _ source: JVMValue,
         _ body: ExprID,
         _ id: ExprID,
         destructuringNames: [InternedString?]?,
         label loopLabel: InternedString?
     ) throws {
-        let source = try requireValue(iterable)
         let entriesType = JVMValueType.reference("java/util/Set", nullable: false)
         let entries = try jdkCall("java/util/Map", "entrySet", [], entriesType, receiver: source, interface: true)!
         let iteratorType = JVMValueType.reference("java/util/Iterator", nullable: false)

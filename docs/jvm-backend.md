@@ -942,7 +942,7 @@ for ヘッダの分解代入、interface 委譲を使わないユーザーによ
 
 `sequence { ... }` と `iterator { ... }`、SequenceScope の `yield(value)`、
 `yieldAll(iterator)`／`yieldAll(elements: Iterable<T>)`／`yieldAll(sequence: Sequence<T>)` に対応する。
-kswiftk-stdlib.jarを実行時classpathに追加する。生成物にstdlibは内包しない。
+`--emit jar -include-runtime` で stdlib を同梱できる。別配布する場合は `kswiftk-stdlib.jar` を実行時 classpath に追加する。
 
 ```kotlin
 fun main() {
@@ -995,7 +995,14 @@ java -Xverify:all -cp app.jar:kswiftk-stdlib.jar MainKt
 選び、出力名省略時は `./kswiftk-stdlib.jar` になる。`--emit class` も利用可能。
 入力ファイルや `--stdlib-library` との併用は拒否する。
 
-この JAR はmanifestで選んだ共通 Kotlin ソースの Pair／Unit／Function と、
+アプリの JAR に標準ライブラリを同梱するには `-include-runtime` を指定する。
+
+```bash
+kswiftc main.kt helpers.kt --emit jar -include-runtime -o app.jar
+java -Xverify:all -jar app.jar
+```
+
+標準ライブラリは manifest で選んだ共通 Kotlin ソースの Pair／Unit／Function と、
 `Stdlib/jvm/kotlin/` 以下の全実装ソースを同時にコンパイルする。
 ABI宣言は `Stdlib/jvm/declarations/` に分離し、JDKへの接続は `platform-operations.json` に記述する。
 `META-INF/kswiftk-stdlib-sources.list` に採用した resource 相対パスを保存する。

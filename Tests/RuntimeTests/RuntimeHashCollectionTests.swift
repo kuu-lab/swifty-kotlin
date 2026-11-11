@@ -20,6 +20,21 @@ struct RuntimeHashCollectionTests {
     }
 
     @Test
+    func boxedNaNPayloadsHaveEqualCollectionKeyHashes() {
+        let pairs = [
+            (kk_box_float(0x7fc0_0001), kk_box_float(0x7fc0_0002)),
+            (kk_box_double_nonnull(0x7ff8_0000_0000_0001), kk_box_double_nonnull(0x7ff8_0000_0000_0002)),
+        ]
+        for (first, second) in pairs {
+            let lhs = RuntimeElementKey(value: first)
+            let rhs = RuntimeElementKey(value: second)
+            #expect(lhs == rhs)
+            #expect(lhs.hashValue == rhs.hashValue)
+            #expect(!RuntimeSetBox(elements: [first]).insert(rawValue: second))
+        }
+    }
+
+    @Test
     func runtimeMapIndexUsesKotlinEqualityAndPreservesInsertionOrder() {
         let first = registerRuntimeObject(RuntimeStringBox("same"))
         let equivalent = registerRuntimeObject(RuntimeStringBox("same"))
