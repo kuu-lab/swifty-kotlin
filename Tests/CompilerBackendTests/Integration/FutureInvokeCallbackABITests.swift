@@ -61,4 +61,39 @@ struct FutureInvokeCallbackABITests {
         }
     }
 
+    @Test
+    func sourceStdlibO2IRPassesLLVMVerification() throws {
+        let bindings = try #require(LLVMCAPIBindings.loadUsable())
+        let verifier = try #require(bindings.verifyModuleFn)
+        let source = try diffCaseSource("kclass_annotations_typed.kt", file: #filePath)
+        try withTemporaryFile(contents: source) { input in
+            let options = CompilerOptions(
+                moduleName: "KUU1753", inputs: [input], outputPath: "unused",
+                emit: .executable, target: .hostDefault(), optLevel: .O2,
+                allowDefaultStdlibLibrary: false
+            )
+            let ctx = CompilationContext(
+                options: options, sourceManager: SourceManager(),
+                diagnostics: DiagnosticEngine(), interner: StringInterner()
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try assertNoDiagnosticErrors(ctx)
+            let emitter = NativeEmitter(
+                target: options.target, optLevel: .O2, debugInfo: false,
+                bindings: bindings, module: try #require(ctx.kir), interner: ctx.interner,
+                moduleName: options.moduleName, typeSystem: ctx.sema?.types, symbols: ctx.sema?.symbols
+            )
+            let built = try emitter.buildModule()
+            defer {
+                bindings.disposeModule(built.module)
+                for context in built.partitionContexts { bindings.disposeContext(context) }
+                if built.ownsContext { bindings.disposeContext(built.context) }
+            }
+            var message: UnsafeMutablePointer<CChar>?
+            defer { if let message { bindings.disposeMessageFn(message) } }
+            let invalid = verifier(built.module, 2, &message)
+            #expect(invalid == 0, "\(message.map { String(cString: $0) } ?? "LLVM verification failed")")
+        }
+    }
 }
