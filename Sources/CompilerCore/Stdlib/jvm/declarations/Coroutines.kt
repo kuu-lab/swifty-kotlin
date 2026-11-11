@@ -1,6 +1,5 @@
 package kotlin.coroutines
-interface CoroutineContext
-object EmptyCoroutineContext: CoroutineContext
+
 interface Continuation<in T> {
     val context: CoroutineContext
     fun resumeWith(result: kotlin.Result<T>)

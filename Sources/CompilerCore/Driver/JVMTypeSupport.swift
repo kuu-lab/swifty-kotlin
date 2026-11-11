@@ -19,7 +19,8 @@ extension JVMClasspathIndex {
         if ["kotlin/collections/IntIterator", "kotlin/collections/IndexedValue", "java/util/ArrayList"].contains(name) { return name }
         if ["kotlin/collections/Map$Entry", "kotlin/collections/MutableMap$MutableEntry"].contains(name) { return "java/util/Map$Entry" }
         if name == "kotlin/Result" { return "java/lang/Object" }
-        if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }
+        if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/CoroutineContext$Key",
+            "kotlin/coroutines/CoroutineContext$Element", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }
         if name == "kotlin/text/StringBuilder" { return "java/lang/StringBuilder" }
         if ["kotlin/text/Regex", "kotlin/text/Regex$Companion", "kotlin/text/RegexOption", "kotlin/text/MatchResult", "kotlin/text/MatchResult$Destructured", "kotlin/text/MatchGroup", "kotlin/text/MatchGroupCollection", "kotlin/ranges/IntRange", "kotlin/ranges/LongRange", "kotlin/ranges/CharRange", "kotlin/sequences/Sequence", "kotlin/sequences/SequenceScope"].contains(name) { return name }
         if name == "kotlin/NoSuchElementException" { return "java/util/NoSuchElementException" }

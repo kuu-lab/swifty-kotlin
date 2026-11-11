@@ -306,6 +306,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/collections/ArrayMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/array-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/UnsignedArrayOperations.kt",
       "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
       "excludeFromStdlibBuild": true,
@@ -330,6 +336,11 @@
     {
       "path": "declarations/Coroutines.kt",
       "virtualPath": "<kswiftk-jvm>/coroutines.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/CoroutineContexts.kt",
+      "virtualPath": "<kswiftk-jvm>/coroutine-context.kt",
       "excludeFromStdlibBuild": true
     },
     {
