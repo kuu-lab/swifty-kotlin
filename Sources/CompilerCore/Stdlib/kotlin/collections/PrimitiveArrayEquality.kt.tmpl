@@ -1,0 +1,90 @@
+//@ file PrimitiveArrayEquality Byte Short Int Long Float Double Boolean Char UByte UShort UInt ULong
+//@ header
+package kotlin.collections
+
+//@ body
+@SinceKotlin("2.4")
+@ExperimentalStdlibApi
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public fun {{T}}Array.allEqual(): Boolean {
+    val length = size
+    if (length < 2) return true
+//@ only Float Double
+    // Canonical bits make all NaNs equal and keep signed zeros distinct.
+    val first = this[0].toBits()
+//@ else
+    val first = this[0]
+//@ end
+    var index = 1
+    while (index < length) {
+//@ only Float Double
+        if (first != this[index].toBits()) return false
+//@ else
+        if (first != this[index]) return false
+//@ end
+        index++
+    }
+    return true
+}
+
+@SinceKotlin("2.4")
+@ExperimentalStdlibApi
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public inline fun <K> {{T}}Array.allEqualBy(selector: ({{T}}) -> K): Boolean {
+    val length = size
+    if (length < 2) return true
+    var firstKey: K? = null
+    var index = 0
+    while (index < length) {
+        val key = selector(this[index])
+        if (index == 0) {
+            firstKey = key
+        } else if (firstKey != key) {
+            return false
+        }
+        index++
+    }
+    return true
+}
+
+@SinceKotlin("2.4")
+@ExperimentalStdlibApi
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public fun {{T}}Array.allDistinct(): Boolean {
+    val length = size
+    if (length < 2) return true
+//@ only Boolean
+    return length == 2 && this[0] != this[1]
+//@ else
+    val seen = HashSet<{{T}}>()
+    var index = 0
+    while (index < length) {
+        if (!seen.add(this[index])) return false
+        index++
+    }
+    return true
+//@ end
+}
+
+@SinceKotlin("2.4")
+@ExperimentalStdlibApi
+//@ only UByte UShort UInt ULong
+@ExperimentalUnsignedTypes
+//@ end
+public inline fun <K> {{T}}Array.allDistinctBy(selector: ({{T}}) -> K): Boolean {
+    val length = size
+    if (length < 2) return true
+    val seen = HashSet<K>()
+    var index = 0
+    while (index < length) {
+        if (!seen.add(selector(this[index]))) return false
+        index++
+    }
+    return true
+}
