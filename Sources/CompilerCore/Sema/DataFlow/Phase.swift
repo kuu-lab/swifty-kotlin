@@ -183,9 +183,22 @@ final class DataFlowSemaPhase: CompilerPhase {
         // Anchor real JVM runtime nominals before optional synthetic fallbacks.
         if ctx.options.emit.isJVM && ctx.options.stdlibOnly {
             sema.isJVMStdlibBuild = true
+            let coroutinesPackage = ["kotlin", "coroutines"].map(ctx.interner.intern)
+            let contextName = ctx.interner.intern("CoroutineContext")
             for file in ast.sortedFiles where ctx.sourceManager.origin(of: file.fileID) == .user {
-                if let scope = fileScopes[file.fileID.rawValue] {
-                    predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
+                guard let scope = fileScopes[file.fileID.rawValue] else { continue }
+                predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
+                // The residual coroutine registry needs the nested context types
+                // when wiring coroutine signatures.
+                guard file.packageFQName == coroutinesPackage else { continue }
+                for declaration in file.topLevelDecls {
+                    guard let owner = predeclaredEarlyHeaders[declaration],
+                          symbols.symbol(owner)?.name == contextName
+                    else { continue }
+                    predeclareNestedNominalTypeHeaders(
+                        declID: declaration, ownerSymbol: owner, sourceFileID: file.fileID,
+                        ast: ast, symbols: symbols, types: types, bindings: bindings, scope: scope, ctx: ctx
+                    )
                 }
             }
         }
