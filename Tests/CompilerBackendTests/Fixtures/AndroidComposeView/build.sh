@@ -11,11 +11,44 @@ mkdir -p "$output"
 
 gradle -p "$fixture" "$@" extractComposeApis
 "$compiler" --stdlib-only --emit jar -o "$output/kswiftk-stdlib.jar"
-javac --release 8 -cp "$android_jar:$output/compose-runtime.jar:$output/compose-ui.jar:$output/kswiftk-stdlib.jar" \
-    -d "$output/bridge" "$fixture/src/main/java/org/swiftykotlin/composeprobe/CounterRenderer.java"
-jar cf "$output/bridge.jar" -C "$output/bridge" .
-"$compiler" "$fixture/Counter.kt" --emit class \
-    --classpath "$output/compose-runtime.jar:$output/bridge.jar:$output/kswiftk-stdlib.jar" \
+
+# Use a small Android header JAR for classpath import. AGP packages the full
+# AndroidX artifacts, and the Android framework is supplied by the device.
+python3 - "$android_jar" "$output" <<'PY'
+import sys
+from pathlib import Path
+from zipfile import ZipFile
+
+output = Path(sys.argv[2])
+inputs = {
+    Path(sys.argv[1]): [
+        'android/app/Activity',
+        'android/content/Context',
+        'android/content/ContextWrapper',
+        'android/os/BaseBundle',
+        'android/os/Bundle',
+        'android/view/ContextThemeWrapper',
+        'android/view/View',
+        'android/view/View$OnClickListener',
+        'android/view/ViewGroup',
+        'android/widget/Button',
+        'android/widget/LinearLayout',
+        'android/widget/TextView',
+        'java/lang/CharSequence',
+    ],
+    output / 'activity.jar': ['androidx/activity/ComponentActivity'],
+    output / 'core.jar': ['androidx/core/app/ComponentActivity'],
+}
+with ZipFile(output / 'android-api.jar', 'w') as headers:
+    for path, classes in inputs.items():
+        with ZipFile(path) as source:
+            for name in classes:
+                entry = name + '.class'
+                headers.writestr(entry, source.read(entry))
+PY
+
+"$compiler" "$fixture/MainActivity.kt" --emit class \
+    --classpath "$output/android-api.jar:$output/runtime.jar:$output/ui.jar:$output/foundation.jar:$output/kswiftk-stdlib.jar" \
     -o "$output/counter"
 jar cf "$output/counter.jar" -C "$output/counter" .
 gradle -p "$fixture" "$@" assembleDebug
