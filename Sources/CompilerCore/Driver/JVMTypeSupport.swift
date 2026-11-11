@@ -222,7 +222,12 @@ extension JVMProgramBuilder {
             }
         }
         if let declaration {
-            f.sourceName = context.interner.resolve(declaration.name)
+            let sourceName = context.interner.resolve(declaration.name)
+            f.sourceName = sourceName
+            if declaration.receiverType != nil {
+                f.javaParameters.append(JVMMethodParameter("$this$" + sourceName))
+            }
+            f.javaParameters += declaration.valueParams.map { JVMMethodParameter(context.interner.resolve($0.name)) }
             f.parameterVarargTypes = try declaration.valueParams.enumerated().map { i, p in p.isVararg ? try kotlinType(signature.parameterTypes[i]) : nil }
             for (i, p) in declaration.valueParams.enumerated() where p.isVararg {
                 let element = try varargComponentType(signature.parameterTypes[i])

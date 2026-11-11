@@ -28,7 +28,6 @@ public fun LongArray.copyInto(destination: LongArray, destinationOffset: Int = 0
     java.lang.System.arraycopy(this, startIndex, destination, destinationOffset, endIndex - startIndex)
     return destination
 }
-
 public fun ByteArray.fill(element: Byte, fromIndex: Int = 0, toIndex: Int = size) {
     java.util.Arrays.fill(this, fromIndex, toIndex, element)
 }

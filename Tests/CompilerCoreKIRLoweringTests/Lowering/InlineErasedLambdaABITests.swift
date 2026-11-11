@@ -273,17 +273,18 @@ struct InlineErasedLambdaABITests {
         #expect(boxedResult != returnedInt)
         #expect(callNames(in: body, interner: interner).last == LoweringTestRuntime.name("box_int"))
 
-        let returnedNullable = arena.appendTemporary(type: nullableIntType)
-        let nullableResult = arena.appendTemporary(type: types.anyType)
-        let unchanged = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
-            returnedExpr: returnedNullable,
+        // An identity callback can return its unboxed nullable argument.
+        let nullableResult = arena.appendTemporary(type: types.nullableAnyType)
+        let boxedNullable = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
+            returnedExpr: unboxedArguments[1],
             result: nullableResult,
             module: module,
             ctx: ctx,
             into: &body
         )
-        #expect(unchanged == returnedNullable)
-        #expect(callNames(in: body, interner: interner).filter { $0 == LoweringTestRuntime.name("box_int") }.count == 1)
+        #expect(boxedNullable != unboxedArguments[1])
+        #expect(arena.exprType(boxedNullable) == types.nullableAnyType)
+        #expect(callNames(in: body, interner: interner).last == LoweringTestRuntime.name("box_int"))
     }
 
     @Test

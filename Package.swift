@@ -177,3 +177,9 @@ let package = Package(
     ],
     swiftLanguageModes: [.v6]
 )
+
+// SwiftPM's native build system links every test target into one test bundle.
+// The parallel smoke job only needs the target that contains SmokeTests.
+if ProcessInfo.processInfo.environment["KSWIFTK_CI_SMOKE_ONLY"] == "1" {
+    package.targets.removeAll { $0.type == .test && $0.name != "CompilerCoreTests" }
+}

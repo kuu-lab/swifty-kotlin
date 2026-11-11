@@ -380,6 +380,16 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[name] = info
         }
+        // `kotlin.io.path.Path` is a typealias over this JDK interface. Keep a
+        // memberless fallback only when the classpath did not supply the real
+        // interface; classpath classes keep their full member surface.
+        if classes["java/nio/file/Path"] == nil {
+            let info = JVMClassInfo(name: "java/nio/file/Path", flags: 0x0601, superclass: nil, interfaces: [], methods: [])
+            let path = "<kswiftk-jvm>/platform/java/nio/file/Path.kt"
+            let file = ctx.sourceManager.addFile(path: path, contents: Data("package java.nio.file\ninterface Path {}\n".utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[info.name] = info
+        }
 
         // The generic Kotlin declaration provides the Java collection shape;
         // associate its implicit constructor with the real JDK owner so a

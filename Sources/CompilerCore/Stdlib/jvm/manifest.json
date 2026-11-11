@@ -12,6 +12,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "kotlin/SinceKotlin.kt",
       "virtualPath": "<kswiftk-jvm>/sinceKotlin.kt",
       "excludeFromStdlibBuild": true
@@ -156,6 +161,11 @@
     {
       "path": "declarations/Charsets.kt",
       "virtualPath": "<kswiftk-jvm>/charsets.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/KotlinIoPath.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
       "excludeFromStdlibBuild": true
     },
     {
@@ -312,17 +322,6 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
-      "path": "kotlin/collections/ListMutations.kt",
-      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/collections/CollectionsKt"
-    },
-    {
-      "path": "declarations/Deque.kt",
-      "virtualPath": "<kswiftk-jvm>/m20-deque-runtime.kt",
-      "excludeFromStdlibBuild": true
-    },
-    {
       "path": "declarations/UnsignedArrayOperations.kt",
       "virtualPath": "<kswiftk-jvm>/m20-unsigned-array-operations.kt",
       "excludeFromStdlibBuild": true,
@@ -424,8 +423,7 @@
     {
       "path": "declarations/OptIn.kt",
       "virtualPath": "<kswiftk-jvm>/opt-in.kt",
-      "excludeFromStdlibBuild": false,
-      "onlyForStdlibBuild": true
+      "excludeFromStdlibBuild": false
     },
     {
       "path": "declarations/ArraySequenceFunctions.kt",

@@ -311,6 +311,20 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 checksExprTypes: true
             ),
             BundledEnumSpec(
+                pathSegments: ["kotlin", "text", "CharCategory"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
+                pathSegments: ["kotlin", "text", "CharDirectionality"],
+                requiresSourceBacked: true,
+                ownMemberNames: ["values"],
+                companionMemberNames: ["entries", "valueOf"],
+                checksExprTypes: true
+            ),
+            BundledEnumSpec(
                 pathSegments: ["kotlin", "native", "CpuArchitecture"],
                 requiresSourceBacked: true,
                 ownMemberNames: ["values"],
