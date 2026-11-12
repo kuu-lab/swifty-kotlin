@@ -305,6 +305,16 @@ extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
         let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
         let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
+        var accessorTypeParameters: [JVMTypeParameter] = []
+        if !declaration.typeParams.isEmpty {
+            guard let propertySymbol,
+                  let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol),
+                  let signature = sema.symbols.functionSignature(for: getterSymbol) else {
+                throw JVMFrontendError(message: "Missing JVM generic extension property signature.", range: declaration.range)
+            }
+            let propertyParameterSymbols = Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+            accessorTypeParameters = try typeParameters(propertyParameterSymbols, declarations: declaration.typeParams)
+        }
         var functions: [JVMFunction] = []
         for setter in [false, true] where !declaration.modifiers.contains(.const) {
             guard let method = setter ? property.setter : property.getter else { continue }
@@ -367,6 +377,7 @@ extension JVMProgramBuilder {
                 if function.reference.result == .unit { f.parameterAnnotations = [try annotations(for: symbol, target: "setparam")] }
             }
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
+            f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if declaration.receiverType != nil {
                 f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
@@ -383,9 +394,12 @@ extension JVMProgramBuilder {
             f.kotlinParameters = setter ? [property.kotlinType].compactMap { $0 } : []
             f.kotlinResult = setter ? .named("kotlin/Unit", [], nullable: false) : property.kotlinType
             let receiverSignature = property.receiverGenericSignature ?? property.getter.parameters.first?.descriptor ?? ""
-            f.genericSignature = setter
+            let typeParameterSignature = accessorTypeParameters.isEmpty
+                ? ""
+                : "<" + accessorTypeParameters.map(\.signature).joined() + ">"
+            f.genericSignature = typeParameterSignature + (setter
                 ? "(" + receiverSignature + (property.genericSignature ?? property.type.descriptor) + ")V"
-                : "(" + receiverSignature + ")" + (property.genericSignature ?? property.type.descriptor)
+                : "(" + receiverSignature + ")" + (property.genericSignature ?? property.type.descriptor))
             if plan.isAnnotation { f.genericSignature = f.genericSignature?.replacingOccurrences(of: "Lkotlin/reflect/KClass", with: "Ljava/lang/Class") }
             return f
         }
@@ -411,13 +425,18 @@ extension JVMProgramBuilder {
         let target = sema.bindings.constructorDelegationTarget(for: symbol)
         let arguments = primary ? (plan.declaration?.superTypeEntries.first(where: { !$0.constructorArgs.isEmpty })?.constructorArgs ?? []) : (declaration.delegationCall?.args ?? [])
         let delegate: JVMForeignMethod
-        if plan.isEnum {
+        if plan.isEnum && primary {
             delegate = JVMForeignMethod(owner: "java/lang/Enum", name: "<init>", descriptor: "(Ljava/lang/String;I)V", parameters: [.string, .int], result: .reference("java/lang/Enum", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
         } else if plan.isJvmRecord, let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target), method.owner == plan.name {
             delegate = method
         } else if plan.isJvmRecord {
             delegate = JVMForeignMethod(owner: "java/lang/Record", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Record", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
         } else if let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target) { delegate = method }
+        else if arguments.isEmpty, let target, sema.symbols.symbol(target)?.flags.contains(.synthetic) == true,
+                let parent = sema.symbols.parentSymbol(for: target), let base = classes[parent], base.name == plan.superclass,
+                let emitted = base.constructors.compactMap({ methods[$0.0] }).first(where: { $0.parameters.isEmpty }) {
+            delegate = emitted
+        }
         else {
             guard arguments.isEmpty, plan.superclass == "java/lang/Object" else { throw JVMFrontendError(message: "Missing JVM superclass constructor binding.", range: declaration.range) }
             delegate = JVMForeignMethod(owner: "java/lang/Object", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Object", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
@@ -425,15 +444,26 @@ extension JVMProgramBuilder {
         guard delegate.isConstructor else { throw JVMFrontendError(message: "Invalid JVM constructor delegation.") }
         var selected = delegate
         var values: [JVMValue]
-        if plan.isEnum { values = [builder.locals[1], builder.locals[2]] }
+        if plan.isEnum && primary { values = [builder.locals[1], builder.locals[2]] }
         else {
             let binding = sema.bindings.constructorDelegationCallBinding(for: symbol)
             let delegatePlan = classes.values.first { $0.name == delegate.owner }
-            let prefix = try delegatePlan?.isInner == true ? [builder.enclosingInstance(delegatePlan!.outer!)] : []
-            let ordered = try builder.arguments(arguments, binding: binding, parameters: Array(delegate.parameters.dropFirst(prefix.count)), declarations: target.flatMap { sourceParameters[$0] })
+            let prefix: [JVMValue]
+            let parameters: [JVMValueType]
+            if plan.isEnum {
+                prefix = [builder.locals[1], builder.locals[2]]
+                parameters = delegate.parameters
+            } else {
+                prefix = try delegatePlan?.isInner == true ? [builder.enclosingInstance(delegatePlan!.outer!)] : []
+                parameters = Array(delegate.parameters.dropFirst(prefix.count))
+            }
+            let ordered = try builder.arguments(arguments, binding: binding, parameters: parameters, declarations: target.flatMap { sourceParameters[$0] })
             values = prefix + ordered.values
-            if ordered.masks.contains(where: { $0 != 0 }) {
+            let hasDefaultArguments = ordered.masks.contains(where: { $0 != 0 })
+            if hasDefaultArguments {
                 values += try builder.maskArguments(ordered.masks, constructor: true)
+            }
+            if plan.isEnum || hasDefaultArguments {
                 let params = values.map(\.type)
                 selected = JVMForeignMethod(owner: delegate.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: delegate.result, isStatic: false, isInterface: false, isAbstract: false)
             }
@@ -459,7 +489,19 @@ extension JVMProgramBuilder {
         var function = builder.finish(constructor: true)
         function.isSecondaryConstructor = !primary
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
-        function = try describe(function, signature: sema.symbols.functionSignature(for: symbol)!, parameters: [])
+        let metadataDeclaration = FunDecl(
+            range: declaration.range,
+            name: context.interner.intern("<init>"),
+            modifiers: declaration.modifiers,
+            valueParams: declaration.valueParams,
+            body: declaration.body
+        )
+        function = try describe(
+            function,
+            signature: sema.symbols.functionSignature(for: symbol)!,
+            parameters: [],
+            sourceDeclaration: (symbol, metadataDeclaration)
+        )
         if plan.isEnum {
             function.access = 0; function.isPrivate = true; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }; function.kotlinParameterOffset = 2
             function.genericSignature = "(Ljava/lang/String;I" + String(function.genericSignature!.dropFirst())

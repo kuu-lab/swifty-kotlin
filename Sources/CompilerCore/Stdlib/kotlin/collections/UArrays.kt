@@ -222,6 +222,15 @@ public val UIntArray.size: Int get() = __kkUIntArraySize(this)
 public val ULongArray.size: Int get() = __kkULongArraySize(this)
 
 @ExperimentalUnsignedTypes
+public inline fun UByteArray.isNotEmpty(): Boolean = size != 0
+@ExperimentalUnsignedTypes
+public inline fun UShortArray.isNotEmpty(): Boolean = size != 0
+@ExperimentalUnsignedTypes
+public inline fun UIntArray.isNotEmpty(): Boolean = size != 0
+@ExperimentalUnsignedTypes
+public inline fun ULongArray.isNotEmpty(): Boolean = size != 0
+
+@ExperimentalUnsignedTypes
 public val UByteArray.lastIndex: Int get() = this.size - 1
 @ExperimentalUnsignedTypes
 public val UByteArray.indices: IntRange get() = 0..this.lastIndex

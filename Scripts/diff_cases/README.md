@@ -97,6 +97,7 @@ retain the stdout diff, KIR, crash diagnostics, and a reproduction script.
 - `list_binary_search_by.kt`: `List.binarySearchBy(key, fromIndex, toIndex, selector)` の parity
 - `stdlib_string_ops.kt`: String stdlib parity（`trim/split/replace/startsWith/endsWith/contains/toInt/toDouble/format/substring/lowercase/uppercase/toIntOrNull/toDoubleOrNull/indexOf/lastIndexOf/padStart/padEnd/repeat/reversed/toList/toCharArray/drop/take/dropLast/takeLast`）
 - `string_decode_to_string.kt`: `ByteArray.decodeToString` UTF-8, range, strict malformed input, and bounds parity
+- `string_decode_to_string_jvm.kt`: JVM `ByteArray.decodeToString()` parity for ASCII, multibyte UTF-8, empty arrays, and malformed-input replacement
 - `symmetric_crypto.kt`: `Cipher` / `SecretKeySpec` / `IvParameterSpec` parity across AES/DES/3DES, ECB/CBC/CFB/OFB/CTR, PKCS5Padding/NoPadding
 - `digital_signature.kt`: `Signature` / `CertificateFactory` / `CertPathValidator` parity for signing and certificate validation
 - `parallel_processing.kt`: `Dispatchers.Default` 上での並列 `async` / `awaitAll` を使った並列処理 parity

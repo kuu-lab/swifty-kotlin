@@ -1,16 +1,16 @@
 /// kotlinc `kotlinx.serialization` compiler plugin equivalent.
-/// Classes annotated with `@Serializable` (`kotlinx.serialization.Serializable`)
-/// gain synthetic serialization support:
+/// Classes, objects, and enums annotated with `@Serializable`
+/// (`kotlinx.serialization.Serializable`) gain synthetic serialization support:
 ///   - An automatic companion object (if none exists)
 ///   - A synthetic `serializer()` function on the companion object returning `KSerializer<T>`
-///   - A synthetic nested `$serializer` class implementing `KSerializer<T>`
+///   - For classes and objects, a synthetic nested `$serializer` class implementing `KSerializer<T>`
 ///
 /// Configuration:
 ///   -P plugin:org.jetbrains.kotlinx.serialization:additionalAnnotation=<fqName>  (repeatable)
 ///
 /// Validation rules matching kotlinc:
-///   - Target must be a class or object. Annotating interfaces or annotation classes
-///     emits `KSWIFTK-SEMA-0487` ('@Serializable' annotation is only supported for classes and objects).
+///   - Target must be a class, object, or enum. Annotating interfaces or annotation classes
+///     emits `KSWIFTK-SEMA-0487` ('@Serializable' annotation is only supported for classes, objects, and enums).
 ///   - Inner classes are not supported and emit `KSWIFTK-SEMA-0488` ('@Serializable' annotation is not supported for inner classes).
 struct KotlinxSerializationPlugin: CompilerPlugin {
     let id = "org.jetbrains.kotlinx.serialization"
@@ -35,11 +35,12 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                   hasTriggerAnnotation(symbol.id, triggers: triggers, symbols: symbols)
             else { continue }
 
-            // 1. Kind check: class or object only
-            if symbol.kind != .class && symbol.kind != .object {
+            // 1. Kind check: classes, objects, and enums can carry serializers.
+            let isSupportedKind = symbol.kind == .class || symbol.kind == .object || symbol.kind == .enumClass
+            if !isSupportedKind {
                 context.diagnostics.error(
                     "KSWIFTK-SEMA-0487",
-                    "'@Serializable' annotation is only supported for classes and objects.",
+                    "'@Serializable' annotation is only supported for classes, objects, and enums.",
                     range: symbol.declSite
                 )
                 continue
@@ -100,6 +101,15 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             enclosingTypeArgs: selfArgs.enclosing,
             nullability: .nonNull
         )))
+
+        if classSymbol.kind == .enumClass {
+            Self.synthesizeEnumSerializer(
+                for: classSymbol,
+                classType: classType,
+                context: context
+            )
+            return
+        }
 
         // 1. Find or synthesize companion object
         let companionName = interner.intern("Companion")
@@ -197,7 +207,7 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             companionSerializerSymbol = serializerSym
         }
 
-        // 3. Synthesize nested $serializer class
+        // 2. For classes and objects, synthesize a nested $serializer class.
         let genSerializerName = interner.intern("$serializer")
         let genSerializerFQName = classSymbol.fqName + [genSerializerName]
         var generatedSerializerClassSymbol: SymbolID? = symbols.lookup(fqName: genSerializerFQName)
@@ -447,6 +457,73 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
             }
             return SerializationPropertyInfo(symbol: childID, serialName: serialName)
         }
+    }
+
+    private static func synthesizeEnumSerializer(
+        for classSymbol: SemanticSymbol,
+        classType: TypeID,
+        context: CompilerPluginSemaContext
+    ) {
+        let symbols = context.symbols
+        let types = context.types
+        let interner = context.interner
+        let classID = classSymbol.id
+        let serializerName = interner.intern("serializer")
+        let serializerFQName = classSymbol.fqName + [serializerName]
+
+        if let existing = symbols.lookupAll(fqName: serializerFQName).first(where: { candidate in
+            guard let existingInfo = symbols.symbol(candidate),
+                  existingInfo.kind == .function,
+                  existingInfo.flags.contains(.static)
+            else { return false }
+            return symbols.parentSymbol(for: candidate) == classID
+        }) {
+            context.sema.serializationClasses[classID] = SerializationClassInfo(
+                companionSerializerMethod: existing,
+                companionObjectSymbol: nil,
+                serializableProperties: []
+            )
+            return
+        }
+
+        if let companionID = symbols.companionObjectSymbol(for: classID),
+           let companion = symbols.symbol(companionID),
+           let companionSerializer = symbols.lookupAll(fqName: companion.fqName + [serializerName]).first(where: { candidate in
+               symbols.symbol(candidate)?.kind == .function && symbols.parentSymbol(for: candidate) == companionID
+           })
+        {
+            context.sema.serializationClasses[classID] = SerializationClassInfo(
+                companionSerializerMethod: companionSerializer,
+                companionObjectSymbol: companionID,
+                serializableProperties: []
+            )
+            return
+        }
+
+        let serializerSym = symbols.define(
+            kind: .function,
+            name: serializerName,
+            fqName: serializerFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(classID, for: serializerSym)
+        let returnType = resolveKSerializerType(
+            for: classType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false),
+            for: serializerSym
+        )
+        context.sema.serializationClasses[classID] = SerializationClassInfo(
+            companionSerializerMethod: serializerSym,
+            companionObjectSymbol: nil,
+            serializableProperties: []
+        )
     }
 
     private static func resolveKSerializerSymbol(
