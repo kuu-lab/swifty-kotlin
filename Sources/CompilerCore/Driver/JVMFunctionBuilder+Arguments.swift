@@ -191,6 +191,9 @@ extension JVMFunctionBuilder {
         }
         if let method {
             prefix += try importedContextArguments(binding, method: method, id: id)
+            if method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
+                prefix.append(try receiverValue ?? receiver.map(requireValue) ?? instance(id))
+            }
         }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)

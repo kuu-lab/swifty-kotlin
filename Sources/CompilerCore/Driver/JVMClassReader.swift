@@ -553,6 +553,10 @@ struct JVMClassReader {
         let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: parseAnnotations)
         guard offset == bytes.count else { throw Invalid() }
         var functionTable: JVMKotlinMetadataPayload.FunctionTable?
+        let valueCarrier = methods.first(where: { !$0.isStatic && $0.name == "unbox-impl" && $0.parameters.isEmpty })?.result
+        let hasValueAdapters = valueCarrier.map { carrier in
+            methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
+        } ?? false
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let table = try? metadata.functionTable(byteLimit: bytes.count) {
@@ -568,15 +572,20 @@ struct JVMClassReader {
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
-           (metadata.isFileFacade == true || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
+           (metadata.isFileFacade == true || hasValueAdapters
+               || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
                 guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
                       let function = functions.first(where: { candidate in
-                          candidate.isSuspend == isSuspend
+                          if let parameters = candidate.valueOperatorParameterDescriptors {
+                              return method.isStatic && method.parameters.count == parameters.count + 1
+                                  && method.parameters.first?.descriptor == valueCarrier?.descriptor
+                          }
+                          return candidate.isSuspend == isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || candidate.isInfix && candidate.descriptor != nil))
@@ -636,10 +645,6 @@ struct JVMClassReader {
                        && ($0.name.hasPrefix("get") || $0.name.hasPrefix("is"))
            }),
            let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
-            let valueCarrier = methods.first(where: { !$0.isStatic && $0.name == "unbox-impl" && $0.parameters.isEmpty })?.result
-            let hasValueAdapters = valueCarrier.map { carrier in
-                methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
-            } ?? false
             for property in properties {
                 guard let getter = methods.first(where: {
                     !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
