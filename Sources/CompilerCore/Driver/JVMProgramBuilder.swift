@@ -615,6 +615,7 @@ final class JVMFunctionBuilder {
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
             if let result = try implicitReceiverProperty(id, name: name) { return result }
+            if !scopes.contains(where: { $0[name] != nil }), let result = try implicitEnumProperty(id) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
                 return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
