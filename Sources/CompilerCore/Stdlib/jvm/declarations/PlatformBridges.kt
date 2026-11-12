@@ -1,4 +1,6 @@
 package kotlin.jvm.internal
+fun __jvmFileName(file: java.io.File): String = null!!
+
 fun __jvmCloseResource(resource: java.io.Closeable) {}
 
 fun __jvmThreadLocalRandom(): Any = null!!
