@@ -63,6 +63,12 @@
       "runtimeFacade": "kotlin/io/FilesKt"
     },
     {
+      "path": "declarations/CloseableUse.kt",
+      "virtualPath": "<kswiftk-jvm>/closeable-use.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/CloseableKt"
+    },
+    {
       "path": "declarations/ByteStreams.kt",
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
