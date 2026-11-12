@@ -106,6 +106,9 @@ final class RuntimeMapBox {
     var keyValues: [RuntimeValue] {
         get {
             if backingMap != nil {
+                if let context = orderedWindowContext {
+                    return orderedSlice(context.root.keyStorage, window: context.window)
+                }
                 return orderedEntries.map { $0.0 }
             }
             return keyStorage
@@ -130,6 +133,9 @@ final class RuntimeMapBox {
     var entryValues: [RuntimeValue] {
         get {
             if backingMap != nil {
+                if let context = orderedWindowContext {
+                    return orderedSlice(context.root.valueStorage, window: context.window)
+                }
                 return orderedEntries.map { $0.1 }
             }
             return valueStorage
@@ -219,6 +225,109 @@ final class RuntimeMapBox {
         self.invertCompare = parent.invertCompare
     }
 
+    private struct OrderedWindow {
+        var lowerBound: Int
+        var upperBound: Int
+        var isReversed: Bool
+
+        var count: Int {
+            upperBound - lowerBound
+        }
+
+        func selectingPositions(_ positions: Range<Int>) -> OrderedWindow {
+            if isReversed {
+                return OrderedWindow(
+                    lowerBound: upperBound - positions.upperBound,
+                    upperBound: upperBound - positions.lowerBound,
+                    isReversed: true
+                )
+            }
+            return OrderedWindow(
+                lowerBound: lowerBound + positions.lowerBound,
+                upperBound: lowerBound + positions.upperBound,
+                isReversed: false
+            )
+        }
+    }
+
+    private var storageRoot: RuntimeMapBox {
+        var root = self
+        while let backingMap = root.backingMap {
+            root = backingMap
+        }
+        return root
+    }
+
+    private var hasSortedViewChain: Bool {
+        if let backingMap {
+            return sorted && backingMap.hasSortedViewChain
+        }
+        return sorted
+    }
+
+    private var orderedWindowContext: (root: RuntimeMapBox, window: OrderedWindow)? {
+        guard hasSortedViewChain else { return nil }
+        let root = storageRoot
+        return (root, orderedWindow(root: root))
+    }
+
+    private func orderedWindow(root: RuntimeMapBox) -> OrderedWindow {
+        guard let backingMap else {
+            return OrderedWindow(
+                lowerBound: 0,
+                upperBound: min(root.keyStorage.count, root.valueStorage.count),
+                isReversed: false
+            )
+        }
+        var window = backingMap.orderedWindow(root: root)
+        if isDescendingView {
+            window.isReversed.toggle()
+        }
+        if let rangeView {
+            window = narrowOrderedWindow(window, range: rangeView, root: root)
+        }
+        return window
+    }
+
+    private func narrowOrderedWindow(
+        _ window: OrderedWindow,
+        range: RuntimeSortedRange,
+        root: RuntimeMapBox
+    ) -> OrderedWindow {
+        var start = 0
+        var end = window.count
+        if let lowerBoundRaw = range.lowerBoundRaw {
+            start = firstOrderedPosition(in: window, root: root, bound: lowerBoundRaw)
+        }
+        if let upperBoundRaw = range.upperBoundRaw {
+            end = firstOrderedPosition(in: window, root: root, bound: upperBoundRaw)
+        }
+        if end < start {
+            end = start
+        }
+        return window.selectingPositions(start..<end)
+    }
+
+    private func firstOrderedPosition(in window: OrderedWindow, root: RuntimeMapBox, bound: Int) -> Int {
+        var low = 0
+        var high = window.count
+        while low < high {
+            let mid = low + (high - low) / 2
+            let rootIndex = window.isReversed ? window.upperBound - 1 - mid : window.lowerBound + mid
+            if sortedCompare(root.keyStorage[rootIndex].legacyRawValue, bound) < 0 {
+                low = mid + 1
+            } else {
+                high = mid
+            }
+        }
+        return low
+    }
+
+    private func orderedSlice(_ storage: [RuntimeValue], window: OrderedWindow) -> [RuntimeValue] {
+        let slice = storage[window.lowerBound..<window.upperBound]
+        return window.isReversed ? Array(slice.reversed()) : Array(slice)
+    }
+
     private var orderedEntries: [(RuntimeValue, RuntimeValue)] {
         guard let backingMap else {
             return Array(zip(keyStorage, valueStorage))
@@ -233,11 +342,17 @@ final class RuntimeMapBox {
 
     var count: Int {
         guard let backingMap else { return keyStorage.count }
+        if rangeView != nil, let context = orderedWindowContext {
+            return context.window.count
+        }
         return rangeView == nil ? backingMap.count : orderedEntries.count
     }
 
     var isEmpty: Bool {
         guard let backingMap else { return keyStorage.isEmpty }
+        if rangeView != nil, let context = orderedWindowContext {
+            return context.window.count == 0
+        }
         return rangeView == nil ? backingMap.isEmpty : orderedEntries.isEmpty
     }
 
@@ -473,6 +588,7 @@ final class RuntimeMapIteratorBox {
 final class RuntimeMutableMapIteratorBox {
     let mapRaw: Int
     let keys: [Int]
+    let keyValues: [RuntimeValue]
     var index: Int
     var lastKey: Int?
     /// The backing map's `modCount` as of the last point this iterator
@@ -480,9 +596,10 @@ final class RuntimeMutableMapIteratorBox {
     /// which re-syncs after performing the mutation).
     var expectedModCount: Int
 
-    init(mapRaw: Int, keys: [Int]) {
+    init(mapRaw: Int, keys: [Int], keyValues: [RuntimeValue]) {
         self.mapRaw = mapRaw
         self.keys = keys
+        self.keyValues = keyValues
         index = 0
         lastKey = nil
         expectedModCount = runtimeMapBox(from: mapRaw)?.modCount ?? 0
