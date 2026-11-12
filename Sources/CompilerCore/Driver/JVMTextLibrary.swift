@@ -328,10 +328,11 @@ extension JVMFunctionBuilder {
         }
         let symbol = bindings.identifierSymbol(for: id) ?? accessorProperty ?? call
         guard let symbol else { return nil }
-        if let path = program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve),
-           path.count == 5,
-           Array(path.prefix(4)) == ["kotlin", "time", "Duration", "Companion"],
-           ["seconds"].contains(path[4]) {
+        if let fqName = program.sema.symbols.symbol(symbol)?.fqName,
+           fqName.count == 5,
+           fqName.starts(with: KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName),
+           context.interner.resolve(fqName[3]) == "Companion",
+           context.interner.resolve(fqName[4]) == "seconds" {
             guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
                   [.int, .long, .double].contains(source.type) else {
                 throw fail("Duration unit properties require an Int, Long, or Double receiver.", id)

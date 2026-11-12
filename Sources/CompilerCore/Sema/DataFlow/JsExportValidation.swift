@@ -517,7 +517,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> Bool {
-        symbols.symbol(annotation)?.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.js.JsExport"
+        symbols.symbol(annotation)?.fqName == KnownCompilerNames(interner: interner).kotlinJsJsExportFQName
     }
 
     private func collectExternalTypeSymbols(

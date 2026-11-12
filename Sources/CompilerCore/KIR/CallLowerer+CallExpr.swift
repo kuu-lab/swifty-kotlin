@@ -11,7 +11,7 @@ extension CallLowerer {
         else {
             return false
         }
-        return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "contextOf"]
+        return resolved.fqName == KnownCompilerNames(interner: interner).kotlinContextOfFQName
     }
 
     /// `kotlin.assert` resolved through Sema (either overload). A user-declared
@@ -26,7 +26,7 @@ extension CallLowerer {
         else {
             return false
         }
-        return resolved.fqName.map { interner.resolve($0) } == ["kotlin", "assert"]
+        return resolved.fqName == KnownCompilerNames(interner: interner).kotlinAssertFQName
     }
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -82,7 +82,7 @@ extension CallLowerer {
         // same bundled intrinsic as the member-call spelling.
         if let callBinding = sema.bindings.callBindings[exprID],
            let calleeSymbol = sema.symbols.symbol(callBinding.chosenCallee),
-           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+           calleeSymbol.fqName == KnownCompilerNames(interner: interner).kotlinIsArrayOfFQName
         {
             // The receiver tower can hold unrelated receivers (e.g. a
             // `with("s")` lambda nested inside `with(array)`); only a

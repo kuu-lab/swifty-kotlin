@@ -51,7 +51,7 @@ extension NativeEmitter.FunctionEmissionContext {
         case let .classType(classType):
             guard let symbol = symbols?.symbol(classType.classSymbol) else { return false }
             return symbol.kind == .enumClass
-                || symbol.fqName.map(interner.resolve) == ["kotlin", "text", "Charset"]
+                || symbol.fqName == KnownCompilerNames(interner: interner).kotlinTextCharsetFQName
         case .unit, .nullableUnit, .platformUnit:
             // Safe calls returning Unit use the Int64.min sentinel for
             // null, while the valid Unit value is raw zero.

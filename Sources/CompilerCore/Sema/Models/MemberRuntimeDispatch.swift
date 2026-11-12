@@ -117,7 +117,10 @@ enum MemberRuntimeDispatch {
         forClassSymbol symbol: SemanticSymbol,
         interner: StringInterner
     ) -> MemberDispatchReceiverKind? {
-        guard symbol.fqName.map(interner.resolve).dropLast() == ["kotlin", "ranges"] else {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard symbol.fqName.count == knownNames.kotlinRangesPackageFQName.count + 1,
+              symbol.fqName.starts(with: knownNames.kotlinRangesPackageFQName)
+        else {
             return nil
         }
         switch interner.resolve(symbol.name) {

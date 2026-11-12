@@ -9,8 +9,8 @@ extension OverloadResolver {
               parameter.args.count == 2,
               case let .out(value) = parameter.args[1],
               case .primitive(.boolean, .platformType) = ctx.types.kind(of: value),
-              fqName.count == 4, let interner = ctx.interner,
-              fqName.map({ interner.resolve($0) }) == ["java", "util", "Collections", "newSetFromMap"]
+              let interner = ctx.interner,
+              fqName == KnownCompilerNames(interner: interner).javaUtilCollectionsNewSetFromMapFQName
         else { return (true, nil) }
         guard call.args.count == 1 else { return (false, nil) }
         let argumentType = call.args[0].type

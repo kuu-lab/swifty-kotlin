@@ -105,7 +105,7 @@ extension CallLowerer {
         // null receiver on the null branch. See CallLowerer+MemberCalls.swift.
         if let binding = sema.bindings.callBindings[exprID],
            let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
-           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+           calleeSymbol.fqName == KnownCompilerNames(interner: interner).kotlinIsArrayOfFQName
         {
             let resultType = boundType ?? sema.types.makeNullable(sema.types.booleanType)
             let result = arena.appendTemporary(type: resultType)
@@ -1770,7 +1770,7 @@ extension CallLowerer {
               let parentID = sema.symbols.parentSymbol(for: callee),
               let parentSymbol = sema.symbols.symbol(parentID),
               parentSymbol.kind == .interface,
-              parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "Iterator"],
+              parentSymbol.fqName == KnownCompilerNames(interner: interner).kotlinCollectionsIteratorFQName,
               let receiverTypeID,
               case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverTypeID)),
               sema.symbols.symbol(receiverClassType.classSymbol)?.kind == .class

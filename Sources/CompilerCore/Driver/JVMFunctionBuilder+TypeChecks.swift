@@ -119,10 +119,11 @@ extension JVMFunctionBuilder {
         guard !(context.options.stdlibOnly && program.facadeName == "kotlin/jvm/internal/TypeIntrinsics"),
               case let .classType(type) = program.sema.types.kind(of: program.specialized(semantic)),
               let symbol = program.sema.symbols.symbol(type.classSymbol) else { return nil }
-        let path = symbol.fqName.map(context.interner.resolve)
-        guard path.count == 3, Array(path.prefix(2)) == ["kotlin", "collections"],
-              ["MutableIterable", "MutableIterator", "MutableCollection", "MutableList", "MutableSet", "MutableMap"].contains(path[2]) else { return nil }
-        return path[2]
+        let knownNames = KnownCompilerNames(interner: context.interner)
+        guard symbol.fqName.count == 3, symbol.fqName.starts(with: knownNames.kotlinCollectionsPackage),
+              ["MutableIterable", "MutableIterator", "MutableCollection", "MutableList", "MutableSet", "MutableMap"].contains(context.interner.resolve(symbol.fqName[2]))
+        else { return nil }
+        return context.interner.resolve(symbol.fqName[2])
     }
 
     func mutableCollectionCheck(_ object: JVMValue, kind: String) throws -> JVMValue {

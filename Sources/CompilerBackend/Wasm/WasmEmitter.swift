@@ -417,10 +417,10 @@ final class WasmModuleContext {
                   let types, case let .classType(ct) = types.kind(of: t),
                   let recvSym = symbols?.symbol(ct.classSymbol)
             else { return nil }
-            let recvFQ = recvSym.fqName.map({ interner.resolve($0) })
-            guard recvFQ.count == 2, recvFQ[0] == "kotlin",
+            let knownNames = KnownCompilerNames(interner: interner)
+            guard recvSym.fqName.count == 2, recvSym.fqName[0] == knownNames.kotlin,
                   ["Lazy", "LazyImpl", "SynchronizedLazyImpl", "UnsafeLazyImpl"]
-                      .contains(recvFQ[1])
+                      .contains(interner.resolve(recvSym.fqName[1]))
             else { return nil }
             return name == "isInitialized"
                 ? "kk_lazy_is_initialized"
@@ -433,8 +433,7 @@ final class WasmModuleContext {
                   let types, case let .classType(ct) = types.kind(of: t),
                   let recvSym = symbols?.symbol(ct.classSymbol)
             else { return nil }
-            let recvFQ = recvSym.fqName.map({ interner.resolve($0) })
-            guard recvFQ == ["kotlin", "Result"] else { return nil }
+            guard recvSym.fqName == KnownCompilerNames(interner: interner).kotlinResultFQName else { return nil }
             switch name {
             case "isSuccess", "isFailure", "getOrNull", "exceptionOrNull", "getOrThrow":
                 guard argumentTypes.count == 1 else { return nil }
@@ -667,12 +666,12 @@ final class WasmModuleContext {
             // fqName is `kotlin.collections.size.$get` with no receiver
             // component. Every bundled `kotlin.collections.size` getter
             // forwards to an array-meta load.
-            if components == ["kotlin", "collections", "size"], argumentCount == 1 {
+            if sem.fqName == KnownCompilerNames(interner: interner).kotlinCollectionsSizeGetFQName, argumentCount == 1 {
                 return "__kk_array_size"
             }
             // `String.length` is a `kotlin`-package property in the bundled
             // stdlib — its accessor decodes to `kotlin.length.$get`.
-            if components == ["kotlin", "length"], argumentCount == 1 {
+            if sem.fqName == KnownCompilerNames(interner: interner).kotlinLengthGetFQName, argumentCount == 1 {
                 return "kk_string_length"
             }
             if components.count == 2 {

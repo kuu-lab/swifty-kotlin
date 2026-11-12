@@ -90,7 +90,7 @@ extension DataFlowSemaPhase {
         ) else {
             return false
         }
-        if symbols.symbol(symbol)?.fqName.map(interner.resolve) == ["kotlin", "js", "JsFileName"] {
+        if symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: interner).kotlinJsJsFileNameFQName {
             // File annotations are registered before stdlib declaration
             // annotations have been collected, so this SOURCE-retained
             // declaration's metadata is not available at this point.
@@ -326,77 +326,7 @@ extension DataFlowSemaPhase {
         // value-class and enum metadata, and KSP-1083 applies the same staged
         // source-shell treatment to the kotlin.concurrent atomic nominals
         // while their constructors and members remain residual.
-        let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlinx", "coroutines", "CoroutineName"]
-            // KUU-2016: the bundled constructor owns the BufferedReader
-            // nominal; early IO stubs retain only its existing member surface.
-            || resolvedFQName == ["java", "io", "BufferedReader"]
-            || resolvedFQName == ["kotlin", "collections", "Iterator"]
-            || resolvedFQName == ["kotlin", "collections", "Map", "Entry"]
-            || resolvedFQName == ["kotlin", "collections", "MutableMap", "MutableEntry"]
-            || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
-            || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
-            // KSP-1259: reusing the synthetic Debugging object shell must still
-            // leave the bundled Kotlin declaration source-backed.
-            || resolvedFQName == ["kotlin", "native", "runtime", "Debugging"]
-            || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
-            // KSP-1305: mirror the IntProgression staged source-shell treatment
-            // for LongProgression's nominal and Companion.
-            || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
-            // KSP-1313: mirror the staged progression source-shell treatment
-            // for UIntProgression's nominal and Companion.
-            || resolvedFQName == ["kotlin", "ranges", "UIntProgression"]
-            || resolvedFQName == ["kotlin", "ranges", "CharProgression"]
-            || resolvedFQName == ["kotlin", "time", "Duration"]
-            || resolvedFQName == ["kotlin", "time", "DurationUnit"]
-            // KSP-1472/KSP-1477/KSP-1479/KSP-1490: time API nominals are
-            // declared in bundled source while early bootstrap still creates
-            // compatibility shells for their signatures.
-            || resolvedFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
-            || resolvedFQName == ["kotlin", "time", "AbstractLongTimeSource"]
-            || resolvedFQName == ["kotlin", "time", "Clock"]
-            || resolvedFQName == ["kotlin", "time", "ComparableTimeMark"]
-            || resolvedFQName == ["kotlin", "time", "ExperimentalTime"]
-            || resolvedFQName == ["kotlin", "time", "Instant"]
-            || resolvedFQName == ["kotlin", "time", "TestTimeSource"]
-            || resolvedFQName == ["kotlin", "time", "TimeMark"]
-            || resolvedFQName == ["kotlin", "time", "TimeSource"]
-            || resolvedFQName == ["kotlin", "time", "TimedValue"]
-            || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
-            || resolvedFQName == ["kotlin", "text", "CharCategory"]
-            || resolvedFQName == ["kotlin", "text", "CharDirectionality"]
-            // KUU-4375: the bundled `enum class CoroutineStart` reclaims the
-            // synthetic coroutine shell; restoring its declSite makes it
-            // source-backed so the enum lowering helpers
-            // ($enumName$/$enumOrdinal$/values) are exported in metadata.
-            || resolvedFQName == ["kotlinx", "coroutines", "CoroutineStart"]
-            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
-            // KUU-876: the source-backed InvalidMutabilityException must keep
-            // its bundled declSite when the synthetic anchor is reused.
-            || resolvedFQName == ["kotlin", "native", "concurrent", "InvalidMutabilityException"]
-            // KSP-1361: Reusing the synthetic SequenceScope shell must still
-            // leave the bundled Kotlin declaration source-backed.
-            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"]
-            // KUU-936: the atomics-package AtomicNativePtr constructor and field
-            // are bundled source; the synthetic shell keeps only residual members.
-            || resolvedFQName == ["kotlin", "concurrent", "atomics", "AtomicNativePtr"] {
-            return true
-        }
-        guard resolvedFQName.count == 3,
-              resolvedFQName[0] == "kotlin",
-              resolvedFQName[1] == "concurrent"
-        else {
-            return false
-        }
-        return [
-            "AtomicArray",
-            "AtomicInt",
-            "AtomicIntArray",
-            "AtomicLong",
-            "AtomicLongArray",
-            "AtomicNativePtr",
-            "AtomicReference",
-        ].contains(resolvedFQName[2])
+        return KnownCompilerNames(interner: interner).reusableSyntheticSourceBackedFQNames.contains(fqName)
     }
 
     func registerNominalTypeParameters(

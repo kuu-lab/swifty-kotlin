@@ -68,15 +68,14 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let property = sema.symbols.symbol(propertySymbol),
               property.name == interner.intern("key"),
               let owner = sema.symbols.parentSymbol(for: propertySymbol),
-              let ownerName = sema.symbols.symbol(owner)?.fqName.map(interner.resolve),
-              [
-                  ["kotlin", "coroutines", "CoroutineContext", "Element"],
-                  ["kotlinx", "coroutines", "Job"],
-                  ["kotlinx", "coroutines", "CoroutineDispatcher"],
-              ].contains(ownerName),
+              let ownerFQName = sema.symbols.symbol(owner)?.fqName,
+              ownerFQName == knownNames.kotlinCoroutinesCoroutineContextElementFQName
+                  || ownerFQName == knownNames.kotlinxCoroutinesJobFQName
+                  || ownerFQName == knownNames.kotlinxCoroutinesCoroutineDispatcherFQName,
               let helperSymbol = sema.symbols.lookupAll(fqName: [
                   interner.intern("kotlinx"), interner.intern("coroutines"),
                   interner.intern("__kkCoroutineElementKey"),
@@ -369,7 +368,7 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         if let parentInfo = sema.symbols.symbol(parent),
            parentInfo.name == knownNames.charsets,
-           parentInfo.fqName.map(interner.resolve) == ["kotlin", "text", "Charsets"],
+           parentInfo.fqName == knownNames.kotlinTextCharsetsFQName,
            !sema.symbols.isSourceBackedSymbol(valueSym)
         {
             let runtimeCallee = interner.intern("__kk_charset_\(interner.resolve(info.name).lowercased())")
@@ -1420,7 +1419,7 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> Bool {
-        guard ownerInfo.fqName == ["kotlin", "reflect", "KClass"].map(interner.intern),
+        guard ownerInfo.fqName == KnownCompilerNames(interner: interner).kotlinReflectKClassFQName,
               interner.resolve(propertyInfo.name) == "constructors"
         else {
             return false
@@ -1449,9 +1448,9 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> Bool {
-        let owner = ownerInfo.fqName.map(interner.resolve)
-        guard owner == ["kotlin", "reflect", "KClass"]
-            || owner == ["kotlin", "reflect", "KDeclarationContainer"]
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard ownerInfo.fqName == knownNames.kotlinReflectKClassFQName
+            || ownerInfo.fqName == knownNames.kotlinReflectKDeclarationContainerFQName
         else {
             return false
         }
@@ -1496,10 +1495,10 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> Int32? {
-        let owner = ownerInfo.fqName.map(interner.resolve)
+        let knownNames = KnownCompilerNames(interner: interner)
         let member = interner.resolve(propertyInfo.name)
-        guard owner == ["kotlin", "ranges", "ClosedFloatingPointRange"]
-            || owner == ["kotlin", "ranges", "ClosedRange"],
+        guard ownerInfo.fqName == knownNames.kotlinRangesClosedFloatingPointRangeFQName
+            || ownerInfo.fqName == knownNames.kotlinRangesClosedRangeFQName,
             member == "start" || member == "endInclusive"
         else { return nil }
 
@@ -1553,12 +1552,13 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> Int32? {
         let member = interner.resolve(propertyInfo.name)
-        let owner = ownerInfo.fqName.map(interner.resolve)
+        let knownNames = KnownCompilerNames(interner: interner)
+        let ownerFQName = ownerInfo.fqName
         let metadataMembers = ["parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend",
                                "isConst", "isLateinit", "getter", "setter", "property", "annotations"]
-        guard owner.starts(with: ["kotlin", "reflect"]),
-              owner.count >= 3,
-              ["KCallable", "KProperty", "KMutableProperty", "KProperty0", "KProperty1", "KProperty2", "KMutableProperty0", "KMutableProperty1", "KMutableProperty2"].contains(owner[2]),
+        guard ownerFQName.starts(with: knownNames.kotlinReflectPackageFQName),
+              ownerFQName.count >= 3,
+              ["KCallable", "KProperty", "KMutableProperty", "KProperty0", "KProperty1", "KProperty2", "KMutableProperty0", "KMutableProperty1", "KMutableProperty2"].contains(interner.resolve(ownerFQName[2])),
               member == "name" || member == "returnType" || metadataMembers.contains(member)
         else {
             return nil

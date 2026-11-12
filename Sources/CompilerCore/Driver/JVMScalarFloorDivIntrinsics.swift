@@ -21,9 +21,13 @@ extension JVMFunctionBuilder {
             case .long: "Long"
             default: nil
             }
-            let path = symbol.fqName.map(context.interner.resolve)
-            let isBuiltin = path == ["kotlin", "floorDiv"]
-                || primitiveName.map { path == ["kotlin", $0, "floorDiv"] } == true
+            let knownNames = KnownCompilerNames(interner: context.interner)
+            let fqName = symbol.fqName
+            let isBuiltin = (fqName.count == 2 && fqName[0] == knownNames.kotlin
+                && context.interner.resolve(fqName[1]) == "floorDiv")
+                || (fqName.count == 3 && fqName[0] == knownNames.kotlin
+                    && context.interner.resolve(fqName[2]) == "floorDiv"
+                    && primitiveName.map { context.interner.resolve(fqName[1]) == $0 } == true)
             guard isBuiltin,
                   symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
             else { return nil }

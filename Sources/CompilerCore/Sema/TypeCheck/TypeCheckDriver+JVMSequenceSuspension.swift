@@ -4,6 +4,7 @@ extension TypeCheckDriver {
     func validateJVMSequenceSuspensionContexts(inlineLambdaArguments: Set<ExprID>, suspendLambdaArguments: Set<ExprID>) {
         guard sema.requiresResolvedLibraryCalls else { return }
         let scope = sema.symbols.lookup(fqName: ["kotlin", "sequences", "SequenceScope"].map(interner.intern))
+        let knownNames = KnownCompilerNames(interner: interner)
         func isScope(_ type: TypeID?, visiting: Set<SymbolID> = []) -> Bool {
             guard let type, let scope else { return false }
             switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
@@ -23,7 +24,7 @@ extension TypeCheckDriver {
             guard let context = callSuspensionContexts[id], !suspendingCallNames(for: id).isEmpty else { continue }
             // The trusted builder implements yield using the lower-level suspension primitive.
             if sema.isJVMStdlibBuild, let owner = context.function,
-               sema.symbols.symbol(owner).map({ let name = $0.fqName.map(interner.resolve); return name.dropLast() == ["kotlin", "sequences", "BuilderIterator"] && ["yield", "yieldAll"].contains(name.last ?? "") }) == true { continue }
+               sema.symbols.symbol(owner).map({ let fqName = $0.fqName; return fqName.count == knownNames.kotlinSequencesBuilderIteratorFQName.count + 1 && fqName.starts(with: knownNames.kotlinSequencesBuilderIteratorFQName) && ["yield", "yieldAll"].contains(interner.resolve(fqName[3])) }) == true { continue }
             var restricted: SymbolID?
             var currentThis: SymbolID?
             if let owner = context.function, let signature = sema.symbols.functionSignature(for: owner), signature.receiverType != nil {
@@ -40,7 +41,7 @@ extension TypeCheckDriver {
             let callee = sema.bindings.callBinding(for: id)?.chosenCallee
             let signature = callee.flatMap { sema.symbols.functionSignature(for: $0) }
             let parent = callee.flatMap { sema.symbols.parentSymbol(for: $0) }.flatMap { sema.symbols.symbol($0) }
-            let scopeMember = parent?.fqName.map(interner.resolve) == ["kotlin", "sequences", "SequenceScope"]
+            let scopeMember = parent?.fqName == knownNames.kotlinSequencesSequenceScopeFQName
             let scopeExtension = isScope(signature?.receiverType)
             let callable = sema.bindings.callableValueCallBinding(for: id).flatMap { binding -> FunctionType? in
                 if case let .functionType(f) = sema.types.kind(of: binding.functionType) { return f }; return nil

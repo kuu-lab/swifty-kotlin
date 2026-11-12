@@ -56,7 +56,7 @@ extension OverloadResolver {
         _ fqName: [InternedString], signature: FunctionSignature, ctx: SemaModule
     ) -> Bool {
         guard fqName.count == 4, let interner = ctx.interner,
-              fqName.prefix(3).map({ interner.resolve($0) }) == ["java", "util", "Collections"],
+              fqName.starts(with: KnownCompilerNames(interner: interner).javaUtilCollectionsPackageFQName),
               ["unmodifiableList", "unmodifiableSet", "unmodifiableMap", "newSetFromMap"].contains(interner.resolve(fqName[3])),
               case let .classType(result) = ctx.types.kind(of: signature.returnType)
         else { return false }

@@ -449,7 +449,8 @@ extension DataFlowSemaPhase {
                 return isDeclaredOnOwner || symbols.memberExtensionOwnerSymbol(for: method.id) != nil
             }
 
-        if nominalSymbol.fqName.map(interner.resolve) == ["kotlin", "coroutines", "CoroutineContext"] {
+        let knownNames = KnownCompilerNames(interner: interner)
+        if nominalSymbol.fqName == knownNames.kotlinCoroutinesCoroutineContextFQName {
             // The runtime bridges use these slots for source-defined contexts.
             let bridgeMethods = ["get", "fold", "plus", "minusKey"]
             return methods.sorted { lhs, rhs in
@@ -459,10 +460,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let isList = nominalSymbol.fqName.count == 3
-            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
-            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
-            && interner.resolve(nominalSymbol.name) == "List"
+        let isList = nominalSymbol.fqName == knownNames.kotlinCollectionsListFQName
         if isList {
             // Runtime List bridges dispatch source implementations through
             // the List itable using fixed slots, so every member's slot is
@@ -492,10 +490,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let isMap = nominalSymbol.fqName.count == 3
-            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
-            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
-            && interner.resolve(nominalSymbol.name) == "Map"
+        let isMap = nominalSymbol.fqName == knownNames.kotlinCollectionsMapFQName
         if isMap {
             // Runtime Map bridges dispatch source implementations through the
             // Map itable: isEmpty/get/containsKey/containsValue occupy method
@@ -510,10 +505,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let isMutableList = nominalSymbol.fqName.count == 3
-            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
-            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
-            && interner.resolve(nominalSymbol.name) == "MutableList"
+        let isMutableList = nominalSymbol.fqName == knownNames.kotlinCollectionsMutableListFQName
         if isMutableList {
             // MutableList runtime bridges share these stable source dispatch slots.
             // Preserve the existing subList/set slots for live mutable views.
@@ -545,10 +537,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let isMutableCollection = nominalSymbol.fqName.count == 3
-            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
-            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
-            && interner.resolve(nominalSymbol.name) == "MutableCollection"
+        let isMutableCollection = nominalSymbol.fqName == knownNames.kotlinCollectionsMutableCollectionFQName
         if isMutableCollection {
             let bridgeMethods = ["add", "addAll", "clear", "remove", "removeAll", "retainAll"]
             return methods.sorted { lhs, rhs in
@@ -559,10 +548,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let isMutableSet = nominalSymbol.fqName.count == 3
-            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
-            && interner.resolve(nominalSymbol.fqName[1]) == "collections"
-            && interner.resolve(nominalSymbol.name) == "MutableSet"
+        let isMutableSet = nominalSymbol.fqName == knownNames.kotlinCollectionsMutableSetFQName
         if isMutableSet {
             // Preserve add/remove/clear slots used by existing source Set bridges.
             let bridgeMethods = ["add", "remove", "clear", "addAll", "removeAll", "retainAll"]
@@ -578,10 +564,7 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let isSequence = nominalSymbol.fqName.count == 3
-            && interner.resolve(nominalSymbol.fqName[0]) == "kotlin"
-            && interner.resolve(nominalSymbol.fqName[1]) == "sequences"
-            && interner.resolve(nominalSymbol.name) == "Sequence"
+        let isSequence = nominalSymbol.fqName == knownNames.kotlinSequenceFQName
         guard isSequence else {
             return methods.sorted(by: { $0.id.rawValue < $1.id.rawValue })
         }

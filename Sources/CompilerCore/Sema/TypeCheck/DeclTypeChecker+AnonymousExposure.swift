@@ -4,6 +4,7 @@ extension DeclTypeChecker {
     /// function results, so their metadata never leaks anonymous member types.
     func exposedAnonymousType(_ type: TypeID, symbol: SymbolID, range: SourceRange, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard sema.symbols.symbol(symbol)?.visibility != .private else { return type }
         func expose(_ id: TypeID) -> TypeID {
             switch sema.types.kind(of: id) {
@@ -20,7 +21,7 @@ extension DeclTypeChecker {
                     return sema.types.make(.classType(ClassType(classSymbol: c.classSymbol, args: arguments, enclosingTypeArgs: enclosingArguments, nullability: c.nullability)))
                 }
                 let parents = sema.symbols.directSupertypes(for: c.classSymbol).filter {
-                    sema.symbols.symbol($0)?.fqName.map(ctx.interner.resolve) != ["kotlin", "Any"]
+                    sema.symbols.symbol($0)?.fqName != knownNames.kotlinAnyFQName
                 }
                 guard parents.count <= 1 else {
                     sema.diagnostics.error("KSWIFTK-SEMA-0001", "An exposed anonymous object with multiple supertypes requires an explicit type.", range: range)

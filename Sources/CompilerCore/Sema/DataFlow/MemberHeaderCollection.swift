@@ -229,7 +229,7 @@ extension DataFlowSemaPhase {
                 // the synthetic runtime bridge. Other bundled members may be
                 // intentionally retained runtime bridges (for example the
                 // Collection interface methods), so do not clear them globally.
-                if ownerFQName.map(interner.resolve) == ["kotlin", "sequences", "SequenceScope"] {
+                if ownerFQName == KnownCompilerNames(interner: interner).kotlinSequencesSequenceScopeFQName {
                     symbols.clearExternalLinkName(for: memberSymbol)
                 }
                 symbols.setDeclSite(funDecl.range, for: memberSymbol)

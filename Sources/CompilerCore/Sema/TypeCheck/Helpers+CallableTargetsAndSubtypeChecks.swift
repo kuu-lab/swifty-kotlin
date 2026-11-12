@@ -900,7 +900,7 @@ extension TypeCheckHelpers {
                                                     )),
                                                     let arraySymbol = sema.symbols.symbol(arrayType.classSymbol)
             {
-                arraySymbol.fqName.map(interner.resolve) == ["kotlin", "Array"]
+                arraySymbol.fqName == KnownCompilerNames(interner: interner).kotlinArrayFQName
             } else {
                 false
             }

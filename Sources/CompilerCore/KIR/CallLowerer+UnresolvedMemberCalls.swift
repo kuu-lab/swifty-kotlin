@@ -15,9 +15,9 @@ extension CallLowerer {
         ) else {
             return nil
         }
-        let className = symbol.fqName.map(interner.resolve)
-        guard className == ["kotlin", "ranges", "ULongRange"]
-                || className == ["kotlin", "ranges", "ULongProgression"]
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard symbol.fqName == knownNames.kotlinRangesULongRangeFQName
+                || symbol.fqName == knownNames.kotlinRangesULongProgressionFQName
         else {
             return nil
         }

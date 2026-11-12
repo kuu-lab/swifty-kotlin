@@ -313,7 +313,7 @@ final class LinkPhase: CompilerPhase {
                   signature.typeParameterSymbols.isEmpty, !signature.isSuspend,
                   case let .classType(arrayType) = types.kind(of: function.params[0].type),
                   arrayType.nullability == .nonNull,
-                  symbols.symbol(arrayType.classSymbol)?.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.Array",
+                  symbols.symbol(arrayType.classSymbol)?.fqName == KnownCompilerNames(interner: interner).kotlinArrayFQName,
                   arrayType.args.count == 1
             else { return nil }
             let elementType: TypeID
