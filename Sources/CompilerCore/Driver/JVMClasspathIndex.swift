@@ -1460,6 +1460,7 @@ final class JVMClasspathIndex {
             default: return type
             }
         }
+        var methodsByOwnerAndName: [String: [String: [JVMForeignMethod]]] = [:]
         for symbol in sema.symbols.allSymbols() {
             guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
                   let signature = sema.symbols.functionSignature(for: symbol.id) else { continue }
@@ -1500,7 +1501,17 @@ final class JVMClasspathIndex {
             let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
             let descriptor = "(" + parameters + continuation + ")"
             let staticMember = isTopLevel || isExtension || (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false)
-            guard let method = info.methods.first(where: {
+            let candidates: [JVMForeignMethod]
+            if let indexed = methodsByOwnerAndName[info.name] {
+                candidates = indexed[name] ?? []
+            } else if info.methods.count >= 24 {
+                let indexed = Dictionary(grouping: info.methods, by: \.sourceName)
+                methodsByOwnerAndName[info.name] = indexed
+                candidates = indexed[name] ?? []
+            } else {
+                candidates = info.methods
+            }
+            guard let method = candidates.first(where: {
                 $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                     && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
             }) else { continue }
@@ -1548,7 +1559,7 @@ final class JVMClasspathIndex {
     }
     private func topLevelFunction(at site: SourceRange, in ctx: CompilationContext) -> FunDecl? {
         guard let ast = ctx.ast,
-              let file = ast.files.first(where: { $0.fileID == site.start.file }) else { return nil }
+              let file = ast.file(for: site.start.file) else { return nil }
         for declaration in file.topLevelDecls {
             guard case let .funDecl(function) = ast.arena.decl(declaration), function.range == site else { continue }
             return function
