@@ -142,6 +142,14 @@ final class JVMProgramBuilder {
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
     }
 
+    /// Kotlin class names may use Unicode identifier scalars in JVM internal names.
+    static func isJvmClassIdentifier(_ value: String) -> Bool {
+        let scalars = value.unicodeScalars
+        guard let first = scalars.first,
+              first.value == 0x5F || first.properties.isIDStart else { return false }
+        return scalars.dropFirst().allSatisfy { $0.value == 0x5F || $0.properties.isIDContinue }
+    }
+
     /// Checks the JVMS unqualified-name restrictions for user-defined methods.
     static func isUnqualifiedJvmMethodName(_ value: String) -> Bool {
         guard !value.isEmpty else { return false }

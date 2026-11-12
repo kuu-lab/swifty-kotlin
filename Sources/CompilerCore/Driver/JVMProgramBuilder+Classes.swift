@@ -149,9 +149,9 @@ extension JVMProgramBuilder {
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             let numberSubclass = isKotlinNumberSubclass(plan.symbol)
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
-                Self.isIdentifier(String(component))
+                Self.isJvmClassIdentifier(String(component))
                     || plan.isAnonymous && !component.isEmpty && component.utf8.allSatisfy { (48...57).contains($0) }
-            }) else { throw JVMFrontendError(message: "JVM classes require ASCII names.") }
+            }) else { throw JVMFrontendError(message: "JVM classes require valid identifier names.") }
             if plan.isJvmRecord { plan.superclass = "java/lang/Record" }
             if let parent = plan.enumParent { plan.superclass = classes[parent]!.name }
             for parent in plan.enumParent == nil ? sema.symbols.directSupertypes(for: plan.symbol) : [] {
