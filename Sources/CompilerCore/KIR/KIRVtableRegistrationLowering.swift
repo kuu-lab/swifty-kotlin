@@ -496,6 +496,9 @@ func anyToStringBridgeSymbolForImplementation(
     let implementationFn = arena.function(for: implementation)
     let implementationReturnType = implementationFn?.returnType ?? implementationSig.returnType
     let receiverType = implementationFn?.params.first?.type ?? signatureReceiverType
+    let isThrowableToString = sema.symbols.symbol(implementation)?.fqName == [
+        interner.intern("kotlin"), interner.intern("Throwable"), interner.intern("toString")
+    ]
 
     if let cached = driver?.ctx.anyToStringBridgeSymbolsByImplementation[implementation] {
         return cached
@@ -613,18 +616,29 @@ func anyToStringBridgeSymbolForImplementation(
             receiverForCall = unboxedReceiver
         }
     }
-    let callResult = arena.appendTemporary(type: implementationReturnType)
-    let thrownResult: KIRExprID? = implementationSig.canThrow
+    let callCanThrow = isThrowableToString || implementationSig.canThrow
+    let callResult = arena.appendTemporary(type: isThrowableToString ? sema.types.intType : implementationReturnType)
+    let thrownResult: KIRExprID? = callCanThrow
         ? arena.appendTemporary(type: sema.types.nullableAnyType)
         : nil
-    body.append(.call(
-        symbol: implementation,
-        callee: interner.intern("__any_to_string_impl_\(implementation.rawValue)"),
-        arguments: [receiverForCall],
-        result: callResult,
-        canThrow: implementationSig.canThrow,
-        thrownResult: thrownResult
-    ))
+    if isThrowableToString {
+        body.append(.call(
+            callee: interner.intern("__kk_throwable_toString"),
+            arguments: [receiverForCall],
+            result: callResult,
+            canThrow: callCanThrow,
+            thrownResult: thrownResult
+        ))
+    } else {
+        body.append(.call(
+            symbol: implementation,
+            callee: interner.intern("__any_to_string_impl_\(implementation.rawValue)"),
+            arguments: [receiverForCall],
+            result: callResult,
+            canThrow: callCanThrow,
+            thrownResult: thrownResult
+        ))
+    }
 
     if let thrownResult {
         let continueLabel = driver?.ctx.makeLoopLabel() ?? 0

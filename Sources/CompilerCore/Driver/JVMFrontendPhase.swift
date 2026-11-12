@@ -22,6 +22,21 @@ final class JVMPreparationPhase: CompilerPhase {
         }
         do {
             var classpath = o.jvmClasspath
+            var lazyPaths: Set<String> = []
+            var requiredLazyClassNames: Set<String> = []
+            var jdkClasspath: JVMJDKClasspath?
+            if !o.stdlibOnly && (o.emit == .jvmClass || o.emit == .jvmJar) {
+                lazyPaths.formUnion(o.jvmClasspath.map {
+                    URL(fileURLWithPath: $0).standardizedFileURL.path
+                })
+                jdkClasspath = try JVMJDKClasspath.prepare(for: ctx)
+                if let jdkClasspath {
+                    classpath.insert(contentsOf: jdkClasspath.classpath, at: 0)
+                    lazyPaths.formUnion(jdkClasspath.lazyPaths)
+                    requiredLazyClassNames.formUnion(jdkClasspath.requiredLazyClassNames)
+                }
+            }
+            defer { jdkClasspath?.cleanup() }
             if o.emit == .apk, o.android.resourcePath != nil {
                 let toolchain = try AndroidSDKLocator.locate(
                     sdkPath: o.android.sdkPath, buildToolsVersion: o.android.buildToolsVersion,
@@ -44,18 +59,17 @@ final class JVMPreparationPhase: CompilerPhase {
                     compileSdk: o.android.compileSdk
                 )
                 let standardized = URL(fileURLWithPath: androidJar).standardizedFileURL.path
+                lazyPaths.insert(standardized)
                 if !classpath.contains(where: {
                     URL(fileURLWithPath: $0).standardizedFileURL.path == standardized
                 }) {
                     classpath.append(androidJar)
                 }
             }
-            // Unused classpath declarations do not need Sema symbols. Large
-            // SDKs and compiler JARs can exhaust the synthetic symbol space.
-            let lazyPaths = Set(classpath.map { URL(fileURLWithPath: $0).standardizedFileURL.path })
             let imports = try JVMClasspathIndex.load(
                 classpath, lazilyInjecting: lazyPaths,
-                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? []
+                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? [],
+                requiredLazyClassNames: requiredLazyClassNames
             )
             ctx.jvmImports = imports
         } catch let error as AndroidSDKError {
@@ -74,7 +88,6 @@ final class JVMPreparationPhase: CompilerPhase {
         }
         try JVMStdlibCatalog.injectDeclarations(into: ctx)
         try ctx.jvmImports?.injectJDKPlatformDeclarations(into: ctx)
-        try ctx.jvmImports?.injectJDKPathPlatformDeclarations(into: ctx)
         try ctx.jvmImports?.injectJDKStreamPlatformDeclarations(into: ctx)
         try ctx.jvmImports?.inject(into: ctx)
     }

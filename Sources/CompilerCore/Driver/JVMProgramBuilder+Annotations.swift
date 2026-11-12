@@ -4,12 +4,12 @@ extension JVMProgramBuilder {
     func aliases(_ declarations: [TypeAliasDecl], owner: SymbolID? = nil, package: [InternedString]? = nil) throws -> [JVMTypeAlias] {
         let prefix = owner.flatMap { sema.symbols.symbol($0)?.fqName } ?? package ?? ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user })!.packageFQName
         return try declarations.map { alias in
-            guard alias.annotations.isEmpty, let symbol = sema.symbols.lookup(fqName: prefix + [alias.name]), let underlying = sema.symbols.typeAliasUnderlyingType(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM typealias declaration.", range: alias.range) }
-            return JVMTypeAlias(name: context.interner.resolve(alias.name), modifiers: alias.modifiers, typeParameters: try typeParameters(sema.symbols.typeAliasTypeParameters(for: symbol), declarations: alias.typeParams), underlyingType: try kotlinType(underlying))
+            guard let symbol = sema.symbols.lookup(fqName: prefix + [alias.name]), let underlying = sema.symbols.typeAliasUnderlyingType(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM typealias declaration.", range: alias.range) }
+            return JVMTypeAlias(name: context.interner.resolve(alias.name), modifiers: alias.modifiers, typeParameters: try typeParameters(sema.symbols.typeAliasTypeParameters(for: symbol), declarations: alias.typeParams), underlyingType: try kotlinType(underlying), annotations: try metadataAnnotations(for: symbol, declaration: alias))
         }
     }
 
-    func annotationConstant(_ id: ExprID, depth: Int = 0) throws -> JVMAnnotationValue {
+    func annotationConstant(_ id: ExprID, depth: Int = 0, includeDefaults: Bool = true) throws -> JVMAnnotationValue {
         guard depth < 64 else { throw JVMFrontendError(message: "Recursive JVM annotation constant.") }
         if let constant = ConstPropertyEvaluator(ast: ast, sema: sema, interner: context.interner).constantExpression(id) {
             switch constant {
@@ -36,7 +36,7 @@ extension JVMProgramBuilder {
         case let .boolLiteral(v, _): return .constant(.boolean(v))
         case let .stringLiteral(v, _): return .constant(.string(context.interner.resolve(v)))
         case let .unaryExpr(.unaryMinus, operand, _):
-            switch try annotationConstant(operand, depth: depth + 1) {
+            switch try annotationConstant(operand, depth: depth + 1, includeDefaults: includeDefaults) {
             case let .constant(.int(v)): return .constant(.int(0 &- v))
             case let .constant(.long(v)): return .constant(.long(0 &- v))
             case let .constant(.float(v)): return .constant(.float(-v))
@@ -50,19 +50,19 @@ extension JVMProgramBuilder {
             }
         case let .call(_, _, args, _), let .memberCall(_, _, _, args, _):
             if let binding = sema.bindings.callBinding(for: id), let parent = sema.symbols.parentSymbol(for: binding.chosenCallee), annotationPlan(parent) != nil {
-                return .annotation(try annotationValue(parent, construction: id))
+                return .annotation(try annotationValue(parent, construction: id, includeDefaults: includeDefaults))
             }
             if case let .call(callee, _, _, _) = ast.arena.expr(id) {
-                if let symbol = rawAnnotationSymbol(callee), annotationPlan(symbol) != nil { return .annotation(try annotationValue(symbol, construction: id)) }
-                if case let .nameRef(name, _) = ast.arena.expr(callee), ["$annotationArrayLiteral", "arrayOf", "intArrayOf", "longArrayOf", "floatArrayOf", "doubleArrayOf", "booleanArrayOf", "charArrayOf", "byteArrayOf", "shortArrayOf"].contains(context.interner.resolve(name)) { return .array(try args.map { try annotationConstant($0.expr, depth: depth + 1) }) }
+                if let symbol = rawAnnotationSymbol(callee), annotationPlan(symbol) != nil { return .annotation(try annotationValue(symbol, construction: id, includeDefaults: includeDefaults)) }
+                if case let .nameRef(name, _) = ast.arena.expr(callee), ["$annotationArrayLiteral", "arrayOf", "intArrayOf", "longArrayOf", "floatArrayOf", "doubleArrayOf", "booleanArrayOf", "charArrayOf", "byteArrayOf", "shortArrayOf"].contains(context.interner.resolve(name)) { return .array(try args.map { try annotationConstant($0.expr, depth: depth + 1, includeDefaults: includeDefaults) }) }
             }
-            if let type = try? expressionType(id), type.referenceName?.hasPrefix("[") == true { return .array(try args.map { try annotationConstant($0.expr, depth: depth + 1) }) }
+            if let type = try? expressionType(id), type.referenceName?.hasPrefix("[") == true { return .array(try args.map { try annotationConstant($0.expr, depth: depth + 1, includeDefaults: includeDefaults) }) }
         default: break
         }
         if let symbol = sema.bindings.identifierSymbol(for: id) ?? rawAnnotationSymbol(id) {
             if let parent = sema.symbols.parentSymbol(for: symbol), sema.symbols.symbol(parent)?.kind == .enumClass { return .enumEntry("L" + (try className(parent)) + ";", context.interner.resolve(sema.symbols.symbol(symbol)!.name)) }
             if let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
-               case let .propertyDecl(property) = ast.arena.decl(declaration), property.modifiers.contains(.const), let initial = property.initializer { return try annotationConstant(initial, depth: depth + 1) }
+               case let .propertyDecl(property) = ast.arena.decl(declaration), property.modifiers.contains(.const), let initial = property.initializer { return try annotationConstant(initial, depth: depth + 1, includeDefaults: includeDefaults) }
         }
         throw JVMFrontendError(message: "Unsupported JVM annotation constant.", range: ast.arena.exprRange(id))
     }
@@ -72,20 +72,33 @@ extension JVMProgramBuilder {
     }
     func annotationPlan(_ symbol: SymbolID) -> JVMClassPlan? {
         if let plan = classes[symbol] { return plan.isAnnotation ? plan : nil }
+        if let info = foreignAnnotationInfo(for: symbol) {
+            let plan = JVMClassPlan(symbol: symbol, name: info.name)
+            plan.foreignAnnotation = info
+            return plan
+        }
         guard let name = sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve).joined(separator: "."),
-              let binary = try? className(symbol),
-              context.jvmImports?.classes[binary]?.isAnnotation == true
-                || [
-                    "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
-                    "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
-                ].contains(name),
+              [
+                  "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
+                  "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
+              ].contains(name),
               let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
-        return JVMClassPlan(symbol: symbol, name: binary, declaration: c)
+        return JVMClassPlan(symbol: symbol, name: name.replacingOccurrences(of: ".", with: "/"), declaration: c)
     }
 
-    func annotationValue(_ symbol: SymbolID, construction: ExprID?) throws -> JVMAnnotation {
+    func foreignAnnotationInfo(for symbol: SymbolID) -> JVMClassInfo? {
+        guard let name = try? className(symbol),
+              let imports = context.jvmImports,
+              let info = imports.classes[name],
+              info.flags & 0x2000 != 0
+        else { return nil }
+        return info
+    }
+
+    func annotationValue(_ symbol: SymbolID, construction: ExprID?, includeDefaults: Bool = true) throws -> JVMAnnotation {
         guard let plan = annotationPlan(symbol) else { throw JVMFrontendError(message: "JVM annotation class is not available.") }
+        if let foreign = plan.foreignAnnotation { return try foreignAnnotationValue(foreign, construction: construction, includeDefaults: includeDefaults) }
         let params = plan.declaration!.primaryConstructorParams
         var provided: [Int: [CallArgument]] = [:]
         if let construction {
@@ -101,23 +114,29 @@ extension JVMProgramBuilder {
         }
         var values: [(String, JVMAnnotationValue)] = []
         for (i, parameter) in params.enumerated() {
-            // The classfile owns dependency annotation defaults. An omitted
-            // element must stay omitted from the consumer's annotation.
-            if provided[i] == nil, parameter.defaultValue != nil,
-               context.jvmImports?.classes[plan.name]?.isAnnotation == true { continue }
             if parameter.isVararg {
-                if provided[i] == nil, let initial = parameter.defaultValue {
-                    values.append((context.interner.resolve(parameter.name), try annotationConstant(initial))); continue
+                guard let arguments = provided[i] else {
+                    if includeDefaults, let initial = parameter.defaultValue {
+                        values.append((context.interner.resolve(parameter.name), try annotationConstant(initial, includeDefaults: includeDefaults)))
+                    } else if includeDefaults {
+                        values.append((context.interner.resolve(parameter.name), .array([])))
+                    }
+                    continue
                 }
                 var items: [JVMAnnotationValue] = []
-                for argument in provided[i] ?? [] {
-                    let constant = try annotationConstant(argument.expr)
+                for argument in arguments {
+                    let constant = try annotationConstant(argument.expr, includeDefaults: includeDefaults)
                     if (argument.isSpread || argument.label != nil), case let .array(elements) = constant { items += elements }
                     else { items.append(constant) }
                 }
                 values.append((context.interner.resolve(parameter.name), .array(items)))
-            } else if let expression = provided[i]?.first?.expr ?? parameter.defaultValue { values.append((context.interner.resolve(parameter.name), try annotationConstant(expression))) }
-            else { throw JVMFrontendError(message: "Missing JVM annotation argument.", range: plan.declaration?.range) }
+            } else if let expression = provided[i]?.first?.expr {
+                values.append((context.interner.resolve(parameter.name), try annotationConstant(expression, includeDefaults: includeDefaults)))
+            } else if let defaultValue = parameter.defaultValue {
+                if includeDefaults { values.append((context.interner.resolve(parameter.name), try annotationConstant(defaultValue, includeDefaults: includeDefaults))) }
+            } else {
+                throw JVMFrontendError(message: "Missing JVM annotation argument.", range: plan.declaration?.range)
+            }
         }
         let checked = try values.map { name, value -> (String, JVMAnnotationValue) in
             guard let declaration = plan.declaration!.memberProperties.first(where: { id in
@@ -127,12 +146,64 @@ extension JVMProgramBuilder {
         }
         return JVMAnnotation(descriptor: "L" + plan.name + ";", values: checked)
     }
+
+    private func foreignAnnotationValue(_ info: JVMClassInfo, construction: ExprID?, includeDefaults: Bool) throws -> JVMAnnotation {
+        let elements = context.jvmImports?.annotationElements(of: info) ?? []
+        var provided: [Int: [JVMAnnotationValue]] = [:]
+        if let construction {
+            let args: [CallArgument]
+            switch ast.arena.expr(construction) { case let .call(_, _, a, _), let .memberCall(_, _, _, a, _): args = a; default: args = [] }
+            let binding = sema.bindings.callBinding(for: construction)
+            for (i, arg) in args.enumerated() {
+                let label = arg.label.map { context.interner.resolve($0) }
+                let index = binding?.parameterMapping[i]
+                    ?? arg.label.flatMap { label in elements.firstIndex { $0.name == context.interner.resolve(label) } }
+                    ?? i
+                guard elements.indices.contains(index), label == nil || label == elements[index].name,
+                      elements[index].isVararg || provided[index] == nil
+                else {
+                    throw JVMFrontendError(message: "Invalid JVM annotation argument mapping.", range: ast.arena.exprRange(arg.expr))
+                }
+                let constant = try annotationConstant(arg.expr, includeDefaults: includeDefaults)
+                if elements[index].isVararg, (arg.isSpread || arg.label != nil), case let .array(items) = constant {
+                    provided[index, default: []] += items
+                } else {
+                    provided[index, default: []].append(constant)
+                }
+            }
+        }
+        var values: [(String, JVMAnnotationValue)] = []
+        for (index, element) in elements.enumerated() {
+            let arguments = provided[index] ?? []
+            if element.isVararg {
+                if arguments.isEmpty {
+                    if includeDefaults {
+                        if let defaultValue = element.defaultValue {
+                            values.append((element.name, try checkedAnnotationValue(defaultValue, type: element.type)))
+                        } else {
+                            values.append((element.name, .array([])))
+                        }
+                    }
+                } else {
+                    values.append((element.name, try checkedAnnotationValue(.array(arguments), type: element.type)))
+                }
+                continue
+            }
+            guard let explicit = arguments.first else {
+                if element.defaultValue == nil {
+                    throw JVMFrontendError(message: "Missing JVM annotation argument.", range: construction.flatMap { ast.arena.exprRange($0) })
+                }
+                continue
+            }
+            values.append((element.name, try checkedAnnotationValue(explicit, type: element.type)))
+        }
+        return JVMAnnotation(descriptor: "L" + info.name + ";", values: values)
+    }
+
     func annotationConstruction(_ record: MetadataAnnotationRecord) -> ExprID? {
         if let usage = record.usageID, let parsed = rawAnnotationConstructions[usage] { return parsed }
         if let factory = record.factorySymbol { return sema.bindings.annotationFactoryExpressions[factory] }
-        guard let usage = record.usageID else { return nil }
-        let parts = usage.split(separator: ":")
-        guard parts.count == 2,
+        guard let parts = record.usageID?.split(separator: ":"), parts.count == 2,
               let file = Int32(parts[0]), let offset = Int(parts[1]) else { return nil }
         return ast.arena.snapshot().expressions.indices.compactMap { index -> ExprID? in
             let id = ExprID(rawValue: Int32(index))
@@ -144,6 +215,29 @@ extension JVMProgramBuilder {
         }.first
     }
     func annotations(for symbol: SymbolID, target: String?) throws -> [JVMAnnotation] {
+        try groupedRepeatableAnnotations(annotationInstances(for: symbol, target: target, includeDefaults: true))
+    }
+    func metadataAnnotations(for symbol: SymbolID) throws -> [JVMAnnotation] {
+        try annotationInstances(for: symbol, target: nil, includeDefaults: false)
+    }
+    func metadataAnnotations(for symbol: SymbolID, declaration: TypeAliasDecl) throws -> [JVMAnnotation] {
+        for annotation in declaration.annotations {
+            guard let usage = annotation.usageID,
+                  rawAnnotationConstructions[usage] == nil,
+                  var tokens = annotation.constructionTokens,
+                  let last = tokens.last
+            else { continue }
+            if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+                tokens += [Token(kind: .symbol(.lParen), range: last.range), Token(kind: .symbol(.rParen), range: last.range)]
+            }
+            let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)
+            parser.allowAnnotationArrayLiterals = true
+            guard let expression = parser.parse() else { throw JVMFrontendError(message: "Unsupported JVM typealias annotation arguments.", range: declaration.range) }
+            rawAnnotationConstructions[usage] = expression
+        }
+        return try metadataAnnotations(for: symbol)
+    }
+    private func annotationInstances(for symbol: SymbolID, target: String?, includeDefaults: Bool) throws -> [JVMAnnotation] {
         var result: [JVMAnnotation] = []
         let records = try annotationRecords(for: symbol)
         // File annotations affect the source file/facade and are not emitted on
@@ -152,6 +246,12 @@ extension JVMProgramBuilder {
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
             if ["kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
+            if KnownCompilerAnnotation.jvmOverloads.matches(name) {
+                guard sema.symbols.symbol(symbol)?.kind == .function else {
+                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions only.")
+                }
+                continue
+            }
             // WasExperimental stays dropped: it is internal in kotlin-stdlib, so
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
@@ -161,10 +261,10 @@ extension JVMProgramBuilder {
             guard let owner = annotationOwner, annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
             let retention = annotationRetention(owner)
             if retention == "SOURCE" { continue }
-            var annotation = try annotationValue(owner, construction: annotationConstruction(record))
+            var annotation = try annotationValue(owner, construction: annotationConstruction(record), includeDefaults: includeDefaults)
             annotation.visible = retention != "BINARY"; result.append(annotation)
         }
-        return try groupedRepeatableAnnotations(result)
+        return result
     }
     /// kotlin.internal.* annotations are compile-time-only markers (inlining
     /// policy, overload resolution, inference constraints, parameter-name
@@ -215,7 +315,7 @@ extension JVMProgramBuilder {
         let records = sema.symbols.annotations(for: plan.symbol)
         let targets = records.first { $0.annotationFQName == "kotlin.annotation.Target" }?.arguments ?? []
         if records.contains(where: { $0.annotationFQName == "kotlin.annotation.Target" }) {
-            let mapping = ["CLASS": "TYPE", "ANNOTATION_CLASS": "ANNOTATION_TYPE", "FUNCTION": "METHOD", "PROPERTY_GETTER": "METHOD", "PROPERTY_SETTER": "METHOD", "FIELD": "FIELD", "VALUE_PARAMETER": "PARAMETER", "CONSTRUCTOR": "CONSTRUCTOR", "LOCAL_VARIABLE": "LOCAL_VARIABLE"]
+            let mapping = ["CLASS": "TYPE", "ANNOTATION_CLASS": "ANNOTATION_TYPE", "TYPE_PARAMETER": "TYPE_PARAMETER", "FUNCTION": "METHOD", "PROPERTY_GETTER": "METHOD", "PROPERTY_SETTER": "METHOD", "FIELD": "FIELD", "VALUE_PARAMETER": "PARAMETER", "CONSTRUCTOR": "CONSTRUCTOR", "LOCAL_VARIABLE": "LOCAL_VARIABLE"]
             var names: [String] = [], kotlinNames: [String] = []
             for argument in targets {
                 for word in argument.components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_")).inverted) {
@@ -242,34 +342,26 @@ extension JVMProgramBuilder {
         }
     }
 
-    func jvmMethodNameOverride(for symbol: SymbolID) throws -> String? {
-        guard let raw = sema.symbols.annotations(for: symbol).first(where: {
-            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget == nil
-        })?.arguments.first else { return nil }
-        let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let data = ("[" + literal + "]").data(using: .utf8),
-              let names = try? JSONSerialization.jsonObject(with: data) as? [String],
-              let name = names.first,
-              Self.isIdentifier(name) || context.options.stdlibOnly && Self.isIdentifier(name.replacingOccurrences(of: "-", with: "_"))
-        else { throw JVMFrontendError(message: "JVM @JvmName requires a constant ASCII identifier.") }
-        return name
-    }
-
-    func annotated(_ function: JVMFunction, symbol: SymbolID) throws -> JVMFunction {
+    func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
         applyDeprecation(f.annotations, to: &f)
-        if let name = try jvmMethodNameOverride(for: symbol) {
+        if let raw = sema.symbols.annotations(for: symbol).first(where: {
+            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget != "file"
+        })?.arguments.first {
+            let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first, (Self.isIdentifier(name) || context.options.stdlibOnly && Self.isIdentifier(name.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "JVM @JvmName requires a constant ASCII identifier.") }
             f.jvmName = name
             f.annotations.append(JVMAnnotation(descriptor: "Lkotlin/jvm/JvmName;", values: [("name", .constant(.string(name)))], visible: false))
         }
-        if let signature = sema.symbols.functionSignature(for: symbol) {
+        if let signature = providedSignature ?? sema.symbols.functionSignature(for: symbol) {
             for effect in sema.symbols.contractCallsInPlaceEffects(for: symbol) {
                 if let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol) {
                     f.callsInPlaceEffects[index] = effect.kind
                 }
             }
             let leading = max(0, f.reference.parameters.count - signature.valueParameterSymbols.count)
-            f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
+            let valueParameterCount = min(signature.valueParameterSymbols.count, f.reference.parameters.count - leading)
+            f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.prefix(valueParameterCount).map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
         }
         return f
     }

@@ -105,14 +105,67 @@ extension JVMBackendTests {
         }
     }
 
+    @Test
+    func nullableNothingFunctionReturnsUseVoidDescriptorAndReturnNull() throws {
+        let source = """
+        fun absent(): Nothing? = null
+        fun never(): Nothing = throw IllegalStateException("non-null")
+        fun main() {
+            println(absent())
+            try { never() }
+            catch (failure: IllegalStateException) { println(failure.message) }
+        }
+        """
+        try withWorkspace { root in
+            let input = root.appendingPathComponent("hello.kt")
+            try source.write(to: input, atomically: true, encoding: .utf8)
+            let artifact = root.appendingPathComponent("hello.jar")
+            let options = CompilerOptions(
+                moduleName: "JVMTest",
+                inputs: [input.path],
+                outputPath: artifact.path,
+                emit: .jvmJar,
+                target: .hostDefault(),
+                includeJVMRuntime: true
+            )
+            let result = CompilerDriver(backendPhases: makeBackendPhases).runForTesting(options: options)
+            try #require(result.exitCode == 0, "\(result.diagnostics.map(\.message))")
+
+            let archive = try ZipArchive(data: Data(contentsOf: artifact))
+            let generatedEntry = try #require(archive.entries.first { $0.name == "HelloKt.class" })
+            var generatedReader = JVMClassReader(bytes: Array(try archive.contents(of: generatedEntry)))
+            let generatedClass = try generatedReader.read()
+            #expect(generatedClass.methods.contains { $0.name == "absent" && $0.descriptor == "()Ljava/lang/Void;" })
+            #expect(generatedClass.methods.contains { $0.name == "never" && $0.descriptor == "()Ljava/lang/Void;" })
+
+            let generated = try java(["-jar", artifact.path])
+            #expect(generated.exitCode == 0)
+            #expect(generated.stdout == "null\nnon-null\n")
+            #expect(generated.stderr.isEmpty)
+
+            _ = try jvmTool("kotlinc", ["hello.kt", "-include-runtime", "-d", "reference.jar"], root: root)
+            let referenceArtifact = root.appendingPathComponent("reference.jar")
+            let referenceArchive = try ZipArchive(data: Data(contentsOf: referenceArtifact))
+            let referenceEntry = try #require(referenceArchive.entries.first { $0.name == "HelloKt.class" })
+            var referenceReader = JVMClassReader(bytes: Array(try referenceArchive.contents(of: referenceEntry)))
+            let referenceClass = try referenceReader.read()
+            #expect(referenceClass.methods.contains { $0.name == "absent" && $0.descriptor == "()Ljava/lang/Void;" })
+            #expect(referenceClass.methods.contains { $0.name == "never" && $0.descriptor == "()Ljava/lang/Void;" })
+
+            let reference = try java(["-jar", referenceArtifact.path])
+            #expect(reference.exitCode == 0)
+            #expect(reference.stdout == generated.stdout)
+            #expect(reference.stderr.isEmpty)
+        }
+    }
+
     @Test(arguments: [
-        "fun value(): Nothing? = null; fun main() { println(value()) }",
         "fun value(input: Nothing) {}; fun main() {}",
         "fun value(input: Nothing?) {}; fun main() { value(null) }",
         "val value: Nothing? = null; fun main() { println(value) }",
         "fun Nothing.value(): Int = 1; fun main() {}",
     ])
-    func ownStdlibNothingReturnsPreserveUnsupportedPublicTypeBoundaries(source: String) throws {
+    func ownStdlibNothingReturnsKeepUnsupportedParameterAndPropertyBoundaries(source: String) throws {
         let library = try ownStdlibLibrary()
         try withWorkspace { root in
             let result = try compile(source, root: root, mode: .jvmJar, classpath: [library.path])

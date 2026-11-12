@@ -124,6 +124,39 @@ extension JVMBackendTests {
         }
     }
 
+    @Test
+    func m11CallableReferenceCallArraySpreadPreservesEvaluationOrder() throws {
+        try withWorkspace { root in
+            try runM11("""
+            var evaluationOrder = ""
+            fun zero(): Int = 0
+            fun add(a: Int, b: Int): Int = a + b
+            fun combine(a: Int, b: Int, c: Int, d: Int): Int = a * 1000 + b * 100 + c * 10 + d
+            fun markValue(label: String, value: Any?): Any? {
+                evaluationOrder = evaluationOrder + label
+                return value
+            }
+            fun markArray(label: String, values: Array<Any?>): Array<Any?> {
+                evaluationOrder = evaluationOrder + label
+                return values
+            }
+            fun main() {
+                println(::zero.call(*emptyArray<Any?>()))
+                println(::add.call(4, 5))
+                val parameters: Array<Any?> = arrayOf(2, 3)
+                println(::add.call(*parameters))
+                evaluationOrder = ""
+                println(::combine.call(
+                    markValue("1", 1),
+                    *markArray("2", arrayOf(2)),
+                    *markArray("3", arrayOf(3, 4))
+                ))
+                println(evaluationOrder)
+            }
+            """, expected: "0\n9\n5\n1234\n123\n", mode: .jvmJar, root: root)
+        }
+    }
+
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func m11MapEntryDestructuringIteration(mode: EmitMode) throws {
         try withWorkspace { root in

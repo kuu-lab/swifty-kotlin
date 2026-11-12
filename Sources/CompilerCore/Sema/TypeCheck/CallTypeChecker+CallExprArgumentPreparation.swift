@@ -421,6 +421,15 @@ extension CallTypeChecker {
                     && resolvedExplicitTypeArgument(
                         at: returnParameterIndex - signature.classTypeParameterCount, in: explicitTypeArgs
                     ) != nil
+                let declaredBounds = signature.typeParameterUpperBoundsList.indices.contains(returnParameterIndex)
+                    ? signature.typeParameterUpperBoundsList[returnParameterIndex] : []
+                let symbolBounds = sema.symbols.typeParameterUpperBounds(for: returnTypeParam.symbol)
+                let bounds = declaredBounds + symbolBounds.filter { !declaredBounds.contains($0) }
+                let hasNonNullBound = bounds.contains { bound in
+                    sema.types.isDefinitelyNonNull(bound) && !sema.types.canHoldNull(bound)
+                }
+                // Seed T with a non-null expectation when its upper bound requires it.
+                let seed = hasNonNullBound ? sema.types.makeNonNullable(expectedType) : expectedType
                 for (argumentIndex, parameterIndex) in parameterMapping {
                     guard signature.parameterTypes.indices.contains(parameterIndex),
                           let declaredParameterType = contextualCallArgumentType(
@@ -448,7 +457,7 @@ extension CallTypeChecker {
                     {
                         expectedTypeOverrides[argumentIndex] = sema.types.substituteTypeParameters(
                             in: parameterType,
-                            substitution: [returnTypeVariable: expectedType],
+                            substitution: [returnTypeVariable: seed],
                             typeVarBySymbol: typeVarBySymbol
                         )
                     } else if !hasExplicitReturnTypeArgument,
@@ -473,15 +482,8 @@ extension CallTypeChecker {
                         // before rebuilding the contextual function type. For result-only callbacks,
                         // this lets nested factories such as `ChannelResult.closed(cause)` infer from
                         // the call's expected return type.
-                        let declaredBounds = signature.typeParameterUpperBoundsList.indices.contains(returnParameterIndex)
-                            ? signature.typeParameterUpperBoundsList[returnParameterIndex] : []
-                        let bounds = declaredBounds + sema.symbols.typeParameterUpperBounds(for: returnTypeParam.symbol)
-                        // In a nullable result position, T may still require a non-null value.
-                        // A broader expectation that violates T's bounds leaves the lambda result open.
-                        let hasNonNullBound = bounds.contains { bound in
-                            sema.types.isDefinitelyNonNull(bound) && !sema.types.canHoldNull(bound)
-                        }
-                        let seed = hasNonNullBound ? sema.types.makeNonNullable(expectedType) : expectedType
+                        // A broader expected type can violate T's bounds; leave the callback
+                        // on the ordinary inference path in that case.
                         let substitution = [returnTypeVariable: seed]
                         guard bounds.allSatisfy({ bound in
                             let substitutedBound = sema.types.substituteTypeParameters(

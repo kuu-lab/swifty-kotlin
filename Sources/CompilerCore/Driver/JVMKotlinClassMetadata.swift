@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMKotlinMetadata {
+struct JVMKotlinClassMetadata {
     let kind: Int
     let classFlags: Int
     let companion: String?
@@ -65,7 +65,7 @@ struct JVMKotlinPropertyInfo {
 /// Kotlin's JVM annotation stores a length-prefixed string table followed by
 /// a Class or Package protobuf. Keep the reader independent of the compiler
 /// JAR so reading classpath declarations never runs dependency code.
-extension JVMKotlinMetadata {
+extension JVMKotlinClassMetadata {
     static func read(_ annotation: JVMAnnotation) throws -> Self? {
         func value(_ key: String) -> JVMAnnotationValue? {
             annotation.values.first { $0.0 == key }?.1
@@ -226,7 +226,7 @@ private struct JVMKotlinMetadataTypes {
         let isNullable = nullable || message.integer(3) == 1
         let type: JVMKotlinType
         if let index = message.integer(7) {
-            type = .parameter(index, nullable: isNullable)
+            type = .parameter(index, nullable: isNullable, definitelyNotNull: false)
         } else if let index = message.integer(9) {
             // Some compiler versions encode local parameter references by name.
             type = .named(try name(index), [], nullable: isNullable)

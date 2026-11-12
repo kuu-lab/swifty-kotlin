@@ -84,7 +84,7 @@ class TestingCountsTests(unittest.TestCase):
         log = (
             f"{CLASSIC_ICON}Test run with 0 tests in 1 suite passed after 0.001 seconds.\n"
         )
-        with self.assertRaisesRegex(RuntimeError, "scope"):
+        with self.assertRaisesRegex(RuntimeError, "PASS summary"):
             testing_counts(log, EXPECTED_METHODS)
 
     def test_missing_method_line_is_rejected(self):

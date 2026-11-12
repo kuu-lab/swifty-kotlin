@@ -45,7 +45,7 @@ extension JVMClasspathIndex {
         switch arg {
         case let .invariant(t), let .out(t):
             let value = try type(t, sema: sema, ctx: ctx)
-            guard value != .unit else { throw JVMFrontendError(message: "JVM M5 does not support Unit array elements.") }
+            if value == .unit { return .reference("kotlin/Unit", nullable: false) }
             return boxed(value)
         case .in, .star: return .reference("java/lang/Object", nullable: true)
         }
@@ -54,7 +54,7 @@ extension JVMClasspathIndex {
 
 extension JVMProgramBuilder {
     func varargComponentType(_ id: TypeID) throws -> JVMValueType {
-        let component = try type(id)
+        let component = try parameterType(id)
         // Generic varargs use Array<T>, even when a final primitive bound
         // gives individual T values a primitive descriptor.
         if case .typeParam = sema.types.kind(of: id) { return JVMClasspathIndex.boxed(component) }
@@ -64,6 +64,16 @@ extension JVMProgramBuilder {
     func kotlinType(_ id: TypeID) throws -> JVMKotlinType {
         if sema.types.nullability(of: id) == .platformType {
             return .flexible(try kotlinType(sema.types.withNullability(.nonNull, for: id)), try kotlinType(sema.types.withNullability(.nullable, for: id)))
+        }
+        if case let .intersection(parts) = sema.types.kind(of: id),
+           parts.count == 2,
+           parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+           let typeParameter = parts.first(where: {
+               if case .typeParam = sema.types.kind(of: $0) { return true }
+               return false
+           }),
+           case let .typeParam(parameter) = sema.types.kind(of: typeParameter) {
+            return .parameter(Int(parameter.symbol.rawValue), nullable: false, definitelyNotNull: true)
         }
         func named(_ name: String, _ nullable: Bool = false) -> JVMKotlinType { .named(name, [], nullable: nullable) }
         switch sema.types.kind(of: id) {
@@ -77,7 +87,7 @@ extension JVMProgramBuilder {
         case let .stringStruct(n): return named("kotlin/String", n != .nonNull)
         case let .any(n): return named("kotlin/Any", n != .nonNull)
         case let .kClassType(t): return .named("kotlin/reflect/KClass", [JVMKotlinTypeArgument(type: try kotlinType(t.argument), variance: 2)], nullable: t.nullability != .nonNull)
-        case let .typeParam(t): return .parameter(Int(t.symbol.rawValue), nullable: t.nullability == .nullable)
+        case let .typeParam(t): return .parameter(Int(t.symbol.rawValue), nullable: t.nullability == .nullable, definitelyNotNull: false)
         case let .classType(t):
             let name = try className(t.classSymbol)
             return .named(name, try t.args.map(kotlinArgument), nullable: t.nullability != .nonNull)
@@ -103,6 +113,9 @@ extension JVMProgramBuilder {
         case let .typeParam(t): return "T" + context.interner.resolve(sema.symbols.symbol(t.symbol)!.name) + ";"
         case let .classType(t):
             let source = try className(t.classSymbol)
+            if source == "kotlin/time/Duration", sema.types.nullability(of: id) == .nonNull {
+                return boxed ? "Lkotlin/time/Duration;" : "J"
+            }
             if source == "kotlin/Result" { return "Ljava/lang/Object;" }
             if source == "kotlin/Array" {
                 guard let arg = t.args.first else { throw JVMFrontendError(message: "JVM Array requires its element type.") }
@@ -172,38 +185,55 @@ extension JVMProgramBuilder {
             return "L" + erased.referenceName! + (args.isEmpty ? "" : "<" + args + ">") + ";"
         default:
             let t = try type(id)
-            if boxed && t == .unit { return "Lkotlin/Unit;" }
+            if (boxed || parameterPosition) && t == .unit { return "Lkotlin/Unit;" }
             return (boxed ? JVMClasspathIndex.boxed(t) : t).descriptor
         }
     }
     func typeParameters(_ symbols: [SymbolID], declarations: [TypeParamDecl]) throws -> [JVMTypeParameter] {
-        // JVMTypeParameter carries no annotation surface, so type-parameter
-        // annotations are never emitted. Only compile-time-only
-        // kotlin.internal.* markers (e.g. OnlyInputTypes, which steers type
-        // inference during Sema) are tolerated; anything else is rejected.
-        guard symbols.count == declarations.count,
-              symbols.allSatisfy({ symbol in
-                  sema.symbols.annotations(for: symbol).allSatisfy {
-                      $0.annotationFQName.hasPrefix("kotlin.internal.")
-                  }
-              })
-        else { throw JVMFrontendError(message: "Unsupported JVM type parameter annotations.") }
+        guard symbols.count == declarations.count else {
+            throw JVMFrontendError(message: "Mismatched JVM type parameter declarations.")
+        }
         return try zip(symbols, declarations).map { symbol, decl in
             let name = context.interner.resolve(decl.name)
             guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "JVM type parameter needs an ASCII name.") }
             let bounds = sema.symbols.typeParameterUpperBounds(for: symbol)
-            guard bounds.count <= 1 else { throw JVMFrontendError(message: "JVM M5 supports one upper bound per type parameter.") }
-            let bound = try bounds.first.map { try signatureType($0, boxed: true) } ?? "Ljava/lang/Object;"
-            let isInterface = bounds.first.map { id in if case let .classType(t) = sema.types.kind(of: id) { return sema.symbols.symbol(t.classSymbol)?.kind == .interface }; return false } ?? false
-            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: name + (isInterface ? "::" : ":") + bound, isReified: decl.isReified)
+            let boundSignatures = try bounds.map { try signatureType($0, boxed: true) }
+            let firstBoundIsInterface = bounds.first.map { id in
+                if case let .classType(type) = sema.types.kind(of: id) {
+                    return sema.symbols.symbol(type.classSymbol)?.kind == .interface
+                }
+                return false
+            } ?? false
+            let signature = name
+                + (firstBoundIsInterface ? "::" : ":")
+                + (boundSignatures.first ?? "Ljava/lang/Object;")
+                + boundSignatures.dropFirst().map { ":" + $0 }.joined()
+            // Kotlin compiler markers guide compilation and stay off JVM type parameters.
+            let parameterAnnotations = try annotations(for: symbol, target: nil).filter {
+                !$0.descriptor.hasPrefix("Lkotlin/internal/")
+            }
+            return JVMTypeParameter(
+                id: Int(symbol.rawValue),
+                name: name,
+                variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2),
+                bounds: try bounds.map(kotlinType),
+                signature: signature,
+                annotations: parameterAnnotations,
+                isReified: decl.isReified
+            )
         }
     }
-    func describe(_ function: JVMFunction, signature: FunctionSignature, parameters: [TypeParamDecl]) throws -> JVMFunction {
+    func describe(
+        _ function: JVMFunction,
+        signature: FunctionSignature,
+        parameters: [TypeParamDecl],
+        sourceDeclaration explicitSourceDeclaration: (SymbolID, FunDecl)? = nil
+    ) throws -> JVMFunction {
         var f = function
         if f.reference.name.contains("$unsigned$") { f.sourceName = String(f.reference.name.components(separatedBy: "$unsigned$")[0]) }
         f.typeParameters = try typeParameters(Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)), declarations: parameters)
         f.kotlinParameters = try signature.parameterTypes.map(kotlinType)
-        let sourceDeclaration = sourceDeclarations.first {
+        let sourceDeclaration: (key: SymbolID, value: FunDecl)? = explicitSourceDeclaration.map { (key: $0.0, value: $0.1) } ?? sourceDeclarations.first {
             if let ref = references[$0.key] { return ref.name == function.reference.name && ref.owner == function.owner && ref.descriptor == function.reference.descriptor }
             if let method = methods[$0.key] { return method.name == function.reference.name && method.owner == function.owner && method.descriptor == function.reference.descriptor }
             return false
@@ -243,7 +273,14 @@ extension JVMProgramBuilder {
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
             f.genericSignature = prefix + "(" + (try f.kotlinReceiver == nil ? "" : signatureType(signature.receiverType!, parameterPosition: true)) + (try signature.parameterTypes.enumerated().map { i, parameter in (declaration.valueParams[i].isVararg ? "[" : "") + (try signatureType(parameter, parameterPosition: true)) }).joined() + ")" + (try signatureType(signature.returnType))
-            f.access = (f.access ?? 9) | 0x80
+            // ACC_VARARGS is valid only when the final parameter in the emitted
+            // signature is the vararg array. Emission rechecks this after
+            // lowerings that append physical parameters.
+            let hasTerminalVararg = declaration.valueParams.last?.isVararg == true
+                && f.reference.parameters.last?.descriptor.hasPrefix("[") == true
+            if hasTerminalVararg {
+                f.access = (f.access ?? 9) | 0x80
+            }
         }
         return f
     }

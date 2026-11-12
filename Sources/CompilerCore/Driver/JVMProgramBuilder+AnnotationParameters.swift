@@ -28,6 +28,18 @@ extension JVMProgramBuilder {
             }
         }
         for (node, target) in nodes {
+            if sema.symbols.symbol(symbol)?.kind == .constructor,
+               KnownCompilerAnnotation.jvmOverloads.matches(node.name) {
+                if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
+                    records.append(MetadataAnnotationRecord(
+                        annotationFQName: KnownCompilerAnnotation.jvmOverloads.qualifiedName,
+                        arguments: node.arguments,
+                        useSiteTarget: target,
+                        usageID: node.usageID
+                    ))
+                }
+                continue
+            }
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
             // kotlin.internal.* annotations are compile-time-only markers;
             // consumer compiles inject them as residual-stdlib declarations
@@ -37,17 +49,40 @@ extension JVMProgramBuilder {
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
-                if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
-                    tokens += [Token(kind: .symbol(.lParen), range: last.range), Token(kind: .symbol(.rParen), range: last.range)]
-                }
-                let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)
-                parser.allowAnnotationArrayLiterals = true
-                guard let expression = parser.parse(), let usage = node.usageID else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation arguments.") }
-                rawAnnotationConstructions[usage] = expression
+                try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM parameter annotation arguments.")
             }
             if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
                 records.append(MetadataAnnotationRecord(annotationFQName: info.fqName.map(context.interner.resolve).joined(separator: "."), arguments: node.arguments, useSiteTarget: target, usageID: node.usageID))
             }
+        }
+        var accessorTargets: [String: String] = [:]
+        for (declaration, boundSymbol) in sema.bindings.declSymbols where boundSymbol == symbol {
+            guard case let .propertyDecl(property)? = ast.arena.decl(declaration) else { continue }
+            for annotation in property.annotations + (property.getter?.annotations ?? []) + (property.setter?.annotations ?? []) {
+                if var tokens = annotation.constructionTokens, let last = tokens.last {
+                    try rememberRawAnnotationConstruction(annotation, tokens: &tokens, lastToken: last, message: "Unsupported JVM property annotation arguments.")
+                }
+            }
+            for annotation in property.getter?.annotations ?? [] {
+                if let usageID = annotation.usageID { accessorTargets[usageID] = "get" }
+            }
+            for annotation in property.setter?.annotations ?? [] {
+                if let usageID = annotation.usageID { accessorTargets[usageID] = "set" }
+            }
+        }
+        records = records.map { record in
+            guard record.useSiteTarget == nil,
+                  let usageID = record.usageID,
+                  let target = accessorTargets[usageID] else { return record }
+            return MetadataAnnotationRecord(
+                annotationFQName: record.annotationFQName,
+                arguments: record.arguments,
+                useSiteTarget: target,
+                retention: record.retention,
+                usageID: record.usageID,
+                factorySymbol: record.factorySymbol,
+                factoryLinkName: record.factoryLinkName
+            )
         }
         let isProperty = sema.bindings.declSymbols.contains { id, bound in
             guard bound == symbol, case .propertyDecl = ast.arena.decl(id) else { return false }; return true
@@ -55,16 +90,31 @@ extension JVMProgramBuilder {
         if isProperty {
             records = records.map { record in
                 guard record.useSiteTarget == nil,
-                      let owner = sema.symbols.lookup(fqName: record.annotationFQName.split(separator: ".").map { context.interner.intern(String($0)) }), annotationPlan(owner) != nil,
+                      let owner = sema.symbols.lookup(fqName: record.annotationFQName.split(separator: ".").map { context.interner.intern(String($0)) }), annotationPlan(owner)?.isAnnotation == true,
                       !annotationTargets(owner).contains("PROPERTY"), annotationTargets(owner).contains("FIELD") else { return record }
                 return MetadataAnnotationRecord(annotationFQName: record.annotationFQName, arguments: record.arguments, useSiteTarget: "field", retention: record.retention, usageID: record.usageID, factorySymbol: record.factorySymbol, factoryLinkName: record.factoryLinkName)
             }
         }
         return records
     }
+
+    private func rememberRawAnnotationConstruction(
+        _ node: AnnotationNode,
+        tokens: inout [Token],
+        lastToken: Token,
+        message: String
+    ) throws {
+        if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+            tokens += [Token(kind: .symbol(.lParen), range: lastToken.range), Token(kind: .symbol(.rParen), range: lastToken.range)]
+        }
+        let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)
+        parser.allowAnnotationArrayLiterals = true
+        guard let expression = parser.parse(), let usage = node.usageID else { throw JVMFrontendError(message: message) }
+        rawAnnotationConstructions[usage] = expression
+    }
+
     func annotationOwner(_ node: AnnotationNode, symbol: SymbolID) -> SymbolID? {
-        guard let fileID = node.constructionTokens?.first?.range.start.file ?? sema.symbols.sourceFileID(for: symbol),
-              let file = ast.files.first(where: { $0.fileID == fileID }) else { return nil }
+        guard let file = ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
         return resolveAnnotationSymbol(named: node.name, in: file, symbols: sema.symbols, interner: context.interner, types: sema.types, enclosingFQName: Array((sema.symbols.symbol(symbol)?.fqName ?? []).dropLast()))
     }
     func annotationTargets(_ owner: SymbolID) -> Set<String> {

@@ -23,8 +23,25 @@ struct JVMStdlibCatalogTests {
             #expect(paths.contains("<kswiftk-jvm>/stdlib-bridges.kt") == stdlib)
             #expect(paths.contains("<kswiftk-jvm>/console.kt") == !stdlib)
             #expect(paths.contains("<kswiftk-jvm>/unit.kt") == !stdlib)
+            if !stdlib {
+                #expect(!paths.contains("<kswiftk-jvm>/path-functions.kt"))
+                #expect(!paths.contains("<kswiftk-jvm>/kotlin-io-path.kt"))
+                #expect(!paths.contains("<kswiftk-jvm>/path-predicates.kt"))
+            }
             #expect(paths.contains { $0.hasSuffix("/Stdlib/kotlin/Unit.kt") } == stdlib)
         }
+    }
+
+    @Test
+    func nominalNamesIncludeTypeAliases() throws {
+        let options = CompilerOptions(moduleName: "Catalog", inputs: ["main.kt"], outputPath: "/private/tmp/catalog.jar", emit: .jvmJar, target: .hostDefault(), stdlibOnly: false)
+        let context = CompilationContext(options: options, sourceManager: SourceManager(), diagnostics: DiagnosticEngine(), interner: StringInterner())
+        try JVMPreparationPhase().run(context)
+        #expect(!context.diagnostics.hasError)
+        let names = try JVMStdlibCatalog.nominalNames(in: context)
+        #expect(names.contains("java/lang/IllegalArgumentException"))
+        #expect(names.contains("java/lang/IllegalAccessException"))
+        #expect(names.contains("kotlin/text/Charset"))
     }
 }
 #endif

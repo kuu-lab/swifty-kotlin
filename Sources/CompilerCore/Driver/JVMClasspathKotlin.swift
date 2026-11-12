@@ -1,18 +1,22 @@
 extension JVMClasspathIndex {
-    func kotlinMetadata(_ info: JVMClassInfo) -> JVMKotlinMetadata? {
+    func declaringClass(for method: JVMForeignMethod) -> JVMClassInfo? {
+        classes[method.owner]
+    }
+    func kotlinMetadata(_ info: JVMClassInfo) -> JVMKotlinClassMetadata? {
         if let cached = kotlinMetadataByClass[info.name] { return cached }
         guard metadataChecked.insert(info.name).inserted,
-              let annotation = info.annotations.first(where: { $0.descriptor == "Lkotlin/Metadata;" }),
-              let metadata = try? JVMKotlinMetadata.read(annotation) else { return nil }
+              let annotation = info.annotations.first(where: { $0.descriptor == "Lkotlin/Metadata;" }) else { return nil }
+        guard let metadata = try? JVMKotlinClassMetadata.read(annotation) else { return nil }
         kotlinMetadataByClass[info.name] = metadata
         return metadata
     }
 
     func kotlinFunction(_ method: JVMForeignMethod) -> JVMKotlinFunctionInfo? {
         guard let owner = declaringClass(for: method), let metadata = kotlinMetadata(owner) else { return nil }
-        let candidates = metadata.functions.filter {
-            $0.jvmName == method.name && ($0.isPublic || $0.isProtected)
-                && $0.parameters.count + ($0.receiver == nil ? 0 : 1) + ($0.isSuspend ? 1 : 0) == method.parameters.count
+        let candidates = metadata.functions.filter { function in
+            let parameterCount = function.parameters.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)
+            return function.jvmName == method.name && (function.isPublic || function.isProtected)
+                && parameterCount == method.parameters.count
         }
         if let exact = candidates.first(where: { function in
             if let descriptor = function.descriptor { return descriptor == method.descriptor }
@@ -123,7 +127,7 @@ extension JVMClasspathIndex {
                 return variance + kotlinSourceType(type, parameters: parameters)
             }
             return base + (args.isEmpty ? "" : "<" + args.joined(separator: ", ") + ">") + (nullable ? "?" : "")
-        case .parameter(let id, let nullable):
+        case .parameter(let id, let nullable, let definitelyNotNull):
             guard let parameter = parameters[id] else { return "kotlin.Any?" }
             return "`\(parameter)`" + (nullable ? "?" : "")
         case .flexible(let lower, _):
@@ -155,7 +159,7 @@ extension JVMClasspathIndex {
             if name == "kotlin/Any" { return "Ljava/lang/Object;" }
             if name == "kotlin/String" { return "Ljava/lang/String;" }
             return "L" + (Self.builtinName(name) ?? name) + ";"
-        case .parameter(let id, _):
+        case .parameter(let id, _, _):
             guard let bound = parameters.last(where: { $0.id == id })?.bounds.first,
                   case .named = bound else { return "Ljava/lang/Object;" }
             return kotlinErasure(bound, parameters: parameters, boxed: true)

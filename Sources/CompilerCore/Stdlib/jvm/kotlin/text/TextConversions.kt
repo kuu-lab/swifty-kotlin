@@ -129,6 +129,32 @@ fun String.trimIndent(): String {
     }
     return result.joinToString("\n")
 }
+fun String.replaceIndent(newIndent: String = ""): String {
+    val lines = splitStrings(this, arrayOf("\r\n", "\n", "\r"), false, 0)
+    var minimumIndent = Int.MAX_VALUE
+    for (line in lines) {
+        if (!line.isBlank()) {
+            val width = indentWidth(line)
+            if (width < minimumIndent) minimumIndent = width
+        }
+    }
+    if (minimumIndent == Int.MAX_VALUE) minimumIndent = 0
+
+    val result = StringBuilder()
+    var wroteLine = false
+    var index = 0
+    while (index < lines.size) {
+        val line = lines[index]
+        if (!((index == 0 || index == lines.size - 1) && line.isBlank())) {
+            if (wroteLine) result.append('\n')
+            result.append(newIndent)
+            result.append(line.substring(if (minimumIndent < line.length) minimumIndent else line.length))
+            wroteLine = true
+        }
+        index++
+    }
+    return result.toString()
+}
 fun String.trimMargin(marginPrefix: String = "|"): String {
     if (marginPrefix.isBlank()) throw IllegalArgumentException("marginPrefix must be non-blank string.")
     val lines = splitStrings(this, arrayOf("\r\n", "\n", "\r"), false, 0)

@@ -1,5 +1,7 @@
 package kotlin.collections
 
+public fun <T, R> Iterable<T>.runningFold(initial: R, operation: (R, T) -> R): List<R> = null!!
+
 public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
     var count = 0
     for (element in this) {
