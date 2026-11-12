@@ -27,7 +27,8 @@ final class TypeCheckAttribution {
         /// the fqName index once per visible package source.
         case packageScopeQueries
         /// `ClassMemberScope.deferredCandidates` invocations — each walks the
-        /// owner's supertype chain scanning children by name.
+        /// owner's supertype chain scanning children by name (memoized
+        /// repeats validate versions instead, KUU-4574).
         case memberScopeQueries
         /// Entries probed in the owner or short-name index during a member-scope query.
         case memberScopeCandidatesScanned
