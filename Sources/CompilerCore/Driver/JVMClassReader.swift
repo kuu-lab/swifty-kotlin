@@ -556,7 +556,8 @@ struct JVMClassReader {
                           }
                           return !candidate.isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
-                                  || !method.isStatic && candidate.receiver != nil && candidate.contextParameters.isEmpty)
+                                  || !method.isStatic && candidate.contextParameters.isEmpty
+                                      && (candidate.receiver != nil || candidate.isInfix && candidate.descriptor != nil))
                               && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count
                                   || method.composeABI(for: candidate) != nil)
                       })

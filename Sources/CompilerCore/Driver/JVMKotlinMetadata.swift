@@ -249,9 +249,19 @@ struct JVMKotlinMetadata {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
         let classTypes = try TypeTable(declaration.message(30))
+        var ownerTypeParameters: [Int32: String] = [:]
+        if !isFileFacade {
+            for parameter in try declaration.messages(5) {
+                guard let id = parameter.int32(1), let name = try names.resolve(parameter.int32(2)),
+                      JVMProgramBuilder.isIdentifier(name) else { continue }
+                ownerTypeParameters[id] = name
+            }
+        }
         var result: [JVMKotlinFunction] = []
         for function in try declaration.messages(isFileFacade ? 3 : 9) {
             guard let name = try names.resolve(function.int32(2)) else { continue }
+            let flags = function.int32(9) ?? 0
+            let isInfix = flags & (1 << 9) != 0
             let signature = try function.message(100)
             let jvmName: String?
             var descriptor: String?
@@ -263,6 +273,7 @@ struct JVMKotlinMetadata {
                 descriptor = nil
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
+            if isInfix { types.parameterNames = ownerTypeParameters }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
@@ -323,8 +334,7 @@ struct JVMKotlinMetadata {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
-            guard valid, hasFunctionTypes || isFileFacade || receiver != nil else { continue }
-            let flags = function.int32(9) ?? 0
+            guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix else { continue }
             let isSuspend = flags & (1 << 13) != 0
             if !hasFunctionTypes, descriptor == nil {
                 // The signature extension can omit descriptors that the JVM
@@ -356,7 +366,7 @@ struct JVMKotlinMetadata {
                 isSuspend: isSuspend,
                 isInline: flags & (1 << 10) != 0,
                 isOperator: flags & (1 << 8) != 0,
-                isInfix: flags & (1 << 9) != 0
+                isInfix: isInfix
             ))
         }
         return result
