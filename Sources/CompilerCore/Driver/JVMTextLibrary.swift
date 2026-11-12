@@ -168,6 +168,12 @@ extension JVMProgramBuilder {
                     }
                 }
             }
+            if path == "<kswiftk-jvm>/duration.kt" {
+                try visit(file.topLevelDecls.filter { id in
+                    if case .classDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+            }
             if path == "<kswiftk-jvm>/result.kt" {
                 for id in file.topLevelDecls {
                     guard case let .classDecl(declaration) = ast.arena.decl(id),

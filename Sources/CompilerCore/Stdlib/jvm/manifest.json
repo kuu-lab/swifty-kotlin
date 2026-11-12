@@ -4,9 +4,23 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
-    "kotlin/annotations/ExperimentalUnsignedTypes.kt"
+    "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/time/DurationEncoding.kt",
+    "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
+    {
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
+    },
     {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
