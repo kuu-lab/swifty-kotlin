@@ -33,7 +33,7 @@ final class JVMClasspathIndex {
         let result = JVMClasspathIndex()
         result.requiredLazyClassNames = requiredLazyClassNames
         var seen: Set<String> = []
-        func insert(_ bytes: [UInt8], path: String) throws {
+        func insert(_ bytes: [UInt8], path: String, isLazy: Bool = false) throws {
             var reader = JVMClassReader(bytes: bytes)
             let info: JVMClassInfo
             do {
@@ -44,10 +44,10 @@ final class JVMClasspathIndex {
             guard info.name + ".class" == path else { throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)") }
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
+            if isLazy { result.lazyClassNames.insert(info.name) }
         }
         for path in paths {
             let isLazy = lazyPaths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
-            let priorKeys = isLazy ? Set(result.hierarchyClasses.keys) : []
             var directory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &directory) else {
                 throw JVMFrontendError(message: "JVM classpath entry does not exist: \(path)")
@@ -63,20 +63,15 @@ final class JVMClasspathIndex {
                 for (file, _) in files {
                     let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(baseDepth).joined(separator: "/")
                     guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"), !relative.hasSuffix("package-info.class") else { continue }
-                    try insert(Array(Data(contentsOf: file)), path: relative)
+                    try insert(Array(Data(contentsOf: file)), path: relative, isLazy: isLazy)
                 }
             } else {
                 let archive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: path)))
                 for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
                     guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
                           !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-                    try insert(archive.contents(of: entry), path: entry.name)
+                    try insert(archive.contents(of: entry), path: entry.name, isLazy: isLazy)
                 }
-            }
-            if isLazy {
-                result.lazyClassNames.formUnion(
-                    result.hierarchyClasses.keys.filter { !priorKeys.contains($0) }
-                )
             }
         }
         // Preserve an explicitly supplied resource class, including when its
@@ -1214,21 +1209,14 @@ final class JVMClasspathIndex {
         // normalized dotted name -> binary class names ("a.b.C.D" may come
         // from either a/b/C$D or a/b/C/D, so keep every candidate).
         var normalizedToBinary: [String: [String]] = [:]
-        // "package|ShortName" -> binary names, for identifier-based lookups.
-        var byPackageAndShortName: [String: [String]] = [:]
         var lazyTopLevelByPackage: [String: [(short: String, name: String)]] = [:]
         for name in lazyClassNames {
-            let normalized = name.split(separator: "/")
-                .map(String.init).joined(separator: ".")
-                .replacingOccurrences(of: "$", with: ".")
+            let parts = name.split(separator: "/")
+            let normalized = parts.joined(separator: ".").replacingOccurrences(of: "$", with: ".")
             normalizedToBinary[normalized, default: []].append(name)
-            let parts = name.split(separator: "/").map(String.init)
-            guard parts.count >= 2 else { continue }
-            let package = parts.dropLast().joined(separator: ".")
-            let short = parts.last!.split(separator: "$").last.map(String.init) ?? parts.last!
-            byPackageAndShortName[package + "|" + short, default: []].append(name)
-            if !name.contains("$") {
-                lazyTopLevelByPackage[package, default: []].append((short, name))
+            if parts.count >= 2, !name.contains("$"), let short = parts.last {
+                let package = parts.dropLast().joined(separator: ".")
+                lazyTopLevelByPackage[package, default: []].append((String(short), name))
             }
         }
 
