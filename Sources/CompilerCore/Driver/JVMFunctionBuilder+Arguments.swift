@@ -210,9 +210,9 @@ extension JVMFunctionBuilder {
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         let importedDefault = context.jvmImports?.importedDefaultMethods[symbol]
-        let importedDefaults = importedDefault.flatMap { _ in
-            program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues
-        }
+        let importedConstructor = context.jvmImports?.importedValueParameterConstructors[symbol]
+        let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil
+            ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
         let ordered = try arguments(
             args,
@@ -251,7 +251,13 @@ extension JVMFunctionBuilder {
         let result = constructor || physicalResult == .unit || resultType == .unit
             ? nil : try value(foreignResultType(physicalResult, resolved: resultType))
         if let object { instructions.append(.allocate(method!.owner, object)) }
-        if usesDefaults {
+        if let importedConstructor {
+            let target = usesDefaults ? importedConstructor.defaults : importedConstructor.bridge
+            guard let target else { throw fail("Missing JVM value-parameter constructor bridge.", id) }
+            values += usesDefaults ? try maskArguments(ordered.masks, constructor: true)
+                : [try constant(.null, .reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true))]
+            instructions.append(.foreignCall(target, receiver: object, arguments: values, result: nil))
+        } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
                 instructions.append(.foreignCall(importedDefault, receiver: nil, arguments: values, result: result))
