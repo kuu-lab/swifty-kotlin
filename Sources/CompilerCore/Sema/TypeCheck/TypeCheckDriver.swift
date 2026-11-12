@@ -390,7 +390,7 @@ final class TypeCheckDriver {
               let owner = sema.symbols.symbol(ownerID),
               owner.kind == .class,
               owner.flags.contains(.synthetic),
-              interner.resolve(owner.name).hasPrefix("__ObjectLiteral_"),
+              owner.flags.contains(.objectLiteralSynthetic),
               let callerRange = caller.declSite,
               let ownerRange = owner.declSite,
               callerRange.contains(ownerRange)
