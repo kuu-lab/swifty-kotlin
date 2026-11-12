@@ -421,6 +421,12 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/StackTrace.kt",
+      "virtualPath": "<kswiftk-jvm>/stack-trace.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/ExceptionsKt"
+    },
+    {
       "path": "declarations/Result.kt",
       "virtualPath": "<kswiftk-jvm>/result.kt",
       "excludeFromStdlibBuild": true,
