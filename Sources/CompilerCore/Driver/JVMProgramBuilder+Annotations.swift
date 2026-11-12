@@ -254,7 +254,7 @@ extension JVMProgramBuilder {
         let records = sema.symbols.annotations(for: plan.symbol)
         let targets = records.first { $0.annotationFQName == "kotlin.annotation.Target" }?.arguments ?? []
         if records.contains(where: { $0.annotationFQName == "kotlin.annotation.Target" }) {
-            let mapping = ["CLASS": "TYPE", "ANNOTATION_CLASS": "ANNOTATION_TYPE", "FUNCTION": "METHOD", "PROPERTY_GETTER": "METHOD", "PROPERTY_SETTER": "METHOD", "FIELD": "FIELD", "VALUE_PARAMETER": "PARAMETER", "CONSTRUCTOR": "CONSTRUCTOR", "LOCAL_VARIABLE": "LOCAL_VARIABLE"]
+            let mapping = ["CLASS": "TYPE", "ANNOTATION_CLASS": "ANNOTATION_TYPE", "TYPE_PARAMETER": "TYPE_PARAMETER", "FUNCTION": "METHOD", "PROPERTY_GETTER": "METHOD", "PROPERTY_SETTER": "METHOD", "FIELD": "FIELD", "VALUE_PARAMETER": "PARAMETER", "CONSTRUCTOR": "CONSTRUCTOR", "LOCAL_VARIABLE": "LOCAL_VARIABLE"]
             var names: [String] = [], kotlinNames: [String] = []
             for argument in targets {
                 for word in argument.components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_")).inverted) {

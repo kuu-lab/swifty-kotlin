@@ -176,17 +176,9 @@ extension JVMProgramBuilder {
         }
     }
     func typeParameters(_ symbols: [SymbolID], declarations: [TypeParamDecl]) throws -> [JVMTypeParameter] {
-        // JVMTypeParameter carries no annotation surface, so type-parameter
-        // annotations are never emitted. Only compile-time-only
-        // kotlin.internal.* markers (e.g. OnlyInputTypes, which steers type
-        // inference during Sema) are tolerated; anything else is rejected.
-        guard symbols.count == declarations.count,
-              symbols.allSatisfy({ symbol in
-                  sema.symbols.annotations(for: symbol).allSatisfy {
-                      $0.annotationFQName.hasPrefix("kotlin.internal.")
-                  }
-              })
-        else { throw JVMFrontendError(message: "Unsupported JVM type parameter annotations.") }
+        guard symbols.count == declarations.count else {
+            throw JVMFrontendError(message: "Mismatched JVM type parameter declarations.")
+        }
         return try zip(symbols, declarations).map { symbol, decl in
             let name = context.interner.resolve(decl.name)
             guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "JVM type parameter needs an ASCII name.") }
@@ -202,7 +194,19 @@ extension JVMProgramBuilder {
                 + (firstBoundIsInterface ? "::" : ":")
                 + (boundSignatures.first ?? "Ljava/lang/Object;")
                 + boundSignatures.dropFirst().map { ":" + $0 }.joined()
-            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: signature, isReified: decl.isReified)
+            // Kotlin compiler markers guide compilation and stay off JVM type parameters.
+            let parameterAnnotations = try annotations(for: symbol, target: nil).filter {
+                !$0.descriptor.hasPrefix("Lkotlin/internal/")
+            }
+            return JVMTypeParameter(
+                id: Int(symbol.rawValue),
+                name: name,
+                variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2),
+                bounds: try bounds.map(kotlinType),
+                signature: signature,
+                annotations: parameterAnnotations,
+                isReified: decl.isReified
+            )
         }
     }
     func describe(

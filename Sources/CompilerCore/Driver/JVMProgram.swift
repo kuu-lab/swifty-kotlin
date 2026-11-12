@@ -394,6 +394,7 @@ public struct JVMTypeParameter {
     public let variance: Int
     public let bounds: [JVMKotlinType]
     public let signature: String
+    public var annotations: [JVMAnnotation] = []
     public var isReified = false
 }
 
