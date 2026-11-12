@@ -190,15 +190,17 @@ final class DataFlowSemaPhase: CompilerPhase {
             sema.isJVMStdlibBuild = true
             let coroutinesPackage = ["kotlin", "coroutines"].map(ctx.interner.intern)
             let contextName = ctx.interner.intern("CoroutineContext")
+            let timePackage = ["kotlin", "time"].map(ctx.interner.intern)
+            let timeSourceName = ctx.interner.intern("TimeSource")
             for file in ast.sortedFiles where ctx.sourceManager.origin(of: file.fileID) == .user {
                 guard let scope = fileScopes[file.fileID.rawValue] else { continue }
                 predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
-                // The residual coroutine registry needs the nested context types
-                // when wiring coroutine signatures.
-                guard file.packageFQName == coroutinesPackage else { continue }
+                // The residual registries reuse these source-backed nested types.
+                guard file.packageFQName == coroutinesPackage || file.packageFQName == timePackage else { continue }
+                let name = file.packageFQName == coroutinesPackage ? contextName : timeSourceName
                 for declaration in file.topLevelDecls {
                     guard let owner = predeclaredEarlyHeaders[declaration],
-                          symbols.symbol(owner)?.name == contextName
+                          symbols.symbol(owner)?.name == name
                     else { continue }
                     predeclareNestedNominalTypeHeaders(
                         declID: declaration, ownerSymbol: owner, sourceFileID: file.fileID,
