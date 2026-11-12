@@ -567,7 +567,11 @@ struct JVMClassReader {
 
 enum JVMDescriptor {
     static func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
-        let bytes = Array(descriptor.utf8)
+        var descriptor = descriptor
+        return try descriptor.withUTF8 { try parse($0) }
+    }
+
+    private static func parse(_ bytes: UnsafeBufferPointer<UInt8>) throws -> ([JVMValueType], JVMValueType) {
         var i = 0
         var arrayDepth = 0
         func type() throws -> JVMValueType {
