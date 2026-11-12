@@ -4,6 +4,7 @@ extension JVMClasspathIndex {
     static let composeView = "androidx/compose/ui/platform/ComposeView"
     static let mutableIntState = "androidx/compose/runtime/MutableIntState"
     static let mutableState = "androidx/compose/runtime/MutableState"
+    static let compositionLocal = "androidx/compose/runtime/CompositionLocal"
 
     func composeMethod(owner: String, name: String, descriptor: String, isStatic: Bool) -> JVMForeignMethod? {
         guard hasComposeRuntime, let info = classes[owner] else { return nil }
@@ -23,6 +24,11 @@ extension JVMClasspathIndex {
         guard hasComposableLambdaFactory else { return nil }
         return composeMethod(owner: Self.composeView, name: "setContent",
                              descriptor: "(Lkotlin/jvm/functions/Function2;)V", isStatic: false)
+    }
+
+    var compositionLocalGetter: JVMForeignMethod? {
+        composeMethod(owner: Self.compositionLocal, name: "getCurrent",
+                      descriptor: "(L\(JVMCompose.composer);I)Ljava/lang/Object;", isStatic: false)
     }
 
     var composeIntStateFactory: JVMForeignMethod? {
