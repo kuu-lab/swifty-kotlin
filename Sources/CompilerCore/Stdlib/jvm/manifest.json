@@ -341,6 +341,12 @@
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
+      "path": "declarations/ArraySlicing.kt",
+      "virtualPath": "<kswiftk-jvm>/array-slicing.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "kotlin/collections/ArrayMutations.kt",
       "virtualPath": "<kswiftk-jvm>/array-mutations.kt",
       "excludeFromStdlibBuild": true,
