@@ -11,7 +11,7 @@ extension JVMProgramBuilder {
     func prepareTextLibrary() throws {
         func externalJvmName(for symbol: SymbolID) -> String? {
             guard let raw = sema.symbols.annotations(for: symbol)
-                .first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first,
+                .first(where: { $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName })?.arguments.first,
                 let literal = raw.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                 let data = ("[" + literal + "]").data(using: .utf8),
                 let names = try? JSONSerialization.jsonObject(with: data) as? [String],

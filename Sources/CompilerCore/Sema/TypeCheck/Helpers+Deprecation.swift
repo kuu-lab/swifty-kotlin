@@ -762,7 +762,7 @@ func isHiddenByDeprecationOrVersionAnnotation(_ symbol: SymbolID, symbols: Symbo
 /// pair, so it must not suppress the regular candidate (KUU-3922).
 func isLowPriorityInOverloadResolution(_ symbol: SymbolID, symbols: SymbolTable) -> Bool {
     symbols.annotations(for: symbol).contains {
-        $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+        $0.annotationFQName == KnownCompilerAnnotation.lowPriorityInOverloadResolution.qualifiedName
     }
 }
 
