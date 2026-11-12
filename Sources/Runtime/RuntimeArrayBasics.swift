@@ -141,13 +141,14 @@ public func kk_empty_array() -> Int {
 /// array (KUU-1382).
 @_cdecl("kk_array_of_nulls")
 public func kk_array_of_nulls(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard length >= 0 else {
-        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard length >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        }
+        let box = RuntimeArrayBox(length: length)
+        box.elements = Array(repeating: runtimeNullSentinelInt, count: length)
+        return registerRuntimeObject(box)
     }
-    let box = RuntimeArrayBox(length: length)
-    box.elements = Array(repeating: runtimeNullSentinelInt, count: length)
-    return registerRuntimeObject(box)
 }
 
 @_cdecl("__kk_array_size")
