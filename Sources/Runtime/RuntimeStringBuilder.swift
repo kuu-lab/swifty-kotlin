@@ -122,14 +122,14 @@ public func __kk_string_builder_new_capacity_checked(
     _ capacity: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard capacity >= 0 else {
-        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard capacity >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateNegativeArraySizeException(message: "\(capacity)"))
+        }
+        return runtimeRegisterStringBuilderType(
+            registerRuntimeObject(RuntimeStringBuilderBox(units: [], capacity: capacity))
+        )
     }
-    return runtimeRegisterStringBuilderType(
-        registerRuntimeObject(RuntimeStringBuilderBox(units: [], capacity: capacity))
-    )
 }
 
 private func runtimeStringBuilderNew(initial: String) -> Int {
@@ -152,25 +152,11 @@ private func runtimeStringBuilderObjectStringFromFlat(
     return runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
 }
 
-private func stringBuilderCharArrayUnits(
-    from raw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> [UInt16]? {
+private func stringBuilderCharArrayUnits(from raw: Int) throws -> [UInt16] {
     guard let array = runtimeArrayBox(from: raw) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "expected CharArray handle")
-        )
-        return nil
+        throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected CharArray handle"))
     }
     return array.elements.map { UInt16(truncatingIfNeeded: kk_unbox_char($0)) }
-}
-
-private func stringBuilderIndexError(
-    outThrown: UnsafeMutablePointer<Int>?,
-    message: String
-) {
-    runtimeSetThrown(outThrown, runtimeAllocateIndexOutOfBoundsException(message: message))
 }
 
 private func stringBuilderIndexOf(_ source: [UInt16], _ needle: [UInt16], from startIndex: Int) -> Int {
@@ -230,21 +216,18 @@ public func __kk_string_builder_append_char_array(
     _ endIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    guard let arrayUnits = stringBuilderCharArrayUnits(from: arrayRaw, outThrown: outThrown) else {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: sbRaw) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+        let arrayUnits = try stringBuilderCharArrayUnits(from: arrayRaw)
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= arrayUnits.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(arrayUnits.count)"
+            ))
+        }
+        sb.ensureCapacity(sb.units.count + endIndex - startIndex)
+        sb.units.append(contentsOf: arrayUnits[startIndex ..< endIndex])
         return sbRaw
     }
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= arrayUnits.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(arrayUnits.count)"
-        )
-        return sbRaw
-    }
-    sb.ensureCapacity(sb.units.count + endIndex - startIndex)
-    sb.units.append(contentsOf: arrayUnits[startIndex ..< endIndex])
-    return sbRaw
 }
 
 @_cdecl("__kk_string_builder_insert_obj")
@@ -254,20 +237,19 @@ public func __kk_string_builder_insert_obj(
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    guard index >= 0, index <= sb.units.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "index=\(index), length=\(sb.units.count)"
-        )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: sbRaw) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+        guard index >= 0, index <= sb.units.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "index=\(index), length=\(sb.units.count)"
+            ))
+        }
+        let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+            ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+        sb.ensureCapacity(sb.units.count + inserted.count)
+        sb.units.insert(contentsOf: inserted, at: index)
         return sbRaw
     }
-    let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
-        ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
-    sb.ensureCapacity(sb.units.count + inserted.count)
-    sb.units.insert(contentsOf: inserted, at: index)
-    return sbRaw
 }
 
 @_cdecl("__kk_string_builder_insert_char_sequence")
@@ -277,44 +259,43 @@ public func __kk_string_builder_insert_char_sequence(
     _ valueRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    guard index >= 0, index <= sb.units.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "index=\(index), length=\(sb.units.count)"
-        )
-        return sbRaw
-    }
+    runtimeThrowingBridge(outThrown, defaultOnFailure: sbRaw) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+        guard index >= 0, index <= sb.units.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "index=\(index), length=\(sb.units.count)"
+            ))
+        }
 
-    guard let sourceBuilder = runtimeStringBuilderBox(from: valueRaw) else {
-        let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
-            ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
-        sb.ensureCapacity(sb.units.count + inserted.count)
-        sb.units.insert(contentsOf: inserted, at: index)
-        return sbRaw
-    }
+        guard let sourceBuilder = runtimeStringBuilderBox(from: valueRaw) else {
+            let inserted = runtimeStringOrBuilderUTF16Units(from: valueRaw)
+                ?? runtimeKotlinStringUTF16CodeUnits(runtimeElementToString(valueRaw))
+            sb.ensureCapacity(sb.units.count + inserted.count)
+            sb.units.insert(contentsOf: inserted, at: index)
+            return sbRaw
+        }
 
-    let sourceLength = sourceBuilder.units.count
-    sb.ensureCapacity(sb.units.count + sourceLength)
-    if sourceBuilder === sb {
-        // Java shifts the destination tail before reading a self-referential
-        // CharSequence. Keep that overlap behavior by reading the working buffer
-        // after the shift while filling the inserted window.
-        let originalLength = sb.units.count
-        sb.units.append(contentsOf: repeatElement(0, count: sourceLength))
-        if index < originalLength {
-            for sourceIndex in stride(from: originalLength - 1, through: index, by: -1) {
-                sb.units[sourceIndex + sourceLength] = sb.units[sourceIndex]
+        let sourceLength = sourceBuilder.units.count
+        sb.ensureCapacity(sb.units.count + sourceLength)
+        if sourceBuilder === sb {
+            // Java shifts the destination tail before reading a self-referential
+            // CharSequence. Keep that overlap behavior by reading the working buffer
+            // after the shift while filling the inserted window.
+            let originalLength = sb.units.count
+            sb.units.append(contentsOf: repeatElement(0, count: sourceLength))
+            if index < originalLength {
+                for sourceIndex in stride(from: originalLength - 1, through: index, by: -1) {
+                    sb.units[sourceIndex + sourceLength] = sb.units[sourceIndex]
+                }
             }
+            for offset in 0 ..< sourceLength {
+                sb.units[index + offset] = sb.units[offset]
+            }
+        } else {
+            sb.units.insert(contentsOf: sourceBuilder.units, at: index)
         }
-        for offset in 0 ..< sourceLength {
-            sb.units[index + offset] = sb.units[offset]
-        }
-    } else {
-        sb.units.insert(contentsOf: sourceBuilder.units, at: index)
+        return sbRaw
     }
-    return sbRaw
 }
 
 @_cdecl("__kk_string_builder_insert_char_array")
@@ -326,28 +307,23 @@ public func __kk_string_builder_insert_char_array(
     _ endIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    guard let arrayUnits = stringBuilderCharArrayUnits(from: arrayRaw, outThrown: outThrown) else {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: sbRaw) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+        let arrayUnits = try stringBuilderCharArrayUnits(from: arrayRaw)
+        guard index >= 0, index <= sb.units.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "index=\(index), length=\(sb.units.count)"
+            ))
+        }
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= arrayUnits.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(arrayUnits.count)"
+            ))
+        }
+        sb.ensureCapacity(sb.units.count + endIndex - startIndex)
+        sb.units.insert(contentsOf: arrayUnits[startIndex ..< endIndex], at: index)
         return sbRaw
     }
-    guard index >= 0, index <= sb.units.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "index=\(index), length=\(sb.units.count)"
-        )
-        return sbRaw
-    }
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= arrayUnits.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), size=\(arrayUnits.count)"
-        )
-        return sbRaw
-    }
-    sb.ensureCapacity(sb.units.count + endIndex - startIndex)
-    sb.units.insert(contentsOf: arrayUnits[startIndex ..< endIndex], at: index)
-    return sbRaw
 }
 
 @_cdecl("__kk_string_builder_index_of")
@@ -370,19 +346,19 @@ public func __kk_string_builder_set_length(
     _ newLength: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    guard newLength >= 0 else {
-        stringBuilderIndexError(outThrown: outThrown, message: "newLength=\(newLength)")
+    runtimeThrowingBridge(outThrown, defaultOnFailure: sbRaw) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+        guard newLength >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(message: "newLength=\(newLength)"))
+        }
+        if newLength < sb.units.count {
+            sb.units.removeLast(sb.units.count - newLength)
+        } else if newLength > sb.units.count {
+            sb.ensureCapacity(newLength)
+            sb.units.append(contentsOf: repeatElement(0, count: newLength - sb.units.count))
+        }
         return sbRaw
     }
-    if newLength < sb.units.count {
-        sb.units.removeLast(sb.units.count - newLength)
-    } else if newLength > sb.units.count {
-        sb.ensureCapacity(newLength)
-        sb.units.append(contentsOf: repeatElement(0, count: newLength - sb.units.count))
-    }
-    return sbRaw
 }
 
 @_cdecl("__kk_string_builder_substring")
@@ -392,18 +368,17 @@ public func __kk_string_builder_substring(
     _ endIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return runtimeMakeStringRaw("") }
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= sb.units.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(sb.units.count)"
+    runtimeThrowingBridge(outThrown) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return runtimeMakeStringRaw("") }
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= sb.units.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(sb.units.count)"
+            ))
+        }
+        return runtimeMakeStringRaw(
+            runtimeKotlinStringFromUTF16CodeUnits(Array(sb.units[startIndex ..< endIndex]))
         )
-        return 0
     }
-    return runtimeMakeStringRaw(
-        runtimeKotlinStringFromUTF16CodeUnits(Array(sb.units[startIndex ..< endIndex]))
-    )
 }
 
 @_cdecl("__kk_string_builder_to_char_array")
@@ -415,36 +390,29 @@ public func __kk_string_builder_to_char_array(
     _ endIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    guard let destination = runtimeArrayBox(from: destinationRaw) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "expected CharArray handle")
-        )
+    runtimeThrowingBridge(outThrown) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
+        guard let destination = runtimeArrayBox(from: destinationRaw) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected CharArray handle"))
+        }
+        let source = sb.units
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= source.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(source.count)"
+            ))
+        }
+        let copyCount = endIndex - startIndex
+        let (destinationEnd, overflow) = destinationOffset.addingReportingOverflow(copyCount)
+        guard destinationOffset >= 0, !overflow, destinationEnd <= destination.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "destinationOffset=\(destinationOffset), length=\(copyCount), size=\(destination.count)"
+            ))
+        }
+        for offset in 0 ..< copyCount {
+            destination[destinationOffset + offset] = kk_box_char(Int(source[startIndex + offset]))
+        }
         return 0
     }
-    let source = sb.units
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= source.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(source.count)"
-        )
-        return 0
-    }
-    let copyCount = endIndex - startIndex
-    let (destinationEnd, overflow) = destinationOffset.addingReportingOverflow(copyCount)
-    guard destinationOffset >= 0, !overflow, destinationEnd <= destination.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "destinationOffset=\(destinationOffset), length=\(copyCount), size=\(destination.count)"
-        )
-        return 0
-    }
-    for offset in 0 ..< copyCount {
-        destination[destinationOffset + offset] = kk_box_char(Int(source[startIndex + offset]))
-    }
-    return 0
 }
 
 @_cdecl("__kk_string_builder_length_utf16")
@@ -488,16 +456,15 @@ public func __kk_string_builder_get(
     _ index: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    guard index >= 0, index < sb.units.count else {
-        stringBuilderIndexError(
-            outThrown: outThrown,
-            message: "index=\(index), length=\(sb.units.count)"
-        )
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
+        guard index >= 0, index < sb.units.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "index=\(index), length=\(sb.units.count)"
+            ))
+        }
+        return Int(sb.units[index])
     }
-    return Int(sb.units[index])
 }
 
 @_cdecl("__kk_string_builder_length_prop")
