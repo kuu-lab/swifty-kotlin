@@ -534,26 +534,25 @@ private func isValidBigDecimalFormat(_ s: String) -> Bool {
 
 @_cdecl("__kk_string_toBigDecimal")
 public func __kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
           let str = extractString(from: ptr)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_toBigDecimal received invalid string handle")
     }
-    // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
-    // leading/trailing whitespace, so we validate the raw string as-is.
-    guard isValidBigDecimalFormat(str) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
+        // leading/trailing whitespace, so we validate the raw string as-is.
+        guard isValidBigDecimalFormat(str) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\""))
+        }
+        // The JDK constructor canonicalizes eagerly (`new BigDecimal("123E-2")`
+        // prints "1.23"), so store the canonical form rather than the raw input.
+        guard let canonical = try? runtimeCanonicalDecimalString(str) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "Exponent overflow."))
+        }
+        let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
+        return registerRuntimeObject(box)
     }
-    // The JDK constructor canonicalizes eagerly (`new BigDecimal("123E-2")`
-    // prints "1.23"), so store the canonical form rather than the raw input.
-    guard let canonical = try? runtimeCanonicalDecimalString(str) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Exponent overflow.")
-        return 0
-    }
-    let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
-    return registerRuntimeObject(box)
 }
 
 @_cdecl("__kk_string_toBigDecimal_flat")
@@ -565,17 +564,16 @@ public func __kk_string_toBigDecimal_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let str = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    outThrown?.pointee = 0
-    guard isValidBigDecimalFormat(str) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard isValidBigDecimalFormat(str) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\""))
+        }
+        guard let canonical = try? runtimeCanonicalDecimalString(str) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "Exponent overflow."))
+        }
+        let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
+        return registerRuntimeObject(box)
     }
-    guard let canonical = try? runtimeCanonicalDecimalString(str) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "Exponent overflow.")
-        return 0
-    }
-    let box = RuntimeBigNumberBox(value: canonical, kind: .decimal)
-    return registerRuntimeObject(box)
 }
 
 @_cdecl("__kk_string_toBigDecimalOrNull")
