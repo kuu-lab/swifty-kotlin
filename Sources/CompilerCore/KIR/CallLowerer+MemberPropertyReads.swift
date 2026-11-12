@@ -1995,7 +1995,7 @@ extension CallLowerer {
             return false
         }
         return unresolvedCollectionMemberCallee(
-            memberName: "size",
+            memberName: interner.intern("size"),
             receiverType: receiverType,
             sema: sema,
             interner: interner

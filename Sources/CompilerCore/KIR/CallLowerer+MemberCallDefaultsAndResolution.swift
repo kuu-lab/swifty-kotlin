@@ -101,7 +101,7 @@ extension CallLowerer {
             }
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let sizeCallee = unresolvedCollectionMemberCallee(
-                memberName: "size",
+                memberName: interner.intern("size"),
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
@@ -464,7 +464,7 @@ extension CallLowerer {
                 }
             }
             if let setMember = runtimeBackedSetMemberCallee(
-                memberName: fallbackName,
+                memberName: fallback,
                 receiverType: receiverType,
                 chosenCallee: chosenCallee,
                 sema: sema,
@@ -473,7 +473,7 @@ extension CallLowerer {
                 return setMember
             }
             if let listMember = runtimeBackedListMemberCallee(
-                memberName: fallbackName,
+                memberName: fallback,
                 receiverType: receiverType,
                 chosenCallee: chosenCallee,
                 sema: sema,
@@ -482,7 +482,7 @@ extension CallLowerer {
                 return listMember
             }
             if let progressionMember = runtimeBackedULongProgressionMemberCallee(
-                memberName: fallbackName,
+                memberName: fallback,
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
@@ -507,7 +507,7 @@ extension CallLowerer {
                 }
                 if fallbackName == "iterator",
                    let collectionIterator = unresolvedCollectionMemberCallee(
-                       memberName: fallbackName,
+                       memberName: fallback,
                        receiverType: receiverType,
                        sema: sema,
                        interner: interner
@@ -524,7 +524,7 @@ extension CallLowerer {
                    let owner = sema.symbols.symbol(ownerID),
                    owner.fqName == knownNames.kotlinCollectionsCollectionFQName,
                    let collectionSize = unresolvedCollectionMemberCallee(
-                       memberName: fallbackName,
+                       memberName: fallback,
                        receiverType: receiverType,
                        sema: sema,
                        interner: interner
@@ -533,7 +533,7 @@ extension CallLowerer {
                     return collectionSize
                 }
                 if let collectionProperty = unresolvedCollectionMemberCallee(
-                    memberName: fallbackName,
+                    memberName: fallback,
                     receiverType: receiverType,
                     sema: sema,
                     interner: interner
@@ -550,7 +550,7 @@ extension CallLowerer {
                 return fallback
             }
             if let unresolvedSynthetic = unresolvedSyntheticMemberCallee(
-                memberName: fallbackName,
+                memberName: fallback,
                 receiverExpr: receiverExpr,
                 receiverType: receiverType,
                 argumentCount: callArgumentCount,
@@ -564,7 +564,7 @@ extension CallLowerer {
             // resolved on a concrete receiver (List, Array, Map, Set) must be
             // lowered to the matching runtime function instead of virtual dispatch.
             if let collectionProperty = unresolvedCollectionMemberCallee(
-                memberName: fallbackName,
+                memberName: fallback,
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
@@ -614,7 +614,7 @@ extension CallLowerer {
             }
         }
         if let collectionProperty = unresolvedCollectionMemberCallee(
-            memberName: fallbackName,
+            memberName: fallback,
             receiverType: receiverType,
             sema: sema,
             interner: interner
@@ -622,7 +622,7 @@ extension CallLowerer {
             return collectionProperty
         }
         if let mapMember = unresolvedMapMemberCallee(
-            memberName: fallbackName,
+            memberName: fallback,
             receiverType: receiverType,
             argumentCount: argumentCount,
             sema: sema,
@@ -631,7 +631,7 @@ extension CallLowerer {
             return mapMember
         }
         if let unresolvedSynthetic = unresolvedSyntheticMemberCallee(
-            memberName: fallbackName,
+            memberName: fallback,
             receiverExpr: receiverExpr,
             receiverType: receiverType,
             // Arity decisions inside (e.g. `add` vs `add(index,element)`)

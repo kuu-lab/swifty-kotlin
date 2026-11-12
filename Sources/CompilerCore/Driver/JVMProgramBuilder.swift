@@ -39,10 +39,18 @@ final class JVMProgramBuilder {
         self.platformOperations = context.options.stdlibOnly ? try JVMStdlibCatalog.platformOperations() : [:]
     }
 
+    /// Consumer compiles without an explicit JVM classpath keep the legacy
+    /// long facade ABI used for the official runtime; explicit stdlib jars use
+    /// the real value-class ABI.
+    func usesLegacyDurationLongMapping() -> Bool {
+        !context.options.stdlibOnly && context.options.jvmClasspath.isEmpty
+    }
+
     func type(_ id: TypeID) throws -> JVMValueType {
         let actual = specialized(id)
         noteFunctionTypes(actual)
-        if case let .classType(type) = sema.types.kind(of: actual),
+        if usesLegacyDurationLongMapping(),
+           case let .classType(type) = sema.types.kind(of: actual),
            type.nullability == .nonNull,
            sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
             return .long
@@ -66,7 +74,8 @@ final class JVMProgramBuilder {
     /// parameters to their bounds rather than adopt a call site's argument.
     func erasedType(_ id: TypeID) throws -> JVMValueType {
         noteFunctionTypes(id)
-        if case let .classType(type) = sema.types.kind(of: id),
+        if usesLegacyDurationLongMapping(),
+           case let .classType(type) = sema.types.kind(of: id),
            type.nullability == .nonNull,
            sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
             return .long
@@ -532,6 +541,18 @@ final class JVMFunctionBuilder {
     }
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
+        if !context.options.stdlibOnly {
+            if source.type.referenceName == "kotlin/time/Duration", !source.type.isNullable, type == .long {
+                let result = try value(.long)
+                instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "unbox-impl", descriptor: "()J", parameters: [], result: .long, isStatic: false, isInterface: false, isAbstract: false), receiver: source, arguments: [], result: result))
+                return result
+            }
+            if source.type == .long, type.referenceName == "kotlin/time/Duration", !type.isNullable {
+                let result = try value(type)
+                instructions.append(.foreignCall(JVMForeignMethod(owner: "kotlin/time/Duration", name: "box-impl", descriptor: "(J)Lkotlin/time/Duration;", parameters: [.long], result: type, isStatic: true, isInterface: false, isAbstract: false), receiver: nil, arguments: [source], result: result))
+                return result
+            }
+        }
         if source.type.referenceName != nil, type.isNumeric,
            let carrier = source.type.numericCarrier, carrier != type {
             // Unbox the actual wrapper before widening; casting Byte to
@@ -914,7 +935,10 @@ final class JVMFunctionBuilder {
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
-            return try propertyCompound(property, receiver: requireValue(receiver), op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
+            return try propertyCompound(property, receiver: object, op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
         case let .memberCall(receiver, name, typeArgs, args, _):
             if let folded = try constantFoldedText(id) { return folded }
             return try memberExpression(id, receiver: receiver, name: name, typeArgs: typeArgs, args: args)
