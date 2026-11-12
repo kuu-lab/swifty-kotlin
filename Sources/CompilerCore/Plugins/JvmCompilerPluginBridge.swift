@@ -724,7 +724,7 @@ final class JvmCompilerPlugin: CompilerPlugin, @unchecked Sendable {
             let parts = fqName.split(separator: ".").map { interner.intern(String($0)) }
             guard let symbolID = symbols.lookup(fqName: parts),
                   let symbolInfo = symbols.symbol(symbolID),
-                  symbolInfo.kind == .class || symbolInfo.kind == .object,
+                  symbolInfo.kind == .class || symbolInfo.kind == .object || symbolInfo.kind == .enumClass,
                   !symbolInfo.flags.contains(.innerClass)
             else { continue }
             KotlinxSerializationPlugin.synthesizeSerializationMembers(for: symbolInfo, context: context)

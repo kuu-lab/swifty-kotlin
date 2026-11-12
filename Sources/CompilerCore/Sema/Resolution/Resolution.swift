@@ -1723,7 +1723,7 @@ extension OverloadResolver {
             effectiveDefaultValues: inheritedDefaultValues ?? signature.valueParameterHasDefaultValues,
             usesVararg: Self.normalizeFlags(signature.valueParameterIsVararg, count: signature.parameterTypes.count).contains(true),
             isLowPriorityInOverloadResolution: ctx.symbols.annotations(for: candidate).contains {
-                $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+                $0.annotationFQName == KnownCompilerAnnotation.lowPriorityInOverloadResolution.qualifiedName
             }
         ))
     }

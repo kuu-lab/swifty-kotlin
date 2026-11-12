@@ -143,8 +143,8 @@ extension CallLowerer {
             sema.symbols.symbol(callee)?.name ?? interner.intern(operatorName)
         }
         let resolvedMemberName = sema.symbols.symbol(callee)
-            .map { interner.resolve($0.name) }
-            ?? interner.resolve(loweredCalleeName)
+            .map(\.name)
+            ?? loweredCalleeName
         if emitRuntimeBackedCollectionMemberCallIfNeeded(
             memberName: resolvedMemberName,
             receiverType: arena.exprType(receiverArgument) ?? sema.types.anyType,

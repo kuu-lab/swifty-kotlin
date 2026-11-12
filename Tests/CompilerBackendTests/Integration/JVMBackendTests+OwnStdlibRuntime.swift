@@ -69,6 +69,50 @@ extension JVMBackendTests {
         try JVMOwnStdlibCache.shared.library()
     }
 
+    @Test
+    func kuu4569OfficialKotlinConsumerUsesLinkedSetOfVarargABI() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let source = """
+            fun main() {
+                val set = linkedSetOf("a", "b", "a")
+                println(set.size)
+                println(set)
+                println(linkedSetOf<String>())
+            }
+            """
+            try source.write(to: root.appendingPathComponent("consumer.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["-no-stdlib", "-no-reflect", "-cp", library.path, "consumer.kt", "-d", "consumer.jar"], root: root)
+            let execution = try java(["-cp", root.appendingPathComponent("consumer.jar").path + ":" + library.path, "ConsumerKt"])
+            #expect(execution.stdout == "2\n[a, b]\n[]\n")
+            #expect(execution.stderr.isEmpty)
+
+            let own = try m22Build(root: root, sources: [("consumer.kt", source)], name: "own-consumer.jar", mode: .jvmJar, classpath: [library.path])
+            try #require(own.1 == 0, "\(own.2.map(\.message))")
+            let ownExecution = try java(["-cp", own.0.path + ":" + library.path, "ConsumerKt"])
+            #expect(ownExecution.stdout == "2\n[a, b]\n[]\n")
+            #expect(ownExecution.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func kuu4543JavaConsumerCompilesStringsKtVarargFacade() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            try """
+            public class JavaStringsConsumer {
+                public static void main(String[] args) {
+                    System.out.println(kotlin.text.StringsKt.split("a;b,c", new String[] {";", ","}, false, 0));
+                }
+            }
+            """.write(to: root.appendingPathComponent("JavaStringsConsumer.java"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("javac", ["--release", "8", "-cp", library.path, "JavaStringsConsumer.java"], root: root)
+            let execution = try java(["-cp", root.path + ":" + library.path, "JavaStringsConsumer"])
+            #expect(execution.stdout == "[a, b, c]\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
     private static let ownStdlibCases = [
         "inferredMutableCallableReferences",
         "reflectionParameterNames",

@@ -1,9 +1,14 @@
 // DIFF_JVM
-fun idTag(x: String): Int = 7
+fun <T> nonNull(value: T & Any): T & Any = value
+fun <T> identity(value: T): T = value
+fun Any.idTag(): Int = 7
 
-fun safeTag(x: String): Int = idTag(x)
+fun <T : Any?> directValue(x: T & Any): Int = x.idTag()
+fun <T : Any?> safeValue(x: T & Any): Int? = x?.idTag()
 
 fun main() {
-    println(safeTag("hello"))
-    println(safeTag("world"))
+    println(nonNull<String>("ok"))
+    println(identity<String?>(null) ?: "ordinary-null")
+    println(directValue("hello"))
+    println(safeValue("world"))
 }

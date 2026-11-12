@@ -333,10 +333,21 @@ extension NativeEmitter.FunctionEmissionContext {
             }
             let linkName = symbols.externalLinkName(for: effectiveABISymbol)
             let isExternalKotlinFunction = linkName?.hasPrefix("kk_fn_") == true
+            // Both same-module interface itable slots and abstract vtable slots
+            // have `isInternalCall == false` while concrete implementations use
+            // the flat String aggregate ABI; resolve synthetic property accessors
+            // back to their owning property so String getter/setter ABI matches.
             let isSameModuleInterfaceMethod: Bool = {
-                guard isDynamicITableCall,
+                let targetSymbol = symbols.propertySymbol(forAccessor: effectiveABISymbol)
+                    ?? symbols.accessorOwnerProperty(for: effectiveABISymbol)
+                    ?? effectiveABISymbol
+                let isVirtualUnlinkedCall: Bool = switch dispatch {
+                case .itableDynamic, .itable, .vtable:
+                    true
+                }
+                guard isVirtualUnlinkedCall,
                       linkName == nil || linkName?.isEmpty == true,
-                      let symInfo = symbols.symbol(effectiveABISymbol),
+                      let symInfo = symbols.symbol(targetSymbol),
                       !symInfo.flags.contains(.importedLibrary),
                       !symInfo.flags.contains(.synthetic)
                 else {

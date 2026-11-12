@@ -77,9 +77,10 @@ public final class CodegenPhase: CompilerPhase {
                     return
                 }
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                try backend.emitObject(
+                let objectPaths = try backend.emitExecutableObjects(
                     module: kir,
                     outputObjectPath: path,
+                    outputObjectsDir: path + ".objects",
                     interner: ctx.interner,
                     typeSystem: ctx.sema?.types,
                     symbols: ctx.sema?.symbols,
@@ -88,7 +89,7 @@ public final class CodegenPhase: CompilerPhase {
                     reflectionMetadataRecords: reflectionRecords,
                     reflectionMetadataSymbolPrefix: ctx.options.moduleName
                 )
-                ctx.storeGeneratedObjectPath(path)
+                ctx.storeGeneratedObjectPaths(objectPaths)
 
             case .library:
                 try emitLibrary(
@@ -211,20 +212,29 @@ public final class CodegenPhase: CompilerPhase {
                 }
                 .map(\.id))
         } ?? []
-        let relativeObjectPaths = try backend.emitLibraryObjects(
-            module: module,
-            outputObjectsDir: objectsDir,
-            interner: ctx.interner,
-            typeSystem: ctx.sema?.types,
-            symbols: ctx.sema?.symbols,
-            sourceManager: ctx.sourceManager,
-            fileFacadeNamesByFileID: fileFacadeNamesByFileID,
-            reflectionMetadataRecords: reflectionMetadataRecords,
-            reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-            linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs,
-            bitcodeOutputPath: bitcodePath
-        )
-        ctx.storeGeneratedObjectPath(outputDir + "/" + (relativeObjectPaths.first ?? "objects/\(ctx.options.moduleName)_0.o"))
+        let relativeObjectPaths: [String]
+        if ctx.options.target.isWasm {
+            // On wasm the artifact's .o is never linked (`LinkPhase` bypasses
+            // native linking and `WasmEmitter` lowers directly from KIR), so
+            // invoking LLVM to emit a wasm32 object file wastes gigabytes of
+            // memory and several minutes for an unused binary.
+            relativeObjectPaths = []
+        } else {
+            relativeObjectPaths = try backend.emitLibraryObjects(
+                module: module,
+                outputObjectsDir: objectsDir,
+                interner: ctx.interner,
+                typeSystem: ctx.sema?.types,
+                symbols: ctx.sema?.symbols,
+                sourceManager: ctx.sourceManager,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                reflectionMetadataRecords: reflectionMetadataRecords,
+                reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+                linkOnceODRSymbols: ctx.options.stdlibOnly ? [] : bundledSymbolIDs,
+                bitcodeOutputPath: bitcodePath
+            )
+            ctx.storeGeneratedObjectPath(outputDir + "/" + (relativeObjectPaths.first ?? "objects/\(ctx.options.moduleName)_0.o"))
+        }
 
         try withSubPhaseTiming("inlineKIRArtifacts", timer: ctx.phaseTimer) {
             try emitInlineKIRArtifacts(module: module, outputDir: inlineDir, ctx: ctx, functionLinkInfo: functionLinkInfo)

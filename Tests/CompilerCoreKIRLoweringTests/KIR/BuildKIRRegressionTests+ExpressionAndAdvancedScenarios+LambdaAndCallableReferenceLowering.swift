@@ -683,15 +683,25 @@ extension BuildKIRRegressionTests {
                 && sema.symbols.parentSymbol(for: symbol.id).flatMap { sema.symbols.symbol($0) }?.fqName
                     == [ctx.interner.intern("Writer")]
         }?.id)
+        let flushLaterBody = try findKIRFunctionBody(named: "flushLater", in: module, interner: ctx.interner)
+        let functionValue = try #require(flushLaterBody.compactMap { instruction -> KIRExprID? in
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                  callee == ctx.interner.intern(runtime[.functionCreate0]),
+                  let result = result
+            else { return nil }
+            return result
+        }.first, "A bound reference returned from a function must carry its receiver at runtime.")
+        let callableInfo = try #require(module.arena.callableValueInfo(for: functionValue))
+        let wrapperSymbol = try #require(callableInfo.unboxedSymbol)
+        let wrapper = try #require(module.arena.function(for: wrapperSymbol))
         // The bound reference is lowered to a helper function that performs the
-        // virtual call; its name is an implementation detail, so find it by body.
-        let wrapper = try #require(findAllKIRFunctions(in: module).first { function in
-            function.body.contains { instruction in
-                if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
-                    return symbol == interfaceFlush
-                }
-                return false
+        // virtual call. Follow the function value created by flushLater: searching
+        // every KIR function also finds KClass member reflection invokers.
+        #expect(wrapper.body.contains { instruction in
+            if case let .virtualCall(symbol, _, _, _, _, _, _, _) = instruction {
+                return symbol == interfaceFlush
             }
+            return false
         })
         #expect(wrapper.params.count == 1, "Bound interface reference must capture its receiver.")
         #expect(!wrapper.body.contains { instruction in
@@ -700,13 +710,6 @@ extension BuildKIRRegressionTests {
             }
             return false
         })
-        let flushLaterBody = try findKIRFunctionBody(named: "flushLater", in: module, interner: ctx.interner)
-        #expect(flushLaterBody.contains { instruction in
-            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                return callee == ctx.interner.intern(runtime[.functionCreate0])
-            }
-            return false
-        }, "A bound reference returned from a function must carry its receiver at runtime.")
     }
 
     @Test func testImplicitInterfaceCallableRefSamThunkUsesVirtualDispatch() throws {

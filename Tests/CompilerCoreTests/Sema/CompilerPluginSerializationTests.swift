@@ -20,6 +20,23 @@ struct CompilerPluginSerializationTests {
     annotation class Serializable
     """
 
+    private let enumSerializerStubSource = """
+    package kotlinx.serialization.internal
+
+    import kotlinx.serialization.KSerializer
+
+    fun <T : Enum<T>> createSimpleEnumSerializer(serialName: String, values: Array<T>): KSerializer<T> = TODO()
+    """
+
+    private let validSerializableEnumSource = """
+    package com.example
+
+    import kotlinx.serialization.Serializable
+
+    @Serializable
+    enum class Color { RED, GREEN }
+    """
+
     private let validSerializableSource = """
     package com.example
 
@@ -244,6 +261,60 @@ struct CompilerPluginSerializationTests {
             let serializerMethods = try findMethodSymbols(named: "serializer", inSymbol: companionID, in: ctx)
             #expect(serializerMethods.count == 1)
         }
+    }
+
+    @Test
+    func testSerializableEnumSynthesizesSerializerWithoutGeneratedClass() throws {
+        let ctx = try semaContext(from: [
+            enumSerializerStubSource,
+            validSerializableEnumSource,
+        ])
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let enumFQName = [interner.intern("com"), interner.intern("example"), interner.intern("Color")]
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
+
+        let serializerMethods = try findMethodSymbols(named: "serializer", inSymbol: enumSymbol, in: ctx)
+        #expect(serializerMethods.count == 1, "expected a static serializer() on the enum class")
+        #expect(sema.symbols.symbol(serializerMethods[0])?.flags.contains(.static) == true)
+        #expect(
+            sema.symbols.lookup(fqName: enumFQName + [interner.intern("$serializer")]) == nil,
+            "enum serialization should use the runtime enum serializer factory, not a generated $serializer class"
+        )
+    }
+
+    @Test
+    func testSerializableEnumSerializerReachesKIR() throws {
+        let ctx = try kirContext(from: [
+            enumSerializerStubSource,
+            validSerializableEnumSource,
+        ])
+        let kir = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let enumFQName = [interner.intern("com"), interner.intern("example"), interner.intern("Color")]
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: enumFQName))
+
+        let serializerMethods = try findMethodSymbols(named: "serializer", inSymbol: enumSymbol, in: ctx)
+        #expect(serializerMethods.count == 1)
+        let serializerFunc = try #require(kir.arena.function(for: serializerMethods[0]))
+        #expect(serializerFunc.params.isEmpty)
+        let callsEnumFactory = serializerFunc.body.contains { instruction in
+            guard case let .call(
+                symbol: _,
+                callee: callee,
+                arguments: _,
+                result: _,
+                canThrow: _,
+                thrownResult: _,
+                isSuperCall: _,
+                qualifiedSuperType: _
+            ) = instruction else {
+                return false
+            }
+            return interner.resolve(callee) == "createSimpleEnumSerializer"
+        }
+        #expect(callsEnumFactory, "enum serializer() should call kotlinx.serialization.internal.createSimpleEnumSerializer")
     }
 
     @Test

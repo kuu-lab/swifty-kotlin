@@ -1,5 +1,6 @@
 package kotlin.collections
 
+import kotlin.jvm.internal.__jvmArrayList
 import kotlin.sequences.*
 import kotlin.sequences.emptySequence
 import kotlin.sequences.joinToString
@@ -20,6 +21,25 @@ public fun <T> Array<out T>.asSequence(): Sequence<T> {
         }
     }
 }
+
+public fun <T> Array<out T>.asIterable(): Iterable<T> {
+    if (this.size == 0) return emptyList<T>()
+    val source = this
+    return object: Iterable<T> {
+        override fun iterator(): Iterator<T> = object: Iterator<T> {
+            var index = 0
+            override fun hasNext(): Boolean = index < source.size
+            override fun next(): T {
+                if (!hasNext()) throw NoSuchElementException()
+                val element = source[index]
+                index++
+                return element
+            }
+        }
+        override fun spliterator(): java.util.Spliterator<T> = java.util.Spliterators.spliteratorUnknownSize(iterator(), 0)
+    }
+}
+
 public fun <T> Array<out T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String = this.asSequence().joinToString(separator, prefix, postfix, limit, truncated, transform)
 
 public fun IntArray.asSequence(): Sequence<Int> {
@@ -166,6 +186,7 @@ public fun ShortArray.asSequence(): Sequence<Short> {
 }
 public fun ShortArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Short) -> CharSequence)? = null): String = this.asSequence().joinToString(separator, prefix, postfix, limit, truncated, transform)
 
+public fun <T> Array<out T>.asList(): List<T> = __jvmArrayList(this)
 fun <T> Array<out T>.toList(): List<T> = this.asSequence().toList()
 fun <T> Array<out T>.toMutableList(): MutableList<T> = this.asSequence().toMutableList()
 fun <T> Array<out T>.toSet(): Set<T> = this.asSequence().toSet()

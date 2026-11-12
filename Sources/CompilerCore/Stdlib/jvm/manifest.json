@@ -4,13 +4,21 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
-    "kotlin/annotations/ExperimentalUnsignedTypes.kt"
+    "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/time/DurationEncoding.kt",
+    "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
     {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
     },
     {
       "path": "kotlin/SinceKotlin.kt",
@@ -34,6 +42,12 @@
       "runtimeFacade": "kotlin/NumbersKt"
     },
     {
+      "path": "declarations/EnumValues.kt",
+      "virtualPath": "<kswiftk-jvm>/enum-values.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/EnumKt"
+    },
+    {
       "path": "kotlin/Standard.kt",
       "virtualPath": "<kswiftk-jvm>/standard.kt",
       "excludeFromStdlibBuild": true,
@@ -44,6 +58,24 @@
       "virtualPath": "<kswiftk-jvm>/preconditions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/PreconditionsKt"
+    },
+    {
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
+    },
+    {
+      "path": "declarations/KotlinTimeMeasureTime.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-time-measure-time.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/MeasureTimeKt"
     },
     {
       "path": "declarations/Math.kt",
@@ -150,6 +182,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/StringEncoding.kt",
+      "virtualPath": "<kswiftk-jvm>/string-encoding.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringConstructors.kt",
       "virtualPath": "<kswiftk-jvm>/string-constructors.kt",
       "excludeFromStdlibBuild": true
@@ -165,9 +203,21 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/Files.kt",
+      "virtualPath": "<kswiftk-jvm>/files.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/FilesKt"
+    },
+    {
       "path": "declarations/TextRuntimeFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/ByteArrayDecodeToString.kt",
+      "virtualPath": "<kswiftk-jvm>/byte-array-decode-to-string.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
       "path": "declarations/StringFormattingCaseFunctions.kt",
@@ -237,15 +287,15 @@
       "appendForConsumers": "declarations/CollectionFactories.kt"
     },
     {
+      "path": "declarations/ListMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/IndexedValue.kt",
       "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "kotlin/RequiresOptIn.kt",
-      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
     },
     {
       "path": "kotlin/annotations/ExperimentalUnsignedTypes.kt",
@@ -267,6 +317,12 @@
       "path": "declarations/CollectionHigherOrderFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-collections-inline.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/IterableFlatten.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-iterable-flatten.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
       "path": "declarations/CollectionTextFunctions.kt",
@@ -326,6 +382,12 @@
     {
       "path": "declarations/ArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
+      "path": "declarations/ArraySlicing.kt",
+      "virtualPath": "<kswiftk-jvm>/array-slicing.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
@@ -530,6 +592,18 @@
       "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/Grouping.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/GroupingEachCount.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping-each-count.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/GroupingKt"
     },
     {
       "path": "declarations/JavaLang.kt",

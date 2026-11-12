@@ -50,6 +50,36 @@ enum JVMAnnotations {
         }
         return result
     }
+    static func typeParameterAttributes(
+        _ parameters: [JVMTypeParameter],
+        targetType: UInt8,
+        pool: JVMConstantPool
+    ) throws -> [(UInt16, Data)] {
+        var result: [(UInt16, Data)] = []
+        for visible in [true, false] {
+            var selected: [(Int, JVMAnnotation)] = []
+            for (index, parameter) in parameters.enumerated() {
+                selected += parameter.annotations.filter { $0.visible == visible }.map { (index, $0) }
+            }
+            guard !selected.isEmpty else { continue }
+            guard selected.count <= 65_535 else {
+                throw JVMEmissionError.limit("Type parameter annotation count exceeds JVM limits.")
+            }
+            var bytes = JVMBytes()
+            bytes.u2(UInt16(selected.count))
+            for (index, annotation) in selected {
+                guard let parameterIndex = UInt8(exactly: index) else {
+                    throw JVMEmissionError.limit("Annotated JVM type parameter index exceeds the classfile limit.")
+                }
+                bytes.u1(targetType)
+                bytes.u1(parameterIndex)
+                bytes.u1(0)
+                bytes.data.append(try self.annotation(annotation, pool: pool))
+            }
+            result.append((try pool.utf8(visible ? "RuntimeVisibleTypeAnnotations" : "RuntimeInvisibleTypeAnnotations"), bytes.data))
+        }
+        return result
+    }
     static func methodAttributes(_ method: JVMMethodCode, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
         var attributes = try self.attributes(method.annotations, deprecated: method.isDeprecated, pool: pool)
         if let value = method.annotationDefault { attributes.append((try pool.utf8("AnnotationDefault"), try self.value(value, pool: pool))) }
@@ -66,6 +96,7 @@ enum JVMAnnotations {
                 attributes.append((try pool.utf8(visible ? "RuntimeVisibleParameterAnnotations" : "RuntimeInvisibleParameterAnnotations"), b.data))
             }
         }
+        attributes += try typeParameterAttributes(method.typeParameters, targetType: 0x01, pool: pool)
         return attributes
     }
 }

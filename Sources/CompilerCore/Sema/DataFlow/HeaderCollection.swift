@@ -97,9 +97,7 @@ extension DataFlowSemaPhase {
             return true
         }
         return symbols.annotations(for: symbol).contains { metaAnnotation in
-            guard metaAnnotation.annotationFQName == "Retention"
-                || metaAnnotation.annotationFQName == "kotlin.annotation.Retention"
-            else {
+            guard KnownCompilerAnnotation.retention.matches(metaAnnotation.annotationFQName) else {
                 return false
             }
             return metaAnnotation.arguments.contains { argument in
@@ -461,6 +459,17 @@ extension DataFlowSemaPhase {
                     flags: typeParam.isReified ? [.reifiedTypeParameter] : []
                 )
             }
+            registerAnnotations(
+                typeParam.annotations,
+                symbol: typeParamSymbol,
+                declRange: declSite,
+                sourceFileID: declSite.start.file,
+                sourceFile: ast.file(for: declSite.start.file),
+                sourceManager: sourceManager,
+                interner: interner,
+                symbols: symbols,
+                diagnostics: diagnostics
+            )
             if typeParam.isReified {
                 diagnostics.error(
                     "KSWIFTK-SEMA-0020",

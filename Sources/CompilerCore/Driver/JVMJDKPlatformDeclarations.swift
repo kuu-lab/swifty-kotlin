@@ -178,6 +178,18 @@ extension JVMClasspathIndex {
             package java.lang
             class StackTraceElement private constructor()
             """, 0x0011, "java/lang/Object", []),
+            ("java/io/File", """
+            package java.io
+            class File {
+                constructor(path: kotlin.String)
+                constructor(parent: kotlin.String, child: kotlin.String)
+                external fun getPath(): kotlin.String
+            }
+            """, 0x0001, "java/lang/Object", [
+                method("java/io/File", "<init>", [.string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "<init>", [.string, .string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "getPath", [], .string),
+            ]),
             ("java/lang/IllegalAccessError", """
             package java.lang
             open class IllegalAccessError : kotlin.Error {
@@ -244,6 +256,28 @@ extension JVMClasspathIndex {
             """, 0x0001, "java/util/HashMap", [
                 method("java/util/LinkedHashMap", "<init>", [], .reference("java/util/LinkedHashMap", nullable: false)),
                 method("java/util/LinkedHashMap", "put", [object, object], object),
+            ]),
+            ("java/util/LinkedHashSet", """
+            package java.util
+            open class LinkedHashSet<E> : kotlin.collections.MutableSet<E> {
+                constructor()
+                constructor(initialCapacity: Int)
+                override val size: Int get() = 0
+                override fun isEmpty(): Boolean = false
+                override fun contains(element: E): Boolean = false
+                override fun containsAll(elements: kotlin.collections.Collection<@UnsafeVariance E>): Boolean = false
+                override fun iterator(): kotlin.collections.MutableIterator<E> = null!!
+                override fun add(element: E): Boolean = false
+                override fun addAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun remove(element: E): Boolean = false
+                override fun removeAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun retainAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/HashSet", [
+                method("java/util/LinkedHashSet", "<init>", [], .reference("java/util/LinkedHashSet", nullable: false)),
+                method("java/util/LinkedHashSet", "<init>", [.int], .reference("java/util/LinkedHashSet", nullable: false)),
+                method("java/util/LinkedHashSet", "add", [object], .boolean),
             ]),
             ("java/util/SortedMap", """
             package java.util

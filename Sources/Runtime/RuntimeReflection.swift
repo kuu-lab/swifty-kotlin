@@ -120,7 +120,10 @@ public func __kk_kclass_get_annotations_typed(_ kclassRaw: Int, _ outThrown: Uns
 
 @_cdecl("__kk_annotation_mark_reflection_materialized")
 public func __kk_annotation_mark_reflection_materialized(_ raw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+    guard raw != 0,
+          raw != runtimeNullSentinelInt,
+          isRegisteredRuntimeObjectPointer(raw),
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw),
           let box = tryCast(ptr, to: RuntimeObjectBox.self)
     else { return 0 }
     box.annotationReflectionMaterialized = true
@@ -158,7 +161,10 @@ private func runtimeMarkAnnotationMaterializedDeep(_ raw: Int, visited: inout Se
 
 @_cdecl("__kk_annotation_reflection_materialized")
 public func __kk_annotation_reflection_materialized(_ raw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+    guard raw != 0,
+          raw != runtimeNullSentinelInt,
+          isRegisteredRuntimeObjectPointer(raw),
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw),
           let box = tryCast(ptr, to: RuntimeObjectBox.self)
     else { return 0 }
     return box.annotationReflectionMaterialized ? 1 : 0
@@ -171,7 +177,9 @@ func runtimeAnnotationValue(_ record: RuntimeAnnotationRecord, materializeFactor
         // Source-backed factories mark themselves during lowering; imported
         // `factoryLinkName` factories cannot, so mark the produced instance
         // here to keep the JVM proxy toString format (KUU-4418).
-        _ = __kk_annotation_mark_reflection_materialized(result)
+        if outThrown?.pointee == 0 {
+            _ = __kk_annotation_mark_reflection_materialized(result)
+        }
         return result
     }
     return registerRuntimeObject(RuntimeAnnotationBox(

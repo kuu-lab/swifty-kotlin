@@ -85,6 +85,8 @@ func runtimeAppendAnnotationRecord(_ annotation: RuntimeAnnotationRecord, to rec
 final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [Int: RuntimeKClassMetadataEntry] = [:]
+    /// First registration wins when multiple entries share a qualified name.
+    private var typeTokensByQualifiedName: [String: Int] = [:]
     private var classCastNamesByTypeToken: [Int: String] = [:]
     private var javaInheritedAnnotationNames: Set<String> = []
 
@@ -111,7 +113,17 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         if registered.enclosingMember == nil, let previous = entries[typeToken] {
             registered.enclosingMember = previous.enclosingMember
         }
+        let previousQualifiedName = entries[typeToken]?.qualifiedName
         entries[typeToken] = registered
+        if let previousQualifiedName,
+           previousQualifiedName != registered.qualifiedName,
+           typeTokensByQualifiedName[previousQualifiedName] == typeToken
+        {
+            typeTokensByQualifiedName.removeValue(forKey: previousQualifiedName)
+        }
+        if typeTokensByQualifiedName[registered.qualifiedName] == nil {
+            typeTokensByQualifiedName[registered.qualifiedName] = typeToken
+        }
     }
 
     func registerTypeParameter(
@@ -160,7 +172,8 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
     func lookup(qualifiedName: String) -> RuntimeKClassMetadataEntry? {
         lock.lock()
         defer { lock.unlock() }
-        return entries.values.first { $0.qualifiedName == qualifiedName }
+        guard let typeToken = typeTokensByQualifiedName[qualifiedName] else { return nil }
+        return entries[typeToken]
     }
 
     func registerJavaInheritedAnnotation(name: String) {
@@ -215,6 +228,7 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         entries.removeAll()
+        typeTokensByQualifiedName.removeAll()
         classCastNamesByTypeToken.removeAll()
         javaInheritedAnnotationNames.removeAll()
     }

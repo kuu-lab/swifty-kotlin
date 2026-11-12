@@ -170,9 +170,9 @@ extension JVMFunctionBuilder {
         }
         let types = Array(reference.parameters.dropFirst(values.count))
         let declarations = program.sourceParameters[symbol]
-        let ordered: (values: [JVMValue], masks: [UInt32])
+        let ordered: (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue])
         if args.isEmpty, declarations?.count == 1, declarations![0].isVararg, declarations![0].hasDefaultValue {
-            ordered = ([try zero(types[0])], [1])
+            ordered = ([try zero(types[0])], [1], [:])
         } else {
             ordered = try arguments(args, binding: program.sema.bindings.callBinding(for: id), parameters: types, declarations: declarations, id: id)
         }

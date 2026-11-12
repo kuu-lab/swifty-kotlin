@@ -13,14 +13,12 @@ public func __kk_arraydeque_new_with_capacity(
     _ capacity: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard capacity >= 0 else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(capacity)")
-        )
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard capacity >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(capacity)"))
+        }
+        return registerRuntimeObject(RuntimeArrayDequeBox(capacity: capacity))
     }
-    return registerRuntimeObject(RuntimeArrayDequeBox(capacity: capacity))
 }
 
 @_cdecl("__kk_arraydeque_new_from_collection")

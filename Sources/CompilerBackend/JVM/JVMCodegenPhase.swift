@@ -12,7 +12,8 @@ final class JVMCodegenPhase: CompilerPhase {
         do {
             // Validate and construct all bytes before touching the destination.
             let target = ctx.options.jvmTarget
-            let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters)
+            let classIndex = JVMClassFile.ClassIndex(program)
+            let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters, classIndex: classIndex)
             let runtime = ctx.options.emit == .jvmJar && ctx.options.includeJVMRuntime && !ctx.options.stdlibOnly
                 ? try runtimeEntries(for: ctx.options)
                 : []
@@ -20,7 +21,7 @@ final class JVMCodegenPhase: CompilerPhase {
             let applicationClasses = program.classes.filter { type in
                 !type.isRuntimeFallback || !runtimePaths.contains(type.name + ".class")
             }
-            var classes = try emitClasses(applicationClasses, in: program, target: target, javaParameters: ctx.options.javaParameters)
+            var classes = try emitClasses(applicationClasses, in: program, target: target, javaParameters: ctx.options.javaParameters, classIndex: classIndex)
             if ctx.options.stdlibOnly {
                 let coverage = try JVMStdlibCoverage.report(program, classFiles: [(program.internalClassName + ".class", classFile)] + classes)
                 classes.append(("META-INF/kswiftk-stdlib-coverage.json", coverage))
@@ -88,6 +89,54 @@ final class JVMCodegenPhase: CompilerPhase {
 
     private func runtimeEntries(for application: CompilerOptions) throws -> [(String, Data)] {
         let moduleName = application.moduleName == "KSwiftKStdlib" ? "KSwiftKStdlibRuntime" : "KSwiftKStdlib"
+        guard let compiler = Self.compilerFingerprint,
+              let sources = try? JVMStdlibCatalog.runtimeSourceFingerprint(),
+              let store = Self.runtimeStore()
+        else {
+            return try buildRuntimeEntries(for: application, moduleName: moduleName)
+        }
+        let platform = application.target
+        let key = ContentAddressedStore.makeKey(parts: [
+            "jvm-runtime-v1", compiler, sources, moduleName, application.jvmTarget.rawValue,
+            platform.arch, platform.vendor, platform.os, platform.osVersion ?? "",
+        ])
+        if let data = store.load(key: key),
+           let entries = try? PropertyListDecoder().decode([RuntimeEntry].self, from: data)
+        {
+            return entries.map { ($0.name, $0.bytes) }
+        }
+
+        let entries = try buildRuntimeEntries(for: application, moduleName: moduleName)
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        if (try? JVMStdlibCatalog.runtimeSourceFingerprint()) == sources,
+           let data = try? encoder.encode(entries.map { RuntimeEntry(name: $0.0, bytes: $0.1) })
+        {
+            store.store(key: key, payload: data)
+        }
+        return entries
+    }
+
+    private struct RuntimeEntry: Codable {
+        let name: String
+        let bytes: Data
+    }
+
+    private static let compilerFingerprint = Bundle.main.executableURL.flatMap {
+        FileFingerprint.compute(for: $0.resolvingSymlinksInPath().path)?.contentHash
+    }
+
+    private static func runtimeStore() -> ContentAddressedStore? {
+        if let override = ProcessInfo.processInfo.environment["KSWIFTK_JVM_RUNTIME_CACHE_DIR"], !override.isEmpty {
+            return ContentAddressedStore(rootPath: override)
+        }
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return ContentAddressedStore(rootPath: caches.appendingPathComponent("kswiftk/jvm-runtime").path)
+    }
+
+    private func buildRuntimeEntries(for application: CompilerOptions, moduleName: String) throws -> [(String, Data)] {
         let options = CompilerOptions(
             moduleName: moduleName, inputs: [], outputPath: application.outputPath, emit: .jvmJar,
             target: application.target, stdlibOnly: true, jvmTarget: application.jvmTarget
@@ -98,17 +147,19 @@ final class JVMCodegenPhase: CompilerPhase {
             let message = errors.map { "\($0.code): \($0.message)" }.joined(separator: "\n")
             throw JVMEmissionError.runtimeBuildFailed(message.isEmpty ? "No JVM program was generated." : message)
         }
-        let classFile = try JVMClassFile.emit(program, target: options.jvmTarget)
-        let classes = try emitClasses(program.classes, in: program, target: options.jvmTarget)
+        let classIndex = JVMClassFile.ClassIndex(program)
+        let classFile = try JVMClassFile.emit(program, target: options.jvmTarget, classIndex: classIndex)
+        let classes = try emitClasses(program.classes, in: program, target: options.jvmTarget, classIndex: classIndex)
         return [(program.internalClassName + ".class", classFile)] + classes
             + JVMBuiltins.resources() + [moduleEntry(for: program)]
     }
 
     private func emitClasses(
-        _ classes: [JVMClass], in program: JVMProgram, target: JVMTarget, javaParameters: Bool = false
+        _ classes: [JVMClass], in program: JVMProgram, target: JVMTarget, javaParameters: Bool = false,
+        classIndex: JVMClassFile.ClassIndex
     ) throws -> [(String, Data)] {
         try classes.map { type in
-            (type.name + ".class", try JVMClassFile.emit(type, program: program, target: target, javaParameters: javaParameters))
+            (type.name + ".class", try JVMClassFile.emit(type, program: program, target: target, javaParameters: javaParameters, classIndex: classIndex))
         }
     }
 

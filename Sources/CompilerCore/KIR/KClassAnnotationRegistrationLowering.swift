@@ -103,6 +103,6 @@ private func annotationTypeIsJavaInherited(
     let fqName = annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) }
     guard let annotationSymbol = sema.symbols.lookup(fqName: fqName) else { return false }
     return sema.symbols.annotations(for: annotationSymbol).contains {
-        $0.annotationFQName == "java.lang.annotation.Inherited"
+        $0.annotationFQName == KnownCompilerAnnotation.inherited.qualifiedName
     }
 }

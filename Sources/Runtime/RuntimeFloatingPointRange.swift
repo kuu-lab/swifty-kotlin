@@ -267,22 +267,18 @@ public func __kk_double_coerceIn_range(
     _ rangeRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let value = doubleValue(from: valueBits)
-    guard let range = runtimeDoubleRangeBox(from: rangeRaw) else {
-        runtimeSetThrown(outThrown, runtimeCoerceInError(minimum: "<unknown>", maximum: "<unknown>"))
+    runtimeThrowingBridge(outThrown, defaultOnFailure: valueBits) {
+        let value = doubleValue(from: valueBits)
+        guard let range = runtimeDoubleRangeBox(from: rangeRaw) else {
+            throw RuntimeThrownHandle(runtimeCoerceInError(minimum: "<unknown>", maximum: "<unknown>"))
+        }
+        guard range.first <= range.last else {
+            throw RuntimeThrownHandle(runtimeCoerceInError(minimum: "\(range.first)", maximum: "\(range.last)"))
+        }
+        if value < range.first { return doubleBits(range.first) }
+        if value > range.last { return doubleBits(range.last) }
         return valueBits
     }
-    guard range.first <= range.last else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeCoerceInError(minimum: "\(range.first)", maximum: "\(range.last)")
-        )
-        return valueBits
-    }
-    if value < range.first { return doubleBits(range.first) }
-    if value > range.last { return doubleBits(range.last) }
-    return valueBits
 }
 
 @_cdecl("__kk_float_coerceIn_range")
@@ -291,20 +287,16 @@ public func __kk_float_coerceIn_range(
     _ rangeRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let value = floatValue(from: valueBits)
-    guard let range = runtimeFloatRangeBox(from: rangeRaw) else {
-        runtimeSetThrown(outThrown, runtimeCoerceInError(minimum: "<unknown>", maximum: "<unknown>"))
+    runtimeThrowingBridge(outThrown, defaultOnFailure: valueBits) {
+        let value = floatValue(from: valueBits)
+        guard let range = runtimeFloatRangeBox(from: rangeRaw) else {
+            throw RuntimeThrownHandle(runtimeCoerceInError(minimum: "<unknown>", maximum: "<unknown>"))
+        }
+        guard range.first <= range.last else {
+            throw RuntimeThrownHandle(runtimeCoerceInError(minimum: "\(range.first)", maximum: "\(range.last)"))
+        }
+        if value < range.first { return floatBits(range.first) }
+        if value > range.last { return floatBits(range.last) }
         return valueBits
     }
-    guard range.first <= range.last else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeCoerceInError(minimum: "\(range.first)", maximum: "\(range.last)")
-        )
-        return valueBits
-    }
-    if value < range.first { return floatBits(range.first) }
-    if value > range.last { return floatBits(range.last) }
-    return valueBits
 }
