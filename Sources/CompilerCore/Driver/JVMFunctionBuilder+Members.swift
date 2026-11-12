@@ -350,7 +350,8 @@ extension JVMFunctionBuilder {
             instructions.append(.putStatic(field, converted)); return
         }
         if initializing, property.setter == nil, receiver.slot == thisValue?.slot, property.field?.owner == owner?.name, let field = property.field {
-            instructions.append(.putField(field, receiver, converted)); return
+            instructions.append(field.access & 8 != 0 ? .putStatic(field, converted) : .putField(field, receiver, converted))
+            return
         }
         guard var setter = property.setter else { throw fail("JVM val has no setter.") }
         if special { setter = try superMethod(setter, receiver: superReceiver) }
