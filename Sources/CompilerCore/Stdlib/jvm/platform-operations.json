@@ -1,5 +1,12 @@
 [
   {
+    "symbol": "__jvmSuppressedExceptions",
+    "owner": "java/lang/Throwable",
+    "name": "getSuppressed",
+    "descriptor": "()[Ljava/lang/Throwable;",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmFileName",
     "owner": "java/io/File",
     "name": "getName",

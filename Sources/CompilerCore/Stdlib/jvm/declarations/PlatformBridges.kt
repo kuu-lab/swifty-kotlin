@@ -1,4 +1,6 @@
 package kotlin.jvm.internal
+fun __jvmSuppressedExceptions(throwable: Throwable): Array<Throwable> = null!!
+
 fun __jvmFileName(file: java.io.File): String = null!!
 
 fun __jvmCloseResource(resource: java.io.Closeable) {}
