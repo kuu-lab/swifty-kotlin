@@ -1643,7 +1643,7 @@ final class JVMClasspathIndex {
         }
         for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
             guard let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol),
-                  parent.fqName.map(ctx.interner.resolve) == ["kotlin", "Any"],
+                  parent.fqName == KnownCompilerNames(interner: ctx.interner).kotlinAnyFQName,
                   let signature = sema.symbols.functionSignature(for: symbol.id) else { continue }
             let name = ctx.interner.resolve(symbol.name)
             guard ["toString", "hashCode", "equals"].contains(name) else { continue }
@@ -1722,7 +1722,8 @@ final class JVMClasspathIndex {
                 guard descriptor.prefix(while: { $0 == "[" }).count <= 255 else { throw JVMFrontendError(message: "JVM arrays support at most 255 dimensions.") }
                 return .reference(descriptor, nullable: type.nullability != .nonNull)
             }
-            if ctx.jvmRuntimeClassAliases[symbol.fqName.map(ctx.interner.resolve).joined(separator: "/")] == nil, name.hasPrefix("kotlin/"), let p = [PrimitiveType.uint, .ulong, .ubyte, .ushort].first(where: { name == "kotlin/" + $0.kotlinName + "Array" }) { return .unsignedArray(p, nullable: type.nullability != .nonNull) }
+            let runtimeClassAliasKey = symbol.fqName.map(ctx.interner.resolve).joined(separator: "/")
+            if ctx.jvmRuntimeClassAliases[runtimeClassAliasKey] == nil, name.hasPrefix("kotlin/"), let p = [PrimitiveType.uint, .ulong, .ubyte, .ushort].first(where: { name == "kotlin/" + $0.kotlinName + "Array" }) { return .unsignedArray(p, nullable: type.nullability != .nonNull) }
             if let element = primitiveArrays[String(name.dropFirst(7))], name.hasPrefix("kotlin/") { return .reference("[" + element.descriptor, nullable: type.nullability != .nonNull) }
             // Result's non-null logical value may carry a successful null.
             if name == "kotlin/Result" { return ctx.options.stdlibOnly ? .reference(name, nullable: type.nullability != .nonNull) : .reference("java/lang/Object", nullable: true) }

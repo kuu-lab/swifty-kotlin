@@ -62,6 +62,6 @@ extension DataFlowSemaPhase {
         guard fqName.count == 4,
               ["unmodifiableList", "unmodifiableSet", "unmodifiableMap", "newSetFromMap"].contains(interner.resolve(fqName[3]))
         else { return false }
-        return fqName.prefix(3).map { interner.resolve($0) } == ["java", "util", "Collections"]
+        return fqName.starts(with: KnownCompilerNames(interner: interner).javaUtilCollectionsPackageFQName)
     }
 }

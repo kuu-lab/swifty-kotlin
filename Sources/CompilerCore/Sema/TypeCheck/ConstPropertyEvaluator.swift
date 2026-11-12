@@ -454,17 +454,19 @@ package final class ConstPropertyEvaluator {
               case let .classType(receiverClass) = types.kind(of: receiver),
               let owner = symbols.symbol(receiverClass.classSymbol)
         else { return nil }
-        let path = owner.fqName.map { interner.resolve($0) }
-        guard path.count == 3, path[0] == "kotlin", path[2] == "Companion" else { return nil }
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard owner.fqName.count == 3, owner.fqName[0] == knownNames.kotlin,
+              owner.fqName[2] == interner.intern("Companion") else { return nil }
+        let primitiveName = interner.resolve(owner.fqName[1])
         let member = interner.resolve(info.name)
         let sizeBits: [String: Int64] = [
             "Byte": 8, "UByte": 8, "Short": 16, "UShort": 16, "Int": 32, "UInt": 32,
             "Float": 32, "Long": 64, "ULong": 64, "Double": 64,
         ]
-        if let bits = sizeBits[path[1]], member == "SIZE_BITS" || member == "SIZE_BYTES" {
+        if let bits = sizeBits[primitiveName], member == "SIZE_BITS" || member == "SIZE_BYTES" {
             return .intLiteral(member == "SIZE_BITS" ? bits : bits / 8)
         }
-        switch (path[1], member) {
+        switch (primitiveName, member) {
         case ("Char", "MIN_VALUE"): return .charLiteral(0)
         case ("Char", "MAX_VALUE"): return .charLiteral(65535)
         case ("Byte", "MIN_VALUE"): return .intLiteral(-128)
