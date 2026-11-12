@@ -362,6 +362,9 @@ public final class SymbolTable {
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
     private var delegateHasProvideDelegate: Set<SymbolID> = []
     private var expectActualLinks: [SymbolID: SymbolID] = [:]
+    /// Bumped when expect/actual links or typealias targets change; TypeSystem
+    /// validates its nominal subtype caches against this version.
+    private var nominalLinkMutationVersionStorage: UInt64 = 0
     /// Actual functions inherit call-site defaults from their paired expect
     /// declaration, whose source AST owns the expressions and default stub.
     private var expectActualDefaultArgumentOwners: [SymbolID: SymbolID] = [:]
@@ -532,6 +535,7 @@ public final class SymbolTable {
         worker.constValueExprKinds = constValueExprKinds
         worker.delegateHasProvideDelegate = delegateHasProvideDelegate
         worker.expectActualLinks = expectActualLinks
+        worker.nominalLinkMutationVersionStorage = nominalLinkMutationVersionStorage
         worker.expectActualDefaultArgumentOwners = expectActualDefaultArgumentOwners
         worker.contractNonNullEffects = contractNonNullEffects
         worker.contractImplicationEffects = contractImplicationEffects
@@ -1850,6 +1854,7 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         typeAliasUnderlyingTypes[symbol] = type
+        nominalLinkMutationVersionStorage &+= 1
     }
 
     public func typeAliasUnderlyingType(for symbol: SymbolID) -> TypeID? {
@@ -2312,6 +2317,7 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         expectActualLinks[expect] = actual
+        nominalLinkMutationVersionStorage &+= 1
         if functionSignatures[expect]?.valueParameterHasDefaultValues.contains(true) == true {
             expectActualDefaultArgumentOwners[actual] = expect
         }
@@ -2321,6 +2327,12 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         return expectActualLinks[expect]
+    }
+
+    var nominalLinkMutationVersion: UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return nominalLinkMutationVersionStorage
     }
 
     public func expectActualDefaultArgumentOwner(for actual: SymbolID) -> SymbolID? {
