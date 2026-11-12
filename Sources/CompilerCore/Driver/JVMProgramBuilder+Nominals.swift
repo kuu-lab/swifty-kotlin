@@ -13,7 +13,7 @@ extension JVMClasspathIndex {
     ) -> String {
         guard let value = sema.symbols.symbol(symbol) else { return "" }
         let name = ctx.interner.resolve(value.name)
-        if isAnonymousObjectLiteral(value, interner: ctx.interner),
+        if isAnonymousObjectLiteral(value),
            !resolvingAnonymous.contains(symbol),
            let info = anonymousObjectName(
                symbol,
@@ -39,7 +39,7 @@ extension JVMClasspathIndex {
         resolvingAnonymous: Set<SymbolID>
     ) -> JVMAnonymousObjectNameInfo? {
         guard let value = sema.symbols.symbol(symbol),
-              isAnonymousObjectLiteral(value, interner: ctx.interner),
+              isAnonymousObjectLiteral(value),
               let ast = ctx.ast
         else {
             return nil
@@ -189,10 +189,10 @@ extension JVMClasspathIndex {
         )
     }
 
-    private static func isAnonymousObjectLiteral(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
+    private static func isAnonymousObjectLiteral(_ symbol: SemanticSymbol) -> Bool {
         symbol.kind == .class
             && symbol.flags.contains(.synthetic)
-            && interner.resolve(symbol.name).hasPrefix("__ObjectLiteral_")
+            && symbol.flags.contains(.objectLiteralSynthetic)
     }
 }
 
