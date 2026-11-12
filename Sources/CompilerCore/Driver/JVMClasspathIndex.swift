@@ -182,6 +182,7 @@ final class JVMClasspathIndex {
         }
         for info in classes.values {
             var methods = info.methods
+            var methodKeys = Set(methods.lazy.map(key))
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -193,7 +194,7 @@ final class JVMClasspathIndex {
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
-                    if !methods.contains(where: { key($0) == signature }),
+                    if !methodKeys.contains(signature),
                        interfaceMethods[signature].map({ interfaceInherits(method.owner, $0.owner) }) ?? true {
                         // The most specific interface wins independently of the
                         // order of redundant interfaces in the classfile.
@@ -210,7 +211,7 @@ final class JVMClasspathIndex {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
-                    if !methods.contains(where: { key($0) == key(method) }) {
+                    if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
                         // when its implementation is inherited from a hidden base.
                         methods.append(visible ? method : accessibleMethod(method, on: info))
@@ -224,6 +225,7 @@ final class JVMClasspathIndex {
             }
             for name in inheritedInterfaces { inheritInterface(name) }
             methods += interfaceMethods.keys.sorted().map { accessibleMethod(interfaceMethods[$0]!, on: info) }
+            methodKeys.formUnion(interfaceMethods.keys)
             var abstractMethods: Set<String> = []
             var abstractVisited: Set<String> = []
             func collectAbstract(_ name: String) {
@@ -236,8 +238,11 @@ final class JVMClasspathIndex {
             if let superclass { collectAbstract(superclass) }
             // Erased imports need a real bridge when an inherited raw method
             // has different parameters from the specialized implementation.
-            for bridge in bridges where abstractMethods.contains(key(bridge)) && !methods.contains(where: { key($0) == key(bridge) }) {
-                methods.append(accessibleMethod(bridge, on: info))
+            for bridge in bridges {
+                let signature = key(bridge)
+                if abstractMethods.contains(signature), methodKeys.insert(signature).inserted {
+                    methods.append(accessibleMethod(bridge, on: info))
+                }
             }
             var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
             imported.bridgeMethods = bridges
