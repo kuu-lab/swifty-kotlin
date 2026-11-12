@@ -1346,7 +1346,8 @@ final class JVMClasspathIndex {
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction) -> String {
-        let receiver = function.receiver.map { $0 + "." } ?? ""
+        // Parenthesize function types so the dot binds to the entire receiver.
+        let receiver = function.receiver.map { $0.contains("->") ? "(\($0))." : $0 + "." } ?? ""
         let parameters = function.parameters.enumerated().map { index, parameter in
             let fallback = "p\(index)"
             let name = parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback
