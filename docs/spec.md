@@ -236,14 +236,14 @@ JVMTextLibrary は論理引数・戻り値のまま suspend 呼び出しを記�
 builder は Function2 として渡し、反復ごとの独立した frame、capture、ループ、例外 handler と finally を保持する。
 型推論後に JVM 専用の SequenceScope suspension 検査を行い、同じ receiver への member／extension 呼び出しだけを許可する。
 Native の suspension 検査・builder lowering は維持する。
-M22 は複数ソースを一つの module として Sema で解決し、ファイルごとの facade／package metadata を出力する。
+M22 は複数ソースを一つの module として Sema で解決し、ファイルごとの facade／package metadata を出力する。同じ `@file:JvmName` の facade は、該当する全ファイルに `@file:JvmMultifileClass` がある場合に共有できる。
 `--stdlib-only --emit jar` は共通の `kotlin/Pair/Pair.kt` と `Stdlib/jvm/` の platform source profile を
 コンパイルし、`kswiftk-stdlib.jar` を生成する。Native の bundled source 列挙は `jvm/` を除外する。
 Pair の data ABI、println／print、empty／singleton／vararg の List／Set／Map factory は
 公式 stdlib なしで動作する。コレクションの backing object は JDK の実装を使う。
 組み込み型用 `.kotlin_builtins` と Kotlin consumer 向け最小 Intrinsics は独自生成し、公式 JAR をコピーしない。
 source vararg は単独 parameter の関数を扱い、配列 descriptor／generic signature／vararg metadata と spread を保持する。
-複数 main、重複 facade、二つ目以降の入力の不正構文も出力前に拒否する。
+複数 main、`@JvmMultifileClass` のない重複 facade、二つ目以降の入力の不正構文も出力前に拒否する。
 このprofileは対応済みのSequence／Regex／unsigned／coroutine／reflection／lazyも含み、公式stdlib／reflect JARの実行時依存を持たない。
 ABI照合はvalue-class／JvmName lowering後の公開signatureで行い、静的closure検査と独自JARだけの実行を別々に検証する。
 通常の関数参照invokeはInvocationTargetExceptionを解除し、KCallable.callはJava reflectionの例外ラッパーを保持する。

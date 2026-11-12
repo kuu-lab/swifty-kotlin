@@ -284,7 +284,9 @@ extension JVMProgramBuilder {
     func annotated(_ function: JVMFunction, symbol: SymbolID) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
         applyDeprecation(f.annotations, to: &f)
-        if let raw = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first {
+        if let raw = sema.symbols.annotations(for: symbol).first(where: {
+            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget != "file"
+        })?.arguments.first {
             let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first, (Self.isIdentifier(name) || context.options.stdlibOnly && Self.isIdentifier(name.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "JVM @JvmName requires a constant ASCII identifier.") }
             f.jvmName = name
