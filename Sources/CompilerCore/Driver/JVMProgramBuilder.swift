@@ -895,7 +895,10 @@ final class JVMFunctionBuilder {
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
-            return try propertyCompound(property, receiver: requireValue(receiver), op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
+            return try propertyCompound(property, receiver: object, op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
         case let .memberCall(receiver, name, typeArgs, args, _):
             if let folded = try constantFoldedText(id) { return folded }
             return try memberExpression(id, receiver: receiver, name: name, typeArgs: typeArgs, args: args)

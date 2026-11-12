@@ -1099,9 +1099,29 @@ final class JVMClasspathIndex {
             return "const val `\(field.name)`: \(kotlin) = \(literal)\n"
         }
         let constantFields = info.fields.compactMap(constantField)
-        if allowsCompanion, !statics.isEmpty || !constantFields.isEmpty {
+        let constantFieldKeys = Set(info.fields.compactMap { field in
+            constantField(field) == nil ? nil : field.name + "\u{1F}" + field.descriptor
+        })
+        /// Static fields without a usable `ConstantValue` still name a real
+        /// classfile field, so expose them as companion properties for the
+        /// backend to bind to `getstatic`/`putstatic`.
+        func runtimeField(_ field: JVMForeignField) -> String? {
+            guard field.isStatic, field.isPublic, field.access & 0x1000 == 0,
+                  JVMProgramBuilder.isIdentifier(field.name),
+                  !constantFieldKeys.contains(field.name + "\u{1F}" + field.descriptor),
+                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+                  expose(type) else { return nil }
+            let kotlin = kotlinType(type)
+            if field.isFinal {
+                return "val `\(field.name)`: \(kotlin) get() = null!!\n"
+            }
+            return "var `\(field.name)`: \(kotlin) get() = null!! set(value) {}\n"
+        }
+        let runtimeFields = info.fields.compactMap(runtimeField)
+        if allowsCompanion, !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object {\n"
             for declaration in constantFields { source += declaration }
+            for declaration in runtimeFields { source += declaration }
             for method in statics {
                 source += "external " + functionDeclaration(method) + "\n"
             }
@@ -1325,6 +1345,15 @@ final class JVMClasspathIndex {
                     where lazyClassNames.contains(ref) && isInjected(ref) {
                         markNeeded(ref)
                     }
+                }
+            }
+            for field in info.fields where field.isStatic && field.isPublic && field.access & 0x1000 == 0 {
+                guard let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+                      expose(type)
+                else { continue }
+                for ref in signatureNames(type)
+                where lazyClassNames.contains(ref) && isInjected(ref) {
+                    markNeeded(ref)
                 }
             }
             // Nested classes are emitted inside their owner's stub but are
