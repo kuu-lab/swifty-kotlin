@@ -1,4 +1,16 @@
 package kotlin.jvm.internal
+fun __jvmSuppressedExceptions(throwable: Throwable): Array<Throwable> = null!!
+
+fun __jvmFileName(file: java.io.File): String = null!!
+
+fun __jvmCloseResource(resource: java.io.Closeable) {}
+
+fun __jvmStringWriter(): Any = null!!
+fun __jvmPrintWriter(writer: Any): Any = null!!
+fun __jvmPrintStackTrace(error: Throwable, writer: Any) {}
+fun __jvmThreadLocalRandom(): Any = null!!
+fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
+
 fun <T> __jvmNewList(): kotlin.collections.MutableList<T> = null!!
 fun <T> __jvmNewSet(): kotlin.collections.MutableSet<T> = null!!
 fun <K, V> __jvmNewMap(): kotlin.collections.MutableMap<K, V> = null!!
