@@ -487,6 +487,31 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[instantName] = info
         }
+        let durationName = "java/time/Duration"
+        if classes[durationName] == nil {
+            let durationType = JVMValueType.reference(durationName, nullable: false)
+            let methods = [
+                method(durationName, "ofSeconds", [.long, .long], durationType, staticMember: true),
+                method(durationName, "getSeconds", [], .long),
+                method(durationName, "getNano", [], .int),
+            ]
+            let source = """
+                package java.time
+                class Duration private constructor() {
+                    fun getSeconds(): Long = 0L
+                    fun getNano(): Int = 0
+                    companion object {
+                        external fun ofSeconds(seconds: Long, nanoAdjustment: Long): Duration
+                    }
+                }
+                """
+            let info = JVMClassInfo(name: durationName, flags: 0x0011, superclass: "java/lang/Object",
+                                    interfaces: [], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/time/Duration.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[durationName] = info
+        }
         // The shared frontend already declares File, its constructors and
         // path. Supply their JDK signatures even with no platform jar.
         let fileName = "java/io/File"
