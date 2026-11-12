@@ -1750,7 +1750,7 @@ final class JVMClasspathIndex {
                     }
                 }
                 if let function = method.kotlinSuspendFunction {
-                    markSourceTypes(function.parameters.compactMap(\.sourceType))
+                    markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 })
                 }
             }
             for field in info.fields where field.isStatic && field.isPublic && field.access & 0x1000 == 0 {
@@ -1824,6 +1824,7 @@ final class JVMClasspathIndex {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
         let result = method.genericResultParameter.map { "`\($0.name)`" }
+            ?? suspend?.sourceResult
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
