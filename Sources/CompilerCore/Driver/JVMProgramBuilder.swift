@@ -8,6 +8,7 @@ final class JVMProgramBuilder {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
     var properties: [SymbolID: JVMProperty] = [:]
+    var foreignInterfaceDefaultMethodsCache: [SymbolID: [String: (method: JVMForeignMethod, owner: String)]] = [:]
     var facadeName = ""
     var facadePlan: JVMClassPlan?
     var references: [SymbolID: JVMFunctionReference] = [:]
