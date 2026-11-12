@@ -279,22 +279,24 @@ final class JVMClasspathIndex {
             for name in inheritedInterfaces { inheritInterface(name) }
             methods += interfaceMethods.keys.sorted().map { accessibleMethod(interfaceMethods[$0]!, on: info) }
             methodKeys.formUnion(interfaceMethods.keys)
-            var abstractMethods: Set<String> = []
-            var abstractVisited: Set<String> = []
-            func collectAbstract(_ name: String) {
-                guard abstractVisited.insert(name).inserted, let base = hierarchyClasses[name] else { return }
-                for method in base.methods where method.isAbstract { abstractMethods.insert(key(method)) }
-                for parent in base.interfaces { collectAbstract(parent) }
-                if let parent = base.superclass { collectAbstract(parent) }
-            }
-            for name in interfaces { collectAbstract(name) }
-            if let superclass { collectAbstract(superclass) }
-            // Erased imports need a real bridge when an inherited raw method
-            // has different parameters from the specialized implementation.
-            for bridge in bridges {
-                let signature = key(bridge)
-                if abstractMethods.contains(signature), methodKeys.insert(signature).inserted {
-                    methods.append(accessibleMethod(bridge, on: info))
+            if !bridges.isEmpty {
+                var abstractMethods: Set<String> = []
+                var abstractVisited: Set<String> = []
+                func collectAbstract(_ name: String) {
+                    guard abstractVisited.insert(name).inserted, let base = hierarchyClasses[name] else { return }
+                    for method in base.methods where method.isAbstract { abstractMethods.insert(key(method)) }
+                    for parent in base.interfaces { collectAbstract(parent) }
+                    if let parent = base.superclass { collectAbstract(parent) }
+                }
+                for name in interfaces { collectAbstract(name) }
+                if let superclass { collectAbstract(superclass) }
+                // Erased imports need a real bridge when an inherited raw method
+                // has different parameters from the specialized implementation.
+                for bridge in bridges {
+                    let signature = key(bridge)
+                    if abstractMethods.contains(signature), methodKeys.insert(signature).inserted {
+                        methods.append(accessibleMethod(bridge, on: info))
+                    }
                 }
             }
             var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
