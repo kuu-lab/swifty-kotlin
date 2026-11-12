@@ -36,7 +36,7 @@ final class JVMClasspathIndex {
         result.requiredLazyClassNames = requiredLazyClassNames
         let descriptors = JVMDescriptorCache()
         var seen: Set<String> = []
-        func insert(_ bytes: [UInt8], path: String) throws {
+        func insert(_ bytes: [UInt8], path: String, isLazy: Bool = false) throws {
             var reader = JVMClassReader(bytes: bytes, descriptorCache: descriptors)
             let info: JVMClassInfo
             do {
@@ -47,6 +47,7 @@ final class JVMClasspathIndex {
             guard info.name + ".class" == path else { throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)") }
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
+            if isLazy { result.lazyClassNames.insert(info.name) }
         }
         for classFile in platformClassFiles {
             try insert(Array(classFile.contents), path: classFile.path)
@@ -54,27 +55,21 @@ final class JVMClasspathIndex {
         result.lazyClassNames.formUnion(result.hierarchyClasses.keys)
         for path in paths {
             let isLazy = lazyPaths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
-            let priorKeys = isLazy ? Set(result.hierarchyClasses.keys) : []
             var directory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &directory) else {
                 throw JVMFrontendError(message: "JVM classpath entry does not exist: \(path)")
             }
             if directory.boolValue {
-                try forEachClassFile(inDirectory: URL(fileURLWithPath: path, isDirectory: true)) { file, relative in
-                    try insert(Array(Data(contentsOf: file)), path: relative)
+                try Self.forEachClassFile(inDirectory: URL(fileURLWithPath: path, isDirectory: true)) { file, relative in
+                    try insert(Array(Data(contentsOf: file)), path: relative, isLazy: isLazy)
                 }
             } else {
                 let archive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: path)))
                 for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
                     guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
                           !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-                    try insert(archive.contents(of: entry), path: entry.name)
+                    try insert(archive.contents(of: entry), path: entry.name, isLazy: isLazy)
                 }
-            }
-            if isLazy {
-                result.lazyClassNames.formUnion(
-                    result.hierarchyClasses.keys.filter { !priorKeys.contains($0) }
-                )
             }
         }
         // Preserve an explicitly supplied resource class, including when its
@@ -1263,14 +1258,12 @@ final class JVMClasspathIndex {
         var facadesByCallable: [String: [String]] = [:]
         var lazyCallablesByPackage: [String: [(short: String, name: String)]] = [:]
         for name in lazyClassNames {
-            let normalized = name.split(separator: "/")
-                .map(String.init).joined(separator: ".")
-                .replacingOccurrences(of: "$", with: ".")
-            normalizedToBinary[normalized, default: []].append(name)
             let parts = name.split(separator: "/").map(String.init)
+            let normalized = parts.joined(separator: ".").replacingOccurrences(of: "$", with: ".")
+            normalizedToBinary[normalized, default: []].append(name)
             guard parts.count >= 2 else { continue }
             let package = parts.dropLast().joined(separator: ".")
-            let short = parts.last!.split(separator: "$").last.map(String.init) ?? parts.last!
+            let short = parts.last!
             if !name.contains("$") {
                 lazyTopLevelByPackage[package, default: []].append((short, name))
             }
