@@ -301,7 +301,7 @@ struct JVMKotlinMetadata {
         return result
     }
 
-    func valueParameterConstructors(byteLimit: Int) throws -> [JVMKotlinValueConstructor] {
+    func constructorsWithLoweredParameters(byteLimit: Int) throws -> [JVMKotlinValueConstructor] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
         let types = try TypeTable(declaration.message(30))
@@ -309,15 +309,29 @@ struct JVMKotlinMetadata {
         let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
         for constructor in try declaration.messages(8) {
             let visibility = ((constructor.int32(1) ?? 6) >> 1) & 7
-            guard visibility == 2 || visibility == 3,
-                  let signature = try constructor.message(100),
-                  let bridgeDescriptor = try names.resolve(signature.int32(2)),
-                  bridgeDescriptor.hasSuffix(marker),
-                  let (carriers, jvmResult) = try? JVMDescriptor.parse(bridgeDescriptor),
-                  jvmResult == .unit else { continue }
+            guard visibility == 2 || visibility == 3 else { continue }
             let fields = try constructor.messages(2)
-            guard fields.count + 1 == carriers.count, !fields.isEmpty else { continue }
-            let descriptor = String(bridgeDescriptor.dropLast(marker.count)) + ")V"
+            guard !fields.isEmpty else { continue }
+            let signature = try constructor.message(100)
+            let explicitDescriptor = try names.resolve(signature?.int32(2))
+            let bridgeDescriptor: String
+            if let explicitDescriptor {
+                bridgeDescriptor = explicitDescriptor
+            } else {
+                let carriers = try fields.compactMap { parameter in
+                    try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                        try Self.resultType($0, types: types, names: names)
+                    }
+                }
+                guard carriers.count == fields.count else { continue }
+                bridgeDescriptor = "(" + carriers.map(\.descriptor).joined() + ")V"
+            }
+            let requiresMarker = bridgeDescriptor.hasSuffix(marker)
+            guard requiresMarker || fields.contains(where: { ($0.int32(1) ?? 0) & 2 != 0 }),
+                  let (carriers, jvmResult) = try? JVMDescriptor.parse(bridgeDescriptor),
+                  jvmResult == .unit, fields.count + (requiresMarker ? 1 : 0) == carriers.count
+            else { continue }
+            let descriptor = requiresMarker ? String(bridgeDescriptor.dropLast(marker.count)) + ")V" : bridgeDescriptor
             let parameters = try fields.compactMap { parameter -> JVMKotlinFunction.Parameter? in
                 guard !parameter.has(4), !parameter.has(6),
                       let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name),

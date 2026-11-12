@@ -180,7 +180,8 @@ extension JVMFunctionBuilder {
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         let importedDefault = context.jvmImports?.importedDefaultMethods[symbol]
         let importedConstructor = context.jvmImports?.importedValueParameterConstructors[symbol]
-        let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil
+        let importedConstructorDefault = context.jvmImports?.importedConstructorDefaults[symbol]
+        let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
         // Constructor arguments can suspend, so allocate only after every
@@ -214,7 +215,7 @@ extension JVMFunctionBuilder {
             } else if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)
                 let params = allTypes + Array(repeating: JVMValueType.int, count: ordered.masks.count) + [.reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true)]
-                let call = JVMForeignMethod(owner: method!.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: method!.result, isStatic: false, isInterface: false, isAbstract: false)
+                let call = importedConstructorDefault ?? JVMForeignMethod(owner: method!.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: method!.result, isStatic: false, isInterface: false, isAbstract: false)
                 instructions.append(.foreignCall(call, receiver: object, arguments: values, result: nil))
             } else {
                 let target = try program.defaultReference(defaultSymbol)
