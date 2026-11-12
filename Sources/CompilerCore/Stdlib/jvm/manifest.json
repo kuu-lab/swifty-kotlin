@@ -198,6 +198,12 @@
     },
     {
       "path": "declarations/StringFormattingCaseFunctions.kt",
+    {
+      "path": "declarations/Utf8Decoding.kt",
+      "virtualPath": "<kswiftk-jvm>/utf8-decoding.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
       "virtualPath": "<kswiftk-jvm>/string-formatting-case-functions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/text/StringsKt"
