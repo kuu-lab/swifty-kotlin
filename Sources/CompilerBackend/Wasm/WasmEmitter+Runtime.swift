@@ -893,7 +893,7 @@ enum WasmRuntimeHelpers {
         let extraLocals: Int
         switch name {
         case "$__kk_wasm_alloc":
-            extraLocals = 3
+            extraLocals = 5
             emitAllocBody(&code, ctx: ctx)
         case "$__kk_wasm_vtable":
             extraLocals = 1
@@ -3536,31 +3536,56 @@ enum WasmRuntimeHelpers {
         code.op(WasmOpcode.i64Add)          // new = old + delta
         code.localSet(3)
         // The bump allocator owns all memory past dataEnd; grow the linear
-        // memory instead of trapping once the new high-water mark crosses
-        // the current page count.
-        code.localGet(3)
-        code.op(WasmOpcode.memorySize)
-        code.u(0)
-        code.i64ExtendFromComparison()      // pages -> i64
-        code.i64Const(16)
-        code.op(WasmOpcode.i64Shl)
-        code.op(WasmOpcode.i64GtU)
-        code.openIf()
-        code.localGet(3)
+        // memory geometrically (at least doubling or 16 pages = 1 MiB) so
+        // repeated small allocations do not trigger thousands of `memory.grow`
+        // syscalls in V8/Node. Fall back to the exact `neededPages` if the
+        // larger growth request is rejected.
         code.op(WasmOpcode.memorySize)
         code.u(0)
         code.i64ExtendFromComparison()
+        code.localTee(5)                    // currentPages
         code.i64Const(16)
-        code.op(WasmOpcode.i64Shl)          // current bytes
+        code.op(WasmOpcode.i64Shl)          // currentBytes
+        code.localGet(3)
+        code.op(WasmOpcode.i64LtU)          // currentBytes < new
+        code.openIf()
+        code.localGet(3)
+        code.localGet(5)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64Shl)
         code.op(WasmOpcode.i64Sub)
         code.i64Const(65_535)
         code.op(WasmOpcode.i64Add)
         code.i64Const(16)
-        code.op(WasmOpcode.i64ShrU)         // pages needed
+        code.op(WasmOpcode.i64ShrU)
+        code.localTee(4)                    // neededPages
+        code.localGet(5)
+        code.i64Const(16)
+        code.op(WasmOpcode.i64GtU)
+        code.openIf(result: .i64)
+        code.localGet(5)
+        code.elseBranch()
+        code.i64Const(16)
+        code.end()                          // minBatch = max(currentPages, 16)
+        code.localTee(5)
+        code.op(WasmOpcode.i64GtU)          // neededPages > minBatch
+        code.openIf(result: .i64)
+        code.localGet(4)
+        code.elseBranch()
+        code.localGet(5)
+        code.end()                          // desiredPages = max(neededPages, minBatch)
+        code.op(WasmOpcode.i32WrapI64)
+        code.op(WasmOpcode.memoryGrow)
+        code.u(0)
+        code.i32Const(-1)
+        code.op(WasmOpcode.i32Eq)
+        code.openIf()
+        code.localGet(4)
         code.op(WasmOpcode.i32WrapI64)
         code.op(WasmOpcode.memoryGrow)
         code.u(0)
         code.op(WasmOpcode.drop)
+        code.end()
         code.end()
         code.localGet(3)
         code.globalSet(ctx.heapGlobal)      // commit new high-water mark

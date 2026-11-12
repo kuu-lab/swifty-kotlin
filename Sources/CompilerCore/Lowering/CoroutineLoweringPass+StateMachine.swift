@@ -1,4 +1,6 @@
 
+import RuntimeABI
+
 /// Chosen to avoid collision with user labels and tailrec loop-head labels.
 let coroutineDispatchLabelBase: Int32 = 1000
 
@@ -346,10 +348,22 @@ extension CoroutineLoweringPass {
                             loweredSuspendSymbol = nil
                         }
                         if placeholderContinuationCallees.contains(suspendCallInfo.callee) {
-                            // KIR supplies the blocking-path continuation slot.
-                            // Replace it rather than adding an extra ABI argument;
-                            // owner lock's outThrown stays in thrownResult.
-                            loweredSuspendArguments[loweredSuspendArguments.count - 1] = continuationExpr
+                            let calleeName = interner.resolve(suspendCallInfo.callee)
+                            let expectedArgCount = RuntimeABISpec.byName[calleeName].map { spec in
+                                spec.parameters.filter { $0.name != "outThrown" }.count
+                            }
+                            if let expectedArgCount, loweredSuspendArguments.count < expectedArgCount {
+                                // Interface-delegation forwarding stubs emit direct bridge calls
+                                // without a trailing blocking-path placeholder slot.
+                                loweredSuspendArguments.append(continuationExpr)
+                            } else if !loweredSuspendArguments.isEmpty {
+                                // KIR supplies the blocking-path continuation slot.
+                                // Replace it rather than adding an extra ABI argument;
+                                // owner lock's outThrown stays in thrownResult.
+                                loweredSuspendArguments[loweredSuspendArguments.count - 1] = continuationExpr
+                            } else {
+                                loweredSuspendArguments.append(continuationExpr)
+                            }
                         } else if isMillisDelayCall || continuationConsumingRuntimeCallees.contains(suspendCallInfo.callee) {
                             // CORO-004: append the caller continuation so await / join can
                             // resume the coroutine via the runtime instead of blocking.
