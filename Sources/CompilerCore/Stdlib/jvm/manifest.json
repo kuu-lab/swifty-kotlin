@@ -5,10 +5,17 @@
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
+    {
+      "path": "declarations/Random.kt",
+      "virtualPath": "<kswiftk-jvm>/random.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/random/RandomKt"
+    },
     {
       "path": "kotlin/time/DurationUnit.kt",
       "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
