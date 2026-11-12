@@ -357,6 +357,7 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
+            if method.kotlinComposeABI != nil { return hasComposeRuntime }
             guard function.parameters.count + (function.receiver == nil ? 0 : 1) == method.parameters.count
             else { return false }
             if function.receiver?.contains("->") == true || function.result.contains("->")
@@ -779,6 +780,9 @@ final class JVMClasspathIndex {
         let covered = try coveredClassNames(in: ctx)
         activeCoveredNames = covered
         injectComposeUIContracts(into: ctx)
+        let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
+            entry.method.owner + "." + entry.method.name + entry.method.descriptor
+        })
         if hasMetroRuntime {
             metroDeclarationsFile = ctx.sourceManager.addFile(
                 path: JVMMetro.sourcePath, contents: Data(JVMMetro.source.utf8), origin: .residualStdlib
@@ -801,7 +805,9 @@ final class JVMClasspathIndex {
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
             var source = package.isEmpty ? "" : "package \(package)\n"
             let own = info.methods.filter(isExposed)
-            let statics = own.filter(\.isStatic)
+            let statics = own.filter {
+                $0.isStatic && !projectedComposeMethods.contains($0.owner + "." + $0.name + $0.descriptor)
+            }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
             if info.isAnnotation && own.allSatisfy(\.isStatic) {
                 source += "annotation class `\(short)`\n"
@@ -835,8 +841,11 @@ final class JVMClasspathIndex {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
                         continue
                     }
-                    let defaults = info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
-                    source += "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
+                    let composeABI = method.kotlinComposeABI
+                    let defaults = composeABI?.defaults == 1
+                        || info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
+                    let annotation = composeABI == nil ? "" : "@androidx.compose.runtime.Composable "
+                    source += annotation + "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
                     // Preserve extension syntax for Java-authored facade
                     // shims, where there is no Kotlin receiver metadata.
                     if info.isKotlinFileFacade == nil, method.kotlinFunction == nil,
