@@ -3,8 +3,10 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/io/encoding/Base64.kt",
     "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt"
@@ -197,13 +199,13 @@
       "excludeFromStdlibBuild": true
     },
     {
-      "path": "declarations/StringFormattingCaseFunctions.kt",
-    {
       "path": "declarations/Utf8Decoding.kt",
       "virtualPath": "<kswiftk-jvm>/utf8-decoding.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/text/StringsKt"
     },
+    {
+      "path": "declarations/StringFormattingCaseFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/string-formatting-case-functions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/text/StringsKt"
