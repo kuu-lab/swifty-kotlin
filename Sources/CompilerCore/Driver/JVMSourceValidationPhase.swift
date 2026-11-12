@@ -540,7 +540,10 @@ private struct JVMSourceGrammar {
                     guard kind == .symbol(.lParen) || startsTrailingLambda() else { throw Unsupported() }
                 } catch { index = saved; break }
             } else if take(.symbol(.lBracket)) {
-                try expression(allowNewlines: true); try require(.symbol(.rBracket))
+                repeat {
+                    try expression(allowNewlines: true)
+                } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
+                try require(.symbol(.rBracket))
             } else if take(.symbol(.lParen)) {
                 let header = inDelegationHeader; inDelegationHeader = false
                 if !take(.symbol(.rParen)) {
