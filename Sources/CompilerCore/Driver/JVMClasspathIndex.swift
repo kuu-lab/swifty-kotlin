@@ -18,6 +18,7 @@ final class JVMClasspathIndex {
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
     private var innerClassesByOwner: [String: [JVMInnerClassInfo]] = [:]
+    private var overrideSignaturesByOwner: [String: Set<OverrideSignature>] = [:]
     /// Covered names for the `inject(into:)` run in progress; supertypes that
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
@@ -743,6 +744,7 @@ final class JVMClasspathIndex {
     func inject(into ctx: CompilationContext) throws {
         let covered = try coveredClassNames(in: ctx)
         activeCoveredNames = covered
+        defer { overrideSignaturesByOwner.removeAll() }
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
@@ -965,7 +967,7 @@ final class JVMClasspathIndex {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
         }
         for method in own where !method.isConstructor && !method.isStatic {
-            var overrides = overridesParent(method, in: info, visited: [])
+            var overrides = overridesParent(method, in: info)
             if charSequenceBridged, method.name == "subSequence" { overrides = true }
             if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
             if appendableBridged, isAppendableMember(method) { overrides = true }
@@ -996,7 +998,7 @@ final class JVMClasspathIndex {
             var modifiers = ""
             if getter.isProtected && !info.isInterface { modifiers += "protected " }
             if !info.isInterface && getter.isFinal { modifiers += "final " }
-            if overridesParent(getter, in: info, visited: []) { modifiers += "override " }
+            if overridesParent(getter, in: info) { modifiers += "override " }
             else if !info.isInterface && !getter.isFinal { modifiers += "open " }
             if info.isInterface {
                 // Abstract: a concrete interface property would make every
@@ -1490,10 +1492,27 @@ final class JVMClasspathIndex {
         }.joined(separator: ", ")
     }
 
-    private func overridesParent(_ method: JVMForeignMethod, in info: JVMClassInfo, visited: Set<String>) -> Bool {
+    private struct OverrideSignature: Hashable {
+        let name: String
+        let parameters: Substring
+
+        init(_ method: JVMForeignMethod) {
+            name = method.name
+            parameters = method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+        }
+    }
+
+    private func overridesParent(_ method: JVMForeignMethod, in info: JVMClassInfo) -> Bool {
+        switch (method.name, method.descriptor) {
+        case ("toString", "()Ljava/lang/String;"), ("hashCode", "()I"), ("equals", "(Ljava/lang/Object;)Z"):
+            return true
+        default:
+            return overridesParent(OverrideSignature(method), in: info, visited: [])
+        }
+    }
+
+    private func overridesParent(_ signature: OverrideSignature, in info: JVMClassInfo, visited: Set<String>) -> Bool {
         guard !visited.contains(info.name) else { return false }
-        if ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) { return true }
-        let key = method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
         for parentName in ([info.superclass].compactMap { $0 } + info.interfaces) {
             // java.lang.Object maps to kotlin.Any, which only provides
             // toString/hashCode/equals (already handled above). Its other
@@ -1507,10 +1526,26 @@ final class JVMClasspathIndex {
             // bridges the differences explicitly instead.
             if parentName == "java/lang/Object" || resolvesToKotlinDecl(parentName) { continue }
             guard let parent = classes[parentName] else { continue }
-            if parent.methods.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!) == key }) { return true }
-            if overridesParent(method, in: parent, visited: visited.union([info.name])) { return true }
+            if declaresOverride(signature, in: parent) { return true }
+            if overridesParent(signature, in: parent, visited: visited.union([info.name])) { return true }
         }
         return false
+    }
+
+    private func declaresOverride(_ signature: OverrideSignature, in owner: JVMClassInfo) -> Bool {
+        if let signatures = overrideSignaturesByOwner[owner.name] {
+            return signatures.contains(signature)
+        }
+        // Index wide owners once during stub generation. Small method lists
+        // stay cheap to scan, and comparison ignores covariant return types.
+        if owner.methods.count < 16 {
+            return owner.methods.contains {
+                !$0.isStatic && !$0.isConstructor && $0.name == signature.name && OverrideSignature($0) == signature
+            }
+        }
+        let signatures = Set(owner.methods.lazy.filter { !$0.isStatic && !$0.isConstructor }.map(OverrideSignature.init))
+        overrideSignaturesByOwner[owner.name] = signatures
+        return signatures.contains(signature)
     }
     /// Converts foreign reference signatures to Kotlin platform types after
     /// header collection and before any user body is checked.
