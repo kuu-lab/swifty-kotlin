@@ -386,6 +386,7 @@ final class JVMClasspathIndex {
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.kotlinValueParameterConstructors = info.kotlinValueParameterConstructors
+            imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
             imported.kotlinStaticProperties = info.kotlinStaticProperties
             imported.kotlinMemberProperties = info.kotlinMemberProperties
@@ -1161,6 +1162,12 @@ final class JVMClasspathIndex {
             }
             source += constructor.visibility + "constructor(" + declarations.joined(separator: ", ") + ") : this() {}\n"
         }
+        for (constructor, adapter) in info.kotlinValueClassConstructors where adapter.parameters.allSatisfy(exposeSuspendType) {
+            let declarations = constructor.parameters.compactMap { parameter in
+                parameter.name.map { "`\($0)`: " + parameter.sourceType }
+            }
+            source += "constructor(" + declarations.joined(separator: ", ") + ") : this() {}\n"
+        }
         for method in own where method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
             source += "external " + functionDeclaration(method) + "\n"
         }
@@ -1650,6 +1657,9 @@ final class JVMClasspathIndex {
             for (constructor, _, _) in info.kotlinValueParameterConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
+            for (constructor, _) in info.kotlinValueClassConstructors {
+                markSourceTypes(constructor.parameters.map(\.sourceType))
+            }
             for method in info.methods where isExposed(method) {
                 for type in method.sourceParameters + [method.sourceResult] {
                     for ref in signatureNames(type)
@@ -1947,6 +1957,21 @@ final class JVMClasspathIndex {
             let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
             let descriptor = "(" + parameters + continuation + ")"
             let staticMember = isTopLevel || isStaticCompanion
+            if symbol.kind == .constructor, !info.kotlinValueClassConstructors.isEmpty {
+                let labels = signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
+                let matching = info.kotlinValueClassConstructors.filter { candidate in
+                    descriptorTypes.count == candidate.source.parameters.count
+                        && candidate.source.parameters.compactMap(\.name) == labels
+                        && zip(candidate.adapter.parameters, descriptorTypes).allSatisfy { physical, logical in
+                            logical.descriptor == physical.descriptor
+                                || importedValueCarrier(for: logical)?.descriptor == physical.descriptor
+                        }
+                }
+                if matching.count == 1, let constructor = matching.first {
+                    methods[symbol.id] = constructor.adapter
+                    continue
+                }
+            }
             if symbol.kind == .constructor, !info.kotlinValueParameterConstructors.isEmpty {
                 let labels = signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
                 let matching = info.kotlinValueParameterConstructors.filter { candidate in

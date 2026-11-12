@@ -332,6 +332,28 @@ struct JVMKotlinMetadata {
         return result
     }
 
+    func valueClassConstructors(byteLimit: Int) throws -> [JVMKotlinValueConstructor] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        return try declaration.messages(8).compactMap { constructor in
+            let visibility = ((constructor.int32(1) ?? 6) >> 1) & 7
+            guard visibility == 3, let signature = try constructor.message(100),
+                  try names.resolve(signature.int32(1)) == "constructor-impl",
+                  let descriptor = try names.resolve(signature.int32(2)) else { return nil }
+            let fields = try constructor.messages(2)
+            let parameters = try fields.compactMap { parameter -> JVMKotlinFunction.Parameter? in
+                guard !parameter.has(4), !parameter.has(6),
+                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                      let type = try types.resolve(parameter, inline: 3, indexed: 5),
+                      let sourceType = try Self.sourceType(type, types: types, names: names) else { return nil }
+                return .init(name: name, sourceType: sourceType, isVararg: false, hasDefaultValue: false)
+            }
+            guard !fields.isEmpty, fields.count == parameters.count else { return nil }
+            return .init(descriptor: descriptor, parameters: parameters, visibility: "")
+        }
+    }
+
     func topLevelProperties(byteLimit: Int) throws -> [JVMKotlinTopLevelProperty] {
         guard kind == 2 || kind == 5, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
