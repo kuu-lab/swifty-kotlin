@@ -38,7 +38,7 @@ package enum JVMStdlibCatalog {
     /// already selected. Nested binary names are filtered by the class reader.
     static func nominalNames(in ctx: CompilationContext) throws -> Set<String> {
         let package = try NSRegularExpression(pattern: #"(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)"#)
-        let nominal = try NSRegularExpression(pattern: #"(?m)^\s*(?:(?:public|private|internal|protected|open|abstract|sealed|data|enum|annotation|value|fun)\s+)*(?:class|interface|object)\s+([A-Za-z_][A-Za-z0-9_]*)"#)
+        let nominal = try NSRegularExpression(pattern: #"(?m)^\s*(?:(?:public|private|internal|protected|open|abstract|sealed|data|enum|annotation|value|fun)\s+)*(?:class|interface|object|typealias)\s+([A-Za-z_][A-Za-z0-9_]*)"#)
         var names: Set<String> = []
         for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/") || ctx.options.stdlibOnly && ctx.sourceManager.origin(of: file) == .user {
             let source = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self) as NSString
