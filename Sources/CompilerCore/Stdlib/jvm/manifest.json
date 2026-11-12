@@ -571,6 +571,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/SetBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/set-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/SetsKt"
+    },
+    {
       "path": "declarations/MapBuilders.kt",
       "virtualPath": "<kswiftk-jvm>/map-builders.kt",
       "excludeFromStdlibBuild": true,
