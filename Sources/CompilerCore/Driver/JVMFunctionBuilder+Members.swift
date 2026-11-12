@@ -132,7 +132,7 @@ extension JVMFunctionBuilder {
                 let info = resolvedOwner.info
                 let name = context.interner.resolve(semanticSymbol.name)
                 let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
-                if let getter = info.kotlinCompanionProperties[name]?.getter {
+                if let getter = info.kotlinMemberProperties[name]?.getter {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
                 }
                 // `const val` members (e.g. `LinearLayout.VERTICAL`) have no

@@ -358,7 +358,7 @@ final class JVMClasspathIndex {
             imported.isKotlinFileFacade = info.isKotlinFileFacade
             imported.annotations = info.annotations
             imported.kotlinStaticProperties = info.kotlinStaticProperties
-            imported.kotlinCompanionProperties = info.kotlinCompanionProperties
+            imported.kotlinMemberProperties = info.kotlinMemberProperties
             imported.kotlinTopLevelProperties = info.kotlinTopLevelProperties
             classes[info.name] = imported
         }
@@ -1149,6 +1149,16 @@ final class JVMClasspathIndex {
                 source += modifiers + "val `\(propertyName)`: \(propertyType) get() = null!!\n"
             }
         }
+        for (name, property) in info.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
+            where exposeSuspendType(property.getter.result) {
+            let getter = property.getter
+            if !getter.isStatic, overridesParent(getter, in: info, visited: []) {
+                source += getter.isFinal ? "final override " : "override "
+            } else if !info.isInterface && !getter.isFinal {
+                source += "open "
+            }
+            source += "val `\(name)`: \(property.sourceType)" + (info.isInterface ? "\n" : " get() = null!!\n")
+        }
         // Concrete classes must implement every abstract property the
         // transitive interfaces declare; classfiles occasionally omit the
         // accessor (android.jar java.time), so emit a stub override.
@@ -1281,14 +1291,14 @@ final class JVMClasspathIndex {
                 source += "external " + functionDeclaration(method) + "\n"
             }
             if let companion {
-                for (name, property) in companion.kotlinCompanionProperties.sorted(by: { $0.key < $1.key })
+                for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
                     where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
                     source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
                 }
                 for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
                     if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
                         && !overridesParent(method, in: companion, visited: []) { continue }
-                    if companion.kotlinCompanionProperties.values.contains(where: {
+                    if companion.kotlinMemberProperties.values.contains(where: {
                         $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
                     }) { continue }
                     if overridesParent(method, in: companion, visited: [])
@@ -1546,7 +1556,7 @@ final class JVMClasspathIndex {
             for (property, _) in info.kotlinTopLevelProperties {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
-            markSourceTypes(info.kotlinCompanionProperties.values.map(\.sourceType))
+            markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             for method in info.methods where isExposed(method) {
                 for type in method.sourceParameters + [method.sourceResult] {
                     for ref in signatureNames(type)
@@ -1601,6 +1611,7 @@ final class JVMClasspathIndex {
 
     private func defaultArgumentMethod(for method: JVMForeignMethod, in info: JVMClassInfo) -> JVMForeignMethod? {
         guard method.isStatic, let function = method.kotlinFunction, !function.isSuspend,
+              function.contextParameters.isEmpty,
               function.parameters.contains(where: \.hasDefaultValue),
               method.parameters.count == function.parameters.count + function.leadingParameterCount
         else { return nil }
@@ -1611,7 +1622,6 @@ final class JVMClasspathIndex {
         }
     }
 
-              function.contextParameters.isEmpty,
     private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false, acceptsDefaults: Bool = false) -> String {
         if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
             return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember, acceptsDefaults: acceptsDefaults)
@@ -1793,7 +1803,7 @@ final class JVMClasspathIndex {
                 owner = sema.symbols.parentSymbol(for: candidate)
             }
             guard let info = info ?? sourceClass else { continue }
-            let isExtension = topLevel?.receiverType != nil
+            let isExtension = topLevel?.receiverType != nil || symbol.flags.contains(.memberExtension)
             if isExtension { extensionSymbols.insert(symbol.id) }
             if let method = facadeMethodsByRange[site], let function = method.kotlinFunction {
                 methods[symbol.id] = method
@@ -1822,7 +1832,7 @@ final class JVMClasspathIndex {
             let parameters = descriptorTypes.map(\.descriptor).joined()
             let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
             let descriptor = "(" + parameters + continuation + ")"
-            let staticMember = isTopLevel || isExtension || isStaticCompanion
+            let staticMember = isTopLevel || isStaticCompanion
             let method = info.methods.first(where: {
                 $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                     && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
