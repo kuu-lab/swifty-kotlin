@@ -210,6 +210,11 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
 
 public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> = IndexingIterable(this)
 
+public inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
+
 public fun <T> List<T>.getOrNull(index: Int): T? = if (index >= 0 && index < size) this[index] else null
 
 public operator fun <T> Iterable<T>.contains(element: T): Boolean {
