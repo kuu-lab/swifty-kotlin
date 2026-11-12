@@ -403,11 +403,11 @@ extension JVMFunctionBuilder {
         let implicit = implicitExtensionReceiver(id)
         let object = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : explicit ?? (entry.extensionReceiver != nil ? implicit : instance(id))
         let parameters = Array(method.parameters.dropFirst(entry.extensionReceiver == nil ? 0 : 1))
-        let ordered: (values: [JVMValue], masks: [UInt32])
+        let ordered: (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue])
         if entry.declarations.count == 1, entry.declarations[0].isVararg {
             let any = try arrayComponent(parameters[0])
             let op = JVMTextOperation(name: method.name, receiver: "", receiverType: any, parameters: [JVMTextParameter(name: context.interner.resolve(entry.declarations[0].name), type: any, fallback: nil, variadic: true)], sourceResult: "", result: method.result, owner: method.owner, method: nil, instance: false)
-            ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0])
+            ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0], [:])
         } else { ordered = try arguments(args, binding: binding, parameters: parameters, declarations: entry.declarations, id: id) }
         let values = ordered.values
         if let result = try kotlinMathFunctionCall(binding.chosenCallee, entry: entry, receiver: object, values: values, id: id) {

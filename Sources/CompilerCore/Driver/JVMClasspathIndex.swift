@@ -26,6 +26,7 @@ final class JVMClasspathIndex {
 
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
+        platformClassFiles: [JVMJDKClasspath.ClassFile] = [],
         fallbackClassFiles: [(String, Data)] = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit
@@ -45,6 +46,10 @@ final class JVMClasspathIndex {
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
         }
+        for classFile in platformClassFiles {
+            try insert(Array(classFile.contents), path: classFile.path)
+        }
+        result.lazyClassNames.formUnion(result.hierarchyClasses.keys)
         for path in paths {
             let isLazy = lazyPaths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
             let priorKeys = isLazy ? Set(result.hierarchyClasses.keys) : []
@@ -53,16 +58,7 @@ final class JVMClasspathIndex {
                 throw JVMFrontendError(message: "JVM classpath entry does not exist: \(path)")
             }
             if directory.boolValue {
-                let base = URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath()
-                guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else { throw JVMClassReader.Invalid() }
-                let files = enumerator.compactMap { entry -> (file: URL, path: String)? in
-                    guard let file = entry as? URL, file.pathExtension == "class" else { return nil }
-                    return (file, file.path)
-                }.sorted { $0.path < $1.path }
-                let baseDepth = base.pathComponents.count
-                for (file, _) in files {
-                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(baseDepth).joined(separator: "/")
-                    guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"), !relative.hasSuffix("package-info.class") else { continue }
+                try forEachClassFile(inDirectory: URL(fileURLWithPath: path, isDirectory: true)) { file, relative in
                     try insert(Array(Data(contentsOf: file)), path: relative)
                 }
             } else {
@@ -104,6 +100,24 @@ final class JVMClasspathIndex {
         }
         result.importInheritedMembers(for: Set(result.classes.keys).subtracting(result.lazyClassNames))
         return result
+    }
+
+    static func forEachClassFile(inDirectory directory: URL, _ body: (URL, String) throws -> Void) throws {
+        let base = directory.resolvingSymlinksInPath()
+        guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else {
+            throw JVMClassReader.Invalid()
+        }
+        let files = enumerator.compactMap { entry -> (file: URL, path: String)? in
+            guard let file = entry as? URL, file.pathExtension == "class" else { return nil }
+            return (file, file.path)
+        }.sorted { $0.path < $1.path }
+        let baseDepth = base.pathComponents.count
+        for (file, _) in files {
+            let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(baseDepth).joined(separator: "/")
+            guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"),
+                  !relative.hasSuffix("package-info.class") else { continue }
+            try body(file, relative)
+        }
     }
 
     private func indexInnerClasses() {
