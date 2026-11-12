@@ -1508,6 +1508,19 @@ final class JVMClasspathIndex {
                         markNeeded(ref)
                     }
                 }
+                // Kotlin metadata can name types erased from the descriptor,
+                // such as a parameter of a Compose receiver lambda.
+                if let function = method.kotlinFunction {
+                    let sourceTypes = function.parameters.map(\.sourceType)
+                        + [function.result] + [function.receiver].compactMap { $0 }
+                    for type in sourceTypes {
+                        let range = NSRange(type.startIndex..., in: type)
+                        for match in Self.dottedPattern.matches(in: type, range: range) {
+                            guard let token = Range(match.range, in: type) else { continue }
+                            for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
+                        }
+                    }
+                }
             }
             for field in info.fields where field.isStatic && field.isPublic && field.access & 0x1000 == 0 {
                 guard let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
