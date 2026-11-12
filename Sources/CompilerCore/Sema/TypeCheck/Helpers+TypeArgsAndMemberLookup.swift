@@ -895,6 +895,7 @@ extension TypeCheckHelpers {
         named calleeName: InternedString,
         receiverType: TypeID,
         receiverDeclaration: SymbolID? = nil,
+        allowBackingFieldRefinement: Bool = true,
         sema: SemaModule
     ) -> (symbol: SymbolID, type: TypeID)? {
         let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
@@ -947,7 +948,9 @@ extension TypeCheckHelpers {
                 return (
                     candidate,
                     resolveMemberPropertyType(
-                        propertyReadType(for: candidate, declaredType: propType, sema: sema) ?? propType,
+                        allowBackingFieldRefinement && owner == nominalRoots.first
+                            ? (propertyReadType(for: candidate, declaredType: propType, sema: sema) ?? propType)
+                            : propType,
                         receiverType: receiverType,
                         receiverDeclaration: receiverDeclaration,
                         ownerSymbol: owner,

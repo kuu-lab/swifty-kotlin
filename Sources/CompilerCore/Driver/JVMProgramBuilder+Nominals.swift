@@ -285,13 +285,14 @@ extension JVMProgramBuilder {
                 let id = c.memberProperties[index]
                 guard let (_, declaration, property) = plan.properties.first(where: { $0.0 == id }) else { throw JVMFrontendError(message: "Missing JVM property initializer.") }
                 if declaration.modifiers.contains(.const) { continue }
+                let initializer = declaration.explicitBackingField?.initializer ?? declaration.initializer
                 if let delegate = declaration.delegateExpression, let field = property.delegateField, let symbol = property.delegateSymbol {
                     let initial = try builder.requireValue(delegate)
                     let token = try builder.delegateToken(symbol, plan: plan)
                     let stored = try builder.provideDelegate(initial, symbol: symbol, token: token)
                     let converted = try builder.convert(stored, to: field.type)
                     builder.instructions.append(plan.isFacade ? .putStatic(field, converted) : .putField(field, object, converted))
-                } else if let initializer = declaration.initializer {
+                } else if let initializer {
                     guard let field = property.field else { throw JVMFrontendError(message: "JVM initializer needs a backing field.") }
                     let initial = try builder.convert(builder.requireValue(initializer), to: field.type)
                     let isStatic = plan.isFacade || (field.access & 8 != 0)

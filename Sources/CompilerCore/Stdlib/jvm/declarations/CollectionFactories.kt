@@ -5,6 +5,7 @@ fun <T> mutableListOf(vararg elements: T): MutableList<T> = null!!
 fun <T> setOf(element: T): Set<T> = null!!
 fun <T> setOf(vararg elements: T): Set<T> = null!!
 fun <T> mutableSetOf(vararg elements: T): MutableSet<T> = null!!
+fun <T> linkedSetOf(vararg elements: T): java.util.LinkedHashSet<T> = null!!
 fun <T> emptyList(): List<T> = null!!
 fun <T> emptySet(): Set<T> = null!!
 fun <K, V> mapOf(pair: kotlin.Pair<K, V>): Map<K, V> = null!!

@@ -21,6 +21,13 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
     return result
 }
 
+// Official JVM consumers link this overload on SetsKt with an Object[] ABI.
+public fun <T> linkedSetOf(vararg elements: T): java.util.LinkedHashSet<T> {
+    val result = java.util.LinkedHashSet<T>(elements.size)
+    for (element in elements) result.add(element)
+    return result
+}
+
 public operator fun <T> Set<T>.plus(element: T): Set<T> {
     val result = __jvmCopySet(this)
     result.add(element)
