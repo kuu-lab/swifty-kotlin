@@ -103,7 +103,9 @@ extension DataFlowSemaPhase {
                     }
                     let relative = relativeOwnerFQName.map {
                         resolveRelativeNominalCandidates(named: shortName, relativeTo: $0,
-                                                         currentPackageFQName: currentPackageFQName, symbols: symbols)
+                                                         currentPackageFQName: currentPackageFQName, imports: imports,
+                                                         ast: ast, symbols: symbols, types: types, interner: interner,
+                                                         recursionDepth: recursionDepth)
                     } ?? []
                     builtinShadow = relative.first(where: accessible)
                     let explicitImports = imports.filter {
@@ -141,7 +143,8 @@ extension DataFlowSemaPhase {
                     named: path[0],
                     relativeTo: relativeOwnerFQName,
                     currentPackageFQName: currentPackageFQName,
-                    symbols: symbols
+                    imports: imports, ast: ast, symbols: symbols, types: types, interner: interner,
+                    recursionDepth: recursionDepth
                 )
                 let relativeCandidates = path.count == 1 ? relativeRoots : relativeRoots.flatMap { root in
                     symbols.lookupAll(fqName: root.fqName + Array(path.dropFirst()))
@@ -812,6 +815,9 @@ extension DataFlowSemaPhase {
             return []
         }
         var closureKey: HeaderSupertypeClosureKey?
+        let declarationFile = ast.file(for: decl.range.start.file)
+        let declarationPackage = declarationFile?.packageFQName ?? currentPackageFQName
+        let declarationImports = declarationFile?.imports ?? imports
         if visited == [ownerID] {
             // Fresh-start queries (the only shape the lexical-owner walks
             // issue) replay the same transitive closure. The memo must not
@@ -820,8 +826,8 @@ extension DataFlowSemaPhase {
             let key = HeaderSupertypeClosureKey(
                 ownerID: ownerID,
                 ownerFQName: ownerFQName,
-                packageFQName: currentPackageFQName ?? [],
-                imports: imports.map {
+                packageFQName: declarationPackage ?? [],
+                imports: declarationImports.map {
                     HeaderSupertypeClosureKey.ImportKey(
                         path: $0.path, alias: $0.alias, isWildcard: $0.isWildcard
                     )
@@ -876,8 +882,8 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 localTypeParameters: clauseTypeParameters,
                 relativeOwnerFQName: ownerFQName,
-                currentPackageFQName: currentPackageFQName,
-                imports: imports,
+                currentPackageFQName: declarationPackage,
+                imports: declarationImports,
                 recursionDepth: depth + 1
             ), case let .classType(superClass) = types.kind(of: types.makeNonNullable(resolved))
             else {
@@ -963,7 +969,12 @@ extension DataFlowSemaPhase {
         named shortName: InternedString,
         relativeTo ownerFQName: [InternedString],
         currentPackageFQName: [InternedString]?,
-        symbols: SymbolTable
+        imports: [ImportDecl],
+        ast: ASTModule,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        recursionDepth: Int
     ) -> [SemanticSymbol] {
         guard !ownerFQName.isEmpty else {
             return []
@@ -971,6 +982,12 @@ extension DataFlowSemaPhase {
 
         var candidates: [SemanticSymbol] = []
         var seen: Set<SymbolID> = []
+        let hasInheritedCandidate = symbols.lookupByShortName(shortName).contains { id in
+            guard let symbol = symbols.symbol(id), isNominalTypeSymbol(symbol.kind),
+                  symbol.visibility != .private, let parent = symbols.parentSymbol(for: id)
+            else { return false }
+            return symbols.symbol(parent)?.kind == .class
+        }
         var current = ownerFQName
         while !current.isEmpty {
             // The package segment is not a lexical owner scope: names at that
@@ -985,6 +1002,31 @@ extension DataFlowSemaPhase {
             for symbolID in symbols.lookupAll(fqName: nestedFQName) where seen.insert(symbolID).inserted {
                 if let symbol = symbols.symbol(symbolID) {
                     candidates.append(symbol)
+                }
+            }
+
+            // Inherited classifiers are in the lexical class scope, before
+            // the file's imports (including the default-imported kotlin.Result).
+            if hasInheritedCandidate,
+               let ownerID = symbols.lookupAll(fqName: current).first(where: {
+                   guard let symbol = symbols.symbol($0) else { return false }
+                   return symbol.kind == .class || symbol.kind == .object
+               }) {
+                let ancestors = declaredSupertypeInstanceTypes(
+                    of: ownerID, ownerFQName: current, ast: ast, symbols: symbols, types: types, interner: interner,
+                    currentPackageFQName: currentPackageFQName, imports: imports, visited: [ownerID],
+                    depth: recursionDepth + 1
+                )
+                for ancestor in ancestors {
+                    guard case let .classType(type) = types.kind(of: ancestor),
+                          let parent = symbols.symbol(type.classSymbol), parent.kind == .class
+                    else { continue }
+                    for id in symbols.lookupAll(fqName: parent.fqName + [shortName]) {
+                        guard let symbol = symbols.symbol(id), isNominalTypeSymbol(symbol.kind),
+                              symbol.visibility != .private, seen.insert(id).inserted
+                        else { continue }
+                        candidates.append(symbol)
+                    }
                 }
             }
 
