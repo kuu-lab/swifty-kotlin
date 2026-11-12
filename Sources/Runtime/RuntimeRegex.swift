@@ -228,12 +228,14 @@ private func regexMakeStringListRaw(_ values: [String]) -> Int {
 }
 
 private func regexBoxFromRaw(_ raw: Int) -> RuntimeRegexBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    guard raw != runtimeNullSentinelInt, raw != 0,
+          let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(pointer, to: RuntimeRegexBox.self)
 }
 
 private func matchResultBoxFromRaw(_ raw: Int) -> RuntimeMatchResultBox? {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    guard raw != runtimeNullSentinelInt, raw != 0,
+          let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(pointer, to: RuntimeMatchResultBox.self)
 }
 
