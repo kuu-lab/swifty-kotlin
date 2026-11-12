@@ -7,6 +7,27 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmStringWriter",
+    "owner": "java/io/StringWriter",
+    "name": "<init>",
+    "descriptor": "()V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmPrintWriter",
+    "owner": "java/io/PrintWriter",
+    "name": "<init>",
+    "descriptor": "(Ljava/io/Writer;)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmPrintStackTrace",
+    "owner": "java/lang/Throwable",
+    "name": "printStackTrace",
+    "descriptor": "(Ljava/io/PrintWriter;)V",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmFileName",
     "owner": "java/io/File",
     "name": "getName",
