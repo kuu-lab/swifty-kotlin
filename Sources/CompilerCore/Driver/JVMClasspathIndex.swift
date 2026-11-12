@@ -16,6 +16,7 @@ final class JVMClasspathIndex {
     private(set) var classpathStubFiles: Set<FileID> = []
     var importedDefaultMethods: [SymbolID: JVMForeignMethod] = [:]
     var importedValueParameterConstructors: [SymbolID: (bridge: JVMForeignMethod, defaults: JVMForeignMethod?)] = [:]
+    var importedConstructorDefaults: [SymbolID: JVMForeignMethod] = [:]
     var importedComposableParameters: [SymbolID: Set<Int>] = [:]
     var importedTopLevelGetters: [SymbolID: JVMForeignMethod] = [:]
     private var kotlinFacadeMethods: [FileID: [JVMForeignMethod]] = [:]
@@ -487,7 +488,7 @@ final class JVMClasspathIndex {
             imported.kotlinSealedInterfaceSubclasses = info.kotlinSealedInterfaceSubclasses
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
-            imported.kotlinValueParameterConstructors = info.kotlinValueParameterConstructors
+            imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
             imported.hasKotlinMetadata = info.hasKotlinMetadata
@@ -1318,11 +1319,14 @@ final class JVMClasspathIndex {
             return (field, type)
         }
         let instanceFieldNames = Set(instanceFields.map { $0.0.name })
-        for method in own where method.isConstructor && !method.parameters.isEmpty {
+        let loweredConstructors = info.kotlinLoweredConstructors.filter { candidate in
+            candidate.entry.parameters.prefix(candidate.source.parameters.count).allSatisfy(exposeSuspendType)
+        }
+        let loweredDescriptors = Set(loweredConstructors.map { $0.entry.descriptor })
+        for method in own where method.isConstructor && !method.parameters.isEmpty && !loweredDescriptors.contains(method.descriptor) {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
         }
-        for (constructor, bridge, defaults) in info.kotlinValueParameterConstructors
-            where bridge.parameters.dropLast().allSatisfy(exposeSuspendType) {
+        for (constructor, _, defaults) in loweredConstructors {
             let declarations = constructor.parameters.map { parameter in
                 let defaultValue = parameter.hasDefaultValue && defaults != nil ? " = null!!" : ""
                 return "`\(parameter.name!)`: " + parameter.sourceType + defaultValue
@@ -1862,7 +1866,7 @@ final class JVMClasspathIndex {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
-            for (constructor, _, _) in info.kotlinValueParameterConstructors {
+            for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
             for (constructor, _) in info.kotlinValueClassConstructors {
@@ -2215,19 +2219,24 @@ final class JVMClasspathIndex {
                 return
             }
         }
-        if symbol.kind == .constructor, !info.kotlinValueParameterConstructors.isEmpty {
+        if symbol.kind == .constructor, !info.kotlinLoweredConstructors.isEmpty {
             let labels = signature.valueParameterSymbols.compactMap { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
-            let matching = info.kotlinValueParameterConstructors.filter { candidate in
+            let matching = info.kotlinLoweredConstructors.filter { candidate in
                 descriptorTypes.count == candidate.source.parameters.count
                     && candidate.source.parameters.compactMap(\.name) == labels
-                    && candidate.bridge.parameters.dropLast().enumerated().allSatisfy { index, parameter in
+                    && candidate.entry.parameters.prefix(descriptorTypes.count).enumerated().allSatisfy { index, parameter in
                         let logical = descriptorTypes[index]
                         return logical.descriptor == parameter.descriptor
                             || importedValueCarrier(for: logical)?.descriptor == parameter.descriptor
                     }
             }
             if matching.count == 1, let constructor = matching.first {
-                let ordinary = constructor.bridge
+                let ordinary = constructor.entry
+                if ordinary.descriptor == constructor.source.descriptor {
+                    methods[symbol.id] = ordinary
+                    importedConstructorDefaults[symbol.id] = constructor.defaults
+                    return
+                }
                 methods[symbol.id] = JVMForeignMethod(
                     owner: ordinary.owner, name: ordinary.name, descriptor: constructor.source.descriptor,
                     parameters: Array(ordinary.parameters.dropLast()), result: ordinary.result,
