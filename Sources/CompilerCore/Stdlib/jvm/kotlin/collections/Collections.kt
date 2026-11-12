@@ -214,20 +214,32 @@ public fun <T> List<T>.dropLastWhile(predicate: (T) -> Boolean): List<T> {
     return result
 }
 public fun <T> Iterable<T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String {
-    val result = StringBuilder()
-    result.append(prefix)
+    return joinTo(StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
+}
+
+public fun <T, A : Appendable> Iterable<T>.joinTo(
+    buffer: A,
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "...",
+    transform: ((T) -> CharSequence)? = null
+): A {
+    buffer.append(prefix)
     var count = 0
     for (element in this) {
         count++
-        if (count > 1) result.append(separator)
+        if (count > 1) buffer.append(separator)
         if (limit >= 0 && count > limit) break
-        if (transform != null) result.append(transform(element))
-        else if (element is CharSequence) result.append(element)
-        else result.append(element)
+        if (transform != null) buffer.append(transform(element))
+        else if (element is CharSequence) buffer.append(element)
+        else if (element is Char) buffer.append(element)
+        else buffer.append(element.toString())
     }
-    if (limit >= 0 && count > limit) result.append(truncated)
-    result.append(postfix)
-    return result.toString()
+    if (limit >= 0 && count > limit) buffer.append(truncated)
+    buffer.append(postfix)
+    return buffer
 }
 
 public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
