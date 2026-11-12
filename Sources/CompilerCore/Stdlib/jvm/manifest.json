@@ -10,6 +10,18 @@
   ],
   "declarations": [
     {
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
+    },
+    {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
       "excludeFromStdlibBuild": true
