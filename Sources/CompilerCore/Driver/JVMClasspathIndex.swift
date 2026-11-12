@@ -12,11 +12,11 @@ final class JVMClasspathIndex {
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var composeContentSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
-    /// Classes loaded from `lazilyInjecting` classpath entries (the Android
-    /// `android.jar`). They stay indexed for signature mapping and d8 input,
-    /// but `inject(into:)` only emits Kotlin stubs for the subset reachable
-    /// from user sources — injecting the whole framework would create
-    /// hundreds of thousands of symbols.
+    /// Classes kept indexed for signature mapping and d8 input while
+    /// `inject(into:)` emits Kotlin stubs only for the subset reachable from
+    /// user sources. Explicitly lazy entries (Android framework jars or
+    /// selected JDK module packages) and oversized classpaths use this so
+    /// importing every framework/library class cannot exhaust the symbol table.
     private(set) var lazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
@@ -39,9 +39,12 @@ final class JVMClasspathIndex {
             && composer.methods.contains { $0.name == JVMCompose.end && $0.descriptor == "()V" && !$0.isStatic }
     }
 
+    private static let defaultAutomaticLazyClasspathMemberLimit = 20_000
+
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
-        fallbackClassFiles: [(String, Data)] = []
+        fallbackClassFiles: [(String, Data)] = [],
+        automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         var seen: Set<String> = []
@@ -103,6 +106,19 @@ final class JVMClasspathIndex {
         }
         if result.hasMetroRuntime {
             result.lazyClassNames.formUnion(result.classes.keys.filter { $0.hasPrefix(JVMMetro.package) })
+        }
+        let eagerClasspathMemberCount = result.classes.values.reduce(0) { count, info in
+            result.lazyClassNames.contains(info.name) ? count : count + 1 + info.methods.count + info.fields.count
+        }
+        if eagerClasspathMemberCount >= automaticLazyClasspathMemberLimit {
+            // Eager stubs for a classpath this large can exhaust the synthetic
+            // symbol band. Keep every class indexed, but emit only the classes
+            // reachable from user sources and eager signatures. Explicitly
+            // supplied fallback classes are not classpath entries and stay eager.
+            let fallbackClassNames = Set(result.fallbackClassFiles.map {
+                String($0.0.dropLast(".class".count))
+            })
+            result.lazyClassNames.formUnion(Set(result.hierarchyClasses.keys).subtracting(fallbackClassNames))
         }
         result.importInheritedMembers()
         return result
@@ -1131,9 +1147,9 @@ final class JVMClasspathIndex {
 
     // MARK: - Lazy classpath injection
 
-    /// Packages Kotlin auto-imports on the JVM. Only `java.lang` can contain
-    /// lazy classes in practice (the Android `android.jar` ships `java.*`
-    /// stubs); `kotlin.*` entries are never injected anyway.
+    /// Packages Kotlin auto-imports on the JVM. Lazy classpath entries can
+    /// live in any package, but unqualified lookup only needs these; explicit
+    /// imports, star imports, and same-package references are matched separately.
     private static let autoImportedPackages: Set<String> = [
         "java.lang", "kotlin.jvm",
     ]
@@ -1224,7 +1240,8 @@ final class JVMClasspathIndex {
 
     /// Computes the set of lazy classpath classes that must be injected:
     /// classes named by user sources (imports, qualified references,
-    /// star/auto/same-package lookups) plus the transitive closure over
+    /// star/auto/same-package lookups) and fully-qualified references in
+    /// injected JVM stdlib sources, plus the transitive closure over
     /// supertypes and emitted method signature types.
     private func referencedLazyClasses(into ctx: CompilationContext, covered: Set<String>) -> Set<String> {
         // normalized dotted name -> binary class names ("a.b.C.D" may come
@@ -1271,10 +1288,23 @@ final class JVMClasspathIndex {
 
         // Projected Compose calls can name a scope that the app only uses as
         // an implicit lambda receiver, so their signatures also seed the closure.
-        for file in ctx.sourceManager.fileIDs()
-        where ctx.sourceManager.origin(of: file) == .user || composeStaticContracts[file] != nil {
+        for file in ctx.sourceManager.fileIDs() {
+            let origin = ctx.sourceManager.origin(of: file)
+            let isComposeContract = composeStaticContracts[file] != nil
+            guard isComposeContract || origin == .residualStdlib
+                || (origin == .user && !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/"))
+            else { continue }
             let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
+            if origin == .residualStdlib, !isComposeContract {
+                // Bundled JVM declarations reference JDK types by FQN; the
+                // identifier/same-package heuristics would mistake stdlib
+                // declarations for classpath references.
+                for match in Self.dottedPattern.matches(in: text, range: range) {
+                    if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+                }
+                continue
+            }
             var identifiers = Set<String>()
             for match in Self.identifierPattern.matches(in: text, range: range) {
                 if let r = Range(match.range, in: text) { identifiers.insert(String(text[r])) }
