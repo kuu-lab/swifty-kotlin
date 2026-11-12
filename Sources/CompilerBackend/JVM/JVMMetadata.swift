@@ -12,7 +12,25 @@ enum JVMMetadata {
             while value >= 128 { bytes.append(UInt8(value & 127) | 128); value >>= 7 }
             bytes.append(UInt8(value))
         }
+        mutating func unsignedVarint(_ raw: UInt64) {
+            var value = raw
+            while value >= 128 { bytes.append(UInt8(value & 127) | 128); value >>= 7 }
+            bytes.append(UInt8(value))
+        }
         mutating func int(_ field: Int, _ value: Int) { varint(field << 3); varint(value) }
+        mutating func sint(_ field: Int, _ value: Int64) {
+            varint((field << 3) | 0)
+            let encoded = (UInt64(bitPattern: value) << 1) ^ UInt64(bitPattern: value >> 63)
+            unsignedVarint(encoded)
+        }
+        mutating func fixed32(_ field: Int, _ value: UInt32) {
+            varint((field << 3) | 5)
+            for shift in stride(from: 0, through: 24, by: 8) { bytes.append(UInt8(truncatingIfNeeded: value >> shift)) }
+        }
+        mutating func fixed64(_ field: Int, _ value: UInt64) {
+            varint((field << 3) | 1)
+            for shift in stride(from: 0, through: 56, by: 8) { bytes.append(UInt8(truncatingIfNeeded: value >> shift)) }
+        }
         mutating func data(_ field: Int, _ value: Data) {
             varint(field << 3 | 2); varint(value.count); bytes.append(value)
         }
@@ -160,10 +178,89 @@ enum JVMMetadata {
             if let method = property.setter { jvm.data(4, signature(method.name, method.descriptor)) }
             proto.data(100, jvm.bytes); return proto.bytes
         }
-        func typeAlias(_ alias: JVMTypeAlias) -> Data {
-            var p = Proto(); p.int(1, visibility(alias.modifiers)); p.int(2, index(alias.name))
+        func annotationClassID(_ descriptor: String) throws -> (name: String, dimensions: Int) {
+            var type = descriptor
+            var dimensions = 0
+            while type.first == "[" {
+                type.removeFirst()
+                dimensions += 1
+            }
+            let name: String
+            switch type {
+            case "B": name = "kotlin/Byte"
+            case "S": name = "kotlin/Short"
+            case "C": name = "kotlin/Char"
+            case "I": name = "kotlin/Int"
+            case "J": name = "kotlin/Long"
+            case "F": name = "kotlin/Float"
+            case "D": name = "kotlin/Double"
+            case "Z": name = "kotlin/Boolean"
+            case "V": name = "kotlin/Unit"
+            case let object where object.hasPrefix("L") && object.hasSuffix(";"):
+                let internalName = String(object.dropFirst().dropLast())
+                name = internalName == "java/lang/String" ? "kotlin/String" : internalName
+            default: throw JVMEmissionError.limit("Unsupported JVM metadata class literal descriptor: " + descriptor)
+            }
+            return (metadataName(name), dimensions)
+        }
+        func metadataAnnotation(_ annotation: JVMAnnotation) throws -> Data {
+            let (name, dimensions) = try annotationClassID(annotation.descriptor)
+            guard dimensions == 0 else { throw JVMEmissionError.limit("Invalid JVM annotation class descriptor.") }
+            var proto = Proto(); proto.int(1, index(name))
+            for (argumentName, value) in annotation.values {
+                var argument = Proto()
+                argument.int(1, index(argumentName))
+                argument.data(2, try metadataAnnotationArgument(value, encodeAnnotation: metadataAnnotation))
+                proto.data(2, argument.bytes)
+            }
+            return proto.bytes
+        }
+        func metadataAnnotationArgument(
+            _ value: JVMAnnotationValue,
+            encodeAnnotation: (JVMAnnotation) throws -> Data
+        ) throws -> Data {
+            var proto = Proto()
+            switch value {
+            case let .constant(constant):
+                switch constant {
+                case let .int(number): proto.int(1, 3); proto.sint(2, Int64(number))
+                case let .long(number): proto.int(1, 4); proto.sint(2, number)
+                case let .float(number): proto.int(1, 5); proto.fixed32(3, number.bitPattern)
+                case let .double(number): proto.int(1, 6); proto.fixed64(4, number.bitPattern)
+                case let .boolean(value): proto.int(1, 7); proto.sint(2, value ? 1 : 0)
+                case let .string(value): proto.int(1, 8); proto.int(5, index(value))
+                case .null: throw JVMEmissionError.limit("Null is not a JVM metadata annotation value.")
+                }
+            case let .integral(number, tag):
+                let type: Int
+                switch tag {
+                case 66: type = 0 // BYTE
+                case 67: type = 1 // CHAR
+                case 83: type = 2 // SHORT
+                default: throw JVMEmissionError.limit("Unsupported JVM metadata integral annotation tag.")
+                }
+                proto.int(1, type); proto.sint(2, Int64(number))
+            case let .enumEntry(descriptor, entryName):
+                let (name, dimensions) = try annotationClassID(descriptor)
+                guard dimensions == 0 else { throw JVMEmissionError.limit("Invalid JVM metadata enum descriptor.") }
+                proto.int(1, 10); proto.int(6, index(name)); proto.int(7, index(entryName))
+            case let .classType(descriptor):
+                let (name, dimensions) = try annotationClassID(descriptor)
+                proto.int(1, 9); proto.int(6, index(name))
+                if dimensions > 0 { proto.int(11, dimensions) }
+            case let .annotation(annotation):
+                proto.int(1, 11); proto.data(8, try encodeAnnotation(annotation))
+            case let .array(values):
+                proto.int(1, 12)
+                for element in values { proto.data(9, try metadataAnnotationArgument(element, encodeAnnotation: encodeAnnotation)) }
+            }
+            return proto.bytes
+        }
+        func typeAlias(_ alias: JVMTypeAlias) throws -> Data {
+            var p = Proto(); p.int(1, visibility(alias.modifiers) | (alias.annotations.isEmpty ? 0 : 1)); p.int(2, index(alias.name))
             for t in alias.typeParameters { p.data(3, typeParameter(t)) }
             p.data(4, sourceType(alias.underlyingType)); p.data(6, sourceType(alias.underlyingType))
+            for annotation in alias.annotations { p.data(8, try metadataAnnotation(annotation)) }
             return p.bytes
         }
         var package = Proto()
@@ -172,7 +269,7 @@ enum JVMMetadata {
             package.int(1, visibility(declaration.modifiers) | modality | (declaration.annotations.isEmpty ? 0 : 1) | (declaration.isValue ? 8192 : 0) | (declaration.isFunInterface ? 16384 : 0) | (declaration.isData ? 1024 : 0) | (declaration.isInner ? 512 : 0) | (declaration.isCompanion ? 384 : (declaration.isObject ? 320 : (declaration.isEnum ? 128 : (declaration.isAnnotation ? 256 : (declaration.isInterface ? 64 : 0))))))
             package.int(3, index(metadataName(declaration.name)))
             if let underlying = declaration.underlyingProperty { package.int(17, index(underlying)) }
-            for alias in declaration.typeAliases { package.data(11, typeAlias(alias)) }
+            for alias in declaration.typeAliases { package.data(11, try typeAlias(alias)) }
             if let companion = declaration.companionName { package.int(4, index(companion)) }
             for nested in declaration.nestedNames { package.int(7, index(nested)) }
             for subclass in declaration.sealedSubclasses { package.int(16, index(metadataName(subclass))) }
@@ -194,7 +291,7 @@ enum JVMMetadata {
             package.int(101, index(program.moduleName))
             if declaration.isInterface { package.int(104, 1) }
         } else {
-            for alias in program.typeAliases { package.data(5, typeAlias(alias)) }
+            for alias in program.typeAliases { package.data(5, try typeAlias(alias)) }
             let accessors = Set(program.properties.flatMap { [$0.getter.name + $0.getter.descriptor] + ($0.setter.map { [$0.name + $0.descriptor] } ?? []) })
             for member in program.functions where !member.isMetadataHidden && !member.isSynthetic && member.reference.name != "<clinit>" && !accessors.contains(member.reference.name + member.reference.descriptor) { package.data(3, function(member)) }
             for property in program.properties { package.data(4, propertyMetadata(property, functions: program.functions)) }
