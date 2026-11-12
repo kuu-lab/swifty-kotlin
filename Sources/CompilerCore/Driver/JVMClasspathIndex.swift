@@ -1588,6 +1588,9 @@ final class JVMClasspathIndex {
                         + [function.result] + [function.receiver].compactMap { $0 }
                     markSourceTypes(sourceTypes)
                 }
+                if let function = method.kotlinSuspendFunction {
+                    markSourceTypes(function.parameters.compactMap(\.sourceType))
+                }
             }
             // Nested classes are emitted inside their owner's stub but are
             // not worklist items themselves; their signature types still
@@ -1702,16 +1705,20 @@ final class JVMClasspathIndex {
             let isVararg = method.isVarargs && index == types.count - 1
             let name: String
             let nullable: Bool
+            let suspendSourceType: String?
             if receiverInParameters && index == 0 {
                 name = "`$receiver`"
                 nullable = suspend?.receiverIsNullable == true
+                suspendSourceType = nil
             } else if let suspend {
                 let metadataIndex = index - (receiverInParameters ? 1 : 0)
                 name = useNames ? "`\(names[metadataIndex])`" : "p\(index)"
                 nullable = suspend.parameters[metadataIndex].isNullable
+                suspendSourceType = suspend.parameters[metadataIndex].sourceType
             } else {
                 name = "p\(index)"
                 nullable = false
+                suspendSourceType = nil
             }
             let parameterType: String
             if let generic = method.genericResultParameter, generic.classParameterIndices.contains(index) {
@@ -1722,7 +1729,8 @@ final class JVMClasspathIndex {
             } else {
                 parameterType = kotlinType(parameter)
             }
-            return (isVararg ? "vararg " : "") + name + ": " + parameterType + (nullable ? "?" : "")
+            return (isVararg ? "vararg " : "") + name + ": "
+                + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))
         }.joined(separator: ", ")
     }
 
