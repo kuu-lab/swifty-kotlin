@@ -108,7 +108,7 @@ extension JVMProgramBuilder {
         let unsigned = parameters.contains { $0.unsignedName != nil }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
         if let annotation = sema.symbols.annotations(for: symbol).first(where: {
-            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget != "file"
+            $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
         }), let raw = annotation.arguments.first {
             let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let explicit = names.first, (Self.isIdentifier(explicit) || context.options.stdlibOnly && Self.isIdentifier(explicit.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "Invalid JVM method name.") }
@@ -271,7 +271,7 @@ extension JVMProgramBuilder {
                 case .internal: fieldModifiers.insert(.internal)
                 }
             }
-            let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmField" }
+            let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == KnownCompilerAnnotation.jvmField.qualifiedName }
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }

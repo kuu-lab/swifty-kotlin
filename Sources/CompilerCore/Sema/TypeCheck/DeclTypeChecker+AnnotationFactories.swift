@@ -20,7 +20,7 @@ extension DeclTypeChecker {
             guard let usageID = annotation.usageID,
                   let index = records.firstIndex(where: { $0.usageID == usageID }),
                   records[index].factorySymbol == nil,
-                  records[index].annotationFQName != "kotlin.Metadata",
+                  records[index].annotationFQName != KnownCompilerAnnotation.metadata.qualifiedName,
                   let annotationSymbol = sema.symbols.lookup(fqName: records[index].annotationFQName.split(separator: ".").map {
                       ctx.interner.intern(String($0))
                   }), sema.symbols.symbol(annotationSymbol)?.kind == .annotationClass,

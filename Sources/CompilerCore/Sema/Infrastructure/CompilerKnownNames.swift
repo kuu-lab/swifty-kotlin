@@ -36,6 +36,20 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case ksSymbolName
     case nativeThreadLocal
     case inlineOnly
+    case retention
+    case mustBeDocumented
+    case jvmInline
+    case jvmRecord
+    case jvmSynthetic
+    case jvmRepeatable
+    case lowPriorityInOverloadResolution
+    case implicitIntegerCoercion
+    case onlyInputTypes
+    case nonStableParameterNames
+    case jsExport
+    case inherited
+    case serializationTransient
+    case serializationSerialName
 
     /// Every known annotation's simple name is the last component of its qualified name.
     var simpleName: String {
@@ -114,6 +128,48 @@ package enum KnownCompilerAnnotation: CaseIterable {
             "kotlin.native.concurrent.ThreadLocal"
         case .inlineOnly:
             "kotlin.internal.InlineOnly"
+        case .retention:
+            "kotlin.annotation.Retention"
+        case .mustBeDocumented:
+            "kotlin.annotation.MustBeDocumented"
+        case .jvmInline:
+            "kotlin.jvm.JvmInline"
+        case .jvmRecord:
+            "kotlin.jvm.JvmRecord"
+        case .jvmSynthetic:
+            "kotlin.jvm.JvmSynthetic"
+        case .jvmRepeatable:
+            "kotlin.jvm.JvmRepeatable"
+        case .lowPriorityInOverloadResolution:
+            "kotlin.internal.LowPriorityInOverloadResolution"
+        case .implicitIntegerCoercion:
+            "kotlin.internal.ImplicitIntegerCoercion"
+        case .onlyInputTypes:
+            "kotlin.internal.OnlyInputTypes"
+        case .nonStableParameterNames:
+            "kotlin.internal.NonStableParameterNames"
+        case .jsExport:
+            "kotlin.js.JsExport"
+        case .inherited:
+            "java.lang.annotation.Inherited"
+        case .serializationTransient:
+            "kotlinx.serialization.Transient"
+        case .serializationSerialName:
+            "kotlinx.serialization.SerialName"
+        }
+    }
+
+    /// The unresolved-annotation fallback stays frozen to the names the compiler
+    /// already recognised by name; cases added for `annotationFQName` lookups do
+    /// not widen it implicitly.
+    private var isKnownBuiltInFallback: Bool {
+        switch self {
+        case .retention, .mustBeDocumented, .jvmInline, .jvmRecord, .jvmSynthetic, .jvmRepeatable,
+             .lowPriorityInOverloadResolution, .implicitIntegerCoercion, .onlyInputTypes,
+             .nonStableParameterNames, .jsExport, .inherited, .serializationTransient, .serializationSerialName:
+            false
+        default:
+            true
         }
     }
 
@@ -126,7 +182,7 @@ package enum KnownCompilerAnnotation: CaseIterable {
     /// text library omits SOURCE-retention metadata annotations such as
     /// `kotlin.Suppress` or `kotlin.UnsafeVariance`).
     package static func isKnownBuiltInAnnotation(_ rawName: String) -> Bool {
-        allCases.contains { $0.matches(rawName) }
+        allCases.contains { $0.isKnownBuiltInFallback && $0.matches(rawName) }
     }
 }
 

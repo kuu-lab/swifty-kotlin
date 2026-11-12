@@ -210,9 +210,9 @@ extension JVMProgramBuilder {
                 guard
                       c.modifiers.subtracting([.public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
                 let hasJvmInline = c.annotations.contains {
-                    $0.name == "JvmInline" || $0.name == "kotlin.jvm.JvmInline"
+                    KnownCompilerAnnotation.jvmInline.matches($0.name)
                 } || sema.symbols.annotations(for: symbol).contains {
-                    $0.annotationFQName == "kotlin.jvm.JvmInline"
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmInline.qualifiedName
                 }
                 let isJvmInlineValue = c.modifiers.contains(.value)
                     && (!context.options.fullValueClassesEnabled || hasJvmInline)
@@ -222,7 +222,7 @@ extension JVMProgramBuilder {
                     declaration: c,
                     isValue: isJvmInlineValue
                 )
-                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmRecord" }
+                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == KnownCompilerAnnotation.jvmRecord.qualifiedName }
                 classes[symbol] = plan
                 try collectNominals(c.nestedClasses + c.nestedObjects, outer: symbol)
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }

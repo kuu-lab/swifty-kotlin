@@ -8,7 +8,7 @@ extension OverloadResolver {
     ) -> Bool {
         for symbol in signature.typeParameterSymbols {
             guard ctx.symbols.annotations(for: symbol).contains(where: {
-                $0.annotationFQName == "kotlin.internal.OnlyInputTypes"
+                $0.annotationFQName == KnownCompilerAnnotation.onlyInputTypes.qualifiedName
             }),
                 let variable = typeVarBySymbol[symbol],
                 let inferred = substitution[variable]

@@ -21,7 +21,7 @@ extension DataFlowSemaPhase {
         // below the regular-priority one, so the pair is not ambiguous.
         func isLowPriority(_ id: SymbolID) -> Bool {
             symbols.annotations(for: id).contains {
-                $0.annotationFQName == "kotlin.internal.LowPriorityInOverloadResolution"
+                $0.annotationFQName == KnownCompilerAnnotation.lowPriorityInOverloadResolution.qualifiedName
             }
         }
         func isUserSource(_ id: SymbolID) -> Bool {
