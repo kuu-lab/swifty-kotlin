@@ -535,7 +535,8 @@ struct JVMClassReader {
                                 candidate.descriptor == nil || candidate.descriptor == method.descriptor else { return false }
                           if method.kotlinSuspendFunction != nil {
                               return metadata.isFileFacade == true && method.isStatic && candidate.isSuspend
-                                  && candidate.contextParameters.isEmpty && !candidate.composableParameters.isEmpty
+                                  && candidate.contextParameters.isEmpty
+                                  && (!candidate.composableParameters.isEmpty || !candidate.typeParameters.isEmpty)
                                   && candidate.parameters.count + candidate.leadingParameterCount + 1 == method.parameters.count
                           }
                           return !candidate.isSuspend
