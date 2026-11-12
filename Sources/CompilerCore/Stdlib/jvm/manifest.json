@@ -22,7 +22,8 @@
       "path": "declarations/PlatformRandom.kt",
       "virtualPath": "<kswiftk-jvm>/platform-random.kt",
       "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/random/PlatformRandomKt"
+      "runtimeFacade": "kotlin/random/PlatformRandomKt",
+      "consumerIdentifiers": ["asJavaRandom", "asKotlinRandom"]
     },
     {
       "path": "kotlin/time/DurationUnit.kt",
