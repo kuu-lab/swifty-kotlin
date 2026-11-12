@@ -43,6 +43,11 @@ struct JVMKotlinFunction {
     var isInline = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
+    var composableParameters: Set<Int> {
+        Set(parameters.indices.filter {
+            parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+        })
+    }
     var hasInlineContextCallback: Bool {
         isInline && parameters.contains { $0.sourceType.hasPrefix("context(") && !$0.isCrossinline && !$0.isNoinline }
     }
