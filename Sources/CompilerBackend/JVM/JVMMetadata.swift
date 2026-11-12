@@ -71,8 +71,8 @@ enum JVMMetadata {
         func sourceType(_ t: JVMKotlinType) -> Data {
             var p = Proto()
             switch t {
-            case let .function(parameters, result, receiver, nullable, suspend):
-                let inputs = [receiver].compactMap { $0 } + parameters
+            case let .function(parameters, result, receiver, nullable, suspend, context):
+                let inputs = context + [receiver].compactMap { $0 } + parameters
                 if suspend {
                     // Kotlin metadata records the lowered FunctionN shape and
                     // marks it as suspend so foreign reflection restores R.
@@ -84,6 +84,12 @@ enum JVMMetadata {
                     p.bytes = sourceType(.named("kotlin/Function" + String(inputs.count), (inputs + [result]).map { JVMKotlinTypeArgument(type: $0, variance: 2) }, nullable: nullable))
                 }
                 if receiver != nil { var annotation = Proto(); annotation.int(1, index("kotlin/ExtensionFunctionType")); p.data(100, annotation.bytes) }
+                if !context.isEmpty {
+                    var value = Proto(); value.int(1, 3); value.int(2, context.count << 1)
+                    var argument = Proto(); argument.int(1, index("count")); argument.data(2, value.bytes)
+                    var annotation = Proto(); annotation.int(1, index("kotlin/ContextFunctionTypeParams")); annotation.data(2, argument.bytes)
+                    p.data(100, annotation.bytes)
+                }
             case let .flexible(lower, upper):
                 p.bytes = sourceType(lower); p.int(4, index("kotlin.jvm.PlatformType")); p.data(5, sourceType(upper))
             case let .parameter(id, nullable, definitelyNotNull):
