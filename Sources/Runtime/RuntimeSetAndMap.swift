@@ -1058,8 +1058,10 @@ public func kk_map_iterator_next(
 
 @_cdecl("__kk_mutable_map_iterator")
 public func kk_mutable_map_iterator(_ mapRaw: Int) -> Int {
-    let keys = runtimeMapBox(from: mapRaw)?.keys ?? []
-    return registerRuntimeObject(RuntimeMutableMapIteratorBox(mapRaw: mapRaw, keys: keys))
+    let mapBox = runtimeMapBox(from: mapRaw)
+    let keyValues = mapBox?.keyValues ?? []
+    let keys = keyValues.map(\.legacyRawValue)
+    return registerRuntimeObject(RuntimeMutableMapIteratorBox(mapRaw: mapRaw, keys: keys, keyValues: keyValues))
 }
 
 @_cdecl("__kk_mutable_map_iterator_hasNext")
@@ -1103,7 +1105,7 @@ public func kk_mutable_map_iterator_next(
         // `keyValues` is the view's projected order, while `storageIndex`
         // may refer to the backing map's storage position. The iterator
         // snapshot preserves the corresponding view index.
-        key: map.keyValues[iter.index - 1],
+        key: iter.keyValues[iter.index - 1],
         value: value
     )
 }

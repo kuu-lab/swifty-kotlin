@@ -894,13 +894,13 @@ extension CallLowerer {
                     ?? signature.receiverType
                     ?? sema.types.anyType
                 implicitReceiverRuntimeCallee = runtimeBackedSetMemberCallee(
-                    memberName: interner.resolve(sourceCalleeName),
+                    memberName: sourceCalleeName,
                     receiverType: implicitReceiverType,
                     chosenCallee: chosen,
                     sema: sema,
                     interner: interner
                 ) ?? runtimeBackedListMemberCallee(
-                    memberName: interner.resolve(sourceCalleeName),
+                    memberName: sourceCalleeName,
                     receiverType: implicitReceiverType,
                     chosenCallee: chosen,
                     sema: sema,

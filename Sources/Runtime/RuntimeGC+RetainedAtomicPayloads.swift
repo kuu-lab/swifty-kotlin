@@ -1,4 +1,4 @@
-// KUU-1728: bridge retained C11 reference cells to the existing managed heap.
+// KUU-1728: bridge retained C11 reference cells to the managed object domains.
 // This is not box mark/sweep: objectPointers retains its existing owner model.
 // Call only with the collector lock held. Reference-cell mutations use that
 // same lock, and matching uses the already-locked registry (no recursive lock).
@@ -7,7 +7,8 @@ func collectRetainedAtomicPayloadRootsLocked(
     into worklist: inout [UnsafeMutableRawPointer]
 ) {
     func appendManagedPayload(_ raw: Int) {
-        guard state.heapObjects[UInt(bitPattern: raw)] != nil,
+        let key = UInt(bitPattern: raw)
+        guard state.heapObjects[key] != nil || state.managedObjectPointers.contains(key),
               let pointer = UnsafeMutableRawPointer(bitPattern: raw)
         else {
             return

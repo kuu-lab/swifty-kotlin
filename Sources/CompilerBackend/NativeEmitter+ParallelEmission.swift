@@ -103,7 +103,8 @@ extension NativeEmitter {
     ) throws -> [String] {
         let runtimeCallbackRawABISymbols = Self.collectRuntimeCallbackRawABISymbols(
             module: module,
-            interner: interner
+            interner: interner,
+            symbols: symbols
         )
         let emittableFunctions = try collectEmittableFunctionsForPartitioning(
             runtimeCallbackRawABISymbols: runtimeCallbackRawABISymbols

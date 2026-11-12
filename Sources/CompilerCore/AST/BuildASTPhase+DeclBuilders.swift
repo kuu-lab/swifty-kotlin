@@ -333,11 +333,14 @@ extension BuildASTPhase {
         )
         let typeParams = applyWhereClauses(rawTypeParams, whereClauses: whereClauseInfo.whereClauses)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        let receiverAnnotations = declarationReceiverAnnotations(
+            from: nodeID, in: arena, interner: interner
+        )
         return FunDecl(
             range: node.range,
             name: functionName,
             modifiers: modifiers,
-            annotations: prefixedAnnotations + annotations,
+            annotations: prefixedAnnotations + annotations + receiverAnnotations,
             typeParams: typeParams,
             whereClauseRange: whereClauseInfo.range,
             receiverType: receiverType,

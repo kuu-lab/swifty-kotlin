@@ -22,7 +22,7 @@ public func __kk_console_stdin_closed() -> Int {
 
 /// Uses stdio's input buffer, shared with Swift.readLine(), so console and
 /// stream reads advance the same cursor. Construction performs no input reads.
-final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
+final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox, RuntimeChunkedInputStream {
     private var stream: UnsafeMutablePointer<FILE>?
     private var failure: String?
 
@@ -55,6 +55,14 @@ final class RuntimeStdioInputStreamBox: RuntimeInputStreamBox {
             }
             return Int(value)
         }
+    }
+
+    /// A short read is legal. Reading one byte avoids blocking until an
+    /// entire caller-provided buffer is filled on interactive input.
+    func readChunk(_ maxCount: Int) -> [Int] {
+        guard maxCount > 0 else { return [] }
+        let byte = readByte()
+        return byte == -1 ? [] : [Int(Int8(bitPattern: UInt8(byte)))]
     }
 
     override func available() -> Int {

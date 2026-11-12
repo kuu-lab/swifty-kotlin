@@ -1090,8 +1090,7 @@ struct TypeCheckHelpers {
                     // Local classes resolve only through their lexical scope,
                     // including self-references while collecting their headers.
                     if symbol.kind == .class, symbol.flags.contains(.synthetic),
-                       let root = symbol.fqName.first,
-                       interner.resolve(root).hasPrefix("__localdecl_")
+                       sema.symbols.isLocalDeclSynthetic(symbol.id)
                     {
                         return false
                     }

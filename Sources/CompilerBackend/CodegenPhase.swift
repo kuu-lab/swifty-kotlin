@@ -77,9 +77,10 @@ public final class CodegenPhase: CompilerPhase {
                     return
                 }
                 let path = executableObjectPath(base: ctx.options.outputPath)
-                try backend.emitObject(
+                let objectPaths = try backend.emitExecutableObjects(
                     module: kir,
                     outputObjectPath: path,
+                    outputObjectsDir: path + ".objects",
                     interner: ctx.interner,
                     typeSystem: ctx.sema?.types,
                     symbols: ctx.sema?.symbols,
@@ -88,7 +89,7 @@ public final class CodegenPhase: CompilerPhase {
                     reflectionMetadataRecords: reflectionRecords,
                     reflectionMetadataSymbolPrefix: ctx.options.moduleName
                 )
-                ctx.storeGeneratedObjectPath(path)
+                ctx.storeGeneratedObjectPaths(objectPaths)
 
             case .library:
                 try emitLibrary(

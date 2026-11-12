@@ -476,9 +476,7 @@ func runtimeStableNominalTypeID(fqName: String) -> Int64 {
 }
 
 func runtimeThrowableMatchesNominalTypeID(_ throwable: RuntimeThrowableBox, targetTypeID: Int64) -> Bool {
-    throwable.exceptionHierarchyFQNames.contains { fqName in
-        runtimeStableNominalTypeID(fqName: fqName) == targetTypeID
-    }
+    throwable.exceptionHierarchyTypeIDs.contains(targetTypeID)
 }
 
 /// The returned opaque pointer can be stored in `outThrown` and later detected via

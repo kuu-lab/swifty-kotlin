@@ -240,6 +240,7 @@ struct LocalNamedNominalTypingTests {
 
                 let classSymbol = try #require(sema.bindings.declSymbol(for: classDeclID))
                 #expect(sema.symbols.symbol(classSymbol)?.kind == .class)
+                #expect(sema.symbols.symbol(classSymbol)?.flags.contains(.localDeclSynthetic) == true)
 
                 let propertyDeclID = try #require(classDecl.memberProperties.first)
                 let propertySymbol = sema.bindings.declSymbol(for: propertyDeclID)
@@ -283,6 +284,7 @@ struct LocalNamedNominalTypingTests {
 
                 let objectSymbol = try #require(sema.bindings.declSymbol(for: objectDeclID))
                 #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
+                #expect(sema.symbols.symbol(objectSymbol)?.flags.contains(.localDeclSynthetic) == true)
 
                 let objectType = try #require(sema.bindings.exprType(for: localNominalExprID))
                 guard case .classType = sema.types.kind(of: objectType) else {
@@ -332,6 +334,7 @@ struct LocalNamedNominalTypingTests {
                 )
                 let objectSymbol = try #require(sema.bindings.declSymbol(for: objectDeclID))
                 #expect(sema.symbols.symbol(objectSymbol)?.kind == .object)
+                #expect(sema.symbols.symbol(objectSymbol)?.flags.contains(.localDeclSynthetic) == true)
 
                 #expect(diagnostics.contains { $0.code == "KSWIFTK-SEMA-0429" },
                         "Expected a local-object rejection: \(renderDiagnostics(ctx))")

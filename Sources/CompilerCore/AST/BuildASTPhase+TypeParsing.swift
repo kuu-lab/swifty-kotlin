@@ -95,17 +95,62 @@ extension BuildASTPhase {
             open: .symbol(.lessThan), close: .symbol(.greaterThan)
         )
 
-        if receiverStart >= receiverSeparatorIndex {
+        var receiverTypeStart = receiverStart
+        while receiverTypeStart < tokens.count,
+              let annotation = AnnotationParsingSupport.parseAnnotation(
+                  from: tokens,
+                  start: receiverTypeStart,
+                  interner: interner,
+                  allowUseSiteTarget: true
+              ),
+              annotation.annotation.useSiteTarget?.lowercased() == "receiver"
+        {
+            receiverTypeStart = annotation.nextIndex
+        }
+
+        if receiverTypeStart >= receiverSeparatorIndex {
             return nil
         }
 
-        var receiverTokens = Array(tokens[receiverStart ..< receiverSeparatorIndex])
+        var receiverTokens = Array(tokens[receiverTypeStart ..< receiverSeparatorIndex])
         if receiverSeparatorToken?.kind == .symbol(.questionDot),
            let separatorRange = receiverSeparatorToken?.range
         {
             receiverTokens.append(Token(kind: .symbol(.question), range: separatorRange))
         }
         return parseTypeRef(from: receiverTokens, interner: interner, astArena: astArena)
+    }
+
+    func declarationReceiverAnnotations(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner
+    ) -> [AnnotationNode] {
+        let tokens = collectTokens(from: nodeID, in: arena)
+        guard let funIndex = tokens.firstIndex(where: { $0.kind == .keyword(.fun) }) else {
+            return []
+        }
+
+        var index = skipBalancedBracket(
+            in: tokens,
+            from: funIndex + 1,
+            open: .symbol(.lessThan),
+            close: .symbol(.greaterThan)
+        )
+        var annotations: [AnnotationNode] = []
+        while index < tokens.count,
+              let parsed = AnnotationParsingSupport.parseAnnotation(
+                  from: tokens,
+                  start: index,
+                  interner: interner,
+                  allowUseSiteTarget: true
+              ),
+              parsed.annotation.useSiteTarget?.lowercased() == "receiver"
+        {
+            annotations.append(parsed.annotation)
+            index = parsed.nextIndex
+        }
+        return annotations
     }
 
     func declarationContextReceivers(

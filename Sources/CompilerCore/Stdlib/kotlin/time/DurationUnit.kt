@@ -1,7 +1,5 @@
 package kotlin.time
 
-import kotlin.enums.enumEntries
-
 // JVM TimeUnit interop is target-out for KSwiftK and is not part of this
 // common Kotlin surface.
 public enum class DurationUnit {
@@ -13,6 +11,3 @@ public enum class DurationUnit {
     HOURS,
     DAYS
 }
-
-public val DurationUnit.entries: kotlin.enums.EnumEntries<DurationUnit>
-    get() = enumEntries<DurationUnit>()

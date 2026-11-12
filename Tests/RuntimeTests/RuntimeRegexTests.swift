@@ -1066,8 +1066,10 @@ struct RuntimeRegexTests {
         }
         let elements = runtimeListElements(allRaw)
         #expect(elements.count == 2)
-        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(elements[0], 0))) == [0xD800])
-        #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(elements[1], 0))) == [0xDC00])
+        if elements.count == 2 {
+            #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(elements[0], 0))) == [0xD800])
+            #expect(runtimeKotlinStringUTF16CodeUnits(runtimeString(__kk_match_result_group_value(elements[1], 0))) == [0xDC00])
+        }
 
         // split on the surrogate keeps the surrounding text intact.
         let splitInput = runtimeKotlinStringFromUTF16CodeUnits([0x61, 0xD800, 0x62])
