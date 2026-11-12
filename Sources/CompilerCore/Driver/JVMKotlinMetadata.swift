@@ -27,6 +27,8 @@ struct JVMKotlinFunction {
         let sourceType: String
         let isVararg: Bool
         let hasDefaultValue: Bool
+        var isCrossinline = false
+        var isNoinline = false
     }
 
     let name: String
@@ -35,8 +37,15 @@ struct JVMKotlinFunction {
     let result: String
     let parameters: [Parameter]
     let typeParameters: [TypeParameter]
+    let contextParameters: [Parameter]
     let receiver: String?
     let isSuspend: Bool
+    var isInline = false
+
+    var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
+    var hasInlineContextCallback: Bool {
+        isInline && parameters.contains { $0.sourceType.hasPrefix("context(") && !$0.isCrossinline && !$0.isNoinline }
+    }
 }
 
 struct JVMKotlinStaticProperty {
@@ -260,13 +269,21 @@ struct JVMKotlinMetadata {
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
             let receiverType = try receiver.flatMap { try Self.sourceType($0, types: types, names: names) }
             guard receiver == nil || receiverType != nil else { continue }
+            let contextMessages = try function.messages(13)
+            let contextTypes = try contextMessages.compactMap { try types.resolve($0, inline: 3, indexed: 5) }
+            let contextParameters = try zip(contextMessages, contextTypes).compactMap { parameter, resolved -> JVMKotlinFunction.Parameter? in
+                guard let type = try Self.sourceType(resolved, types: types, names: names) else { return nil }
+                return .init(name: try names.resolve(parameter.int32(2)), sourceType: type, isVararg: false, hasDefaultValue: false)
+            }
+            guard contextParameters.count == contextMessages.count else { continue }
             let parameterMessages = try function.messages(6)
             var parameters: [JVMKotlinFunction.Parameter] = []
             var hasFunctionTypes = resultType.contains("->") || (receiverType?.contains("->") ?? false)
             var valid = true
             for parameter in parameterMessages {
                 let parameterName = try names.resolve(parameter.int32(2))
-                let hasDefaultValue = (parameter.int32(1) ?? 0) & 2 != 0
+                let flags = parameter.int32(1) ?? 0
+                let hasDefaultValue = flags & 2 != 0
                 if let vararg = try types.resolve(parameter, inline: 4, indexed: 6) {
                     guard let element = try Self.sourceType(vararg, types: types, names: names) else {
                         valid = false
@@ -281,16 +298,18 @@ struct JVMKotlinMetadata {
                     valid = false
                     break
                 }
-                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false, hasDefaultValue: hasDefaultValue))
+                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false,
+                    hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
             guard valid, hasFunctionTypes || isFileFacade else { continue }
-            let isSuspend = ((function.int32(9) ?? 0) & (1 << 13)) != 0
+            let flags = function.int32(9) ?? 0
+            let isSuspend = flags & (1 << 13) != 0
             if !hasFunctionTypes, descriptor == nil {
                 // The signature extension can omit descriptors that the JVM
                 // backend derives from Kotlin types. Recover them so overloads
                 // with the same arity are matched by their actual carriers.
-                var inputs = [receiver].compactMap { $0 }
+                var inputs = contextTypes + [receiver].compactMap { $0 }
                 for parameter in parameterMessages {
                     if let type = try types.resolve(parameter, inline: 3, indexed: 5) {
                         inputs.append(type)
@@ -299,7 +318,7 @@ struct JVMKotlinMetadata {
                 let carriers = try inputs.compactMap {
                     try Self.resultType($0, types: types, names: names)
                 }
-                guard carriers.count == parameters.count + (receiver == nil ? 0 : 1),
+                guard carriers.count == parameters.count + contextParameters.count + (receiver == nil ? 0 : 1),
                       let resultCarrier = try Self.resultType(returnResolved, types: types, names: names)
                 else { continue }
                 descriptor = "(" + carriers.map { $0 == .unit ? "Lkotlin/Unit;" : $0.descriptor }.joined() + ")" + resultCarrier.descriptor
@@ -311,8 +330,10 @@ struct JVMKotlinMetadata {
                 result: resultType,
                 parameters: parameters,
                 typeParameters: typeParameters,
+                contextParameters: contextParameters,
                 receiver: receiverType,
-                isSuspend: isSuspend
+                isSuspend: isSuspend,
+                isInline: flags & (1 << 10) != 0
             ))
         }
         return result
@@ -372,15 +393,19 @@ struct JVMKotlinMetadata {
                 returnType = rendered[arity]
                 inputs = Array(rendered.dropLast())
             }
+            let contextCount = try contextFunctionParameterCount(type, names: names)
+            guard contextCount <= inputs.count else { return nil }
+            let contextInputs = inputs.prefix(contextCount)
+            let remaining = inputs.dropFirst(contextCount)
             let receiver: String?
             let parameters: [String]
             if isExtension {
-                guard !inputs.isEmpty else { return nil }
-                receiver = inputs[0]
-                parameters = Array(inputs.dropFirst())
+                guard let extensionReceiver = remaining.first else { return nil }
+                receiver = extensionReceiver
+                parameters = Array(remaining.dropFirst())
             } else {
                 receiver = nil
-                parameters = inputs
+                parameters = Array(remaining)
             }
             let parameterList = parameters.joined(separator: ", ")
             let body: String
@@ -389,7 +414,8 @@ struct JVMKotlinMetadata {
             } else {
                 body = "(" + parameterList + ") -> " + returnType
             }
-            let functionType = (isComposable ? "@androidx.compose.runtime.Composable " : "")
+            let context = contextInputs.isEmpty ? "" : "context(" + contextInputs.joined(separator: ", ") + ") "
+            let functionType = (isComposable ? "@androidx.compose.runtime.Composable " : "") + context
                 + (isSuspendFunction ? "suspend " : "") + body
             return nullable ? "(" + functionType + ")?" : functionType
         }
@@ -429,6 +455,17 @@ struct JVMKotlinMetadata {
             if try names.resolve(annotation.int32(1)) == name { return true }
         }
         return false
+    }
+
+    private static func contextFunctionParameterCount(_ type: ProtoFields, names: JVMMetadataNames) throws -> Int {
+        for annotation in try type.messages(100) where try names.resolve(annotation.int32(1)) == "kotlin/ContextFunctionTypeParams" {
+            guard let argument = try annotation.message(2), let value = try argument.message(2),
+                  let zigzag = value.varint(2), zigzag % 2 == 0, let count = Int(exactly: zigzag >> 1) else {
+                throw JVMClassReader.Invalid()
+            }
+            return count
+        }
+        return 0
     }
 
     private static func functionArity(_ name: String) -> Int? {

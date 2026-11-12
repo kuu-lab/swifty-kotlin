@@ -41,6 +41,7 @@ extension JVMFunctionBuilder {
     /// defaults in declaration order after all explicit expressions have run.
     func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil, composableParameters: Set<Int> = [], importedDefaults: [Bool]? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
+        let importedFunction = binding.flatMap { context.jvmImports?.methods[$0.chosenCallee]?.kotlinFunction }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
             ?? signature?.valueParameterIsVararg.firstIndex(of: true)
         let varargElement = try varargIndex.map { try specializedVarargElement(at: $0, erased: parameters[$0], binding: binding) }
@@ -61,7 +62,18 @@ extension JVMFunctionBuilder {
             }
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
-            let evaluated = try composableParameters.contains(index) ? composeContent(arg.expr) : expression(arg.expr)
+            let evaluated: JVMValue?
+            if composableParameters.contains(index) {
+                evaluated = try composeContent(arg.expr)
+            } else if let composer = activeComposer, let importedFunction, importedFunction.hasInlineContextCallback,
+                      importedFunction.parameters.indices.contains(index),
+                      !importedFunction.parameters[index].isCrossinline, !importedFunction.parameters[index].isNoinline,
+                      case .lambdaLiteral = arena.expr(arg.expr) {
+                // Inline callbacks are invoked synchronously in the caller's composition.
+                evaluated = try closure(arg.expr, capturedComposer: composer)
+            } else {
+                evaluated = try expression(arg.expr)
+            }
             if terminated { throw JVMTerminatedExpression() }
             let sourceValue: JVMValue
             if let evaluated { sourceValue = evaluated }
@@ -149,6 +161,9 @@ extension JVMFunctionBuilder {
             let content = try composeContent(args[0].expr)
             instructions.append(.foreignCall(method, receiver: dispatch, arguments: [content], result: nil))
             return JVMIntrinsicResult(value: nil)
+        }
+        if let method {
+            prefix += try importedContextArguments(binding, method: method, id: id)
         }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)

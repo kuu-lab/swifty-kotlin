@@ -68,7 +68,7 @@ extension JVMProgramBuilder {
         switch sema.types.kind(of: id) {
         case let .functionType(f):
             _ = try type(id)
-            return .function(try f.params.map(kotlinType), try kotlinType(f.returnType), receiver: try f.receiver.map(kotlinType), nullable: f.nullability != .nonNull, isSuspend: f.isSuspend)
+            return .function(try f.params.map(kotlinType), try kotlinType(f.returnType), receiver: try f.receiver.map(kotlinType), nullable: f.nullability != .nonNull, isSuspend: f.isSuspend, context: try f.contextReceivers.map(kotlinType))
         case .unit: return named("kotlin/Unit")
         case .nullableUnit: return named("kotlin/Unit", true)
         case let .nothing(nullability): return named("kotlin/Nothing", nullability == .nullable)
@@ -95,7 +95,7 @@ extension JVMProgramBuilder {
         switch sema.types.kind(of: id) {
         case let .functionType(f):
             let name = try type(id).referenceName!
-            let params = ([f.receiver].compactMap { $0 } + f.params)
+            let params = f.contextReceivers + [f.receiver].compactMap { $0 } + f.params
             func argument(_ t: TypeID) throws -> String { if case .unit = sema.types.kind(of: t) { return "Lkotlin/Unit;" }; return try signatureType(t, boxed: true) }
             return "L" + name + "<" + (try params.map { (parameterPosition ? "-" : "") + (try argument($0)) }).joined() + (f.isSuspend ? "-Lkotlin/coroutines/Continuation<-" + (try argument(f.returnType)) + ">;Ljava/lang/Object;" : (parameterPosition ? "+" : "") + (try argument(f.returnType))) + ">;"
         case let .kClassType(t): return "Lkotlin/reflect/KClass<" + (try signatureType(t.argument, boxed: true)) + ">;"

@@ -535,7 +535,7 @@ struct JVMClassReader {
                           !candidate.isSuspend
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
-                              && (candidate.parameters.count + (candidate.receiver == nil ? 0 : 1) == method.parameters.count
+                              && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count
                                   || method.composeABI(for: candidate) != nil)
                       })
                 else { continue }
