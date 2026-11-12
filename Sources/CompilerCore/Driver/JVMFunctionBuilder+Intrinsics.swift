@@ -165,6 +165,140 @@ extension JVMFunctionBuilder {
         if let method = context.jvmImports?.methods[callee] { return method.isStatic }
         return program.references[callee] != nil
     }
+
+    func jvmListBinarySearch(receiver: JVMValue, args: [CallArgument], values: [JVMValue], id: ExprID) throws -> JVMValue {
+        enum Overload {
+            case natural
+            case comparator
+            case comparison
+        }
+
+        let sema = program.sema
+        let binding = sema.bindings.callBinding(for: id)
+        let signature = binding.flatMap { sema.symbols.functionSignature(for: $0.chosenCallee) }
+        func isComparatorArgument(_ index: Int) -> Bool {
+            guard args.indices.contains(index) else { return false }
+            if args[index].label.map(context.interner.resolve) == "comparator" { return true }
+            if let expressionType = sema.bindings.exprTypes[args[index].expr],
+               let loweredType = try? program.type(expressionType),
+               loweredType.referenceName == "java/util/Comparator" {
+                return true
+            }
+            return values[index].type.referenceName == "java/util/Comparator"
+        }
+        func functionArity(_ index: Int) -> Int? {
+            guard args.indices.contains(index),
+                  let expressionType = sema.bindings.exprTypes[args[index].expr],
+                  case let .functionType(function) = sema.types.kind(of: expressionType) else {
+                return nil
+            }
+            return function.params.count
+        }
+        let firstParameterIsInt = signature?.parameterTypes.first.map { parameter in
+            if case .primitive(.int, _) = sema.types.kind(of: parameter) { return true }
+            return false
+        } ?? false
+        let overload: Overload
+        if signature?.parameterTypes.count == 4 || args.contains(where: { $0.label.map(context.interner.resolve) == "comparator" })
+            || isComparatorArgument(1) || functionArity(args.count - 1) == 2 {
+            overload = .comparator
+        } else if signature?.parameterTypes.count == 1 || firstParameterIsInt
+            || args.contains(where: { $0.label.map(context.interner.resolve) == "comparison" })
+            || functionArity(args.count - 1) == 1 {
+            overload = .comparison
+        } else if signature == nil || signature?.parameterTypes.count == 3 {
+            overload = .natural
+        } else {
+            throw fail("Unsupported JVM List.binarySearch overload.", id)
+        }
+
+        let listType = JVMValueType.reference("java/util/List", nullable: false)
+        let objectType = JVMValueType.reference("java/lang/Object", nullable: true)
+        let intType = JVMValueType.int
+        let callableType = JVMValueType.reference("kotlin/jvm/functions/Function1", nullable: false)
+        let parameterTypes: [JVMValueType]
+        let parameterNames: [String]
+        let defaultedParameters: Set<Int>
+        switch overload {
+        case .natural:
+            parameterTypes = [.reference("java/lang/Comparable", nullable: true), intType, intType]
+            parameterNames = ["element", "fromIndex", "toIndex"]
+            defaultedParameters = [1, 2]
+        case .comparator:
+            parameterTypes = [objectType, .reference("java/util/Comparator", nullable: false), intType, intType]
+            parameterNames = ["element", "comparator", "fromIndex", "toIndex"]
+            defaultedParameters = [2, 3]
+        case .comparison:
+            parameterTypes = [intType, intType, callableType]
+            parameterNames = ["fromIndex", "toIndex", "comparison"]
+            defaultedParameters = [0, 1]
+        }
+
+        guard args.count == values.count else { throw fail("JVM collection argument mismatch.", id) }
+        var ordered = Array<JVMValue?>(repeating: nil, count: parameterTypes.count)
+        var nextPositionalParameter = 0
+        for (sourceIndex, argument) in args.enumerated() {
+            let label = argument.label.map(context.interner.resolve)
+            let argumentIsFunction: Bool = {
+                if let argumentType = sema.bindings.exprTypes[argument.expr],
+                   case .functionType = sema.types.kind(of: argumentType) {
+                    return true
+                }
+                return values[sourceIndex].type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
+            }()
+            let parameterIndex: Int
+            if let label, let labeledIndex = parameterNames.firstIndex(of: label) {
+                parameterIndex = labeledIndex
+            } else if case .comparison = overload,
+                      sourceIndex == args.count - 1,
+                      argumentIsFunction {
+                // A trailing lambda is the final comparison parameter even when
+                // earlier range arguments are supplied positionally.
+                parameterIndex = 2
+            } else if signature?.parameterTypes.count == parameterTypes.count,
+                      let mapped = binding?.parameterMapping[sourceIndex],
+                      parameterTypes.indices.contains(mapped) {
+                parameterIndex = mapped
+            } else {
+                parameterIndex = nextPositionalParameter
+            }
+            guard parameterTypes.indices.contains(parameterIndex), ordered[parameterIndex] == nil else {
+                throw fail("Invalid JVM List.binarySearch argument mapping.", id)
+            }
+            ordered[parameterIndex] = values[sourceIndex]
+            nextPositionalParameter = max(nextPositionalParameter, parameterIndex + 1)
+        }
+
+        var defaultMask: Int32 = 0
+        var invocationArguments = [try convert(receiver, to: listType)]
+        for index in parameterTypes.indices {
+            if let value = ordered[index] {
+                invocationArguments.append(value)
+            } else {
+                guard defaultedParameters.contains(index) else {
+                    throw fail("JVM collection argument mismatch.", id)
+                }
+                defaultMask |= Int32(1) << Int32(index)
+                invocationArguments.append(try zero(parameterTypes[index]))
+            }
+        }
+        let mask = try constant(.int(defaultMask), .int)
+        let marker = try constant(.null, objectType)
+        invocationArguments += [mask, marker]
+        let invocationTypes = [listType] + parameterTypes + [.int, objectType]
+        guard let result = try jdkCall(
+            "kotlin/collections/CollectionsKt",
+            "binarySearch$default",
+            invocationTypes,
+            .int,
+            arguments: invocationArguments,
+            resolved: .int
+        ) else {
+            throw fail("JVM List.binarySearch must return Int.", id)
+        }
+        return result
+    }
+
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
         if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/lang/Object" {
@@ -389,6 +523,11 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "binarySearch":
+                guard ["java/util/List", "java/util/ArrayList"].contains(owner) else {
+                    throw fail("Unsupported JVM collection member: \(member).", id)
+                }
+                return JVMIntrinsicResult(value: try jvmListBinarySearch(receiver: source, args: args, values: values, id: id))
             case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
