@@ -3,8 +3,10 @@
   "commonSources": [
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
+    "kotlin/IgnorableReturnValue.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/io/encoding/Base64.kt",
     "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt"
