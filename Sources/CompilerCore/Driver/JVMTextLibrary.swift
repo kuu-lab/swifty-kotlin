@@ -134,6 +134,34 @@ extension JVMProgramBuilder {
         let runtimeFacades = Dictionary(uniqueKeysWithValues: try JVMStdlibCatalog.manifest().declarations.compactMap { declaration in declaration.runtimeFacade.map { (declaration.virtualPath, $0) } })
         for file in ast.files {
             let path = context.sourceManager.path(of: file.fileID)
+            if path == "<kswiftk-jvm>/kotlin-time-duration.kt" {
+                for id in file.topLevelDecls {
+                    guard case let .classDecl(duration) = ast.arena.decl(id),
+                          context.interner.resolve(duration.name) == "Duration" else { continue }
+                    let owner = "kotlin/time/Duration"
+                    for member in duration.memberFunctions {
+                        guard case let .funDecl(function) = ast.arena.decl(member),
+                              context.interner.resolve(function.name) == "isNegative",
+                              let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                        try method(symbol, owner: owner, name: "isNegative-impl", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                    }
+                    for member in duration.memberProperties {
+                        guard case let .propertyDecl(property) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                        let getter = "get" + context.interner.resolve(property.name).prefix(1).uppercased() + context.interner.resolve(property.name).dropFirst() + "-impl"
+                        textLibraryProperties[symbol] = JVMForeignMethod(
+                            owner: owner,
+                            name: getter,
+                            descriptor: "(J)J",
+                            parameters: [.long],
+                            result: .long,
+                            isStatic: true,
+                            isInterface: false,
+                            isAbstract: false
+                        )
+                    }
+                }
+            }
             if let owner = runtimeFacades[path] {
                 for id in file.topLevelDecls {
                     switch ast.arena.decl(id) {
@@ -252,6 +280,19 @@ extension JVMFunctionBuilder {
         }
         let symbol = bindings.identifierSymbol(for: id) ?? accessorProperty ?? call
         guard let symbol else { return nil }
+        if let path = program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve),
+           path.count == 5,
+           Array(path.prefix(4)) == ["kotlin", "time", "Duration", "Companion"],
+           ["seconds"].contains(path[4]) {
+            guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
+                  [.int, .long, .double].contains(source.type) else {
+                throw fail("Duration unit properties require an Int, Long, or Double receiver.", id)
+            }
+            let unitType = JVMValueType.reference("kotlin/time/DurationUnit", nullable: false)
+            let unit = try value(unitType)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: "SECONDS", type: unitType, access: 0x4019), unit))
+            return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
+        }
         if let field = program.textLibraryFields[symbol] {
             let loaded = try value(field.type)
             instructions.append(.getStatic(field, loaded))
