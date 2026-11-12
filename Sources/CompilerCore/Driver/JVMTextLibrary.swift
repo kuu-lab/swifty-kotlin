@@ -83,13 +83,21 @@ extension JVMProgramBuilder {
                             owner = "kotlin/collections/CollectionsKt"
                         }
                     }
+                    let arrayContentToString = path.contains("m20-arrays-utility")
+                        && source == "contentToString"
+                        && receiverType != nil
+                        && receiverType?.unsignedName == nil
+                    if arrayContentToString {
+                        // The official Kotlin wrapper is private and inline-only on the JVM.
+                        owner = "java/util/Arrays"
+                    }
                     if path.contains("m21-") { owner = "kotlin/sequences/SequencesKt" }
                     if path.contains("m20-"), source == "toMap" { owner = "kotlin/collections/MapsKt" }
                     if path.contains("m20-factories") {
                         owner = source.lowercased().contains("map") ? "kotlin/collections/MapsKt" : source.lowercased().contains("set") ? "kotlin/collections/SetsKt" : "kotlin/collections/CollectionsKt"
                     }
                     let adaptation = path.contains("m20-factories") ? "collectionFactory" : source == "toRegex" ? "toRegex" : path.hasSuffix("m19-regex.kt") && source != "get" ? "regexExtension" : nil
-                    try method(symbol, owner: owner, name: source, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
+                    try method(symbol, owner: owner, name: arrayContentToString ? "toString" : source, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
                 case let .classDecl(c):
                     guard let symbol = sema.bindings.declSymbol(for: id) else { continue }
                     let source = try className(symbol), owner = JVMClasspathIndex.builtinName(source) ?? source
