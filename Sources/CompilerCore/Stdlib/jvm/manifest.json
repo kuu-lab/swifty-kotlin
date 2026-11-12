@@ -63,6 +63,13 @@
       "runtimeFacade": "kotlin/io/FilesKt"
     },
     {
+      "path": "declarations/ByteStreams.kt",
+      "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/ByteStreamsKt",
+      "consumerIdentifiers": ["readBytes"]
+    },
+    {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
       "excludeFromStdlibBuild": true

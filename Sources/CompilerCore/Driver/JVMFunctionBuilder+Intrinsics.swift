@@ -168,6 +168,13 @@ extension JVMFunctionBuilder {
     }
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
+        if member == "readBytes", args.isEmpty, let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           program.sema.symbols.externalLinkName(for: callee) == "__kk_input_stream_readAllBytes" {
+            return JVMIntrinsicResult(value: try jdkCall(
+                "kotlin/io/ByteStreamsKt", "readBytes", [.reference("java/io/InputStream", nullable: false)],
+                .reference("[B", nullable: false), arguments: [requireValue(receiverID)]
+            ))
+        }
         if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/lang/Object" {
             let object = try requireValue(receiverID)
             // `x.toString()`/`hashCode()` on a nullable Any? resolve to the
