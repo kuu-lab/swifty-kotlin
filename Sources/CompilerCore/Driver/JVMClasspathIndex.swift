@@ -1648,12 +1648,12 @@ final class JVMClasspathIndex {
         if asExtension, let type = method.sourceParameters.first {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
-        let result = method.genericResultParameter.map { "`\($0)`" }
+        let result = method.genericResultParameter.map { "`\($0.name)`" }
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
-        let generic = method.genericResultParameter.map { name -> String in
+        let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
-            return "<`\(name)`: \(bound)> "
+            return "<`\(parameter.name)`: \(bound)> "
         } ?? ""
         let modifier = suspend == nil ? "" : "suspend "
         return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result
@@ -1714,7 +1714,9 @@ final class JVMClasspathIndex {
                 nullable = false
             }
             let parameterType: String
-            if isVararg, let name = parameter.referenceName, name.hasPrefix("["),
+            if let generic = method.genericResultParameter, generic.classParameterIndices.contains(index) {
+                parameterType = "java.lang.Class<`\(generic.name)`>"
+            } else if isVararg, let name = parameter.referenceName, name.hasPrefix("["),
                let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
                 parameterType = kotlinType(element)
             } else {
