@@ -600,6 +600,7 @@ struct JVMClassReader {
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
+                                          || method.isFinal && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count

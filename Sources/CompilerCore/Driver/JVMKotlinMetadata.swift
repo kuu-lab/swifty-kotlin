@@ -50,6 +50,7 @@ struct JVMKotlinFunction {
     var valueOperatorParameterDescriptors: [String]?
     var mangledMemberParameterDescriptors: [String]?
     var isGenericFinalGetter = false
+    var hasStableFinalParameters = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
     var composableParameters: Set<Int> {
@@ -488,6 +489,9 @@ struct JVMKotlinMetadata {
             let parameterMessages = try function.messages(6)
             let isGenericFinalGetter = !isFileFacade && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
+            let hasStableFinalParameters = !isFileFacade && isFinal && receiver == nil && contextParameters.isEmpty
+                && !parameterMessages.isEmpty && flags & (1 << 15) == 0
+                && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
             var parameters: [JVMKotlinFunction.Parameter] = []
             var hasFunctionTypes = resultType.contains("->") || (receiverType?.contains("->") ?? false)
             var valid = true
@@ -517,8 +521,14 @@ struct JVMKotlinMetadata {
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
             let isMangledMember = !isFileFacade && receiver == nil && contextParameters.isEmpty
                 && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
+            let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
+                && parameters.allSatisfy { parameter in
+                    parameter.sourceType == "kotlin.String"
+                        || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
+                            "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
+                }
             guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList
-                || isGenericFinalGetter || isMangledMember else { continue }
+                || isGenericFinalGetter || isMangledMember || hasStableScalarParameters else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
             if isValueOperator || isMangledMember {
@@ -563,7 +573,8 @@ struct JVMKotlinMetadata {
                 isInfix: isInfix,
                 valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
-                isGenericFinalGetter: isGenericFinalGetter
+                isGenericFinalGetter: isGenericFinalGetter,
+                hasStableFinalParameters: hasStableScalarParameters
             ))
         }
         return result
