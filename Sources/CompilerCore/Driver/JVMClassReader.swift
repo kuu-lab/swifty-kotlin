@@ -617,6 +617,32 @@ struct JVMClassReader {
                 } == true
             }
         }
+        if let metadata = classAttributes.kotlinMetadata, metadata.isFileFacade == false {
+            let duplicateGroups = Dictionary(grouping: methods.filter { !$0.isConstructor && !$0.isStatic }) {
+                $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!)
+            }.values.filter { $0.count > 1 }
+            if !duplicateGroups.isEmpty,
+               let sourceNames = try? metadata.collidingMemberSourceNames(byteLimit: bytes.count) {
+                var ignored: Set<String> = []
+                var renamed: [String: String] = [:]
+                for group in duplicateGroups {
+                    let names = group.compactMap { method in sourceNames[method.name + method.descriptor] }
+                    guard !names.isEmpty, Set(names).count == names.count else { continue }
+                    for method in group {
+                        let key = method.name + method.descriptor
+                        if let sourceName = sourceNames[key] {
+                            if sourceName != method.name { renamed[key] = sourceName }
+                        } else {
+                            ignored.insert(key)
+                        }
+                    }
+                }
+                methods.removeAll { ignored.contains($0.name + $0.descriptor) }
+                for index in methods.indices {
+                    methods[index].kotlinCollisionSourceName = renamed[methods[index].name + methods[index].descriptor]
+                }
+            }
+        }
         var info = JVMClassInfo(
             name: name,
             flags: flags,

@@ -66,6 +66,7 @@ struct JVMKotlinClassProperty {
     let getterDescriptor: String
     let isNullable: Bool
     let isVar: Bool
+    let isSourceVisible: Bool
     let sourceType: String?
 }
 
@@ -211,10 +212,50 @@ struct JVMKotlinMetadata {
                   let descriptor = try names.resolve(getter.int32(2))
             else { return nil }
             let hasSetter = try signature.message(4) != nil
+            let flags = property.int32(11) ?? 6
+            let visibility = (flags >> 1) & 7
             return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
-                                           isNullable: type.nullable, isVar: (property.int32(11) ?? 0) & (1 << 8) != 0 || hasSetter,
+                                           isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || hasSetter,
+                                           isSourceVisible: visibility == 2 || visibility == 3,
                                            sourceType: try Self.sourceType(type, types: types, names: names))
         }
+    }
+
+    /// Names of public Kotlin declarations keyed by the physical JVM method.
+    func collidingMemberSourceNames(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let ownerTypes = try TypeTable(declaration.message(30))
+        var sourceNames: [String: String] = [:]
+        for function in try declaration.messages(9) {
+            let flags = function.int32(9) ?? 6
+            let visibility = (flags >> 1) & 7
+            guard visibility == 2 || visibility == 3,
+                  let name = try names.resolve(function.int32(2)), JVMProgramBuilder.isIdentifier(name) else { continue }
+            let signature = try function.message(100)
+            let jvmName = try names.resolve(signature?.int32(1)) ?? name
+            if let descriptor = try names.resolve(signature?.int32(2)) {
+                sourceNames[jvmName + descriptor] = name
+                continue
+            }
+            let types = try function.message(30).map(TypeTable.init) ?? ownerTypes
+            let parameters = try function.messages(6)
+            guard !function.has(5), !function.has(8), flags & (1 << 13) == 0,
+                  let type = try types.resolve(function, inline: 3, indexed: 7),
+                  let result = try Self.resultType(type, types: types, names: names) else { continue }
+            let carriers = try parameters.compactMap { parameter in
+                try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                    try Self.resultType($0, types: types, names: names)
+                }
+            }
+            guard carriers.count == parameters.count else { continue }
+            let descriptor = "(" + carriers.map(\.descriptor).joined() + ")" + result.descriptor
+            sourceNames[jvmName + descriptor] = name
+        }
+        for property in try classPropertyCandidates(byteLimit: byteLimit) where property.isSourceVisible {
+            sourceNames[property.getterName + property.getterDescriptor] = property.getterName
+        }
+        return sourceNames
     }
 
     func constructorParameterNames(byteLimit: Int) throws -> [String: [String]] {
