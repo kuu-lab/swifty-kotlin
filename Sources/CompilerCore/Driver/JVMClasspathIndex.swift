@@ -510,7 +510,7 @@ final class JVMClasspathIndex {
         case let .constant(.int(number)):
             return type == .long ? "\(number)L" : "\(number)"
         case let .constant(.long(number)):
-            return "\(number)L"
+            return number == Int64.min ? "kotlin.Long.MIN_VALUE" : "\(number)L"
         case let .constant(.float(number)):
             guard number.isFinite else { return nil }
             return kotlinFloatLiteral(number)
