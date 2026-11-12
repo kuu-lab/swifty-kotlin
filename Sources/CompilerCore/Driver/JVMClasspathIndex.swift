@@ -496,7 +496,7 @@ final class JVMClasspathIndex {
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
             if method.kotlinComposeABI != nil { return hasComposeRuntime }
-            guard function.parameters.count + (function.receiver == nil ? 0 : 1)
+            guard function.parameters.count + function.leadingParameterCount
                 + (function.isSuspend ? 1 : 0) == method.parameters.count
             else { return false }
             if function.receiver?.contains("->") == true || function.result.contains("->")
@@ -1767,7 +1767,7 @@ final class JVMClasspathIndex {
                 // Kotlin metadata can name types erased from the descriptor,
                 // such as a parameter of a Compose receiver lambda.
                 if let function = method.kotlinFunction {
-                    let sourceTypes = function.parameters.map(\.sourceType)
+                    let sourceTypes = (function.contextParameters + function.parameters).map(\.sourceType)
                         + [function.result] + [function.receiver].compactMap { $0 }
                     markSourceTypes(sourceTypes)
                 }
@@ -1821,7 +1821,7 @@ final class JVMClasspathIndex {
     private func defaultArgumentMethod(for method: JVMForeignMethod, in info: JVMClassInfo) -> JVMForeignMethod? {
         guard method.isStatic, let function = method.kotlinFunction, !function.isSuspend,
               function.parameters.contains(where: \.hasDefaultValue),
-              method.parameters.count == function.parameters.count + (function.receiver == nil ? 0 : 1)
+              method.parameters.count == function.parameters.count + function.leadingParameterCount
         else { return nil }
         let masks = String(repeating: "I", count: (function.parameters.count + 31) / 32)
         let descriptor = "(" + method.parameters.map(\.descriptor).joined() + masks + "Ljava/lang/Object;)" + method.result.descriptor
@@ -1830,6 +1830,7 @@ final class JVMClasspathIndex {
         }
     }
 
+              function.contextParameters.isEmpty,
     private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false, acceptsDefaults: Bool = false) -> String {
         if let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
@@ -1856,14 +1857,21 @@ final class JVMClasspathIndex {
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
         // Parenthesize function types so the dot binds to the entire receiver.
         let receiver = asFacadeMember ? "" : function.receiver.map { $0.contains("->") ? "(\($0))." : $0 + "." } ?? ""
-        let receiverParameter = asFacadeMember ? function.receiver.map { ["p0: " + $0] } ?? [] : []
+        let context = function.contextParameters.enumerated().map { index, parameter in
+            let name = parameter.name.flatMap { JVMProgramBuilder.isIdentifier($0) ? $0 : nil } ?? "context\(index)"
+            return "`\(name)`: " + parameter.sourceType
+        }
+        let prefix = asFacadeMember || context.isEmpty ? "" : "context(" + context.joined(separator: ", ") + ") "
+        let receiverParameter = asFacadeMember ? context + (function.receiver.map { ["p\(context.count): " + $0] } ?? []) : []
         let parameters = receiverParameter + function.parameters.enumerated().map { index, parameter in
             let fallback = "p\(index + receiverParameter.count)"
             let name = receiverParameter.isEmpty ? parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback : fallback
             // Sema only needs the presence of a default. The classfile
             // helper evaluates its actual value at the call site.
             let defaultValue = acceptsDefaults && parameter.hasDefaultValue ? " = null!!" : ""
-            return (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType + defaultValue
+            let inlineModifier = function.hasInlineContextCallback && !asFacadeMember
+                ? (parameter.isCrossinline ? "crossinline " : parameter.isNoinline ? "noinline " : "") : ""
+            return inlineModifier + (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType + defaultValue
         }
         let typeNames = function.typeParameters.map { "`\($0.name)`" }
         let generics = typeNames.isEmpty ? "" : "<" + typeNames.joined(separator: ", ") + "> "
@@ -1871,7 +1879,8 @@ final class JVMClasspathIndex {
             parameter.bounds.map { "`\(parameter.name)`: " + $0 }
         }
         let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
-        return (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
+        let inline = function.hasInlineContextCallback && !asFacadeMember ? "inline " : ""
+        return prefix + inline + (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
             + parameters.joined(separator: ", ") + "): " + function.result + whereClause
     }
 
@@ -2203,8 +2212,11 @@ final class JVMClasspathIndex {
         case let .any(nullability): return .reference("java/lang/Object", nullable: nullability != .nonNull, platform: nullability == .platformType)
         case let .stringStruct(nullability): return nullability == .nonNull ? .string : .reference("java/lang/String", nullable: true, platform: nullability == .platformType)
         case let .functionType(function):
-            guard !function.params.contains(where: { if case .unit = sema.types.kind(of: $0) { return true }; return false }), function.contextReceivers.isEmpty, function.params.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0) <= 22 else { throw JVMFrontendError(message: "JVM M7 supports Function0 through Function22, including a suspend continuation, without context receivers or Unit parameters.") }
-            return .reference("kotlin/jvm/functions/Function" + String(function.params.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)), nullable: function.nullability != .nonNull)
+            let inputs = function.contextReceivers + function.params
+            let arity = inputs.count + (function.receiver == nil ? 0 : 1) + (function.isSuspend ? 1 : 0)
+            guard !inputs.contains(where: { if case .unit = sema.types.kind(of: $0) { return true }; return false }),
+                  arity <= 22 else { throw JVMFrontendError(message: "JVM M7 supports Function0 through Function22, including a suspend continuation, without Unit parameters.") }
+            return .reference("kotlin/jvm/functions/Function" + String(arity), nullable: function.nullability != .nonNull)
         case let .typeParam(parameter):
             if let bound = sema.symbols.typeParameterUpperBound(for: parameter.symbol) {
                 if case let .typeParam(other) = sema.types.kind(of: bound), other.symbol == parameter.symbol { return .reference("java/lang/Object", nullable: true) }
