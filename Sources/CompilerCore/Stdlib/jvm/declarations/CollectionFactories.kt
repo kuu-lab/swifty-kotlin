@@ -1,6 +1,8 @@
 package kotlin.collections
 fun <T> listOf(element: T): List<T> = null!!
 fun <T> listOf(vararg elements: T): List<T> = null!!
+fun <T : Any> listOfNotNull(element: T?): List<T> = null!!
+fun <T : Any> listOfNotNull(vararg elements: T?): List<T> = null!!
 fun <T> mutableListOf(vararg elements: T): MutableList<T> = null!!
 fun <T> setOf(element: T): Set<T> = null!!
 fun <T> setOf(vararg elements: T): Set<T> = null!!
