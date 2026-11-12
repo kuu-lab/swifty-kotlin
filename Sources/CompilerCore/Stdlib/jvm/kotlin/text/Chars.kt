@@ -2,6 +2,7 @@ package kotlin.text
 
 import kotlin.jvm.internal.__jvmUpperChar
 import kotlin.jvm.internal.__jvmLowerChar
+import kotlin.jvm.internal.__jvmTitleChar
 import kotlin.jvm.internal.__jvmWhitespace
 import kotlin.jvm.internal.__jvmSpaceChar
 import kotlin.jvm.internal.__jvmIsDigit
@@ -21,6 +22,18 @@ public fun Char.lowercaseChar(): Char = __jvmLowerChar(this)
 public fun Char.uppercase(): String = uppercaseChar().toString()
 
 public fun Char.lowercase(): String = lowercaseChar().toString()
+
+public fun Char.titlecase(): String {
+    val uppercase = this.toString().uppercase()
+    if (uppercase.length > 1) {
+        return if (this == 'ŉ') {
+            uppercase
+        } else {
+            uppercase.substring(0, 1) + uppercase.substring(1).lowercase()
+        }
+    }
+    return __jvmTitleChar(this).toString()
+}
 
 public fun Char.isWhitespace(): Boolean = __jvmWhitespace(this) || __jvmSpaceChar(this)
 

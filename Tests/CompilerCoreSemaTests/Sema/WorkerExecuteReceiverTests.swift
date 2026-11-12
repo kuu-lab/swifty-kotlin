@@ -144,4 +144,26 @@ struct WorkerExecuteReceiverTests {
             #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         }
     }
+
+    @Test(arguments: [false, true])
+    func consumeImplicitItUsesReceiverTypeArgument(allowDefaultStdlibLibrary: Bool) throws {
+        if allowDefaultStdlibLibrary { TestStdlibCache.shared.prepare() }
+        try withTemporaryFile(contents: """
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+        import kotlin.native.concurrent.TransferMode
+        import kotlin.native.concurrent.withWorker
+
+        fun probe(): Int = withWorker {
+            val result: Int = execute(TransferMode.SAFE, { 40 }) { it + 1 }.consume { it + 1 }
+            result
+        }
+        """) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path], emit: .executable,
+                allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+            )
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
+        }
+    }
 }

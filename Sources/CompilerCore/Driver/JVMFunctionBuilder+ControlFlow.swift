@@ -77,6 +77,43 @@ extension JVMFunctionBuilder {
                 arguments: [try convert(lower, to: elementType), try convert(upper, to: elementType)]
             )
         }
+        if op == .rangeUntil {
+            if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+               program.inlineDeclarations[symbol] != nil || program.references[symbol] != nil || program.methods[symbol] != nil {
+                let args = [CallArgument(expr: rhs)]
+                if let call = try inlineCall(args, receiver: lhs, id: id)
+                    ?? sourceCall(args, receiver: lhs, id: id) { return call.value }
+            }
+            let lower = try requireValue(lhs), upper = try requireValue(rhs)
+            let rangeType = try program.expressionType(id)
+            guard lower.type == .int, upper.type == .int,
+                  rangeType.referenceName == "kotlin/ranges/IntRange" else {
+                throw fail("JVM rangeUntil expressions currently require Int operands and IntRange.", id)
+            }
+
+            let result = try value(rangeType)
+            let empty = label(), done = label()
+            let isMinimum = try value(.boolean)
+            instructions.append(.binary(.equal, upper, try constant(.int(Int32.min), .int), isMinimum))
+            instructions.append(.jumpIfFalse(isMinimum, empty))
+            let emptyRange = try constructJDK(
+                "kotlin/ranges/IntRange", parameters: [.int, .int],
+                arguments: [try constant(.int(1), .int), try constant(.int(0), .int)]
+            )
+            instructions.append(.copy(emptyRange, result))
+            jump(done)
+
+            mark(empty)
+            let inclusiveEnd = try value(.int)
+            instructions.append(.binary(.subtract, upper, try constant(.int(1), .int), inclusiveEnd))
+            let range = try constructJDK(
+                "kotlin/ranges/IntRange", parameters: [.int, .int],
+                arguments: [lower, inclusiveEnd]
+            )
+            instructions.append(.copy(range, result))
+            mark(done)
+            return result
+        }
         if op == .downTo {
             let first = try requireValue(lhs), last = try requireValue(rhs)
             guard first.type == .int, last.type == .int else {

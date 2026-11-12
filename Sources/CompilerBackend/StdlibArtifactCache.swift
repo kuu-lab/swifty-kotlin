@@ -421,7 +421,8 @@ public enum StdlibArtifactCache {
             return .invalid("inline-KIR directory is missing")
         }
 
-        guard let objects = manifest["objects"] as? [String], !objects.isEmpty else {
+        let objects = (manifest["objects"] as? [String]) ?? []
+        if !target.isWasm, objects.isEmpty {
             return .invalid("manifest objects are missing")
         }
         for objectPath in objects {
