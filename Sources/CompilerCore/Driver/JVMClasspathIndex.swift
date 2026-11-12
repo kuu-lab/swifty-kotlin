@@ -26,6 +26,7 @@ final class JVMClasspathIndex {
 
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
+        platformClassFiles: [JVMJDKClasspath.ClassFile] = [],
         fallbackClassFiles: [(String, Data)] = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit
@@ -45,6 +46,10 @@ final class JVMClasspathIndex {
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
         }
+        for classFile in platformClassFiles {
+            try insert(Array(classFile.contents), path: classFile.path)
+        }
+        result.lazyClassNames.formUnion(result.hierarchyClasses.keys)
         for path in paths {
             let isLazy = lazyPaths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
             let priorKeys = isLazy ? Set(result.hierarchyClasses.keys) : []

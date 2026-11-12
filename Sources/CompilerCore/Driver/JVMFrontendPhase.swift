@@ -65,6 +65,7 @@ final class JVMPreparationPhase: CompilerPhase {
             }
             let imports = try JVMClasspathIndex.load(
                 classpath, lazilyInjecting: lazyPaths,
+                platformClassFiles: jdkClasspath?.classFiles ?? [],
                 fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? [],
                 requiredLazyClassNames: requiredLazyClassNames
             )

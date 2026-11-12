@@ -4,8 +4,14 @@ import Foundation
 /// lazy classpath entries. The JVM class reader consumes ordinary class files;
 /// `jimage` is the JDK-supported way to expose them from `lib/modules`.
 struct JVMJDKClasspath {
+    struct ClassFile {
+        let path: String
+        let contents: Data
+    }
+
     let classpath: [String]
     let lazyPaths: Set<String>
+    let classFiles: [ClassFile]
     let requiredLazyClassNames: Set<String>
     private let temporaryRoot: URL?
 
@@ -50,6 +56,13 @@ struct JVMJDKClasspath {
         // These two signatures complete JDK interface hierarchies commonly
         // reached from java.lang.Iterable and java.nio.file.DirectoryStream.
         patterns += ["glob:**/java/util/Iterator.class", "glob:**/java/io/Closeable.class"]
+        if let classFiles = JVMJDKImageReader.read(image: image, jimage: jimage, patterns: patterns) {
+            return JVMJDKClasspath(
+                classpath: [], lazyPaths: [], classFiles: classFiles,
+                requiredLazyClassNames: requiredLazyClassNames, temporaryRoot: nil
+            )
+        }
+
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("kswiftk-jvm-jdk-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
@@ -80,6 +93,7 @@ struct JVMJDKClasspath {
         return JVMJDKClasspath(
             classpath: classpath,
             lazyPaths: Set(classpath),
+            classFiles: [],
             requiredLazyClassNames: requiredLazyClassNames,
             temporaryRoot: temporaryRoot
         )
@@ -90,7 +104,7 @@ struct JVMJDKClasspath {
     }
 
     private static var empty: JVMJDKClasspath {
-        JVMJDKClasspath(classpath: [], lazyPaths: [], requiredLazyClassNames: [], temporaryRoot: nil)
+        JVMJDKClasspath(classpath: [], lazyPaths: [], classFiles: [], requiredLazyClassNames: [], temporaryRoot: nil)
     }
 
     private static func importedPaths(in source: String) -> Set<String> {
