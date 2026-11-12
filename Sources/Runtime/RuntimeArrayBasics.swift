@@ -8,14 +8,56 @@ enum RuntimePrimitiveArrayElementKind: Int8 {
     case uByte, uShort, uInt, uLong
 }
 
-private let runtimeArrayTypeNames: [(id: Int64, name: String, kind: RuntimePrimitiveArrayElementKind)] = [
+private struct RuntimeArrayTypeInfo {
+    let id: Int64
+    let name: String
+    let kind: RuntimePrimitiveArrayElementKind
+    let typeToken: Int
+    /// Declaration order is the lookup priority for handles carrying more
+    /// than one primitive array tag.
+    let priority: Int
+}
+
+private let runtimeArrayTypeDefinitions: [(name: String, kind: RuntimePrimitiveArrayElementKind)] = [
     ("BooleanArray", .boolean), ("ByteArray", .byte), ("CharArray", .char),
     ("DoubleArray", .double), ("FloatArray", .float), ("IntArray", .int),
     ("LongArray", .long), ("ShortArray", .short), ("UByteArray", .uByte),
     ("UShortArray", .uShort), ("UIntArray", .uInt), ("ULongArray", .uLong),
-].map { name, kind in
-    let fqName = "kotlin.\(name)"
-    return (runtimeStableNominalTypeID(fqName: fqName), fqName, kind)
+]
+
+private let runtimeArrayTypeInfos: [RuntimeArrayTypeInfo] = runtimeArrayTypeDefinitions.enumerated().map { index, definition in
+    let fqName = "kotlin.\(definition.name)"
+    let id = runtimeStableNominalTypeID(fqName: fqName)
+    return RuntimeArrayTypeInfo(
+        id: id,
+        name: fqName,
+        kind: definition.kind,
+        typeToken: runtimeNominalTypeToken(id),
+        priority: index
+    )
+}
+
+private let runtimeArrayTypeInfoByID: [Int64: RuntimeArrayTypeInfo] = Dictionary(
+    uniqueKeysWithValues: runtimeArrayTypeInfos.map { ($0.id, $0) }
+)
+
+private let runtimeArrayTypeInfoByToken: [Int: RuntimeArrayTypeInfo] = Dictionary(
+    uniqueKeysWithValues: runtimeArrayTypeInfos.map { ($0.typeToken, $0) }
+)
+
+private func runtimeArrayTypeInfo(forTypeIDs typeIDs: Set<Int64>) -> RuntimeArrayTypeInfo? {
+    var best: RuntimeArrayTypeInfo?
+    for typeID in typeIDs {
+        guard let candidate = runtimeArrayTypeInfoByID[typeID] else { continue }
+        if let current = best {
+            if candidate.priority < current.priority {
+                best = candidate
+            }
+        } else {
+            best = candidate
+        }
+    }
+    return best
 }
 
 /// KUU-3537: nominal type ID of the bundled `kotlin.Cloneable` marker
@@ -26,7 +68,7 @@ let runtimeCloneableNominalTypeID: Int64 = runtimeStableNominalTypeID(fqName: "k
 /// `Array` and the eight signed primitive arrays are Cloneable; the unsigned
 /// arrays are value classes over them and are *not*.
 let runtimeCloneableArrayTypeIDs: Set<Int64> = {
-    var ids = Set(runtimeArrayTypeNames
+    var ids = Set(runtimeArrayTypeInfos
         .filter { ![.uByte, .uShort, .uInt, .uLong].contains($0.kind) }
         .map(\.id))
     ids.insert(runtimeStableNominalTypeID(fqName: "kotlin.Array"))
@@ -35,8 +77,8 @@ let runtimeCloneableArrayTypeIDs: Set<Int64> = {
 
 func runtimeArrayKClassIdentity(rawValue: Int) -> (typeToken: Int, nameHint: Int)? {
     let typeIDs = runtimeArrayTypeIDs(rawValue: rawValue)
-    if let arrayType = runtimeArrayTypeNames.first(where: { typeIDs.contains($0.id) }) {
-        return (runtimeNominalTypeToken(arrayType.id), runtimeMakeStringRaw(arrayType.name))
+    if let arrayType = runtimeArrayTypeInfo(forTypeIDs: typeIDs) {
+        return (arrayType.typeToken, runtimeMakeStringRaw(arrayType.name))
     }
     let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
     guard typeIDs.contains(arrayTypeID) else { return nil }
@@ -44,9 +86,7 @@ func runtimeArrayKClassIdentity(rawValue: Int) -> (typeToken: Int, nameHint: Int
 }
 
 func runtimeArrayKClassQualifiedName(typeToken: Int) -> String? {
-    if let arrayType = runtimeArrayTypeNames.first(where: {
-        runtimeNominalTypeToken($0.id) == typeToken
-    }) {
+    if let arrayType = runtimeArrayTypeInfoByToken[typeToken] {
         return arrayType.name
     }
     let arrayTypeID = runtimeStableNominalTypeID(fqName: "kotlin.Array")
@@ -65,7 +105,7 @@ func runtimeArrayIdentityToString(_ raw: Int) -> String {
     // resolves the element descriptor here.
     let typeName = runtimeJavaArrayClassName(rawValue: raw) ?? {
         let typeIDs = runtimeArrayTypeIDs(rawValue: raw)
-        return runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.name ?? "kotlin.Array"
+        return runtimeArrayTypeInfo(forTypeIDs: typeIDs)?.name ?? "kotlin.Array"
     }()
     let hash = UInt32(truncatingIfNeeded: kk_any_hashCode(raw, 0))
     return "\(typeName)@\(String(hash, radix: 16))"
@@ -80,7 +120,7 @@ func runtimeArrayIdentityToString(_ raw: Int) -> String {
 func runtimePrimitiveArrayElementKind(rawValue: Int) -> RuntimePrimitiveArrayElementKind? {
     let typeIDs = runtimeArrayTypeIDs(rawValue: rawValue)
     guard !typeIDs.isEmpty else { return nil }
-    return runtimeArrayTypeNames.first { typeIDs.contains($0.id) }?.kind
+    return runtimeArrayTypeInfo(forTypeIDs: typeIDs)?.kind
 }
 
 /// The array is already allocated by `kk_array_new`; this function simply

@@ -978,8 +978,8 @@ extension CallLowerer {
                     sema.symbols.symbol(callBinding.chosenCallee)?.name ?? interner.intern(op.kotlinFunctionName)
                 }
                 let resolvedMemberName = sema.symbols.symbol(callBinding.chosenCallee)
-                    .map { interner.resolve($0.name) }
-                    ?? interner.resolve(loweredCalleeName)
+                    .map(\.name)
+                    ?? loweredCalleeName
                 if emitRuntimeBackedCollectionMemberCallIfNeeded(
                     memberName: resolvedMemberName,
                     receiverType: propType,

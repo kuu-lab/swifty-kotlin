@@ -134,12 +134,16 @@ struct RuntimeBoxingTests {
 
     @Test
     func testBoxLongNullableScalarAliasingLiveObjectAddressDocumentsResidual() {
-        // The nullable entry point keeps the raw-object pass-through on
-        // purpose (erased object handles such as RuntimeRangeBox can flow
-        // through a Long-ABI slot), so a scalar colliding with a live object
-        // address is still indistinguishable there.
-        let collider = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
-        #expect(kk_box_long(collider) == collider)
+        // The nullable entry point keeps the raw-object pass-through only for
+        // known primitive-slot carriers (erased object handles such as
+        // RuntimeRangeBox can flow through a Long-ABI slot), so a scalar
+        // colliding with one of those live addresses is still indistinguishable
+        // there while unrelated objects box normally.
+        let rangeCarrier = registerRuntimeObject(RuntimeRangeBox(first: 1, last: 5, step: 1))
+        #expect(kk_box_long(rangeCarrier) == rangeCarrier)
+
+        let object = registerRuntimeObject(RuntimeStringBox("kotlin.Any?"))
+        #expect(kk_box_long(object) != object)
     }
 
     // MARK: - kk_box_float / kk_unbox_float

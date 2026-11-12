@@ -4,7 +4,9 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
-    "kotlin/annotations/ExperimentalUnsignedTypes.kt"
+    "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/time/DurationEncoding.kt",
+    "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
     {
@@ -52,9 +54,16 @@
       "runtimeFacade": "kotlin/PreconditionsKt"
     },
     {
-      "path": "declarations/KotlinTimeDuration.kt",
-      "virtualPath": "<kswiftk-jvm>/kotlin-time-duration.kt",
-      "excludeFromStdlibBuild": true
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
       "path": "declarations/KotlinTimeMeasureTime.kt",
@@ -186,6 +195,12 @@
       "path": "declarations/KotlinIoPath.kt",
       "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/Files.kt",
+      "virtualPath": "<kswiftk-jvm>/files.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/FilesKt"
     },
     {
       "path": "declarations/TextRuntimeFunctions.kt",

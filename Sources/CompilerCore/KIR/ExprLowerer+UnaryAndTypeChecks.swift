@@ -600,10 +600,8 @@ extension ExprLowerer {
            case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(targetType)) {
             let targetSymbol = classType.classSymbol
             if let targetClass = sema.symbols.symbol(targetSymbol),
-               targetClass.fqName.contains(where: { component in
-                   let name = interner.resolve(component)
-                   return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
-               }) {
+               sema.symbols.isLocalDeclSynthetic(targetSymbol)
+               || sema.symbols.isObjectLiteralSynthetic(targetSymbol) {
                 emitKClassCastNameRegistration(
                     symbol: targetSymbol,
                     typeTokenExpr: typeToken,

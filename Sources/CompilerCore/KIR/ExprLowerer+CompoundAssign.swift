@@ -210,8 +210,8 @@ extension ExprLowerer {
                     finalArguments.insert(contentsOf: captureArguments, at: 0)
                 }
                 let resolvedMemberName = sema.symbols.symbol(callBinding.chosenCallee)
-                    .map { interner.resolve($0.name) }
-                    ?? interner.resolve(calleeName)
+                    .map(\.name)
+                    ?? calleeName
                 if driver.callLowerer.emitRuntimeBackedCollectionMemberCallIfNeeded(
                     memberName: resolvedMemberName,
                     receiverType: arena.exprType(lhs) ?? signature.receiverType ?? sema.types.anyType,

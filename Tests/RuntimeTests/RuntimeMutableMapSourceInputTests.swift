@@ -46,7 +46,7 @@ struct RuntimeMutableMapSourceInputTests {
         let type = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
         _ = kk_object_register_itable_iface(raw, Int(type), 0)
         _ = kk_object_register_itable_method(
-            raw, 0, 2, unsafeBitCast(throwing ? throwingMapEntries : sourceMapEntries, to: Int.self)
+            raw, 0, runtimeMapEntriesGetterSlot, unsafeBitCast(throwing ? throwingMapEntries : sourceMapEntries, to: Int.self)
         )
         return raw
     }

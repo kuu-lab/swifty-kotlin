@@ -629,7 +629,7 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // A base RuntimeThrowableBox has no Kotlin-level type information. Keep
         // the historical broad catch fallback for those internal throwables,
         // while typed subclasses must obey their explicit hierarchy above.
-        return throwable.exceptionHierarchyFQNames == ["kotlin.Throwable"] ? 1 : 0
+        return throwable.exceptionHierarchyIsBaseThrowable ? 1 : 0
 
     default:
         return 0

@@ -28,9 +28,9 @@ public enum SymbolKind: Hashable, Sendable, Codable {
 }
 
 public struct SymbolFlags: OptionSet, Sendable, Codable {
-    public let rawValue: UInt32
+    public let rawValue: UInt64
 
-    public init(rawValue: UInt32) {
+    public init(rawValue: UInt64) {
         self.rawValue = rawValue
     }
 
@@ -87,7 +87,16 @@ public struct SymbolFlags: OptionSet, Sendable, Codable {
     public static let precomputedRuntimeReflection = SymbolFlags(rawValue: 1 << 30)
     /// Marks the synthetic class that represents an anonymous object literal.
     /// Its type is usable only within the source file that declares the literal.
-    public static let objectLiteralType = SymbolFlags(rawValue: UInt32(1) << 31)
+    public static let objectLiteralType = SymbolFlags(rawValue: UInt64(1) << 31)
+    /// Name-stable alias for checks that classify compiler-generated symbols
+    /// rather than the object-literal type's visibility rules.
+    public static let objectLiteralSynthetic = objectLiteralType
+    /// Marks the local function symbol synthesized for an anonymous function
+    /// expression (`fun (...) { ... }`), including labeled forms.
+    public static let anonymousFunction = SymbolFlags(rawValue: UInt64(1) << 32)
+    /// Marks a nominal declaration synthesized for a function-local class,
+    /// object, or typealias (`__localdecl_<exprID>` namespace).
+    public static let localDeclSynthetic = SymbolFlags(rawValue: UInt64(1) << 33)
 }
 
 extension SymbolFlags {
