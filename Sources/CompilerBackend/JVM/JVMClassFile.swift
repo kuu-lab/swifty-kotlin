@@ -31,11 +31,12 @@ enum JVMClassFile {
         }
         let pool = JVMConstantPool()
         let methods = try type.functions.map { try emitMethod($0, owner: type.name, javaParameters: javaParameters, pool: pool) }
-        return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, recordComponents: type.recordComponents, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
+        return try write(name: type.name, superclass: type.superclass, interfaces: type.interfaces, access: type.access, fields: type.properties.compactMap(\.field) + type.extraFields, fieldSignatures: Dictionary(uniqueKeysWithValues: type.properties.compactMap { property in property.field.flatMap { field in property.genericSignature.flatMap { $0 == field.type.descriptor ? nil : (field.name, $0) } } }), methods: methods, sourceFile: type.sourceFileName ?? program.sourceFileName, metadata: type.emitMetadata ? try JVMMetadata.annotation(program, type: type, pool: pool) : nil, annotations: type.annotations, signature: type.genericSignature, typeParameters: type.typeParameters, recordComponents: type.recordComponents, innerClasses: innerClasses(program), availableClassNames: emittedClassNames(program), enclosingMethod: type.enclosingMethod, majorVersion: target.classFileMajorVersion, pool: pool)
     }
     private static func emitMethod(_ function: JVMFunction, owner: String, javaParameters: Bool, pool: JVMConstantPool) throws -> JVMMethodCode {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
         method.annotations = function.annotations; method.parameterAnnotations = function.parameterAnnotations
+        method.typeParameters = function.typeParameters
         method.isDeprecated = function.isDeprecated
         method.annotationDefault = function.annotationDefault
         // Each descriptor parameter gets one entry, regardless of its local slot width.
@@ -107,7 +108,7 @@ enum JVMClassFile {
         }
         return availableInnerClasses.filter { relevantNames.contains($0.0) }
     }
-    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, recordComponents: [JVMRecordComponent] = [], innerClasses: [(String, String?, String?, UInt16)] = [], availableClassNames: Set<String>, enclosingMethod: JVMEnclosingMethod? = nil, majorVersion: UInt16 = 52, pool: JVMConstantPool) throws -> Data {
+    private static func write(name: String, superclass: String, interfaces: [String], access: UInt16, fields: [JVMField], fieldSignatures: [String: String] = [:], methods: [JVMMethodCode], sourceFile: String, metadata: Data?, annotations: [JVMAnnotation] = [], signature: String?, typeParameters: [JVMTypeParameter] = [], recordComponents: [JVMRecordComponent] = [], innerClasses: [(String, String?, String?, UInt16)] = [], availableClassNames: Set<String>, enclosingMethod: JVMEnclosingMethod? = nil, majorVersion: UInt16 = 52, pool: JVMConstantPool) throws -> Data {
         guard methods.count <= 65_535, fields.count <= 65_535, interfaces.count <= 65_535 else { throw JVMEmissionError.limit("JVM member/interface count exceeds the classfile limit.") }
         guard recordComponents.count <= 65_535 else { throw JVMEmissionError.limit("JVM record component count exceeds the classfile limit.") }
         guard recordComponents.isEmpty || majorVersion >= 60 else { throw JVMEmissionError.limit("JVM Record attributes require classfile version 60 or later.") }
@@ -121,6 +122,7 @@ enum JVMClassFile {
         let classSignature = try signature.map { try pool.utf8($0) }
         let methodSignatures = try methods.map { try $0.signature.map { try pool.utf8($0) } }
         let classAnnotations = try JVMAnnotations.attributes(annotations, metadata: metadata, pool: pool)
+        let typeParameterAttributes = try JVMAnnotations.typeParameterAttributes(typeParameters, targetType: 0x00, pool: pool)
         let constantName = try pool.utf8("ConstantValue")
         let fieldConstants = try fields.map { field -> UInt16? in
             guard let constant = field.constantValue else { return nil }
@@ -192,10 +194,11 @@ enum JVMClassFile {
             } else { bytes.u2(0) }
             if let generic { bytes.u2(signatureName); bytes.u4(2); bytes.u2(generic) }
         }
-        let classAttributeCount = 1 + classAnnotations.count + (classSignature == nil ? 0 : 1) + (relevantInnerClasses.isEmpty ? 0 : 1) + (enclosingMethod == nil ? 0 : 1) + (bootstrapAttribute == nil ? 0 : 1) + (recordAttributeName == nil ? 0 : 1)
+        let classAttributeCount = 1 + classAnnotations.count + typeParameterAttributes.count + (classSignature == nil ? 0 : 1) + (relevantInnerClasses.isEmpty ? 0 : 1) + (enclosingMethod == nil ? 0 : 1) + (bootstrapAttribute == nil ? 0 : 1) + (recordAttributeName == nil ? 0 : 1)
         guard classAttributeCount <= 65_535 else { throw JVMEmissionError.limit("JVM class attribute count exceeds the classfile limit.") }
         bytes.u2(UInt16(classAttributeCount)); bytes.u2(sourceName); bytes.u4(2); bytes.u2(sourceIndex)
         for (name, data) in classAnnotations { bytes.u2(name); bytes.u4(UInt32(data.count)); bytes.data.append(data) }
+        for (name, data) in typeParameterAttributes { bytes.u2(name); bytes.u4(UInt32(data.count)); bytes.data.append(data) }
         if let classSignature { bytes.u2(signatureName); bytes.u4(2); bytes.u2(classSignature) }
         if !relevantInnerClasses.isEmpty {
             bytes.u2(innerName!); bytes.u4(UInt32(2 + 8 * innerIndices.count)); bytes.u2(UInt16(innerIndices.count))

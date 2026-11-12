@@ -13,6 +13,7 @@ struct JVMMethodCode {
     var signature: String? = nil
     var annotations: [JVMAnnotation] = []
     var parameterAnnotations: [[JVMAnnotation]] = []
+    var typeParameters: [JVMTypeParameter] = []
     var javaParameters: [JVMMethodParameter] = []
     var annotationDefault: JVMAnnotationValue? = nil
     var isDeprecated = false
