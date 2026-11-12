@@ -532,7 +532,7 @@ extension CallLowerer {
         if let lowered = lowerLegacyRangeMemberRead(
             exprID,
             receiverExpr: receiverExpr,
-            calleeNameStr: calleeNameStr,
+            calleeName: calleeName,
             args: args,
             ast: ast,
             sema: sema,
@@ -679,7 +679,7 @@ extension CallLowerer {
 
         if let lowered = lowerLegacyStringLengthCall(
             receiverExpr: receiverExpr,
-            calleeNameStr: calleeNameStr,
+            calleeName: calleeName,
             args: args,
             sema: sema,
             interner: interner,
@@ -741,7 +741,7 @@ extension CallLowerer {
             }
             if let lowered = lowerLegacyZeroArgStringMemberCall(
                 receiverExpr: receiverExpr,
-                calleeNameStr: calleeNameStr,
+                calleeName: calleeName,
                 args: args,
                 sema: sema,
                 arena: arena,
@@ -754,7 +754,7 @@ extension CallLowerer {
             }
             if let lowered = lowerLegacySingleArgStringMemberCall(
                 receiverExpr: receiverExpr,
-                calleeNameStr: calleeNameStr,
+                calleeName: calleeName,
                 args: args,
                 sema: sema,
                 arena: arena,
@@ -812,7 +812,7 @@ extension CallLowerer {
             }
             if let lowered = lowerLegacyRegexMemberCall(
                 receiverExpr: receiverExpr,
-                calleeNameStr: calleeNameStr,
+                calleeName: calleeName,
                 args: args,
                 sema: sema,
                 interner: interner,
@@ -875,7 +875,7 @@ extension CallLowerer {
             if let lowered = lowerLegacyStringFormatCall(
                 exprID,
                 receiverExpr: receiverExpr,
-                calleeNameStr: calleeNameStr,
+                calleeName: calleeName,
                 args: args,
                 sema: sema,
                 arena: arena,
