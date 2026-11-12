@@ -33,9 +33,10 @@ final class JVMClasspathIndex {
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         result.requiredLazyClassNames = requiredLazyClassNames
+        let descriptors = JVMDescriptorCache()
         var seen: Set<String> = []
         func insert(_ bytes: [UInt8], path: String) throws {
-            var reader = JVMClassReader(bytes: bytes)
+            var reader = JVMClassReader(bytes: bytes, descriptorCache: descriptors)
             let info: JVMClassInfo
             do {
                 info = try reader.read()
