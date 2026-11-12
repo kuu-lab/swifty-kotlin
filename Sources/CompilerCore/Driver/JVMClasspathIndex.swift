@@ -8,12 +8,12 @@ final class JVMClasspathIndex {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
-    /// Classes loaded from `lazilyInjecting` classpath entries (the Android
-    /// `android.jar`). They stay indexed for signature mapping and d8 input,
-    /// but `inject(into:)` only emits Kotlin stubs for the subset reachable
-    /// from user sources — injecting the whole framework would create
-    /// hundreds of thousands of symbols.
+    /// Classes loaded from `lazilyInjecting` classpath entries (Android
+    /// framework jars or selected JDK module packages). They stay indexed for
+    /// signature mapping, but `inject(into:)` emits Kotlin stubs only for the
+    /// subset reachable from user sources.
     private(set) var lazyClassNames: Set<String> = []
+    private var requiredLazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
     /// Covered names for the `inject(into:)` run in progress; supertypes that
@@ -22,9 +22,11 @@ final class JVMClasspathIndex {
 
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
-        fallbackClassFiles: [(String, Data)] = []
+        fallbackClassFiles: [(String, Data)] = [],
+        requiredLazyClassNames: Set<String> = []
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
+        result.requiredLazyClassNames = requiredLazyClassNames
         var seen: Set<String> = []
         func insert(_ bytes: [UInt8], path: String) throws {
             var reader = JVMClassReader(bytes: bytes)
@@ -78,7 +80,7 @@ final class JVMClasspathIndex {
         for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
             result.classes[info.name] = info
         }
-        result.importInheritedMembers()
+        result.importInheritedMembers(for: Set(result.classes.keys).subtracting(result.lazyClassNames))
         return result
     }
 
@@ -158,7 +160,7 @@ final class JVMClasspathIndex {
         return source
     }
 
-    private func importInheritedMembers() {
+    private func importInheritedMembers(for classNames: Set<String>) {
         func key(_ method: JVMForeignMethod) -> String {
             method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
         }
@@ -180,7 +182,8 @@ final class JVMClasspathIndex {
             guard !visited.contains(subtype), let info = hierarchyClasses[subtype] else { return false }
             return info.interfaces.contains { interfaceInherits($0, supertype, visited: visited.union([subtype])) }
         }
-        for info in classes.values {
+        for name in classNames.sorted() {
+            guard let info = classes[name] else { continue }
             var methods = info.methods
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
@@ -383,7 +386,10 @@ final class JVMClasspathIndex {
             }
         }
         visit(name)
-        let abstracts = members.values.filter(\.isAbstract)
+        // Count only methods that memberDeclarations can expose. Partial JDK
+        // classpaths may omit a method's signature type, in which case the
+        // method is intentionally omitted from the generated stub as well.
+        let abstracts = members.values.filter { $0.isAbstract && isExposed($0) }
         guard abstracts.count == 1, let sam = abstracts.first else { return false }
         // Getter-shaped members are also emitted as `val` properties; when
         // the single abstract member has that shape the `fun interface`
@@ -645,7 +651,10 @@ final class JVMClasspathIndex {
     func inject(into ctx: CompilationContext) throws {
         let covered = try coveredClassNames(in: ctx)
         activeCoveredNames = covered
-        let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(into: ctx, covered: covered)
+        let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
+            into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
+        )
+        importInheritedMembers(for: neededLazy ?? [])
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
             guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
@@ -1032,9 +1041,7 @@ final class JVMClasspathIndex {
 
     // MARK: - Lazy classpath injection
 
-    /// Packages Kotlin auto-imports on the JVM. Only `java.lang` can contain
-    /// lazy classes in practice (the Android `android.jar` ships `java.*`
-    /// stubs); `kotlin.*` entries are never injected anyway.
+    /// Packages Kotlin auto-imports on the JVM.
     private static let autoImportedPackages: Set<String> = [
         "java.lang", "kotlin.jvm",
     ]
@@ -1127,7 +1134,9 @@ final class JVMClasspathIndex {
     /// classes named by user sources (imports, qualified references,
     /// star/auto/same-package lookups) plus the transitive closure over
     /// supertypes and emitted method signature types.
-    private func referencedLazyClasses(into ctx: CompilationContext, covered: Set<String>) -> Set<String> {
+    private func referencedLazyClasses(
+        into ctx: CompilationContext, covered: Set<String>, additionalRoots: Set<String>
+    ) -> Set<String> {
         // normalized dotted name -> binary class names ("a.b.C.D" may come
         // from either a/b/C$D or a/b/C/D, so keep every candidate).
         var normalizedToBinary: [String: [String]] = [:]
@@ -1170,7 +1179,11 @@ final class JVMClasspathIndex {
             }
         }
 
-        for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.origin(of: file) == .user {
+        for file in ctx.sourceManager.fileIDs() {
+            let origin = ctx.sourceManager.origin(of: file)
+            guard origin == .user,
+                  !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/")
+            else { continue }
             let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
             var identifiers = Set<String>()
@@ -1205,7 +1218,7 @@ final class JVMClasspathIndex {
             while let outer = innerClassMetadata[top]?.outerName { top = outer }
             if lazyClassNames.contains(top), isInjected(top), needed.insert(top).inserted { queue.append(top) }
         }
-        for name in matched { markNeeded(name) }
+        for name in matched.union(additionalRoots) { markNeeded(name) }
         func signatureNames(_ type: JVMValueType) -> [String] {
             guard let name = type.referenceName else { return [] }
             var n = name
