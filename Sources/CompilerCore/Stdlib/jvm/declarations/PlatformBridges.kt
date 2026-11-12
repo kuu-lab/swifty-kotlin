@@ -1,4 +1,9 @@
 package kotlin.jvm.internal
+fun __jvmCloseResource(resource: java.io.Closeable) {}
+
+fun __jvmThreadLocalRandom(): Any = null!!
+fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
+
 fun <T> __jvmNewList(): kotlin.collections.MutableList<T> = null!!
 fun <T> __jvmNewSet(): kotlin.collections.MutableSet<T> = null!!
 fun <K, V> __jvmNewMap(): kotlin.collections.MutableMap<K, V> = null!!
