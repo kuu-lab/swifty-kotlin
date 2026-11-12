@@ -1,4 +1,7 @@
 package kotlin.jvm.internal
+fun __jvmThreadLocalRandom(): Any = null!!
+fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
+
 fun __jvmFileSeparatorChar(): Char = '\u0000'
 
 fun <T> __jvmNewList(): kotlin.collections.MutableList<T> = null!!
