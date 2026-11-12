@@ -15,7 +15,6 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let knownNames = KnownCompilerNames(interner: interner)
-        let memberName = interner.resolve(calleeName)
         let isRangeIteratorMigrationMember = knownNames.rangeMigrationMemberNames.contains(calleeName)
 
         // An unqualified member call inside an extension body has no receiver
@@ -99,11 +98,11 @@ extension CallTypeChecker {
                   || (isTypedUIntRangeReceiver && isRangeIteratorMigrationMember)
                   || (isTypedULongProgressionReceiver
                       && (isRangeIteratorMigrationMember
-                          || isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count)))
+                          || isUnsignedProgressionSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count)))
                   || (isTypedIntRangeReceiver
                       && isIntRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))
                   || (isTypedLongRangeReceiver
-                      && isLongRangeSourceBackedHOF(memberName, argCount: args.count))
+                      && isLongRangeSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count))
                   || (isTypedULongRangeReceiver
                       && (isRangeIteratorMigrationMember
                           || isUnsignedRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))))
@@ -115,7 +114,7 @@ extension CallTypeChecker {
         // accepting them through the legacy range fallback. The source-backed
         // contains overloads all use Kotlin's `value` parameter name.
         if (isTypedIntRangeReceiver || isTypedLongRangeReceiver || isTypedUIntRangeReceiver),
-           memberName == "contains",
+           calleeName == knownNames.contains,
            args.contains(where: { argument in
                guard let label = argument.label else { return false }
                return label != knownNames.value
@@ -126,7 +125,7 @@ extension CallTypeChecker {
 
         // Nullable membership must be handled by overload resolution, not the
         // legacy fallback which accepts any element type without a binding.
-        if memberName == "contains", args.count == 1,
+        if calleeName == knownNames.contains, args.count == 1,
            sema.types.nullability(of: driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)) == .nullable
         {
             return nil
@@ -137,7 +136,6 @@ extension CallTypeChecker {
         // hardcoded range-member fallback.
         if let sourceType = bindSourceRangeHOFCall(
             id,
-            memberName: memberName,
             calleeName: calleeName,
             receiverID: receiverID,
             args: args,
@@ -150,7 +148,7 @@ extension CallTypeChecker {
 
         if sema.bindings.isFloatingPointRangeExpr(receiverID),
            args.isEmpty,
-           memberName == "start" || memberName == "endInclusive",
+           calleeName == knownNames.start || calleeName == knownNames.endInclusive,
            let elementType = sema.bindings.floatingPointRangeElementType(forExpr: receiverID)
         {
             let resultType = safeCall ? sema.types.makeNullable(elementType) : elementType
@@ -159,7 +157,8 @@ extension CallTypeChecker {
         }
         if sema.bindings.isFloatingPointRangeExpr(receiverID),
            let floatingPointResult = tryRangeMembershipFallback(
-            memberName: memberName,
+            calleeName: calleeName,
+            knownNames: knownNames,
             args: args,
             safeCall: safeCall,
             ctx: ctx,
@@ -188,7 +187,8 @@ extension CallTypeChecker {
         }
         if isOpenEndRangeReceiver,
            let openEndResult = tryRangeMembershipFallback(
-            memberName: memberName,
+            calleeName: calleeName,
+            knownNames: knownNames,
             args: args,
             safeCall: safeCall,
             ctx: ctx,
@@ -199,7 +199,7 @@ extension CallTypeChecker {
             return openEndResult
         }
         guard isSupportedRangeMember(calleeName, knownNames: knownNames),
-              isValidRangeMemberArity(memberName, argCount: args.count)
+              isValidRangeMemberArity(calleeName, knownNames: knownNames, argCount: args.count)
         else {
             return nil
         }
@@ -232,7 +232,7 @@ extension CallTypeChecker {
         let isULongRange = rangeKind.isULongRangeLike
 
         if args.isEmpty,
-           ["step", "start", "end", "endExclusive"].contains(memberName),
+           [knownNames.step, knownNames.start, knownNames.end, knownNames.endExclusive].contains(calleeName),
            let propertyResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                receiverType: sema.types.makeNonNullable(receiverType ?? sema.types.anyType),
@@ -244,7 +244,8 @@ extension CallTypeChecker {
 
         var mappedElementType: TypeID?
         if let expectation = rangeMemberLambdaExpectation(
-            memberName: memberName,
+            calleeName: calleeName,
+            knownNames: knownNames,
             argCount: args.count,
             sema: sema,
             isCharRange: isCharRange,
@@ -268,14 +269,14 @@ extension CallTypeChecker {
             // upper bound for lambda inference), but the lambda body still infers
             // its own tightest type. Read that back so `(1..n).map { ... }` reports
             // `List<R>` instead of always widening to `List<Any>`.
-            if memberName == "map",
+            if calleeName == knownNames.mapMember,
                case let .lambdaLiteral(_, bodyExpr, _, _) = ctx.ast.arena.expr(lambdaArgExpr)
             {
                 mappedElementType = sema.bindings.exprType(for: bodyExpr)
             }
         }
 
-        if memberName == "random",
+        if calleeName == knownNames.random,
            args.count == 1
         {
             _ = driver.inferExpr(
@@ -286,10 +287,10 @@ extension CallTypeChecker {
             )
         }
 
-        if isRangeMemberReturningCollection(memberName) {
+        if isRangeMemberReturningCollection(calleeName, knownNames: knownNames) {
             sema.bindings.markCollectionExpr(id)
         }
-        if memberName == "reversed" || (memberName == "step" && args.count == 1) {
+        if calleeName == knownNames.reversed || (calleeName == knownNames.step && args.count == 1) {
             sema.bindings.markRangeExpr(id)
             if sema.bindings.isCharRangeExpr(receiverID) {
                 sema.bindings.markCharRangeExpr(id)
@@ -303,7 +304,8 @@ extension CallTypeChecker {
         }
 
         let resultType = rangeMemberResultType(
-            memberName: memberName,
+            calleeName: calleeName,
+            knownNames: knownNames,
             argCount: args.count,
             sema: sema,
             interner: interner,
@@ -401,17 +403,18 @@ extension CallTypeChecker {
     }
 
     private func tryRangeMembershipFallback(
-        memberName: String,
+        calleeName: InternedString,
+        knownNames: KnownCompilerNames,
         args: [CallArgument],
         safeCall: Bool,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) -> TypeID? {
-        switch memberName {
-        case "contains":
+        switch calleeName {
+        case knownNames.contains:
             guard args.count == 1 else { return nil }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-        case "isEmpty":
+        case knownNames.isEmpty:
             guard args.isEmpty else { return nil }
         default:
             return nil
@@ -430,52 +433,59 @@ extension CallTypeChecker {
         return knownNames.intRangeSourceBackedHOFNames.contains(calleeName)
     }
 
-    private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        if memberName == "map" {
+    private func isCharProgressionSourceBackedHOF(_ calleeName: InternedString, knownNames: KnownCompilerNames, argCount: Int) -> Bool {
+        if calleeName == knownNames.mapMember {
             return argCount == 1
         }
         guard argCount == 0 else { return false }
-        return memberName == "first"
-            || memberName == "firstOrNull"
-            || memberName == "last"
-            || memberName == "lastOrNull"
+        return calleeName == knownNames.first
+            || calleeName == knownNames.firstOrNull
+            || calleeName == knownNames.last
+            || calleeName == knownNames.lastOrNull
     }
 
-    private func isCharRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        memberName == "map" && argCount == 1
+    private func isCharRangeSourceBackedHOF(_ calleeName: InternedString, knownNames: KnownCompilerNames, argCount: Int) -> Bool {
+        calleeName == knownNames.mapMember && argCount == 1
     }
 
-    private func isUnsignedProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        if memberName == "iterator" {
+    private func isUnsignedProgressionSourceBackedHOF(_ calleeName: InternedString, knownNames: KnownCompilerNames, argCount: Int) -> Bool {
+        if calleeName == knownNames.iterator {
             return argCount == 0
         }
-        if memberName == "step" {
+        if calleeName == knownNames.step {
             return argCount == 1
         }
-        if memberName == "first" || memberName == "firstOrNull"
-            || memberName == "last" || memberName == "lastOrNull"
+        if calleeName == knownNames.first || calleeName == knownNames.firstOrNull
+            || calleeName == knownNames.last || calleeName == knownNames.lastOrNull
         {
-            return memberName == "first" || memberName == "last"
+            return calleeName == knownNames.first || calleeName == knownNames.last
                 ? argCount == 0
                 : argCount == 0 || argCount == 1
         }
-        if memberName == "windowed" {
+        if calleeName == knownNames.windowed {
             return (1...3).contains(argCount)
         }
-        if ["isEmpty", "toList", "count", "sum", "reversed"].contains(memberName) {
+        if calleeName == knownNames.isEmpty || calleeName == knownNames.toList
+            || calleeName == knownNames.count || calleeName == knownNames.sum
+            || calleeName == knownNames.reversed
+        {
             return argCount == 0
         }
         guard argCount == 1 else { return false }
-        return [
-            "map", "mapIndexed", "mapNotNull",
-            "filter", "filterIndexed", "filterNot",
-            "chunked", "take", "drop",
-            "contains", "isEmpty", "toList", "count", "sum", "reversed",
-        ].contains(memberName)
+        switch calleeName {
+        case knownNames.mapMember, knownNames.mapIndexed, knownNames.mapNotNull,
+             knownNames.filter, knownNames.filterIndexed, knownNames.filterNot,
+             knownNames.chunked, knownNames.take, knownNames.drop,
+             knownNames.contains, knownNames.isEmpty, knownNames.toList,
+             knownNames.count, knownNames.sum, knownNames.reversed:
+            return true
+        default:
+            return false
+        }
     }
 
-    private func isLongRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        (memberName == "contains" || memberName == "forEach" || memberName == "map") && argCount == 1
+    private func isLongRangeSourceBackedHOF(_ calleeName: InternedString, knownNames: KnownCompilerNames, argCount: Int) -> Bool {
+        (calleeName == knownNames.contains || calleeName == knownNames.forEach || calleeName == knownNames.mapMember) && argCount == 1
     }
 
     private func isLongRangeCrossTypeContains(
@@ -651,7 +661,6 @@ extension CallTypeChecker {
 
     func bindSourceRangeHOFCall(
         _ id: ExprID,
-        memberName: String,
         calleeName: InternedString,
         receiverID: ExprID,
         args: [CallArgument],
@@ -677,7 +686,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        let argumentTypesForSourceLookup: [TypeID]? = if memberName == "contains" {
+        let argumentTypesForSourceLookup: [TypeID]? = if calleeName == knownNames.contains {
             args.map { argument in
                 if rangeKind == .longRange,
                    isContextualizableIntegerLiteral(argument.expr, ast: ctx.ast)
@@ -707,7 +716,7 @@ extension CallTypeChecker {
         } else {
             nil
         }
-        let argumentLabelsForSourceLookup: [InternedString?]? = if memberName == "contains" {
+        let argumentLabelsForSourceLookup: [InternedString?]? = if calleeName == knownNames.contains {
             args.map(\.label)
         } else {
             nil
@@ -719,22 +728,22 @@ extension CallTypeChecker {
             || (rangeKind == .uintRange
                 && isUnsignedRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames))
             || ((rangeKind == .uintProgression || rangeKind == .ulongProgression)
-                && isUnsignedProgressionSourceBackedHOF(memberName, argCount: args.count))
+                && isUnsignedProgressionSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count))
             || (rangeKind == .charProgression
-                && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
+                && isCharProgressionSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count))
             || (rangeKind == .charRange
-                && isCharRangeSourceBackedHOF(memberName, argCount: args.count))
+                && isCharRangeSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count))
             || (rangeKind == .longProgression
-                && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
+                && isCharProgressionSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count))
             || (rangeKind == .longRange
-                && isLongRangeSourceBackedHOF(memberName, argCount: args.count)
-                && (memberName != "contains"
+                && isLongRangeSourceBackedHOF(calleeName, knownNames: knownNames, argCount: args.count)
+                && (calleeName != knownNames.contains
                     || isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
             || (rangeKind == .ulongRange
                 && isUnsignedRangeSourceBackedHOF(calleeName, argCount: args.count, knownNames: knownNames)
-                && (memberName != "contains"
+                && (calleeName != knownNames.contains
                     || isULongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
-            || ((memberName == "random" || memberName == "randomOrNull")
+            || ((calleeName == knownNames.random || calleeName == knownNames.randomOrNull)
                 && (rangeKind == .longRange || rangeKind == .charRange
                     || rangeKind == .uintRange || rangeKind == .ulongRange))
 
@@ -745,7 +754,7 @@ extension CallTypeChecker {
             interner: interner
         ) ?? receiverType
         if rangeKind == .longRange,
-           memberName == "contains",
+           calleeName == knownNames.contains,
            argumentTypesForSourceLookup?.count == 1,
            argumentTypesForSourceLookup?[0] == sema.types.longType,
            let member = longRangeContainsMemberSymbol(
@@ -773,7 +782,7 @@ extension CallTypeChecker {
             return finalType
         }
         if rangeKind == .ulongRange,
-           memberName == "contains",
+           calleeName == knownNames.contains,
            argumentTypesForSourceLookup?.count == 1,
            argumentTypesForSourceLookup?[0] == sema.types.ulongType,
            let member = ulongRangeContainsMemberSymbol(
@@ -810,7 +819,7 @@ extension CallTypeChecker {
             && args.first.map { argument in
                 isContextualizableUnsignedIntegerLiteral(argument.expr, ast: ctx.ast)
             } == true
-        let scopedRangeUserCandidates: [SymbolID] = if memberName == "contains", rangeKind == .intRange {
+        let scopedRangeUserCandidates: [SymbolID] = if calleeName == knownNames.contains, rangeKind == .intRange {
             collectScopedRangeUserExtensionCandidates(
                 named: calleeName,
                 receiverType: sourceLookupReceiverType,
@@ -820,7 +829,7 @@ extension CallTypeChecker {
             ).filter {
                 isIntRangeCrossTypeContainsCandidate($0, sema: sema)
             }
-        } else if memberName == "contains", rangeKind == .uintRange {
+        } else if calleeName == knownNames.contains, rangeKind == .uintRange {
             collectScopedRangeUserExtensionCandidates(
                 named: calleeName,
                 receiverType: sourceLookupReceiverType,
@@ -830,7 +839,7 @@ extension CallTypeChecker {
             ).filter {
                 isUIntRangeCrossTypeContainsCandidate($0, sema: sema)
             }
-        } else if memberName == "contains",
+        } else if calleeName == knownNames.contains,
                   rangeKind == .longRange,
                   !isLongRangeLiteralArgument
         {
@@ -858,7 +867,7 @@ extension CallTypeChecker {
                 }
                 return parameter.name == label
             }
-        } else if memberName == "contains",
+        } else if calleeName == knownNames.contains,
                   rangeKind == .ulongRange,
                   !isULongUnsignedLiteralArgument
         {
@@ -937,7 +946,7 @@ extension CallTypeChecker {
         }
         guard isSourceBackedRangeCall,
               let sourceSymbol = sourceRangeHOFSymbol(
-                  memberName: memberName,
+                  calleeName: calleeName,
                   rangeKind: rangeKind,
                   argCount: args.count,
                   argumentTypes: argumentTypesForSourceLookup,
@@ -952,7 +961,8 @@ extension CallTypeChecker {
         }
 
         let lambdaExpectation = rangeMemberLambdaExpectation(
-            memberName: memberName,
+            calleeName: calleeName,
+            knownNames: knownNames,
             argCount: args.count,
             sema: sema,
             isCharRange: rangeKind.isCharRangeLike,
@@ -968,11 +978,11 @@ extension CallTypeChecker {
             let isLambda = ctx.ast.arena.expr(arg.expr)?.isLambdaOrCallableRef == true
             if isLambda {
                 let expectedType: TypeID
-                if (memberName == "fold" || memberName == "foldIndexed"), index == 1, let rConcrete,
+                if (calleeName == knownNames.fold || calleeName == knownNames.foldIndexed), index == 1, let rConcrete,
                    let baseExpected = lambdaExpectation?.expectedType,
                    case let .functionType(fnType) = sema.types.kind(of: baseExpected) {
                     let params: [TypeID]
-                    if memberName == "fold" {
+                    if calleeName == knownNames.fold {
                         params = [rConcrete] + Array(fnType.params.dropFirst())
                     } else {
                         var mutableParams = fnType.params
@@ -1000,10 +1010,10 @@ extension CallTypeChecker {
                    let lambdaExpr = ctx.ast.arena.expr(arg.expr),
                    case let .lambdaLiteral(_, bodyExpr, _, _) = lambdaExpr {
                     let bodyType = sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType
-                    switch memberName {
-                    case "map", "mapIndexed":
+                    switch calleeName {
+                    case knownNames.mapMember, knownNames.mapIndexed:
                         rConcrete = bodyType
-                    case "mapNotNull":
+                    case knownNames.mapNotNull:
                         rConcrete = sema.types.makeNonNullable(bodyType)
                     default:
                         break
@@ -1011,18 +1021,18 @@ extension CallTypeChecker {
                 }
             } else {
                 let expectedType: TypeID?
-                if memberName == "fold" || memberName == "foldIndexed" {
+                if calleeName == knownNames.fold || calleeName == knownNames.foldIndexed {
                     expectedType = nil
-                } else if memberName == "windowed" {
+                } else if calleeName == knownNames.windowed {
                     expectedType = (index == 1 ? sema.types.intType : (index == 2 ? sema.types.booleanType : nil))
-                } else if memberName == "chunked" || memberName == "take" || memberName == "drop" {
+                } else if calleeName == knownNames.chunked || calleeName == knownNames.take || calleeName == knownNames.drop {
                     expectedType = sema.types.intType
                 } else {
                     expectedType = nil
                 }
 
                 _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: expectedType)
-                if (memberName == "fold" || memberName == "foldIndexed"), index == 0, rConcrete == nil {
+                if (calleeName == knownNames.fold || calleeName == knownNames.foldIndexed), index == 0, rConcrete == nil {
                     rConcrete = sema.bindings.exprType(for: arg.expr) ?? sema.types.anyType
                 }
             }
@@ -1047,7 +1057,7 @@ extension CallTypeChecker {
         )
 
         let returnType = bindCallAndResolveReturnType(id, chosen: sourceSymbol, resolved: resolved, sema: sema)
-        if isRangeMemberReturningCollection(memberName) {
+        if isRangeMemberReturningCollection(calleeName, knownNames: knownNames) {
             sema.bindings.markCollectionExpr(id)
         }
         let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
@@ -1098,7 +1108,7 @@ extension CallTypeChecker {
     }
 
     func sourceRangeHOFSymbol(
-        memberName: String,
+        calleeName: InternedString,
         rangeKind: MemberDispatchReceiverKind,
         argCount: Int,
         argumentTypes: [TypeID]? = nil,
@@ -1111,7 +1121,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        let candidates = sema.symbols.lookupByShortName(interner.intern(memberName)).filter { candidate in
+        let candidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
             guard let symbolInfo = sema.symbols.symbol(candidate),
                   symbolInfo.kind == .function,
                   sema.symbols.isSourceBackedSymbol(candidate),
@@ -1227,38 +1237,48 @@ extension CallTypeChecker {
         return knownNames.supportedRangeMemberNames.contains(calleeName)
     }
 
-    private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
-        switch memberName {
-        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "reversed", "sum", "sorted":
+    private func isValidRangeMemberArity(_ calleeName: InternedString, knownNames: KnownCompilerNames, argCount: Int) -> Bool {
+        switch calleeName {
+        case knownNames.count, knownNames.start, knownNames.end, knownNames.endInclusive,
+             knownNames.endExclusive, knownNames.toList, knownNames.reversed, knownNames.sum, knownNames.sorted:
             argCount == 0
-        case "random":
+        case knownNames.random:
             argCount == 0 || argCount == 1
-        case "step":
+        case knownNames.step:
             argCount == 0 || argCount == 1
-        case "first", "last":
+        case knownNames.first, knownNames.last:
             argCount == 0 || argCount == 1
-        case "forEach", "map", "mapIndexed", "mapNotNull",
-             "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed",
-             "find", "findLast", "any", "all", "none",
-             "take", "drop":
+        case knownNames.forEach, knownNames.mapMember, knownNames.mapIndexed, knownNames.mapNotNull,
+             knownNames.filter, knownNames.filterIndexed, knownNames.filterNot,
+             knownNames.reduce, knownNames.reduceIndexed,
+             knownNames.find, knownNames.findLast,
+             knownNames.anyMember, knownNames.allMember, knownNames.noneMember,
+             knownNames.take, knownNames.drop:
             argCount == 1
-        case "firstOrNull", "lastOrNull":
+        case knownNames.firstOrNull, knownNames.lastOrNull:
             argCount == 0 || argCount == 1
-        case "randomOrNull":
+        case knownNames.randomOrNull:
             argCount == 0 || argCount == 1
-        case "fold", "foldIndexed":
+        case knownNames.fold, knownNames.foldIndexed:
             argCount == 2
-        case "chunked":
+        case knownNames.chunked:
             argCount == 1
-        case "windowed":
+        case knownNames.windowed:
             (1...3).contains(argCount)
         default:
             true
         }
     }
 
-    private func isRangeMemberReturningCollection(_ memberName: String) -> Bool {
-        ["toList", "map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot", "chunked", "windowed", "take", "drop", "sorted"].contains(memberName)
+    private func isRangeMemberReturningCollection(_ calleeName: InternedString, knownNames: KnownCompilerNames) -> Bool {
+        switch calleeName {
+        case knownNames.toList, knownNames.mapMember, knownNames.mapIndexed, knownNames.mapNotNull,
+             knownNames.filter, knownNames.filterIndexed, knownNames.filterNot,
+             knownNames.chunked, knownNames.windowed, knownNames.take, knownNames.drop, knownNames.sorted:
+            return true
+        default:
+            return false
+        }
     }
 
     private func rangeMemberElementType(
@@ -1284,7 +1304,8 @@ extension CallTypeChecker {
     }
 
     private func rangeMemberResultType(
-        memberName: String,
+        calleeName: InternedString,
+        knownNames: KnownCompilerNames,
         argCount: Int,
         sema: SemaModule,
         interner: StringInterner,
@@ -1302,42 +1323,44 @@ extension CallTypeChecker {
             isUIntRange: isUIntRange,
             isULongRange: isULongRange
         )
-        switch memberName {
-        case "first", "last", "start", "end", "endInclusive", "endExclusive":
+        switch calleeName {
+        case knownNames.first, knownNames.last, knownNames.start, knownNames.end,
+             knownNames.endInclusive, knownNames.endExclusive:
             return elementType
-        case "random":
+        case knownNames.random:
             return elementType
-        case "firstOrNull", "lastOrNull", "randomOrNull", "find", "findLast":
+        case knownNames.firstOrNull, knownNames.lastOrNull, knownNames.randomOrNull,
+             knownNames.find, knownNames.findLast:
             return sema.types.makeNullable(elementType)
-        case "count":
+        case knownNames.count:
             return sema.types.intType
-        case "sum":
+        case knownNames.sum:
             return elementType
-        case "any", "all", "none":
+        case knownNames.anyMember, knownNames.allMember, knownNames.noneMember:
             return sema.types.booleanType
-        case "forEach":
+        case knownNames.forEach:
             return sema.types.unitType
-        case "toList":
+        case knownNames.toList:
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "filter", "filterIndexed", "filterNot":
+        case knownNames.filter, knownNames.filterIndexed, knownNames.filterNot:
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "map":
+        case knownNames.mapMember:
             return rangeMemberListType(elementType: mappedElementType ?? sema.types.anyType, sema: sema, interner: interner)
-        case "mapIndexed", "mapNotNull":
+        case knownNames.mapIndexed, knownNames.mapNotNull:
             return rangeMemberListType(elementType: sema.types.anyType, sema: sema, interner: interner)
-        case "reduce", "reduceIndexed":
+        case knownNames.reduce, knownNames.reduceIndexed:
             return elementType
-        case "fold", "foldIndexed":
+        case knownNames.fold, knownNames.foldIndexed:
             return sema.types.anyType
-        case "chunked", "windowed":
+        case knownNames.chunked, knownNames.windowed:
             return rangeMemberListType(
                 elementType: rangeMemberListType(elementType: elementType, sema: sema, interner: interner),
                 sema: sema,
                 interner: interner
             )
-        case "take", "drop", "sorted":
+        case knownNames.take, knownNames.drop, knownNames.sorted:
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "reversed":
+        case knownNames.reversed:
             return rangeMemberRangeType(
                 receiverType: receiverType,
                 elementType: elementType,
@@ -1348,7 +1371,7 @@ extension CallTypeChecker {
                 isULongRange: isULongRange,
                 returnsProgression: true
             )
-        case "step":
+        case knownNames.step:
             return argCount == 0 ? sema.types.intType : rangeMemberRangeType(
                 receiverType: receiverType,
                 elementType: elementType,
@@ -1472,7 +1495,8 @@ extension CallTypeChecker {
     }
 
     private func rangeMemberLambdaExpectation(
-        memberName: String,
+        calleeName: InternedString,
+        knownNames: KnownCompilerNames,
         argCount: Int,
         sema: SemaModule,
         isCharRange: Bool = false,
@@ -1488,35 +1512,37 @@ extension CallTypeChecker {
             isULongRange: isULongRange
         )
         let expectation: (Int, [TypeID], TypeID)?
-        switch memberName {
-        case "forEach":
+        switch calleeName {
+        case knownNames.forEach:
             guard argCount == 1 else { return nil }
             expectation = (0, [elementType], sema.types.unitType)
-        case "map":
+        case knownNames.mapMember:
             guard argCount == 1 else { return nil }
             expectation = (0, [elementType], sema.types.anyType)
-        case "mapNotNull":
+        case knownNames.mapNotNull:
             guard argCount == 1 else { return nil }
             expectation = (0, [elementType], sema.types.nullableAnyType)
-        case "filter", "filterNot", "find", "findLast", "first", "firstOrNull", "last", "lastOrNull", "any", "all", "none":
+        case knownNames.filter, knownNames.filterNot, knownNames.find, knownNames.findLast,
+             knownNames.first, knownNames.firstOrNull, knownNames.last, knownNames.lastOrNull,
+             knownNames.anyMember, knownNames.allMember, knownNames.noneMember:
             guard argCount == 1 else { return nil }
             expectation = (0, [elementType], sema.types.booleanType)
-        case "mapIndexed":
+        case knownNames.mapIndexed:
             guard argCount == 1 else { return nil }
             expectation = (0, [sema.types.intType, elementType], sema.types.anyType)
-        case "filterIndexed":
+        case knownNames.filterIndexed:
             guard argCount == 1 else { return nil }
             expectation = (0, [sema.types.intType, elementType], sema.types.booleanType)
-        case "reduce":
+        case knownNames.reduce:
             guard argCount == 1 else { return nil }
             expectation = (0, [elementType, elementType], elementType)
-        case "reduceIndexed":
+        case knownNames.reduceIndexed:
             guard argCount == 1 else { return nil }
             expectation = (0, [sema.types.intType, elementType, elementType], elementType)
-        case "fold":
+        case knownNames.fold:
             guard argCount == 2 else { return nil }
             expectation = (1, [sema.types.anyType, elementType], sema.types.anyType)
-        case "foldIndexed":
+        case knownNames.foldIndexed:
             guard argCount == 2 else { return nil }
             expectation = (1, [sema.types.intType, sema.types.anyType, elementType], sema.types.anyType)
         default:

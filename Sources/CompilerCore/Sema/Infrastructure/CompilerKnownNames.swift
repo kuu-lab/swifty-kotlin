@@ -453,6 +453,31 @@ package struct KnownCompilerNames {
     let join: InternedString
     let awaitName: InternedString
 
+    // Range and array fallback member names dispatched by `calleeName`.
+    let start: InternedString
+    let end: InternedString
+    let endInclusive: InternedString
+    let endExclusive: InternedString
+    let random: InternedString
+    let randomOrNull: InternedString
+    let findLast: InternedString
+    let anyMember: InternedString
+    let allMember: InternedString
+    let noneMember: InternedString
+    let mapIndexed: InternedString
+    let mapNotNull: InternedString
+    let filterNot: InternedString
+    let concatToString: InternedString
+    let copyOf: InternedString
+    let copyOfRange: InternedString
+    let copyInto: InternedString
+    let fill: InternedString
+    let call: InternedString
+    let name: InternedString
+    let returnType: InternedString
+    let isSuspend: InternedString
+    let parameters: InternedString
+
     // Additional member/marker names compared by name during type checking.
     let receive: InternedString
     let callBy: InternedString
@@ -1076,6 +1101,30 @@ package struct KnownCompilerNames {
         cancel = interner.intern("cancel")
         join = interner.intern("join")
         awaitName = interner.intern("await")
+
+        start = interner.intern("start")
+        end = interner.intern("end")
+        endInclusive = interner.intern("endInclusive")
+        endExclusive = interner.intern("endExclusive")
+        random = interner.intern("random")
+        randomOrNull = interner.intern("randomOrNull")
+        findLast = interner.intern("findLast")
+        anyMember = interner.intern("any")
+        allMember = interner.intern("all")
+        noneMember = interner.intern("none")
+        mapIndexed = interner.intern("mapIndexed")
+        mapNotNull = interner.intern("mapNotNull")
+        filterNot = interner.intern("filterNot")
+        concatToString = interner.intern("concatToString")
+        copyOf = interner.intern("copyOf")
+        copyOfRange = interner.intern("copyOfRange")
+        copyInto = interner.intern("copyInto")
+        fill = interner.intern("fill")
+        call = interner.intern("call")
+        name = interner.intern("name")
+        returnType = interner.intern("returnType")
+        isSuspend = interner.intern("isSuspend")
+        parameters = interner.intern("parameters")
 
         let kotlinRanges = interner.intern("ranges")
         let kotlinTime = interner.intern("time")
