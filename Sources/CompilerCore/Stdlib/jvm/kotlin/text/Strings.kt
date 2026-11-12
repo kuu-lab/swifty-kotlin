@@ -23,12 +23,59 @@ import kotlin.jvm.internal.__jvmEqualsIgnoreCase
 import kotlin.OverloadResolutionByLambdaReturnType
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.jvm.JvmName
+import kotlin.sequences.Sequence
 
 public fun String.format(vararg args: Any?): String = __jvmStringFormat(this, args)
 public fun String.format(locale: java.util.Locale?, vararg args: Any?): String =
     __jvmStringFormatLocale(locale, this, args)
 
 public fun CharSequence.indices(): IntRange = 0..this.length - 1
+
+public fun CharSequence.lineSequence(): Sequence<String> {
+    val source = this
+    return object: Sequence<String> {
+        override fun iterator(): Iterator<String> = object: Iterator<String> {
+            private var startIndex = 0
+            private var state = -1
+            private var nextLine: String? = null
+            private var nextStartIndex = -1
+
+            private fun calculateNext() {
+                var endIndex = startIndex
+                var separator: Char? = null
+                while (endIndex < source.length) {
+                    val character = source[endIndex]
+                    if (character == '\n' || character == '\r') {
+                        separator = character
+                        break
+                    }
+                    endIndex++
+                }
+                nextLine = source.subSequence(startIndex, endIndex).toString()
+                nextStartIndex = when {
+                    endIndex == source.length -> -1
+                    separator == '\r' && endIndex + 1 < source.length && source[endIndex + 1] == '\n' -> endIndex + 2
+                    else -> endIndex + 1
+                }
+                state = 1
+            }
+
+            override fun hasNext(): Boolean {
+                if (state < 0) calculateNext()
+                return state == 1
+            }
+
+            override fun next(): String {
+                if (!hasNext()) throw NoSuchElementException()
+                val result = nextLine!!
+                startIndex = nextStartIndex
+                state = if (startIndex < 0) 0 else -1
+                nextLine = null
+                return result
+            }
+        }
+    }
+}
 
 public fun String.isEmpty(): Boolean = this.length == 0
 public fun String.isNotEmpty(): Boolean = this.length != 0
