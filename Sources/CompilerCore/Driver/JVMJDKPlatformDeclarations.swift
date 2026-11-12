@@ -178,6 +178,18 @@ extension JVMClasspathIndex {
             package java.lang
             class StackTraceElement private constructor()
             """, 0x0011, "java/lang/Object", []),
+            ("java/io/File", """
+            package java.io
+            class File {
+                constructor(path: kotlin.String)
+                constructor(parent: kotlin.String, child: kotlin.String)
+                external fun getPath(): kotlin.String
+            }
+            """, 0x0001, "java/lang/Object", [
+                method("java/io/File", "<init>", [.string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "<init>", [.string, .string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "getPath", [], .string),
+            ]),
             ("java/lang/IllegalAccessError", """
             package java.lang
             open class IllegalAccessError : kotlin.Error {

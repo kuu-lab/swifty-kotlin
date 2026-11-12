@@ -188,6 +188,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/Files.kt",
+      "virtualPath": "<kswiftk-jvm>/files.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/FilesKt"
+    },
+    {
       "path": "declarations/TextRuntimeFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
       "excludeFromStdlibBuild": true
