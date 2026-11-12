@@ -1216,7 +1216,9 @@ final class JVMClasspathIndex {
         }
         for (name, property) in kotlinProperties.sorted(by: { $0.key < $1.key }) {
             let getter = property.getter
-            if !getter.isStatic, overridesParent(getter, in: info, visited: []) {
+            let overridesMapView = info.kotlinReadOnlyCollectionSupertypes["java/util/Map"] != nil
+                && ["keys", "values", "entries"].contains(name)
+            if !getter.isStatic, overridesMapView || overridesParent(getter, in: info, visited: []) {
                 source += getter.isFinal ? "final override " : "override "
             } else if !info.isInterface && !getter.isFinal {
                 source += "open "
