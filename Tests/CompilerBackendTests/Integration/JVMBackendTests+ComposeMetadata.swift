@@ -10,7 +10,7 @@ extension JVMBackendTests {
         let function = JVMKotlinFunction(
             name: "Content", jvmName: nil, descriptor: descriptor, result: "kotlin.Unit",
             parameters: [.init(name: "size", sourceType: "kotlin.Int", isVararg: false, hasDefaultValue: true)],
-            typeParameters: [], receiver: nil, isSuspend: false
+            typeParameters: [], contextParameters: [], receiver: nil, isSuspend: false
         )
         var method = JVMForeignMethod(
             owner: "sample/ContentKt", name: "Content", descriptor: descriptor,
