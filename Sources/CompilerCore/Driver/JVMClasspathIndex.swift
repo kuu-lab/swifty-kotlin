@@ -9,14 +9,16 @@ final class JVMClasspathIndex {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
-    /// Classes loaded from `lazilyInjecting` classpath entries (Android
-    /// framework jars or selected JDK module packages). They stay indexed for
-    /// signature mapping, but `inject(into:)` emits Kotlin stubs only for the
-    /// subset reachable from user sources.
+    /// Classes kept indexed for signature mapping and d8 input while
+    /// `inject(into:)` emits Kotlin stubs only for the subset reachable from
+    /// user sources. Explicitly lazy entries (Android framework jars or
+    /// selected JDK module packages) and oversized classpaths use this so
+    /// importing every framework/library class cannot exhaust the symbol table.
     private(set) var lazyClassNames: Set<String> = []
     private var requiredLazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
+    private var innerClassesByOwner: [String: [JVMInnerClassInfo]] = [:]
     /// Covered names for the `inject(into:)` run in progress; supertypes that
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
@@ -30,10 +32,13 @@ final class JVMClasspathIndex {
             && composer.methods.contains { $0.name == JVMCompose.end && $0.descriptor == "()V" && !$0.isStatic }
     }
 
+    private static let defaultAutomaticLazyClasspathMemberLimit = 20_000
+
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
         fallbackClassFiles: [(String, Data)] = [],
-        requiredLazyClassNames: Set<String> = []
+        requiredLazyClassNames: Set<String> = [],
+        automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         result.requiredLazyClassNames = requiredLazyClassNames
@@ -60,9 +65,13 @@ final class JVMClasspathIndex {
             if directory.boolValue {
                 let base = URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath()
                 guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else { throw JVMClassReader.Invalid() }
-                let files = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "class" }.sorted { $0.path < $1.path }
-                for file in files {
-                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(base.pathComponents.count).joined(separator: "/")
+                let files = enumerator.compactMap { entry -> (file: URL, path: String)? in
+                    guard let file = entry as? URL, file.pathExtension == "class" else { return nil }
+                    return (file, file.path)
+                }.sorted { $0.path < $1.path }
+                let baseDepth = base.pathComponents.count
+                for (file, _) in files {
+                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(baseDepth).joined(separator: "/")
                     guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"), !relative.hasSuffix("package-info.class") else { continue }
                     try insert(Array(Data(contentsOf: file)), path: relative)
                 }
@@ -94,6 +103,19 @@ final class JVMClasspathIndex {
         if result.hasComposeRuntime {
             result.lazyClassNames.formUnion(result.classes.keys.filter { $0.hasPrefix("androidx/compose/") })
         }
+        let eagerClasspathMemberCount = result.classes.values.reduce(0) { count, info in
+            result.lazyClassNames.contains(info.name) ? count : count + 1 + info.methods.count + info.fields.count
+        }
+        if eagerClasspathMemberCount >= automaticLazyClasspathMemberLimit {
+            // Eager stubs for a classpath this large can exhaust the synthetic
+            // symbol band. Keep every class indexed, but emit only the classes
+            // reachable from user sources and eager signatures. Explicitly
+            // supplied fallback classes are not classpath entries and stay eager.
+            let fallbackClassNames = Set(result.fallbackClassFiles.map {
+                String($0.0.dropLast(".class".count))
+            })
+            result.lazyClassNames.formUnion(Set(result.hierarchyClasses.keys).subtracting(fallbackClassNames))
+        }
         result.importInheritedMembers(for: Set(result.classes.keys).subtracting(result.lazyClassNames))
         return result
     }
@@ -113,6 +135,11 @@ final class JVMClasspathIndex {
                   innerClassMetadata[selfEntry.name] == nil else { continue }
             innerClassMetadata[selfEntry.name] = selfEntry
         }
+        for entry in innerClassMetadata.values {
+            if let owner = entry.outerName {
+                innerClassesByOwner[owner, default: []].append(entry)
+            }
+        }
     }
 
     private func isImportableClassifier(_ name: String, visited: Set<String>) -> Bool {
@@ -131,8 +158,8 @@ final class JVMClasspathIndex {
     }
 
     private func nestedClassDeclarations(of owner: String, indentation: String = "    ") -> String {
-        let children = innerClassMetadata.values
-            .filter { $0.outerName == owner && classes[$0.name] != nil }
+        let children = (innerClassesByOwner[owner] ?? [])
+            .filter { classes[$0.name] != nil }
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
@@ -208,6 +235,7 @@ final class JVMClasspathIndex {
         for name in classNames.sorted() {
             guard let info = classes[name] else { continue }
             var methods = info.methods
+            var methodKeys = Set(methods.lazy.map(key))
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -219,7 +247,7 @@ final class JVMClasspathIndex {
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
-                    if !methods.contains(where: { key($0) == signature }),
+                    if !methodKeys.contains(signature),
                        interfaceMethods[signature].map({ interfaceInherits(method.owner, $0.owner) }) ?? true {
                         // The most specific interface wins independently of the
                         // order of redundant interfaces in the classfile.
@@ -236,7 +264,7 @@ final class JVMClasspathIndex {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
-                    if !methods.contains(where: { key($0) == key(method) }) {
+                    if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
                         // when its implementation is inherited from a hidden base.
                         methods.append(visible ? method : accessibleMethod(method, on: info))
@@ -250,6 +278,7 @@ final class JVMClasspathIndex {
             }
             for name in inheritedInterfaces { inheritInterface(name) }
             methods += interfaceMethods.keys.sorted().map { accessibleMethod(interfaceMethods[$0]!, on: info) }
+            methodKeys.formUnion(interfaceMethods.keys)
             var abstractMethods: Set<String> = []
             var abstractVisited: Set<String> = []
             func collectAbstract(_ name: String) {
@@ -262,8 +291,11 @@ final class JVMClasspathIndex {
             if let superclass { collectAbstract(superclass) }
             // Erased imports need a real bridge when an inherited raw method
             // has different parameters from the specialized implementation.
-            for bridge in bridges where abstractMethods.contains(key(bridge)) && !methods.contains(where: { key($0) == key(bridge) }) {
-                methods.append(accessibleMethod(bridge, on: info))
+            for bridge in bridges {
+                let signature = key(bridge)
+                if abstractMethods.contains(signature), methodKeys.insert(signature).inserted {
+                    methods.append(accessibleMethod(bridge, on: info))
+                }
             }
             var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
             imported.bridgeMethods = bridges
@@ -1116,7 +1148,9 @@ final class JVMClasspathIndex {
 
     // MARK: - Lazy classpath injection
 
-    /// Packages Kotlin auto-imports on the JVM.
+    /// Packages Kotlin auto-imports on the JVM. Lazy classpath entries can
+    /// live in any package, but unqualified lookup only needs these; explicit
+    /// imports, star imports, and same-package references are matched separately.
     private static let autoImportedPackages: Set<String> = [
         "java.lang", "kotlin.jvm",
     ]
@@ -1207,7 +1241,8 @@ final class JVMClasspathIndex {
 
     /// Computes the set of lazy classpath classes that must be injected:
     /// classes named by user sources (imports, qualified references,
-    /// star/auto/same-package lookups) plus the transitive closure over
+    /// star/auto/same-package lookups) and fully-qualified references in
+    /// injected JVM stdlib sources, plus the transitive closure over
     /// supertypes and emitted method signature types.
     private func referencedLazyClasses(
         into ctx: CompilationContext, covered: Set<String>, additionalRoots: Set<String>
@@ -1256,11 +1291,20 @@ final class JVMClasspathIndex {
 
         for file in ctx.sourceManager.fileIDs() {
             let origin = ctx.sourceManager.origin(of: file)
-            guard origin == .user,
-                  !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/")
+            guard origin == .residualStdlib
+                || (origin == .user && !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/"))
             else { continue }
             let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
+            if origin == .residualStdlib {
+                // Bundled JVM declarations reference JDK types by FQN; the
+                // identifier/same-package heuristics would mistake stdlib
+                // declarations for classpath references.
+                for match in Self.dottedPattern.matches(in: text, range: range) {
+                    if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+                }
+                continue
+            }
             var identifiers = Set<String>()
             for match in Self.identifierPattern.matches(in: text, range: range) {
                 if let r = Range(match.range, in: text) { identifiers.insert(String(text[r])) }
@@ -1323,7 +1367,7 @@ final class JVMClasspathIndex {
             // Nested classes are emitted inside their owner's stub but are
             // not worklist items themselves; their signature types still
             // need to join the closure.
-            for entry in innerClassMetadata.values where entry.outerName == name {
+            for entry in innerClassesByOwner[name] ?? [] {
                 if classes[entry.name] != nil { processEdges(entry.name) }
             }
         }
@@ -1378,7 +1422,9 @@ final class JVMClasspathIndex {
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction) -> String {
-        let receiver = function.receiver.map { $0 + "." } ?? ""
+        let receiver = function.receiver.map { type in
+            type.contains(" -> ") ? "(\(type))." : type + "."
+        } ?? ""
         let parameters = function.parameters.enumerated().map { index, parameter in
             let fallback = "p\(index)"
             let name = parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback

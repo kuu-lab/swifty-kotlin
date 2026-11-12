@@ -387,6 +387,37 @@ struct JVMClassReader {
         return names
     }
 
+    private mutating func readModifiedUTF8(length: Int) throws -> String {
+        guard length <= bytes.count - offset else { throw Invalid() }
+        let end = offset + length
+        let encoded = bytes[offset ..< end]
+        if encoded.allSatisfy({ $0 > 0 && $0 < 0x80 }) {
+            offset = end
+            return String(decoding: encoded, as: UTF8.self)
+        }
+
+        var units: [UInt16] = []
+        while offset < end {
+            let first = try u1()
+            if first > 0 && first < 128 {
+                units.append(UInt16(first))
+            } else if first & 0xE0 == 0xC0 {
+                guard offset < end else { throw Invalid() }
+                let b = try u1()
+                guard b & 0xC0 == 0x80 else { throw Invalid() }
+                units.append(UInt16(first & 31) << 6 | UInt16(b & 63))
+            } else if first & 0xF0 == 0xE0 {
+                guard offset + 1 < end else { throw Invalid() }
+                let b = try u1(), c = try u1()
+                guard b & 0xC0 == 0x80, c & 0xC0 == 0x80 else { throw Invalid() }
+                units.append(UInt16(first & 15) << 12 | UInt16(b & 63) << 6 | UInt16(c & 63))
+            } else {
+                throw Invalid()
+            }
+        }
+        return String(decoding: units, as: UTF16.self)
+    }
+
     mutating func read() throws -> JVMClassInfo {
         guard try u4() == 0xCAFEBABE else { throw Invalid() }
         _ = try u2(); guard try u2() >= 45 else { throw Invalid() }
@@ -399,23 +430,8 @@ struct JVMClassReader {
         while index < count {
             switch try u1() {
             case 1:
-                let length = Int(try u2()); guard length <= bytes.count - offset else { throw Invalid() }
-                var units: [UInt16] = []
-                let end = offset + length
-                while offset < end {
-                    let first = try u1()
-                    if first > 0 && first < 128 { units.append(UInt16(first)) }
-                    else if first & 0xE0 == 0xC0 {
-                        guard offset < end else { throw Invalid() }; let b = try u1()
-                        guard b & 0xC0 == 0x80 else { throw Invalid() }
-                        units.append(UInt16(first & 31) << 6 | UInt16(b & 63))
-                    } else if first & 0xF0 == 0xE0 {
-                        guard offset + 1 < end else { throw Invalid() }; let b = try u1(), c = try u1()
-                        guard b & 0xC0 == 0x80, c & 0xC0 == 0x80 else { throw Invalid() }
-                        units.append(UInt16(first & 15) << 12 | UInt16(b & 63) << 6 | UInt16(c & 63))
-                    } else { throw Invalid() }
-                }
-                let string = String(decoding: units, as: UTF16.self)
+                let length = Int(try u2())
+                let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
             case 7: classes[index] = Int(try u2())

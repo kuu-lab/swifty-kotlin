@@ -48,5 +48,43 @@ struct RuntimeSourceIteratorTests {
         #expect(value.tag == RuntimeValue.rawTag)
         #expect(kk_unbox_int(value.payload0) == 42)
     }
+
+    @Test
+    func testPrimitiveIteratorSubtypeNominalTypesBoxScalarValues() throws {
+        func makeIteratorRaw(parentFQName: String, childFQName: String) -> Int {
+            let parentTypeID = runtimeStableNominalTypeID(fqName: parentFQName)
+            let childTypeID = runtimeStableNominalTypeID(fqName: childFQName)
+            runtimeRegisterTypeEdge(childTypeID: childTypeID, parentTypeID: parentTypeID)
+            let iterator = RuntimeObjectBox(length: 0, classID: childTypeID)
+            let raw = registerRuntimeObject(iterator)
+            runtimeRegisterObjectType(rawValue: raw, classID: childTypeID)
+            return raw
+        }
+
+        let floatBits = Int(Float(1.5).bitPattern)
+        let floatIterator = makeIteratorRaw(
+            parentFQName: "kotlin.collections.FloatIterator",
+            childFQName: "test.FloatIteratorSubclass"
+        )
+        let floatBox = try #require(runtimeBoxSourceIteratorPrimitiveValue(floatBits, iteratorRaw: floatIterator))
+        #expect(kk_unbox_float(floatBox) == floatBits)
+
+        let doubleBits = Int(Double(2.5).bitPattern)
+        let doubleIterator = makeIteratorRaw(
+            parentFQName: "kotlin.collections.DoubleIterator",
+            childFQName: "test.DoubleIteratorSubclass"
+        )
+        let doubleBox = try #require(runtimeBoxSourceIteratorPrimitiveValue(doubleBits, iteratorRaw: doubleIterator))
+        #expect(kk_unbox_double_nonnull(doubleBox) == doubleBits)
+
+        let booleanIterator = makeIteratorRaw(
+            parentFQName: "kotlin.collections.BooleanIterator",
+            childFQName: "test.BooleanIteratorSubclass"
+        )
+        let trueBox = try #require(runtimeBoxSourceIteratorPrimitiveValue(1, iteratorRaw: booleanIterator))
+        #expect(kk_unbox_bool(trueBox) == 1)
+        let falseBox = try #require(runtimeBoxSourceIteratorPrimitiveValue(0, iteratorRaw: booleanIterator))
+        #expect(kk_unbox_bool(falseBox) == 0)
+    }
 }
 #endif
