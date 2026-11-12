@@ -617,7 +617,8 @@ struct JVMClassReader {
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
-                                          && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter)
+                                          && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
+                                          || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
