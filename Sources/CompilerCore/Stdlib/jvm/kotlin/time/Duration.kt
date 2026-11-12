@@ -17,6 +17,8 @@ public value class Duration private constructor(private val rawValue: Long) : Co
 
     public override fun compareTo(other: Duration): Int = compareDurationRaw(rawValue, other.rawValue)
 
+    public operator fun plus(other: Duration): Duration = Duration(addDurationRaw(rawValue, other.rawValue))
+
     public override fun toString(): String = durationToString(rawValue)
 
     public fun toDouble(unit: DurationUnit): Double = durationRawToDouble(rawValue, unit)
