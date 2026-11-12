@@ -5,6 +5,7 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.internal.KsSymbolName
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 // The value class payload is the signed count shifted left by one, with a
 // low-bit tag (0 = ns, 1 = ms).
