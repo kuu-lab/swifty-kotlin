@@ -1,7 +1,11 @@
 package kotlin.io
 
 import java.io.File
+import kotlin.jvm.internal.__jvmFileName
 import kotlin.jvm.internal.__jvmFileSeparatorChar
+
+public val File.extension: String
+    get() = __jvmFileName(this).substringAfterLast('.', "")
 
 public fun File.resolve(relative: String): File {
     val child = File(relative)
