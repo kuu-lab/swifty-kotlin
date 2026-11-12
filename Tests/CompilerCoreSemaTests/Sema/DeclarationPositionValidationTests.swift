@@ -1098,6 +1098,19 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
     }
 
+    @Test func externalAnnotationMemberReportsOnlyProhibitedMember() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            annotation class A {
+                external fun f(): Int
+            }
+            """)
+        // kotlinc reports only 'members are prohibited in annotation
+        // classes.' for `external` members — the reserved-stdlib diagnostic
+        // must not double-report.
+        assertHasDiagnostic("KSWIFTK-SEMA-0419", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
+    }
+
     @Test func externalPropertyReportsGenericTargetWithoutExtras() throws {
         let ctx = try semaContextWithoutStdlib(for: """
             external val e1: Int
