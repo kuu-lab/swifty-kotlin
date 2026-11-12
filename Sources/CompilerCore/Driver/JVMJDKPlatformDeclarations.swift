@@ -485,6 +485,45 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[name] = info
         }
+        let randomName = "java/util/Random"
+        if classes[randomName] == nil {
+            let randomType = JVMValueType.reference(randomName, nullable: false)
+            let methods = [
+                method(randomName, "<init>", [], randomType),
+                method(randomName, "<init>", [.long], randomType),
+                method(randomName, "next", [.int], .int),
+                method(randomName, "nextInt", [], .int),
+                method(randomName, "nextInt", [.int], .int),
+                method(randomName, "nextLong", [], .long),
+                method(randomName, "nextBoolean", [], .boolean),
+                method(randomName, "nextDouble", [], .double),
+                method(randomName, "nextFloat", [], .float),
+                method(randomName, "nextBytes", [.reference("[B", nullable: false)], .unit),
+                method(randomName, "setSeed", [.long], .unit),
+            ]
+            let source = """
+                package java.util
+                open class Random {
+                    constructor()
+                    constructor(seed: Long)
+                    protected open fun next(bits: Int): Int = 0
+                    open fun nextInt(): Int = 0
+                    open fun nextInt(bound: Int): Int = 0
+                    open fun nextLong(): Long = 0L
+                    open fun nextBoolean(): Boolean = false
+                    open fun nextDouble(): Double = 0.0
+                    open fun nextFloat(): Float = 0.0f
+                    open fun nextBytes(bytes: ByteArray) {}
+                    open fun setSeed(seed: Long) {}
+                }
+                """
+            let info = JVMClassInfo(name: randomName, flags: 0x0001, superclass: "java/lang/Object",
+                                    interfaces: ["java/io/Serializable"], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/util/Random.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[randomName] = info
+        }
         let closeableName = "java/io/Closeable"
         if classes[closeableName] == nil {
             classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
