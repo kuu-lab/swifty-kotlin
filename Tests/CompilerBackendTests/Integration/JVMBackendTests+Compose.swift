@@ -134,6 +134,42 @@ extension JVMBackendTests {
         }
     }
 
+    @Test
+    func jvmLazyComposeTypesIncludeErasedCallbackParameters() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let compose = try composeJVMFixture(root)
+            try """
+            package androidx.compose.ui.layout
+            class Measured {
+                fun size(): Int = 42
+            }
+            """.write(to: root.appendingPathComponent("Measured.kt"), atomically: true, encoding: .utf8)
+            try """
+            package androidx.compose.foundation.layout
+            import androidx.compose.ui.layout.Measured
+            class LayoutScope {
+                fun measure(block: (Measured) -> Int): Int = block(Measured())
+            }
+            """.write(to: root.appendingPathComponent("LayoutScope.kt"), atomically: true, encoding: .utf8)
+            let dependency = root.appendingPathComponent("layout.jar")
+            let compiled = try jvmTool("kotlinc", ["Measured.kt", "LayoutScope.kt", "-d", dependency.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+            let classpath = [compose.path, dependency.path, stdlib.path]
+            let source = """
+            import androidx.compose.foundation.layout.LayoutScope
+            fun main() {
+                println(LayoutScope().measure { value -> value.size() })
+            }
+            """
+            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: classpath)
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "42\n")
+        }
+    }
+
     private func composeJVMFixture(_ root: URL, stdlib: URL? = nil) throws -> URL {
         var sources = [
             "Composable.java": """

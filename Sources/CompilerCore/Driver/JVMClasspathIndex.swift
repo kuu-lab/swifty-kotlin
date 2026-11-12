@@ -1363,6 +1363,19 @@ final class JVMClasspathIndex {
                         markNeeded(ref)
                     }
                 }
+                // Kotlin metadata can name types erased from the descriptor,
+                // such as a parameter of a Compose receiver lambda.
+                if let function = method.kotlinFunction {
+                    let sourceTypes = function.parameters.map(\.sourceType)
+                        + [function.result] + [function.receiver].compactMap { $0 }
+                    for type in sourceTypes {
+                        let range = NSRange(type.startIndex..., in: type)
+                        for match in Self.dottedPattern.matches(in: type, range: range) {
+                            guard let token = Range(match.range, in: type) else { continue }
+                            for name in normalizedToBinary[String(type[token])] ?? [] { markNeeded(name) }
+                        }
+                    }
+                }
             }
             // Nested classes are emitted inside their owner's stub but are
             // not worklist items themselves; their signature types still
