@@ -41,6 +41,11 @@ final class JVMProgramBuilder {
     func type(_ id: TypeID) throws -> JVMValueType {
         let actual = specialized(id)
         noteFunctionTypes(actual)
+        if case let .classType(type) = sema.types.kind(of: actual),
+           type.nullability == .nonNull,
+           sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve) == ["kotlin", "time", "Duration"] {
+            return .long
+        }
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
     func parameterType(_ id: TypeID) throws -> JVMValueType {
@@ -60,6 +65,11 @@ final class JVMProgramBuilder {
     /// parameters to their bounds rather than adopt a call site's argument.
     func erasedType(_ id: TypeID) throws -> JVMValueType {
         noteFunctionTypes(id)
+        if case let .classType(type) = sema.types.kind(of: id),
+           type.nullability == .nonNull,
+           sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve) == ["kotlin", "time", "Duration"] {
+            return .long
+        }
         return try JVMClasspathIndex.type(id, sema: sema, ctx: context)
     }
     func expressionType(_ id: ExprID) throws -> JVMValueType {
