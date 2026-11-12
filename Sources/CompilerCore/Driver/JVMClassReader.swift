@@ -528,14 +528,19 @@ struct JVMClassReader {
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
            let functions = try? metadata.functions(byteLimit: bytes.count) {
-            for index in methods.indices where methods[index].kotlinSuspendFunction == nil {
+            for index in methods.indices {
                 let method = methods[index]
                 guard let function = functions.first(where: { candidate in
-                          !candidate.isSuspend
+                          guard (candidate.jvmName ?? candidate.name) == method.name,
+                                candidate.descriptor == nil || candidate.descriptor == method.descriptor else { return false }
+                          if method.kotlinSuspendFunction != nil {
+                              return metadata.isFileFacade == true && method.isStatic && candidate.isSuspend
+                                  && candidate.contextParameters.isEmpty && !candidate.composableParameters.isEmpty
+                                  && candidate.parameters.count + candidate.leadingParameterCount + 1 == method.parameters.count
+                          }
+                          return !candidate.isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.receiver != nil && candidate.contextParameters.isEmpty)
-                              && (candidate.jvmName ?? candidate.name) == method.name
-                              && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
                               && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count
                                   || method.composeABI(for: candidate) != nil)
                       })
