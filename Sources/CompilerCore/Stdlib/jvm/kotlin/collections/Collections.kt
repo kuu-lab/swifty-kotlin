@@ -17,6 +17,16 @@ public fun <T> listOf(vararg elements: T): List<T> {
     if (elements.size == 0) return emptyList<T>()
     return __jvmArrayList(elements)
 }
+public fun <T : Any> listOfNotNull(element: T?): List<T> =
+    if (element != null) listOf(element) else emptyList()
+
+public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
+    val result = mutableListOf<T>()
+    for (element in elements) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
 public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     val result = __jvmNewList<T>()
     for (element in elements) result.add(element)
