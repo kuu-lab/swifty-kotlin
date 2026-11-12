@@ -151,17 +151,18 @@ extension JVMFunctionBuilder {
                     )
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
                 }
-                if sema.symbols.symbol(parent)?.kind == .object,
-                   let importedField = info.fields.first(where: {
-                       $0.name == name && $0.descriptor == type.descriptor && info.isRuntimeStaticField($0)
-                   }) {
+                if let importedField = info.fields.first(where: {
+                    $0.name == name && $0.descriptor == type.descriptor
+                        && (info.isRuntimeInstanceField($0)
+                            || sema.symbols.symbol(parent)?.kind == .object && info.isRuntimeStaticField($0))
+                }) {
                     let field = JVMField(owner: owner, name: name, type: type, access: importedField.access)
                     let getter = JVMForeignMethod(
                         owner: owner, name: "get" + capital, descriptor: "()" + type.descriptor,
-                        parameters: [], result: type, isStatic: true, isInterface: info.isInterface, isAbstract: false
+                        parameters: [], result: type, isStatic: importedField.isStatic, isInterface: info.isInterface, isAbstract: false
                     )
                     var property = JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
-                    property.readsStaticField = true
+                    property.accessesForeignField = true
                     return property
                 }
                 if let getter = info.kotlinStaticProperties[name]?.getter, getter.result.descriptor == type.descriptor,
@@ -264,9 +265,9 @@ extension JVMFunctionBuilder {
     }
     func readProperty(_ property: JVMProperty, receiver: JVMValue, special: Bool, superReceiver: ExprID? = nil) throws -> JVMValue {
         if let literal = property.field?.constantValue { return try constant(literal, property.type) }
-        if property.readsStaticField, let field = property.field {
+        if property.accessesForeignField, let field = property.field {
             let result = try value(field.type)
-            instructions.append(.getStatic(field, result))
+            instructions.append(field.access & 8 != 0 ? .getStatic(field, result) : .getField(field, receiver, result))
             return result
         }
         var getter = property.getter
@@ -296,8 +297,8 @@ extension JVMFunctionBuilder {
     }
     func writeProperty(_ property: JVMProperty, receiver: JVMValue, value source: JVMValue, initializing: Bool = false, special: Bool = false, superReceiver: ExprID? = nil) throws {
         let converted = try convert(source, to: property.type)
-        if property.readsStaticField, let field = property.field, field.access & 0x0010 == 0 {
-            instructions.append(.putStatic(field, converted))
+        if property.accessesForeignField, let field = property.field, field.access & 0x0010 == 0 {
+            instructions.append(field.access & 8 != 0 ? .putStatic(field, converted) : .putField(field, receiver, converted))
             return
         }
         if initializing, property.setter == nil, receiver.slot == thisValue?.slot, property.field?.owner == owner?.name, let field = property.field {
