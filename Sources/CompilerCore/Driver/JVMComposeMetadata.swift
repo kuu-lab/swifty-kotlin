@@ -21,6 +21,21 @@ extension JVMForeignMethod {
 }
 
 extension JVMFunctionBuilder {
+    func readCompositionLocal(_ id: ExprID, receiver: ExprID) throws -> JVMValue? {
+        let sema = program.sema
+        guard let getter = context.jvmImports?.compositionLocalGetter,
+              let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee,
+              let property = sema.symbols.symbol(sema.symbols.propertySymbol(forAccessor: selected) ?? selected),
+              property.kind == .property, context.interner.resolve(property.name) == "current",
+              let parent = sema.symbols.parentSymbol(for: property.id),
+              try program.className(parent) == getter.owner else { return nil }
+        guard let composer = activeComposer else { throw fail("JVM CompositionLocal.current requires an active Composer.", id) }
+        let object = try convert(requireValue(receiver), to: .reference(getter.owner, nullable: false))
+        let unchanged = try constant(.int(0), .int)
+        return try jdkCall(getter.owner, getter.name, getter.parameters, getter.result,
+                           receiver: object, arguments: [composer, unchanged], resolved: program.expressionType(id))
+    }
+
     func metadataComposeCall(
         _ method: JVMForeignMethod,
         signature: JVMKotlinFunction,
@@ -51,10 +66,11 @@ extension JVMFunctionBuilder {
         if abi.defaults != 0 {
             hidden.append(try constant(.int(Int32(bitPattern: explicit.masks[0])), .int))
         }
-        let result = method.result == .unit ? nil : try value(expectedResult ?? program.expressionType(id))
+        let resultType = try expectedResult ?? program.expressionType(id)
+        let result = method.result == .unit ? nil : try value(foreignResultType(method.result, resolved: resultType))
         try beginComposeGroup(composer, key: composeCallKey(at: id))
         instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + explicit.values + hidden, result: result))
         _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
-        return JVMIntrinsicResult(value: result)
+        return JVMIntrinsicResult(value: try result.map { try convert($0, to: resultType) })
     }
 }

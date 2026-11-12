@@ -450,6 +450,14 @@ final class JVMFunctionBuilder {
     }
     func convert(_ source: JVMValue, to type: JVMValueType) throws -> JVMValue {
         if source.type == type { return source }
+        if let name = source.type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: source.type),
+           carrier.descriptor == type.descriptor {
+            return try jdkCall(name, "unbox-impl", [], carrier, receiver: source, resolved: type)!
+        }
+        if let name = type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: type),
+           carrier.descriptor == source.type.descriptor {
+            return try jdkCall(name, "box-impl", [carrier], type, arguments: [source])!
+        }
         if source.type.referenceName != nil, type.isNumeric,
            let carrier = source.type.numericCarrier, carrier != type {
             // Unbox the actual wrapper before widening; casting Byte to
@@ -807,7 +815,10 @@ final class JVMFunctionBuilder {
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
-            return try propertyCompound(property, receiver: requireValue(receiver), op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
+            return try propertyCompound(property, receiver: object, op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
         case let .memberCall(receiver, name, typeArgs, args, _):
             if let composer = try readCurrentComposer(id) { return composer }
             if let folded = try constantFoldedText(id) { return folded }

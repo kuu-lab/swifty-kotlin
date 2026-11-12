@@ -272,8 +272,11 @@ extension JVMFunctionBuilder {
             if context.interner.resolve(property.name) == "length" { return size }
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return result
         }
-        guard let method = program.textLibraryProperties[symbol] else { return nil }
+        guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
         if method.isStatic {
+            if method.parameters.isEmpty {
+                return try jdkCall(method.owner, method.name, [], method.result, resolved: program.expressionType(id))
+            }
             let extensionReceiver: JVMValue?
             if let receiver { extensionReceiver = try requireValue(receiver) }
             else { extensionReceiver = implicitExtensionReceiver(id) }

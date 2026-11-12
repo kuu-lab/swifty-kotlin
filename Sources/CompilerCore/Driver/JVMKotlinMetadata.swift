@@ -44,6 +44,15 @@ struct JVMKotlinStaticProperty {
     let getterName: String
     let getterDescriptor: String
     let isNullable: Bool
+    let sourceType: String?
+}
+
+struct JVMKotlinTopLevelProperty {
+    let name: String
+    let receiver: String?
+    let result: String
+    let getterName: String
+    let getterDescriptor: String
 }
 
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
@@ -106,7 +115,29 @@ struct JVMKotlinMetadata {
                   let getterName = try names.resolve(getter.int32(1)),
                   let descriptor = try names.resolve(getter.int32(2)), descriptor.hasPrefix("()")
             else { return nil }
-            return JVMKotlinStaticProperty(name: name, getterName: getterName, getterDescriptor: descriptor, isNullable: type.nullable)
+            return JVMKotlinStaticProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
+                                           isNullable: type.nullable, sourceType: try Self.sourceType(type, types: types, names: names))
+        }
+    }
+
+    func topLevelProperties(byteLimit: Int) throws -> [JVMKotlinTopLevelProperty] {
+        guard kind == 2 || kind == 5, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        return try declaration.messages(4).compactMap { property in
+            let receiver = try types.resolve(property, inline: 5, indexed: 10)
+            let receiverType = try receiver.flatMap { try Self.sourceType($0, types: types, names: names) }
+            guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                  receiver == nil || receiverType != nil, receiverType?.contains("->") != true,
+                  let result = try types.resolve(property, inline: 3, indexed: 9),
+                  let resultType = try Self.sourceType(result, types: types, names: names),
+                  let signature = try property.message(100),
+                  let getter = try signature.message(3),
+                  let getterName = try names.resolve(getter.int32(1)),
+                  let descriptor = try names.resolve(getter.int32(2))
+            else { return nil }
+            return JVMKotlinTopLevelProperty(name: name, receiver: receiverType, result: resultType,
+                                              getterName: getterName, getterDescriptor: descriptor)
         }
     }
 

@@ -180,7 +180,8 @@ extension JVMFunctionBuilder {
         let physicalResult = reference?.result ?? method!.result
         // A safe Unit call has logical type Unit?, but its ordinary entry
         // still returns void. The safe-call join materializes Unit afterward.
-        let result = constructor || physicalResult == .unit || resultType == .unit ? nil : try value(resultType)
+        let result = constructor || physicalResult == .unit || resultType == .unit
+            ? nil : try value(foreignResultType(physicalResult, resolved: resultType))
         if let object { instructions.append(.allocate(method!.owner, object)) }
         if usesDefaults {
             if let importedDefault {
@@ -207,6 +208,6 @@ extension JVMFunctionBuilder {
             if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
             else { instructions.append(.call(reference, values, result)) }
         }
-        return JVMIntrinsicResult(value: object ?? result)
+        return JVMIntrinsicResult(value: try object ?? result.map { try convert($0, to: resultType) })
     }
 }
