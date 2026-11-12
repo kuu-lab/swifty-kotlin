@@ -42,6 +42,41 @@
     "kind": "interface"
   },
   {
+    "symbol": "__jvmByteArrayOutputStream",
+    "owner": "java/io/ByteArrayOutputStream",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
+    "symbol": "__jvmInputStreamAvailable",
+    "owner": "java/io/InputStream",
+    "name": "available",
+    "descriptor": "()I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmInputStreamRead",
+    "owner": "java/io/InputStream",
+    "name": "read",
+    "descriptor": "([B)I",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmOutputStreamWrite",
+    "owner": "java/io/ByteArrayOutputStream",
+    "name": "write",
+    "descriptor": "([BII)V",
+    "kind": "virtual"
+  },
+  {
+    "symbol": "__jvmOutputStreamToBytes",
+    "owner": "java/io/ByteArrayOutputStream",
+    "name": "toByteArray",
+    "descriptor": "()[B",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmThreadLocalRandom",
     "owner": "java/util/concurrent/ThreadLocalRandom",
     "name": "current",
