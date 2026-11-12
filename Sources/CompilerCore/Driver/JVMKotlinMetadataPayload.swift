@@ -17,6 +17,11 @@ struct JVMKotlinSuspendFunction {
 /// parameters include function types. The physical descriptor stays on
 /// `JVMForeignMethod`; this carries only the declaration shape Sema needs.
 struct JVMKotlinFunction {
+    struct TypeParameter {
+        let name: String
+        let bounds: [String]
+    }
+
     struct Parameter {
         let name: String?
         let sourceType: String
@@ -29,6 +34,7 @@ struct JVMKotlinFunction {
     let descriptor: String?
     let result: String
     let parameters: [Parameter]
+    let typeParameters: [TypeParameter]
     let receiver: String?
     let isSuspend: Bool
 }
@@ -51,7 +57,7 @@ struct JVMKotlinMetadataPayload {
     var isFileFacade: Bool? {
         switch kind {
         case 1: false
-        case 2: true
+        case 2, 4, 5: true
         default: nil
         }
     }
@@ -62,8 +68,11 @@ struct JVMKotlinMetadataPayload {
         fileprivate let functions: [ProtoFields]
     }
 
+    var multifileParts: [String] { kind == 4 ? data1 : [] }
+    var isMultifilePart: Bool { kind == 5 }
+
     func functionTable(byteLimit: Int) throws -> FunctionTable? {
-        guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return nil }
+        guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return nil }
         let bytes = try decodedData(limit: byteLimit)
         var cursor = ProtoCursor(bytes[...])
         guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
@@ -144,6 +153,7 @@ struct JVMKotlinMetadataPayload {
     fileprivate struct TypeTable {
         let entries: [ProtoFields]
         let firstNullable: Int
+        var parameterNames: [Int32: String] = [:]
 
         init(_ message: ProtoFields?) throws {
             entries = try message?.messages(1) ?? []
@@ -152,7 +162,11 @@ struct JVMKotlinMetadataPayload {
 
         func resolve(_ message: ProtoFields, inline: Int, indexed: Int) throws -> (type: ProtoFields, nullable: Bool)? {
             if let type = try message.message(inline) { return (type, type.bool(3) == true) }
-            guard let index = message.int32(indexed), entries.indices.contains(Int(index)) else { return nil }
+            return message.int32(indexed).flatMap { resolve(index: $0) }
+        }
+
+        func resolve(index: Int32) -> (type: ProtoFields, nullable: Bool)? {
+            guard entries.indices.contains(Int(index)) else { return nil }
             let type = entries[Int(index)]
             return (type, type.bool(3) == true || (firstNullable >= 0 && index >= firstNullable))
         }
@@ -220,7 +234,29 @@ struct JVMKotlinMetadataPayload {
                 jvmName = nil
                 descriptor = nil
             }
-            let types = try function.message(30).map(TypeTable.init) ?? classTypes
+            var types = try function.message(30).map(TypeTable.init) ?? classTypes
+            let typeParameterMessages = try function.messages(4)
+            guard typeParameterMessages.isEmpty || isFileFacade == true else { continue }
+            let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
+                guard parameter.bool(3) != true, let id = parameter.int32(1),
+                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name)
+                else { return nil }
+                types.parameterNames[id] = name
+                return id
+            }
+            guard parameterIDs.count == typeParameterMessages.count else { continue }
+            var typeParameters: [JVMKotlinFunction.TypeParameter] = []
+            for (id, parameter) in zip(parameterIDs, typeParameterMessages) {
+                let inlineBounds = try parameter.messages(5).map { (type: $0, nullable: $0.bool(3) == true) }
+                let boundIDs = try parameter.int32List(6)
+                let indexedBounds = boundIDs.compactMap { types.resolve(index: $0) }
+                let allBounds = inlineBounds + indexedBounds
+                let bounds = try allBounds.compactMap { try Self.sourceType($0, types: types, names: names) }
+                guard indexedBounds.count == boundIDs.count, bounds.count == allBounds.count,
+                      let parameterName = types.parameterNames[id] else { break }
+                typeParameters.append(.init(name: parameterName, bounds: bounds))
+            }
+            guard typeParameters.count == parameterIDs.count else { continue }
             guard let returnResolved = try types.resolve(function, inline: 3, indexed: 7),
                   let resultType = try Self.sourceType(returnResolved, types: types, names: names) else { continue }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
@@ -276,6 +312,7 @@ struct JVMKotlinMetadataPayload {
                 descriptor: descriptor,
                 result: resultType,
                 parameters: parameters,
+                typeParameters: typeParameters,
                 receiver: receiverType,
                 isSuspend: isSuspend
             ))
@@ -299,7 +336,14 @@ struct JVMKotlinMetadataPayload {
         case "kotlin/Nothing": return "kotlin.Nothing" + suffix
         default: break
         }
-        guard let name = try names.resolve(type.int32(6)) else { return nil }
+        guard let name = try names.resolve(type.int32(6)) else {
+            let id = type.int32(7)
+            let name = try id.flatMap { types.parameterNames[$0] }
+                ?? names.resolve(type.int32(9)).flatMap { value in
+                    types.parameterNames.values.contains(value) ? value : nil
+                }
+            return name.map { "`\($0)`" + suffix }
+        }
         if let arity = functionArity(name) {
             let arguments = try type.messages(2)
             guard arguments.count == arity + 1 else { return nil }
@@ -308,11 +352,28 @@ struct JVMKotlinMetadataPayload {
                 guard let argumentType = try argumentSource(argument, types: types, names: names, depth: depth + 1) else { return nil }
                 rendered.append(argumentType)
             }
-            let isSuspendFunction = name.hasPrefix("kotlin/SuspendFunction")
+            let isLoweredSuspendFunction = (type.int32(1) ?? 0) & 1 != 0
+                && !name.hasPrefix("kotlin/SuspendFunction")
+            let isSuspendFunction = isLoweredSuspendFunction || name.hasPrefix("kotlin/SuspendFunction")
             let isExtension = try hasTypeAnnotation("kotlin/ExtensionFunctionType", type: type, names: names)
             let isComposable = try hasTypeAnnotation("androidx/compose/runtime/Composable", type: type, names: names)
-            let returnType = rendered[arity]
-            let inputs = Array(rendered.dropLast())
+            let returnType: String
+            let inputs: [String]
+            if isLoweredSuspendFunction {
+                // Kotlin/JVM metadata can encode suspend function types as
+                // FunctionN with a trailing Continuation<R> and Any? result.
+                guard arity > 0, let continuation = try types.resolve(arguments[arity - 1], inline: 2, indexed: 3),
+                      try names.resolve(continuation.type.int32(6)) == "kotlin/coroutines/Continuation",
+                      let argument = try continuation.type.message(2),
+                      let result = try types.resolve(argument, inline: 2, indexed: 3),
+                      let sourceResult = try sourceType(result, types: types, names: names, depth: depth + 1)
+                else { return nil }
+                returnType = sourceResult
+                inputs = Array(rendered.prefix(arity - 1))
+            } else {
+                returnType = rendered[arity]
+                inputs = Array(rendered.dropLast())
+            }
             let receiver: String?
             let parameters: [String]
             if isExtension {
@@ -323,7 +384,6 @@ struct JVMKotlinMetadataPayload {
                 receiver = nil
                 parameters = inputs
             }
-            guard parameters.count + (receiver == nil ? 0 : 1) == arity else { return nil }
             let parameterList = parameters.joined(separator: ", ")
             let body: String
             if let receiver {
