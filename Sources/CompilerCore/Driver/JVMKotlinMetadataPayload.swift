@@ -147,7 +147,7 @@ struct JVMKotlinMetadataPayload {
         types.parameterNames = try Self.classTypeParameters(declaration, names: names)
         let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
         let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
-        let collectionNames: Set<String> = ["Collection", "List", "Set"]
+        let collectionNames: Set<String> = ["Collection", "List", "Map", "Set"]
         var result: [String: String] = [:]
         for type in inline + indexed {
             guard let name = try names.resolve(type.type.int32(6)), name.hasPrefix("kotlin/collections/"),
@@ -245,12 +245,9 @@ struct JVMKotlinMetadataPayload {
     /// Static properties exposed by Kotlin objects through @JvmStatic accessors.
     func classPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinClassProperty] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
-        let bytes = try decodedData(limit: byteLimit)
-        var cursor = ProtoCursor(bytes[...])
-        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
-        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
-        let declaration = try ProtoFields(bytes[cursor.position...])
-        let types = try TypeTable(declaration.message(30))
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
         return try declaration.messages(10).compactMap { property in
             guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
                   let type = try types.resolve(property, inline: 3, indexed: 9),
