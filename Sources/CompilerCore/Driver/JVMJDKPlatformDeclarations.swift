@@ -476,6 +476,12 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[name] = info
         }
+        let closeableName = "java/io/Closeable"
+        if classes[closeableName] == nil {
+            classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
+                                                interfaces: ["java/lang/AutoCloseable"], methods: [])
+        }
+
         // The generic Kotlin declaration provides the Java collection shape;
         // associate its implicit constructor with the real JDK owner so a
         // fully qualified `java.util.ArrayList()` call is emitted as `new`.
