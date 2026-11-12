@@ -107,7 +107,7 @@ extension JVMFunctionBuilder {
         return JVMIntrinsicResult(value: result)
     }
 
-    private func composeCallKey(at id: ExprID) -> Int32 {
+    func composeCallKey(at id: ExprID) -> Int32 {
         let identity = (reference.owner ?? program.facadeName) + "." + reference.name + reference.descriptor
         return JVMCompose.key(identity + "@" + String(arena.exprRange(id)?.start.offset ?? 0))
     }
