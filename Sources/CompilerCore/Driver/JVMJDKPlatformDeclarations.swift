@@ -424,6 +424,11 @@ extension JVMClasspathIndex {
                 method(fileName, "getPath", [], .string),
             ])
         }
+        let closeableName = "java/io/Closeable"
+        if classes[closeableName] == nil {
+            classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
+                                                interfaces: ["java/lang/AutoCloseable"], methods: [])
+        }
         // `kotlin.io.path.Path` is a typealias over this JDK interface. Keep a
         // memberless fallback only when the classpath did not supply the real
         // interface; classpath classes keep their full member surface.
