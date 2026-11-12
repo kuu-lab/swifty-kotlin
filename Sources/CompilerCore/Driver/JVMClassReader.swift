@@ -17,6 +17,7 @@ struct JVMClassInfo {
     var isKotlinFileFacade: Bool?
     var kotlinSealedInterfaceSubclasses: [String] = []
     var isKotlinObject = false
+    var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
@@ -561,6 +562,12 @@ struct JVMClassReader {
         let hasValueAdapters = valueCarrier.map { carrier in
             methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
         } ?? false
+        var readOnlyCollectionSupertypes: [String: String] = [:]
+        if flags & 0x0200 != 0, let metadata = classAttributes.kotlinMetadata,
+           interfaces.contains(where: { $0 == "kotlin/jvm/internal/markers/KMappedMarker" }) {
+            readOnlyCollectionSupertypes = (try? metadata.readOnlyCollectionSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
+        let hasReadOnlyListSupertype = readOnlyCollectionSupertypes["java/util/List"] != nil
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let table = try? metadata.functionTable(byteLimit: bytes.count) {
@@ -579,7 +586,7 @@ struct JVMClassReader {
            (metadata.isFileFacade == true || hasValueAdapters
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -592,7 +599,8 @@ struct JVMClassReader {
                           return candidate.isSuspend == isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
-                                      && (candidate.receiver != nil || candidate.isInfix && candidate.descriptor != nil))
+                                      && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
+                                          && candidate.name == "subList") && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
                               && (candidate.parameters.count + candidate.leadingParameterCount
@@ -626,6 +634,7 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
         if info.isInterface, let metadata = classAttributes.kotlinMetadata {
             info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
         }
