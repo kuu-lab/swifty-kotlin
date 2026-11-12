@@ -166,7 +166,11 @@ extension JVMProgramBuilder {
             if !original.isConstructor {
                 if let baseName { name = baseName + "$default" }
                 else {
-                    let hashArguments = ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
+                    // The stdlib's Instant difference uses a return-only suffix.
+                    let legacyInstantDifference = context.options.stdlibOnly && owner == "kotlin/time/Instant"
+                        && ref.name == "minus" && ref.parameters.map(\.referenceName) == [owner]
+                    let hashArguments = legacyInstantDifference ? ""
+                        : ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
                     // The bundled time ABI predates return-type mangling for these operators.
                     let legacyTimeOperator = context.options.stdlibOnly && (
                         owner == "kotlin/time/Duration" && ref.name == "plus" && ref.parameters.map(\.referenceName) == [owner]
