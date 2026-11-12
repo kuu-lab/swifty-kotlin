@@ -158,13 +158,10 @@ final class JVMClasspathIndex {
                 && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
         }.sorted { $0.name < $1.name }
         if archiveJobs > 1 && entries.count >= 128 {
-            let batchSize = 64
-            let batchCount = (entries.count + batchSize - 1) / batchSize
-            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs) { index in
-                let start = index * batchSize
-                let end = min(start + batchSize, entries.count)
+            let ranges = archiveBatches(entries)
+            let batches = try SemaPerFileExecutor.collect(count: ranges.count, jobs: archiveJobs) { index in
                 let batchDescriptors = JVMDescriptorCache()
-                return try entries[start ..< end].map { entry in
+                return try entries[ranges[index]].map { entry in
                     try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: batchDescriptors)
                 }
             }
@@ -176,6 +173,25 @@ final class JVMClasspathIndex {
                 insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
             }
         }
+    }
+
+    private static func archiveBatches(_ entries: [ZipArchive.Entry]) -> [Range<Int>] {
+        let typicalCount = 64
+        let approximateBatchCount = (entries.count + typicalCount - 1) / typicalCount
+        let targetBytes = max(1, entries.reduce(0) { $0 + $1.uncompressedSize } / approximateBatchCount)
+        var ranges: [Range<Int>] = []
+        var start = 0
+        var bytes = 0
+        for (index, entry) in entries.enumerated() {
+            if index > start && (bytes + entry.uncompressedSize > targetBytes || index - start >= 2 * typicalCount) {
+                ranges.append(start ..< index)
+                start = index
+                bytes = 0
+            }
+            bytes += entry.uncompressedSize
+        }
+        ranges.append(start ..< entries.count)
+        return ranges
     }
 
     private static func readClass(
