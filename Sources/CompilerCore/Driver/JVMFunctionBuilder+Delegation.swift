@@ -46,8 +46,11 @@ extension JVMFunctionBuilder {
             }
         }
         if let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? program.textLibraryMethods[symbol]?.method {
-            let extensionMethod = program.extensionSymbols.contains(symbol) || program.textLibraryMethods[symbol]?.extensionReceiver != nil
+            let extensionMethod = program.extensionSymbols.contains(symbol)
+                || context.jvmImports?.extensionSymbols.contains(symbol) == true
+                || program.textLibraryMethods[symbol]?.extensionReceiver != nil
             let inputs = (extensionMethod ? [delegate] : []) + arguments
+            guard inputs.count == method.parameters.count else { throw fail("Invalid JVM property delegate arguments.") }
             var args: [JVMValue] = []
             for (arg, type) in zip(inputs, method.parameters) { args.append(try convert(arg, to: type)) }
             let result = method.result == .unit ? nil : try value(method.result)

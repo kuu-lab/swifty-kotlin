@@ -41,6 +41,8 @@ struct JVMKotlinFunction {
     let receiver: String?
     let isSuspend: Bool
     var isInline = false
+    var isOperator = false
+    var isInfix = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
     var composableParameters: Set<Int> {
@@ -349,7 +351,9 @@ struct JVMKotlinMetadata {
                 contextParameters: contextParameters,
                 receiver: receiverType,
                 isSuspend: isSuspend,
-                isInline: flags & (1 << 10) != 0
+                isInline: flags & (1 << 10) != 0,
+                isOperator: flags & (1 << 8) != 0,
+                isInfix: flags & (1 << 9) != 0
             ))
         }
         return result
