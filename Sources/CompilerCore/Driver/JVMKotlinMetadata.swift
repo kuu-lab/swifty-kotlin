@@ -33,6 +33,13 @@ struct JVMKotlinFunction {
     let isSuspend: Bool
 }
 
+struct JVMKotlinStaticProperty {
+    let name: String
+    let getterName: String
+    let getterDescriptor: String
+    let isNullable: Bool
+}
+
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
 /// numbers follow metadata.proto and jvm_metadata.proto.
 struct JVMKotlinMetadata {
@@ -51,11 +58,7 @@ struct JVMKotlinMetadata {
 
     func suspendFunctions(byteLimit: Int) throws -> [String: JVMKotlinSuspendFunction] {
         guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return [:] }
-        let bytes = try decodedData(limit: byteLimit)
-        var cursor = ProtoCursor(bytes[...])
-        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
-        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
-        let declaration = try ProtoFields(bytes[cursor.position...])
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
         let classTypes = try TypeTable(declaration.message(30))
         var result: [String: JVMKotlinSuspendFunction] = [:]
         for function in try declaration.messages(isFileFacade ? 3 : 9) {
@@ -80,6 +83,30 @@ struct JVMKotlinMetadata {
             guard result.updateValue(info, forKey: jvmName + descriptor) == nil else { throw JVMClassReader.Invalid() }
         }
         return result
+    }
+
+    func staticPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinStaticProperty] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        return try declaration.messages(10).compactMap { property in
+            guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                  let type = try types.resolve(property, inline: 3, indexed: 9),
+                  let signature = try property.message(100),
+                  let getter = try signature.message(3),
+                  let getterName = try names.resolve(getter.int32(1)),
+                  let descriptor = try names.resolve(getter.int32(2)), descriptor.hasPrefix("()")
+            else { return nil }
+            return JVMKotlinStaticProperty(name: name, getterName: getterName, getterDescriptor: descriptor, isNullable: type.nullable)
+        }
+    }
+
+    private func declarationData(byteLimit: Int) throws -> (ProtoFields, JVMMetadataNames) {
+        let bytes = try decodedData(limit: byteLimit)
+        var cursor = ProtoCursor(bytes[...])
+        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
+        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
+        return (try ProtoFields(bytes[cursor.position...]), names)
     }
 
     private struct TypeTable {
@@ -145,11 +172,7 @@ struct JVMKotlinMetadata {
     /// Recover function types and top-level extension receivers from Kotlin metadata.
     func functions(byteLimit: Int) throws -> [JVMKotlinFunction] {
         guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
-        let bytes = try decodedData(limit: byteLimit)
-        var cursor = ProtoCursor(bytes[...])
-        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
-        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
-        let declaration = try ProtoFields(bytes[cursor.position...])
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
         let classTypes = try TypeTable(declaration.message(30))
         var result: [JVMKotlinFunction] = []
         for function in try declaration.messages(isFileFacade ? 3 : 9) {

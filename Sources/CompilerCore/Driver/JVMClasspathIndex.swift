@@ -305,6 +305,7 @@ final class JVMClasspathIndex {
             imported.hasEnclosingMethod = info.hasEnclosingMethod
             imported.isKotlinFileFacade = info.isKotlinFileFacade
             imported.annotations = info.annotations
+            imported.kotlinStaticProperties = info.kotlinStaticProperties
             classes[info.name] = imported
         }
     }
@@ -730,6 +731,10 @@ final class JVMClasspathIndex {
         // java.lang.CharSequence; covering it keeps stub signatures and
         // supertypes on the same Kotlin nominal.
         covered.insert("java/lang/CharSequence")
+        // The frontend's CoroutineDispatcher contract already models its
+        // CoroutineContext supertypes. An erased stub cannot reconstruct
+        // the key passed to AbstractCoroutineContextElement or its generic overrides.
+        covered.insert("kotlinx/coroutines/CoroutineDispatcher")
         return covered
     }
 
@@ -1158,6 +1163,11 @@ final class JVMClasspathIndex {
         if allowsCompanion, !statics.isEmpty || !constantFields.isEmpty {
             source += "companion object {\n"
             for declaration in constantFields { source += declaration }
+            for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
+                where isExposed(property.getter) {
+                let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
+                source += "val `\(name)`: \(type) get() = null!!\n"
+            }
             for method in statics {
                 source += "external " + functionDeclaration(method) + "\n"
             }

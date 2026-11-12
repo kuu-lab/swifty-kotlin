@@ -15,6 +15,7 @@ struct JVMClassInfo {
     var hasEnclosingMethod = false
     var isKotlinFileFacade: Bool?
     var annotations: [JVMAnnotation] = []
+    var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
@@ -520,7 +521,7 @@ struct JVMClassReader {
                 methods[index].kotlinFunction = function
             }
         }
-        return JVMClassInfo(
+        var info = JVMClassInfo(
             name: name,
             flags: flags,
             superclass: superclass,
@@ -536,6 +537,19 @@ struct JVMClassReader {
             isKotlinFileFacade: classAttributes.kotlinMetadata?.isFileFacade,
             annotations: classAttributes.annotations
         )
+        // Kotlin objects may expose a property's accessor only as @JvmStatic.
+        if let metadata = classAttributes.kotlinMetadata,
+           fields.contains(where: { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }),
+           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties {
+                guard let getter = methods.first(where: {
+                    $0.isStatic && !$0.isProtected && $0.name == property.getterName
+                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                }) else { continue }
+                info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+            }
+        }
+        return info
     }
 
     private static func hasSuspendDescriptor(_ method: JVMForeignMethod) -> Bool {
