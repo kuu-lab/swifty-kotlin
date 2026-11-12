@@ -1828,7 +1828,8 @@ final class JVMClasspathIndex {
                 guard functions.count == methods.count else { continue }
                 // Top-level Kotlin facade stubs are emitted in classfile order.
                 // Their logical signature can differ from the physical descriptor.
-                for (function, method) in zip(functions, methods) where method.kotlinFunction != nil {
+                for (function, method) in zip(functions, methods)
+                    where method.kotlinFunction != nil || method.kotlinSuspendFunction != nil {
                     facadeMethodsByRange[function.range] = method
                 }
             }
@@ -1878,10 +1879,10 @@ final class JVMClasspathIndex {
             guard let info = info ?? sourceClass else { continue }
             let isExtension = topLevel?.receiverType != nil || symbol.flags.contains(.memberExtension)
             if isExtension { extensionSymbols.insert(symbol.id) }
-            if let method = facadeMethodsByRange[site], let function = method.kotlinFunction {
+            if let method = facadeMethodsByRange[site] {
                 methods[symbol.id] = method.logicalSuspendMethod ?? method
                 importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: info)
-                if hasComposableLambdaFactory {
+                if hasComposableLambdaFactory, let function = method.kotlinFunction {
                     importedComposableParameters[symbol.id] = function.composableParameters
                 }
                 continue

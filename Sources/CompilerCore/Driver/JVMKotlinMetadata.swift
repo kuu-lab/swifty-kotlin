@@ -123,6 +123,7 @@ struct JVMKotlinMetadata {
                   let signature = try function.message(100),
                   let descriptor = try names.resolve(signature.int32(2)) else { continue }
             let jvmName = try names.resolve(signature.int32(1)) ?? name
+            let carriers = (try? JVMDescriptor.parse(descriptor).0) ?? []
             let types = try function.message(30).map(TypeTable.init) ?? classTypes
             guard let returnType = try types.resolve(function, inline: 3, indexed: 7) else { continue }
             let carrier: JVMValueType
@@ -138,10 +139,19 @@ struct JVMKotlinMetadata {
                 continue
             }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
-            let parameters = try function.messages(6).map { parameter in
+            let parameters = try function.messages(6).enumerated().map { index, parameter in
                 let resolved = try types.resolve(parameter, inline: 3, indexed: 5)
                 let sourceType = try resolved.flatMap { type in
-                    type.type.has(2) ? try Self.sourceType(type, types: types, names: names) : nil
+                    let physicalIndex = index + (receiver == nil ? 0 : 1)
+                    let differsFromCarrier: Bool
+                    if jvmName.contains("-"), carriers.indices.contains(physicalIndex),
+                       let logical = try Self.resultType(type, types: types, names: names) {
+                        differsFromCarrier = logical.descriptor != carriers[physicalIndex].descriptor
+                    } else {
+                        differsFromCarrier = false
+                    }
+                    return type.type.has(2) || differsFromCarrier
+                        ? try Self.sourceType(type, types: types, names: names) : nil
                 }
                 return JVMKotlinSuspendFunction.Parameter(
                     name: try names.resolve(parameter.int32(2)),
