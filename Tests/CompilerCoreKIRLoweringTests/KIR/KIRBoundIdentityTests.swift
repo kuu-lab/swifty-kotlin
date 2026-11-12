@@ -209,7 +209,7 @@ import Testing
         #expect(!ctx.diagnostics.hasError, "\(ctx.diagnostics.diagnostics)")
         let sema = try #require(ctx.sema)
         let objectSymbol = try #require(sema.symbols.allSymbols().first {
-            $0.kind == .class && ctx.interner.resolve($0.name).hasPrefix("__ObjectLiteral_")
+            $0.kind == .class && $0.flags.contains(.objectLiteralSynthetic)
         }?.id)
         let objectFoo = try #require(sema.symbols.allSymbols().first {
             $0.kind == .function

@@ -83,6 +83,74 @@ struct RuntimeKClassMetadataTests {
         #expect(result?.fieldCount == 2)
     }
 
+    @Test func registryLookupByQualifiedNameFindsRegisteredEntry() {
+        _ = __kk_kclass_register_metadata(
+            401,
+            makeRuntimeString("test.Qualified"),
+            makeRuntimeString("Qualified"),
+            0,
+            0,
+            0,
+            0,
+            0
+        )
+
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.Qualified")?.simpleName == "Qualified")
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.Missing") == nil)
+    }
+
+    @Test func registryLookupByQualifiedNameKeepsFirstRegisteredDuplicate() {
+        _ = __kk_kclass_register_metadata(
+            402,
+            makeRuntimeString("test.Duplicate"),
+            makeRuntimeString("First"),
+            0,
+            0,
+            0,
+            0,
+            0
+        )
+        _ = __kk_kclass_register_metadata(
+            403,
+            makeRuntimeString("test.Duplicate"),
+            makeRuntimeString("Second"),
+            0,
+            0,
+            0,
+            0,
+            0
+        )
+
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.Duplicate")?.simpleName == "First")
+        #expect(runtimeKClassMetadataRegistry.lookup(typeToken: 403)?.qualifiedName == "test.Duplicate")
+    }
+
+    @Test func registryLookupByQualifiedNameFollowsReRegistration() {
+        _ = __kk_kclass_register_metadata(
+            404,
+            makeRuntimeString("test.Before"),
+            makeRuntimeString("Before"),
+            0,
+            0,
+            0,
+            0,
+            0
+        )
+        _ = __kk_kclass_register_metadata(
+            404,
+            makeRuntimeString("test.After"),
+            makeRuntimeString("After"),
+            0,
+            0,
+            0,
+            0,
+            0
+        )
+
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.Before") == nil)
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.After")?.simpleName == "After")
+    }
+
     @Test func registryResetClearsEntries() {
         let entry = RuntimeKClassMetadataEntry(
             qualifiedName: "test.Temp",
@@ -106,9 +174,11 @@ struct RuntimeKClassMetadataTests {
         )
         runtimeKClassMetadataRegistry.register(typeToken: 100, entry: entry)
         #expect(runtimeKClassMetadataRegistry.lookup(typeToken: 100) != nil)
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.Temp") != nil)
 
         runtimeKClassMetadataRegistry.reset()
         #expect(runtimeKClassMetadataRegistry.lookup(typeToken: 100) == nil)
+        #expect(runtimeKClassMetadataRegistry.lookup(qualifiedName: "test.Temp") == nil)
     }
 
     // MARK: - RuntimeKClassBox Metadata Property

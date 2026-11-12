@@ -781,7 +781,7 @@ package final class MetadataEncoder {
             callableTypeParameterSignatures = signature.typeParameterSymbols.map { "T\($0.rawValue)" }
             inputOnlyTypeParameterIndices = Set(signature.typeParameterSymbols.indices.filter { index in
                 symbols.annotations(for: signature.typeParameterSymbols[index]).contains {
-                    $0.annotationFQName == "kotlin.internal.OnlyInputTypes"
+                    $0.annotationFQName == KnownCompilerAnnotation.onlyInputTypes.qualifiedName
                 }
             })
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)

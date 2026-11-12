@@ -122,4 +122,37 @@ struct RuntimeExceptionTypeDiscriminationTests {
         #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")) == 0)
         #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalArgumentException")) == 0)
     }
+
+    @Test func throwableHierarchyTypeIDsAreCachedAcrossIsChecks() {
+        let box = CountingThrowableBox(message: "count me")
+        let thrown = runtimeRegisterThrowable(box)
+
+        for _ in 0..<3 {
+            #expect(kk_op_is(thrown, nominalTypeToken(for: "test.CountingException")) == 1)
+            #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.Exception")) == 1)
+            #expect(kk_op_is(thrown, nominalTypeToken(for: "kotlin.IllegalStateException")) == 0)
+        }
+        #expect(box.hierarchyAccessCount == 1)
+    }
+}
+
+private final class CountingThrowableBox: RuntimeThrowableBox {
+    private(set) var hierarchyAccessCount = 0
+
+    init(message: String?) {
+        super.init(message: message)
+    }
+
+    override var exceptionFQName: String {
+        "test.CountingException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        hierarchyAccessCount += 1
+        return [
+            "test.CountingException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
 }

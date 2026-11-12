@@ -1038,6 +1038,48 @@ struct LinkPhaseIntegrationTests {
     }
 
     @Test
+    func testExecutableEmissionCanLinkPartitionedObjects() throws {
+        let source = """
+        fun helperValue(): Int = 40
+        fun main() {
+            var result = helperValue()
+            result += 2
+            if (result != 42) {
+                result = -1
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
+            let ctx = CompilerTestSupport.makeCompilationContext(
+                inputs: [path],
+                moduleName: "PartitionedExecutable",
+                emit: .executable,
+                outputPath: outputPath,
+                frontendFlags: ["jobs=2", "codegen-parallel"],
+                includeStdlib: false,
+                allowDefaultStdlibLibrary: false
+            )
+
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+
+            #expect(ctx.generatedObjectPaths.count > 1)
+            #expect(ctx.generatedObjectPath == ctx.generatedObjectPaths.first)
+
+            assertLinkSucceeds(ctx)
+
+            #expect(FileManager.default.fileExists(atPath: outputPath))
+            let result = try CommandRunner.run(executable: outputPath, arguments: [])
+            #expect(result.exitCode == 0)
+        }
+    }
+
+    @Test
     func testExecutableStringFormatHandlesBoxedScalarsInRuntimeObjects() throws {
         let source = """
         fun main() {

@@ -3,8 +3,8 @@ import Foundation
 extension JVMProgramBuilder {
     func repeatableContainerName(_ symbol: SymbolID) throws -> String? {
         let records = sema.symbols.annotations(for: symbol)
-        let automatic = records.contains { $0.annotationFQName == "kotlin.annotation.Repeatable" }
-        let explicit = records.first { $0.annotationFQName == "kotlin.jvm.JvmRepeatable" }
+        let automatic = records.contains { $0.annotationFQName == KnownCompilerAnnotation.repeatable.qualifiedName }
+        let explicit = records.first { $0.annotationFQName == KnownCompilerAnnotation.jvmRepeatable.qualifiedName }
         guard automatic || explicit != nil else { return nil }
         guard let plan = classes[symbol], plan.isAnnotation else { throw JVMFrontendError(message: "JVM repeatable requires an annotation class.") }
         if let explicit {
@@ -35,7 +35,7 @@ extension JVMProgramBuilder {
     }
     private func repeatableTargets(_ symbol: SymbolID) -> Set<String> {
         let names: Set<String> = ["CLASS", "ANNOTATION_CLASS", "TYPE_PARAMETER", "PROPERTY", "FIELD", "LOCAL_VARIABLE", "VALUE_PARAMETER", "CONSTRUCTOR", "FUNCTION", "PROPERTY_GETTER", "PROPERTY_SETTER", "TYPE", "EXPRESSION", "FILE", "TYPEALIAS"]
-        guard let record = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.annotation.Target" }) else {
+        guard let record = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName }) else {
             return names.subtracting(["TYPE_PARAMETER", "TYPE", "EXPRESSION", "FILE", "TYPEALIAS"])
         }
         let words = record.arguments.flatMap { $0.components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_")).inverted) }
@@ -56,7 +56,7 @@ extension JVMProgramBuilder {
     }
     func repeatableContainers() throws -> [JVMClass] {
         var output: [JVMClass] = []
-        for plan in classes.values.filter({ $0.isAnnotation && recordsContain($0.symbol, "kotlin.annotation.Repeatable") && !recordsContain($0.symbol, "kotlin.jvm.JvmRepeatable") }).sorted(by: { $0.name < $1.name }) {
+        for plan in classes.values.filter({ $0.isAnnotation && recordsContain($0.symbol, .repeatable) && !recordsContain($0.symbol, .jvmRepeatable) }).sorted(by: { $0.name < $1.name }) {
             let name = try repeatableContainerName(plan.symbol)!
             let element = JVMValueType.reference("[L" + plan.name + ";", nullable: false)
             var method = rawFunction(name, name: "value", parameters: [], result: element, access: 0x0401, locals: [], instructions: [])

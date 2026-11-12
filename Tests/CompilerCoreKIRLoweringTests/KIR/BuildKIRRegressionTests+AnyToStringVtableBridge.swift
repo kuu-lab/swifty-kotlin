@@ -51,14 +51,13 @@ extension BuildKIRRegressionTests {
         return Int64(slot)
     }
 
-    // KUU-3197: a vtable slot is invoked through its declared signature —
-    // `emitVirtualCall` types a `toString` dispatch as the flat String
-    // aggregate, so the `kotlin.Any.toString` slot must register the flat-ABI
-    // Kotlin implementation (or a flat `kk_itable_bridge_*`). Storing the raw
-    // (Int) -> Int `kk_any_to_string_bridge_*` thunk there makes the flat
-    // call read the single i64 handle as the flat String aggregate, leaving
-    // every word past the first undefined. The raw bridge belongs only to
-    // `kk_object_register_any_to_string`, the erased-Any stringify map.
+    // KUU-4487: the `kotlin.Any.toString` vtable slot keeps the uniform raw
+    // `(Int, Int*) -> Int` handle ABI (`kk_any_member_to_string`) even when
+    // concrete subclasses override `toString`, so a `Base`-typed receiver
+    // dispatches consistently and `kk_any_member_to_string` routes to the
+    // override via `kk_object_register_any_to_string`. The raw
+    // `kk_any_to_string_bridge_*` thunk must never be stored in the vtable
+    // slot itself.
     @Test
     func toStringOverrideRegistersFlatImplementationInVtableSlot() throws {
         TestStdlibCache.shared.prepare()
@@ -84,16 +83,11 @@ extension BuildKIRRegressionTests {
             .filter { $0.slot == slot }
         #expect(!slotRegistrations.isEmpty)
 
-        let flatImplementations = Set(
-            ["Base", "Child"].flatMap { owner in
-                sema.symbols.lookupAll(fqName: [
-                    interner.intern(owner), interner.intern("toString"),
-                ]).filter { sema.symbols.symbol($0)?.kind == .function }
-            }
-        )
         #expect(
-            slotRegistrations.contains { flatImplementations.contains($0.method) },
-            "the flat-ABI Kotlin toString must be stored in the vtable slot"
+            slotRegistrations.contains {
+                sema.symbols.externalLinkName(for: $0.method) == "kk_any_member_to_string"
+            },
+            "the uniform raw kk_any_member_to_string entry must stay registered in the vtable slot"
         )
 
         let registeredFunctionNames = slotRegistrations.compactMap {
@@ -103,6 +97,14 @@ extension BuildKIRRegressionTests {
             !registeredFunctionNames.contains { $0.hasPrefix("kk_any_to_string_bridge_") },
             "the raw Any-dispatch bridge must not be stored in the vtable slot: \(registeredFunctionNames)"
         )
+
+        let anyBridgeRegistrations = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> String? in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                return interner.resolve(callee)
+            }
+        }
+        #expect(anyBridgeRegistrations.contains("kk_object_register_any_to_string"))
     }
 
     // A class that does not override `toString` keeps the runtime

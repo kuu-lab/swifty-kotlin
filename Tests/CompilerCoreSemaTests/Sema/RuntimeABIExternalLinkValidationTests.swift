@@ -540,9 +540,9 @@ struct RuntimeABIExternalLinkValidationTests {
             guard resourceValues.isRegularFile == true else { continue }
             let source = try String(contentsOf: fileURL, encoding: .utf8)
             let relativePath = fileURL.path.replacingOccurrences(of: stdlibRoot.path + "/", with: "")
-            declarations.append(contentsOf: bundledKsSymbolNameDeclarations(in: source, relativePath: relativePath).filter {
-                requiresRuntimeABISpec($0.linkName, isPlatformDeclaration: relativePath.hasPrefix("platform/"))
-            })
+            declarations.append(
+                contentsOf: bundledKsSymbolNameDeclarations(in: source, relativePath: relativePath)
+            )
         }
         return declarations
     }

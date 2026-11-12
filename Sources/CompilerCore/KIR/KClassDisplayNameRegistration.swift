@@ -31,9 +31,8 @@ private func localKClassCastName(
     sema: SemaModule,
     interner: StringInterner
 ) -> String? {
-    let components = symbol.fqName.map { interner.resolve($0) }
-    let isAnonymousObject = components.contains { $0.hasPrefix("__ObjectLiteral_") }
-    guard isAnonymousObject || components.contains(where: { $0.hasPrefix("__localdecl_") }),
+    let isAnonymousObject = sema.symbols.isObjectLiteralSynthetic(symbolID)
+    guard isAnonymousObject || sema.symbols.isLocalDeclSynthetic(symbolID),
           let declarationRange = symbol.declSite
     else {
         return nil
@@ -66,7 +65,7 @@ private func localKClassCastName(
         let ownerRange = enclosingCallable.declSite!
         let anonymousSiblings = symbols.filter { candidate in
             guard candidate.id != symbolID,
-                  candidate.fqName.contains(where: { interner.resolve($0).hasPrefix("__ObjectLiteral_") }),
+                  sema.symbols.isObjectLiteralSynthetic(candidate.id),
                   let candidateRange = candidate.declSite
             else {
                 return false

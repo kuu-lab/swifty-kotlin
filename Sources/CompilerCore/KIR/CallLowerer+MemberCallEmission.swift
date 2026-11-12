@@ -1054,7 +1054,7 @@ extension CallLowerer {
         // operation must not retain the source symbol for NativeEmitter's
         // internal-function lookup; that would bypass the runtime ABI callee.
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
-            memberName: interner.resolve(calleeName),
+            memberName: calleeName,
             receiverType: receiver.type(in: sema) ?? sema.types.anyType,
             chosenCallee: chosenCallee,
             sema: sema,
@@ -1062,7 +1062,7 @@ extension CallLowerer {
         )
         let receiverType = receiver.type(in: sema) ?? sema.types.anyType
         let runtimeProgressionMemberCallee = runtimeBackedULongProgressionMemberCallee(
-            memberName: interner.resolve(calleeName),
+            memberName: calleeName,
             receiverType: receiverType,
             sema: sema,
             interner: interner
@@ -1070,7 +1070,7 @@ extension CallLowerer {
         let usesRuntimeSetMember = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
             && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
         let usesRuntimeSetContains = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
-            && interner.resolve(calleeName) == "contains"
+            && calleeName == knownNames.contains
             && isSetLikeType(receiverType, sema: sema, interner: interner)
         let usesRuntimeProgressionMember = runtimeProgressionMemberCallee.map { $0 == loweredCallee } == true
         let rangeInterfaceCallee = closedRangeInterfaceRuntimeName(
