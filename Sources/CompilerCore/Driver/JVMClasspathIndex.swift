@@ -8,10 +8,11 @@ final class JVMClasspathIndex {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
-    /// Classes loaded from `lazilyInjecting` classpath entries (Android
-    /// framework jars or selected JDK module packages). They stay indexed for
-    /// signature mapping, but `inject(into:)` emits Kotlin stubs only for the
-    /// subset reachable from user sources.
+    /// Classes kept indexed for signature mapping and d8 input while
+    /// `inject(into:)` emits Kotlin stubs only for the subset reachable from
+    /// user sources. Explicitly lazy entries (Android framework jars or
+    /// selected JDK module packages) and oversized classpaths use this so
+    /// importing every framework/library class cannot exhaust the symbol table.
     private(set) var lazyClassNames: Set<String> = []
     private var requiredLazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
@@ -20,10 +21,13 @@ final class JVMClasspathIndex {
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
 
+    private static let defaultAutomaticLazyClasspathMemberLimit = 20_000
+
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
         fallbackClassFiles: [(String, Data)] = [],
-        requiredLazyClassNames: Set<String> = []
+        requiredLazyClassNames: Set<String> = [],
+        automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         result.requiredLazyClassNames = requiredLazyClassNames
@@ -79,6 +83,19 @@ final class JVMClasspathIndex {
         result.indexInnerClasses()
         for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
             result.classes[info.name] = info
+        }
+        let eagerClasspathMemberCount = result.classes.values.reduce(0) { count, info in
+            result.lazyClassNames.contains(info.name) ? count : count + 1 + info.methods.count + info.fields.count
+        }
+        if eagerClasspathMemberCount >= automaticLazyClasspathMemberLimit {
+            // Eager stubs for a classpath this large can exhaust the synthetic
+            // symbol band. Keep every class indexed, but emit only the classes
+            // reachable from user sources and eager signatures. Explicitly
+            // supplied fallback classes are not classpath entries and stay eager.
+            let fallbackClassNames = Set(result.fallbackClassFiles.map {
+                String($0.0.dropLast(".class".count))
+            })
+            result.lazyClassNames.formUnion(Set(result.hierarchyClasses.keys).subtracting(fallbackClassNames))
         }
         result.importInheritedMembers(for: Set(result.classes.keys).subtracting(result.lazyClassNames))
         return result
@@ -1080,7 +1097,9 @@ final class JVMClasspathIndex {
 
     // MARK: - Lazy classpath injection
 
-    /// Packages Kotlin auto-imports on the JVM.
+    /// Packages Kotlin auto-imports on the JVM. Lazy classpath entries can
+    /// live in any package, but unqualified lookup only needs these; explicit
+    /// imports, star imports, and same-package references are matched separately.
     private static let autoImportedPackages: Set<String> = [
         "java.lang", "kotlin.jvm",
     ]
@@ -1171,7 +1190,8 @@ final class JVMClasspathIndex {
 
     /// Computes the set of lazy classpath classes that must be injected:
     /// classes named by user sources (imports, qualified references,
-    /// star/auto/same-package lookups) plus the transitive closure over
+    /// star/auto/same-package lookups) and fully-qualified references in
+    /// injected JVM stdlib sources, plus the transitive closure over
     /// supertypes and emitted method signature types.
     private func referencedLazyClasses(
         into ctx: CompilationContext, covered: Set<String>, additionalRoots: Set<String>
@@ -1220,11 +1240,20 @@ final class JVMClasspathIndex {
 
         for file in ctx.sourceManager.fileIDs() {
             let origin = ctx.sourceManager.origin(of: file)
-            guard origin == .user,
-                  !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/")
+            guard origin == .residualStdlib
+                || (origin == .user && !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/"))
             else { continue }
             let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
+            if origin == .residualStdlib {
+                // Bundled JVM declarations reference JDK types by FQN; the
+                // identifier/same-package heuristics would mistake stdlib
+                // declarations for classpath references.
+                for match in Self.dottedPattern.matches(in: text, range: range) {
+                    if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+                }
+                continue
+            }
             var identifiers = Set<String>()
             for match in Self.identifierPattern.matches(in: text, range: range) {
                 if let r = Range(match.range, in: text) { identifiers.insert(String(text[r])) }
