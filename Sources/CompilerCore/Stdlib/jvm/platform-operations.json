@@ -1,5 +1,12 @@
 [
   {
+    "symbol": "__jvmFileName",
+    "owner": "java/io/File",
+    "name": "getName",
+    "descriptor": "()Ljava/lang/String;",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmCloseResource",
     "owner": "java/io/Closeable",
     "name": "close",
