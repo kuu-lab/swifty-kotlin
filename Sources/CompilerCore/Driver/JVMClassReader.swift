@@ -39,6 +39,10 @@ struct JVMClassInfo {
         isKotlinFileFacade == nil && field.isPublic && field.isStatic
             && (!field.isFinal || field.constantValue == nil) && field.access & 0x5000 == 0
     }
+
+    func isRuntimeInstanceField(_ field: JVMForeignField) -> Bool {
+        isKotlinFileFacade == nil && field.isPublic && !field.isStatic && field.access & 0x1000 == 0
+    }
 }
 
 struct JVMInnerClassInfo {
