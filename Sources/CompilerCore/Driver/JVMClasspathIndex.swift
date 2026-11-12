@@ -409,6 +409,9 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
+            if function.valueOperatorParameterDescriptors != nil {
+                return method.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType(method.result)
+            }
             if function.isSuspend {
                 guard let suspend = method.kotlinSuspendFunction else { return false }
                 let composable = function.composableParameters
@@ -1001,7 +1004,7 @@ final class JVMClasspathIndex {
     /// companion. Emitted without indentation; Kotlin is brace-delimited.
     private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
         let own = members.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
-        let statics = own.filter(\.isStatic)
+        let statics = own.filter { $0.isStatic && $0.kotlinFunction?.valueOperatorParameterDescriptors == nil }
         // Covered Java supertypes render as Kotlin mapped types whose
         // member names differ from the erased classfile signatures; bridge
         // the differences explicitly (see kotlinSupertypeName).
@@ -1127,6 +1130,9 @@ final class JVMClasspathIndex {
         let kotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
         for method in own where method.isConstructor && !method.parameters.isEmpty {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
+        }
+        for method in own where method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
+            source += "external " + functionDeclaration(method) + "\n"
         }
         for method in own where !method.isConstructor && !method.isStatic {
             if let getter = kotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
@@ -1877,6 +1883,16 @@ final class JVMClasspathIndex {
             let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
             let descriptor = "(" + parameters + continuation + ")"
             let staticMember = isTopLevel || isStaticCompanion
+            if !staticMember, !signature.isSuspend, JVMKotlinFunction.valueOperators.contains(name) {
+                let logicalParameters = descriptorTypes.map(\.descriptor)
+                let valueOperators = info.methods.filter {
+                    $0.sourceName == name && $0.kotlinFunction?.valueOperatorParameterDescriptors == logicalParameters
+                }
+                if valueOperators.count == 1 {
+                    methods[symbol.id] = valueOperators[0]
+                    continue
+                }
+            }
             let method = info.methods.first(where: {
                 $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                     && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
