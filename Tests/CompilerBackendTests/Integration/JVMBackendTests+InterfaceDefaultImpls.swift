@@ -79,5 +79,36 @@ extension JVMBackendTests {
             #expect(javaRun.stdout == "A\npA\nB\npB\n")
         }
     }
+
+    @Test
+    func kotlinInterfaceDefaultsGetDefaultImplsForwarders() throws {
+        try withWorkspace { root in
+            let runtime = try m11Runtime()
+            let result = try compile("""
+            import kotlin.coroutines.*
+            object ProbeKey : CoroutineContext.Key<ProbeElement>
+            class ProbeElement : CoroutineContext.Element {
+                override val key: CoroutineContext.Key<*> get() = ProbeKey
+            }
+            fun main() {
+                val context: CoroutineContext = ProbeElement()
+                println(context[ProbeKey] != null)
+            }
+            """, root: root, mode: .jvmJar, classpath: runtime.split(separator: ":").map(String.init))
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+
+            let jar = root.appendingPathComponent("hello.jar")
+            let implementation = try jvmTool("javap", ["-p", "-classpath", jar.path, "ProbeElement"], root: root).stdout
+            #expect(implementation.contains("get(kotlin.coroutines.CoroutineContext$Key)"))
+            #expect(implementation.contains("fold(java.lang.Object"))
+            #expect(implementation.contains("minusKey(kotlin.coroutines.CoroutineContext$Key)"))
+            #expect(implementation.contains("plus(kotlin.coroutines.CoroutineContext)"))
+
+            let run = try java(["-cp", jar.path + ":" + runtime, "HelloKt"])
+            #expect(run.stdout == "true\n")
+            #expect(run.stderr.isEmpty)
+        }
+    }
 }
 #endif

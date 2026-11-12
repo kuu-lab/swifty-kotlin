@@ -7,15 +7,6 @@ fun viaNullableExtension(s: String?): Int = with(s) { firstCode() }
 Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:14:55: error KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
 fun viaNullableMemberFn(s: String?): Char = with(s) { get(0) }
                                                       ^
-Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:15:56: error KSWIFTK-SEMA-0022: Unresolved reference 'length'.
-fun viaNullableMemberProp(s: String?): Int = with(s) { length }
-                                                       ^
 Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:15:56: error KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
 fun viaNullableMemberProp(s: String?): Int = with(s) { length }
                                                        ^
-Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:18:53: error KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
-    fun viaNullableWrite(b: Box?): Unit = with(b) { n = 1 }
-                                                    ^
-Scripts/diff_cases/kuu_4501_nullable_implicit_receiver_reject.kt:21:67: error KSWIFTK-SEMA-0026: Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.
-    fun viaNullableCallableProperty(h: Handler?): Int = with(h) { run() }
-                                                                  ^

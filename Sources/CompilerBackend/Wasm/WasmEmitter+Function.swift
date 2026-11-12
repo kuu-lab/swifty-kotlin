@@ -41,8 +41,8 @@ final class WasmFunctionEmission {
     private var arena: KIRArena { ctx.kir.arena }
 
     func emitBody() throws -> [UInt8] {
-        assignLocals()
         try computeIntervals()
+        assignLocals()
 
         // Per-position open/close schedules.
         var opensAt: [Int: [LabelInterval]] = [:]
@@ -105,35 +105,151 @@ final class WasmFunctionEmission {
         for (index, param) in function.params.enumerated() {
             paramLocalBySymbol[param.symbol.rawValue] = index
         }
-        for instruction in function.body {
-            switch instruction {
-            case let .constValue(result, _),
-                 let .binary(_, _, _, result),
-                 let .unary(_, _, result),
-                 let .nullAssert(_, result),
-                 let .loadGlobal(result, _):
-                assignLocal(result)
-            case let .call(_, _, _, result, _, thrownResult, _, _):
-                if let result { assignLocal(result) }
-                if let thrownResult { assignLocal(thrownResult) }
-            case let .virtualCall(_, _, _, _, result, _, thrownResult, _):
-                if let result { assignLocal(result) }
-                if let thrownResult { assignLocal(thrownResult) }
-            case let .copy(_, to):
-                assignLocal(to)
-            default:
-                break
+
+        struct Span {
+            var first: Int
+            var last: Int
+        }
+
+        var defs: [Int32: Span] = [:]
+        var uses: [Int32: Span] = [:]
+        var orderedAssignedIDs: [Int32] = []
+        orderedAssignedIDs.reserveCapacity(function.body.count)
+
+        func recordDef(_ id: KIRExprID, at pos: Int) {
+            let raw = id.rawValue
+            if var span = defs[raw] {
+                if pos < span.first { span.first = pos }
+                if pos > span.last { span.last = pos }
+                defs[raw] = span
+            } else {
+                defs[raw] = Span(first: pos, last: pos)
+                orderedAssignedIDs.append(raw)
             }
         }
+
+        func recordUse(_ id: KIRExprID, at pos: Int) {
+            let raw = id.rawValue
+            if var span = uses[raw] {
+                if pos < span.first { span.first = pos }
+                if pos > span.last { span.last = pos }
+                uses[raw] = span
+            } else {
+                uses[raw] = Span(first: pos, last: pos)
+            }
+        }
+
+        var branchOrLabelPrefix = Array(repeating: 0, count: function.body.count + 1)
+        for (pos, instruction) in function.body.enumerated() {
+            var isControlFlowBoundary = false
+            switch instruction {
+            case let .constValue(result, _),
+                 let .loadGlobal(result, _):
+                recordDef(result, at: pos)
+            case let .binary(_, lhs, rhs, result):
+                recordUse(lhs, at: pos)
+                recordUse(rhs, at: pos)
+                recordDef(result, at: pos)
+            case let .unary(_, operand, result),
+                 let .nullAssert(operand, result):
+                recordUse(operand, at: pos)
+                recordDef(result, at: pos)
+            case let .call(_, _, arguments, result, _, thrownResult, _, _):
+                for arg in arguments { recordUse(arg, at: pos) }
+                if let result { recordDef(result, at: pos) }
+                if let thrownResult { recordDef(thrownResult, at: pos) }
+            case let .virtualCall(_, _, receiver, arguments, result, _, thrownResult, _):
+                recordUse(receiver, at: pos)
+                for arg in arguments { recordUse(arg, at: pos) }
+                if let result { recordDef(result, at: pos) }
+                if let thrownResult { recordDef(thrownResult, at: pos) }
+            case let .copy(from, to):
+                recordUse(from, at: pos)
+                recordDef(to, at: pos)
+            case let .storeGlobal(value, _),
+                 let .rethrow(value),
+                 let .returnValue(value),
+                 let .resumeNonLocalReturn(value):
+                recordUse(value, at: pos)
+            case let .returnIfEqual(lhs, rhs):
+                recordUse(lhs, at: pos)
+                recordUse(rhs, at: pos)
+            case let .nonLocalReturn(value, _):
+                if let value { recordUse(value, at: pos) }
+            case let .jumpIfEqual(lhs, rhs, _):
+                recordUse(lhs, at: pos)
+                recordUse(rhs, at: pos)
+                isControlFlowBoundary = true
+            case let .jumpIfNotNull(value, _):
+                recordUse(value, at: pos)
+                isControlFlowBoundary = true
+            case .label, .jump:
+                isControlFlowBoundary = true
+            case .nop, .beginBlock, .endBlock, .returnUnit,
+                 .beginNonLocalReturnScope, .endNonLocalReturnScope,
+                 .beginFinallyCleanup, .endFinallyCleanup,
+                 .beginFinallyGuard, .endFinallyGuard:
+                break
+            }
+            branchOrLabelPrefix[pos + 1] = branchOrLabelPrefix[pos] + (isControlFlowBoundary ? 1 : 0)
+        }
+
+        let bodyCount = function.body.count
+        let loops = intervals.filter(\.isLoop)
+        var startsAt = Array(repeating: [(end: Int, id: Int32)](), count: bodyCount + 1)
+
+        for raw in orderedAssignedIDs {
+            let def = defs[raw]!
+            var start = def.first
+            var end = def.last
+            var hasUseBeforeDef = false
+            if let use = uses[raw] {
+                if use.first < start { start = use.first }
+                if use.last > end { end = use.last }
+                if use.first < def.first { hasUseBeforeDef = true }
+            }
+            let crossesBranchOrLabel = branchOrLabelPrefix[end + 1] > branchOrLabelPrefix[start]
+            var coveredByLoop = false
+            for loop in loops {
+                if start <= loop.close && end >= loop.open {
+                    coveredByLoop = true
+                    if start < loop.open || hasUseBeforeDef || crossesBranchOrLabel {
+                        if loop.open < start { start = loop.open }
+                        if loop.close > end { end = loop.close }
+                    }
+                }
+            }
+            if hasUseBeforeDef && !coveredByLoop {
+                start = 0
+                end = bodyCount
+            }
+            startsAt[start].append((end: end, id: raw))
+        }
+
+        // Reuse dead locals across disjoint lifetime intervals so large
+        // synthetic reflection initializers stay under WebAssembly engines'
+        // 50,000-local limit.
+        var expireAt = Array(repeating: [Int](), count: bodyCount + 1)
+        var freeLocals: [Int] = []
+        for pos in 0...bodyCount {
+            for interval in startsAt[pos] {
+                let local: Int
+                if let reused = freeLocals.popLast() {
+                    local = reused
+                } else {
+                    local = nextLocal
+                    nextLocal += 1
+                }
+                localIndexByExpr[interval.id] = local
+                expireAt[interval.end].append(local)
+            }
+            for expired in expireAt[pos] {
+                freeLocals.append(expired)
+            }
+        }
+
         scratchLocal = nextLocal
         nextLocal += 8
-    }
-
-    private func assignLocal(_ id: KIRExprID) {
-        if localIndexByExpr[id.rawValue] == nil {
-            localIndexByExpr[id.rawValue] = nextLocal
-            nextLocal += 1
-        }
     }
 
     // MARK: - Structured control flow

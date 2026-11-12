@@ -1,4 +1,5 @@
 package kotlin.sequences
+public fun <T, R> Sequence<T>.runningFold(initial: R, operation: (R, T) -> R): Sequence<R> = null!!
 fun <T> emptySequence(): Sequence<T> = null!!
 fun <T> sequenceOf(element: T): Sequence<T> = null!!
 fun <T> sequenceOf(vararg elements: T): Sequence<T> = null!!

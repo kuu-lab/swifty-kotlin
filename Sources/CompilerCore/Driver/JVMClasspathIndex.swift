@@ -8,23 +8,30 @@ final class JVMClasspathIndex {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
-    /// Classes loaded from `lazilyInjecting` classpath entries (the Android
-    /// `android.jar`). They stay indexed for signature mapping and d8 input,
-    /// but `inject(into:)` only emits Kotlin stubs for the subset reachable
-    /// from user sources — injecting the whole framework would create
-    /// hundreds of thousands of symbols.
+    /// Classes kept indexed for signature mapping and d8 input while
+    /// `inject(into:)` emits Kotlin stubs only for the subset reachable from
+    /// user sources. Explicitly lazy entries (Android framework jars or
+    /// selected JDK module packages) and oversized classpaths use this so
+    /// importing every framework/library class cannot exhaust the symbol table.
     private(set) var lazyClassNames: Set<String> = []
+    private var requiredLazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
+    private var innerClassesByOwner: [String: [JVMInnerClassInfo]] = [:]
     /// Covered names for the `inject(into:)` run in progress; supertypes that
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
 
+    private static let defaultAutomaticLazyClasspathMemberLimit = 20_000
+
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
-        fallbackClassFiles: [(String, Data)] = []
+        fallbackClassFiles: [(String, Data)] = [],
+        requiredLazyClassNames: Set<String> = [],
+        automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
+        result.requiredLazyClassNames = requiredLazyClassNames
         var seen: Set<String> = []
         func insert(_ bytes: [UInt8], path: String) throws {
             var reader = JVMClassReader(bytes: bytes)
@@ -48,9 +55,13 @@ final class JVMClasspathIndex {
             if directory.boolValue {
                 let base = URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath()
                 guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else { throw JVMClassReader.Invalid() }
-                let files = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "class" }.sorted { $0.path < $1.path }
-                for file in files {
-                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(base.pathComponents.count).joined(separator: "/")
+                let files = enumerator.compactMap { entry -> (file: URL, path: String)? in
+                    guard let file = entry as? URL, file.pathExtension == "class" else { return nil }
+                    return (file, file.path)
+                }.sorted { $0.path < $1.path }
+                let baseDepth = base.pathComponents.count
+                for (file, _) in files {
+                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(baseDepth).joined(separator: "/")
                     guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"), !relative.hasSuffix("package-info.class") else { continue }
                     try insert(Array(Data(contentsOf: file)), path: relative)
                 }
@@ -78,7 +89,20 @@ final class JVMClasspathIndex {
         for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
             result.classes[info.name] = info
         }
-        result.importInheritedMembers()
+        let eagerClasspathMemberCount = result.classes.values.reduce(0) { count, info in
+            result.lazyClassNames.contains(info.name) ? count : count + 1 + info.methods.count + info.fields.count
+        }
+        if eagerClasspathMemberCount >= automaticLazyClasspathMemberLimit {
+            // Eager stubs for a classpath this large can exhaust the synthetic
+            // symbol band. Keep every class indexed, but emit only the classes
+            // reachable from user sources and eager signatures. Explicitly
+            // supplied fallback classes are not classpath entries and stay eager.
+            let fallbackClassNames = Set(result.fallbackClassFiles.map {
+                String($0.0.dropLast(".class".count))
+            })
+            result.lazyClassNames.formUnion(Set(result.hierarchyClasses.keys).subtracting(fallbackClassNames))
+        }
+        result.importInheritedMembers(for: Set(result.classes.keys).subtracting(result.lazyClassNames))
         return result
     }
 
@@ -96,6 +120,11 @@ final class JVMClasspathIndex {
                   !ownersWithAuthoritativeMetadata.contains(outer),
                   innerClassMetadata[selfEntry.name] == nil else { continue }
             innerClassMetadata[selfEntry.name] = selfEntry
+        }
+        for entry in innerClassMetadata.values {
+            if let owner = entry.outerName {
+                innerClassesByOwner[owner, default: []].append(entry)
+            }
         }
     }
 
@@ -115,8 +144,8 @@ final class JVMClasspathIndex {
     }
 
     private func nestedClassDeclarations(of owner: String, indentation: String = "    ") -> String {
-        let children = innerClassMetadata.values
-            .filter { $0.outerName == owner && classes[$0.name] != nil }
+        let children = (innerClassesByOwner[owner] ?? [])
+            .filter { classes[$0.name] != nil }
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
@@ -126,11 +155,20 @@ final class JVMClasspathIndex {
                 : "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
             let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
             if info.flags & 0x2000 != 0 {
-                source += indentation + visibility + "annotation class `\(name)`\(typeParameters)\n"
+                source += annotationClassDeclaration(info, short: name, visibility: visibility, indentation: indentation)
                 continue
             }
             if info.flags & 0x4000 != 0 {
-                source += indentation + visibility + "enum class `\(name)`\(typeParameters) { }\n"
+                let entries = info.fields.compactMap { field -> String? in
+                    guard field.isPublic, field.isStatic, field.isFinal,
+                          field.access & 0x4000 != 0,
+                          field.descriptor == "L\(info.name);",
+                          JVMProgramBuilder.isIdentifier(field.name)
+                    else { return nil }
+                    return "`\(field.name)`"
+                }
+                let body = entries.isEmpty ? "{ }" : "{ " + entries.joined(separator: ", ") + " }"
+                source += indentation + visibility + "enum class `\(name)`\(typeParameters) \(body)\n"
                 continue
             }
             if info.isInterface {
@@ -158,7 +196,7 @@ final class JVMClasspathIndex {
         return source
     }
 
-    private func importInheritedMembers() {
+    private func importInheritedMembers(for classNames: Set<String>) {
         func key(_ method: JVMForeignMethod) -> String {
             method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
         }
@@ -166,10 +204,13 @@ final class JVMClasspathIndex {
             var result = JVMForeignMethod(owner: info.name, name: method.name, descriptor: method.descriptor, parameters: method.parameters,
                                           result: method.result, isStatic: method.isStatic, isInterface: info.isInterface, isAbstract: method.isAbstract)
             result.isFinal = method.isFinal; result.isSpecial = method.isSpecial; result.isSuspend = method.isSuspend
-            result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isProtected = method.isProtected
+            result.annotations = method.annotations
+            result.annotationDefault = method.annotationDefault
+            result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
+            result.kotlinFunction = method.kotlinFunction
             return result
         }
         func interfaceInherits(_ subtype: String, _ supertype: String, visited: Set<String> = []) -> Bool {
@@ -177,8 +218,10 @@ final class JVMClasspathIndex {
             guard !visited.contains(subtype), let info = hierarchyClasses[subtype] else { return false }
             return info.interfaces.contains { interfaceInherits($0, supertype, visited: visited.union([subtype])) }
         }
-        for info in classes.values {
+        for name in classNames.sorted() {
+            guard let info = classes[name] else { continue }
             var methods = info.methods
+            var methodKeys = Set(methods.lazy.map(key))
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -190,7 +233,7 @@ final class JVMClasspathIndex {
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
-                    if !methods.contains(where: { key($0) == signature }),
+                    if !methodKeys.contains(signature),
                        interfaceMethods[signature].map({ interfaceInherits(method.owner, $0.owner) }) ?? true {
                         // The most specific interface wins independently of the
                         // order of redundant interfaces in the classfile.
@@ -207,7 +250,7 @@ final class JVMClasspathIndex {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
-                    if !methods.contains(where: { key($0) == key(method) }) {
+                    if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
                         // when its implementation is inherited from a hidden base.
                         methods.append(visible ? method : accessibleMethod(method, on: info))
@@ -221,6 +264,7 @@ final class JVMClasspathIndex {
             }
             for name in inheritedInterfaces { inheritInterface(name) }
             methods += interfaceMethods.keys.sorted().map { accessibleMethod(interfaceMethods[$0]!, on: info) }
+            methodKeys.formUnion(interfaceMethods.keys)
             var abstractMethods: Set<String> = []
             var abstractVisited: Set<String> = []
             func collectAbstract(_ name: String) {
@@ -233,8 +277,11 @@ final class JVMClasspathIndex {
             if let superclass { collectAbstract(superclass) }
             // Erased imports need a real bridge when an inherited raw method
             // has different parameters from the specialized implementation.
-            for bridge in bridges where abstractMethods.contains(key(bridge)) && !methods.contains(where: { key($0) == key(bridge) }) {
-                methods.append(accessibleMethod(bridge, on: info))
+            for bridge in bridges {
+                let signature = key(bridge)
+                if abstractMethods.contains(signature), methodKeys.insert(signature).inserted {
+                    methods.append(accessibleMethod(bridge, on: info))
+                }
             }
             var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
             imported.bridgeMethods = bridges
@@ -243,6 +290,9 @@ final class JVMClasspathIndex {
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
             imported.isKotlinFileFacade = info.isKotlinFileFacade
+            imported.annotations = info.annotations
+            imported.hasKotlinMetadata = info.hasKotlinMetadata
+            imported.kotlinAnnotationVarargElementNames = info.kotlinAnnotationVarargElementNames
             classes[info.name] = imported
         }
     }
@@ -252,7 +302,8 @@ final class JVMClasspathIndex {
         // their raw Java signatures are not importable declarations.
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
-        return name == "java/lang/String" || name == "java/lang/Object" || name == "kotlin/coroutines/Continuation" || classes[name] != nil
+        return name == "java/lang/String" || name == "java/lang/Object" || name == "java/lang/Class"
+            || name == "kotlin/coroutines/Continuation" || classes[name] != nil
     }
 
     private func exposeSuspendType(_ type: JVMValueType) -> Bool {
@@ -266,7 +317,11 @@ final class JVMClasspathIndex {
     }
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
-        guard method.isConstructor || JVMProgramBuilder.isIdentifier(method.name) else { return false }
+        let exposedName = method.kotlinFunction?.name ?? method.kotlinSuspendFunction?.name ?? method.name
+        guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
+        if let function = method.kotlinFunction {
+            return function.parameters.count + (function.receiver == nil ? 0 : 1) == method.parameters.count
+        }
         if let suspend = method.kotlinSuspendFunction {
             return JVMProgramBuilder.isIdentifier(suspend.name)
                 && method.sourceParameters.allSatisfy(exposeSuspendType) && exposeSuspendType(suspend.result)
@@ -374,7 +429,10 @@ final class JVMClasspathIndex {
             }
         }
         visit(name)
-        let abstracts = members.values.filter(\.isAbstract)
+        // Count only methods that memberDeclarations can expose. Partial JDK
+        // classpaths may omit a method's signature type, in which case the
+        // method is intentionally omitted from the generated stub as well.
+        let abstracts = members.values.filter { $0.isAbstract && isExposed($0) }
         guard abstracts.count == 1, let sam = abstracts.first else { return false }
         // Getter-shaped members are also emitted as `val` properties; when
         // the single abstract member has that shape the `fun interface`
@@ -386,6 +444,258 @@ final class JVMClasspathIndex {
         }
         return true
     }
+    func annotationElements(of info: JVMClassInfo) -> [(name: String, type: JVMValueType, defaultValue: JVMAnnotationValue?, isVararg: Bool)] {
+        info.methods.compactMap { method in
+            guard method.isAbstract, !method.isStatic, !method.isConstructor,
+                  method.parameters.isEmpty, method.name != "annotationType",
+                  method.result != .unit, JVMProgramBuilder.isIdentifier(method.name)
+            else { return nil }
+            return (method.name, method.result, method.annotationDefault,
+                    annotationElementIsVararg(info, name: method.name, type: method.result))
+        }
+    }
+
+    private func annotationElementKotlinType(_ type: JVMValueType) -> String? {
+        switch type {
+        case .unit:
+            return nil
+        case .string, .int, .long, .float, .double, .boolean, .byte, .short, .char:
+            return kotlinType(type)
+        case let .reference(name, _, _):
+            if name == "java/lang/Class" { return "kotlin.reflect.KClass<*>" }
+            if name.hasPrefix("[") {
+                guard let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 else { return nil }
+                if element.isNumeric || element == .boolean { return kotlinType(type) }
+                guard let elementName = element.referenceName else { return nil }
+                let elementType = elementName == "java/lang/Class" ? "kotlin.reflect.KClass<*>" : kotlinType(element)
+                return "kotlin.Array<" + elementType + ">"
+            }
+            return kotlinType(type)
+        default:
+            return nil
+        }
+    }
+
+    private func annotationElementIsVararg(_ info: JVMClassInfo, name: String, type: JVMValueType) -> Bool {
+        guard type.referenceName?.hasPrefix("[") == true else { return false }
+        if info.hasKotlinMetadata { return info.kotlinAnnotationVarargElementNames.contains(name) }
+        // Java annotation elements are not vararg in bytecode, but Kotlin maps a
+        // lone `value` array element to `vararg` (KUU-4541).
+        return name == "value"
+    }
+
+    private func annotationVarargElementKotlinType(_ type: JVMValueType) -> String? {
+        guard let name = type.referenceName, name.hasPrefix("["),
+              let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1
+        else { return nil }
+        if element.isNumeric || element == .boolean { return kotlinType(element) }
+        guard let elementName = element.referenceName else { return nil }
+        return elementName == "java/lang/Class" ? "kotlin.reflect.KClass<*>" : kotlinType(element)
+    }
+
+    private func annotationClassDeclaration(_ info: JVMClassInfo, short: String, visibility: String = "", indentation: String = "") -> String {
+        var lines: [String] = []
+        lines.append("@kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.\(javaAnnotationRetention(info.annotations)))")
+        if let targets = javaAnnotationTargets(info.annotations), !targets.isEmpty {
+            lines.append("@kotlin.annotation.Target(" + targets.map { "kotlin.annotation.AnnotationTarget." + $0 }.joined(separator: ", ") + ")")
+        }
+        let parameters = annotationElements(of: info).enumerated().compactMap { index, element -> String? in
+            let type = element.isVararg ? annotationVarargElementKotlinType(element.type) : annotationElementKotlinType(element.type)
+            guard let type else { return nil }
+            let name = JVMProgramBuilder.isIdentifier(element.name) ? "`\(element.name)`" : "p\(index)"
+            var parameter = (element.isVararg ? "vararg val " : "val ") + name + ": " + type
+            // Vararg defaults remain array literals in bytecode metadata; the
+            // frontend consumes them directly, while source varargs may omit them.
+            if !element.isVararg, let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
+                parameter += " = \(rendered)"
+            }
+            return parameter
+        }.joined(separator: ", ")
+        let declaration = visibility + "annotation class `\(short)`(" + parameters + ")"
+        let nested = nestedClassDeclarations(of: info.name, indentation: indentation + "    ")
+        guard !nested.isEmpty else {
+            lines.append(declaration)
+            return lines.map { indentation + $0 }.joined(separator: "\n") + "\n"
+        }
+        var result = lines.map { indentation + $0 }.joined(separator: "\n") + "\n"
+        result += indentation + declaration + " {\n" + nested + indentation + "}\n"
+        return result
+    }
+
+    private func javaAnnotationRetention(_ annotations: [JVMAnnotation]) -> String {
+        guard let retention = annotations.first(where: { $0.descriptor == "Ljava/lang/annotation/Retention;" }),
+              case let .enumEntry(_, policy)? = retention.values.first(where: { $0.0 == "value" })?.1
+        else { return "BINARY" }
+        switch policy {
+        case "RUNTIME": return "RUNTIME"
+        case "SOURCE": return "SOURCE"
+        default: return "BINARY"
+        }
+    }
+
+    private func javaAnnotationTargets(_ annotations: [JVMAnnotation]) -> [String]? {
+        guard let target = annotations.first(where: { $0.descriptor == "Ljava/lang/annotation/Target;" }) else { return nil }
+        let mapping: [String: [String]] = [
+            "TYPE": ["CLASS"],
+            "ANNOTATION_TYPE": ["ANNOTATION_CLASS"],
+            "METHOD": ["FUNCTION", "PROPERTY_GETTER", "PROPERTY_SETTER"],
+            "CONSTRUCTOR": ["CONSTRUCTOR"],
+            "FIELD": ["FIELD"],
+            "LOCAL_VARIABLE": ["LOCAL_VARIABLE"],
+            "PARAMETER": ["VALUE_PARAMETER"],
+            "TYPE_PARAMETER": ["TYPE_PARAMETER"],
+            "TYPE_USE": ["TYPE"],
+        ]
+        var names: [String] = []
+        func add(_ value: JVMAnnotationValue) {
+            switch value {
+            case let .enumEntry(_, name):
+                for mapped in mapping[name] ?? [] where !names.contains(mapped) { names.append(mapped) }
+            case let .array(elements):
+                for element in elements { add(element) }
+            default:
+                break
+            }
+        }
+        for (_, value) in target.values { add(value) }
+        return names.isEmpty ? nil : names
+    }
+
+    private func annotationValueSource(_ value: JVMAnnotationValue, type: JVMValueType, depth: Int = 0) -> String? {
+        guard depth < 64 else { return nil }
+        switch value {
+        case let .constant(.int(number)):
+            return type == .long ? "\(number)L" : "\(number)"
+        case let .constant(.long(number)):
+            return number == Int64.min ? "kotlin.Long.MIN_VALUE" : "\(number)L"
+        case let .constant(.float(number)):
+            guard number.isFinite else { return nil }
+            return kotlinFloatLiteral(number)
+        case let .constant(.double(number)):
+            guard number.isFinite else { return nil }
+            return kotlinDoubleLiteral(number)
+        case let .constant(.boolean(flag)):
+            return flag ? "true" : "false"
+        case let .constant(.string(string)):
+            return kotlinStringLiteral(string)
+        case .constant(.null):
+            return nil
+        case let .integral(number, tag):
+            if tag == 67 { return kotlinCharLiteral(number) }
+            return "\(number)"
+        case let .enumEntry(descriptor, name):
+            guard let typeName = annotationDescriptorTypeName(descriptor) else { return nil }
+            return typeName + "." + (JVMProgramBuilder.isIdentifier(name) ? name : "`\(name)`")
+        case let .classType(descriptor):
+            guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
+            return typeName + "::class"
+        case let .annotation(annotation):
+            return annotationInstanceSource(annotation, depth: depth + 1)
+        case let .array(elements):
+            guard let elementType = annotationArrayElementType(type) else { return nil }
+            var rendered: [String] = []
+            for element in elements {
+                guard let source = annotationValueSource(element, type: elementType, depth: depth + 1) else { return nil }
+                rendered.append(source)
+            }
+            return "[" + rendered.joined(separator: ", ") + "]"
+        }
+    }
+
+    private func annotationArrayElementType(_ type: JVMValueType) -> JVMValueType? {
+        guard let name = type.referenceName, name.hasPrefix("["),
+              let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1
+        else { return nil }
+        return element
+    }
+
+    private func annotationInstanceSource(_ annotation: JVMAnnotation, depth: Int) -> String? {
+        guard depth < 64, let typeName = annotationDescriptorTypeName(annotation.descriptor) else { return nil }
+        let internalName = String(annotation.descriptor.dropFirst().dropLast())
+        let elementTypes = classes[internalName].map { info in
+            Dictionary(uniqueKeysWithValues: annotationElements(of: info).map { ($0.name, $0.type) })
+        } ?? [:]
+        var arguments: [String] = []
+        for (name, value) in annotation.values {
+            let elementType = elementTypes[name] ?? .reference("java/lang/Object", nullable: false)
+            guard let rendered = annotationValueSource(value, type: elementType, depth: depth + 1) else { return nil }
+            arguments.append(name + " = " + rendered)
+        }
+        return typeName + "(" + arguments.joined(separator: ", ") + ")"
+    }
+
+    private func annotationDescriptorTypeName(_ descriptor: String) -> String? {
+        guard descriptor.hasPrefix("L"), descriptor.hasSuffix(";") else { return nil }
+        return Self.dottedTypeName(String(descriptor.dropFirst().dropLast()))
+    }
+
+    private func kotlinClassLiteralType(_ descriptor: String) -> String? {
+        if descriptor.hasPrefix("L"), descriptor.hasSuffix(";") {
+            let name = String(descriptor.dropFirst().dropLast())
+            if name == "java/lang/Class" { return "kotlin.reflect.KClass<*>" }
+            return kotlinType(.reference(name, nullable: false))
+        }
+        if descriptor.hasPrefix("[") { return kotlinType(.reference(descriptor, nullable: false)) }
+        switch descriptor {
+        case "B": return "kotlin.Byte"
+        case "C": return "kotlin.Char"
+        case "D": return "kotlin.Double"
+        case "F": return "kotlin.Float"
+        case "I": return "kotlin.Int"
+        case "J": return "kotlin.Long"
+        case "S": return "kotlin.Short"
+        case "Z": return "kotlin.Boolean"
+        default: return nil
+        }
+    }
+
+    private func kotlinFloatLiteral(_ value: Float) -> String {
+        let rendered = String(value)
+        return rendered + (rendered.contains(".") || rendered.contains("e") || rendered.contains("E") ? "f" : ".0f")
+    }
+
+    private func kotlinDoubleLiteral(_ value: Double) -> String {
+        let rendered = String(value)
+        return rendered.contains(".") || rendered.contains("e") || rendered.contains("E") ? rendered : rendered + ".0"
+    }
+
+    private func kotlinStringLiteral(_ value: String) -> String {
+        var result = "\""
+        for scalar in value.unicodeScalars {
+            switch scalar {
+            case "\\": result += "\\\\"
+            case "\"": result += "\\\""
+            case "\n": result += "\\n"
+            case "\r": result += "\\r"
+            case "\t": result += "\\t"
+            case "\0": result += "\\u0000"
+            case "$": result += "${'$'}"
+            default:
+                if scalar.value < 32 || scalar.value == 127 {
+                    result += String(format: "\\u%04X", scalar.value)
+                } else {
+                    result.append(Character(scalar))
+                }
+            }
+        }
+        return result + "\""
+    }
+
+    private func kotlinCharLiteral(_ value: Int32) -> String? {
+        guard let scalar = Unicode.Scalar(UInt32(truncatingIfNeeded: value)) else { return nil }
+        switch scalar {
+        case "'": return "'\\''"
+        case "\\": return "'\\\\'"
+        case "\n": return "'\\n'"
+        case "\r": return "'\\r'"
+        case "\t": return "'\\t'"
+        case "\0": return "'\\u0000'"
+        default:
+            if scalar.value < 32 || scalar.value == 127 { return nil }
+            return "'" + String(Character(scalar)) + "'"
+        }
+    }
+
     /// Binary class names the frontend already provides: bundled JVM stdlib
     /// sources (which include the JDK platform declarations, scanned after
     /// they are injected) plus synthetic java.* compatibility decls that
@@ -412,7 +722,10 @@ final class JVMClasspathIndex {
     func inject(into ctx: CompilationContext) throws {
         let covered = try coveredClassNames(in: ctx)
         activeCoveredNames = covered
-        let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(into: ctx, covered: covered)
+        let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
+            into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
+        )
+        importInheritedMembers(for: neededLazy ?? [])
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
             guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
@@ -450,7 +763,7 @@ final class JVMClasspathIndex {
                     // top-level function from an extension receiver. Expose
                     // the receiver form as well so Kotlin member syntax binds
                     // to the same static method.
-                    if let receiver = method.parameters.first,
+                    if method.kotlinFunction == nil, let receiver = method.parameters.first,
                        case .reference = receiver, receiver.referenceName?.hasPrefix("[") != true {
                         let rest = method.parameters.dropFirst().enumerated().map {
                             "p\($0.offset): " + kotlinType($0.element)
@@ -459,6 +772,9 @@ final class JVMClasspathIndex {
                     }
                 }
             } else {
+                if info.flags & 0x2000 != 0 {
+                    source += annotationClassDeclaration(info, short: short)
+                } else {
                 if info.isInterface {
                     source += isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`"
                     if !info.classTypeParameterNames.isEmpty {
@@ -486,6 +802,7 @@ final class JVMClasspathIndex {
                 source += memberDeclarations(info: info, members: info.methods)
                 source += nestedClassDeclarations(of: info.name)
                 source += "}\n"
+                }
             }
             let path = "<kswiftk-jvm-import>/" + info.name + ".kt"
             guard !ctx.sourceManager.containsFile(path: path) else { throw JVMClassReader.Invalid() }
@@ -587,16 +904,37 @@ final class JVMClasspathIndex {
         if !info.isInterface {
             for interfaceName in info.interfaces { collectRequiredProperties(interfaceName) }
         }
-        /// Whether a visible superclass chain declares `setX(v)`; the subclass
-        /// then inherits both the `fun` and the `var` mutability.
-        func ancestorHasSetter(_ setterName: String, type: String) -> Bool {
+        func ancestorHasSetter(_ setterName: String, type: String, startingAt owner: String? = nil) -> Bool {
             var visited: Set<String> = [info.name]
-            var next = info.superclass
+            var next = owner ?? info.superclass
             while let name = next, visited.insert(name).inserted, let sup = classes[name] {
                 if sup.methods.contains(where: {
                     matchesSetter($0, name: setterName, type: type)
                 }) { return true }
                 next = sup.superclass
+            }
+            return false
+        }
+        /// Java can narrow a getter's return type while keeping the inherited
+        /// setter. Keep the inherited Kotlin property type and the narrower
+        /// Java method signature available independently.
+        func inheritsWiderMutableProperty(
+            _ getter: JVMForeignMethod, propertyName: String, setterName: String, type: String
+        ) -> Bool {
+            var visited: Set<String> = [info.name]
+            var next = info.superclass
+            while let name = next, visited.insert(name).inserted, let parent = classes[name] {
+                next = parent.superclass
+                guard !isCovered(name, covered: activeCoveredNames),
+                      !parent.methods.contains(where: { !$0.isStatic && $0.name == propertyName }),
+                      let inherited = parent.methods.first(where: {
+                          !$0.isStatic && $0.name == getter.name && $0.parameters.isEmpty
+                              && expose($0.result) && propertyShape($0) != nil
+                      }) else { continue }
+                let inheritedType = kotlinType(inherited.result)
+                if inheritedType != type, ancestorHasSetter(setterName, type: inheritedType, startingAt: name) {
+                    return true
+                }
             }
             return false
         }
@@ -629,6 +967,10 @@ final class JVMClasspathIndex {
             guard JVMProgramBuilder.isIdentifier(propertyName),
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
             let propertyType = kotlinType(getter.result)
+            if let setterName = shape.setterName,
+               inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
+                continue
+            }
             var modifiers = ""
             if getter.isProtected && !info.isInterface { modifiers += "protected " }
             if !info.isInterface && getter.isFinal { modifiers += "final " }
@@ -770,9 +1112,9 @@ final class JVMClasspathIndex {
 
     // MARK: - Lazy classpath injection
 
-    /// Packages Kotlin auto-imports on the JVM. Only `java.lang` can contain
-    /// lazy classes in practice (the Android `android.jar` ships `java.*`
-    /// stubs); `kotlin.*` entries are never injected anyway.
+    /// Packages Kotlin auto-imports on the JVM. Lazy classpath entries can
+    /// live in any package, but unqualified lookup only needs these; explicit
+    /// imports, star imports, and same-package references are matched separately.
     private static let autoImportedPackages: Set<String> = [
         "java.lang", "kotlin.jvm",
     ]
@@ -863,9 +1205,12 @@ final class JVMClasspathIndex {
 
     /// Computes the set of lazy classpath classes that must be injected:
     /// classes named by user sources (imports, qualified references,
-    /// star/auto/same-package lookups) plus the transitive closure over
+    /// star/auto/same-package lookups) and fully-qualified references in
+    /// injected JVM stdlib sources, plus the transitive closure over
     /// supertypes and emitted method signature types.
-    private func referencedLazyClasses(into ctx: CompilationContext, covered: Set<String>) -> Set<String> {
+    private func referencedLazyClasses(
+        into ctx: CompilationContext, covered: Set<String>, additionalRoots: Set<String>
+    ) -> Set<String> {
         // normalized dotted name -> binary class names ("a.b.C.D" may come
         // from either a/b/C$D or a/b/C/D, so keep every candidate).
         var normalizedToBinary: [String: [String]] = [:]
@@ -908,9 +1253,22 @@ final class JVMClasspathIndex {
             }
         }
 
-        for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.origin(of: file) == .user {
+        for file in ctx.sourceManager.fileIDs() {
+            let origin = ctx.sourceManager.origin(of: file)
+            guard origin == .residualStdlib
+                || (origin == .user && !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/"))
+            else { continue }
             let text = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
+            if origin == .residualStdlib {
+                // Bundled JVM declarations reference JDK types by FQN; the
+                // identifier/same-package heuristics would mistake stdlib
+                // declarations for classpath references.
+                for match in Self.dottedPattern.matches(in: text, range: range) {
+                    if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+                }
+                continue
+            }
             var identifiers = Set<String>()
             for match in Self.identifierPattern.matches(in: text, range: range) {
                 if let r = Range(match.range, in: text) { identifiers.insert(String(text[r])) }
@@ -943,7 +1301,7 @@ final class JVMClasspathIndex {
             while let outer = innerClassMetadata[top]?.outerName { top = outer }
             if lazyClassNames.contains(top), isInjected(top), needed.insert(top).inserted { queue.append(top) }
         }
-        for name in matched { markNeeded(name) }
+        for name in matched.union(additionalRoots) { markNeeded(name) }
         func signatureNames(_ type: JVMValueType) -> [String] {
             guard let name = type.referenceName else { return [] }
             var n = name
@@ -972,7 +1330,7 @@ final class JVMClasspathIndex {
             // Nested classes are emitted inside their owner's stub but are
             // not worklist items themselves; their signature types still
             // need to join the closure.
-            for entry in innerClassMetadata.values where entry.outerName == name {
+            for entry in innerClassesByOwner[name] ?? [] {
                 if classes[entry.name] != nil { processEdges(entry.name) }
             }
         }
@@ -1007,6 +1365,9 @@ final class JVMClasspathIndex {
     }
 
     private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false) -> String {
+        if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
+            return kotlinFunctionDeclaration(function)
+        }
         let suspend = method.kotlinSuspendFunction
         var receiver = ""
         if asExtension, let type = method.sourceParameters.first {
@@ -1021,6 +1382,18 @@ final class JVMClasspathIndex {
         } ?? ""
         let modifier = suspend == nil ? "" : "suspend "
         return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result
+    }
+
+    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction) -> String {
+        let receiver = function.receiver.map { type in
+            type.contains(" -> ") ? "(\(type))." : type + "."
+        } ?? ""
+        let parameters = function.parameters.enumerated().map { index, parameter in
+            let fallback = "p\(index)"
+            let name = parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback
+            return (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType
+        }.joined(separator: ", ")
+        return (function.isSuspend ? "suspend " : "") + "fun \(receiver)`\(function.name)`(" + parameters + "): " + function.result
     }
 
     private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false) -> String {
@@ -1263,7 +1636,7 @@ final class JVMClasspathIndex {
 }
 
 private extension JVMForeignMethod {
-    var sourceName: String { kotlinSuspendFunction?.name ?? name }
+    var sourceName: String { kotlinFunction?.name ?? kotlinSuspendFunction?.name ?? name }
     var sourceResult: JVMValueType { kotlinSuspendFunction?.result ?? result }
     var sourceParameters: [JVMValueType] {
         kotlinSuspendFunction == nil ? parameters : Array(parameters.dropLast())

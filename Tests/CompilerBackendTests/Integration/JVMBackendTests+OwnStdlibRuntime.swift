@@ -69,6 +69,24 @@ extension JVMBackendTests {
         try JVMOwnStdlibCache.shared.library()
     }
 
+    @Test
+    func kuu4543JavaConsumerCompilesStringsKtVarargFacade() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            try """
+            public class JavaStringsConsumer {
+                public static void main(String[] args) {
+                    System.out.println(kotlin.text.StringsKt.split("a;b,c", new String[] {";", ","}, false, 0));
+                }
+            }
+            """.write(to: root.appendingPathComponent("JavaStringsConsumer.java"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("javac", ["--release", "8", "-cp", library.path, "JavaStringsConsumer.java"], root: root)
+            let execution = try java(["-cp", root.path + ":" + library.path, "JavaStringsConsumer"])
+            #expect(execution.stdout == "[a, b, c]\n")
+            #expect(execution.stderr.isEmpty)
+        }
+    }
+
     private static let ownStdlibCases = [
         "inferredMutableCallableReferences",
         "reflectionParameterNames",

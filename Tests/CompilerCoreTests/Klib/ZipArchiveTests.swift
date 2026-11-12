@@ -30,6 +30,14 @@ struct ZipArchiveTests {
     }
 
     @Test
+    func inflateFixedBlockBeforeStoredBlock() throws {
+        // The fixed block includes a 9-bit literal before the stored block.
+        let input: [UInt8] = [0xFA, 0xEF, 0x08, 0x08, 0x04, 0x00, 0xFB, 0xFF, 0x42, 0x43, 0x00, 0xFF]
+        let output = try Inflater.inflate(input[...], uncompressedSize: 6)
+        #expect(output == [0xFF, 0x41, 0x42, 0x43, 0x00, 0xFF])
+    }
+
+    @Test
     func inflateLongRunsAndLiterals() {
         // b"aaa...a" + bytes(0..<32) + b"xyz" * 20
         var expected = String(repeating: "a", count: 30)
@@ -228,6 +236,27 @@ struct ZipArchiveTests {
         let entry = try #require(archive.entry(named: "default/manifest"))
         #expect(try String(decoding: archive.contents(of: entry), as: UTF8.self)
             == "Hello Hello Hello Hello World!")
+    }
+
+    @Test
+    func deflatedEntriesCheckSizeAndCRC() throws {
+        let compressedA: [UInt8] = [0x01, 0x01, 0x00, 0xFE, 0xFF, 0x41]
+        var builder = ZipBuilder()
+        builder.addDeflated("empty", compressed: [0x03, 0x00], uncompressed: [])
+        builder.addDeflated("size", compressed: compressedA, uncompressed: [0x41, 0x42])
+        builder.addDeflated("crc", compressed: compressedA, uncompressed: [0x42])
+        let archive = try ZipArchive(bytes: builder.build())
+
+        let empty = try #require(archive.entry(named: "empty"))
+        #expect(try archive.contents(of: empty).isEmpty)
+        let wrongSize = try #require(archive.entry(named: "size"))
+        #expect(throws: KlibFormatError.sizeMismatch("deflate produced 1 bytes, expected 2")) {
+            _ = try archive.contents(of: wrongSize)
+        }
+        let wrongCRC = try #require(archive.entry(named: "crc"))
+        #expect(throws: KlibFormatError.crcMismatch("crc")) {
+            _ = try archive.contents(of: wrongCRC)
+        }
     }
 
     @Test

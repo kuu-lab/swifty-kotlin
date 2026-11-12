@@ -513,6 +513,21 @@ extension DataFlowSemaPhase {
                 annotations: typeParam.annotations, file: file, symbols: symbols,
                 diagnostics: diagnostics, interner: interner, resolutionContext: resolutionContext
             )
+            for annotation in typeParam.annotations {
+                validateAnnotationTarget(
+                    annotation: annotation,
+                    site: .typeParameter,
+                    ownerRange: decl.range,
+                    decl: decl,
+                    file: file,
+                    propertySymbol: nil,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    filesByID: filesByID,
+                    resolutionContext: resolutionContext
+                )
+            }
         }
 
         if !resolutionContext.hasInferredBodies, !decl.annotations.isEmpty,
@@ -1294,6 +1309,8 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("CONSTRUCTOR")
         case .valueParameter:
             return allowedTargets.contains("VALUE_PARAMETER")
+        case .typeParameter:
+            return allowedTargets.contains("TYPE_PARAMETER")
         case .constructorPropertyParameter:
             return !allowedTargets.isDisjoint(with: ["VALUE_PARAMETER", "PROPERTY", "FIELD"])
         case .enumEntry:
@@ -1377,6 +1394,8 @@ extension DataFlowSemaPhase {
             return "a constructor"
         case .valueParameter:
             return "a value parameter"
+        case .typeParameter:
+            return "a type parameter"
         case .constructorPropertyParameter:
             return "a constructor property parameter"
         case .enumEntry:
@@ -1447,6 +1466,7 @@ extension DataFlowSemaPhase {
         case function
         case constructor
         case valueParameter
+        case typeParameter
         case constructorPropertyParameter
         case enumEntry
         case property(explicitUseSiteTarget: Bool)

@@ -13,7 +13,7 @@ struct JVMBackendTests {
         try body(root)
     }
 
-    func compile(_ source: String, root: URL, mode: EmitMode, flags: [String] = [], classpath: [String] = [], jvmTarget: JVMTarget = .java8, javaParameters: Bool = false, additionalSources: [(String, String)] = []) throws -> (Int, [Diagnostic]) {
+    func compile(_ source: String, root: URL, mode: EmitMode, flags: [String] = [], classpath: [String] = [], jvmTarget: JVMTarget = .java8, javaParameters: Bool = false, additionalSources: [(String, String)] = [], includeJVMRuntime: Bool = false) throws -> (Int, [Diagnostic]) {
         let input = root.appendingPathComponent("hello.kt")
         try source.write(to: input, atomically: true, encoding: .utf8)
         let extraInputs = try additionalSources.map { name, contents in
@@ -25,7 +25,7 @@ struct JVMBackendTests {
             moduleName: "JVMTest", inputs: [input.path] + extraInputs,
             outputPath: root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path,
             emit: mode, target: .hostDefault(), frontendFlags: flags, jvmClasspath: classpath,
-            jvmTarget: jvmTarget, javaParameters: javaParameters
+            jvmTarget: jvmTarget, javaParameters: javaParameters, includeJVMRuntime: includeJVMRuntime
         )
         // Default options deliberately request stdlib, to catch accidental
         // Native artifact preparation or source injection in the JVM route.

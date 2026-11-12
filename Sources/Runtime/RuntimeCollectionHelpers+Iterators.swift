@@ -4,6 +4,15 @@ private let charSequenceIteratorTypeID = runtimeStableNominalTypeID(
 private let charIteratorTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.CharIterator"
 )
+private let floatIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.FloatIterator"
+)
+private let doubleIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.DoubleIterator"
+)
+private let booleanIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.BooleanIterator"
+)
 
 /// Source-backed `CharIterator` returns its concrete Char representation at
 /// the iterator ABI boundary. Preserve that type when a generic runtime bridge
@@ -19,6 +28,25 @@ func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeVal
         return RuntimeValue(charScalar: kk_unbox_char(rawValue))
     }
     return RuntimeValue(raw: rawValue)
+}
+
+/// Source-backed Float/Double/Boolean iterators return their raw scalar words
+/// at the `Iterator<T>.next()` ABI boundary. Box those words before generic
+/// consumers treat the result as an erased `Any` value (KUU-4544).
+func runtimeBoxSourceIteratorPrimitiveValue(_ rawValue: Int, iteratorRaw: Int) -> Int? {
+    guard let iteratorTypeID = runtimeObjectTypeID(rawValue: iteratorRaw) else {
+        return nil
+    }
+    if runtimeIsAssignable(sourceTypeID: iteratorTypeID, targetTypeID: floatIteratorTypeID) {
+        return kk_box_float(rawValue)
+    }
+    if runtimeIsAssignable(sourceTypeID: iteratorTypeID, targetTypeID: doubleIteratorTypeID) {
+        return kk_box_double_nonnull(rawValue)
+    }
+    if runtimeIsAssignable(sourceTypeID: iteratorTypeID, targetTypeID: booleanIteratorTypeID) {
+        return kk_box_bool(rawValue)
+    }
+    return nil
 }
 
 /// Preserves the representation of values crossing a generic collection ABI.
