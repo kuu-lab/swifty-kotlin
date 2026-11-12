@@ -1883,6 +1883,24 @@ public final class SymbolTable {
         return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
     }
 
+    /// Returns the exact owner's same-named children in declaration order.
+    func children(of parent: SymbolID, named name: InternedString) -> [SymbolID] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let parentInfo = symbol(parent) {
+            drainIndexedChildren(parentFQName: parentInfo.fqName)
+        }
+        guard let children = childrenByParent[parent], let named = byShortName[name] else {
+            return []
+        }
+        // Probe the smaller index. Common names may be repeated across many owners.
+        attribution?.increment(.memberScopeCandidatesScanned, by: min(children.count, named.count))
+        if named.count <= children.count {
+            return named.filter { children.contains($0) }
+        }
+        return children.filter { self.name(of: $0) == name }.sorted { $0.rawValue < $1.rawValue }
+    }
+
     /// Returns members *declared* directly on this exact nominal, in
     /// declaration order. This is `children(of:)` minus top-level extension
     /// members that were reparented onto the receiver nominal for member-call

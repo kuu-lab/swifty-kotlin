@@ -378,12 +378,8 @@ final class ClassMemberScope: BaseScope {
             while index < queue.count {
                 let current = queue[index]
                 index += 1
-                let children = memberLookupSymbols.children(of: current)
-                memberLookupSymbols.attribution?.increment(
-                    .memberScopeChildrenScanned, by: children.count
-                )
-                for child in children {
-                    guard let info = memberLookupSymbols.symbol(child), info.name == name else { continue }
+                for child in memberLookupSymbols.children(of: current, named: name) {
+                    guard let info = memberLookupSymbols.symbol(child) else { continue }
                     // Private members are not inherited: a `private` nested
                     // classifier declared on a supertype is not a member of this
                     // scope and must not shadow an accessible same-named
