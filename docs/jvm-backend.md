@@ -1031,8 +1031,12 @@ java -Xverify:all -cp .:kswiftk-stdlib.jar JavaConsumer
 組み込み型の宣言情報は独自生成の `.kotlin_builtins`、ユーザー宣言は facade ごとの `kotlin.Metadata` と
 module の package-part index に出力する。公式 JAR の class／resource はコピーしない。
 複数入力の全関数・クラスを先に登録し、異なる package 間の呼び出しや top-level property を解決する。
-Main-Class は main があるファイルを指し、複数の entry point、同一 package の facade 名重複、
+Main-Class は main があるファイルを指し、複数の entry point、印が揃わない同一 package の facade 名重複、
 任意の入力ファイルの不正構文・未対応構文は出力を変更する前に拒否する。
+同じ公開 facade に top-level 宣言をまとめるには、各ファイルに同じ `@file:JvmName` と
+`@file:JvmMultifileClass` を指定する。生成した facade は全ファイルの static 宣言を公開し、
+`@file:JvmName` だけの既存 facade 名指定も維持する。`@JvmMultifileClass` 単独や、印の異なる
+同名 facade は拒否する。
 source vararg は単独 parameter の通常関数に対応し、Java ACC_VARARGS と Kotlin の element-type metadata、
 配列 descriptor／generic signature を出力する。複数parameterのsource varargはstdlibの実装用に受け付ける。通常ユーザーの複数parameter source varargとvararg constructorは未対応。
 
@@ -1053,7 +1057,8 @@ nightly CI（`nightly-full.yml` の `verify-jvm-diff`）はこの jar を毎晩�
 引数付きの suspend main、複数上限の where 制約、
 拡張プロパティ、ローカル関数、
 複数 parameter のユーザー定義 vararg と vararg constructor（単独 vararg 関数・対応済み API の spread は使用可能）、
-enum の secondary constructor、when の guard／範囲条件、ループラベル、`until` / `step` は未対応。
+when の guard／範囲条件、ループラベル、`until` / `step` は未対応。
+enum の secondary constructor は、enum entry からの呼び出しと `this(...)` による委譲に対応する。
 Unit 型の通常のパラメータ宣言／型引数／配列要素（Any? 引数へ渡す Unit 式、関数型の戻り値、Continuation／Result の型引数と resume(Unit) を除く）、AbstractSet 派生以外の collection のユーザー実装、kotlin.Number のユーザー派生クラス、
 上記以外の高階 collection 操作・builder、data class／Pair／MatchGroup／MatchResult.Destructured 以外や for ヘッダでの destructuring は未対応。
 関数型は context receiver なし、receiver を含め22引数まで（suspend 関数型は Continuation 分を除き21引数まで）。

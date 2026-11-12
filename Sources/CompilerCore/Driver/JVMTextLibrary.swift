@@ -9,29 +9,36 @@ struct JVMTextLibraryMethod {
 
 extension JVMProgramBuilder {
     func prepareTextLibrary() throws {
-        func externalJvmName(for symbol: SymbolID, fallback: String) -> String {
+        func externalJvmName(for symbol: SymbolID) -> String? {
             guard let raw = sema.symbols.annotations(for: symbol)
                 .first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first,
                 let literal = raw.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                 let data = ("[" + literal + "]").data(using: .utf8),
                 let names = try? JSONSerialization.jsonObject(with: data) as? [String],
                 let name = names.first
-            else { return fallback }
+            else { return nil }
             return name
         }
 
         func method(_ symbol: SymbolID, owner: String, name: String, declarations: [ValueParamDecl], interface: Bool = false, extensionReceiver: JVMValueType? = nil, adaptation: String? = nil, staticMember: Bool = false) throws {
             guard let signature = sema.symbols.functionSignature(for: symbol) else { return }
-            let resolvedName = staticMember ? externalJvmName(for: symbol, fallback: name) : name
+            let explicitName = staticMember ? externalJvmName(for: symbol) : nil
+            let resolvedName = explicitName ?? name
             let parameters = try signature.parameterTypes.map(type), result = resolvedName == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
             var explicitParameters = parameters
             for (index, declaration) in declarations.enumerated() where declaration.isVararg { explicitParameters[index] = parameters[index].referenceName?.hasPrefix("[") == true ? parameters[index] : .reference("[" + JVMClasspathIndex.boxed(parameters[index]).descriptor, nullable: false) }
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
-            let unsigned = params.contains { $0.unsignedName != nil }
-            let usesExternalUnsignedName = owner == "kotlin/collections/ArraysKt" && extensionReceiver?.unsignedName != nil
-            let jvmName = unsigned && !usesExternalUnsignedName
-                ? resolvedName + "$unsigned$" + JVMNameHash.suffix(params.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined())
-                : resolvedName
+            let jvmName: String
+            if case .unsignedArray? = extensionReceiver,
+               ["kotlin/collections/ArraysKt", "kotlin/collections/unsigned/UArraysKt"].contains(owner) {
+                // Kotlin's array facades hash the receiver and parameters, excluding the return type.
+                let hashArguments = params.map(valueClassMangleElement).joined()
+                jvmName = explicitName ?? name + "-" + JVMNameHash.suffix(hashArguments)
+            } else if params.contains(where: { $0.unsignedName != nil }) {
+                jvmName = resolvedName + "$unsigned$" + JVMNameHash.suffix(params.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined())
+            } else {
+                jvmName = resolvedName
+            }
             var foreign = JVMForeignMethod(owner: owner, name: jvmName, descriptor: "(" + params.map(\.descriptor).joined() + ")" + (resolvedName == "<init>" ? "V" : result.descriptor), parameters: params, result: result, isStatic: staticMember || extensionReceiver != nil, isInterface: interface, isAbstract: false)
             foreign.isSuspend = signature.isSuspend
             textLibraryMethods[symbol] = JVMTextLibraryMethod(method: foreign, declarations: declarations, extensionReceiver: extensionReceiver, adaptation: adaptation)
@@ -76,25 +83,21 @@ extension JVMProgramBuilder {
                             owner = "kotlin/collections/CollectionsKt"
                         }
                     }
+                    let arrayContentToString = path.contains("m20-arrays-utility")
+                        && source == "contentToString"
+                        && receiverType != nil
+                        && receiverType?.unsignedName == nil
+                    if arrayContentToString {
+                        // The official Kotlin wrapper is private and inline-only on the JVM.
+                        owner = "java/util/Arrays"
+                    }
                     if path.contains("m21-") { owner = "kotlin/sequences/SequencesKt" }
                     if path.contains("m20-"), source == "toMap" { owner = "kotlin/collections/MapsKt" }
                     if path.contains("m20-factories") {
                         owner = source.lowercased().contains("map") ? "kotlin/collections/MapsKt" : source.lowercased().contains("set") ? "kotlin/collections/SetsKt" : "kotlin/collections/CollectionsKt"
                     }
                     let adaptation = path.contains("m20-factories") ? "collectionFactory" : source == "toRegex" ? "toRegex" : path.hasSuffix("m19-regex.kt") && source != "get" ? "regexExtension" : nil
-                    let hasExplicitJvmName = sema.symbols.annotations(for: symbol)
-                        .contains { $0.annotationFQName == "kotlin.jvm.JvmName" }
-                    var jvmName = path.contains("m20-")
-                        ? externalJvmName(for: symbol, fallback: source)
-                        : source
-                    if path.contains("arrays-utility-"), !hasExplicitJvmName, let receiverType, receiverType.unsignedName != nil {
-                        // File facade mangling hashes the receiver and formal parameters, but not the result type.
-                        let hashArguments = ([receiverType] + (try signature.parameterTypes.map(type)))
-                            .map(valueClassMangleElement)
-                            .joined()
-                        jvmName = source + "-" + JVMNameHash.suffix(hashArguments)
-                    }
-                    try method(symbol, owner: owner, name: jvmName, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
+                    try method(symbol, owner: owner, name: arrayContentToString ? "toString" : source, declarations: f.valueParams, extensionReceiver: receiverType, adaptation: adaptation, staticMember: true)
                 case let .classDecl(c):
                     guard let symbol = sema.bindings.declSymbol(for: id) else { continue }
                     let source = try className(symbol), owner = JVMClasspathIndex.builtinName(source) ?? source
@@ -139,13 +142,41 @@ extension JVMProgramBuilder {
         let runtimeFacades = Dictionary(uniqueKeysWithValues: try JVMStdlibCatalog.manifest().declarations.compactMap { declaration in declaration.runtimeFacade.map { (declaration.virtualPath, $0) } })
         for file in ast.files {
             let path = context.sourceManager.path(of: file.fileID)
+            if path == "<kswiftk-jvm>/kotlin-time-duration.kt" {
+                for id in file.topLevelDecls {
+                    guard case let .classDecl(duration) = ast.arena.decl(id),
+                          context.interner.resolve(duration.name) == "Duration" else { continue }
+                    let owner = "kotlin/time/Duration"
+                    for member in duration.memberFunctions {
+                        guard case let .funDecl(function) = ast.arena.decl(member),
+                              context.interner.resolve(function.name) == "isNegative",
+                              let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                        try method(symbol, owner: owner, name: "isNegative-impl", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                    }
+                    for member in duration.memberProperties {
+                        guard case let .propertyDecl(property) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                        let getter = "get" + context.interner.resolve(property.name).prefix(1).uppercased() + context.interner.resolve(property.name).dropFirst() + "-impl"
+                        textLibraryProperties[symbol] = JVMForeignMethod(
+                            owner: owner,
+                            name: getter,
+                            descriptor: "(J)J",
+                            parameters: [.long],
+                            result: .long,
+                            isStatic: true,
+                            isInterface: false,
+                            isAbstract: false
+                        )
+                    }
+                }
+            }
             if let owner = runtimeFacades[path] {
                 for id in file.topLevelDecls {
                     switch ast.arena.decl(id) {
                     case let .funDecl(function):
                         guard let symbol = sema.bindings.declSymbol(for: id), let signature = sema.symbols.functionSignature(for: symbol) else { continue }
                         let source = context.interner.resolve(function.name)
-                        try method(symbol, owner: owner, name: externalJvmName(for: symbol, fallback: source), declarations: function.valueParams, extensionReceiver: try signature.receiverType.map(type), staticMember: true)
+                        try method(symbol, owner: owner, name: source, declarations: function.valueParams, extensionReceiver: try signature.receiverType.map(type), staticMember: true)
                         if function.isInline { inlineDeclarations[symbol] = function }
                     case let .propertyDecl(property):
                         guard let symbol = sema.bindings.declSymbol(for: id), let valueType = sema.symbols.propertyType(for: symbol) else { continue }
@@ -187,7 +218,11 @@ extension JVMProgramBuilder {
                     }
                 }
             }
-            if path == "<kswiftk-jvm>/javaCollections.kt" || path == "<kswiftk-jvm>/coroutine-context.kt" {
+            if [
+                "<kswiftk-jvm>/javaCollections.kt",
+                "<kswiftk-jvm>/indexed-value.kt",
+                "<kswiftk-jvm>/coroutine-context.kt",
+            ].contains(path) {
                 try visit(file.topLevelDecls, path: path)
             }
             if path == "<kswiftk-jvm>/string-constructors.kt" {
@@ -236,6 +271,46 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
+    func kotlinMathName(for symbolID: SymbolID) -> String? {
+        guard let symbol = program.sema.symbols.symbol(symbolID) else { return nil }
+        let components = symbol.fqName.map(context.interner.resolve)
+        guard components.count == 3, components[0] == "kotlin", components[1] == "math" else { return nil }
+        return components[2]
+    }
+
+    // Kotlin's JVM stdlib keeps these implementation methods private and
+    // relies on Kotlin inlining. External bytecode must call public JDK APIs.
+    func kotlinMathFunctionCall(_ symbolID: SymbolID, entry: JVMTextLibraryMethod, receiver: JVMValue?, values: [JVMValue], id: ExprID) throws -> JVMValue? {
+        guard let name = kotlinMathName(for: symbolID) else { return nil }
+        let resultType = try program.expressionType(id)
+        switch name {
+        case "hypot":
+            guard values.count == 2 else { return nil }
+            if entry.method.result == .float {
+                let arguments = try values.map { try convert($0, to: .double) }
+                guard let result = try jdkCall("java/lang/Math", "hypot", [.double, .double], .double, arguments: arguments) else { return nil }
+                return try convert(result, to: .float)
+            }
+            return try jdkCall("java/lang/Math", "hypot", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "ln1p":
+            guard values.count == 1 else { return nil }
+            if entry.method.result == .float {
+                let argument = try convert(values[0], to: .double)
+                guard let result = try jdkCall("java/lang/Math", "log1p", [.double], .double, arguments: [argument]) else { return nil }
+                return try convert(result, to: .float)
+            }
+            return try jdkCall("java/lang/Math", "log1p", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "withSign":
+            guard let receiver, let receiverType = entry.extensionReceiver,
+                  receiverType == .double || receiverType == .float,
+                  values.count == 1 else { return nil }
+            let arguments = [try convert(receiver, to: receiverType), try convert(values[0], to: receiverType)]
+            return try jdkCall("java/lang/Math", "copySign", [receiverType, receiverType], receiverType, arguments: arguments, resolved: resultType)
+        default:
+            return nil
+        }
+    }
+
     func textMatchComponent(_ object: JVMValue, index: Int) throws -> JVMValue {
         // Destructured.componentN is private @InlineOnly in the official stdlib.
         let list = try jdkCall("kotlin/text/MatchResult$Destructured", "toList", [], .reference("java/util/List", nullable: false), receiver: object)!
@@ -253,6 +328,19 @@ extension JVMFunctionBuilder {
         }
         let symbol = bindings.identifierSymbol(for: id) ?? accessorProperty ?? call
         guard let symbol else { return nil }
+        if let path = program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve),
+           path.count == 5,
+           Array(path.prefix(4)) == ["kotlin", "time", "Duration", "Companion"],
+           ["seconds"].contains(path[4]) {
+            guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
+                  [.int, .long, .double].contains(source.type) else {
+                throw fail("Duration unit properties require an Int, Long, or Double receiver.", id)
+            }
+            let unitType = JVMValueType.reference("kotlin/time/DurationUnit", nullable: false)
+            let unit = try value(unitType)
+            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: "SECONDS", type: unitType, access: 0x4019), unit))
+            return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
+        }
         if let field = program.textLibraryFields[symbol] {
             let loaded = try value(field.type)
             instructions.append(.getStatic(field, loaded))
@@ -274,6 +362,9 @@ extension JVMFunctionBuilder {
             else { extensionReceiver = implicitExtensionReceiver(id) }
             guard let extensionReceiver, method.parameters.count == 1 else {
                 throw fail("Missing JVM extension property receiver.", id)
+            }
+            if kotlinMathName(for: symbol) == "ulp" {
+                return try jdkCall("java/lang/Math", "ulp", method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
             }
             return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
         }
@@ -319,6 +410,9 @@ extension JVMFunctionBuilder {
             ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0], [:])
         } else { ordered = try arguments(args, binding: binding, parameters: parameters, declarations: entry.declarations, id: id) }
         let values = ordered.values
+        if let result = try kotlinMathFunctionCall(binding.chosenCallee, entry: entry, receiver: object, values: values, id: id) {
+            return JVMIntrinsicResult(value: result)
+        }
         if entry.adaptation == "collectionFactory", entry.declarations.first?.isVararg == true, ["mapOf", "listOf", "setOf"].contains(method.name), args.count == 1, !args[0].isSpread, args[0].label == nil {
             let element = try arrayComponent(parameters[0])
             let single = try indexedRead(values[0], index: constant(.int(0), .int), type: element)

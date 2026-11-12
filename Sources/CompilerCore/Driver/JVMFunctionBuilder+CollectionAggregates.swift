@@ -2,6 +2,14 @@ import Foundation
 
 extension JVMFunctionBuilder {
     func collectionAggregateMember(_ receiverID: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
+        if name == "runningReduce" {
+            guard args.count == 1, !args[0].isSpread,
+                  let receiverType = program.sema.bindings.exprType(for: receiverID),
+                  let owner = try program.type(receiverType).referenceName,
+                  ["java/lang/Iterable", "java/util/Collection", "java/util/List", "java/util/Set", "java/util/ArrayList"].contains(owner),
+                  !collectionCallIsExtension(id) else { return nil }
+            return try iterableRunningReduce(receiverID, callback: args[0].expr, id: id)
+        }
         guard ["sum", "average"].contains(name), args.isEmpty else { return nil }
         guard let receiverType = program.sema.bindings.exprType(for: receiverID),
               case let .classType(receiverClass) = program.sema.types.kind(of: receiverType),
@@ -79,6 +87,60 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try convert(result, to: program.expressionType(id)))
         }
         return JVMIntrinsicResult(value: try convert(accumulator, to: program.expressionType(id)))
+    }
+
+    private func iterableRunningReduce(_ receiverID: ExprID, callback: ExprID, id: ExprID) throws -> JVMIntrinsicResult {
+        guard let signature = functionType(callback), signature.params.count == 2 else {
+            throw fail("JVM Iterable runningReduce requires a two-argument callback.", id)
+        }
+        let object: JVMValueType = .reference("java/lang/Object", nullable: true)
+        let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
+        let iterable = try convert(requireValue(receiverID), to: iterableType)
+        let operation = try requireValue(callback)
+        let iterator = try jdkCall(
+            "java/lang/Iterable", "iterator", [],
+            .reference("java/util/Iterator", nullable: false),
+            receiver: iterable,
+            interface: true
+        )!
+        let resultType = try program.expressionType(id)
+        let result = try value(resultType)
+        let accumulatorType = try program.type(signature.params[0])
+        let accumulator = try value(accumulatorType)
+        let hasFirst = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+        let empty = label(), loop = label(), finished = label(), done = label()
+        instructions.append(.jumpIfFalse(hasFirst, empty))
+
+        let first = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+        instructions.append(.copy(try convert(first, to: accumulatorType), accumulator))
+        let values = try constructJDK("java/util/ArrayList")
+        _ = try jdkCall("java/util/ArrayList", "add", [object], .boolean, receiver: values, arguments: [accumulator])
+        jump(loop)
+
+        mark(loop)
+        let hasNext = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+        instructions.append(.jumpIfFalse(hasNext, finished))
+        let element = try jdkCall("java/util/Iterator", "next", [], object, receiver: iterator, interface: true)!
+        guard let next = try invoke(operation, signature: signature, arguments: [accumulator, element], resultType: accumulatorType) else {
+            throw fail("JVM Iterable runningReduce callback must return a value.", id)
+        }
+        instructions.append(.copy(try convert(next, to: accumulatorType), accumulator))
+        _ = try jdkCall("java/util/ArrayList", "add", [object], .boolean, receiver: values, arguments: [accumulator])
+        jump(loop)
+
+        mark(finished)
+        instructions.append(.copy(try convert(values, to: resultType), result))
+        jump(done)
+
+        mark(empty)
+        guard let emptyValues = try jdkCall(
+            "java/util/Collections", "emptyList", [],
+            .reference("java/util/List", nullable: false),
+            resolved: resultType
+        ) else { throw fail("JVM Iterable runningReduce could not produce an empty list.", id) }
+        instructions.append(.copy(emptyValues, result))
+        mark(done)
+        return JVMIntrinsicResult(value: result)
     }
 
     private func aggregateElement(_ source: JVMValue, type: JVMValueType) throws -> JVMValue {
