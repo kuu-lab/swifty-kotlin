@@ -309,6 +309,7 @@ public struct JVMProperty {
     var isDirectField = false
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
+    var accessesForeignField = false
 }
 
 public struct JVMRecordComponent {
