@@ -1,5 +1,12 @@
 [
   {
+    "symbol": "__jvmFileSeparatorChar",
+    "owner": "java/io/File",
+    "name": "separatorChar",
+    "descriptor": "C",
+    "kind": "getStatic"
+  },
+  {
     "symbol": "__jvmNewList",
     "owner": "java/util/ArrayList",
     "name": "<init>",

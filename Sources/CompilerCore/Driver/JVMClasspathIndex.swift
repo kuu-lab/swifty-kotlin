@@ -1688,6 +1688,7 @@ final class JVMClasspathIndex {
             methods[symbol.id] = JVMForeignMethod(owner: "java/lang/Object", name: name, descriptor: descriptor, parameters: parameters, result: result, isStatic: false, isInterface: false, isAbstract: false)
         }
         bindJDKResourceMethods(in: ctx, sema: sema)
+        bindJDKFileConstructors(in: ctx, sema: sema)
     }
     private func topLevelFunction(at site: SourceRange, in ctx: CompilationContext) -> FunDecl? {
         guard let ast = ctx.ast,

@@ -412,6 +412,18 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[name] = info
         }
+        // The shared frontend already declares File, its constructors and
+        // path. Supply their JDK signatures even with no platform jar.
+        let fileName = "java/io/File"
+        if classes[fileName] == nil {
+            let fileType = JVMValueType.reference(fileName, nullable: false)
+            classes[fileName] = JVMClassInfo(name: fileName, flags: 0x0001, superclass: "java/lang/Object",
+                                           interfaces: ["java/io/Serializable", "java/lang/Comparable"], methods: [
+                method(fileName, "<init>", [.string], fileType),
+                method(fileName, "<init>", [.string, .string], fileType),
+                method(fileName, "getPath", [], .string),
+            ])
+        }
         // `kotlin.io.path.Path` is a typealias over this JDK interface. Keep a
         // memberless fallback only when the classpath did not supply the real
         // interface; classpath classes keep their full member surface.
@@ -449,6 +461,21 @@ extension JVMClasspathIndex {
         if let file = ctx.sourceManager.fileIDs().first(where: { ctx.sourceManager.path(of: $0) == comparatorPath }),
            let info = classes["java/util/Comparator"] {
             sourceClasses[file] = info
+        }
+    }
+
+    func bindJDKFileConstructors(in ctx: CompilationContext, sema: SemaModule) {
+        guard let file = classes["java/io/File"] else { return }
+        let path = ["java", "io", "File", "<init>"].map(ctx.interner.intern)
+        for symbol in sema.symbols.lookupAll(fqName: path) {
+            guard sema.symbols.symbol(symbol)?.declSite == nil,
+                  let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+            let count = signature.parameterTypes.count
+            guard (1...2).contains(count), signature.parameterTypes.allSatisfy({ $0 == sema.types.stringType }) else { continue }
+            let descriptor = "(" + String(repeating: "Ljava/lang/String;", count: count) + ")V"
+            if let method = file.methods.first(where: { $0.isConstructor && $0.descriptor == descriptor }) {
+                methods[symbol] = method
+            }
         }
     }
 }

@@ -22,6 +22,12 @@
       "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
+      "path": "declarations/Files.kt",
+      "virtualPath": "<kswiftk-jvm>/files.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/FilesKt"
+    },
+    {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
       "excludeFromStdlibBuild": true
