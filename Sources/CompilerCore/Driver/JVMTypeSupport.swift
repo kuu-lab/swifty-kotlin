@@ -64,6 +64,16 @@ extension JVMProgramBuilder {
         if sema.types.nullability(of: id) == .platformType {
             return .flexible(try kotlinType(sema.types.withNullability(.nonNull, for: id)), try kotlinType(sema.types.withNullability(.nullable, for: id)))
         }
+        if case let .intersection(parts) = sema.types.kind(of: id),
+           parts.count == 2,
+           parts.contains(where: { sema.types.kind(of: $0) == .any(.nonNull) }),
+           let typeParameter = parts.first(where: {
+               if case .typeParam = sema.types.kind(of: $0) { return true }
+               return false
+           }),
+           case let .typeParam(parameter) = sema.types.kind(of: typeParameter) {
+            return .parameter(Int(parameter.symbol.rawValue), nullable: false, definitelyNotNull: true)
+        }
         func named(_ name: String, _ nullable: Bool = false) -> JVMKotlinType { .named(name, [], nullable: nullable) }
         switch sema.types.kind(of: id) {
         case let .functionType(f):
@@ -76,7 +86,7 @@ extension JVMProgramBuilder {
         case let .stringStruct(n): return named("kotlin/String", n != .nonNull)
         case let .any(n): return named("kotlin/Any", n != .nonNull)
         case let .kClassType(t): return .named("kotlin/reflect/KClass", [JVMKotlinTypeArgument(type: try kotlinType(t.argument), variance: 2)], nullable: t.nullability != .nonNull)
-        case let .typeParam(t): return .parameter(Int(t.symbol.rawValue), nullable: t.nullability == .nullable)
+        case let .typeParam(t): return .parameter(Int(t.symbol.rawValue), nullable: t.nullability == .nullable, definitelyNotNull: false)
         case let .classType(t):
             let name = try className(t.classSymbol)
             return .named(name, try t.args.map(kotlinArgument), nullable: t.nullability != .nonNull)
