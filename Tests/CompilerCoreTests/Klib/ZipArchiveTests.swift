@@ -30,6 +30,14 @@ struct ZipArchiveTests {
     }
 
     @Test
+    func inflateFixedBlockBeforeStoredBlock() throws {
+        // The fixed block includes a 9-bit literal before the stored block.
+        let input: [UInt8] = [0xFA, 0xEF, 0x08, 0x08, 0x04, 0x00, 0xFB, 0xFF, 0x42, 0x43, 0x00, 0xFF]
+        let output = try Inflater.inflate(input[...], uncompressedSize: 6)
+        #expect(output == [0xFF, 0x41, 0x42, 0x43, 0x00, 0xFF])
+    }
+
+    @Test
     func inflateLongRunsAndLiterals() {
         // b"aaa...a" + bytes(0..<32) + b"xyz" * 20
         var expected = String(repeating: "a", count: 30)
