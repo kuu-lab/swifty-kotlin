@@ -1820,6 +1820,7 @@ final class JVMClasspathIndex {
 
     private func defaultArgumentMethod(for method: JVMForeignMethod, in info: JVMClassInfo) -> JVMForeignMethod? {
         guard method.isStatic, let function = method.kotlinFunction, !function.isSuspend,
+              function.contextParameters.isEmpty,
               function.parameters.contains(where: \.hasDefaultValue),
               method.parameters.count == function.parameters.count + function.leadingParameterCount
         else { return nil }
@@ -1830,7 +1831,6 @@ final class JVMClasspathIndex {
         }
     }
 
-              function.contextParameters.isEmpty,
     private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false, acceptsDefaults: Bool = false) -> String {
         if let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
