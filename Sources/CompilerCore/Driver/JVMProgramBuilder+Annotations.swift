@@ -149,7 +149,7 @@ extension JVMProgramBuilder {
 
     private func foreignAnnotationValue(_ info: JVMClassInfo, construction: ExprID?, includeDefaults: Bool) throws -> JVMAnnotation {
         let elements = context.jvmImports?.annotationElements(of: info) ?? []
-        var provided: [Int: JVMAnnotationValue] = [:]
+        var provided: [Int: [JVMAnnotationValue]] = [:]
         if let construction {
             let args: [CallArgument]
             switch ast.arena.expr(construction) { case let .call(_, _, a, _), let .memberCall(_, _, _, a, _): args = a; default: args = [] }
@@ -159,15 +159,37 @@ extension JVMProgramBuilder {
                 let index = binding?.parameterMapping[i]
                     ?? arg.label.flatMap { label in elements.firstIndex { $0.name == context.interner.resolve(label) } }
                     ?? i
-                guard elements.indices.contains(index), label == nil || label == elements[index].name, provided[index] == nil else {
+                guard elements.indices.contains(index), label == nil || label == elements[index].name,
+                      elements[index].isVararg || provided[index] == nil
+                else {
                     throw JVMFrontendError(message: "Invalid JVM annotation argument mapping.", range: ast.arena.exprRange(arg.expr))
                 }
-                provided[index] = try annotationConstant(arg.expr, includeDefaults: includeDefaults)
+                let constant = try annotationConstant(arg.expr, includeDefaults: includeDefaults)
+                if elements[index].isVararg, (arg.isSpread || arg.label != nil), case let .array(items) = constant {
+                    provided[index, default: []] += items
+                } else {
+                    provided[index, default: []].append(constant)
+                }
             }
         }
         var values: [(String, JVMAnnotationValue)] = []
         for (index, element) in elements.enumerated() {
-            guard let explicit = provided[index] else {
+            let arguments = provided[index] ?? []
+            if element.isVararg {
+                if arguments.isEmpty {
+                    if includeDefaults {
+                        if let defaultValue = element.defaultValue {
+                            values.append((element.name, try checkedAnnotationValue(defaultValue, type: element.type)))
+                        } else {
+                            values.append((element.name, .array([])))
+                        }
+                    }
+                } else {
+                    values.append((element.name, try checkedAnnotationValue(.array(arguments), type: element.type)))
+                }
+                continue
+            }
+            guard let explicit = arguments.first else {
                 if element.defaultValue == nil {
                     throw JVMFrontendError(message: "Missing JVM annotation argument.", range: construction.flatMap { ast.arena.exprRange($0) })
                 }
