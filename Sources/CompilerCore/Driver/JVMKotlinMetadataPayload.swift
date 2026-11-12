@@ -48,7 +48,7 @@ struct JVMKotlinFunction {
     }
 }
 
-struct JVMKotlinStaticProperty {
+struct JVMKotlinClassProperty {
     let name: String
     let getterName: String
     let getterDescriptor: String
@@ -148,7 +148,7 @@ struct JVMKotlinMetadataPayload {
     }
 
     /// Static properties exposed by Kotlin objects through @JvmStatic accessors.
-    func staticPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinStaticProperty] {
+    func classPropertyCandidates(byteLimit: Int) throws -> [JVMKotlinClassProperty] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let bytes = try decodedData(limit: byteLimit)
         var cursor = ProtoCursor(bytes[...])
@@ -162,9 +162,9 @@ struct JVMKotlinMetadataPayload {
                   let signature = try property.message(100),
                   let getter = try signature.message(3),
                   let getterName = try names.resolve(getter.int32(1)),
-                  let descriptor = try names.resolve(getter.int32(2)), descriptor.hasPrefix("()")
+                  let descriptor = try names.resolve(getter.int32(2))
             else { return nil }
-            return JVMKotlinStaticProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
+            return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
                                            isNullable: type.nullable, sourceType: try Self.sourceType(type, types: types, names: names))
         }
     }
@@ -343,7 +343,7 @@ struct JVMKotlinMetadataPayload {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
-            guard valid, hasFunctionTypes || (isFileFacade == true) else { continue }
+            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil else { continue }
             let flags = function.int32(9) ?? 0
             let isSuspend = flags & (1 << 13) != 0
             if !hasFunctionTypes, descriptor == nil {
