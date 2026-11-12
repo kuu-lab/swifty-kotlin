@@ -12,6 +12,10 @@ fun <T> List<T>.first(): T = null!!
 fun <T> Iterable<T>.last(): T = null!!
 fun <T> List<T>.last(): T = null!!
 fun <T> Iterable<T>.firstOrNull(): T? = null!!
+inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
 fun <T> List<T>.firstOrNull(): T? = null!!
 fun <T> List<T>.getOrNull(index: Int): T? = null!!
 operator fun <T> Iterable<T>.contains(element: T): Boolean = null!!
