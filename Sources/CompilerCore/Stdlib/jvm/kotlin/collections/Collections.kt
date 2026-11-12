@@ -74,6 +74,12 @@ public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     for (element in this) result.add(element)
     return result
 }
+public fun <T> Iterable<T>.toHashSet(): java.util.HashSet<T> {
+    val size = if (this is Collection<*>) this.size else 12
+    val result = java.util.HashSet<T>(mapCapacity(size))
+    for (item in this) result.add(item)
+    return result
+}
 public fun <T> Iterable<T>.toSet(): Set<T> {
     if (this is Collection<*>) {
         if (this.size == 0) return emptySet<T>()
@@ -232,6 +238,16 @@ public operator fun <T> Iterable<T>.contains(element: T): Boolean {
     if (this is Collection<*>) return (this as Collection<T>).contains(element)
     for (value in this) if (value == element) return true
     return false
+}
+
+public fun Collection<Boolean>.toBooleanArray(): BooleanArray {
+    val result = BooleanArray(size)
+    var index = 0
+    for (value in this) {
+        result[index] = value
+        index += 1
+    }
+    return result
 }
 
 public fun Collection<Int>.toIntArray(): IntArray {

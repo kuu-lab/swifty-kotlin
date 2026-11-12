@@ -384,6 +384,38 @@ extension JVMClasspathIndex {
                 method("java/util/TreeSet", "tailSet", [object], .reference("java/util/SortedSet", nullable: false)),
                 method("java/util/TreeSet", "subSet", [object, object], .reference("java/util/SortedSet", nullable: false)),
             ]),
+            ("java/util/HashSet", """
+            package java.util
+            open class HashSet<E> : kotlin.collections.MutableSet<E> {
+                constructor()
+                constructor(initialCapacity: Int)
+                override val size: Int get() = 0
+                override fun isEmpty(): Boolean = false
+                override fun contains(element: E): Boolean = false
+                override fun containsAll(elements: kotlin.collections.Collection<@UnsafeVariance E>): Boolean = false
+                override fun iterator(): kotlin.collections.MutableIterator<E> = null!!
+                override fun add(element: E): Boolean = false
+                override fun addAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun remove(element: E): Boolean = false
+                override fun removeAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun retainAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/AbstractSet", [
+                method("java/util/HashSet", "<init>", [], .reference("java/util/HashSet", nullable: false)),
+                method("java/util/HashSet", "<init>", [.int], .reference("java/util/HashSet", nullable: false)),
+                method("java/util/HashSet", "size", [], .int),
+                method("java/util/HashSet", "isEmpty", [], .boolean),
+                method("java/util/HashSet", "contains", [object], .boolean),
+                method("java/util/HashSet", "containsAll", [.reference("java/util/Collection", nullable: false)], .boolean),
+                method("java/util/HashSet", "iterator", [], .reference("java/util/Iterator", nullable: false)),
+                method("java/util/HashSet", "add", [object], .boolean),
+                method("java/util/HashSet", "addAll", [.reference("java/util/Collection", nullable: false)], .boolean),
+                method("java/util/HashSet", "remove", [object], .boolean),
+                method("java/util/HashSet", "removeAll", [.reference("java/util/Collection", nullable: false)], .boolean),
+                method("java/util/HashSet", "retainAll", [.reference("java/util/Collection", nullable: false)], .boolean),
+                method("java/util/HashSet", "clear", [], .unit),
+            ]),
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {

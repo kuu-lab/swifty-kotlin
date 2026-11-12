@@ -141,7 +141,12 @@ extension JVMFunctionBuilder {
                     )
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
                 }
-                let names = info.flags & 0x2000 != 0 ? [name] : (name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital])
+                let names: [String]
+                if info.flags & 0x2000 != 0 || (owner.hasPrefix("java/util/") && name == "size") {
+                    names = [name]
+                } else {
+                    names = name.hasPrefix("is") && name.count > 2 ? [name, "get" + capital] : ["get" + capital]
+                }
                 // Companion members compile to static methods on the outer
                 // classfile; instance members stay virtual.
                 let imported = info.methods.first(where: {
