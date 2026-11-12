@@ -1670,6 +1670,9 @@ func kk_runtime_reset_metadata() {
     runtimeJavaFieldRegistry.reset()
     runtimeKCompanionRegistry.reset()
     runtimeKNestedClassRegistry.reset()
+    runtimeRegisterCollectionTypeEdges()
+    runtimeRegisterBuilderTypeEdges()
+    runtimeRestoreCanonicalCollectionSingletonMetadata()
 }
 
 func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
