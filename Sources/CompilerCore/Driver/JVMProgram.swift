@@ -294,6 +294,7 @@ public struct JVMProperty {
     public var setter: JVMForeignMethod?
     public var field: JVMField?
     public var isImportedField = false
+    public var readsStaticField = false
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
