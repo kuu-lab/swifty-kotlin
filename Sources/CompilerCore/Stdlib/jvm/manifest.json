@@ -269,6 +269,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/IterableFlatten.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-iterable-flatten.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/CollectionTextFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-text-inline.kt",
       "excludeFromStdlibBuild": true

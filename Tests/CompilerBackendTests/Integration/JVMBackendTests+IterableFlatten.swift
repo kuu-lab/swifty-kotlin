@@ -22,6 +22,8 @@ extension JVMBackendTests {
             let kotlin = try java(["-cp", app.0.path + ":" + library.path, "MainKt"])
             #expect(kotlin.stdout == "[1, 2, 3]\n[4, 5, 6]\n[x]\n")
             #expect(kotlin.stderr.isEmpty)
+            let appBytecode = try javap(["-classpath", app.0.path + ":" + library.path, "-c", "MainKt"])
+            #expect(appBytecode.stdout.contains("kotlin/collections/CollectionsKt.flatten"))
 
             let abi = try javap(["-classpath", library.path, "-p", "-s", "-v", "kotlin.collections.CollectionsKt"])
             try #require(abi.stdout.contains("flatten("), "CollectionsKt flatten ABI is missing")
@@ -37,6 +39,10 @@ extension JVMBackendTests {
 
             public class JavaConsumer {
                 public static void main(String[] args) {
+                    kotlin.Metadata metadata = CollectionsKt.class.getAnnotation(kotlin.Metadata.class);
+                    if (metadata == null || !Arrays.asList(metadata.d2()).contains("flatten")) {
+                        throw new AssertionError("flatten is missing from Kotlin metadata");
+                    }
                     List<List<Integer>> values = Arrays.asList(
                         Arrays.asList(1), Collections.<Integer>emptyList(), Arrays.asList(2, 3)
                     );
