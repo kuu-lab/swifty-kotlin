@@ -40,6 +40,13 @@
       "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
+      "path": "declarations/DurationConversions.kt",
+      "virtualPath": "<kswiftk-jvm>/duration-conversions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/jdk8/DurationConversionsJDK8Kt",
+      "consumerIdentifiers": ["toJavaDuration", "toKotlinDuration"]
+    },
+    {
       "path": "declarations/Instant.kt",
       "virtualPath": "<kswiftk-jvm>/instant.kt",
       "excludeFromStdlibBuild": true
