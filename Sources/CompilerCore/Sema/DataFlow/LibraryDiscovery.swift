@@ -245,6 +245,7 @@ extension DataFlowSemaPhase {
                 manifest: manifest,
                 libraryDir: libraryDir,
                 libraryRoot: libraryRoot,
+                currentTarget: currentTarget,
                 metadataURL: resolvedManifestPaths.metadata,
                 inlineKIRDirURL: resolvedManifestPaths.inlineKIR,
                 bundledMemberIndexURL: resolvedManifestPaths.memberIndex,
@@ -262,7 +263,8 @@ extension DataFlowSemaPhase {
             topLevelInitializerLinkName: manifest.topLevelInitializerLinkName,
             sourceArrayComponentABI: manifest.sourceVarargStorageABI == "array-v1",
             formatVersion: manifest.formatVersion,
-            runtimeReflectionMetadataScope: isStdlibArtifact && manifest.objects?.isEmpty == false
+            runtimeReflectionMetadataScope: isStdlibArtifact
+                && (manifest.objects?.isEmpty == false || currentTarget.isWasm)
                 ? manifest.runtimeReflectionMetadataScope
                 : nil,
             hasPrecomputedSyntheticStubs: manifest.precomputedSyntheticStubs == true,
@@ -432,6 +434,7 @@ extension DataFlowSemaPhase {
         manifest: LibraryManifest,
         libraryDir: String,
         libraryRoot: URL,
+        currentTarget: TargetTriple,
         metadataURL: URL,
         inlineKIRDirURL: URL?,
         bundledMemberIndexURL: URL?,
@@ -468,7 +471,9 @@ extension DataFlowSemaPhase {
         }
 
         if isStdlibArtifact {
-            if manifest.objects == nil || manifest.objects!.isEmpty {
+            // Linker-free wasm stdlib artifacts ship KIR/metadata only and emit
+            // no host/target object files.
+            if !currentTarget.isWasm, manifest.objects == nil || manifest.objects!.isEmpty {
                 diagnostics.error(
                     "KSWIFTK-LIB-0014",
                     "Stdlib artifact \(libName) has no 'objects' in manifest.json",
@@ -561,7 +566,10 @@ extension DataFlowSemaPhase {
             }
         }
 
-        if manifest.precomputedReflectionRecords == true, manifest.objects?.isEmpty != false {
+        if manifest.precomputedReflectionRecords == true,
+           !currentTarget.isWasm,
+           manifest.objects?.isEmpty != false
+        {
             diagnostics.error(
                 "KSWIFTK-LIB-0014",
                 "Library \(libName) declares precomputedReflectionRecords without object files",
