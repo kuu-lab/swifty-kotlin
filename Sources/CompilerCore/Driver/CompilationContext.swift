@@ -34,6 +34,7 @@ public final class CompilationContext: @unchecked Sendable {
         Set(jvmImports?.classes.keys.map { $0 + ".class" } ?? [])
     }
     public internal(set) var generatedObjectPath: String?
+    public internal(set) var generatedObjectPaths: [String] = []
     public internal(set) var generatedLLVMIRPath: String?
     /// Set when the wasm backend wrote a `.wasm` module for an executable emit.
     public internal(set) var generatedWasmPath: String?
@@ -130,6 +131,12 @@ public final class CompilationContext: @unchecked Sendable {
 
     public func storeGeneratedObjectPath(_ path: String) {
         generatedObjectPath = path
+        generatedObjectPaths = [path]
+    }
+
+    public func storeGeneratedObjectPaths(_ paths: [String]) {
+        generatedObjectPath = paths.first
+        generatedObjectPaths = paths
     }
 
     public func storeGeneratedLLVMIRPath(_ path: String) {

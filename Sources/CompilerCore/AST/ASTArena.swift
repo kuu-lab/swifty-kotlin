@@ -26,6 +26,7 @@ public struct ASTArenaSnapshot: Codable {
     public let incrementDecrementCachedValues: [ExprID: ExprID]
     public let expressionAnnotations: [ExprID: [AnnotationNode]]
     public let anonymousFunctionExpressions: Set<ExprID>
+    public let labeledAnonymousFunctionExpressions: Set<ExprID>
     public let parenthesizedExpressions: Set<ExprID>
     public let localFunContextReceivers: [ExprID: [ContextReceiverDecl]]
     public let localTailrecFunctionExpressions: Set<ExprID>
@@ -58,6 +59,7 @@ public struct ASTArenaSnapshot: Codable {
         case incrementDecrementCachedValues
         case expressionAnnotations
         case anonymousFunctionExpressions
+        case labeledAnonymousFunctionExpressions
         case parenthesizedExpressions
         case localFunContextReceivers
         case localTailrecFunctionExpressions
@@ -91,6 +93,7 @@ public struct ASTArenaSnapshot: Codable {
         incrementDecrementCachedValues: [ExprID: ExprID] = [:],
         expressionAnnotations: [ExprID: [AnnotationNode]] = [:],
         anonymousFunctionExpressions: Set<ExprID> = [],
+        labeledAnonymousFunctionExpressions: Set<ExprID> = [],
         parenthesizedExpressions: Set<ExprID> = [],
         localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:],
         localTailrecFunctionExpressions: Set<ExprID> = [],
@@ -122,6 +125,7 @@ public struct ASTArenaSnapshot: Codable {
         self.incrementDecrementCachedValues = incrementDecrementCachedValues
         self.expressionAnnotations = expressionAnnotations
         self.anonymousFunctionExpressions = anonymousFunctionExpressions
+        self.labeledAnonymousFunctionExpressions = labeledAnonymousFunctionExpressions
         self.parenthesizedExpressions = parenthesizedExpressions
         self.localFunContextReceivers = localFunContextReceivers
         self.localTailrecFunctionExpressions = localTailrecFunctionExpressions
@@ -188,6 +192,9 @@ public struct ASTArenaSnapshot: Codable {
         ) ?? [:]
         anonymousFunctionExpressions = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .anonymousFunctionExpressions
+        ) ?? []
+        labeledAnonymousFunctionExpressions = try container.decodeIfPresent(
+            Set<ExprID>.self, forKey: .labeledAnonymousFunctionExpressions
         ) ?? []
         parenthesizedExpressions = try container.decodeIfPresent(
             Set<ExprID>.self, forKey: .parenthesizedExpressions
@@ -315,6 +322,7 @@ public final class ASTArena: @unchecked Sendable {
     private var _expressionAnnotations: [ExprID: [AnnotationNode]] = [:]
     /// Anonymous function literal blocks and the local declarations backing them.
     private var _anonymousFunctionExpressions: Set<ExprID> = []
+    private var _labeledAnonymousFunctionExpressions: Set<ExprID> = []
     private var _parenthesizedExpressions: Set<ExprID> = []
     private var _localFunContextReceivers: [ExprID: [ContextReceiverDecl]] = [:]
     private var _localTailrecFunctionExpressions: Set<ExprID> = []
@@ -360,6 +368,7 @@ public final class ASTArena: @unchecked Sendable {
         _incrementDecrementCachedValues = snapshot.incrementDecrementCachedValues
         _expressionAnnotations = snapshot.expressionAnnotations
         _anonymousFunctionExpressions = snapshot.anonymousFunctionExpressions
+        _labeledAnonymousFunctionExpressions = snapshot.labeledAnonymousFunctionExpressions
         _parenthesizedExpressions = snapshot.parenthesizedExpressions
         _localFunContextReceivers = snapshot.localFunContextReceivers
         _localTailrecFunctionExpressions = snapshot.localTailrecFunctionExpressions
@@ -396,6 +405,7 @@ public final class ASTArena: @unchecked Sendable {
             incrementDecrementCachedValues: _incrementDecrementCachedValues,
             expressionAnnotations: _expressionAnnotations,
             anonymousFunctionExpressions: _anonymousFunctionExpressions,
+            labeledAnonymousFunctionExpressions: _labeledAnonymousFunctionExpressions,
             parenthesizedExpressions: _parenthesizedExpressions,
             localFunContextReceivers: _localFunContextReceivers,
             localTailrecFunctionExpressions: _localTailrecFunctionExpressions,
@@ -474,6 +484,7 @@ public final class ASTArena: @unchecked Sendable {
             )
         }
         _anonymousFunctionExpressions.formUnion(snapshot.anonymousFunctionExpressions.map { remapper.remap($0) })
+        _labeledAnonymousFunctionExpressions.formUnion(snapshot.labeledAnonymousFunctionExpressions.map { remapper.remap($0) })
         _infixCallExpressions.formUnion(snapshot.infixCallExpressions.map { remapper.remap($0) })
         _infixFunctionExpressions.formUnion(snapshot.infixFunctionExpressions.map { remapper.remap($0) })
         _operatorFunctionExpressions.formUnion(snapshot.operatorFunctionExpressions.map { remapper.remap($0) })
@@ -525,6 +536,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _anonymousFunctionExpressions.contains(exprID)
+    }
+
+    public func markLabeledAnonymousFunction(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _labeledAnonymousFunctionExpressions.insert(exprID)
+    }
+
+    public func isLabeledAnonymousFunction(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _labeledAnonymousFunctionExpressions.contains(exprID)
     }
 
     public func setLocalFunContextReceivers(_ receivers: [ContextReceiverDecl], for exprID: ExprID) {

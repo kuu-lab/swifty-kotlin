@@ -314,6 +314,17 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
     }
 }
 
+/// Restore the canonical empty collection registrations cleared by a metadata reset.
+func runtimeRestoreCanonicalCollectionSingletonMetadata() {
+    if let box = runtimeListBox(from: emptyListSingletonRaw) {
+        maybeRegisterCollectionIterableItable(raw: emptyListSingletonRaw, box: box)
+    }
+    if let box = runtimeSetBox(from: emptySetSingletonRaw) {
+        maybeRegisterCollectionIterableItable(raw: emptySetSingletonRaw, box: box)
+    }
+    runtimeRegisterObjectType(rawValue: emptyMapSingletonRaw, classID: mapRuntimeTypeID)
+}
+
 private let runtimeSetSizeItableThunk: @convention(c) (Int) -> Int = { setRaw in
     kk_set_size(setRaw)
 }

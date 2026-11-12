@@ -23,6 +23,20 @@ let runtimeSetBuilderTypeID: Int64 = {
     return id
 }()
 
+/// Reinstall the builder identity edges cleared by a metadata reset.
+func runtimeRegisterBuilderTypeEdges() {
+    runtimeRegisterTypeEdge(childTypeID: runtimeListBuilderTypeID, parentTypeID: mutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeListBuilderTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.RandomAccess")
+    )
+    runtimeRegisterTypeEdge(
+        childTypeID: runtimeSetBuilderTypeID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
+    )
+    runtimeRegisterTypeEdge(childTypeID: runtimeSetBuilderTypeID, parentTypeID: setRuntimeTypeID)
+}
+
 @_cdecl("__kk_builder_list_new")
 public func __kk_builder_list_new(_ capacity: Int) -> Int {
     registerRuntimeObject(RuntimeListBox(capacity: capacity), typeID: runtimeListBuilderTypeID)

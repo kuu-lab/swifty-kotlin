@@ -1047,8 +1047,11 @@ extension LocalDeclTypeChecker {
         }
 
         var functionFlags: SymbolFlags = [.localFunction]
-        if isAnonymousFunction, !interner.resolve(name).hasPrefix("__AnonymousFunction_") {
-            functionFlags.insert(.synthetic)
+        if isAnonymousFunction {
+            functionFlags.insert(.anonymousFunction)
+            if ast.arena.isLabeledAnonymousFunction(id) {
+                functionFlags.insert(.synthetic)
+            }
         }
         if ast.arena.isInfixFunction(id) { functionFlags.insert(.infixFunction) }
         if ast.arena.isOperatorFunction(id) { functionFlags.insert(.operatorFunction) }
@@ -1070,7 +1073,6 @@ extension LocalDeclTypeChecker {
         // Local funs in top-level functions only get 'must have a body';
         // anonymous function expressions only get 'must have a body' too.
         if body == .unit, !isAnonymousFunction,
-           !interner.resolve(name).hasPrefix("__AnonymousFunction_"),
            ctx.enclosingClassSymbol != nil,
            !ast.arena.isLocalBodilessExemptFunction(id) {
             sema.diagnostics.error(

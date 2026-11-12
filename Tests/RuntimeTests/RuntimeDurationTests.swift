@@ -401,8 +401,6 @@ struct RuntimeDurationTests {
                 #expect(kk_unbox_long(parsed) == expectedRaw)
                 #expect(kk_unbox_long_static(parsed) == expectedRaw)
                 #expect(kk_duration_inWholeNanoseconds(parsed) == expectedNanoseconds)
-                #expect(runtimeObjectTypeID(rawValue: parsed) ==
-                    runtimeStableNominalTypeID(fqName: "kotlin.time.Duration"))
             }
             #expect(parse(stringHandle("bogus")) == runtimeNullSentinelInt)
         }

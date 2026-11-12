@@ -369,7 +369,6 @@ extension BuildASTPhase {
         }
 
         let isSyntheticAnonymous = isAnonymousFunction
-            || interner.resolve(name).hasPrefix("__AnonymousFunction_")
         // `external` and `abstract` make a bodiless declaration legal as
         // written, so kotlinc emits neither 'must have a body' nor 'must be
         // abstract' for them. `expect` stays non-exempt: kotlinc still
