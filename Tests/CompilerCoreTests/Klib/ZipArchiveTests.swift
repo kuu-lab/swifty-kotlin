@@ -231,6 +231,27 @@ struct ZipArchiveTests {
     }
 
     @Test
+    func deflatedEntriesCheckSizeAndCRC() throws {
+        let compressedA: [UInt8] = [0x01, 0x01, 0x00, 0xFE, 0xFF, 0x41]
+        var builder = ZipBuilder()
+        builder.addDeflated("empty", compressed: [0x03, 0x00], uncompressed: [])
+        builder.addDeflated("size", compressed: compressedA, uncompressed: [0x41, 0x42])
+        builder.addDeflated("crc", compressed: compressedA, uncompressed: [0x42])
+        let archive = try ZipArchive(bytes: builder.build())
+
+        let empty = try #require(archive.entry(named: "empty"))
+        #expect(try archive.contents(of: empty).isEmpty)
+        let wrongSize = try #require(archive.entry(named: "size"))
+        #expect(throws: KlibFormatError.sizeMismatch("deflate produced 1 bytes, expected 2")) {
+            _ = try archive.contents(of: wrongSize)
+        }
+        let wrongCRC = try #require(archive.entry(named: "crc"))
+        #expect(throws: KlibFormatError.crcMismatch("crc")) {
+            _ = try archive.contents(of: wrongCRC)
+        }
+    }
+
+    @Test
     func rejectsNonZipData() {
         #expect(throws: KlibFormatError.notAZipArchive) {
             _ = try ZipArchive(bytes: Array("not a zip".utf8))

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(zlib)
+import zlib
+#endif
 
 /// Kotlin `.klib` libraries are zip files with a fixed directory layout
 /// (`default/manifest`, `default/ir/...`). Foundation provides no zip support
@@ -115,7 +118,12 @@ package struct ZipArchive {
         case 0:
             contents = Array(compressed)
         case 8:
+            #if canImport(zlib)
+            contents = try Self.systemInflate(compressed, size: entry.uncompressedSize)
+                ?? Inflater.inflate(compressed, uncompressedSize: entry.uncompressedSize)
+            #else
             contents = try Inflater.inflate(compressed, uncompressedSize: entry.uncompressedSize)
+            #endif
         default:
             throw KlibFormatError.unsupportedCompressionMethod(entry.compressionMethod)
         }
@@ -129,6 +137,35 @@ package struct ZipArchive {
         }
         return contents
     }
+
+    #if canImport(zlib)
+    private static func systemInflate(_ compressed: ArraySlice<UInt8>, size: Int) -> [UInt8]? {
+        // Limit speculative allocation from the ZIP header. The Swift decoder
+        // handles larger entries and preserves diagnostics if zlib rejects input.
+        guard !compressed.isEmpty, compressed.count <= UInt32.max,
+              size >= 0, size <= 16 * 1024 * 1024 else { return nil }
+        var stream = z_stream()
+        guard inflateInit2_(&stream, -MAX_WBITS, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {
+            return nil
+        }
+        defer { inflateEnd(&stream) }
+
+        var decoded = false
+        // One spare byte allows an empty stream and detects excess output.
+        let output = [UInt8](unsafeUninitializedCapacity: size + 1) { buffer, initializedCount in
+            let status = compressed.withUnsafeBufferPointer { input in
+                stream.next_in = UnsafeMutablePointer(mutating: input.baseAddress)
+                stream.avail_in = UInt32(input.count)
+                stream.next_out = buffer.baseAddress
+                stream.avail_out = UInt32(buffer.count)
+                return zlib.inflate(&stream, Z_FINISH)
+            }
+            decoded = status == Z_STREAM_END && stream.total_out == size
+            initializedCount = decoded ? size : 0
+        }
+        return decoded ? output : nil
+    }
+    #endif
 
     private static func findEndOfCentralDirectory(in bytes: [UInt8]) throws -> Int {
         // EOCD is 22 bytes + optional comment (up to 64KiB). Scan backwards
