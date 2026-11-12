@@ -197,6 +197,7 @@ fun __jvmArrayCapacityError(): Throwable = null!!
 fun __jvmPowDouble(base: Double, exponent: Double): Double = 0.0
 // Collection builder platform edges; completion checks stay in Kotlin.
 fun <T> __jvmNewListCapacity(capacity: Int): MutableList<T> = null!!
+fun <T> __jvmNewSetCapacity(capacity: Int): MutableSet<T> = null!!
 fun <K, V> __jvmNewMapCapacity(capacity: Int): MutableMap<K, V> = null!!
 fun <T> __jvmListAdd(list: MutableList<T>, index: Int, element: T) {}
 fun <T> __jvmListAddAll(list: MutableList<T>, index: Int, elements: Collection<T>): Boolean = false
