@@ -321,7 +321,11 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
-            return function.parameters.count + (function.receiver == nil ? 0 : 1) == method.parameters.count
+            guard function.parameters.count + (function.receiver == nil ? 0 : 1) == method.parameters.count
+            else { return false }
+            if function.receiver?.contains("->") == true || function.result.contains("->")
+                || function.parameters.contains(where: { $0.sourceType.contains("->") }) { return true }
+            return method.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType(method.result)
         }
         if let suspend = method.kotlinSuspendFunction {
             return JVMProgramBuilder.isIdentifier(suspend.name)
@@ -769,7 +773,7 @@ final class JVMClasspathIndex {
                 if !statics.isEmpty {
                     source += "companion object {\n"
                     for method in statics {
-                        source += "external " + functionDeclaration(method) + "\n"
+                        source += "external " + functionDeclaration(method, asFacadeMember: true) + "\n"
                     }
                     source += "}\n"
                 }
@@ -780,11 +784,10 @@ final class JVMClasspathIndex {
                         continue
                     }
                     source += "external " + functionDeclaration(method) + "\n"
-                    // A JVM file-facade descriptor does not distinguish a
-                    // top-level function from an extension receiver. Expose
-                    // the receiver form as well so Kotlin member syntax binds
-                    // to the same static method.
-                    if method.kotlinFunction == nil, let receiver = method.parameters.first,
+                    // Preserve extension syntax for Java-authored facade
+                    // shims, where there is no Kotlin receiver metadata.
+                    if info.isKotlinFileFacade == nil, method.kotlinFunction == nil,
+                       let receiver = method.parameters.first,
                        case .reference = receiver, receiver.referenceName?.hasPrefix("[") != true {
                         let rest = method.parameters.dropFirst().enumerated().map {
                             "p\($0.offset): " + kotlinType($0.element)
@@ -1247,9 +1250,9 @@ final class JVMClasspathIndex {
         // normalized dotted name -> binary class names ("a.b.C.D" may come
         // from either a/b/C$D or a/b/C/D, so keep every candidate).
         var normalizedToBinary: [String: [String]] = [:]
-        // "package|ShortName" -> binary names, for identifier-based lookups.
-        var byPackageAndShortName: [String: [String]] = [:]
         var lazyTopLevelByPackage: [String: [(short: String, name: String)]] = [:]
+        var facadesByCallable: [String: [String]] = [:]
+        var lazyCallablesByPackage: [String: [(short: String, name: String)]] = [:]
         for name in lazyClassNames {
             let normalized = name.split(separator: "/")
                 .map(String.init).joined(separator: ".")
@@ -1259,29 +1262,37 @@ final class JVMClasspathIndex {
             guard parts.count >= 2 else { continue }
             let package = parts.dropLast().joined(separator: ".")
             let short = parts.last!.split(separator: "$").last.map(String.init) ?? parts.last!
-            byPackageAndShortName[package + "|" + short, default: []].append(name)
             if !name.contains("$") {
                 lazyTopLevelByPackage[package, default: []].append((short, name))
+            }
+            // Imports name Kotlin callables by package, not their JVM facade.
+            if let info = classes[name], info.isKotlinFileFacade == true, !isCovered(name, covered: covered) {
+                let functions = Set(info.methods.filter { $0.isStatic && isExposed($0) }.map(\.sourceName))
+                for function in functions {
+                    facadesByCallable[package + "." + function, default: []].append(name)
+                    lazyCallablesByPackage[package, default: []].append((function, name))
+                }
             }
         }
 
         var matched = Set<String>()
-        func matchTokenPrefixes(_ token: String) {
+        func matchTokenPrefixes(_ token: String, includeCallables: Bool = false) {
             let parts = token.split(separator: ".").map(String.init)
             for end in 1...parts.count {
                 let prefix = parts.prefix(end).joined(separator: ".")
                 if let binaries = normalizedToBinary[prefix] { matched.formUnion(binaries) }
+                if includeCallables, let facades = facadesByCallable[prefix] { matched.formUnion(facades) }
             }
         }
-        func identifierMatches(_ filePackage: String?, identifiers: Set<String>, packages: Set<String>) {
+        func identifierMatches(identifiers: Set<String>, packages: Set<String>, includeCallables: Bool) {
             for package in packages {
                 for entry in lazyTopLevelByPackage[package] ?? [] where identifiers.contains(entry.short) {
                     matched.insert(entry.name)
                 }
-            }
-            if let filePackage {
-                for entry in lazyTopLevelByPackage[filePackage] ?? [] where identifiers.contains(entry.short) {
-                    matched.insert(entry.name)
+                if includeCallables {
+                    for entry in lazyCallablesByPackage[package] ?? [] where identifiers.contains(entry.short) {
+                        matched.insert(entry.name)
+                    }
                 }
             }
         }
@@ -1309,19 +1320,19 @@ final class JVMClasspathIndex {
             for match in Self.identifierPattern.matches(in: text, range: range) {
                 if let r = Range(match.range, in: text) { identifiers.insert(String(text[r])) }
             }
-            var filePackage: String?
+            let includeCallables = origin == .user
+            var starPackages = Self.autoImportedPackages
             if let match = Self.packagePattern.firstMatch(in: text, range: range),
                let r = Range(match.range(at: 1), in: text) {
-                filePackage = String(text[r])
+                starPackages.insert(String(text[r]))
             }
-            var starPackages = Self.autoImportedPackages
             for match in Self.starImportPattern.matches(in: text, range: range) {
                 if let r = Range(match.range(at: 1), in: text) { starPackages.insert(String(text[r])) }
             }
             for match in Self.dottedPattern.matches(in: text, range: range) {
-                if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+                if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r]), includeCallables: includeCallables) }
             }
-            identifierMatches(filePackage, identifiers: identifiers, packages: starPackages)
+            identifierMatches(identifiers: identifiers, packages: starPackages, includeCallables: includeCallables)
         }
 
         // Map every matched name (inner classes included) to its top-level
@@ -1414,9 +1425,9 @@ final class JVMClasspathIndex {
         return false
     }
 
-    private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false) -> String {
+    private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false) -> String {
         if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
-            return kotlinFunctionDeclaration(function)
+            return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember)
         }
         let suspend = method.kotlinSuspendFunction
         var receiver = ""
@@ -1434,15 +1445,16 @@ final class JVMClasspathIndex {
         return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result
     }
 
-    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction) -> String {
+    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool) -> String {
         // Parenthesize function types so the dot binds to the entire receiver.
-        let receiver = function.receiver.map { $0.contains("->") ? "(\($0))." : $0 + "." } ?? ""
-        let parameters = function.parameters.enumerated().map { index, parameter in
-            let fallback = "p\(index)"
-            let name = parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback
+        let receiver = asFacadeMember ? "" : function.receiver.map { $0.contains("->") ? "(\($0))." : $0 + "." } ?? ""
+        let receiverParameter = asFacadeMember ? function.receiver.map { ["p0: " + $0] } ?? [] : []
+        let parameters = receiverParameter + function.parameters.enumerated().map { index, parameter in
+            let fallback = "p\(index + receiverParameter.count)"
+            let name = receiverParameter.isEmpty ? parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback : fallback
             return (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType
-        }.joined(separator: ", ")
-        return (function.isSuspend ? "suspend " : "") + "fun \(receiver)`\(function.name)`(" + parameters + "): " + function.result
+        }
+        return (function.isSuspend ? "suspend " : "") + "fun \(receiver)`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + function.result
     }
 
     private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false) -> String {
@@ -1577,6 +1589,8 @@ final class JVMClasspathIndex {
                 continue
             }
             methods[symbol.id] = method
+            // Kotlin metadata already provides source nullability.
+            if method.kotlinFunction != nil { continue }
             // Keep the authored Kotlin types on the declaration of this JVM
             // stdlib base so imported methods can satisfy Kotlin List members.
             if ctx.sourceManager.path(of: site.start.file) == "<kswiftk-jvm>/abstractList.kt" { continue }
