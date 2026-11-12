@@ -275,21 +275,20 @@ private func runtimeParseDouble(_ trimmed: String) -> Double? {
 
 @_cdecl("__kk_string_toDouble")
 public func __kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let trimmed = runtimeTrimJavaWhitespace(source)
-    if trimmed.isEmpty {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "empty String")
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        let trimmed = runtimeTrimJavaWhitespace(source)
+        if trimmed.isEmpty {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "empty String"))
+        }
 
-    guard let parsed = runtimeParseDouble(trimmed) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(trimmed)\""
-        )
-        return 0
+        guard let parsed = runtimeParseDouble(trimmed) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(
+                message: "For input string: \"\(trimmed)\""
+            ))
+        }
+        return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
     }
-    return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
 }
 
 @_cdecl("__kk_string_toDouble_flat")
@@ -413,21 +412,20 @@ public func __kk_string_toLongOrNull_radix(
 
 @_cdecl("__kk_string_toFloat")
 public func __kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let trimmed = runtimeTrimJavaWhitespace(source)
-    if trimmed.isEmpty {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "empty String")
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        let trimmed = runtimeTrimJavaWhitespace(source)
+        if trimmed.isEmpty {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "empty String"))
+        }
 
-    guard let parsed = runtimeParseFloat(trimmed) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(trimmed)\""
-        )
-        return 0
+        guard let parsed = runtimeParseFloat(trimmed) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(
+                message: "For input string: \"\(trimmed)\""
+            ))
+        }
+        return runtimeFloatBitsToInt(parsed)
     }
-    return runtimeFloatBitsToInt(parsed)
 }
 
 @_cdecl("__kk_string_toFloatOrNull")
