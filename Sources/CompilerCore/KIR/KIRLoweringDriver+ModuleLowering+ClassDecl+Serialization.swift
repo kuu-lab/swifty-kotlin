@@ -25,10 +25,13 @@ extension KIRLoweringDriver {
            arena.function(for: serializerSym) == nil,
            let signature = sema.symbols.functionSignature(for: serializerSym)
         {
-            let receiverType = signature.receiverType ?? sema.types.anyType
-            var params: [KIRParameter] = [
-                KIRParameter(symbol: info.companionObjectSymbol ?? classSymbol, type: receiverType),
-            ]
+            var params: [KIRParameter] = []
+            if let receiverType = signature.receiverType {
+                params.append(KIRParameter(
+                    symbol: info.companionObjectSymbol ?? classSymbol,
+                    type: receiverType
+                ))
+            }
             for (idx, paramType) in signature.parameterTypes.enumerated() {
                 let paramSym = signature.valueParameterSymbols.indices.contains(idx)
                     ? signature.valueParameterSymbols[idx]
@@ -37,30 +40,39 @@ extension KIRLoweringDriver {
             }
 
             var body: [KIRInstruction] = []
-            if let genClass = info.generatedSerializerClass,
-               let genCtor = info.serializerConstructor
-            {
-                let instanceExpr = emitAllocatePluginNominalInstance(
-                    ownerSymbol: genClass,
-                    resultType: signature.returnType,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
+            let emittedEnumSerializer = sema.symbols.symbol(classSymbol)?.kind == .enumClass
+                && emitEnumSerializerFactoryCall(
+                    classSymbol: classSymbol,
+                    signature: signature,
+                    shared: shared,
                     instructions: &body
                 )
-                let ctorRes = arena.appendTemporary(type: signature.returnType)
-                body.append(.call(
-                    symbol: genCtor,
-                    callee: interner.intern("<init>"),
-                    arguments: [instanceExpr],
-                    result: ctorRes,
-                    canThrow: false
-                ))
-                body.append(.returnValue(instanceExpr))
-            } else {
-                let dummyResult = arena.appendExpr(.null, type: signature.returnType)
-                body.append(.constValue(result: dummyResult, value: .null))
-                body.append(.returnValue(dummyResult))
+            if !emittedEnumSerializer {
+                if let genClass = info.generatedSerializerClass,
+                   let genCtor = info.serializerConstructor
+                {
+                    let instanceExpr = emitAllocatePluginNominalInstance(
+                        ownerSymbol: genClass,
+                        resultType: signature.returnType,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body
+                    )
+                    let ctorRes = arena.appendTemporary(type: signature.returnType)
+                    body.append(.call(
+                        symbol: genCtor,
+                        callee: interner.intern("<init>"),
+                        arguments: [instanceExpr],
+                        result: ctorRes,
+                        canThrow: false
+                    ))
+                    body.append(.returnValue(instanceExpr))
+                } else {
+                    let dummyResult = arena.appendExpr(.null, type: signature.returnType)
+                    body.append(.constValue(result: dummyResult, value: .null))
+                    body.append(.returnValue(dummyResult))
+                }
             }
 
             let kirFunc = KIRFunction(
@@ -180,6 +192,63 @@ extension KIRLoweringDriver {
         }
 
         return extraDecls
+    }
+
+    private func emitEnumSerializerFactoryCall(
+        classSymbol: SymbolID,
+        signature: FunctionSignature,
+        shared: KIRLoweringSharedContext,
+        instructions: inout [KIRInstruction]
+    ) -> Bool {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        guard let enumInfo = sema.symbols.symbol(classSymbol),
+              enumInfo.kind == .enumClass
+        else {
+            return false
+        }
+        let factoryFQName = [
+            "kotlinx", "serialization", "internal", "createSimpleEnumSerializer",
+        ].map { interner.intern($0) }
+        guard let factorySymbol = sema.symbols.lookupAll(fqName: factoryFQName).first(where: {
+            sema.symbols.symbol($0)?.kind == .function
+        }) else {
+            return false
+        }
+        let valuesName = interner.intern("values")
+        guard let valuesSymbol = sema.symbols.lookupAll(fqName: enumInfo.fqName + [valuesName]).first(where: {
+            sema.symbols.symbol($0)?.kind == .function
+        }),
+              let valuesSignature = sema.symbols.functionSignature(for: valuesSymbol)
+        else {
+            return false
+        }
+
+        let serialName = enumInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let serialNameInterned = interner.intern(serialName)
+        let serialNameExpr = arena.appendExpr(.stringLiteral(serialNameInterned), type: sema.types.stringType)
+        instructions.append(.constValue(result: serialNameExpr, value: .stringLiteral(serialNameInterned)))
+
+        let valuesResult = arena.appendTemporary(type: valuesSignature.returnType)
+        instructions.append(.call(
+            symbol: valuesSymbol,
+            callee: valuesName,
+            arguments: [],
+            result: valuesResult,
+            canThrow: false
+        ))
+
+        let serializerResult = arena.appendTemporary(type: signature.returnType)
+        instructions.append(.call(
+            symbol: factorySymbol,
+            callee: interner.intern("createSimpleEnumSerializer"),
+            arguments: [serialNameExpr, valuesResult],
+            result: serializerResult,
+            canThrow: false
+        ))
+        instructions.append(.returnValue(serializerResult))
+        return true
     }
 
     // MARK: - $serializer Member Emitters

@@ -271,6 +271,46 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
+    func kotlinMathName(for symbolID: SymbolID) -> String? {
+        guard let symbol = program.sema.symbols.symbol(symbolID) else { return nil }
+        let components = symbol.fqName.map(context.interner.resolve)
+        guard components.count == 3, components[0] == "kotlin", components[1] == "math" else { return nil }
+        return components[2]
+    }
+
+    // Kotlin's JVM stdlib keeps these implementation methods private and
+    // relies on Kotlin inlining. External bytecode must call public JDK APIs.
+    func kotlinMathFunctionCall(_ symbolID: SymbolID, entry: JVMTextLibraryMethod, receiver: JVMValue?, values: [JVMValue], id: ExprID) throws -> JVMValue? {
+        guard let name = kotlinMathName(for: symbolID) else { return nil }
+        let resultType = try program.expressionType(id)
+        switch name {
+        case "hypot":
+            guard values.count == 2 else { return nil }
+            if entry.method.result == .float {
+                let arguments = try values.map { try convert($0, to: .double) }
+                guard let result = try jdkCall("java/lang/Math", "hypot", [.double, .double], .double, arguments: arguments) else { return nil }
+                return try convert(result, to: .float)
+            }
+            return try jdkCall("java/lang/Math", "hypot", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "ln1p":
+            guard values.count == 1 else { return nil }
+            if entry.method.result == .float {
+                let argument = try convert(values[0], to: .double)
+                guard let result = try jdkCall("java/lang/Math", "log1p", [.double], .double, arguments: [argument]) else { return nil }
+                return try convert(result, to: .float)
+            }
+            return try jdkCall("java/lang/Math", "log1p", entry.method.parameters, entry.method.result, arguments: values, resolved: resultType)
+        case "withSign":
+            guard let receiver, let receiverType = entry.extensionReceiver,
+                  receiverType == .double || receiverType == .float,
+                  values.count == 1 else { return nil }
+            let arguments = [try convert(receiver, to: receiverType), try convert(values[0], to: receiverType)]
+            return try jdkCall("java/lang/Math", "copySign", [receiverType, receiverType], receiverType, arguments: arguments, resolved: resultType)
+        default:
+            return nil
+        }
+    }
+
     func textMatchComponent(_ object: JVMValue, index: Int) throws -> JVMValue {
         // Destructured.componentN is private @InlineOnly in the official stdlib.
         let list = try jdkCall("kotlin/text/MatchResult$Destructured", "toList", [], .reference("java/util/List", nullable: false), receiver: object)!
@@ -323,6 +363,9 @@ extension JVMFunctionBuilder {
             guard let extensionReceiver, method.parameters.count == 1 else {
                 throw fail("Missing JVM extension property receiver.", id)
             }
+            if kotlinMathName(for: symbol) == "ulp" {
+                return try jdkCall("java/lang/Math", "ulp", method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
+            }
             return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
         }
         let object = try receiver.map(requireValue) ?? instance(id)
@@ -367,6 +410,9 @@ extension JVMFunctionBuilder {
             ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0])
         } else { ordered = try arguments(args, binding: binding, parameters: parameters, declarations: entry.declarations, id: id) }
         let values = ordered.values
+        if let result = try kotlinMathFunctionCall(binding.chosenCallee, entry: entry, receiver: object, values: values, id: id) {
+            return JVMIntrinsicResult(value: result)
+        }
         if entry.adaptation == "collectionFactory", entry.declarations.first?.isVararg == true, ["mapOf", "listOf", "setOf"].contains(method.name), args.count == 1, !args[0].isSpread, args[0].label == nil {
             let element = try arrayComponent(parameters[0])
             let single = try indexedRead(values[0], index: constant(.int(0), .int), type: element)

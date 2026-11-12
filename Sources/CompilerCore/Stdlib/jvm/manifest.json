@@ -34,6 +34,12 @@
       "runtimeFacade": "kotlin/NumbersKt"
     },
     {
+      "path": "declarations/EnumValues.kt",
+      "virtualPath": "<kswiftk-jvm>/enum-values.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/EnumKt"
+    },
+    {
       "path": "kotlin/Standard.kt",
       "virtualPath": "<kswiftk-jvm>/standard.kt",
       "excludeFromStdlibBuild": true,
@@ -187,6 +193,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/ByteArrayDecodeToString.kt",
+      "virtualPath": "<kswiftk-jvm>/byte-array-decode-to-string.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringFormattingCaseFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/string-formatting-case-functions.kt",
       "excludeFromStdlibBuild": true,
@@ -254,6 +266,12 @@
       "appendForConsumers": "declarations/CollectionFactories.kt"
     },
     {
+      "path": "declarations/ListMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/IndexedValue.kt",
       "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
       "excludeFromStdlibBuild": true
@@ -284,6 +302,12 @@
       "path": "declarations/CollectionHigherOrderFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/m20-collections-inline.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/IterableFlatten.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-iterable-flatten.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
       "path": "declarations/CollectionTextFunctions.kt",

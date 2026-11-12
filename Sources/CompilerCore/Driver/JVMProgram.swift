@@ -303,6 +303,8 @@ public struct JVMProperty {
     public var annotationsMethod: JVMForeignMethod? = nil
     public var customGetter: Bool = false
     public var customSetter: Bool = false
+    public var isGetterInline: Bool = false
+    public var isSetterInline: Bool = false
 }
 
 public struct JVMRecordComponent {
@@ -395,6 +397,7 @@ public struct JVMTypeParameter {
     public let variance: Int
     public let bounds: [JVMKotlinType]
     public let signature: String
+    public var annotations: [JVMAnnotation] = []
     public var isReified = false
 }
 

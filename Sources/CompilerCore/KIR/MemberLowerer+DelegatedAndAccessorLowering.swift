@@ -961,6 +961,10 @@ extension MemberLowerer {
         body.append(.endBlock)
 
         let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: ownerType, parameterTypes: [propType], returnType: sema.types.unitType),
+            for: setterSymbol
+        )
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(
@@ -1058,6 +1062,10 @@ extension MemberLowerer {
         body.append(.endBlock)
 
         let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(receiverType: ownerType, parameterTypes: [propType], returnType: sema.types.unitType),
+            for: setterSymbol
+        )
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(

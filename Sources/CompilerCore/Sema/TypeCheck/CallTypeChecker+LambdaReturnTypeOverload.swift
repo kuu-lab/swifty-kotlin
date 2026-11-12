@@ -569,10 +569,16 @@ extension CallTypeChecker {
         for (index, argument) in args.enumerated() {
             defer { ctx.dataFlow.localStability.inPlaceLambdaScopes.remove(argument.expr) }
             argumentCtx.callArgumentExprBeingInferred = argument.expr
+            let hasExpectedTypeOverride: Bool
             if let override = expectedTypeOverrides[index],
-               !discardedExpectedTypeHintIndices.contains(index) {
+               !discardedExpectedTypeHintIndices.contains(index)
+            {
                 contextualArgExpectedTypes[index] = override
-            } else if let argumentExpr = ast.arena.expr(argument.expr) {
+                hasExpectedTypeOverride = true
+            } else {
+                hasExpectedTypeOverride = false
+            }
+            if let argumentExpr = ast.arena.expr(argument.expr) {
                 let narrowedCandidates = narrowedCallCandidates(
                     candidates: candidates,
                     args: args,
@@ -584,7 +590,36 @@ extension CallTypeChecker {
                 )
                 let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
 
-                switch argumentExpr {
+                if hasExpectedTypeOverride {
+                    if case .lambdaLiteral = argumentExpr {
+                        markInPlaceLambdaScopeIfApplicable(
+                            argument.expr,
+                            at: index,
+                            label: argument.label,
+                            args: args,
+                            candidates: expectedTypeCandidates,
+                            ctx: ctx
+                        )
+                        let expectation = lambdaLiteralExpectedType(
+                            at: index,
+                            args: args,
+                            callRange: callRange,
+                            candidates: expectedTypeCandidates,
+                            explicitTypeArgs: explicitTypeArgs,
+                            receiverType: receiverType,
+                            inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                            resolver: ctx.resolver,
+                            sema: sema,
+                            ctx: ctx
+                        )
+                        recordLambdaDeclaredReturnExpectationIfErased(
+                            argument.expr,
+                            expectationType: expectation.type,
+                            sema: sema
+                        )
+                    }
+                } else {
+                    switch argumentExpr {
                 case .intLiteral:
                     contextualArgExpectedTypes[index] = uniformNumericLiteralParameterType(
                         at: index,
@@ -663,19 +698,14 @@ extension CallTypeChecker {
                     )
                 case let .lambdaLiteral(lambdaParams, _, _, _):
                     // Prove non-escaping invocation before checking the lambda body.
-                    if !expectedTypeCandidates.isEmpty, expectedTypeCandidates.allSatisfy({ candidate in
-                        guard let signature = sema.symbols.functionSignature(for: candidate),
-                              argument.label != nil || signature.parameterTypes.count == args.count,
-                              let parameterIndex = parameterIndexForCallArgument(
-                                  at: index, label: argument.label, in: signature, sema: sema
-                              )
-                        else { return false }
-                        return ctx.dataFlow.localStability.isInPlaceParameter(
-                            parameterIndex, function: candidate, sema: sema
-                        )
-                    }) {
-                        ctx.dataFlow.localStability.inPlaceLambdaScopes.insert(argument.expr)
-                    }
+                    markInPlaceLambdaScopeIfApplicable(
+                        argument.expr,
+                        at: index,
+                        label: argument.label,
+                        args: args,
+                        candidates: expectedTypeCandidates,
+                        ctx: ctx
+                    )
                     let expectation = lambdaLiteralExpectedType(
                         at: index,
                         args: args,
@@ -719,21 +749,11 @@ extension CallTypeChecker {
                             to: contextualLambdaType, signature: signature, candidate: candidate, ctx: ctx
                         )
                     }
-                    // The contextual expected type may specialize the declared
-                    // `() -> T` to `() -> Any?` through the call's own expected
-                    // result. The erased-generic claim inside the body must
-                    // still verify the *declared* parameter `T` — KIR lowering
-                    // resolves it through the call's substituted type
-                    // arguments (KUU-4496) — so keep the declared parameter
-                    // type as the value-boundary consumer.
-                    if let expectationType = expectation.type,
-                       case let .functionType(declaredFunction) = sema.types.kind(of: expectationType),
-                       case .typeParam = sema.types.kind(of: declaredFunction.returnType)
-                    {
-                        sema.bindings.bindLambdaDeclaredExpectedReturnType(
-                            argument.expr, type: declaredFunction.returnType
-                        )
-                    }
+                    recordLambdaDeclaredReturnExpectationIfErased(
+                        argument.expr,
+                        expectationType: expectation.type,
+                        sema: sema
+                    )
                     let perCandidateResultType = ctx.isElvisBranchExpectedTypeHint
                         ? contextualCallResultType.map { sema.types.makeNullable($0) }
                         : contextualCallResultType
@@ -792,6 +812,7 @@ extension CallTypeChecker {
                     }
                 default:
                     break
+                }
                 }
             }
 
@@ -1699,6 +1720,54 @@ extension CallTypeChecker {
             && !declared.contextReceivers.contains { typeMentionsTypeParameter($0, sema: sema) }
             && !(declared.receiver.map { typeMentionsTypeParameter($0, sema: sema) } ?? false)
             && !typeMentionsTypeParameter(declared.returnType, sema: sema)
+    }
+
+    private func markInPlaceLambdaScopeIfApplicable(
+        _ exprID: ExprID,
+        at index: Int,
+        label: InternedString?,
+        args: [CallArgument],
+        candidates: [SymbolID],
+        ctx: TypeInferenceContext
+    ) {
+        let sema = ctx.sema
+        guard !candidates.isEmpty,
+              candidates.allSatisfy({ candidate in
+                  guard let signature = sema.symbols.functionSignature(for: candidate),
+                        label != nil || signature.parameterTypes.count == args.count,
+                        let parameterIndex = parameterIndexForCallArgument(
+                            at: index, label: label, in: signature, sema: sema
+                        )
+                  else {
+                      return false
+                  }
+                  return ctx.dataFlow.localStability.isInPlaceParameter(
+                      parameterIndex, function: candidate, sema: sema
+                  )
+              })
+        else {
+            return
+        }
+        ctx.dataFlow.localStability.inPlaceLambdaScopes.insert(exprID)
+    }
+
+    /// Preserves the declared type-parameter return target (`() -> T`) for KIR
+    /// erased-generic claim checks even when contextual propagation replaces it
+    /// with a call-result type (`() -> Any?`).
+    private func recordLambdaDeclaredReturnExpectationIfErased(
+        _ exprID: ExprID,
+        expectationType: TypeID?,
+        sema: SemaModule
+    ) {
+        guard let expectationType,
+              case let .functionType(declaredFunction) = sema.types.kind(of: expectationType),
+              case .typeParam = sema.types.kind(of: declaredFunction.returnType)
+        else {
+            return
+        }
+        sema.bindings.bindLambdaDeclaredExpectedReturnType(
+            exprID, type: declaredFunction.returnType
+        )
     }
 
     private func isFunctionTypeLike(_ type: TypeID, sema: SemaModule) -> Bool {
