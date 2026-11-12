@@ -48,9 +48,13 @@ final class JVMClasspathIndex {
             if directory.boolValue {
                 let base = URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath()
                 guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else { throw JVMClassReader.Invalid() }
-                let files = enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "class" }.sorted { $0.path < $1.path }
-                for file in files {
-                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(base.pathComponents.count).joined(separator: "/")
+                let files = enumerator.compactMap { entry -> (file: URL, path: String)? in
+                    guard let file = entry as? URL, file.pathExtension == "class" else { return nil }
+                    return (file, file.path)
+                }.sorted { $0.path < $1.path }
+                let baseDepth = base.pathComponents.count
+                for (file, _) in files {
+                    let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(baseDepth).joined(separator: "/")
                     guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"), !relative.hasSuffix("package-info.class") else { continue }
                     try insert(Array(Data(contentsOf: file)), path: relative)
                 }
