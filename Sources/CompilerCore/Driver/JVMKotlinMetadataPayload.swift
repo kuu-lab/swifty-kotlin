@@ -92,6 +92,7 @@ struct JVMKotlinMetadataPayload {
         fileprivate let names: JVMMetadataNames
         fileprivate let types: TypeTable
         fileprivate let functions: [ProtoFields]
+        fileprivate let ownerTypeParameters: [Int32: String]
     }
 
     var multifileParts: [String] { kind == 4 ? data1 : [] }
@@ -105,7 +106,17 @@ struct JVMKotlinMetadataPayload {
         let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
         let declaration = try ProtoFields(bytes[cursor.position...])
         let classTypes = try TypeTable(declaration.message(30))
-        return FunctionTable(names: names, types: classTypes, functions: try declaration.messages(isFileFacade ? 3 : 9))
+        var ownerTypeParameters: [Int32: String] = [:]
+        if !isFileFacade {
+            for parameter in try declaration.messages(5) {
+                guard let id = parameter.int32(1), let name = try names.resolve(parameter.int32(2)),
+                      JVMProgramBuilder.isIdentifier(name) else { continue }
+                ownerTypeParameters[id] = name
+            }
+        }
+        return FunctionTable(names: names, types: classTypes,
+                             functions: try declaration.messages(isFileFacade ? 3 : 9),
+                             ownerTypeParameters: ownerTypeParameters)
     }
 
     func suspendFunctions(in table: FunctionTable) throws -> [String: JVMKotlinSuspendFunction] {
@@ -290,9 +301,12 @@ struct JVMKotlinMetadataPayload {
     func functions(in table: FunctionTable) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
+        let ownerTypeParameters = table.ownerTypeParameters
         var result: [JVMKotlinFunction] = []
         for function in table.functions {
             guard let name = try names.resolve(function.int32(2)) else { continue }
+            let flags = function.int32(9) ?? 0
+            let isInfix = flags & (1 << 9) != 0
             let signature = try function.message(100)
             let jvmName: String?
             var descriptor: String?
@@ -304,6 +318,7 @@ struct JVMKotlinMetadataPayload {
                 descriptor = nil
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
+            if isInfix { types.parameterNames = ownerTypeParameters }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade == true else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
@@ -364,8 +379,7 @@ struct JVMKotlinMetadataPayload {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
-            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil else { continue }
-            let flags = function.int32(9) ?? 0
+            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix else { continue }
             let isSuspend = flags & (1 << 13) != 0
             if !hasFunctionTypes, descriptor == nil {
                 // The signature extension can omit descriptors that the JVM
@@ -397,7 +411,7 @@ struct JVMKotlinMetadataPayload {
                 isSuspend: isSuspend,
                 isInline: flags & (1 << 10) != 0,
                 isOperator: flags & (1 << 8) != 0,
-                isInfix: flags & (1 << 9) != 0
+                isInfix: isInfix
             ))
         }
         return result
