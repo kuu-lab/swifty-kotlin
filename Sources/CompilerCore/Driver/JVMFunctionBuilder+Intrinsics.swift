@@ -824,6 +824,80 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMFunctionBuilder {
+    private func loopConventionCall(
+        _ binding: CallBinding,
+        receiver: JVMValue,
+        resultType: JVMValueType,
+        name: String,
+        id: ExprID
+    ) throws -> JVMValue? {
+        let symbol = binding.chosenCallee
+        let isExtension = program.extensionSymbols.contains(symbol)
+            || context.jvmImports?.extensionSymbols.contains(symbol) == true
+
+        if let reference = program.references[symbol] {
+            let arguments: [JVMValue]
+            if isExtension {
+                guard let receiverType = reference.parameters.first else {
+                    throw fail("JVM for-loop extension \(name)() has no receiver parameter.", id)
+                }
+                arguments = [try convert(receiver, to: receiverType)]
+            } else {
+                arguments = []
+            }
+            guard arguments.count == reference.parameters.count else {
+                throw fail("JVM for-loop \(name)() argument count mismatch.", id)
+            }
+            let result = reference.result == .unit ? nil : try value(resultType)
+            instructions.append(.call(reference, arguments, result))
+            return result
+        }
+
+        guard let method = program.methods[symbol]
+            ?? context.jvmImports?.methods[symbol]
+            ?? program.textLibraryMethods[symbol]?.method
+        else {
+            return nil
+        }
+
+        let arguments: [JVMValue]
+        if isExtension {
+            guard let receiverType = method.parameters.first else {
+                throw fail("JVM for-loop extension \(name)() has no receiver parameter.", id)
+            }
+            arguments = [try convert(receiver, to: receiverType)]
+        } else {
+            arguments = []
+        }
+        guard arguments.count == method.parameters.count else {
+            throw fail("JVM for-loop \(name)() argument count mismatch.", id)
+        }
+
+        let dispatchReceiver: JVMValue?
+        if method.isStatic {
+            dispatchReceiver = nil
+        } else if isExtension {
+            let implicitReceiver = binding.dispatchReceiverSymbol.flatMap { contextualReceivers[$0] }
+                ?? thisValue
+            guard let implicitReceiver else {
+                throw fail("JVM for-loop member extension \(name)() has no dispatch receiver.", id)
+            }
+            dispatchReceiver = try convert(
+                implicitReceiver,
+                to: .reference(method.owner, nullable: false)
+            )
+        } else {
+            dispatchReceiver = try convert(
+                receiver,
+                to: .reference(method.owner, nullable: false)
+            )
+        }
+
+        let result = method.result == .unit ? nil : try value(resultType)
+        instructions.append(.foreignCall(method, receiver: dispatchReceiver, arguments: arguments, result: result))
+        return result
+    }
+
     func makeIndexedValue(_ index: JVMValue, _ element: JVMValue, as type: JVMValueType) throws -> JVMValue {
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let indexedValue = try constructJDK("kotlin/collections/IndexedValue", parameters: [.int, object], arguments: [index, convert(element, to: object)])
@@ -980,7 +1054,18 @@ extension JVMFunctionBuilder {
         } else {
             let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
             let iterator: JVMValue
-            if let loopBinding, loopBinding.iteratorCall == nil {
+            if withIndexReceiver == nil,
+               let loopBinding,
+               let iteratorCall = loopBinding.iteratorCall,
+               let resolved = try loopConventionCall(
+                   iteratorCall,
+                   receiver: source,
+                   resultType: try program.type(loopBinding.iteratorType),
+                   name: "iterator",
+                   id: id
+               ) {
+                iterator = resolved
+            } else if let loopBinding, loopBinding.iteratorCall == nil {
                 iterator = try convert(source, to: iteratorType)
             } else {
                 let iteratorOwner = loopBinding?.iteratorCall
@@ -1006,10 +1091,42 @@ extension JVMFunctionBuilder {
             let withIndexCounter = indexedElementType == nil ? nil : try value(.int)
             if let withIndexCounter { instructions.append(.constant(.int(0), withIndexCounter)) }
             mark(test)
-            let check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+            let check: JVMValue
+            if let loopBinding,
+               let resolved = try loopConventionCall(
+                   loopBinding.hasNextCall,
+                   receiver: iterator,
+                   resultType: .boolean,
+                   name: "hasNext",
+                   id: id
+               ) {
+                check = resolved
+            } else {
+                check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+            }
             instructions.append(.jumpIfFalse(check, exit))
             if let withIndexCounter { try checkWithIndexCounter(withIndexCounter) }
-            let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: indexedElementType ?? elementType)!
+            let next: JVMValue
+            if let loopBinding,
+               let resolved = try loopConventionCall(
+                   loopBinding.nextCall,
+                   receiver: iterator,
+                   resultType: indexedElementType ?? elementType,
+                   name: "next",
+                   id: id
+               ) {
+                next = resolved
+            } else {
+                next = try jdkCall(
+                    "java/util/Iterator",
+                    "next",
+                    [],
+                    .reference("java/lang/Object", nullable: true),
+                    receiver: iterator,
+                    interface: true,
+                    resolved: indexedElementType ?? elementType
+                )!
+            }
             if let withIndexCounter {
                 let item = try makeIndexedValue(withIndexCounter, next, as: elementType)
                 instructions.append(.copy(item, local))
