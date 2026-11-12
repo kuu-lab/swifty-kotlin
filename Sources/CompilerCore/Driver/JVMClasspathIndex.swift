@@ -235,8 +235,8 @@ final class JVMClasspathIndex {
             }
             var parents: [String] = []
             if !info.isInterface, let base = info.superclass, classes[base] != nil,
-               let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
-                parents.append(mapped + "()")
+               let mapped = superclassReference(base, child: info) {
+                parents.append(mapped)
             }
             parents += info.interfaces.filter {
                 classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
@@ -451,6 +451,8 @@ final class JVMClasspathIndex {
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
 
+    private(set) var projectsCoroutineContextIsActive = false
+
     func metroFactoryInstance(_ factory: String) -> JVMField? {
         let name = factory + "$Impl"
         guard hierarchyClasses[factory]?.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) == true,
@@ -578,6 +580,14 @@ final class JVMClasspathIndex {
             }
         }
         return supertypeReference(name, childParams: child.classTypeParameterNames)
+    }
+
+    private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
+        guard let type = supertypeReference(name, childParams: child.classTypeParameterNames) else { return nil }
+        // The covered class keeps its Kotlin constructor instead of the
+        // placeholder no-argument constructor used by ordinary JVM stubs.
+        let arguments = name == "kotlin/coroutines/AbstractCoroutineContextElement" ? "null!!" : ""
+        return type + "(" + arguments + ")"
     }
     private func isSAM(_ name: String) -> Bool {
         // Annotation's equals, hashCode and toString are redeclared abstract
@@ -875,6 +885,20 @@ final class JVMClasspathIndex {
             )
         }
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(into: ctx, covered: covered)
+        let isContextIsActive: (JVMKotlinTopLevelProperty, JVMForeignMethod) -> Bool = { property, getter in
+            property.name == "isActive" && property.receiver == "kotlin.coroutines.CoroutineContext"
+                && getter.owner.hasPrefix("kotlinx/coroutines/")
+                && getter.descriptor == "(Lkotlin/coroutines/CoroutineContext;)Z"
+        }
+        let contextIsActive = classes.values.sorted { $0.name < $1.name }.lazy
+            .flatMap(\.kotlinTopLevelProperties).first { isContextIsActive($0.source, $0.getter) }
+        if let (_, getter) = contextIsActive {
+            let source = "package kotlinx.coroutines\nval kotlin.coroutines.CoroutineContext.isActive: Boolean get() = null!!\n"
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm-import>/coroutine-context-is-active.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            kotlinFacadeGetters[file] = [getter]
+            projectsCoroutineContextIsActive = true
+        }
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
             guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
@@ -893,7 +917,8 @@ final class JVMClasspathIndex {
                 $0.isStatic && !projectedComposeMethods.contains($0.owner + "." + $0.name + $0.descriptor)
             }
             let topLevelProperties = info.kotlinTopLevelProperties.filter {
-                $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
+                !isContextIsActive($0.source, $0.getter)
+                    && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
             }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
             if info.isAnnotation && own.allSatisfy(\.isStatic) {
@@ -954,7 +979,11 @@ final class JVMClasspathIndex {
                 if info.flags & 0x2000 != 0 {
                     source += annotationClassDeclaration(info, short: short)
                 } else {
-                if info.isInterface {
+                let isNonCancellable = info.name == "kotlinx/coroutines/NonCancellable" && info.isKotlinObject
+                    && info.superclass == "kotlin/coroutines/AbstractCoroutineContextElement"
+                if isNonCancellable {
+                    source += "object `\(short)`"
+                } else if info.isInterface {
                     source += interfaceKeyword(info) + " `\(short)`"
                     if !info.classTypeParameterNames.isEmpty {
                         source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
@@ -972,15 +1001,15 @@ final class JVMClasspathIndex {
                 }
                 var parents: [String] = []
                 if !info.isInterface, let base = info.superclass, classes[base] != nil,
-                   let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
-                    parents.append(mapped + "()")
+                   let mapped = superclassReference(base, child: info) {
+                    parents.append(mapped)
                 }
                 parents += info.interfaces.filter {
                     classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods)
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
                 if info.name == Self.compositionLocal, compositionLocalGetter != nil,
                    let type = info.classTypeParameterNames.first {
                     source += "@get:androidx.compose.runtime.Composable val current: `\(type)` get() = null!!\n"
