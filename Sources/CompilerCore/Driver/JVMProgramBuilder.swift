@@ -572,6 +572,14 @@ final class JVMFunctionBuilder {
                 return result
             }
         }
+        if let name = source.type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: source.type),
+           carrier.descriptor == type.descriptor {
+            return try jdkCall(name, "unbox-impl", [], carrier, receiver: source, resolved: type)!
+        }
+        if let name = type.referenceName, let carrier = context.jvmImports?.importedValueCarrier(for: type),
+           carrier.descriptor == source.type.descriptor {
+            return try jdkCall(name, "box-impl", [carrier], type, arguments: [source])!
+        }
         if source.type.referenceName != nil, type.isNumeric,
            let carrier = source.type.numericCarrier, carrier != type {
             // Unbox the actual wrapper before widening; casting Byte to
