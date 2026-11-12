@@ -8,6 +8,7 @@ final class JVMProgramBuilder {
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var collectionInterfaceMethods: [SymbolID: JVMForeignMethod] = [:]
     var properties: [SymbolID: JVMProperty] = [:]
+    var foreignInterfaceDefaultMethodsCache: [SymbolID: [String: (method: JVMForeignMethod, owner: String)]] = [:]
     var facadeName = ""
     var facadePlan: JVMClassPlan?
     var references: [SymbolID: JVMFunctionReference] = [:]
@@ -305,11 +306,14 @@ final class JVMProgramBuilder {
                 throw JVMFrontendError(message: "JVM entry point must be fun main(): Unit or fun main(args: Array<String>): Unit.")
             }
             guard Self.isIdentifier(context.options.moduleName) else { throw JVMFrontendError(message: "JVM module name requires an ASCII identifier.") }
-            let functions = try declarations.map { declaration, reference, symbol in
+            var functions: [JVMFunction] = []
+            for (declaration, reference, symbol) in declarations {
                 let builder = JVMFunctionBuilder(program: self, declaration: declaration, reference: reference)
                 builder.functionSymbol = symbol
                 builder.semanticSignature = sema.symbols.functionSignature(for: symbol)
-                return try annotated(describe(builder.build(), signature: builder.semanticSignature!, parameters: declaration.typeParams), symbol: symbol)
+                let function = try annotated(describe(builder.build(), signature: builder.semanticSignature!, parameters: declaration.typeParams), symbol: symbol)
+                functions.append(function)
+                functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: nil)
             }
             var defaults: [JVMFunction] = []
             for id in file.topLevelDecls {
@@ -330,7 +334,12 @@ final class JVMProgramBuilder {
                     var initializer = b.finish(); initializer.access = 8; facadeFunctions.append(initializer)
                 }
             }
-            var output = JVMProgram(internalClassName: facadeName, sourceFileName: names[index].1, functions: functions + defaults + facadeFunctions, hasMain: hasMain, moduleName: context.options.moduleName)
+            let allFunctions = functions + defaults + facadeFunctions
+            var emittedSignatures: Set<String> = []
+            guard allFunctions.allSatisfy({ emittedSignatures.insert(($0.jvmName ?? $0.reference.name) + $0.reference.descriptor).inserted }) else {
+                throw JVMFrontendError(message: "Clashing JVM top-level method signatures.")
+            }
+            var output = JVMProgram(internalClassName: facadeName, sourceFileName: names[index].1, functions: allFunctions, hasMain: hasMain, moduleName: context.options.moduleName)
             output.properties = facadePlan?.properties.map { $0.2 } ?? []
             output.extraFields = (facadePlan?.properties.compactMap { $0.2.delegateField } ?? []) + (facadePlan.map { Array($0.propertyTokens.values).sorted { $0.name < $1.name } } ?? [])
             output.typeAliases = try aliases(file.topLevelDecls.compactMap { if case let .typeAliasDecl(alias) = ast.arena.decl($0) { return alias }; return nil }, package: file.packageFQName)
@@ -844,6 +853,10 @@ final class JVMFunctionBuilder {
             }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .arrayConstructor {
                 return try arrayConstructor(args, id: id)
+            }
+            if program.sema.bindings.stdlibSpecialCallKinds[id] == .enumValues,
+               let result = try enumValuesCall(args, id: id) {
+                return result.value
             }
             if let value = try nominalCall(id, receiver: nil, name: nil, args: args) { return value.value }
             let invokeReceiver: ExprID?

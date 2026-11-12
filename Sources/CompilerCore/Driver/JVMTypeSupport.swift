@@ -189,17 +189,9 @@ extension JVMProgramBuilder {
         }
     }
     func typeParameters(_ symbols: [SymbolID], declarations: [TypeParamDecl]) throws -> [JVMTypeParameter] {
-        // JVMTypeParameter carries no annotation surface, so type-parameter
-        // annotations are never emitted. Only compile-time-only
-        // kotlin.internal.* markers (e.g. OnlyInputTypes, which steers type
-        // inference during Sema) are tolerated; anything else is rejected.
-        guard symbols.count == declarations.count,
-              symbols.allSatisfy({ symbol in
-                  sema.symbols.annotations(for: symbol).allSatisfy {
-                      $0.annotationFQName.hasPrefix("kotlin.internal.")
-                  }
-              })
-        else { throw JVMFrontendError(message: "Unsupported JVM type parameter annotations.") }
+        guard symbols.count == declarations.count else {
+            throw JVMFrontendError(message: "Mismatched JVM type parameter declarations.")
+        }
         return try zip(symbols, declarations).map { symbol, decl in
             let name = context.interner.resolve(decl.name)
             guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "JVM type parameter needs an ASCII name.") }
@@ -215,7 +207,19 @@ extension JVMProgramBuilder {
                 + (firstBoundIsInterface ? "::" : ":")
                 + (boundSignatures.first ?? "Ljava/lang/Object;")
                 + boundSignatures.dropFirst().map { ":" + $0 }.joined()
-            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: signature, isReified: decl.isReified)
+            // Kotlin compiler markers guide compilation and stay off JVM type parameters.
+            let parameterAnnotations = try annotations(for: symbol, target: nil).filter {
+                !$0.descriptor.hasPrefix("Lkotlin/internal/")
+            }
+            return JVMTypeParameter(
+                id: Int(symbol.rawValue),
+                name: name,
+                variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2),
+                bounds: try bounds.map(kotlinType),
+                signature: signature,
+                annotations: parameterAnnotations,
+                isReified: decl.isReified
+            )
         }
     }
     func describe(
@@ -272,7 +276,14 @@ extension JVMProgramBuilder {
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
             f.genericSignature = prefix + "(" + (try f.kotlinReceiver == nil ? "" : signatureType(signature.receiverType!, parameterPosition: true)) + (try signature.parameterTypes.enumerated().map { i, parameter in (declaration.valueParams[i].isVararg ? "[" : "") + (try signatureType(parameter, parameterPosition: true)) }).joined() + ")" + (try signatureType(signature.returnType))
-            f.access = (f.access ?? 9) | 0x80
+            // ACC_VARARGS is valid only when the final parameter in the emitted
+            // signature is the vararg array. Emission rechecks this after
+            // lowerings that append physical parameters.
+            let hasTerminalVararg = declaration.valueParams.last?.isVararg == true
+                && f.reference.parameters.last?.descriptor.hasPrefix("[") == true
+            if hasTerminalVararg {
+                f.access = (f.access ?? 9) | 0x80
+            }
         }
         return f
     }

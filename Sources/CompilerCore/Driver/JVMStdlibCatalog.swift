@@ -53,6 +53,10 @@ package enum JVMStdlibCatalog {
         for declaration in try manifest().declarations {
             if ctx.options.stdlibOnly && declaration.excludeFromStdlibBuild { continue }
             if !ctx.options.stdlibOnly && declaration.onlyForStdlibBuild == true { continue }
+            if !ctx.options.stdlibOnly, declaration.path == "declarations/KotlinIoPath.kt",
+               !userSourcesUseKotlinPath(in: ctx) {
+                continue
+            }
             var source = try read(declaration.path, commonSource: declaration.commonSource == true)
             if !ctx.options.stdlibOnly, let extra = declaration.appendForConsumers {
                 let content = String(decoding: try read(extra), as: UTF8.self)
@@ -61,5 +65,16 @@ package enum JVMStdlibCatalog {
             guard !ctx.sourceManager.containsFile(path: declaration.virtualPath) else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration injection.") }
             _ = ctx.sourceManager.addFile(path: declaration.virtualPath, contents: source, origin: .residualStdlib)
         }
+    }
+
+    private static func userSourcesUseKotlinPath(in ctx: CompilationContext) -> Bool {
+        for file in ctx.sourceManager.fileIDs()
+        where ctx.sourceManager.origin(of: file) == .user
+            && !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/")
+        {
+            let source = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
+            if JVMJDKClasspath.usesKotlinPath(in: source) { return true }
+        }
+        return false
     }
 }

@@ -14,6 +14,8 @@ struct JVMClassInfo {
     var hasEnclosingMethod = false
     var isKotlinFileFacade: Bool?
     var annotations: [JVMAnnotation] = []
+    var hasKotlinMetadata = false
+    var kotlinAnnotationVarargElementNames: Set<String> = []
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
@@ -511,7 +513,7 @@ struct JVMClassReader {
                 methods[index].kotlinFunction = function
             }
         }
-        return JVMClassInfo(
+        var info = JVMClassInfo(
             name: name,
             flags: flags,
             superclass: superclass,
@@ -526,6 +528,11 @@ struct JVMClassReader {
             isKotlinFileFacade: classAttributes.kotlinMetadata?.isFileFacade,
             annotations: classAttributes.annotations
         )
+        info.hasKotlinMetadata = classAttributes.kotlinMetadata != nil
+        if flags & 0x2000 != 0, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinAnnotationVarargElementNames = (try? metadata.annotationVarargElements(byteLimit: bytes.count)) ?? []
+        }
+        return info
     }
 
     private static func hasSuspendDescriptor(_ method: JVMForeignMethod) -> Bool {
