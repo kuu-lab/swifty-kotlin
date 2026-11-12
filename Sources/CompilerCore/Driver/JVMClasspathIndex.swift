@@ -31,6 +31,12 @@ final class JVMClasspathIndex {
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
     private(set) var hasComposeRuntime = false
+    private(set) var metroDeclarationsFile: FileID?
+    private var hasMetroRuntime: Bool {
+        classes[JVMMetro.facade] != nil
+            && classes[JVMMetro.package + "DependencyGraph"]?.isAnnotation == true
+            && classes[JVMMetro.package + "DependencyGraph$Factory"]?.isAnnotation == true
+    }
 
     private func detectsComposeRuntime() -> Bool {
         guard let composer = classes[JVMCompose.composer], composer.isInterface,
@@ -118,6 +124,9 @@ final class JVMClasspathIndex {
         if result.hasComposeRuntime {
             result.lazyClassNames.formUnion(result.classes.keys.filter { $0.hasPrefix("androidx/compose/") })
         }
+        if result.hasMetroRuntime {
+            result.lazyClassNames.formUnion(result.classes.keys.filter { $0.hasPrefix(JVMMetro.package) })
+        }
         let eagerClasspathMemberCount = result.classes.values.reduce(0) { count, info in
             result.lazyClassNames.contains(info.name) ? count : count + 1 + info.methods.count + info.fields.count
         }
@@ -177,7 +186,8 @@ final class JVMClasspathIndex {
 
     private func isImportableClassifier(_ name: String, visited: Set<String>) -> Bool {
         guard !visited.contains(name), let info = hierarchyClasses[name],
-              info.flags & 0x1000 == 0, !info.hasEnclosingMethod else { return false }
+              info.flags & 0x1000 == 0, !info.hasEnclosingMethod,
+              !JVMMetro.hidesFromSource(info) else { return false }
         if let entry = innerClassMetadata[name] {
             guard let outer = entry.outerName, let shortName = entry.innerName,
                   [UInt16(1), UInt16(4)].contains(entry.access & 0x0007), entry.access & 0x1000 == 0,
@@ -368,6 +378,9 @@ final class JVMClasspathIndex {
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
         let exposedName = method.kotlinFunction?.name ?? method.kotlinSuspendFunction?.name ?? method.name
+        // Exclude generated static forwarders. The companion's instance method
+        // can still implement a user-declared factory interface.
+        if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
             guard function.parameters.count + (function.receiver == nil ? 0 : 1)
@@ -384,6 +397,34 @@ final class JVMClasspathIndex {
         return method.parameters.allSatisfy(expose) && expose(method.result)
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
+
+    func metroFactoryInstance(_ factory: String) -> JVMField? {
+        let name = factory + "$Impl"
+        guard hierarchyClasses[factory]?.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) == true,
+              let impl = hierarchyClasses[name], impl.flags & 1 != 0, impl.interfaces.contains(factory),
+              impl.annotations.contains(where: { $0.descriptor == JVMMetro.implementation }) else { return nil }
+        return metroSingleton(in: impl, named: "INSTANCE", type: name)
+    }
+
+    func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
+        let companion = graph + "$Companion"
+        guard let info = hierarchyClasses[graph],
+              info.annotations.contains(where: { $0.descriptor == JVMMetro.graph }),
+              let field = metroSingleton(in: info, named: "Companion", type: companion),
+              let owner = hierarchyClasses[companion], owner.flags & 1 != 0,
+              let method = owner.methods.first(where: {
+                  $0.name == "invoke" && $0.descriptor == "()L" + graph + ";" && !$0.isStatic && !$0.isProtected
+                      && $0.annotations.contains(where: { $0.descriptor == JVMMetro.invoke })
+              }) else { return nil }
+        return (field, method)
+    }
+
+    private func metroSingleton(in owner: JVMClassInfo, named name: String, type: String) -> JVMField? {
+        guard let field = owner.fields.first(where: {
+            $0.name == name && $0.descriptor == "L" + type + ";" && $0.isPublic && $0.isStatic
+        }) else { return nil }
+        return JVMField(owner: owner.name, name: name, type: .reference(type, nullable: false), access: field.access)
+    }
     func kotlinType(_ type: JVMValueType) -> String {
         switch type {
         case .byte: return "kotlin.Byte"
@@ -779,6 +820,11 @@ final class JVMClasspathIndex {
         activeCoveredNames = covered
         defer { overrideSignaturesByOwner.removeAll() }
         injectComposeUIContracts(into: ctx)
+        if hasMetroRuntime {
+            metroDeclarationsFile = ctx.sourceManager.addFile(
+                path: JVMMetro.sourcePath, contents: Data(JVMMetro.source.utf8), origin: .residualStdlib
+            )
+        }
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
