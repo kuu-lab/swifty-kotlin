@@ -13,7 +13,7 @@ extension JVMClasspathIndex {
         }
     }
 
-    private var hasComposableLambdaFactory: Bool {
+    var hasComposableLambdaFactory: Bool {
         composeMethod(owner: JVMCompose.lambdaFacade, name: "composableLambdaInstance",
                       descriptor: "(IZLjava/lang/Object;)Landroidx/compose/runtime/internal/ComposableLambda;",
                       isStatic: true) != nil
