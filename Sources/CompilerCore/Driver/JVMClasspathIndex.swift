@@ -1171,7 +1171,9 @@ final class JVMClasspathIndex {
                 source += "operator "
             }
             if !info.isInterface { source += "external " }
-            source += functionDeclaration(method)
+            // Parents may still have erased classpath signatures.
+            let usesErasedOverride = overrides && method.kotlinFunction?.isGenericFinalGetter == true
+            source += functionDeclaration(method, usesKotlinMetadata: !usesErasedOverride)
             if info.isInterface, !method.isAbstract {
                 source += method.sourceResult == .unit ? " {}" : " = null!!"
                 // A default method with a primitive result still has a
@@ -1703,8 +1705,11 @@ final class JVMClasspathIndex {
         }
     }
 
-    private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false, acceptsDefaults: Bool = false) -> String {
-        if let function = method.kotlinFunction {
+    private func functionDeclaration(
+        _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
+        acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true
+    ) -> String {
+        if usesKotlinMetadata, let function = method.kotlinFunction {
             return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember, acceptsDefaults: acceptsDefaults)
         }
         let suspend = method.kotlinSuspendFunction

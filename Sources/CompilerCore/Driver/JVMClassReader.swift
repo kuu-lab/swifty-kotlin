@@ -569,7 +569,7 @@ struct JVMClassReader {
         }
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || hasValueAdapters
-               || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
+               || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let functions = try? metadata.functions(
                byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype
            ) {
@@ -592,7 +592,8 @@ struct JVMClassReader {
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
-                                          && candidate.name == "subList") && candidate.descriptor != nil))
+                                          && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter)
+                                          && candidate.descriptor != nil))
                               && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count
                                   || method.composeABI(for: candidate) != nil)
                       })
