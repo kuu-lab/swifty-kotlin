@@ -463,7 +463,7 @@ final class JVMClasspathIndex {
             imported.hasKotlinMetadata = info.hasKotlinMetadata
             imported.kotlinAnnotationVarargElementNames = info.kotlinAnnotationVarargElementNames
             imported.kotlinStaticProperties = info.kotlinStaticProperties
-            imported.kotlinCompanionProperties = info.kotlinCompanionProperties
+            imported.kotlinMemberProperties = info.kotlinMemberProperties
             imported.kotlinTopLevelProperties = info.kotlinTopLevelProperties
             classes[info.name] = imported
         }
@@ -1325,6 +1325,16 @@ final class JVMClasspathIndex {
                 source += modifiers + "val `\(propertyName)`: \(propertyType) get() = null!!\n"
             }
         }
+        for (name, property) in info.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
+            where exposeSuspendType(property.getter.result) {
+            let getter = property.getter
+            if !getter.isStatic, overridesParent(getter, in: info) {
+                source += getter.isFinal ? "final override " : "override "
+            } else if !info.isInterface && !getter.isFinal {
+                source += "open "
+            }
+            source += "val `\(name)`: \(property.sourceType)" + (info.isInterface ? "\n" : " get() = null!!\n")
+        }
         // Concrete classes must implement every abstract property the
         // transitive interfaces declare; classfiles occasionally omit the
         // accessor (android.jar java.time), so emit a stub override.
@@ -1472,14 +1482,14 @@ final class JVMClasspathIndex {
                 source += "external " + functionDeclaration(method) + "\n"
             }
             if let companion {
-                for (name, property) in companion.kotlinCompanionProperties.sorted(by: { $0.key < $1.key })
+                for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
                     where exposeSuspendType(property.getter.result) && info.kotlinStaticProperties[name] == nil {
                     source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
                 }
                 for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
                     if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
                         && !overridesParent(method, in: companion) { continue }
-                    if companion.kotlinCompanionProperties.values.contains(where: {
+                    if companion.kotlinMemberProperties.values.contains(where: {
                         $0.getter.name == method.name && $0.getter.descriptor == method.descriptor
                     }) { continue }
                     if overridesParent(method, in: companion)
@@ -1756,7 +1766,7 @@ final class JVMClasspathIndex {
             for (property, _) in info.kotlinTopLevelProperties {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
-            markSourceTypes(info.kotlinCompanionProperties.values.map(\.sourceType))
+            markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             for method in info.methods where isExposed(method) {
                 for type in method.sourceParameters + [method.sourceResult] {
                     for ref in signatureNames(type)
@@ -2033,7 +2043,7 @@ final class JVMClasspathIndex {
             owner = sema.symbols.parentSymbol(for: candidate)
         }
         guard let info = info ?? sourceClass else { return }
-        let isExtension = topLevel?.receiverType != nil
+        let isExtension = topLevel?.receiverType != nil || symbol.flags.contains(.memberExtension)
         if isExtension { extensionSymbols.insert(symbol.id) }
         if let method = facadeMethodsByRange[site], let function = method.kotlinFunction {
             methods[symbol.id] = method
@@ -2065,7 +2075,7 @@ final class JVMClasspathIndex {
         let parentName = parent.map { ctx.interner.resolve($0.name) }
         let isNamedStaticContainer = staticCompanionObjectName(for: info).map { parentName == $0 } ?? false
         let isCompanionMember = parentName == "Companion"
-        let staticMember = isTopLevel || isExtension
+        let staticMember = isTopLevel
             || (isCompanionMember && !info.name.hasSuffix("$Companion"))
             || isNamedStaticContainer
         let candidates: [JVMForeignMethod]
