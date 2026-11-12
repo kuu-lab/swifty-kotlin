@@ -11,8 +11,6 @@ public val LongArray.lastIndex: Int get() = size - 1
 
 public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
 
-public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
-
 public fun <T> Array<out T>.getOrNull(index: Int): T? =
     if (index < 0 || index >= size) null else this[index]
 
