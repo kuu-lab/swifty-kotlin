@@ -195,6 +195,16 @@ extension CallTypeChecker {
                         selectedCompanionReceiverType = sourceCompanionType
                     }
                 }
+                if companionCandidates.isEmpty {
+                    companionCandidates = collectDispatchReceiverMemberExtensionCandidates(
+                        named: request.calleeName,
+                        extensionReceiverType: companionTypeForExtensionLookup,
+                        ctx: request.ctx
+                    )
+                    if !companionCandidates.isEmpty {
+                        selectedCompanionReceiverType = companionTypeForExtensionLookup
+                    }
+                }
                 if companionCandidates.isEmpty,
                    let ownerReceiverType = companionExtensionReceiverType
                 {
