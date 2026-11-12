@@ -5,6 +5,8 @@ import kotlin.sequences.emptySequence
 import kotlin.sequences.joinToString
 
 public val Array<*>.lastIndex: Int get() = size - 1
+public val FloatArray.lastIndex: Int get() = size - 1
+public val LongArray.lastIndex: Int get() = size - 1
 
 public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
 
