@@ -154,6 +154,10 @@ extension JVMFunctionBuilder {
             return try importedComposeCall(method, contract: contract, args: args, binding: binding,
                                            receiver: receiver, receiverValue: receiverValue, expectedResult: expectedResult, id: id)
         }
+        if let method, let signature = method.kotlinFunction, let abi = method.kotlinComposeABI {
+            return try metadataComposeCall(method, signature: signature, abi: abi, args: args, binding: binding,
+                                           receiver: receiver, receiverValue: receiverValue, expectedResult: expectedResult, id: id)
+        }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }

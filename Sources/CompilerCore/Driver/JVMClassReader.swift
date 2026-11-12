@@ -432,6 +432,7 @@ struct JVMClassReader {
         var index = 1
         var hasKotlinMetadata = false
         var hasMetroAnnotation = false
+        var hasComposableAnnotation = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
         // pool; resolve those references once the pool is fully read.
         var pendingStringRefs: [Int: Int] = [:]
@@ -442,6 +443,7 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if string == "Landroidx/compose/runtime/Composable;" { hasComposableAnnotation = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
                    JVMMetro.annotationDescriptors.contains(string) {
                     hasMetroAnnotation = true
@@ -496,7 +498,7 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations)
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             if access & 0x0005 != 0,
                (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
@@ -545,8 +547,9 @@ struct JVMClassReader {
                           candidate.isSuspend == isSuspend
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
-                              && candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
+                              && (candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
                                   + (candidate.isSuspend ? 1 : 0) == method.parameters.count
+                                  || method.composeABI(for: candidate) != nil)
                       })
                 else { continue }
                 methods[index].kotlinFunction = function
