@@ -495,6 +495,16 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
+            if function.isSuspend {
+                guard hasComposableLambdaFactory, let suspend = method.kotlinSuspendFunction else { return false }
+                let composable = function.composableParameters
+                return method.sourceParameters.enumerated().allSatisfy { index, type in
+                    if composable.contains(index - function.leadingParameterCount) {
+                        return type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
+                    }
+                    return exposeSuspendType(type)
+                } && exposeSuspendType(suspend.result)
+            }
             if method.kotlinComposeABI != nil { return hasComposeRuntime }
             guard function.parameters.count + function.leadingParameterCount
                 + (function.isSuspend ? 1 : 0) == method.parameters.count
@@ -2046,13 +2056,10 @@ final class JVMClasspathIndex {
         let isExtension = topLevel?.receiverType != nil || symbol.flags.contains(.memberExtension)
         if isExtension { extensionSymbols.insert(symbol.id) }
         if let method = facadeMethodsByRange[site], let function = method.kotlinFunction {
-            methods[symbol.id] = method
+            methods[symbol.id] = method.logicalSuspendMethod ?? method
             importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: info)
             if hasComposableLambdaFactory {
-                let parameters = function.parameters.indices.filter {
-                    function.parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
-                }
-                if !parameters.isEmpty { importedComposableParameters[symbol.id] = Set(parameters) }
+                importedComposableParameters[symbol.id] = function.composableParameters
             }
             return
         }
@@ -2092,15 +2099,10 @@ final class JVMClasspathIndex {
             $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                 && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
         }) else { return }
-        if let suspend = method.kotlinSuspendFunction {
+        if let logical = method.logicalSuspendMethod {
             // The call IR holds the logical signature. Coroutine lowering
             // restores the classfile ABI and supplies its own continuation.
-            methods[symbol.id] = JVMForeignMethod(
-                owner: method.owner, name: method.name, descriptor: "(" + parameters + ")" + suspend.result.descriptor,
-                parameters: method.sourceParameters, result: suspend.result,
-                isStatic: method.isStatic, isInterface: method.isInterface, isAbstract: method.isAbstract,
-                isFinal: method.isFinal, isSuspend: true, isProtected: method.isProtected
-            )
+            methods[symbol.id] = logical
             return
         }
         methods[symbol.id] = method
@@ -2158,8 +2160,9 @@ final class JVMClasspathIndex {
                     return function
                 }
                 guard functions.count == methods.count else { continue }
-                for (function, method) in zip(functions, methods)
-                    where method.kotlinFunction != nil && method.kotlinSuspendFunction == nil {
+                // Top-level Kotlin facade stubs are emitted in classfile order.
+                // Their logical signature can differ from the physical descriptor.
+                for (function, method) in zip(functions, methods) where method.kotlinFunction != nil {
                     facadeMethodsByRange[function.range] = method
                 }
             }
@@ -2293,5 +2296,17 @@ private extension JVMForeignMethod {
     var sourceResult: JVMValueType { kotlinSuspendFunction?.result ?? result }
     var sourceParameters: [JVMValueType] {
         kotlinSuspendFunction == nil ? parameters : Array(parameters.dropLast())
+    }
+
+    fileprivate var logicalSuspendMethod: JVMForeignMethod? {
+        guard let suspend = kotlinSuspendFunction else { return nil }
+        // Coroutine lowering supplies the continuation and restores the physical descriptor.
+        return JVMForeignMethod(
+            owner: owner, name: name,
+            descriptor: "(" + sourceParameters.map(\.descriptor).joined() + ")" + suspend.result.descriptor,
+            parameters: sourceParameters, result: suspend.result,
+            isStatic: isStatic, isInterface: isInterface, isAbstract: isAbstract,
+            isFinal: isFinal, isSuspend: true, isProtected: isProtected
+        )
     }
 }
