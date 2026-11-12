@@ -849,6 +849,10 @@ final class JVMFunctionBuilder {
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .arrayConstructor {
                 return try arrayConstructor(args, id: id)
             }
+            if program.sema.bindings.stdlibSpecialCallKinds[id] == .enumValues,
+               let result = try enumValuesCall(args, id: id) {
+                return result.value
+            }
             if let value = try nominalCall(id, receiver: nil, name: nil, args: args) { return value.value }
             let invokeReceiver: ExprID?
             if let binding = program.sema.bindings.callBinding(for: id), context.interner.resolve(program.sema.symbols.symbol(binding.chosenCallee)?.name ?? context.interner.intern("")) == "invoke", program.sema.bindings.identifierSymbol(for: callee).flatMap({ program.sema.symbols.symbol($0) })?.kind != .function {

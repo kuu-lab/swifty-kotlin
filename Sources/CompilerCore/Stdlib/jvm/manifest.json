@@ -34,6 +34,12 @@
       "runtimeFacade": "kotlin/NumbersKt"
     },
     {
+      "path": "declarations/EnumValues.kt",
+      "virtualPath": "<kswiftk-jvm>/enum-values.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/EnumKt"
+    },
+    {
       "path": "kotlin/Standard.kt",
       "virtualPath": "<kswiftk-jvm>/standard.kt",
       "excludeFromStdlibBuild": true,
