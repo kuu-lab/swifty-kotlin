@@ -1338,7 +1338,9 @@ final class JVMClasspathIndex {
                 source += "operator "
             }
             if !info.isInterface { source += "external " }
-            source += functionDeclaration(method)
+            // Parents may still have erased classpath signatures.
+            let usesErasedOverride = overrides && method.kotlinFunction?.isGenericFinalGetter == true
+            source += functionDeclaration(method, usesKotlinMetadata: !usesErasedOverride)
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
             if info.isInterface, !method.isAbstract || hasKotlinDefaultBody {
                 source += method.sourceResult == .unit ? " {}" : " = null!!"
@@ -1920,11 +1922,14 @@ final class JVMClasspathIndex {
         }
     }
 
-    private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false, acceptsDefaults: Bool = false) -> String {
-        if let owner = declaringClass(for: method), let function = kotlinFunction(method) {
+    private func functionDeclaration(
+        _ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false,
+        acceptsDefaults: Bool = false, usesKotlinMetadata: Bool = true
+    ) -> String {
+        if usesKotlinMetadata, let owner = declaringClass(for: method), let function = kotlinFunction(method) {
             return kotlinFunctionDeclaration(function, owner: owner)
         }
-        if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
+        if usesKotlinMetadata, method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
             return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember, acceptsDefaults: acceptsDefaults)
         }
         let suspend = method.kotlinSuspendFunction
