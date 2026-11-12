@@ -1,6 +1,7 @@
 package kotlin.io
 
 import java.io.File
+import kotlin.jvm.internal.__jvmFileName
 
 private fun fileRootLength(path: String): Int {
     var first = path.indexOf('/', 0)
@@ -28,6 +29,9 @@ private fun fileRootLength(path: String): Int {
 }
 
 private fun File.isRootedPath(): Boolean = fileRootLength(getPath()) > 0
+
+public val File.extension: String
+    get() = __jvmFileName(this).substringAfterLast('.', "")
 
 public fun File.resolve(relative: File): File {
     if (relative.isRootedPath()) {
