@@ -1,5 +1,12 @@
 [
   {
+    "symbol": "__jvmCloseResource",
+    "owner": "java/io/Closeable",
+    "name": "close",
+    "descriptor": "()V",
+    "kind": "interface"
+  },
+  {
     "symbol": "__jvmThreadLocalRandom",
     "owner": "java/util/concurrent/ThreadLocalRandom",
     "name": "current",
