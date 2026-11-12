@@ -203,6 +203,10 @@ struct DeclarationPositionValidator {
                     emitInside("protected", inside: nominal.name, range: decl.range)
                 }
             }
+            validateAnnotationMemberSiteModifiers(
+                modifiers, site: nominal, conflictCovered: conflictCovered,
+                overrideRange: decl.overrideKeywordRange ?? decl.range, range: decl.range
+            )
             if modifiers.contains(.expect), !conflictCovered.contains(.expect) {
                 emitNotApplicable("expect", to: "member function", range: decl.range)
             }
@@ -350,6 +354,10 @@ struct DeclarationPositionValidator {
             {
                 emitInside("protected", inside: nominal.name, range: decl.range)
             }
+            validateAnnotationMemberSiteModifiers(
+                modifiers, site: nominal, conflictCovered: conflictCovered,
+                overrideRange: decl.overrideKeywordRange ?? decl.range, range: decl.range
+            )
             if modifiers.contains(.expect), !conflictCovered.contains(.expect) {
                 emitNotApplicable("expect", to: target, range: decl.range)
             }
@@ -575,17 +583,18 @@ struct DeclarationPositionValidator {
             if nominal.ownerModifiers.contains(.expect) {
                 return
             }
-            // Instance members of annotation classes are rejected elsewhere.
-            if nominal.kind == .annotationClass {
-                return
-            }
             // Bodiless interface properties are implicitly abstract.
             if nominal.kind == .interface, isImplicitlyAbstractInterfaceProperty(decl) {
                 return
             }
             // Property initializers, init blocks, and secondary constructors
             // require flow analysis before missing storage can be diagnosed.
-            if nominal.allowsImperativeInit || nominal.defersPropertyInitialization {
+            // Annotation-class members cannot be assigned through init
+            // blocks or constructors — those are prohibited members
+            // themselves — so the check runs unconditionally there.
+            if nominal.kind != .annotationClass,
+               nominal.allowsImperativeInit || nominal.defersPropertyInitialization
+            {
                 return
             }
         }
@@ -625,7 +634,13 @@ struct DeclarationPositionValidator {
                     ? "property must be initialized."
                     : "property must be initialized or be abstract."
             }
-            diagnostics?.error("KSWIFTK-SEMA-0424", message, range: decl.range)
+            // kotlinc underlines the `val`/`var` keyword, not leading
+            // modifiers.
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0424",
+                message,
+                range: decl.declarationKeywordRange ?? decl.range
+            )
         }
     }
 
@@ -1086,15 +1101,14 @@ struct DeclarationPositionValidator {
 
     private func validateClassMembers(_ decl: ClassDecl, site: NominalSite) {
         let memberSite = OwnerSite.nominal(site)
-        // Annotation instance members are reported wholesale above. Nested
-        // types and companion objects are legal and still need validation.
-        if site.kind != .annotationClass {
-            for declID in decl.memberFunctions {
-                validate(declID: declID, site: memberSite)
-            }
-            for declID in decl.memberProperties {
-                validate(declID: declID, site: memberSite)
-            }
+        // Annotation instance members are reported wholesale above, but
+        // kotlinc still validates them as members (modifier applicability,
+        // property initialization, ...).
+        for declID in decl.memberFunctions {
+            validate(declID: declID, site: memberSite)
+        }
+        for declID in decl.memberProperties {
+            validate(declID: declID, site: memberSite)
         }
         for declID in decl.nestedClasses {
             validate(declID: declID, site: memberSite)
@@ -1457,6 +1471,28 @@ struct DeclarationPositionValidator {
                 "KSWIFTK-SEMA-0401",
                 "members of interfaces cannot be external.",
                 range: range
+            )
+        }
+    }
+
+    /// kotlinc rejects non-default visibilities and `override` on
+    /// annotation-class members with 'inside annotation class' wording.
+    /// `open`/`final`/`external`/etc. produce no site diagnostic there.
+    private func validateAnnotationMemberSiteModifiers(
+        _ modifiers: Modifiers,
+        site: NominalSite,
+        conflictCovered: Modifiers,
+        overrideRange: SourceRange,
+        range: SourceRange
+    ) {
+        guard site.kind == .annotationClass else {
+            return
+        }
+        for (modifier, name) in Self.annotationMemberForbiddenModifiers
+        where modifiers.contains(modifier) && !conflictCovered.contains(modifier) {
+            emitInside(
+                name, inside: site.name,
+                range: modifier == .override ? overrideRange : range
             )
         }
     }
@@ -1959,6 +1995,15 @@ struct DeclarationPositionValidator {
         (.open, "open"), (.final, "final"), (.abstract, "abstract"),
         (.sealed, "sealed"), (.data, "data"), (.inner, "inner"),
         (.value, "value"), (.enumModifier, "enum"), (.companion, "companion"),
+    ]
+
+    /// Modifiers kotlinc diagnoses as 'not applicable inside annotation
+    /// class' on instance members. `open`/`final`/`external`/`lateinit`/
+    /// `inline`/`const`-site checks go unreported or report their own
+    /// diagnostic there.
+    private static let annotationMemberForbiddenModifiers: [(Modifiers, String)] = [
+        (.private, "private"), (.protected, "protected"),
+        (.internal, "internal"), (.override, "override"),
     ]
 
     /// `open`, `abstract` and `sealed` are legal on an interface — kotlinc
