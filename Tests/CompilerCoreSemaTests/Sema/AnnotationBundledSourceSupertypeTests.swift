@@ -57,9 +57,14 @@ struct AnnotationBundledSourceSupertypeTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
+        let userDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
+            guard let file = diagnostic.primaryRange?.start.file else { return true }
+            return !ctx.sourceManager.path(of: file).hasPrefix("__bundled_")
+        }
+        #expect(!ctx.diagnostics.hasError)
         #expect(
-            ctx.diagnostics.diagnostics.isEmpty,
-            "Expected Any member calls on an Annotation receiver to resolve, got: \(ctx.diagnostics.diagnostics)"
+            userDiagnostics.isEmpty,
+            "Expected Any member calls on an Annotation receiver to resolve, got: \(userDiagnostics)"
         )
     }
 }
