@@ -122,6 +122,7 @@ final class JVMClasspathIndex {
             insert(try readClass(Array(data), path: path, descriptorCache: descriptors))
             result.fallbackClassFiles.append((path, data))
         }
+        result.linkKotlinMultifileFacades()
         result.indexInnerClasses()
         for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
             result.classes[info.name] = info
@@ -194,6 +195,27 @@ final class JVMClasspathIndex {
             try body(file, relative)
         }
     }
+
+    private func linkKotlinMultifileFacades() {
+        for (name, var facade) in hierarchyClasses where !facade.kotlinMultifileParts.isEmpty {
+            var methods: [String: JVMForeignMethod] = [:]
+            for partName in facade.kotlinMultifileParts {
+                guard let part = hierarchyClasses[partName], part.isKotlinMultifilePart else { continue }
+                for method in part.methods where method.isStatic && (method.kotlinFunction != nil || method.kotlinSuspendFunction != nil) {
+                    methods[method.name + method.descriptor] = method
+                }
+            }
+            for index in facade.methods.indices where facade.methods[index].isStatic {
+                let method = facade.methods[index]
+                guard let part = methods[method.name + method.descriptor] else { continue }
+                facade.methods[index].kotlinFunction = part.kotlinFunction
+                facade.methods[index].kotlinSuspendFunction = part.kotlinSuspendFunction
+            }
+            hierarchyClasses[name] = facade
+        }
+    }
+
+
     private func indexInnerClasses() {
         var ownersWithAuthoritativeMetadata: Set<String> = []
         for info in hierarchyClasses.values where info.hasInnerClassesAttribute {
@@ -218,7 +240,7 @@ final class JVMClasspathIndex {
 
     private func isImportableClassifier(_ name: String, visited: Set<String>) -> Bool {
         guard !visited.contains(name), let info = hierarchyClasses[name],
-              info.flags & 0x1000 == 0, !info.hasEnclosingMethod,
+              info.flags & 0x1000 == 0, !info.hasEnclosingMethod, !info.isKotlinMultifilePart,
               !JVMMetro.hidesFromSource(info) else { return false }
         if let entry = innerClassMetadata[name] {
             guard let outer = entry.outerName, let shortName = entry.innerName,
@@ -282,7 +304,7 @@ final class JVMClasspathIndex {
                let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
                 parents.append(mapped + "()")
             }
-            parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, childParams: info.classTypeParameterNames) }
+            parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
             source += " {\n"
             // Kotlin forbids companion objects inside inner (non-static
@@ -410,6 +432,7 @@ final class JVMClasspathIndex {
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
+            imported.genericSignature = info.genericSignature
             imported.innerClasses = info.innerClasses
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
@@ -577,6 +600,18 @@ final class JVMClasspathIndex {
             ? childParams
             : Array(repeating: "kotlin.Any", count: arity)
         return base + "<" + args.joined(separator: ", ") + ">"
+    }
+
+    private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
+        if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
+           let prefix = signature.range(of: "L" + name + "<L"),
+           let end = signature[prefix.upperBound...].range(of: ";>;") {
+            let argument = String(signature[prefix.upperBound..<end.lowerBound])
+            if classes[argument] != nil {
+                return Self.dottedTypeName(name) + "<" + Self.dottedTypeName(argument) + ">"
+            }
+        }
+        return supertypeReference(name, childParams: child.classTypeParameterNames)
     }
     private func isSAM(_ name: String) -> Bool {
         var members: [String: JVMForeignMethod] = [:], visited: Set<String> = []
@@ -999,7 +1034,7 @@ final class JVMClasspathIndex {
                    let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
                     parents.append(mapped + "()")
                 }
-                parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, childParams: info.classTypeParameterNames) }
+                parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods)
@@ -1748,7 +1783,14 @@ final class JVMClasspathIndex {
             let defaultValue = acceptsDefaults && parameter.hasDefaultValue ? " = null!!" : ""
             return (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType + defaultValue
         }
-        return (function.isSuspend ? "suspend " : "") + "fun \(receiver)`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + function.result
+        let typeNames = function.typeParameters.map { "`\($0.name)`" }
+        let generics = typeNames.isEmpty ? "" : "<" + typeNames.joined(separator: ", ") + "> "
+        let bounds = function.typeParameters.flatMap { parameter in
+            parameter.bounds.map { "`\(parameter.name)`: " + $0 }
+        }
+        let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
+        return (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
+            + parameters.joined(separator: ", ") + "): " + function.result + whereClause
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunctionInfo, owner: JVMClassInfo) -> String {
