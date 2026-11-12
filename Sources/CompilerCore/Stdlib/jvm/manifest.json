@@ -150,6 +150,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/StringEncoding.kt",
+      "virtualPath": "<kswiftk-jvm>/string-encoding.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringConstructors.kt",
       "virtualPath": "<kswiftk-jvm>/string-constructors.kt",
       "excludeFromStdlibBuild": true
