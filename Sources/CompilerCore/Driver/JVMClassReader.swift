@@ -17,6 +17,7 @@ struct JVMClassInfo {
     var isKotlinFileFacade: Bool?
     var kotlinSealedInterfaceSubclasses: [String] = []
     var isKotlinObject = false
+    var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var annotations: [JVMAnnotation] = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
@@ -539,6 +540,12 @@ struct JVMClassReader {
         let hasValueAdapters = valueCarrier.map { carrier in
             methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
         } ?? false
+        var readOnlyCollectionSupertypes: [String: String] = [:]
+        if flags & 0x0200 != 0, let metadata = classAttributes.kotlinMetadata,
+           interfaces.contains(where: { $0 == "kotlin/jvm/internal/markers/KMappedMarker" }) {
+            readOnlyCollectionSupertypes = (try? metadata.readOnlyCollectionSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
+        let hasReadOnlyListSupertype = readOnlyCollectionSupertypes["java/util/List"] != nil
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let functions = try? metadata.suspendFunctions(byteLimit: bytes.count) {
@@ -553,7 +560,9 @@ struct JVMClassReader {
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || hasValueAdapters
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
-           let functions = try? metadata.functions(byteLimit: bytes.count, isValueClass: hasValueAdapters) {
+           let functions = try? metadata.functions(
+               byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype
+           ) {
             for index in methods.indices {
                 let method = methods[index]
                 guard let function = functions.first(where: { candidate in
@@ -572,7 +581,8 @@ struct JVMClassReader {
                           return !candidate.isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
-                                      && (candidate.receiver != nil || candidate.isInfix && candidate.descriptor != nil))
+                                      && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
+                                          && candidate.name == "subList") && candidate.descriptor != nil))
                               && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count
                                   || method.composeABI(for: candidate) != nil)
                       })
@@ -599,6 +609,7 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
         if info.isInterface, let metadata = classAttributes.kotlinMetadata {
             info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
         }

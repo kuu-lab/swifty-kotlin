@@ -236,7 +236,9 @@ final class JVMClasspathIndex {
                let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
                 parents.append(mapped + "()")
             }
-            parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, child: info) }
+            parents += info.interfaces.filter {
+                classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+            }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
             source += " {\n"
             // Kotlin forbids companion objects inside inner (non-static
@@ -258,6 +260,7 @@ final class JVMClasspathIndex {
 
     private func interfaceKeyword(_ info: JVMClassInfo) -> String {
         if !sealedInterfaceSubclasses(of: info).isEmpty { return "sealed interface" }
+        if !info.kotlinReadOnlyCollectionSupertypes.isEmpty { return "interface" }
         return isSAM(info.name) ? "fun interface" : "interface"
     }
 
@@ -313,8 +316,12 @@ final class JVMClasspathIndex {
             var interfaceVisited: Set<String> = []
             var interfaceMethods: [String: JVMForeignMethod] = [:]
             func inheritInterface(_ name: String) {
-                guard interfaceVisited.insert(name).inserted, let base = hierarchyClasses[name] else { return }
-                if classes[name] != nil { interfaces.append(name); return }
+                guard interfaceVisited.insert(name).inserted else { return }
+                if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil {
+                    interfaces.append(name)
+                    return
+                }
+                guard let base = hierarchyClasses[name] else { return }
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
@@ -375,6 +382,7 @@ final class JVMClasspathIndex {
             imported.isKotlinFileFacade = info.isKotlinFileFacade
             imported.kotlinSealedInterfaceSubclasses = info.kotlinSealedInterfaceSubclasses
             imported.isKotlinObject = info.isKotlinObject
+            imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.annotations = info.annotations
             imported.kotlinStaticProperties = info.kotlinStaticProperties
             imported.kotlinMemberProperties = info.kotlinMemberProperties
@@ -555,6 +563,7 @@ final class JVMClasspathIndex {
     }
 
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
+        if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),
            let end = signature[prefix.upperBound...].range(of: ";>;") {
@@ -960,7 +969,9 @@ final class JVMClasspathIndex {
                    let mapped = supertypeReference(base, childParams: info.classTypeParameterNames) {
                     parents.append(mapped + "()")
                 }
-                parents += info.interfaces.filter { classes[$0] != nil }.compactMap { supertypeReference($0, child: info) }
+                parents += info.interfaces.filter {
+                    classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods)
@@ -1794,7 +1805,13 @@ final class JVMClasspathIndex {
             // kotlin.text.Appendable): their Kotlin member sets differ
             // from the erased classfile signatures, so memberDeclarations
             // bridges the differences explicitly instead.
-            if parentName == "java/lang/Object" || resolvesToKotlinDecl(parentName) { continue }
+            if parentName == "java/lang/Object" || resolvesToKotlinDecl(parentName)
+                || info.kotlinReadOnlyCollectionSupertypes[parentName] != nil {
+                // Only the Kotlin read-only list contract declares subList.
+                if parentName == "java/util/List", method.name == "subList",
+                   info.kotlinReadOnlyCollectionSupertypes[parentName] != nil { return true }
+                continue
+            }
             guard let parent = classes[parentName] else { continue }
             if parent.methods.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!) == key }) { return true }
             if overridesParent(method, in: parent, visited: visited.union([info.name])) { return true }

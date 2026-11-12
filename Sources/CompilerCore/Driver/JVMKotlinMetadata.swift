@@ -112,6 +112,35 @@ struct JVMKotlinMetadata {
         return (declaration.int32(1) ?? 0) & (7 << 6) == (5 << 6)
     }
 
+    func readOnlyCollectionSupertypes(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        let collectionNames: Set<String> = ["Collection", "List", "Set"]
+        var result: [String: String] = [:]
+        for type in inline + indexed {
+            guard let name = try names.resolve(type.type.int32(6)), name.hasPrefix("kotlin/collections/"),
+                  let short = name.split(separator: "/").last.map(String.init), collectionNames.contains(short),
+                  let carrier = JVMClasspathIndex.collectionNames[short],
+                  let source = try Self.sourceType(type, types: types, names: names) else { continue }
+            result[carrier] = source
+        }
+        return result
+    }
+
+    private static func classTypeParameters(_ declaration: ProtoFields, names: JVMMetadataNames) throws -> [Int32: String] {
+        var parameters: [Int32: String] = [:]
+        for parameter in try declaration.messages(5) {
+            guard let id = parameter.int32(1), let name = try names.resolve(parameter.int32(2)),
+                  JVMProgramBuilder.isIdentifier(name) else { continue }
+            parameters[id] = name
+        }
+        return parameters
+    }
+
     func suspendFunctions(byteLimit: Int) throws -> [String: JVMKotlinSuspendFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [:] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -281,24 +310,18 @@ struct JVMKotlinMetadata {
     }
 
     /// Recover function types and top-level extension receivers from Kotlin metadata.
-    func functions(byteLimit: Int, isValueClass: Bool = false) throws -> [JVMKotlinFunction] {
+    func functions(byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
         let classTypes = try TypeTable(declaration.message(30))
-        var ownerTypeParameters: [Int32: String] = [:]
-        if !isFileFacade {
-            for parameter in try declaration.messages(5) {
-                guard let id = parameter.int32(1), let name = try names.resolve(parameter.int32(2)),
-                      JVMProgramBuilder.isIdentifier(name) else { continue }
-                ownerTypeParameters[id] = name
-            }
-        }
+        let ownerTypeParameters = isFileFacade ? [:] : try Self.classTypeParameters(declaration, names: names)
         var result: [JVMKotlinFunction] = []
         for function in try declaration.messages(isFileFacade ? 3 : 9) {
             guard let name = try names.resolve(function.int32(2)) else { continue }
             let flags = function.int32(9) ?? 0
             let isInfix = flags & (1 << 9) != 0
             let isOperator = flags & (1 << 8) != 0
+            let isSubList = hasReadOnlyListSupertype && name == "subList"
             let signature = try function.message(100)
             let jvmName: String?
             var descriptor: String?
@@ -310,7 +333,7 @@ struct JVMKotlinMetadata {
                 descriptor = nil
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
-            if isInfix { types.parameterNames = ownerTypeParameters }
+            if isInfix || isSubList { types.parameterNames = ownerTypeParameters }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
@@ -373,7 +396,7 @@ struct JVMKotlinMetadata {
             }
             let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
-            guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator else { continue }
+            guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var valueOperatorParameterDescriptors: [String]?
             if isValueOperator {
