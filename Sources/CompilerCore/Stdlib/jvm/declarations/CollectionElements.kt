@@ -1,6 +1,9 @@
 @file:kotlin.jvm.JvmName("CollectionsKt")
 package kotlin.collections
 
+public fun <T> Collection<T>.random(): T = null!!
+public fun <T> Collection<T>.random(random: kotlin.random.Random): T = null!!
+
 operator fun <T> List<T>.component1(): T = null!!
 operator fun <T> List<T>.component2(): T = null!!
 operator fun <T> List<T>.component3(): T = null!!
