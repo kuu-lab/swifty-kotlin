@@ -258,6 +258,10 @@ private struct JVMSourceGrammar {
             while true {
                 let saved = index
                 semicolons(); modifiers()
+                while kind == .symbol(.at) {
+                    try annotation()
+                    modifiers()
+                }
                 if take(.softKeyword(.get)) {
                     try parameters()
                 } else if take(.softKeyword(.set)) {
