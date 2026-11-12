@@ -2088,6 +2088,7 @@ final class JVMClasspathIndex {
             // from the erased classfile signatures, so memberDeclarations
             // bridges the differences explicitly instead.
             if parentName == "java/lang/Object" || resolvesToKotlinDecl(parentName)
+                || ["kotlin/ranges/ClosedRange", "kotlin/ranges/OpenEndRange"].contains(parentName)
                 || parentName.hasPrefix("kotlin/jvm/functions/") && method.name == "invoke"
                 || info.kotlinReadOnlyCollectionSupertypes[parentName] != nil {
                 // Only the Kotlin read-only list contract declares subList.
