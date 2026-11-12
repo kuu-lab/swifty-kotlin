@@ -12,7 +12,8 @@ final class JVMCodegenPhase: CompilerPhase {
         do {
             // Validate and construct all bytes before touching the destination.
             let target = ctx.options.jvmTarget
-            let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters)
+            let classIndex = JVMClassFile.ClassIndex(program)
+            let classFile = try JVMClassFile.emit(program, target: target, javaParameters: ctx.options.javaParameters, classIndex: classIndex)
             let runtime = ctx.options.emit == .jvmJar && ctx.options.includeJVMRuntime && !ctx.options.stdlibOnly
                 ? try runtimeEntries(for: ctx.options)
                 : []
@@ -20,7 +21,7 @@ final class JVMCodegenPhase: CompilerPhase {
             let applicationClasses = program.classes.filter { type in
                 !type.isRuntimeFallback || !runtimePaths.contains(type.name + ".class")
             }
-            var classes = try emitClasses(applicationClasses, in: program, target: target, javaParameters: ctx.options.javaParameters)
+            var classes = try emitClasses(applicationClasses, in: program, target: target, javaParameters: ctx.options.javaParameters, classIndex: classIndex)
             if ctx.options.stdlibOnly {
                 let coverage = try JVMStdlibCoverage.report(program, classFiles: [(program.internalClassName + ".class", classFile)] + classes)
                 classes.append(("META-INF/kswiftk-stdlib-coverage.json", coverage))
@@ -98,17 +99,19 @@ final class JVMCodegenPhase: CompilerPhase {
             let message = errors.map { "\($0.code): \($0.message)" }.joined(separator: "\n")
             throw JVMEmissionError.runtimeBuildFailed(message.isEmpty ? "No JVM program was generated." : message)
         }
-        let classFile = try JVMClassFile.emit(program, target: options.jvmTarget)
-        let classes = try emitClasses(program.classes, in: program, target: options.jvmTarget)
+        let classIndex = JVMClassFile.ClassIndex(program)
+        let classFile = try JVMClassFile.emit(program, target: options.jvmTarget, classIndex: classIndex)
+        let classes = try emitClasses(program.classes, in: program, target: options.jvmTarget, classIndex: classIndex)
         return [(program.internalClassName + ".class", classFile)] + classes
             + JVMBuiltins.resources() + [moduleEntry(for: program)]
     }
 
     private func emitClasses(
-        _ classes: [JVMClass], in program: JVMProgram, target: JVMTarget, javaParameters: Bool = false
+        _ classes: [JVMClass], in program: JVMProgram, target: JVMTarget, javaParameters: Bool = false,
+        classIndex: JVMClassFile.ClassIndex
     ) throws -> [(String, Data)] {
         try classes.map { type in
-            (type.name + ".class", try JVMClassFile.emit(type, program: program, target: target, javaParameters: javaParameters))
+            (type.name + ".class", try JVMClassFile.emit(type, program: program, target: target, javaParameters: javaParameters, classIndex: classIndex))
         }
     }
 
