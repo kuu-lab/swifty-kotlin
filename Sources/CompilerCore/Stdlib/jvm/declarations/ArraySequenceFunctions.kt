@@ -1,5 +1,6 @@
 package kotlin.collections
 fun <T> kotlin.Array<out T>.asSequence(): kotlin.sequences.Sequence<T> = null!!
+fun <T> kotlin.Array<out T>.asIterable(): Iterable<T> = null!!
 fun <T> kotlin.Array<out T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String = null!!
 fun kotlin.IntArray.asSequence(): kotlin.sequences.Sequence<Int> = null!!
 fun kotlin.IntArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Int) -> CharSequence)? = null): String = null!!
@@ -17,18 +18,10 @@ fun kotlin.ByteArray.asSequence(): kotlin.sequences.Sequence<Byte> = null!!
 fun kotlin.ByteArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Byte) -> CharSequence)? = null): String = null!!
 fun kotlin.ShortArray.asSequence(): kotlin.sequences.Sequence<Short> = null!!
 fun kotlin.ShortArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Short) -> CharSequence)? = null): String = null!!
+fun <T> kotlin.Array<out T>.asList(): List<T> = null!!
 fun <T> kotlin.Array<out T>.toList(): List<T> = null!!
 fun <T> kotlin.Array<out T>.isEmpty(): Boolean = null!!
 fun <T> kotlin.Array<out T>.isNotEmpty(): Boolean = null!!
-fun <T> kotlin.Array<out T>.withIndex(): Iterable<IndexedValue<T>> = null!!
-fun kotlin.ByteArray.withIndex(): Iterable<IndexedValue<Byte>> = null!!
-fun kotlin.ShortArray.withIndex(): Iterable<IndexedValue<Short>> = null!!
-fun kotlin.IntArray.withIndex(): Iterable<IndexedValue<Int>> = null!!
-fun kotlin.LongArray.withIndex(): Iterable<IndexedValue<Long>> = null!!
-fun kotlin.FloatArray.withIndex(): Iterable<IndexedValue<Float>> = null!!
-fun kotlin.DoubleArray.withIndex(): Iterable<IndexedValue<Double>> = null!!
-fun kotlin.BooleanArray.withIndex(): Iterable<IndexedValue<Boolean>> = null!!
-fun kotlin.CharArray.withIndex(): Iterable<IndexedValue<Char>> = null!!
 val <T> kotlin.Array<out T>.indices: kotlin.ranges.IntRange get() = null!!
 val kotlin.IntArray.indices: kotlin.ranges.IntRange get() = null!!
 val kotlin.IntArray.lastIndex: Int get() = null!!

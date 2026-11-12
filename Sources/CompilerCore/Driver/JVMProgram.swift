@@ -187,6 +187,7 @@ public struct JVMFunction {
     public var isPrivate: Bool
     public var locals: [JVMValue]
     public var parameterCount: Int
+    public var definitelyNotNullParameterSlots: Set<Int> = []
     public var instructions: [JVMInstruction]
     public var parameterNames: [String]
     /// Java reflection names and flags in JVM descriptor order.
@@ -267,9 +268,12 @@ public struct JVMForeignMethod {
     public var isVarargs = false
     public var isSuspend = false
     public var isProtected = false
+    public var annotations: [JVMAnnotation] = []
+    public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: String?
+    var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
 }
 
@@ -289,16 +293,20 @@ public struct JVMProperty {
     public var getter: JVMForeignMethod
     public var setter: JVMForeignMethod?
     public var field: JVMField?
+    public var isImportedField = false
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var genericSignature: String? = nil
+    public var fieldGenericSignature: String? = nil
     public var receiverGenericSignature: String? = nil
     public var delegateField: JVMField? = nil
     public var delegateSymbol: SymbolID? = nil
     public var annotationsMethod: JVMForeignMethod? = nil
     public var customGetter: Bool = false
     public var customSetter: Bool = false
+    public var isGetterInline: Bool = false
+    public var isSetterInline: Bool = false
 }
 
 public struct JVMRecordComponent {
@@ -376,7 +384,7 @@ public struct JVMExceptionHandler {
 /// Source types retained independently of JVM erasure for Kotlin consumers.
 public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
-    case parameter(Int, nullable: Bool)
+    case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
     case flexible(JVMKotlinType, JVMKotlinType)
     case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false)
 }
@@ -391,6 +399,7 @@ public struct JVMTypeParameter {
     public let variance: Int
     public let bounds: [JVMKotlinType]
     public let signature: String
+    public var annotations: [JVMAnnotation] = []
     public var isReified = false
 }
 
@@ -415,6 +424,7 @@ public struct JVMTypeAlias {
     public let modifiers: Modifiers
     public let typeParameters: [JVMTypeParameter]
     public let underlyingType: JVMKotlinType
+    public var annotations: [JVMAnnotation] = []
 }
 
 /// Reference value classes return raw storage synchronously and boxed values on resume.

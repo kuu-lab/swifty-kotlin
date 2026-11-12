@@ -73,6 +73,12 @@ inline fun <R> kotlin.IntArray.map(transform: (Int) -> R): List<R> { val result 
 inline fun kotlin.IntArray.filter(predicate: (Int) -> Boolean): List<Int> { val result = mutableListOf<Int>(); for (item in this) if (predicate(item)) result.add(item); return result }
 inline fun kotlin.IntArray.forEach(action: (Int) -> Unit): Unit { for (item in this) action(item) }
 inline fun <R> kotlin.IntArray.fold(initial: R, operation: (R, Int) -> R): R { var result = initial; for (item in this) result = operation(result, item); return result }
+inline fun <R> kotlin.IntArray.foldIndexed(initial: R, operation: (index: Int, acc: R, Int) -> R): R {
+    var index = 0
+    var accumulator = initial
+    for (element in this) accumulator = operation(index++, accumulator, element)
+    return accumulator
+}
 inline fun <K> kotlin.LongArray.groupBy(keySelector: (Long) -> K): Map<K, List<Long>> { val result = mutableMapOf<K, MutableList<Long>>(); for (item in this) { val key = keySelector(item); val list = result[key]; if (list == null) { val created = mutableListOf<Long>(); result[key] = created; created.add(item) } else list.add(item) }; return result }
 inline fun <K, V> kotlin.LongArray.groupBy(keySelector: (Long) -> K, valueTransform: (Long) -> V): Map<K, List<V>> { val result = mutableMapOf<K, MutableList<V>>(); for (item in this) { val key = keySelector(item); var list = result[key]; if (list == null) { list = mutableListOf<V>(); result[key] = list }; list.add(valueTransform(item)) }; return result }
 inline fun <K, V> kotlin.LongArray.associate(transform: (Long) -> Pair<K, V>): Map<K, V> { val result = mutableMapOf<K, V>(); for (item in this) { val pair = transform(item); result[pair.first] = pair.second }; return result }

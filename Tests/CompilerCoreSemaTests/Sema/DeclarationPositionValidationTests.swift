@@ -1098,6 +1098,19 @@ struct DeclarationPositionValidationTests {
         assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
     }
 
+    @Test func externalAnnotationMemberReportsOnlyProhibitedMember() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            annotation class A {
+                external fun f(): Int
+            }
+            """)
+        // kotlinc reports only 'members are prohibited in annotation
+        // classes.' for `external` members — the reserved-stdlib diagnostic
+        // must not double-report.
+        assertHasDiagnostic("KSWIFTK-SEMA-0419", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-0008", in: ctx)
+    }
+
     @Test func externalPropertyReportsGenericTargetWithoutExtras() throws {
         let ctx = try semaContextWithoutStdlib(for: """
             external val e1: Int
@@ -1438,6 +1451,43 @@ struct DeclarationPositionValidationTests {
             .compactMap { $0.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start) } }
             .map { "\($0.line):\($0.column)" }
         #expect(positions == ["2:5", "3:5", "4:5", "5:5", "6:5", "9:13", "10:14"])
+    }
+
+    @Test func annotationMembersStillGetOrdinaryMemberDiagnostics() throws {
+        let ctx = try semaContext(for: """
+            annotation class A {
+                private fun a()
+                protected fun b() {}
+                internal var x = 0
+                override fun toString() = ""
+            }
+            """)
+        // kotlinc applies the ordinary member checks on top of 0419:
+        // visibility and override modifiers are 'not applicable inside
+        // annotation class'.
+        let ranges = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-0401" }
+            .compactMap { $0.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start) } }
+            .map { "\($0.line):\($0.column)" }
+            .sorted()
+        #expect(ranges == ["2:5", "3:5", "4:5", "5:5"])
+    }
+
+    @Test func annotationMemberPropertyRequiresInitialization() throws {
+        let ctx = try semaContext(for: """
+            annotation class A {
+                val v1 = 1
+                internal val v2: Int
+            }
+            """)
+        // kotlinc underlines `val` for 'property must be initialized or be
+        // abstract.' — even though sibling members are initialized, annotation
+        // members cannot be assigned through init blocks or constructors.
+        let positions = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-0424" }
+            .compactMap { $0.primaryRange.map { ctx.sourceManager.lineColumn(of: $0.start) } }
+            .map { "\($0.line):\($0.column)" }
+        #expect(positions == ["3:14"])
     }
 
     @Test func annotationVarParameterIsRejected() throws {

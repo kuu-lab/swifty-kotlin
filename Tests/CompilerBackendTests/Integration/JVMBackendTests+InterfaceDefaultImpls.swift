@@ -79,5 +79,53 @@ extension JVMBackendTests {
             #expect(javaRun.stdout == "A\npA\nB\npB\n")
         }
     }
+
+    @Test
+    func kotlinInterfaceDefaultsGetDefaultImplsForwarders() throws {
+        try withWorkspace { root in
+            let runtime = try m11Runtime()
+            let result = try compile("""
+            import kotlin.coroutines.*
+            object ProbeKey : CoroutineContext.Key<ProbeElement>
+            class ProbeElement : CoroutineContext.Element {
+                override val key: CoroutineContext.Key<*> get() = ProbeKey
+            }
+            fun main() {
+                val context: CoroutineContext = ProbeElement()
+                println(context[ProbeKey] != null)
+            }
+            """, root: root, mode: .jvmJar, classpath: runtime.split(separator: ":").map(String.init))
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            guard result.0 == 0 else { return }
+
+            let jar = root.appendingPathComponent("hello.jar")
+            let implementation = try jvmTool("javap", ["-p", "-classpath", jar.path, "ProbeElement"], root: root).stdout
+            #expect(implementation.contains("get(kotlin.coroutines.CoroutineContext$Key)"))
+            #expect(implementation.contains("fold(java.lang.Object"))
+            #expect(implementation.contains("minusKey(kotlin.coroutines.CoroutineContext$Key)"))
+            #expect(implementation.contains("plus(kotlin.coroutines.CoroutineContext)"))
+
+            let run = try java(["-cp", jar.path + ":" + runtime, "HelloKt"])
+            #expect(run.stdout == "true\n")
+            #expect(run.stderr.isEmpty)
+        }
+    }
+
+    @Test
+    func kuu4572PlatformMappedCollectionDefaultsUseJDKInterfaces() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let unsignedArray = try jvmTool("javap", ["-p", "-c", "-classpath", library.path, "kotlin.UByteArray"], root: root).stdout
+            #expect(!unsignedArray.contains("kotlin/collections/Collection$DefaultImpls"))
+            #expect(!unsignedArray.contains("kotlin/collections/Iterable$DefaultImpls"))
+
+            let sequenceIterable = try jvmTool("javap", ["-p", "-c", "-classpath", library.path, "kotlin.sequences.SequencesKt$asIterable$1"], root: root).stdout
+            #expect(!sequenceIterable.contains("kotlin/collections/Iterable$DefaultImpls"))
+
+            let repositoryMap = try jvmTool("javap", ["-p", "-c", "-classpath", library.path, "kotlin.collections.builders.RepositoryMapBuilder"], root: root).stdout
+            #expect(!repositoryMap.contains("kotlin/collections/Map.getSize"))
+            #expect(repositoryMap.contains("java/util/Map.size"))
+        }
+    }
 }
 #endif

@@ -36,6 +36,20 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case ksSymbolName
     case nativeThreadLocal
     case inlineOnly
+    case retention
+    case mustBeDocumented
+    case jvmInline
+    case jvmRecord
+    case jvmSynthetic
+    case jvmRepeatable
+    case lowPriorityInOverloadResolution
+    case implicitIntegerCoercion
+    case onlyInputTypes
+    case nonStableParameterNames
+    case jsExport
+    case inherited
+    case serializationTransient
+    case serializationSerialName
 
     /// Every known annotation's simple name is the last component of its qualified name.
     var simpleName: String {
@@ -114,6 +128,48 @@ package enum KnownCompilerAnnotation: CaseIterable {
             "kotlin.native.concurrent.ThreadLocal"
         case .inlineOnly:
             "kotlin.internal.InlineOnly"
+        case .retention:
+            "kotlin.annotation.Retention"
+        case .mustBeDocumented:
+            "kotlin.annotation.MustBeDocumented"
+        case .jvmInline:
+            "kotlin.jvm.JvmInline"
+        case .jvmRecord:
+            "kotlin.jvm.JvmRecord"
+        case .jvmSynthetic:
+            "kotlin.jvm.JvmSynthetic"
+        case .jvmRepeatable:
+            "kotlin.jvm.JvmRepeatable"
+        case .lowPriorityInOverloadResolution:
+            "kotlin.internal.LowPriorityInOverloadResolution"
+        case .implicitIntegerCoercion:
+            "kotlin.internal.ImplicitIntegerCoercion"
+        case .onlyInputTypes:
+            "kotlin.internal.OnlyInputTypes"
+        case .nonStableParameterNames:
+            "kotlin.internal.NonStableParameterNames"
+        case .jsExport:
+            "kotlin.js.JsExport"
+        case .inherited:
+            "java.lang.annotation.Inherited"
+        case .serializationTransient:
+            "kotlinx.serialization.Transient"
+        case .serializationSerialName:
+            "kotlinx.serialization.SerialName"
+        }
+    }
+
+    /// The unresolved-annotation fallback stays frozen to the names the compiler
+    /// already recognised by name; cases added for `annotationFQName` lookups do
+    /// not widen it implicitly.
+    private var isKnownBuiltInFallback: Bool {
+        switch self {
+        case .retention, .mustBeDocumented, .jvmInline, .jvmRecord, .jvmSynthetic, .jvmRepeatable,
+             .lowPriorityInOverloadResolution, .implicitIntegerCoercion, .onlyInputTypes,
+             .nonStableParameterNames, .jsExport, .inherited, .serializationTransient, .serializationSerialName:
+            false
+        default:
+            true
         }
     }
 
@@ -126,7 +182,7 @@ package enum KnownCompilerAnnotation: CaseIterable {
     /// text library omits SOURCE-retention metadata annotations such as
     /// `kotlin.Suppress` or `kotlin.UnsafeVariance`).
     package static func isKnownBuiltInAnnotation(_ rawName: String) -> Bool {
-        allCases.contains { $0.matches(rawName) }
+        allCases.contains { $0.isKnownBuiltInFallback && $0.matches(rawName) }
     }
 }
 
@@ -453,6 +509,31 @@ package struct KnownCompilerNames {
     let join: InternedString
     let awaitName: InternedString
 
+    // Range and array fallback member names dispatched by `calleeName`.
+    let start: InternedString
+    let end: InternedString
+    let endInclusive: InternedString
+    let endExclusive: InternedString
+    let random: InternedString
+    let randomOrNull: InternedString
+    let findLast: InternedString
+    let anyMember: InternedString
+    let allMember: InternedString
+    let noneMember: InternedString
+    let mapIndexed: InternedString
+    let mapNotNull: InternedString
+    let filterNot: InternedString
+    let concatToString: InternedString
+    let copyOf: InternedString
+    let copyOfRange: InternedString
+    let copyInto: InternedString
+    let fill: InternedString
+    let call: InternedString
+    let name: InternedString
+    let returnType: InternedString
+    let isSuspend: InternedString
+    let parameters: InternedString
+
     // Additional member/marker names compared by name during type checking.
     let receive: InternedString
     let callBy: InternedString
@@ -494,6 +575,7 @@ package struct KnownCompilerNames {
     let kotlinTextPackage: [InternedString]
     let kotlinTimePackage: [InternedString]
     let kotlinMathPackage: [InternedString]
+    let kotlinReflectPackage: [InternedString]
     let kotlinReflectFullPackage: [InternedString]
     let kotlinArrayFQName: [InternedString]
     let kotlinComparatorFQName: [InternedString]
@@ -611,6 +693,7 @@ package struct KnownCompilerNames {
     let javaUtilNavigableMapFQName: [InternedString]
     let javaUtilTreeMapFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
+    let kotlinCoroutinesCoroutineContextFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
@@ -788,6 +871,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsCollectionFQName = [kotlin, collections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, collections, mutableCollection]
         kotlinCollectionsIterableFQName = [kotlin, collections, interner.intern("Iterable")]
+        kotlinCoroutinesCoroutineContextFQName = [kotlin, kotlinCoroutines, interner.intern("CoroutineContext")]
         sourceBackedArrayCopyFQNames = [
             [kotlin, collections, interner.intern("copyOf")],
             [kotlin, collections, interner.intern("copyOfRange")],
@@ -1077,6 +1161,30 @@ package struct KnownCompilerNames {
         join = interner.intern("join")
         awaitName = interner.intern("await")
 
+        start = interner.intern("start")
+        end = interner.intern("end")
+        endInclusive = interner.intern("endInclusive")
+        endExclusive = interner.intern("endExclusive")
+        random = interner.intern("random")
+        randomOrNull = interner.intern("randomOrNull")
+        findLast = interner.intern("findLast")
+        anyMember = interner.intern("any")
+        allMember = interner.intern("all")
+        noneMember = interner.intern("none")
+        mapIndexed = interner.intern("mapIndexed")
+        mapNotNull = interner.intern("mapNotNull")
+        filterNot = interner.intern("filterNot")
+        concatToString = interner.intern("concatToString")
+        copyOf = interner.intern("copyOf")
+        copyOfRange = interner.intern("copyOfRange")
+        copyInto = interner.intern("copyInto")
+        fill = interner.intern("fill")
+        call = interner.intern("call")
+        name = interner.intern("name")
+        returnType = interner.intern("returnType")
+        isSuspend = interner.intern("isSuspend")
+        parameters = interner.intern("parameters")
+
         let kotlinRanges = interner.intern("ranges")
         let kotlinTime = interner.intern("time")
         let kotlinMath = interner.intern("math")
@@ -1086,7 +1194,8 @@ package struct KnownCompilerNames {
         kotlinTextPackage = [kotlin, kotlinText]
         kotlinTimePackage = [kotlin, kotlinTime]
         kotlinMathPackage = [kotlin, kotlinMath]
-        kotlinReflectFullPackage = [kotlin, interner.intern("reflect"), interner.intern("full")]
+        kotlinReflectPackage = [kotlin, interner.intern("reflect")]
+        kotlinReflectFullPackage = kotlinReflectPackage + [interner.intern("full")]
         kotlinArrayFQName = [kotlin, array]
         kotlinComparatorFQName = [kotlin, comparator]
         kotlinIntArrayFQName = [kotlin, intArray]

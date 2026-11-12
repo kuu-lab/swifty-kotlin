@@ -12,6 +12,22 @@ struct RuntimeArrayDequeCollectionTests {
     }
 
     @Test
+    func capacityConstructorRejectsNegativeCapacity() throws {
+        var thrown = 0
+        let raw = __kk_arraydeque_new_with_capacity(4, &thrown)
+        #expect(thrown == 0)
+        #expect(raw != 0)
+        #expect(__kk_arraydeque_size(raw) == 0)
+
+        var negativeThrown = 0
+        let negative = __kk_arraydeque_new_with_capacity(-1, &negativeThrown)
+        #expect(negative == 0)
+        let pointer = try #require(UnsafeMutableRawPointer(bitPattern: negativeThrown))
+        let exception = try #require(tryCast(pointer, to: RuntimeThrowableBox.self))
+        #expect(exception.exceptionFQName == "kotlin.IllegalArgumentException")
+    }
+
+    @Test
     func nominalIdentityAndIterableDispatch() throws {
         let raw = makeDeque([1, 2])
         #expect(runtimeObjectTypeID(rawValue: raw) == arrayDequeRuntimeTypeID)

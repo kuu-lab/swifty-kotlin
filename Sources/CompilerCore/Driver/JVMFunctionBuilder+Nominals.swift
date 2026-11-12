@@ -24,6 +24,8 @@ extension JVMFunctionBuilder {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
             } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "text", "RegexOption"] {
                 field = JVMField(owner: "kotlin/text/RegexOption", name: path[3], type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
+            } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "time", "DurationUnit"] {
+                field = JVMField(owner: "kotlin/time/DurationUnit", name: path[3], type: .reference("kotlin/time/DurationUnit", nullable: false), access: 0x4019)
             } else { field = nil }
             if let field { let result = try value(field.type); instructions.append(.getStatic(field, result)); return result }
         }
@@ -101,6 +103,17 @@ extension JVMFunctionBuilder {
             guard args.count == params.count, args.allSatisfy({ $0.label == nil && !$0.isSpread }) else { throw fail("Unsupported JVM enum static call.", id) }
             let result = name == "entries" ? program.enumEntriesField(plan).type : (name == "values" ? program.enumValuesField(plan).type : .reference(plan.name, nullable: false))
             return JVMIntrinsicResult(value: try jdkCall(plan.name, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }))
+        }
+        if let plan = enumPlan, plan.isEnum, name == "serializer", args.isEmpty {
+            let serializerSymbol = program.sema.serializationClasses[plan.symbol]?.companionSerializerMethod
+            let isStaticEnumSerializer = serializerSymbol.map {
+                program.sema.symbols.symbol($0)?.flags.contains(.static) == true
+                    && program.sema.symbols.parentSymbol(for: $0) == plan.symbol
+            } ?? false
+            if isStaticEnumSerializer {
+                let result = try program.expressionType(id)
+                return JVMIntrinsicResult(value: try jdkCall(plan.name, "serializer", [], result, arguments: []))
+            }
         }
         if let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic), program.sema.symbols.symbol(t.classSymbol)?.kind == .enumClass {
             if !arena.isExplicitCall(id), args.isEmpty, ["name", "ordinal"].contains(name) { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", name, [], name == "name" ? .string : .int, receiver: requireValue(receiver))) }
@@ -186,9 +199,8 @@ extension JVMFunctionBuilder {
             }
         }
         for branch in branches {
-            guard branch.guard_ == nil else { throw fail("JVM guarded when branches are unsupported.", id) }
             let selected = label(), next = label()
-            var selectedReachable = false
+            var selectedReachable = branch.conditions.isEmpty && branch.guard_ != nil
             for condition in branch.conditions {
                 let check: JVMValue
                 if case let .isCheck(_, target, negated, _) = arena.expr(condition), let snapshot {
@@ -217,8 +229,20 @@ extension JVMFunctionBuilder {
                 let alternative = label()
                 instructions.append(.jumpIfFalse(check, alternative)); jump(selected); selectedReachable = true; mark(alternative)
             }
-            if canTestNext { jump(next) }
-            if selectedReachable { mark(selected); try branchBody(branch.body) }
+            if canTestNext, !branch.conditions.isEmpty { jump(next) }
+            if selectedReachable {
+                mark(selected)
+                if let guardExpr = branch.guard_ {
+                    let guardValue = try expression(guardExpr)
+                    if !terminated {
+                        guard let guardValue, guardValue.type == .boolean else {
+                            throw fail("JVM when branch guard must produce Boolean.", guardExpr)
+                        }
+                        instructions.append(.jumpIfFalse(guardValue, next))
+                    }
+                }
+                if !terminated { try branchBody(branch.body) }
+            }
             if !canTestNext { break }
             mark(next)
         }

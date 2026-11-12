@@ -39,15 +39,39 @@ extension JVMFunctionBuilder {
     /// Evaluate explicit arguments in source order, then arrange parameter slots.
     /// Missing values are placeholders; the callee's default bridge evaluates
     /// defaults in declaration order after all explicit expressions have run.
-    func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
+    func arguments(
+        _ args: [CallArgument],
+        binding: CallBinding?,
+        parameters: [JVMValueType],
+        declarations: [ValueParamDecl]?,
+        contextParameterTypes: [JVMValueType] = [],
+        id: ExprID? = nil
+    ) throws -> (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
             ?? signature?.valueParameterIsVararg.firstIndex(of: true)
         let varargElement = try varargIndex.map { try specializedVarargElement(at: $0, erased: parameters[$0], binding: binding) }
         var supplied: [Int: JVMValue] = [:]
+        var suppliedContext: [Int: JVMValue] = [:]
         var varargValues: [(JVMValue, Bool)] = []
         var positionalCursor = 0
         for (i, arg) in args.enumerated() {
+            if let contextIndex = binding?.contextParameterArgumentMapping[i] {
+                guard contextParameterTypes.indices.contains(contextIndex), suppliedContext[contextIndex] == nil else {
+                    throw fail("Invalid JVM context argument mapping.", id)
+                }
+                let evaluated = try expression(arg.expr)
+                if terminated { throw JVMTerminatedExpression() }
+                let source: JVMValue
+                if let evaluated { source = evaluated }
+                else if try program.expressionType(arg.expr) == .unit {
+                    let unit: JVMValueType = .reference("kotlin/Unit", nullable: false)
+                    source = try value(unit)
+                    instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), source))
+                } else { throw fail("JVM context argument does not produce a value.", arg.expr) }
+                suppliedContext[contextIndex] = try convert(source, to: contextParameterTypes[contextIndex])
+                continue
+            }
             let index: Int
             if let mapped = binding?.parameterMapping[i] {
                 index = mapped
@@ -104,7 +128,7 @@ extension JVMFunctionBuilder {
                 values.append(try zero(type))
             }
         }
-        return (values, masks)
+        return (values, masks, suppliedContext)
     }
 
     func maskArguments(_ masks: [UInt32], constructor: Bool) throws -> [JVMValue] {
@@ -139,16 +163,36 @@ extension JVMFunctionBuilder {
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
+        let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
+        let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
         let types = Array(allTypes.dropFirst(prefix.count))
+        guard types.count >= contextParameterTypes.count else { throw fail("JVM context parameter signature mismatch.", id) }
+        let valueTypes = Array(types.dropFirst(contextParameterTypes.count))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
-        // Value constructors are static source operations: evaluate their
-        // arguments before allocating the internal box, including suspension.
-        let deferredValueBox = constructor && plan?.isValue == true
         let object = constructor ? try value(method!.result) : nil
-        if let object, !deferredValueBox { instructions.append(.allocate(method!.owner, object)); pendingAllocations.append(object) }
-        defer { if object != nil && !deferredValueBox { pendingAllocations.removeLast() } }
-        let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id)
+        let ordered = try arguments(
+            args,
+            binding: binding,
+            parameters: valueTypes,
+            declarations: defaultParameters,
+            contextParameterTypes: contextParameterTypes,
+            id: id
+        )
+        for contextIndex in contextParameterTypes.indices {
+            let contextValue: JVMValue
+            if let explicit = ordered.contextValues[contextIndex] {
+                contextValue = explicit
+            } else if let binding,
+                      binding.contextParameterReceiverSymbols.indices.contains(contextIndex),
+                      let receiverSymbol = binding.contextParameterReceiverSymbols[contextIndex],
+                      let receiver = contextualReceivers[receiverSymbol] {
+                contextValue = try convert(receiver, to: contextParameterTypes[contextIndex])
+            } else {
+                throw fail("Missing JVM context parameter value.", id)
+            }
+            prefix.append(contextValue)
+        }
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
         if try emitTailrec(id, symbol: symbol, dispatch: dispatch, prefix: prefix, values: ordered.values, masks: ordered.masks) {
@@ -159,7 +203,7 @@ extension JVMFunctionBuilder {
         // A safe Unit call has logical type Unit?, but its ordinary entry
         // still returns void. The safe-call join materializes Unit afterward.
         let result = constructor || physicalResult == .unit || resultType == .unit ? nil : try value(resultType)
-        if deferredValueBox, let object { instructions.append(.allocate(method!.owner, object)) }
+        if let object { instructions.append(.allocate(method!.owner, object)) }
         if usesDefaults {
             if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)

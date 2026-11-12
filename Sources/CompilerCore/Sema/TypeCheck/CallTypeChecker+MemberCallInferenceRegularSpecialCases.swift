@@ -15,6 +15,16 @@ extension CallTypeChecker {
         locals: LocalBindings
     ) -> TypeID? {
         let extensionPropertyReceiverType = callableReferenceFunctionType ?? memberLookupType
+        // Only the declaring instance can use a private backing field's narrowed type.
+        let allowsBackingFieldRefinement: Bool = {
+            guard let enclosingClass = request.ctx.enclosingClassSymbol,
+                  case .thisRef = request.ast.arena.expr(request.receiverID),
+                  case let .classType(receiverClass) = request.sema.types.kind(of: memberLookupType)
+            else {
+                return false
+            }
+            return receiverClass.classSymbol == enclosingClass
+        }()
         let entryMemberProperty: (symbol: SymbolID, type: TypeID)? = {
             guard case let .thisRef(label?, _) = request.ast.arena.expr(request.receiverID),
                   let entrySymbol = request.ctx.enumEntryReceiverSymbol(forQualifiedThisLabel: label)
@@ -32,6 +42,7 @@ extension CallTypeChecker {
             named: request.calleeName,
             receiverType: memberLookupType,
             receiverDeclaration: request.receiverDeclaration,
+            allowBackingFieldRefinement: allowsBackingFieldRefinement,
             sema: request.sema
         )
 
@@ -86,6 +97,7 @@ extension CallTypeChecker {
                        named: request.calleeName,
                        receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
                        receiverDeclaration: request.receiverDeclaration,
+                       allowBackingFieldRefinement: allowsBackingFieldRefinement,
                        sema: request.sema
                    )
                 {

@@ -70,6 +70,16 @@ extension JVMFunctionBuilder {
                 return JVMIntrinsicResult(value: try jdkCall("kotlin/Result", "unbox-impl", [], object, receiver: first))
             }
             if name == "__jvmResume", values.count == 2 { return JVMIntrinsicResult(value: try jdkCall("kotlin/coroutines/Continuation", "resumeWith", [object], .unit, receiver: values[0], arguments: [values[1]], interface: true)) }
+            if name == "__jvmListModified", let list = values.first {
+                let field = JVMField(owner: "java/util/AbstractList", name: "modCount", type: .int, access: 4)
+                let old = try value(.int)
+                instructions.append(.getField(field, list, old))
+                let one = try constant(.int(1), .int)
+                let next = try value(.int)
+                instructions.append(.binary(.add, old, one, next))
+                instructions.append(.putField(field, list, next))
+                return JVMIntrinsicResult(value: nil)
+            }
             if let operation = program.platformOperations[name] { return JVMIntrinsicResult(value: try platformOperation(operation, arguments: values, result: resultType)) }
             if ["__jvmPrint", "__jvmPrintln", "__jvmNewline"].contains(name) {
                 instructions.append(.print(values.first, newline: name != "__jvmPrint")); return JVMIntrinsicResult(value: nil)
@@ -155,6 +165,140 @@ extension JVMFunctionBuilder {
         if let method = context.jvmImports?.methods[callee] { return method.isStatic }
         return program.references[callee] != nil
     }
+
+    func jvmListBinarySearch(receiver: JVMValue, args: [CallArgument], values: [JVMValue], id: ExprID) throws -> JVMValue {
+        enum Overload {
+            case natural
+            case comparator
+            case comparison
+        }
+
+        let sema = program.sema
+        let binding = sema.bindings.callBinding(for: id)
+        let signature = binding.flatMap { sema.symbols.functionSignature(for: $0.chosenCallee) }
+        func isComparatorArgument(_ index: Int) -> Bool {
+            guard args.indices.contains(index) else { return false }
+            if args[index].label.map(context.interner.resolve) == "comparator" { return true }
+            if let expressionType = sema.bindings.exprTypes[args[index].expr],
+               let loweredType = try? program.type(expressionType),
+               loweredType.referenceName == "java/util/Comparator" {
+                return true
+            }
+            return values[index].type.referenceName == "java/util/Comparator"
+        }
+        func functionArity(_ index: Int) -> Int? {
+            guard args.indices.contains(index),
+                  let expressionType = sema.bindings.exprTypes[args[index].expr],
+                  case let .functionType(function) = sema.types.kind(of: expressionType) else {
+                return nil
+            }
+            return function.params.count
+        }
+        let firstParameterIsInt = signature?.parameterTypes.first.map { parameter in
+            if case .primitive(.int, _) = sema.types.kind(of: parameter) { return true }
+            return false
+        } ?? false
+        let overload: Overload
+        if signature?.parameterTypes.count == 4 || args.contains(where: { $0.label.map(context.interner.resolve) == "comparator" })
+            || isComparatorArgument(1) || functionArity(args.count - 1) == 2 {
+            overload = .comparator
+        } else if signature?.parameterTypes.count == 1 || firstParameterIsInt
+            || args.contains(where: { $0.label.map(context.interner.resolve) == "comparison" })
+            || functionArity(args.count - 1) == 1 {
+            overload = .comparison
+        } else if signature == nil || signature?.parameterTypes.count == 3 {
+            overload = .natural
+        } else {
+            throw fail("Unsupported JVM List.binarySearch overload.", id)
+        }
+
+        let listType = JVMValueType.reference("java/util/List", nullable: false)
+        let objectType = JVMValueType.reference("java/lang/Object", nullable: true)
+        let intType = JVMValueType.int
+        let callableType = JVMValueType.reference("kotlin/jvm/functions/Function1", nullable: false)
+        let parameterTypes: [JVMValueType]
+        let parameterNames: [String]
+        let defaultedParameters: Set<Int>
+        switch overload {
+        case .natural:
+            parameterTypes = [.reference("java/lang/Comparable", nullable: true), intType, intType]
+            parameterNames = ["element", "fromIndex", "toIndex"]
+            defaultedParameters = [1, 2]
+        case .comparator:
+            parameterTypes = [objectType, .reference("java/util/Comparator", nullable: false), intType, intType]
+            parameterNames = ["element", "comparator", "fromIndex", "toIndex"]
+            defaultedParameters = [2, 3]
+        case .comparison:
+            parameterTypes = [intType, intType, callableType]
+            parameterNames = ["fromIndex", "toIndex", "comparison"]
+            defaultedParameters = [0, 1]
+        }
+
+        guard args.count == values.count else { throw fail("JVM collection argument mismatch.", id) }
+        var ordered = Array<JVMValue?>(repeating: nil, count: parameterTypes.count)
+        var nextPositionalParameter = 0
+        for (sourceIndex, argument) in args.enumerated() {
+            let label = argument.label.map(context.interner.resolve)
+            let argumentIsFunction: Bool = {
+                if let argumentType = sema.bindings.exprTypes[argument.expr],
+                   case .functionType = sema.types.kind(of: argumentType) {
+                    return true
+                }
+                return values[sourceIndex].type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
+            }()
+            let parameterIndex: Int
+            if let label, let labeledIndex = parameterNames.firstIndex(of: label) {
+                parameterIndex = labeledIndex
+            } else if case .comparison = overload,
+                      sourceIndex == args.count - 1,
+                      argumentIsFunction {
+                // A trailing lambda is the final comparison parameter even when
+                // earlier range arguments are supplied positionally.
+                parameterIndex = 2
+            } else if signature?.parameterTypes.count == parameterTypes.count,
+                      let mapped = binding?.parameterMapping[sourceIndex],
+                      parameterTypes.indices.contains(mapped) {
+                parameterIndex = mapped
+            } else {
+                parameterIndex = nextPositionalParameter
+            }
+            guard parameterTypes.indices.contains(parameterIndex), ordered[parameterIndex] == nil else {
+                throw fail("Invalid JVM List.binarySearch argument mapping.", id)
+            }
+            ordered[parameterIndex] = values[sourceIndex]
+            nextPositionalParameter = max(nextPositionalParameter, parameterIndex + 1)
+        }
+
+        var defaultMask: Int32 = 0
+        var invocationArguments = [try convert(receiver, to: listType)]
+        for index in parameterTypes.indices {
+            if let value = ordered[index] {
+                invocationArguments.append(value)
+            } else {
+                guard defaultedParameters.contains(index) else {
+                    throw fail("JVM collection argument mismatch.", id)
+                }
+                defaultMask |= Int32(1) << Int32(index)
+                invocationArguments.append(try zero(parameterTypes[index]))
+            }
+        }
+        let mask = try constant(.int(defaultMask), .int)
+        let marker = try constant(.null, objectType)
+        invocationArguments += [mask, marker]
+        let invocationTypes = [listType] + parameterTypes + [.int, objectType]
+        guard let result = try jdkCall(
+            "kotlin/collections/CollectionsKt",
+            "binarySearch$default",
+            invocationTypes,
+            .int,
+            arguments: invocationArguments,
+            resolved: .int
+        ) else {
+            throw fail("JVM List.binarySearch must return Int.", id)
+        }
+        return result
+    }
+
     func intrinsicMember(_ receiverID: ExprID, name: InternedString, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let member = context.interner.resolve(name)
         if let sourceType = try? program.expressionType(receiverID), sourceType.referenceName == "java/lang/Object" {
@@ -318,7 +462,7 @@ extension JVMFunctionBuilder {
         if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
             return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
         }
-        let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        let collections: Set<String> = ["java/util/ArrayList", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             if member == "withIndex", args.isEmpty {
                 let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
@@ -357,6 +501,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
+            if owner == "java/util/LinkedHashSet" { owner = "java/util/Set" }
+            if owner == "java/util/LinkedHashMap" { owner = "java/util/Map" }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
             // when it picked a Kotlin extension, the fixed JDK member signature
@@ -379,6 +525,11 @@ extension JVMFunctionBuilder {
             let parameters: [JVMValueType], returns: JVMValueType, actual: String
             switch member {
             case "size": actual = "size"; parameters = []; returns = .int
+            case "binarySearch":
+                guard ["java/util/List", "java/util/ArrayList"].contains(owner) else {
+                    throw fail("Unsupported JVM collection member: \(member).", id)
+                }
+                return JVMIntrinsicResult(value: try jvmListBinarySearch(receiver: source, args: args, values: values, id: id))
             case "entries": actual = "entrySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "keys": actual = "keySet"; parameters = []; returns = .reference("java/util/Set", nullable: false)
             case "values": actual = "values"; parameters = []; returns = .reference("java/util/Collection", nullable: false)
@@ -600,7 +751,9 @@ extension JVMFunctionBuilder {
             return try jdkCall(owner, "charAt", [.int], .char, receiver: source, arguments: [index], interface: owner == "java/lang/CharSequence")!
         }
         if object.type.referenceName?.hasPrefix("[") == true {
-            let index = try convert(index, to: .int), result = try value(type)
+            let index = try convert(index, to: .int)
+            let elementType = type == .unit ? try arrayComponent(object.type) : type
+            let result = try value(elementType)
             instructions.append(.arrayGet(object, index, result)); return result
         }
         guard let owner = object.type.referenceName, ["java/util/List", "kotlin/enums/EnumEntries", "java/util/Map"].contains(owner) else { throw fail("Unsupported JVM indexed receiver.") }
@@ -673,6 +826,80 @@ extension JVMFunctionBuilder {
 }
 
 extension JVMFunctionBuilder {
+    private func loopConventionCall(
+        _ binding: CallBinding,
+        receiver: JVMValue,
+        resultType: JVMValueType,
+        name: String,
+        id: ExprID
+    ) throws -> JVMValue? {
+        let symbol = binding.chosenCallee
+        let isExtension = program.extensionSymbols.contains(symbol)
+            || context.jvmImports?.extensionSymbols.contains(symbol) == true
+
+        if let reference = program.references[symbol] {
+            let arguments: [JVMValue]
+            if isExtension {
+                guard let receiverType = reference.parameters.first else {
+                    throw fail("JVM for-loop extension \(name)() has no receiver parameter.", id)
+                }
+                arguments = [try convert(receiver, to: receiverType)]
+            } else {
+                arguments = []
+            }
+            guard arguments.count == reference.parameters.count else {
+                throw fail("JVM for-loop \(name)() argument count mismatch.", id)
+            }
+            let result = reference.result == .unit ? nil : try value(resultType)
+            instructions.append(.call(reference, arguments, result))
+            return result
+        }
+
+        guard let method = program.methods[symbol]
+            ?? context.jvmImports?.methods[symbol]
+            ?? program.textLibraryMethods[symbol]?.method
+        else {
+            return nil
+        }
+
+        let arguments: [JVMValue]
+        if isExtension {
+            guard let receiverType = method.parameters.first else {
+                throw fail("JVM for-loop extension \(name)() has no receiver parameter.", id)
+            }
+            arguments = [try convert(receiver, to: receiverType)]
+        } else {
+            arguments = []
+        }
+        guard arguments.count == method.parameters.count else {
+            throw fail("JVM for-loop \(name)() argument count mismatch.", id)
+        }
+
+        let dispatchReceiver: JVMValue?
+        if method.isStatic {
+            dispatchReceiver = nil
+        } else if isExtension {
+            let implicitReceiver = binding.dispatchReceiverSymbol.flatMap { contextualReceivers[$0] }
+                ?? thisValue
+            guard let implicitReceiver else {
+                throw fail("JVM for-loop member extension \(name)() has no dispatch receiver.", id)
+            }
+            dispatchReceiver = try convert(
+                implicitReceiver,
+                to: .reference(method.owner, nullable: false)
+            )
+        } else {
+            dispatchReceiver = try convert(
+                receiver,
+                to: .reference(method.owner, nullable: false)
+            )
+        }
+
+        let result = method.result == .unit ? nil : try value(resultType)
+        instructions.append(.foreignCall(method, receiver: dispatchReceiver, arguments: arguments, result: result))
+        return result
+    }
+
     func makeIndexedValue(_ index: JVMValue, _ element: JVMValue, as type: JVMValueType) throws -> JVMValue {
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let indexedValue = try constructJDK("kotlin/collections/IndexedValue", parameters: [.int, object], arguments: [index, convert(element, to: object)])
@@ -707,6 +934,11 @@ extension JVMFunctionBuilder {
         let withIndexReceiver: ExprID? = {
             guard case let .memberCall(receiver, callee, _, args, _) = arena.expr(iterable),
                   context.interner.resolve(callee) == "withIndex", args.isEmpty else { return nil }
+            if let symbol = program.sema.bindings.callBinding(for: iterable)?.chosenCallee,
+               let declaration = program.sema.symbols.symbol(symbol)?.declSite,
+               context.sourceManager.origin(of: declaration.start.file) == .user {
+                return nil
+            }
             return receiver
         }()
         let source = try requireValue(withIndexReceiver ?? iterable)
@@ -824,7 +1056,18 @@ extension JVMFunctionBuilder {
         } else {
             let iteratorType: JVMValueType = .reference("java/util/Iterator", nullable: false)
             let iterator: JVMValue
-            if let loopBinding, loopBinding.iteratorCall == nil {
+            if withIndexReceiver == nil,
+               let loopBinding,
+               let iteratorCall = loopBinding.iteratorCall,
+               let resolved = try loopConventionCall(
+                   iteratorCall,
+                   receiver: source,
+                   resultType: try program.type(loopBinding.iteratorType),
+                   name: "iterator",
+                   id: id
+               ) {
+                iterator = resolved
+            } else if let loopBinding, loopBinding.iteratorCall == nil {
                 iterator = try convert(source, to: iteratorType)
             } else {
                 let iteratorOwner = loopBinding?.iteratorCall
@@ -850,10 +1093,42 @@ extension JVMFunctionBuilder {
             let withIndexCounter = indexedElementType == nil ? nil : try value(.int)
             if let withIndexCounter { instructions.append(.constant(.int(0), withIndexCounter)) }
             mark(test)
-            let check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+            let check: JVMValue
+            if let loopBinding,
+               let resolved = try loopConventionCall(
+                   loopBinding.hasNextCall,
+                   receiver: iterator,
+                   resultType: .boolean,
+                   name: "hasNext",
+                   id: id
+               ) {
+                check = resolved
+            } else {
+                check = try jdkCall("java/util/Iterator", "hasNext", [], .boolean, receiver: iterator, interface: true)!
+            }
             instructions.append(.jumpIfFalse(check, exit))
             if let withIndexCounter { try checkWithIndexCounter(withIndexCounter) }
-            let next = try jdkCall("java/util/Iterator", "next", [], .reference("java/lang/Object", nullable: true), receiver: iterator, interface: true, resolved: indexedElementType ?? elementType)!
+            let next: JVMValue
+            if let loopBinding,
+               let resolved = try loopConventionCall(
+                   loopBinding.nextCall,
+                   receiver: iterator,
+                   resultType: indexedElementType ?? elementType,
+                   name: "next",
+                   id: id
+               ) {
+                next = resolved
+            } else {
+                next = try jdkCall(
+                    "java/util/Iterator",
+                    "next",
+                    [],
+                    .reference("java/lang/Object", nullable: true),
+                    receiver: iterator,
+                    interface: true,
+                    resolved: indexedElementType ?? elementType
+                )!
+            }
             if let withIndexCounter {
                 let item = try makeIndexedValue(withIndexCounter, next, as: elementType)
                 instructions.append(.copy(item, local))

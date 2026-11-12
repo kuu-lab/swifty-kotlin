@@ -13,6 +13,7 @@ package enum JVMStdlibCatalog {
         let path: String
         let virtualPath: String
         let excludeFromStdlibBuild: Bool
+        let commonSource: Bool?
         let runtimeFacade: String?
         let onlyForStdlibBuild: Bool?
         let appendForConsumers: String?
@@ -29,15 +30,38 @@ package enum JVMStdlibCatalog {
         guard paths.count == Set(paths).count else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration path.") }
         return manifest
     }
-    static func read(_ path: String) throws -> Data {
+    static func read(_ path: String, commonSource: Bool = false) throws -> Data {
         guard !path.hasPrefix("/"), !path.split(separator: "/").contains("..") else { throw JVMFrontendError(message: "Invalid JVM stdlib resource path.") }
-        return try Data(contentsOf: resourceRoot().appendingPathComponent("jvm/" + path))
+        return try Data(contentsOf: resourceRoot().appendingPathComponent(commonSource ? path : "jvm/" + path))
     }
+
+    package static func runtimeSourceFingerprint() throws -> String {
+        let root = try resourceRoot()
+        let jvm = root.appendingPathComponent("jvm")
+        guard let files = FileManager.default.enumerator(at: jvm, includingPropertiesForKeys: nil) else {
+            throw JVMFrontendError(message: "Missing JVM stdlib resources.")
+        }
+        let sources = files.compactMap { $0 as? URL }.filter { $0.pathExtension == "kt" }
+        var parts = [FileFingerprint.sha256Hex(try Data(contentsOf: jvm.appendingPathComponent("manifest.json")))]
+        let rootDepth = root.pathComponents.count
+        for source in sources.sorted(by: { $0.path < $1.path }) {
+            parts.append(source.pathComponents.dropFirst(rootDepth).joined(separator: "/"))
+            parts.append(FileFingerprint.sha256Hex(try Data(contentsOf: source)))
+        }
+        let catalog = try manifest()
+        let common = Set(catalog.commonSources + catalog.declarations.filter { $0.commonSource == true }.map(\.path))
+        for path in common.sorted() {
+            parts.append(path)
+            parts.append(FileFingerprint.sha256Hex(try read(path, commonSource: true)))
+        }
+        return ContentAddressedStore.makeKey(parts: parts)
+    }
+
     /// Classpath imports must not redeclare types whose source contracts are
     /// already selected. Nested binary names are filtered by the class reader.
     static func nominalNames(in ctx: CompilationContext) throws -> Set<String> {
         let package = try NSRegularExpression(pattern: #"(?m)^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*)"#)
-        let nominal = try NSRegularExpression(pattern: #"(?m)^\s*(?:(?:public|private|internal|protected|open|abstract|sealed|data|enum|annotation|value|fun)\s+)*(?:class|interface|object)\s+([A-Za-z_][A-Za-z0-9_]*)"#)
+        let nominal = try NSRegularExpression(pattern: #"(?m)^\s*(?:(?:public|private|internal|protected|open|abstract|sealed|data|enum|annotation|value|fun)\s+)*(?:class|interface|object|typealias)\s+([A-Za-z_][A-Za-z0-9_]*)"#)
         var names: Set<String> = []
         for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/") || ctx.options.stdlibOnly && ctx.sourceManager.origin(of: file) == .user {
             let source = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self) as NSString
@@ -52,7 +76,11 @@ package enum JVMStdlibCatalog {
         for declaration in try manifest().declarations {
             if ctx.options.stdlibOnly && declaration.excludeFromStdlibBuild { continue }
             if !ctx.options.stdlibOnly && declaration.onlyForStdlibBuild == true { continue }
-            var source = try read(declaration.path)
+            if !ctx.options.stdlibOnly, declaration.path == "declarations/KotlinIoPath.kt",
+               !userSourcesUseKotlinPath(in: ctx) {
+                continue
+            }
+            var source = try read(declaration.path, commonSource: declaration.commonSource == true)
             if !ctx.options.stdlibOnly, let extra = declaration.appendForConsumers {
                 let content = String(decoding: try read(extra), as: UTF8.self)
                 source.append(Data(content.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().joined(separator: "\n").utf8))
@@ -60,5 +88,16 @@ package enum JVMStdlibCatalog {
             guard !ctx.sourceManager.containsFile(path: declaration.virtualPath) else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration injection.") }
             _ = ctx.sourceManager.addFile(path: declaration.virtualPath, contents: source, origin: .residualStdlib)
         }
+    }
+
+    private static func userSourcesUseKotlinPath(in ctx: CompilationContext) -> Bool {
+        for file in ctx.sourceManager.fileIDs()
+        where ctx.sourceManager.origin(of: file) == .user
+            && !ctx.sourceManager.path(of: file).hasPrefix("<kswiftk-jvm>/")
+        {
+            let source = String(decoding: ctx.sourceManager.contents(of: file), as: UTF8.self)
+            if JVMJDKClasspath.usesKotlinPath(in: source) { return true }
+        }
+        return false
     }
 }

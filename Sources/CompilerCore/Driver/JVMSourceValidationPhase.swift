@@ -75,6 +75,11 @@ private struct JVMSourceGrammar {
             } while take(.symbol(.comma))
             try require(.symbol(.greaterThan))
         }
+        if take(.symbol(.amp)) {
+            guard case let .identifier(marker) = kind,
+                  context.interner.resolve(marker) == "Any" else { throw Unsupported() }
+            index += 1
+        }
         if nullable, receiverSuffix, take(.symbol(.questionDot)) { try type(); return }
         if nullable { _ = take(.symbol(.question)) }
         if receiverSuffix, take(.symbol(.dot)) { try type() }
@@ -105,6 +110,14 @@ private struct JVMSourceGrammar {
             } while take(.symbol(.comma))
             try require(.symbol(.greaterThan))
         }
+    }
+    mutating func whereConstraints() throws {
+        guard take(.softKeyword(.where)) else { return }
+        repeat {
+            try name()
+            try require(.symbol(.colon))
+            try type()
+        } while take(.symbol(.comma))
     }
     mutating func file() throws {
         while kind == .symbol(.at) { try annotation() }
@@ -150,6 +163,20 @@ private struct JVMSourceGrammar {
             try require(.symbol(.rParen))
         }
     }
+    mutating func contextParameters() throws {
+        try require(.softKeyword(.context))
+        try require(.symbol(.lParen))
+        if !take(.symbol(.rParen)) {
+            repeat {
+                while kind == .symbol(.at) { try annotation() }
+                while take(.keyword(.crossinline)) || take(.keyword(.noinline)) {}
+                try name()
+                try require(.symbol(.colon))
+                try type()
+            } while take(.symbol(.comma))
+            try require(.symbol(.rParen))
+        }
+    }
     mutating func argument() throws {
         if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.assign) { index += 2 }
         _ = take(.symbol(.star))
@@ -183,9 +210,18 @@ private struct JVMSourceGrammar {
         inDelegationHeader = false
         defer { inDelegationHeader = enclosingHeader }
         let declarationStart = index
+        let hasContextParameters = kind == .softKeyword(.context)
+        if hasContextParameters {
+            try contextParameters()
+        }
         while kind == .symbol(.at) { try annotation() }
         modifiers()
         while kind == .symbol(.at) { try annotation(); modifiers() }
+        if !hasContextParameters, kind == .softKeyword(.context) {
+            try contextParameters()
+            modifiers()
+            while kind == .symbol(.at) { try annotation(); modifiers() }
+        }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
@@ -199,6 +235,7 @@ private struct JVMSourceGrammar {
             catch { index = start; try name() }
             try parameters()
             if take(.symbol(.colon)) { try type() }
+            try whereConstraints()
             if take(.symbol(.assign)) { try expression() }
             else if kind == .symbol(.lBrace) { try block() }
             else if !member { throw Unsupported() }
@@ -226,6 +263,7 @@ private struct JVMSourceGrammar {
             if take(.symbol(.lBrace)) {
                 if isEnum, kind != .symbol(.semicolon) && kind != .symbol(.rBrace) {
                     repeat {
+                        while kind == .symbol(.at) { try annotation() }
                         try name()
                         if kind == .symbol(.lParen) { try arguments() }
                         if take(.symbol(.lBrace)) {
@@ -242,12 +280,18 @@ private struct JVMSourceGrammar {
                 }
             }
         } else if (take(.keyword(.val)) || take(.keyword(.var))) {
+            if !member { try typeParameters() }
             try propertyName()
             if take(.symbol(.colon)) { try type() }
             if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
+            var sawExplicitBackingField = false
             while true {
                 let saved = index
                 semicolons(); modifiers()
+                while kind == .symbol(.at) {
+                    try annotation()
+                    modifiers()
+                }
                 if take(.softKeyword(.get)) {
                     try parameters()
                 } else if take(.softKeyword(.set)) {
@@ -256,6 +300,12 @@ private struct JVMSourceGrammar {
                         if take(.symbol(.colon)) { try type() }
                         try require(.symbol(.rParen))
                     } else { continue }
+                } else if take(.softKeyword(.field)) {
+                    guard !sawExplicitBackingField else { throw Unsupported() }
+                    sawExplicitBackingField = true
+                    if take(.symbol(.colon)) { try type() }
+                    try require(.symbol(.assign))
+                    try expression()
                 } else { index = saved; break }
                 if take(.symbol(.assign)) { try expression() }
                 else if kind == .symbol(.lBrace) { try block() }
@@ -458,7 +508,9 @@ private struct JVMSourceGrammar {
             }
             try require(.symbol(.lBrace)); semicolons()
             while !take(.symbol(.rBrace)) {
-                if !take(.keyword(.else)) {
+                if take(.keyword(.else)) {
+                    if take(.keyword(.if)) { try expression(allowNewlines: true) }
+                } else {
                     repeat {
                         if take(.keyword(.is)) { try type() }
                         else if hasSubject, take(.symbol(.bang)) {
@@ -468,6 +520,7 @@ private struct JVMSourceGrammar {
                         else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
                     } while take(.symbol(.comma))
+                    if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
                 try require(.symbol(.arrow)); try body(); try separator(); semicolons()
             }
@@ -527,7 +580,10 @@ private struct JVMSourceGrammar {
                     guard kind == .symbol(.lParen) || startsTrailingLambda() else { throw Unsupported() }
                 } catch { index = saved; break }
             } else if take(.symbol(.lBracket)) {
-                try expression(allowNewlines: true); try require(.symbol(.rBracket))
+                repeat {
+                    try expression(allowNewlines: true)
+                } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
+                try require(.symbol(.rBracket))
             } else if take(.symbol(.lParen)) {
                 let header = inDelegationHeader; inDelegationHeader = false
                 if !take(.symbol(.rParen)) {

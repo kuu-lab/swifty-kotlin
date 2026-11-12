@@ -16,6 +16,7 @@ extension JVMClasspathIndex {
         let nullableObjectArray = JVMValueType.reference("[Ljava/lang/Object;", nullable: true)
         var arraysMethods = [
             method("java/util/Arrays", "copyOf", [objectArray, .int], objectArray, staticMember: true),
+            method("java/util/Arrays", "copyOfRange", [objectArray, .int, .int], objectArray, staticMember: true),
             method("java/util/Arrays", "fill", [objectArray, .int, .int, object], .unit, staticMember: true),
             method("java/util/Arrays", "equals", [nullableObjectArray, nullableObjectArray], .boolean, staticMember: true),
             method("java/util/Arrays", "hashCode", [nullableObjectArray], .int, staticMember: true),
@@ -34,6 +35,7 @@ extension JVMClasspathIndex {
             class Arrays private constructor() {
                 companion object {
                     external fun <T> copyOf(a: Array<out T>, newLength: Int): Array<T>
+                    external fun <T> copyOfRange(a: Array<out T>, fromIndex: Int, toIndex: Int): Array<T>
                     external fun fill(a: Array<out Any?>, fromIndex: Int, toIndex: Int, value: Any?): Unit
                     external fun equals(a: Array<out Any?>?, b: Array<out Any?>?): Boolean
                     external fun hashCode(a: Array<out Any?>?): Int
@@ -64,14 +66,14 @@ extension JVMClasspathIndex {
             arraysSource += "\n                    external fun hashCode(a: \(spec.type)?): Int"
             arraysSource += "\n                    external fun toString(a: \(spec.type)?): String"
             arraysSource += "\n                    external fun copyOf(a: \(spec.type), newLength: Int): \(spec.type)"
+            arraysSource += "\n                    external fun copyOfRange(a: \(spec.type), fromIndex: Int, toIndex: Int): \(spec.type)"
+            arraysSource += "\n                    external fun fill(a: \(spec.type), fromIndex: Int, toIndex: Int, value: \(spec.name)): Unit"
             arraysMethods.append(method("java/util/Arrays", "equals", [nullableArray, nullableArray], .boolean, staticMember: true))
             arraysMethods.append(method("java/util/Arrays", "hashCode", [nullableArray], .int, staticMember: true))
             arraysMethods.append(method("java/util/Arrays", "toString", [nullableArray], .string, staticMember: true))
             arraysMethods.append(method("java/util/Arrays", "copyOf", [array, .int], array, staticMember: true))
-            if ["Int", "Long"].contains(spec.name) {
-                arraysSource += "\n                    external fun fill(a: \(spec.type), fromIndex: Int, toIndex: Int, value: \(spec.name)): Unit"
-                arraysMethods.append(method("java/util/Arrays", "fill", [array, .int, .int, spec.element], .unit, staticMember: true))
-            }
+            arraysMethods.append(method("java/util/Arrays", "copyOfRange", [array, .int, .int], array, staticMember: true))
+            arraysMethods.append(method("java/util/Arrays", "fill", [array, .int, .int, spec.element], .unit, staticMember: true))
             if spec.canSort {
                 arraysSource += "\n                    external fun sort(a: \(spec.type)): Unit"
                 arraysSource += "\n                    external fun sort(a: \(spec.type), fromIndex: Int, toIndex: Int): Unit"
@@ -176,6 +178,18 @@ extension JVMClasspathIndex {
             package java.lang
             class StackTraceElement private constructor()
             """, 0x0011, "java/lang/Object", []),
+            ("java/io/File", """
+            package java.io
+            class File {
+                constructor(path: kotlin.String)
+                constructor(parent: kotlin.String, child: kotlin.String)
+                external fun getPath(): kotlin.String
+            }
+            """, 0x0001, "java/lang/Object", [
+                method("java/io/File", "<init>", [.string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "<init>", [.string, .string], .reference("java/io/File", nullable: false)),
+                method("java/io/File", "getPath", [], .string),
+            ]),
             ("java/lang/IllegalAccessError", """
             package java.lang
             open class IllegalAccessError : kotlin.Error {
@@ -242,6 +256,28 @@ extension JVMClasspathIndex {
             """, 0x0001, "java/util/HashMap", [
                 method("java/util/LinkedHashMap", "<init>", [], .reference("java/util/LinkedHashMap", nullable: false)),
                 method("java/util/LinkedHashMap", "put", [object, object], object),
+            ]),
+            ("java/util/LinkedHashSet", """
+            package java.util
+            open class LinkedHashSet<E> : kotlin.collections.MutableSet<E> {
+                constructor()
+                constructor(initialCapacity: Int)
+                override val size: Int get() = 0
+                override fun isEmpty(): Boolean = false
+                override fun contains(element: E): Boolean = false
+                override fun containsAll(elements: kotlin.collections.Collection<@UnsafeVariance E>): Boolean = false
+                override fun iterator(): kotlin.collections.MutableIterator<E> = null!!
+                override fun add(element: E): Boolean = false
+                override fun addAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun remove(element: E): Boolean = false
+                override fun removeAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun retainAll(elements: kotlin.collections.Collection<out E>): Boolean = false
+                override fun clear() {}
+            }
+            """, 0x0001, "java/util/HashSet", [
+                method("java/util/LinkedHashSet", "<init>", [], .reference("java/util/LinkedHashSet", nullable: false)),
+                method("java/util/LinkedHashSet", "<init>", [.int], .reference("java/util/LinkedHashSet", nullable: false)),
+                method("java/util/LinkedHashSet", "add", [object], .boolean),
             ]),
             ("java/util/SortedMap", """
             package java.util

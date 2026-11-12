@@ -300,20 +300,6 @@ public func __kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer
     return ptr
 }
 
-@_cdecl("kk_throwable_new_cause")
-public func kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
-    let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    let message = runtimeThrowableStackTraceText(from: cause)
-    // The cause-taking constructor initializes the cause slot even for null.
-    let throwableInt = runtimeMarkThrowableCauseInitialized(
-        runtimeAllocateThrowable(message: message.isEmpty ? "Throwable" : message, cause: cause)
-    )
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        runtimeStructuredPanic("kk_throwable_new_cause: allocation returned null")
-    }
-    return ptr
-}
-
 @_cdecl("kk_throwable_is_cancellation")
 public func kk_throwable_is_cancellation(_ throwableRaw: Int) -> Int {
     kk_is_cancellation_exception(throwableRaw)
