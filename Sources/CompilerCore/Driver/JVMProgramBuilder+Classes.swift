@@ -281,7 +281,13 @@ extension JVMProgramBuilder {
                 }
             }
             let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmField" }
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade ? 8 : 0) | (p.isVar || plan.isObject ? 0 : 16)) : nil
+            let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
+            let fieldVisibility = p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2
+            let fieldStorage: UInt16 = plan.isFacade || staticObjectField ? 8 : 0
+            let fieldFinality: UInt16 = p.isVar || (plan.isObject && !staticObjectField) ? 0 : 16
+            let field = hasField && p.delegateExpression == nil
+                ? JVMField(owner: plan.name, name: name, type: type, access: fieldVisibility | fieldStorage | fieldFinality)
+                : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)

@@ -294,7 +294,7 @@ extension JVMProgramBuilder {
                 } else if let initializer = declaration.initializer {
                     guard let field = property.field else { throw JVMFrontendError(message: "JVM initializer needs a backing field.") }
                     let initial = try builder.convert(builder.requireValue(initializer), to: field.type)
-                    builder.instructions.append(plan.isFacade ? .putStatic(field, initial) : .putField(field, object, initial))
+                    builder.instructions.append(field.access & 8 != 0 ? .putStatic(field, initial) : .putField(field, object, initial))
                 }
             case let .initBlock(index): try builder.statements(c.initBlocks[index])
             }
