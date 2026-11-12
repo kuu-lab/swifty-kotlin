@@ -573,6 +573,27 @@ public fun <T> MutableCollection<in T>.retainAll(elements: kotlin.sequences.Sequ
 
 public fun <T> List<T>.asReversed(): List<T> = ReversedListView(this)
 
+public fun Collection<Byte>.toByteArray(): ByteArray {
+    val array = ByteArray(size)
+    var index = 0
+    for (element in this) array[index++] = element
+    return array
+}
+
+public fun Collection<Float>.toFloatArray(): FloatArray {
+    val array = FloatArray(size)
+    var index = 0
+    for (element in this) array[index++] = element
+    return array
+}
+
+public fun Collection<Long>.toLongArray(): LongArray {
+    val array = LongArray(size)
+    var index = 0
+    for (element in this) array[index++] = element
+    return array
+}
+
 private class ReversedListView<T>(private val source: List<T>) : AbstractList<T>() {
     override val size: Int get() = source.size
 
