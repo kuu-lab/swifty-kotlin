@@ -44,6 +44,13 @@ extension JVMFunctionBuilder {
         if let name = objectName, let lexical = program.classes.values.first(where: { $0.name == name }), let receiver = contextualReceivers[lexical.symbol], !beforeDelegation || receiver.slot != thisValue?.slot { return receiver }
         if let name = objectName, let object = program.classes.values.first(where: { $0.name == name && $0.isObject }) { return try singleton(object) }
         if let name = objectName, let object = try importedSingleton(name) { return object }
+        if let selected = bindings.identifierSymbol(for: id) ?? bindings.callBinding(for: id)?.chosenCallee {
+            let symbols = program.sema.symbols
+            let member = symbols.propertySymbol(forAccessor: selected) ?? selected
+            if let companion = symbols.parentSymbol(for: member), let parent = symbols.parentSymbol(for: companion),
+               symbols.companionObjectSymbol(for: parent) == companion,
+               let receiver = try importedCompanionValue(for: parent) { return receiver }
+        }
         guard !beforeDelegation else { throw fail("JVM member access requires an initialized this.", id) }
         if let value = extensionValue ?? thisValue { return value }
         throw fail("JVM member access requires a receiver.", id)
@@ -141,6 +148,9 @@ extension JVMFunctionBuilder {
                         return property
                     }
                 }
+                if let getter = info.kotlinCompanionProperties[name]?.getter {
+                    return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+                }
                 // `const val` members (e.g. `LinearLayout.VERTICAL`) have no
                 // accessor method; bind them to their compile-time literal.
                 if let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
@@ -156,6 +166,19 @@ extension JVMFunctionBuilder {
                         isStatic: true, isInterface: info.isInterface, isAbstract: false
                     )
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
+                }
+                if sema.symbols.symbol(parent)?.kind == .object,
+                   let importedField = info.fields.first(where: {
+                       $0.name == name && $0.descriptor == type.descriptor && info.isRuntimeStaticField($0)
+                   }) {
+                    let field = JVMField(owner: owner, name: name, type: type, access: importedField.access)
+                    let getter = JVMForeignMethod(
+                        owner: owner, name: "get" + capital, descriptor: "()" + type.descriptor,
+                        parameters: [], result: type, isStatic: true, isInterface: info.isInterface, isAbstract: false
+                    )
+                    var property = JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
+                    property.readsStaticField = true
+                    return property
                 }
                 if let getter = info.kotlinStaticProperties[name]?.getter, getter.result.descriptor == type.descriptor,
                    sema.symbols.symbol(parent)?.kind == .object {
@@ -318,9 +341,14 @@ extension JVMFunctionBuilder {
             }
             return result
         }
+        if property.readsStaticField, let field = property.field {
+            let result = try value(field.type)
+            instructions.append(.getStatic(field, result))
+            return result
+        }
         var getter = property.getter
         if special { getter = try superMethod(getter, receiver: superReceiver) }
-        let result = try value(property.type)
+        let result = try value(getter.result)
         let arguments = try getter.parameters.first.map { [try convert(receiver, to: $0)] } ?? []
         let dispatch = try propertyDispatch(property, receiver: receiver, at: id)
         instructions.append(.foreignCall(getter, receiver: dispatch, arguments: arguments, result: result))
@@ -342,7 +370,7 @@ extension JVMFunctionBuilder {
             instructions.append(.binary(.add, index, try constant(.int(1), .int), index))
             jump(loop); mark(end); return array
         }
-        return result
+        return try convert(result, to: property.type)
     }
     func writeProperty(_ property: JVMProperty, receiver: JVMValue, value source: JVMValue, at id: ExprID, initializing: Bool = false, special: Bool = false, superReceiver: ExprID? = nil) throws {
         if property.isImportedField, let field = property.field {
@@ -357,6 +385,10 @@ extension JVMFunctionBuilder {
         let converted = try convert(source, to: property.type)
         if property.isDirectField, let field = property.field, field.access & 16 == 0 {
             instructions.append(.putStatic(field, converted)); return
+        }
+        if property.readsStaticField, let field = property.field, field.access & 0x0010 == 0 {
+            instructions.append(.putStatic(field, converted))
+            return
         }
         if initializing, property.setter == nil, receiver.slot == thisValue?.slot, property.field?.owner == owner?.name, let field = property.field {
             instructions.append(field.access & 8 != 0 ? .putStatic(field, converted) : .putField(field, receiver, converted))
