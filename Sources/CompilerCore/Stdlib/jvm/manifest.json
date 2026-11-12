@@ -187,6 +187,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/ByteArrayDecodeToString.kt",
+      "virtualPath": "<kswiftk-jvm>/byte-array-decode-to-string.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringFormattingCaseFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/string-formatting-case-functions.kt",
       "excludeFromStdlibBuild": true,
