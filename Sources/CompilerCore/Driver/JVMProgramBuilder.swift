@@ -127,7 +127,7 @@ final class JVMProgramBuilder {
         return nil
     }
     static func isIdentifier(_ value: String) -> Bool {
-        let bytes = Array(value.utf8)
+        let bytes = value.utf8
         func start(_ b: UInt8) -> Bool { (65...90).contains(b) || (97...122).contains(b) || b == 95 }
         guard let first = bytes.first, start(first) else { return false }
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
@@ -553,6 +553,25 @@ final class JVMFunctionBuilder {
             guard let first = parameters.first else { throw fail("Missing JVM extension receiver.") }
             extensionValue = try supplied == nil ? value(first) : supplied!.removeFirst()
             parameters.removeFirst()
+        }
+        let contextParameterCount = semanticSignature?.contextParameterTypes.count ?? 0
+        guard contextParameterCount == declaration.contextReceivers.count,
+              declaration.contextReceivers.allSatisfy({ $0.isContextParameter && $0.name != nil }),
+              parameters.count >= contextParameterCount else {
+            throw fail("Unsupported JVM context parameter declaration.")
+        }
+        for index in 0..<contextParameterCount {
+            let type = parameters.removeFirst()
+            let value = try supplied == nil ? value(type) : supplied!.removeFirst()
+            let contextParameter = declaration.contextReceivers[index]
+            guard let name = contextParameter.name,
+                  let signature = semanticSignature,
+                  signature.contextParameterSymbols.indices.contains(index) else {
+                throw fail("Missing JVM context parameter binding.")
+            }
+            let symbol = signature.contextParameterSymbols[index]
+            scopes[0][name] = Local(value: value, mutable: false, symbol: symbol)
+            contextualReceivers[symbol] = value
         }
         if let owner, let thisValue {
             contextualReceivers[owner.symbol] = thisValue

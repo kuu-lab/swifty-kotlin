@@ -48,16 +48,28 @@ struct JVMKotlinMetadata {
         }
     }
 
-    func suspendFunctions(byteLimit: Int) throws -> [String: JVMKotlinSuspendFunction] {
-        guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return [:] }
+    struct FunctionTable {
+        fileprivate let names: JVMMetadataNames
+        fileprivate let types: TypeTable
+        fileprivate let functions: [ProtoFields]
+    }
+
+    func functionTable(byteLimit: Int) throws -> FunctionTable? {
+        guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return nil }
         let bytes = try decodedData(limit: byteLimit)
         var cursor = ProtoCursor(bytes[...])
         guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
         let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
         let declaration = try ProtoFields(bytes[cursor.position...])
         let classTypes = try TypeTable(declaration.message(30))
+        return FunctionTable(names: names, types: classTypes, functions: try declaration.messages(isFileFacade ? 3 : 9))
+    }
+
+    func suspendFunctions(in table: FunctionTable) throws -> [String: JVMKotlinSuspendFunction] {
+        let names = table.names
+        let classTypes = table.types
         var result: [String: JVMKotlinSuspendFunction] = [:]
-        for function in try declaration.messages(isFileFacade ? 3 : 9) {
+        for function in table.functions {
             guard (function.int32(9) ?? 0) & (1 << 13) != 0,
                   let name = try names.resolve(function.int32(2)),
                   let signature = try function.message(100),
@@ -100,7 +112,7 @@ struct JVMKotlinMetadata {
         return result
     }
 
-    private struct TypeTable {
+    fileprivate struct TypeTable {
         let entries: [ProtoFields]
         let firstNullable: Int
 
@@ -163,16 +175,11 @@ struct JVMKotlinMetadata {
     /// Functions whose Kotlin signature cannot be recovered from the erased
     /// JVM descriptor. Only function-typed signatures are returned; ordinary
     /// methods continue through the descriptor-based importer.
-    func functions(byteLimit: Int) throws -> [JVMKotlinFunction] {
-        guard let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
-        let bytes = try decodedData(limit: byteLimit)
-        var cursor = ProtoCursor(bytes[...])
-        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
-        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
-        let declaration = try ProtoFields(bytes[cursor.position...])
-        let classTypes = try TypeTable(declaration.message(30))
+    func functions(in table: FunctionTable) throws -> [JVMKotlinFunction] {
+        let names = table.names
+        let classTypes = table.types
         var result: [JVMKotlinFunction] = []
-        for function in try declaration.messages(isFileFacade ? 3 : 9) {
+        for function in table.functions {
             guard let name = try names.resolve(function.int32(2)) else { continue }
             let signature = try function.message(100)
             let jvmName: String?

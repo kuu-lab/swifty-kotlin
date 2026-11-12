@@ -1,5 +1,6 @@
 
 import CompilerCore
+import Foundation
 
 final class LLVMBackend {
     let target: TargetTriple
@@ -75,6 +76,62 @@ final class LLVMBackend {
                 try emitter.emitObject(outputPath: outputObjectPath, bitcodeOutputPath: bitcodeOutputPath)
             }
         )
+    }
+
+    func emitExecutableObjects(
+        module: KIRModule,
+        outputObjectPath: String,
+        outputObjectsDir: String,
+        interner: StringInterner,
+        typeSystem: TypeSystem? = nil,
+        symbols: SymbolTable? = nil,
+        sourceManager: SourceManager? = nil,
+        fileFacadeNamesByFileID: [Int32: String] = [:],
+        reflectionMetadataRecords: [MetadataRecord] = [],
+        reflectionMetadataSymbolPrefix: String? = nil,
+        linkOnceODRSymbols: Set<SymbolID> = []
+    ) throws -> [String] {
+        guard parallelJobs > 1, !debugInfo else {
+            try emitObject(
+                module: module,
+                outputObjectPath: outputObjectPath,
+                interner: interner,
+                typeSystem: typeSystem,
+                symbols: symbols,
+                sourceManager: sourceManager,
+                fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                reflectionMetadataRecords: reflectionMetadataRecords,
+                reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+                linkOnceODRSymbols: linkOnceODRSymbols
+            )
+            return [outputObjectPath]
+        }
+        try FileManager.default.createDirectory(atPath: outputObjectsDir, withIntermediateDirectories: true)
+        var relativePaths: [String] = []
+        try emitNative(
+            context: "partitioned executable objects",
+            nativeEmit: { bindings in
+                let emitter = withSubPhaseTiming("initEmitter", timer: phaseTimer) {
+                    makeEmitter(
+                        bindings: bindings,
+                        module: module,
+                        interner: interner,
+                        typeSystem: typeSystem,
+                        symbols: symbols,
+                        sourceManager: sourceManager,
+                        fileFacadeNamesByFileID: fileFacadeNamesByFileID,
+                        reflectionMetadataRecords: reflectionMetadataRecords,
+                        reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+                        linkOnceODRSymbols: linkOnceODRSymbols
+                    )
+                }
+                relativePaths = try emitter.emitPartitionedObjects(
+                    outputObjectsDir: outputObjectsDir,
+                    moduleName: moduleName
+                )
+            }
+        )
+        return relativePaths.map { outputObjectsDir + "/" + ($0 as NSString).lastPathComponent }
     }
 
     func emitLibraryObjects(

@@ -17,7 +17,7 @@ extension DeclTypeChecker {
                 // without them erases the capture (`G<T>.It` -> bare `It`)
                 // and later member calls fail to bind (KUU-3874).
                 let enclosingArguments = c.enclosingTypeArgs.map { $0.mapTypes(expose) }
-                guard let info = sema.symbols.symbol(c.classSymbol), info.kind == .class, info.flags.contains(.synthetic), ctx.interner.resolve(info.name).hasPrefix("__ObjectLiteral_") else {
+                guard let info = sema.symbols.symbol(c.classSymbol), info.kind == .class, info.flags.contains(.synthetic), sema.symbols.isObjectLiteralSynthetic(c.classSymbol) else {
                     return sema.types.make(.classType(ClassType(classSymbol: c.classSymbol, args: arguments, enclosingTypeArgs: enclosingArguments, nullability: c.nullability)))
                 }
                 let parents = sema.symbols.directSupertypes(for: c.classSymbol).filter {

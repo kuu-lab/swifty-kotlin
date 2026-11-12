@@ -1,19 +1,18 @@
-// DIFF_CANDIDATE_ONLY_FROM_SOURCE: exercises the internal
-// Uuid.generateV7(clock) seam, which is only reachable when compiling bundled
-// stdlib sources into the same module; there is no JVM kotlinc reference.
-// DIFF_CANDIDATE_ONLY_FROM_SOURCE_COMPILE_TIMEOUT: 600
-// EXPECT-STDOUT: same-ms increasing: true
-// EXPECT-STDOUT: same-ms counter steps of 1: true
-// EXPECT-STDOUT: same-ms timestamp kept: true
-// EXPECT-STDOUT: regression increasing: true
-// EXPECT-STDOUT: regression steps of 1: true
-// EXPECT-STDOUT: regression timestamp pinned: true
-// EXPECT-STDOUT: rollover increasing: true
-// EXPECT-STDOUT: rollover bumped timestamp: true
-// EXPECT-STDOUT: forward timestamp: true
-// EXPECT-STDOUT: done
+// DIFF_CANDIDATE_ONLY: exercises the internal Uuid.generateV7(clock) seam
+// through the shared stdlib artifact; the file-level INVISIBLE_MEMBER /
+// INVISIBLE_REFERENCE suppression below authorizes that module-boundary access.
+// DIFF_EXPECT_STDOUT: same-ms increasing: true
+// DIFF_EXPECT_STDOUT: same-ms counter steps of 1: true
+// DIFF_EXPECT_STDOUT: same-ms timestamp kept: true
+// DIFF_EXPECT_STDOUT: regression increasing: true
+// DIFF_EXPECT_STDOUT: regression steps of 1: true
+// DIFF_EXPECT_STDOUT: regression timestamp pinned: true
+// DIFF_EXPECT_STDOUT: rollover increasing: true
+// DIFF_EXPECT_STDOUT: rollover bumped timestamp: true
+// DIFF_EXPECT_STDOUT: forward timestamp: true
+// DIFF_EXPECT_STDOUT: done
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlin.time.ExperimentalTime::class)
-// The internal companion member lives in bundled stdlib sources; suppress the
+// The internal companion member lives in the stdlib artifact; suppress the
 // stdlib module-boundary check for this file only.
 @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 

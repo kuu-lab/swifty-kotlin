@@ -1556,7 +1556,7 @@ extension CallLowerer {
         let ownerFQName = ownerInfo.fqName
         let metadataMembers = ["parameters", "typeParameters", "visibility", "isFinal", "isOpen", "isAbstract", "isSuspend",
                                "isConst", "isLateinit", "getter", "setter", "property", "annotations"]
-        guard ownerFQName.starts(with: knownNames.kotlinReflectPackageFQName),
+        guard ownerFQName.starts(with: knownNames.kotlinReflectPackage),
               ownerFQName.count >= 3,
               ["KCallable", "KProperty", "KMutableProperty", "KProperty0", "KProperty1", "KProperty2", "KMutableProperty0", "KMutableProperty1", "KMutableProperty2"].contains(interner.resolve(ownerFQName[2])),
               member == "name" || member == "returnType" || metadataMembers.contains(member)

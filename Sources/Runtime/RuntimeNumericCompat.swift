@@ -673,10 +673,15 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
 /// tag=1 (object pointer, non-primitive).
 @_cdecl("kk_any_member_to_string")
 public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
-    if let throwableMethod = runtimeThrowableVtableMethodRaw(
-        raw,
-        slot: RuntimeThrowableVtableSlot.toString
-    ) {
+    // Source-backed Throwable subclasses live in RuntimeObjectBox and keep the
+    // flat String ABI in their vtable toString slot. Calling that slot through
+    // the raw throwable dispatcher reads the aggregate as a handle (KUU-4545);
+    // erased Any stringification must use the registered raw-string bridge.
+    if runtimeThrowableBox(from: raw) != nil,
+       let throwableMethod = runtimeThrowableVtableMethodRaw(
+           raw,
+           slot: RuntimeThrowableVtableSlot.toString
+       ) {
         let method = unsafeBitCast(
             throwableMethod,
             to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
