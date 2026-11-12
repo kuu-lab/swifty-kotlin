@@ -48,7 +48,16 @@ extension JVMProgramBuilder {
         for annotation in annotations where seen.insert(annotation.descriptor).inserted {
             let instances = annotations.filter { $0.descriptor == annotation.descriptor }
             if instances.count == 1 { output.append(annotation); continue }
-            guard let plan = classes.values.first(where: { "L" + $0.name + ";" == annotation.descriptor }), let name = try repeatableContainerName(plan.symbol) else { throw JVMFrontendError(message: "Repeated JVM annotation is missing @Repeatable or @JvmRepeatable.") }
+            let className = String(annotation.descriptor.dropFirst().dropLast())
+            let container: String?
+            if let info = context.jvmImports?.classes[className], info.isAnnotation {
+                container = info.repeatableAnnotationContainer
+            } else if let plan = classes.values.first(where: { $0.name == className }) {
+                container = try repeatableContainerName(plan.symbol)
+            } else {
+                container = nil
+            }
+            guard let name = container else { throw JVMFrontendError(message: "Repeated JVM annotation is missing @Repeatable or @JvmRepeatable.") }
             guard !annotations.contains(where: { $0.descriptor == "L" + name + ";" }) else { throw JVMFrontendError(message: "A repeated annotation and its explicit container cannot be used together.") }
             output.append(JVMAnnotation(descriptor: "L" + name + ";", values: [("value", .array(instances.map { .annotation($0) }))], visible: annotation.visible))
         }
