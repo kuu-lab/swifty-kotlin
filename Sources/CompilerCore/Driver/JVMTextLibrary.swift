@@ -244,7 +244,7 @@ extension JVMProgramBuilder {
                     }
                 }
             }
-            if ["<kswiftk-jvm>/duration.kt", "<kswiftk-jvm>/random.kt"].contains(path) {
+            if ["<kswiftk-jvm>/duration.kt", "<kswiftk-jvm>/instant.kt", "<kswiftk-jvm>/random.kt"].contains(path) {
                 try visit(file.topLevelDecls.filter { id in
                     if case .classDecl = ast.arena.decl(id) { return true }
                     return false
