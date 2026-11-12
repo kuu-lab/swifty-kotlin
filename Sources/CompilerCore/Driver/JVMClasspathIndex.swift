@@ -1653,7 +1653,7 @@ final class JVMClasspathIndex {
                     markSourceTypes(sourceTypes)
                 }
                 if let function = method.kotlinSuspendFunction {
-                    markSourceTypes(function.parameters.compactMap(\.sourceType))
+                    markSourceTypes(function.parameters.compactMap(\.sourceType) + [function.sourceResult].compactMap { $0 })
                 }
             }
             // Nested classes are emitted inside their owner's stub but are
@@ -1719,6 +1719,7 @@ final class JVMClasspathIndex {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
         let result = method.genericResultParameter.map { "`\($0.name)`" }
+            ?? suspend?.sourceResult
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)

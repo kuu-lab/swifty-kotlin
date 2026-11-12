@@ -10,6 +10,7 @@ struct JVMKotlinSuspendFunction {
 
     let name: String
     let result: JVMValueType
+    let sourceResult: String?
     let parameters: [Parameter]
     let receiverIsNullable: Bool?
 }
@@ -191,7 +192,9 @@ struct JVMKotlinMetadata {
                 )
             }
             let info = JVMKotlinSuspendFunction(
-                name: name, result: carrier, parameters: parameters, receiverIsNullable: receiver?.nullable
+                name: name, result: carrier,
+                sourceResult: returnType.type.has(2) ? try Self.sourceType(returnType, types: types, names: names) : nil,
+                parameters: parameters, receiverIsNullable: receiver?.nullable
             )
             guard result.updateValue(info, forKey: jvmName + descriptor) == nil else { throw JVMClassReader.Invalid() }
         }
