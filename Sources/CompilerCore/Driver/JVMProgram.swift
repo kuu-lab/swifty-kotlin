@@ -303,6 +303,8 @@ public struct JVMProperty {
     public var annotationsMethod: JVMForeignMethod? = nil
     public var customGetter: Bool = false
     public var customSetter: Bool = false
+    public var isGetterInline: Bool = false
+    public var isSetterInline: Bool = false
 }
 
 public struct JVMRecordComponent {
