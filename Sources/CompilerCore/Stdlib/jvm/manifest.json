@@ -532,6 +532,18 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "declarations/Grouping.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/GroupingEachCount.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping-each-count.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/GroupingKt"
+    },
+    {
       "path": "declarations/JavaLang.kt",
       "virtualPath": "<kswiftk-jvm>/javaLang.kt",
       "excludeFromStdlibBuild": false
