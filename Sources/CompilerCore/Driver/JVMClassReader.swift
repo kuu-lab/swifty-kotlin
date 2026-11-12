@@ -467,6 +467,7 @@ struct JVMClassReader {
         let count = Int(try u2())
         var index = 1
         var hasKotlinMetadata = false
+        var hasJvmOverloads = false
         var hasMetroAnnotation = false
         var hasComposableAnnotation = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
@@ -479,6 +480,7 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if string == "Lkotlin/jvm/JvmOverloads;" { hasJvmOverloads = true }
                 if string == "Landroidx/compose/runtime/Composable;" { hasComposableAnnotation = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
                    JVMMetro.annotationDescriptors.contains(string) {
@@ -534,7 +536,7 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation)
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
             if access & 0x0005 != 0,
@@ -620,6 +622,20 @@ struct JVMClassReader {
                       })
                 else { continue }
                 methods[index].kotlinFunction = function
+            }
+        }
+        if classAttributes.kotlinMetadata != nil, hasJvmOverloads {
+            let methodsByParameters = Dictionary(grouping: methods) { method in
+                method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+            }
+            methods.removeAll { method in
+                guard !method.isConstructor,
+                      method.annotations.contains(where: { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }) else { return false }
+                let key = method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
+                return methodsByParameters[key]?.contains { other in
+                    other.descriptor != method.descriptor
+                        && !other.annotations.contains { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }
+                } == true
             }
         }
         var info = JVMClassInfo(
