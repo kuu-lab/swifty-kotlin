@@ -551,6 +551,8 @@ package struct KnownCompilerNames {
     let equals: InternedString
     let hashCode: InternedString
     let mod: InternedString
+    let floorDiv: InternedString
+    let companion: InternedString
     let inv: InternedString
     let mutableListOf: InternedString
     let asFlow: InternedString
@@ -1196,6 +1198,8 @@ package struct KnownCompilerNames {
         equals = interner.intern("equals")
         hashCode = interner.intern("hashCode")
         mod = interner.intern("mod")
+        floorDiv = interner.intern("floorDiv")
+        companion = interner.intern("Companion")
         inv = interner.intern("inv")
         mutableListOf = interner.intern("mutableListOf")
         asFlow = interner.intern("asFlow")

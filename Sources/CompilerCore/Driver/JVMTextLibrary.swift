@@ -373,10 +373,11 @@ extension JVMFunctionBuilder {
         }
         let symbol = bindings.identifierSymbol(for: id) ?? accessorProperty ?? call
         guard let symbol else { return nil }
+        let knownNames = KnownCompilerNames(interner: context.interner)
         if let fqName = program.sema.symbols.symbol(symbol)?.fqName,
            fqName.count == 5,
-           fqName.starts(with: KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName),
-           context.interner.resolve(fqName[3]) == "Companion",
+           fqName.starts(with: knownNames.kotlinTimeDurationFQName),
+           fqName[3] == knownNames.companion,
            ["nanoseconds", "microseconds", "milliseconds", "seconds", "minutes", "hours", "days"].contains(context.interner.resolve(fqName[4])) {
             guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
                   [.int, .long, .double].contains(source.type) else {

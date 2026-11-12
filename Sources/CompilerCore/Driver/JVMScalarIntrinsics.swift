@@ -25,7 +25,7 @@ extension JVMFunctionBuilder {
               let declaration = program.sema.symbols.symbol(symbol) else { return nil }
         let knownNames = KnownCompilerNames(interner: context.interner)
         var fqName = declaration.fqName
-        if let last = fqName.last, context.interner.resolve(last) == "Companion" { fqName.removeLast() }
+        if let last = fqName.last, last == knownNames.companion { fqName.removeLast() }
         if fqName == knownNames.javaLangMathFQName, declaration.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
             switch context.interner.resolve(name) {
             case "PI": return try constant(.double(.pi), .double)

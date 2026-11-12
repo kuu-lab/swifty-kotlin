@@ -21,10 +21,10 @@ extension JVMFunctionBuilder {
             let knownNames = KnownCompilerNames(interner: context.interner)
             let fqName = symbol.fqName
             let isBuiltin = (fqName.count == 2 && fqName[0] == knownNames.kotlin
-                && context.interner.resolve(fqName[1]) == "mod")
+                && fqName[1] == knownNames.mod)
                 || (fqName.count == 3 && fqName[0] == knownNames.kotlin
-                    && context.interner.resolve(fqName[2]) == "mod"
-                    && primitiveName.map { context.interner.resolve(fqName[1]) == $0 } == true)
+                    && fqName[2] == knownNames.mod
+                    && primitiveName.map { fqName[1] == context.interner.intern($0) } == true)
             guard isBuiltin,
                   symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) ?? true
             else { return nil }
