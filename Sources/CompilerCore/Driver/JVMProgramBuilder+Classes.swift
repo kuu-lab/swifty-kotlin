@@ -217,7 +217,7 @@ extension JVMProgramBuilder {
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
-                  p.typeParams.isEmpty, (p.receiverType == nil || plan.isFacade), p.contextReceivers.isEmpty,
+                  (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), (p.receiverType == nil || plan.isFacade), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const]).isEmpty,
                   p.getter?.isInline != true, p.setter?.isInline != true,
@@ -268,7 +268,7 @@ extension JVMProgramBuilder {
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
-            property.receiverGenericSignature = try extensionReceiverSemantic.map { try signatureType($0) }
+            property.receiverGenericSignature = try extensionReceiverSemantic.map { try signatureType($0, parameterPosition: true) }
             property.customGetter = (p.getter?.body ?? .unit) != .unit || (p.getter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)
             property.customSetter = (p.setter?.body ?? .unit) != .unit || (p.setter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)
             if p.delegateExpression != nil {

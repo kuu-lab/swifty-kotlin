@@ -252,6 +252,7 @@ private struct JVMSourceGrammar {
                 }
             }
         } else if (take(.keyword(.val)) || take(.keyword(.var))) {
+            if !member { try typeParameters() }
             try propertyName()
             if take(.symbol(.colon)) { try type() }
             if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
