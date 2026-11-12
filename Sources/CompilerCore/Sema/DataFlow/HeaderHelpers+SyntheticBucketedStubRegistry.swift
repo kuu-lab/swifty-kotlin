@@ -21,6 +21,7 @@ struct SyntheticDelegateStubRegistryContext {
     let kotlinPropertiesPkg: [InternedString]
     let bundledIndex: BundledDeclarationIndex
     let skipStats: SyntheticStubSkipStatsCollector
+    let projectsCoroutineContextIsActive: Bool
 }
 
 private struct SyntheticDelegateStubRegistryEntry {
@@ -89,7 +90,8 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 symbols: symbols,
                 types: types,
                 interner: interner,
-                bundledIndex: context.bundledIndex
+                bundledIndex: context.bundledIndex,
+                projectsCoroutineContextIsActive: context.projectsCoroutineContextIsActive
             )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Exception") { phase, symbols, types, interner, context in
