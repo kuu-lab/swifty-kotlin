@@ -5,14 +5,6 @@
  */
 package kotlin.io.encoding
 
-import kotlin.enums.enumEntries
-import kotlin.internal.KsSymbolName
-
-// Migration source: Sources/Runtime/RuntimeBase64.swift (25 kk_base64_* @_cdecl entries, all deleted).
-// Only the OutputStream.encodingWith stream wrapper stays as a runtime bridge
-// (renamed kk_output_stream_encodingWith -> __kk_output_stream_encodingWith),
-// since it wraps a stateful native OutputStream sink.
-
 private const val STANDARD_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 private const val URL_SAFE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 // RFC 2045 (MIME) wraps at 76 chars; RFC 1421 (PEM) wraps at 64. Real Kotlin
@@ -54,7 +46,10 @@ public open class Base64 internal constructor(
         source: ByteArray,
         startIndex: Int = 0,
         endIndex: Int = source.size
-    ): ByteArray = encode(source, startIndex, endIndex).encodeToByteArray()
+    ): ByteArray {
+        val encoded = encode(source, startIndex, endIndex)
+        return ByteArray(encoded.length) { encoded[it].code.toByte() }
+    }
 
     public open fun encodeIntoByteArray(
         source: ByteArray,
@@ -349,20 +344,3 @@ public open class Base64 internal constructor(
         public val Pem: Base64 = Base64(STANDARD_ALPHABET, PEM_LINE_LENGTH)
     }
 }
-
-public val Base64.PaddingOption.entries: kotlin.enums.EnumEntries<Base64.PaddingOption>
-    get() = enumEntries<Base64.PaddingOption>()
-
-@KsSymbolName("__kk_output_stream_encodingWith")
-private external fun __outputStreamEncodingWith(
-    stream: java.io.OutputStream,
-    alphabet: String,
-    addPadding: Boolean
-): java.io.OutputStream
-
-public fun java.io.OutputStream.encodingWith(base64: Base64): java.io.OutputStream =
-    __outputStreamEncodingWith(
-        this,
-        base64.alphabetChars,
-        base64.paddingOption == Base64.PaddingOption.PRESENT || base64.paddingOption == Base64.PaddingOption.PRESENT_OPTIONAL
-    )
