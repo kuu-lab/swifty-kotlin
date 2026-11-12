@@ -39,7 +39,7 @@ extension JVMFunctionBuilder {
     /// Evaluate explicit arguments in source order, then arrange parameter slots.
     /// Missing values are placeholders; the callee's default bridge evaluates
     /// defaults in declaration order after all explicit expressions have run.
-    func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil, composableParameter: Int? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
+    func arguments(_ args: [CallArgument], binding: CallBinding?, parameters: [JVMValueType], declarations: [ValueParamDecl]?, id: ExprID? = nil, composableParameters: Set<Int> = [], importedDefaults: [Bool]? = nil) throws -> (values: [JVMValue], masks: [UInt32]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
             ?? signature?.valueParameterIsVararg.firstIndex(of: true)
@@ -61,7 +61,7 @@ extension JVMFunctionBuilder {
             }
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
-            let evaluated = try index == composableParameter ? composeContent(arg.expr) : expression(arg.expr)
+            let evaluated = try composableParameters.contains(index) ? composeContent(arg.expr) : expression(arg.expr)
             if terminated { throw JVMTerminatedExpression() }
             let sourceValue: JVMValue
             if let evaluated { sourceValue = evaluated }
@@ -99,7 +99,9 @@ extension JVMFunctionBuilder {
                 values.append(try textVararg(varargValues, element: varargElement!))
             } else if let value = supplied[i] { values.append(value) }
             else {
-                guard declarations?.indices.contains(i) == true, declarations![i].hasDefaultValue else { throw fail("Missing JVM argument without a default.", id) }
+                let sourceDefault = declarations?.indices.contains(i) == true && declarations![i].hasDefaultValue
+                let importedDefault = importedDefaults?.indices.contains(i) == true && importedDefaults![i]
+                guard sourceDefault || importedDefault else { throw fail("Missing JVM argument without a default.", id) }
                 masks[i / 32] |= UInt32(1) << UInt32(i % 32)
                 values.append(try zero(type))
             }
@@ -154,11 +156,17 @@ extension JVMFunctionBuilder {
         let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
+        let importedDefault = context.jvmImports?.importedDefaultMethods[symbol]
+        let importedDefaults = importedDefault.flatMap { _ in
+            program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues
+        }
         let object = constructor ? try value(method!.result) : nil
         // Constructor arguments can suspend, so allocate only after every
         // argument has completed. An uninitialized reference cannot cross a
         // continuation boundary on the JVM.
-        let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id)
+        let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id,
+                                    composableParameters: context.jvmImports?.importedComposableParameters[symbol] ?? [],
+                                    importedDefaults: importedDefaults)
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
         if try emitTailrec(id, symbol: symbol, dispatch: dispatch, prefix: prefix, values: ordered.values, masks: ordered.masks) {
@@ -171,7 +179,10 @@ extension JVMFunctionBuilder {
         let result = constructor || physicalResult == .unit || resultType == .unit ? nil : try value(resultType)
         if let object { instructions.append(.allocate(method!.owner, object)) }
         if usesDefaults {
-            if constructor {
+            if let importedDefault {
+                values += try maskArguments(ordered.masks, constructor: false)
+                instructions.append(.foreignCall(importedDefault, receiver: nil, arguments: values, result: result))
+            } else if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)
                 let params = allTypes + Array(repeating: JVMValueType.int, count: ordered.masks.count) + [.reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true)]
                 let call = JVMForeignMethod(owner: method!.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: method!.result, isStatic: false, isInterface: false, isAbstract: false)

@@ -21,6 +21,7 @@ struct JVMKotlinFunction {
         let name: String?
         let sourceType: String
         let isVararg: Bool
+        let hasDefaultValue: Bool
     }
 
     let name: String
@@ -175,12 +176,13 @@ struct JVMKotlinMetadata {
             var valid = true
             for parameter in parameterMessages {
                 let parameterName = try names.resolve(parameter.int32(2))
+                let hasDefaultValue = (parameter.int32(1) ?? 0) & 2 != 0
                 if let vararg = try types.resolve(parameter, inline: 4, indexed: 6) {
                     guard let element = try Self.sourceType(vararg, types: types, names: names) else {
                         valid = false
                         break
                     }
-                    parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: element, isVararg: true))
+                    parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: element, isVararg: true, hasDefaultValue: hasDefaultValue))
                     hasFunctionTypes = hasFunctionTypes || element.contains("->")
                     continue
                 }
@@ -189,7 +191,7 @@ struct JVMKotlinMetadata {
                     valid = false
                     break
                 }
-                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false))
+                parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false, hasDefaultValue: hasDefaultValue))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
             guard valid, hasFunctionTypes || isFileFacade else { continue }
@@ -251,7 +253,8 @@ struct JVMKotlinMetadata {
                 rendered.append(argumentType)
             }
             let isSuspendFunction = name.hasPrefix("kotlin/SuspendFunction")
-            let isExtension = try isExtensionFunctionType(type, names: names)
+            let isExtension = try hasTypeAnnotation("kotlin/ExtensionFunctionType", type: type, names: names)
+            let isComposable = try hasTypeAnnotation("androidx/compose/runtime/Composable", type: type, names: names)
             let returnType = rendered[arity]
             let inputs = Array(rendered.dropLast())
             let receiver: String?
@@ -272,7 +275,8 @@ struct JVMKotlinMetadata {
             } else {
                 body = "(" + parameterList + ") -> " + returnType
             }
-            let functionType = (isSuspendFunction ? "suspend " : "") + body
+            let functionType = (isComposable ? "@androidx.compose.runtime.Composable " : "")
+                + (isSuspendFunction ? "suspend " : "") + body
             return nullable ? "(" + functionType + ")?" : functionType
         }
         var base = sourceClassName(name)
@@ -306,9 +310,9 @@ struct JVMKotlinMetadata {
         return type
     }
 
-    private static func isExtensionFunctionType(_ type: ProtoFields, names: JVMMetadataNames) throws -> Bool {
+    private static func hasTypeAnnotation(_ name: String, type: ProtoFields, names: JVMMetadataNames) throws -> Bool {
         for annotation in try type.messages(100) {
-            if try names.resolve(annotation.int32(1)) == "kotlin/ExtensionFunctionType" { return true }
+            if try names.resolve(annotation.int32(1)) == name { return true }
         }
         return false
     }

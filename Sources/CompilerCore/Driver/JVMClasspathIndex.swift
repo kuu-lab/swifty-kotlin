@@ -8,6 +8,9 @@ final class JVMClasspathIndex {
     var sourceClasses: [FileID: JVMClassInfo] = [:]
     var methods: [SymbolID: JVMForeignMethod] = [:]
     var extensionSymbols: Set<SymbolID> = []
+    var importedDefaultMethods: [SymbolID: JVMForeignMethod] = [:]
+    var importedComposableParameters: [SymbolID: Set<Int>] = [:]
+    private var kotlinFacadeMethods: [FileID: [JVMForeignMethod]] = [:]
     var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var composeContentSymbols: Set<SymbolID> = []
@@ -193,7 +196,18 @@ final class JVMClasspathIndex {
             source += " {\n"
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
-            source += memberDeclarations(info: info, members: info.methods,
+            // An @JvmStatic companion method also has an outer forwarder.
+            // The forwarder is already exposed through the synthetic companion.
+            var members = info.methods
+            if name == "Companion", let outer = classes[owner], outer.isKotlinFileFacade == false,
+               outer.fields.contains(where: { $0.name == name && $0.isStatic && $0.descriptor == "L\(entry.name);" }) {
+                members.removeAll { member in
+                    !member.isStatic && outer.methods.contains {
+                        $0.isStatic && isExposed($0) && $0.name == member.name && $0.descriptor == member.descriptor
+                    }
+                }
+            }
+            source += memberDeclarations(info: info, members: members,
                                          allowsCompanion: entry.access & 0x0008 != 0)
             source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
             source += indentation + "}\n"
@@ -783,7 +797,8 @@ final class JVMClasspathIndex {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
                         continue
                     }
-                    source += "external " + functionDeclaration(method) + "\n"
+                    let defaults = info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
+                    source += "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
                     // Preserve extension syntax for Java-authored facade
                     // shims, where there is no Kotlin receiver metadata.
                     if info.isKotlinFileFacade == nil, method.kotlinFunction == nil,
@@ -835,6 +850,9 @@ final class JVMClasspathIndex {
             guard !ctx.sourceManager.containsFile(path: path) else { throw JVMClassReader.Invalid() }
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
+            if info.isKotlinFileFacade == true {
+                kotlinFacadeMethods[file] = statics
+            }
         }
         if hasComposeRuntime,
            classes["androidx/compose/runtime/ComposablesKt"]?.methods.contains(where: {
@@ -1425,9 +1443,21 @@ final class JVMClasspathIndex {
         return false
     }
 
-    private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false) -> String {
+    private func defaultArgumentMethod(for method: JVMForeignMethod, in info: JVMClassInfo) -> JVMForeignMethod? {
+        guard method.isStatic, let function = method.kotlinFunction, !function.isSuspend,
+              function.parameters.contains(where: \.hasDefaultValue),
+              method.parameters.count == function.parameters.count + (function.receiver == nil ? 0 : 1)
+        else { return nil }
+        let masks = String(repeating: "I", count: (function.parameters.count + 31) / 32)
+        let descriptor = "(" + method.parameters.map(\.descriptor).joined() + masks + "Ljava/lang/Object;)" + method.result.descriptor
+        return info.defaultArgumentMethods.first {
+            $0.isStatic && $0.name == method.name + "$default" && $0.descriptor == descriptor
+        }
+    }
+
+    private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false, acceptsDefaults: Bool = false) -> String {
         if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
-            return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember)
+            return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember, acceptsDefaults: acceptsDefaults)
         }
         let suspend = method.kotlinSuspendFunction
         var receiver = ""
@@ -1445,14 +1475,17 @@ final class JVMClasspathIndex {
         return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result
     }
 
-    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool) -> String {
+    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
         // Parenthesize function types so the dot binds to the entire receiver.
         let receiver = asFacadeMember ? "" : function.receiver.map { $0.contains("->") ? "(\($0))." : $0 + "." } ?? ""
         let receiverParameter = asFacadeMember ? function.receiver.map { ["p0: " + $0] } ?? [] : []
         let parameters = receiverParameter + function.parameters.enumerated().map { index, parameter in
             let fallback = "p\(index + receiverParameter.count)"
             let name = receiverParameter.isEmpty ? parameter.name.map { JVMProgramBuilder.isIdentifier($0) ? "`\($0)`" : fallback } ?? fallback : fallback
-            return (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType
+            // Sema only needs the presence of a default. The classfile
+            // helper evaluates its actual value at the call site.
+            let defaultValue = acceptsDefaults && parameter.hasDefaultValue ? " = null!!" : ""
+            return (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType + defaultValue
         }
         return (function.isSuspend ? "suspend " : "") + "fun \(receiver)`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + function.result
     }
@@ -1515,6 +1548,23 @@ final class JVMClasspathIndex {
     /// Converts foreign reference signatures to Kotlin platform types after
     /// header collection and before any user body is checked.
     func bind(in ctx: CompilationContext, sema: SemaModule) throws {
+        var facadeMethodsByRange: [SourceRange: JVMForeignMethod] = [:]
+        if let ast = ctx.ast {
+            for file in ast.files {
+                guard let methods = kotlinFacadeMethods[file.fileID] else { continue }
+                let functions = file.topLevelDecls.compactMap { declaration -> FunDecl? in
+                    guard case let .funDecl(function) = ast.arena.decl(declaration) else { return nil }
+                    return function
+                }
+                guard functions.count == methods.count else { continue }
+                // Top-level Kotlin facade stubs are emitted in classfile order.
+                // Their logical signature can differ from the physical descriptor.
+                for (function, method) in zip(functions, methods)
+                    where method.kotlinFunction != nil && method.kotlinSuspendFunction == nil {
+                    facadeMethodsByRange[function.range] = method
+                }
+            }
+        }
         func platform(_ type: TypeID) -> TypeID {
             switch sema.types.kind(of: type) {
             case .classType, .stringStruct, .any, .typeParam: return sema.types.withNullability(.platformType, for: type)
@@ -1541,12 +1591,16 @@ final class JVMClasspathIndex {
             let sourceClass = sourceClasses[site.start.file]
             let topLevel = sourceClass.flatMap { _ in topLevelFunction(at: site, in: ctx) }
             let isTopLevel = topLevel != nil || parent?.kind == .package
+            let isStaticCompanion = parent.map { $0.kind == .object && ctx.interner.resolve($0.name) == "Companion" } ?? false
             // Nested stubs share the outer class's file, so sourceClasses
             // alone cannot identify the declaring classfile. Walk the
             // nominal parent chain to the nearest class that has one
             // (a synthesized Companion object resolves to its outer class).
             // Top-level extensions may have their receiver as semantic parent.
             var owner = isTopLevel ? nil : sema.symbols.parentSymbol(for: symbol.id)
+            if isStaticCompanion, let companion = owner {
+                owner = sema.symbols.parentSymbol(for: companion)
+            }
             var info: JVMClassInfo?
             while let candidate = owner, let candidateSymbol = sema.symbols.symbol(candidate),
                   [.class, .interface, .object, .enumClass, .annotationClass].contains(candidateSymbol.kind) {
@@ -1556,6 +1610,17 @@ final class JVMClasspathIndex {
             guard let info = info ?? sourceClass else { continue }
             let isExtension = topLevel?.receiverType != nil
             if isExtension { extensionSymbols.insert(symbol.id) }
+            if let method = facadeMethodsByRange[site], let function = method.kotlinFunction {
+                methods[symbol.id] = method
+                importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: info)
+                if hasComposableLambdaFactory {
+                    let parameters = function.parameters.indices.filter {
+                        function.parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+                    }
+                    if !parameters.isEmpty { importedComposableParameters[symbol.id] = Set(parameters) }
+                }
+                continue
+            }
             let receiverTypes = isExtension ? signature.receiverType.map { [$0] } ?? [] : []
             let descriptorTypes = try (receiverTypes + signature.parameterTypes).enumerated().map { index, type -> JVMValueType in
                 let mapped = try Self.type(type, sema: sema, ctx: ctx)
@@ -1572,7 +1637,7 @@ final class JVMClasspathIndex {
             let parameters = descriptorTypes.map(\.descriptor).joined()
             let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
             let descriptor = "(" + parameters + continuation + ")"
-            let staticMember = isTopLevel || isExtension || (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false)
+            let staticMember = isTopLevel || isExtension || isStaticCompanion
             guard let method = info.methods.first(where: {
                 $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                     && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
