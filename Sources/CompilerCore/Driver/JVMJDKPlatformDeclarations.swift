@@ -166,12 +166,14 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun getProperty(propertyName: String): String?
                     external fun getProperty(propertyName: String, defaultValue: String): String
+                    external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
                 }
             }
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/System", "nanoTime", [], .long, staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
             ]),
             ("java/lang/StackTraceElement", """

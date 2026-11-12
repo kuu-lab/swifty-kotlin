@@ -167,10 +167,13 @@ extension JVMProgramBuilder {
                 if let baseName { name = baseName + "$default" }
                 else {
                     let hashArguments = ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
-                    // The bundled Duration ABI predates return-type mangling for plus.
-                    let legacyDurationAddition = context.options.stdlibOnly && owner == "kotlin/time/Duration"
-                        && ref.name == "plus" && ref.parameters.map(\.referenceName) == [owner]
-                    let resultElement = fileFacades.contains(owner) || legacyDurationAddition ? "_" : element(ref.result)
+                    // The bundled time ABI predates return-type mangling for these operators.
+                    let legacyTimeOperator = context.options.stdlibOnly && (
+                        owner == "kotlin/time/Duration" && ref.name == "plus" && ref.parameters.map(\.referenceName) == [owner]
+                        || owner == "kotlin/time/TimeSource$Monotonic$ValueTimeMark" && ["plus", "minus"].contains(ref.name)
+                            && (ref.parameters.map(\.referenceName) == [owner] || ref.parameters.map(\.referenceName) == ["kotlin/time/Duration"])
+                    )
+                    let resultElement = fileFacades.contains(owner) || legacyTimeOperator ? "_" : element(ref.result)
                     let hash = hashArguments + (resultElement == "_" ? "" : ":" + resultElement)
                     if hashArguments.contains("L") || resultElement != "_" { name += "-" + JVMNameHash.suffix(hash) }
                     else if ownValue != nil { name += "-impl" }
