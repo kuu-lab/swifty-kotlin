@@ -18,7 +18,7 @@ struct JVMClassInfo {
     var kotlinSealedInterfaceSubclasses: [String] = []
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
-    var kotlinValueParameterConstructors: [(source: JVMKotlinValueConstructor, bridge: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
+    var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
@@ -708,16 +708,19 @@ struct JVMClassReader {
             }
         }
         if !syntheticConstructors.isEmpty, let metadata = classAttributes.kotlinMetadata,
-           let constructors = try? metadata.valueParameterConstructors(byteLimit: bytes.count) {
+           let constructors = try? metadata.constructorsWithLoweredParameters(byteLimit: bytes.count) {
             let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
             for constructor in constructors {
                 let prefix = String(constructor.descriptor.dropLast(2))
-                guard !methods.contains(where: { $0.isConstructor && $0.descriptor == constructor.descriptor }),
-                      let bridge = syntheticConstructors.first(where: { $0.descriptor == prefix + marker }) else { continue }
                 let maskCount = (constructor.parameters.count + 31) / 32
                 let defaultDescriptor = prefix + String(repeating: "I", count: maskCount) + marker
                 let defaults = syntheticConstructors.first { $0.descriptor == defaultDescriptor }
-                info.kotlinValueParameterConstructors.append((constructor, bridge, defaults))
+                if let entry = methods.first(where: { $0.isConstructor && $0.descriptor == constructor.descriptor }) {
+                    guard defaults != nil else { continue }
+                    info.kotlinLoweredConstructors.append((constructor, entry, defaults))
+                } else if let entry = syntheticConstructors.first(where: { $0.descriptor == prefix + marker }) {
+                    info.kotlinLoweredConstructors.append((constructor, entry, defaults))
+                }
             }
         }
         if info.isInterface, let metadata = classAttributes.kotlinMetadata {
