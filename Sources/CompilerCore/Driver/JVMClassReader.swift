@@ -19,6 +19,7 @@ struct JVMClassInfo {
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinValueParameterConstructors: [(source: JVMKotlinValueConstructor, bridge: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
+    var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
@@ -695,6 +696,17 @@ struct JVMClassReader {
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if hasValueAdapters, let valueCarrier, let metadata = classAttributes.kotlinMetadata,
+           let constructors = try? metadata.valueClassConstructors(byteLimit: bytes.count) {
+            for constructor in constructors {
+                guard let adapter = methods.first(where: {
+                    $0.name == "constructor-impl" && $0.isStatic && !$0.isProtected
+                        && $0.descriptor == constructor.descriptor && $0.result.descriptor == valueCarrier.descriptor
+                        && $0.parameters.count == constructor.parameters.count
+                }) else { continue }
+                info.kotlinValueClassConstructors.append((constructor, adapter))
+            }
+        }
         if !syntheticConstructors.isEmpty, let metadata = classAttributes.kotlinMetadata,
            let constructors = try? metadata.valueParameterConstructors(byteLimit: bytes.count) {
             let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
