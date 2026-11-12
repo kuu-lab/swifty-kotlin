@@ -5,11 +5,12 @@ struct JVMClassInfo {
     let flags: UInt16
     let superclass: String?
     let interfaces: [String]
-    let methods: [JVMForeignMethod]
+    var methods: [JVMForeignMethod]
     var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
     var defaultArgumentMethods: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
+    var genericSignature: String?
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
@@ -17,6 +18,9 @@ struct JVMClassInfo {
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
+    var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
+    var kotlinMultifileParts: [String] = []
+    var isKotlinMultifilePart = false
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
@@ -582,6 +586,21 @@ struct JVMClassReader {
         info.hasKotlinMetadata = classAttributes.kotlinMetadata != nil
         if flags & 0x2000 != 0, let metadata = classAttributes.kotlinMetadata {
             info.kotlinAnnotationVarargElementNames = (try? metadata.annotationVarargElements(byteLimit: bytes.count)) ?? []
+        }
+        info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
+        info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
+        info.genericSignature = classAttributes.signature
+        // Kotlin objects may expose a property's accessor only as @JvmStatic.
+        if let metadata = classAttributes.kotlinMetadata,
+           fields.contains(where: { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }),
+           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties {
+                guard let getter = methods.first(where: {
+                    $0.isStatic && !$0.isProtected && $0.name == property.getterName
+                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                }) else { continue }
+                info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+            }
         }
         return info
     }
