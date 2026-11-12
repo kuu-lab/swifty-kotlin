@@ -18,6 +18,7 @@ struct JVMClassInfo {
     var kotlinSealedInterfaceSubclasses: [String] = []
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
+    var kotlinValueParameterConstructors: [(source: JVMKotlinValueConstructor, bridge: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var annotations: [JVMAnnotation] = []
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
@@ -531,6 +532,7 @@ struct JVMClassReader {
         var methods: [JVMForeignMethod] = []
         var bridgeMethods: [JVMForeignMethod] = []
         var defaultArgumentMethods: [JVMForeignMethod] = []
+        var syntheticConstructors: [JVMForeignMethod] = []
         let methodCount = try u2()
         let parseAnnotations = flags & 0x2000 != 0 || hasMetroAnnotation
         for _ in 0..<methodCount {
@@ -538,9 +540,11 @@ struct JVMClassReader {
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
+            let isSyntheticConstructor = hasKotlinMetadata && access & 0x1001 == 0x1001 && methodName == "<init>"
+                && descriptor.hasSuffix("Lkotlin/jvm/internal/DefaultConstructorMarker;)V")
             let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
             if access & 0x0005 != 0,
-               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter), methodName != "<clinit>",
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -552,7 +556,8 @@ struct JVMClassReader {
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
-                if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
+                if isSyntheticConstructor { syntheticConstructors.append(method) }
+                else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
                 else if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }
@@ -688,6 +693,19 @@ struct JVMClassReader {
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if !syntheticConstructors.isEmpty, let metadata = classAttributes.kotlinMetadata,
+           let constructors = try? metadata.valueParameterConstructors(byteLimit: bytes.count) {
+            let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
+            for constructor in constructors {
+                let prefix = String(constructor.descriptor.dropLast(2))
+                guard !methods.contains(where: { $0.isConstructor && $0.descriptor == constructor.descriptor }),
+                      let bridge = syntheticConstructors.first(where: { $0.descriptor == prefix + marker }) else { continue }
+                let maskCount = (constructor.parameters.count + 31) / 32
+                let defaultDescriptor = prefix + String(repeating: "I", count: maskCount) + marker
+                let defaults = syntheticConstructors.first { $0.descriptor == defaultDescriptor }
+                info.kotlinValueParameterConstructors.append((constructor, bridge, defaults))
+            }
+        }
         if info.isInterface, let metadata = classAttributes.kotlinMetadata {
             info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
         }
