@@ -120,13 +120,13 @@ public func __kk_string_first_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let first = boundary.first else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+        guard let first = boundary.first else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        }
+        return Int(first)
     }
-    return Int(first)
 }
 
 @_cdecl("__kk_string_last_flat")
@@ -137,13 +137,13 @@ public func __kk_string_last_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let last = boundary.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+        guard let last = boundary.last else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
+        }
+        return Int(last)
     }
-    return Int(last)
 }
 
 @_cdecl("__kk_string_single_flat")
@@ -154,17 +154,16 @@ public func __kk_string_single_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let unit = boundary.first, !boundary.hasMultipleUnits else {
-        if boundary.first == nil {
-            runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        } else {
-            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
+    runtimeThrowingBridge(outThrown) {
+        let boundary = runtimeFlatStringBoundaryCodeUnits(data: data, length: length, byteCount: byteCount, hash: hash)
+        guard let unit = boundary.first else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
         }
-        return 0
+        guard !boundary.hasMultipleUnits else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Char sequence has more than one element."))
+        }
+        return Int(unit)
     }
-    return Int(unit)
 }
 
 // KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf are
