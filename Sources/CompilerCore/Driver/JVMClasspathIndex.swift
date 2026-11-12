@@ -338,7 +338,8 @@ final class JVMClasspathIndex {
         let exposedName = method.kotlinFunction?.name ?? method.kotlinSuspendFunction?.name ?? method.name
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
-            guard function.parameters.count + (function.receiver == nil ? 0 : 1) == method.parameters.count
+            guard function.parameters.count + (function.receiver == nil ? 0 : 1)
+                + (function.isSuspend ? 1 : 0) == method.parameters.count
             else { return false }
             if function.receiver?.contains("->") == true || function.result.contains("->")
                 || function.parameters.contains(where: { $0.sourceType.contains("->") }) { return true }
@@ -1428,7 +1429,7 @@ final class JVMClasspathIndex {
     }
 
     private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false, asFacadeMember: Bool = false) -> String {
-        if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
+        if let function = method.kotlinFunction {
             return kotlinFunctionDeclaration(function, asFacadeMember: asFacadeMember)
         }
         let suspend = method.kotlinSuspendFunction
