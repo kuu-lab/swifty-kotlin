@@ -102,6 +102,17 @@ extension JVMFunctionBuilder {
             let result = name == "entries" ? program.enumEntriesField(plan).type : (name == "values" ? program.enumValuesField(plan).type : .reference(plan.name, nullable: false))
             return JVMIntrinsicResult(value: try jdkCall(plan.name, name == "entries" ? "getEntries" : name, params, result, arguments: args.map { try requireValue($0.expr) }))
         }
+        if let plan = enumPlan, plan.isEnum, name == "serializer", args.isEmpty {
+            let serializerSymbol = program.sema.serializationClasses[plan.symbol]?.companionSerializerMethod
+            let isStaticEnumSerializer = serializerSymbol.map {
+                program.sema.symbols.symbol($0)?.flags.contains(.static) == true
+                    && program.sema.symbols.parentSymbol(for: $0) == plan.symbol
+            } ?? false
+            if isStaticEnumSerializer {
+                let result = try program.expressionType(id)
+                return JVMIntrinsicResult(value: try jdkCall(plan.name, "serializer", [], result, arguments: []))
+            }
+        }
         if let semantic = program.sema.bindings.exprType(for: receiver), case let .classType(t) = program.sema.types.kind(of: semantic), program.sema.symbols.symbol(t.classSymbol)?.kind == .enumClass {
             if !arena.isExplicitCall(id), args.isEmpty, ["name", "ordinal"].contains(name) { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", name, [], name == "name" ? .string : .int, receiver: requireValue(receiver))) }
             if name == "compareTo", args.count == 1 { return JVMIntrinsicResult(value: try jdkCall("java/lang/Enum", "compareTo", [.reference("java/lang/Enum", nullable: false)], .int, receiver: requireValue(receiver), arguments: [requireValue(args[0].expr)])) }
