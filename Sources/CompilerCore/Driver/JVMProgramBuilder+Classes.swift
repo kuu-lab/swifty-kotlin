@@ -264,7 +264,12 @@ extension JVMProgramBuilder {
                 }
             }
             let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmField" }
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade ? 8 : 0) | (p.isVar || plan.isObject ? 0 : 16)) : nil
+            guard !exposedField || (hasField && p.delegateExpression == nil) else {
+                throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
+            }
+            let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
+            let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
