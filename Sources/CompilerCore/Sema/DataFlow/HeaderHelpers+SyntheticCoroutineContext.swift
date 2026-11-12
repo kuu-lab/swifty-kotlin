@@ -48,7 +48,8 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([jobSymbol], for: deferredSymbol)
         }
 
-        if !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("isActive"), arity: 0) {
+        if !context.projectsCoroutineContextIsActive,
+           !bundledIndex.contains(ownerFQName: kotlinCoroutinesPkg + [interner.intern("CoroutineContext")], name: interner.intern("isActive"), arity: 0) {
             // `kotlinx.coroutines.isActive`: an extension on CoroutineContext (not just
             // CoroutineScope/Job) so `currentCoroutineContext().isActive` resolves.
             // Mirrors `this[Job]?.isActive ?: true` -- a context with no Job element is
