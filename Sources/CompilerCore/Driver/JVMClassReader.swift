@@ -67,19 +67,34 @@ struct JVMClassReader {
     func text(_ index: Int) throws -> String { guard let s = strings[index] else { throw Invalid() }; return s }
     func className(_ index: Int) throws -> String { guard let s = classes[index] else { throw Invalid() }; return try text(s) }
 
-    /// Import `<T extends Bound> T method(...)` when the parameters use their
-    /// descriptor types. More complex generic signatures keep their erased form.
-    private static func genericResultParameter(in signature: String?, method: JVMForeignMethod) -> String? {
+    /// Import a single result type parameter and any Class<T> parameters
+    /// sharing it. Other parameter types must match their erased descriptors.
+    private static func genericResultParameter(
+        in signature: String?, method: JVMForeignMethod
+    ) -> (name: String, classParameterIndices: Set<Int>)? {
         guard let signature, signature.first == "<", let colon = signature.firstIndex(of: ":"),
-              let parameterEnd = method.descriptor.firstIndex(of: ")"),
               method.result.referenceName != nil, !method.isConstructor else { return nil }
         let name = String(signature[signature.index(after: signature.startIndex)..<colon])
         guard JVMProgramBuilder.isIdentifier(name) else { return nil }
         let bound = method.result.descriptor
-        let tail = ">\(method.descriptor[...parameterEnd])T\(name);"
+        let classType = "Ljava/lang/Class<T\(name);>;"
         for separator in [":", "::"] {
-            let form = "<\(name)\(separator)\(bound)\(tail)"
-            if signature == form || signature.hasPrefix(form + "^") { return name }
+            let prefix = "<\(name)\(separator)\(bound)>("
+            guard signature.hasPrefix(prefix) else { continue }
+            var remaining = signature.dropFirst(prefix.count)
+            var classParameters: Set<Int> = []
+            for (index, parameter) in method.parameters.enumerated() {
+                if parameter.referenceName == "java/lang/Class", remaining.hasPrefix(classType) {
+                    classParameters.insert(index)
+                    remaining = remaining.dropFirst(classType.count)
+                } else if remaining.hasPrefix(parameter.descriptor) {
+                    remaining = remaining.dropFirst(parameter.descriptor.count)
+                } else {
+                    return nil
+                }
+            }
+            let suffix = ")T\(name);"
+            if remaining == suffix || remaining.hasPrefix(suffix + "^") { return (name, classParameters) }
         }
         return nil
     }
