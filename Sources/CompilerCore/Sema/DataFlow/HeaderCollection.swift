@@ -461,6 +461,17 @@ extension DataFlowSemaPhase {
                     flags: typeParam.isReified ? [.reifiedTypeParameter] : []
                 )
             }
+            registerAnnotations(
+                typeParam.annotations,
+                symbol: typeParamSymbol,
+                declRange: declSite,
+                sourceFileID: declSite.start.file,
+                sourceFile: ast.file(for: declSite.start.file),
+                sourceManager: sourceManager,
+                interner: interner,
+                symbols: symbols,
+                diagnostics: diagnostics
+            )
             if typeParam.isReified {
                 diagnostics.error(
                     "KSWIFTK-SEMA-0020",

@@ -305,6 +305,16 @@ extension JVMProgramBuilder {
     func emitAccessors(_ plan: JVMClassPlan, _ declaration: PropertyDecl, _ property: JVMProperty) throws -> [JVMFunction] {
         let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
         let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
+        var accessorTypeParameters: [JVMTypeParameter] = []
+        if !declaration.typeParams.isEmpty {
+            guard let propertySymbol,
+                  let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol),
+                  let signature = sema.symbols.functionSignature(for: getterSymbol) else {
+                throw JVMFrontendError(message: "Missing JVM generic extension property signature.", range: declaration.range)
+            }
+            let propertyParameterSymbols = Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount))
+            accessorTypeParameters = try typeParameters(propertyParameterSymbols, declarations: declaration.typeParams)
+        }
         var functions: [JVMFunction] = []
         for setter in [false, true] where !declaration.modifiers.contains(.const) {
             guard let method = setter ? property.setter : property.getter else { continue }
@@ -367,6 +377,7 @@ extension JVMProgramBuilder {
                 if function.reference.result == .unit { f.parameterAnnotations = [try annotations(for: symbol, target: "setparam")] }
             }
             if plan.isFacade { f.access = (f.isPrivate ? 2 : 1) | 8 | 16; f.isSynthetic = false }
+            f.typeParameters = accessorTypeParameters
             let setter = f.reference.result == .unit
             if declaration.receiverType != nil {
                 f.javaParameters.append(JVMMethodParameter("$this$" + property.name))
@@ -383,9 +394,12 @@ extension JVMProgramBuilder {
             f.kotlinParameters = setter ? [property.kotlinType].compactMap { $0 } : []
             f.kotlinResult = setter ? .named("kotlin/Unit", [], nullable: false) : property.kotlinType
             let receiverSignature = property.receiverGenericSignature ?? property.getter.parameters.first?.descriptor ?? ""
-            f.genericSignature = setter
+            let typeParameterSignature = accessorTypeParameters.isEmpty
+                ? ""
+                : "<" + accessorTypeParameters.map(\.signature).joined() + ">"
+            f.genericSignature = typeParameterSignature + (setter
                 ? "(" + receiverSignature + (property.genericSignature ?? property.type.descriptor) + ")V"
-                : "(" + receiverSignature + ")" + (property.genericSignature ?? property.type.descriptor)
+                : "(" + receiverSignature + ")" + (property.genericSignature ?? property.type.descriptor))
             if plan.isAnnotation { f.genericSignature = f.genericSignature?.replacingOccurrences(of: "Lkotlin/reflect/KClass", with: "Ljava/lang/Class") }
             return f
         }
