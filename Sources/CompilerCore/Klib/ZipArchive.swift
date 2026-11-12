@@ -188,19 +188,43 @@ package struct ZipArchive {
             | UInt32(bytes[offset + 3]) << 24
     }
 
-    private static let crcTable: [UInt32] = (0 ..< 256).map { value in
-        var crc = UInt32(value)
-        for _ in 0 ..< 8 {
-            crc = (crc & 1 == 1) ? (crc >> 1) ^ 0xEDB8_8320 : crc >> 1
+    private static let crcTables: [[UInt32]] = {
+        let byteTable: [UInt32] = (0 ..< 256).map { value in
+            var crc = UInt32(value)
+            for _ in 0 ..< 8 {
+                crc = (crc & 1 == 1) ? (crc >> 1) ^ 0xEDB8_8320 : crc >> 1
+            }
+            return crc
         }
-        return crc
-    }
+        var tables = [byteTable]
+        for index in 0 ..< 7 {
+            tables.append(tables[index].map { byteTable[Int($0 & 0xFF)] ^ ($0 >> 8) })
+        }
+        return tables
+    }()
 
     package static func crc32(_ bytes: [UInt8]) -> UInt32 {
-        var crc: UInt32 = 0xFFFF_FFFF
-        for byte in bytes {
-            crc = crcTable[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
+        bytes.withUnsafeBytes { buffer in
+            let tables = crcTables
+            var crc: UInt32 = 0xFFFF_FFFF
+            var offset = 0
+            while offset <= buffer.count - 8 {
+                // Each table advances its byte through the bytes to its right.
+                let word = UInt64(littleEndian: buffer.loadUnaligned(fromByteOffset: offset, as: UInt64.self)) ^ UInt64(crc)
+                crc = tables[7][Int(word & 0xFF)]
+                    ^ tables[6][Int((word >> 8) & 0xFF)]
+                    ^ tables[5][Int((word >> 16) & 0xFF)]
+                    ^ tables[4][Int((word >> 24) & 0xFF)]
+                    ^ tables[3][Int((word >> 32) & 0xFF)]
+                    ^ tables[2][Int((word >> 40) & 0xFF)]
+                    ^ tables[1][Int((word >> 48) & 0xFF)]
+                    ^ tables[0][Int(word >> 56)]
+                offset += 8
+            }
+            for byte in buffer[offset...] {
+                crc = tables[0][Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
+            }
+            return crc ^ 0xFFFF_FFFF
         }
-        return crc ^ 0xFFFF_FFFF
     }
 }
