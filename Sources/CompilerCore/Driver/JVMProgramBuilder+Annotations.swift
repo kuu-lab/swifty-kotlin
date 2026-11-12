@@ -242,7 +242,7 @@ extension JVMProgramBuilder {
         let records = try annotationRecords(for: symbol)
         // File annotations affect the source file/facade and are not emitted on
         // individual JVM declarations. They can coexist with member annotations.
-        if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "file"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
+        if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "receiver", "file"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
             if [KnownCompilerAnnotation.repeatable.qualifiedName, KnownCompilerAnnotation.jvmRepeatable.qualifiedName].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
@@ -378,8 +378,12 @@ extension JVMProgramBuilder {
                 }
             }
             let leading = max(0, f.reference.parameters.count - signature.valueParameterSymbols.count)
+            var leadingAnnotations = Array(repeating: [JVMAnnotation](), count: leading)
+            if signature.receiverType != nil, !leadingAnnotations.isEmpty {
+                leadingAnnotations[0] = try annotations(for: symbol, target: "receiver")
+            }
             let valueParameterCount = min(signature.valueParameterSymbols.count, f.reference.parameters.count - leading)
-            f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.prefix(valueParameterCount).map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
+            f.parameterAnnotations = leadingAnnotations + (try signature.valueParameterSymbols.prefix(valueParameterCount).map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
         }
         return f
     }

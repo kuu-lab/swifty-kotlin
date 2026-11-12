@@ -312,6 +312,9 @@ extension KotlinParser {
                 range.append(childRange(last))
             }
         }
+        while isReceiverAnnotationPrefix() {
+            _ = consumeDeclarationAnnotationPrefixIfPresent(into: &children, range: &range)
+        }
         // Parenthesized receiver type: `fun (() -> R).name()`,
         // `fun <R> (suspend () -> R).name()`, `fun (A.() -> Unit)?.name()`.
         // The group is followed by `.` / `?.` (optionally after `?`), which
