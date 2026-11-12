@@ -44,7 +44,7 @@ extension JVMClasspathIndex {
         switch arg {
         case let .invariant(t), let .out(t):
             let value = try type(t, sema: sema, ctx: ctx)
-            guard value != .unit else { throw JVMFrontendError(message: "JVM M5 does not support Unit array elements.") }
+            if value == .unit { return .reference("kotlin/Unit", nullable: false) }
             return boxed(value)
         case .in, .star: return .reference("java/lang/Object", nullable: true)
         }
@@ -53,7 +53,7 @@ extension JVMClasspathIndex {
 
 extension JVMProgramBuilder {
     func varargComponentType(_ id: TypeID) throws -> JVMValueType {
-        let component = try type(id)
+        let component = try parameterType(id)
         // Generic varargs use Array<T>, even when a final primitive bound
         // gives individual T values a primitive descriptor.
         if case .typeParam = sema.types.kind(of: id) { return JVMClasspathIndex.boxed(component) }
@@ -171,7 +171,7 @@ extension JVMProgramBuilder {
             return "L" + erased.referenceName! + (args.isEmpty ? "" : "<" + args + ">") + ";"
         default:
             let t = try type(id)
-            if boxed && t == .unit { return "Lkotlin/Unit;" }
+            if (boxed || parameterPosition) && t == .unit { return "Lkotlin/Unit;" }
             return (boxed ? JVMClasspathIndex.boxed(t) : t).descriptor
         }
     }
@@ -191,18 +191,31 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(decl.name)
             guard Self.isIdentifier(name) else { throw JVMFrontendError(message: "JVM type parameter needs an ASCII name.") }
             let bounds = sema.symbols.typeParameterUpperBounds(for: symbol)
-            guard bounds.count <= 1 else { throw JVMFrontendError(message: "JVM M5 supports one upper bound per type parameter.") }
-            let bound = try bounds.first.map { try signatureType($0, boxed: true) } ?? "Ljava/lang/Object;"
-            let isInterface = bounds.first.map { id in if case let .classType(t) = sema.types.kind(of: id) { return sema.symbols.symbol(t.classSymbol)?.kind == .interface }; return false } ?? false
-            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: name + (isInterface ? "::" : ":") + bound, isReified: decl.isReified)
+            let boundSignatures = try bounds.map { try signatureType($0, boxed: true) }
+            let firstBoundIsInterface = bounds.first.map { id in
+                if case let .classType(type) = sema.types.kind(of: id) {
+                    return sema.symbols.symbol(type.classSymbol)?.kind == .interface
+                }
+                return false
+            } ?? false
+            let signature = name
+                + (firstBoundIsInterface ? "::" : ":")
+                + (boundSignatures.first ?? "Ljava/lang/Object;")
+                + boundSignatures.dropFirst().map { ":" + $0 }.joined()
+            return JVMTypeParameter(id: Int(symbol.rawValue), name: name, variance: decl.variance == .out ? 1 : (decl.variance == .in ? 0 : 2), bounds: try bounds.map(kotlinType), signature: signature, isReified: decl.isReified)
         }
     }
-    func describe(_ function: JVMFunction, signature: FunctionSignature, parameters: [TypeParamDecl]) throws -> JVMFunction {
+    func describe(
+        _ function: JVMFunction,
+        signature: FunctionSignature,
+        parameters: [TypeParamDecl],
+        sourceDeclaration explicitSourceDeclaration: (SymbolID, FunDecl)? = nil
+    ) throws -> JVMFunction {
         var f = function
         if f.reference.name.contains("$unsigned$") { f.sourceName = String(f.reference.name.components(separatedBy: "$unsigned$")[0]) }
         f.typeParameters = try typeParameters(Array(signature.typeParameterSymbols.dropFirst(signature.classTypeParameterCount)), declarations: parameters)
         f.kotlinParameters = try signature.parameterTypes.map(kotlinType)
-        let sourceDeclaration = sourceDeclarations.first {
+        let sourceDeclaration: (key: SymbolID, value: FunDecl)? = explicitSourceDeclaration.map { (key: $0.0, value: $0.1) } ?? sourceDeclarations.first {
             if let ref = references[$0.key] { return ref.name == function.reference.name && ref.owner == function.owner && ref.descriptor == function.reference.descriptor }
             if let method = methods[$0.key] { return method.name == function.reference.name && method.owner == function.owner && method.descriptor == function.reference.descriptor }
             return false

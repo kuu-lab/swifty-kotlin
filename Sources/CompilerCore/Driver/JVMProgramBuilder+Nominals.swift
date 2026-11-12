@@ -209,7 +209,6 @@ extension JVMProgramBuilder {
             case let .classDecl(c):
                 guard
                       c.modifiers.subtracting([.public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
-                guard !c.modifiers.contains(.enumModifier) || c.secondaryConstructors.isEmpty else { throw JVMFrontendError(message: "JVM M8 does not support enum secondary constructors.", range: c.range) }
                 let hasJvmInline = c.annotations.contains {
                     $0.name == "JvmInline" || $0.name == "kotlin.jvm.JvmInline"
                 } || sema.symbols.annotations(for: symbol).contains {
@@ -248,7 +247,7 @@ extension JVMProgramBuilder {
             plan.outer = outer
             if plan.isEnum {
                 for entry in plan.declaration!.enumEntries where !entry.memberFunctions.isEmpty || !entry.memberProperties.isEmpty || !entry.initBlocks.isEmpty {
-                    guard entry.annotations.isEmpty, entry.nestedClasses.isEmpty,
+                    guard entry.nestedClasses.isEmpty,
                           let member = sema.symbols.lookupAll(fqName: sema.symbols.symbol(symbol)!.fqName + [entry.name]).first(where: { sema.symbols.symbol($0)?.kind == .field }) else { throw JVMFrontendError(message: "Unsupported JVM enum entry body.", range: entry.range) }
                     let declaration = ClassDecl(range: entry.range, name: entry.name, modifiers: [.final], initBlocks: entry.initBlocks, classBodyInitOrder: entry.classBodyInitOrder, memberFunctions: entry.memberFunctions, memberProperties: entry.memberProperties)
                     let child = JVMClassPlan(symbol: member, name: plan.name + "$" + context.interner.resolve(entry.name), declaration: declaration)

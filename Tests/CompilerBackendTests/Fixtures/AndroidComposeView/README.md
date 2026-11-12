@@ -3,7 +3,6 @@
 `MainActivity.kt` を kswiftc でコンパイルする。Material 3 の `OutlinedTextField` と
 `Button` でタスクを追加し、Compose Foundation の `LazyColumn` に表示する。入力と
 タスク一覧は `mutableStateOf` で保持し、追加時に入力欄を空にして一覧を再コンポジションする。
-
 Gradle は AndroidX Compose 1.7.8 と Compose Material 3 1.3.2 を取得し、APK の Kotlin 標準ライブラリは
 `kswiftc --stdlib-only` でこのリポジトリから生成する。
 
@@ -22,3 +21,5 @@ adb shell am start -n org.swiftykotlin.composeprobe/.MainActivity
 この例では `mutableStateOf(value)` の既定の変更ポリシー、`LazyColumn { ... }` の
 既定のレイアウト設定、`items(count) { index -> ... }` の既定のキーを使う。
 `OutlinedTextField` に文字列、変更コールバック、ラベルのラムダ、`singleLine` を渡す。
+`ComposeView.setContent { ... }`、`Column { ... }`、`BasicText(String)`、および
+`Button(onClick = { ... }) { ... }` は共通の composable 呼び出しとして使う。

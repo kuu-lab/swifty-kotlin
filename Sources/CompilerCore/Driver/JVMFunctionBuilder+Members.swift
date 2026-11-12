@@ -411,7 +411,7 @@ extension JVMProgramBuilder {
         let target = sema.bindings.constructorDelegationTarget(for: symbol)
         let arguments = primary ? (plan.declaration?.superTypeEntries.first(where: { !$0.constructorArgs.isEmpty })?.constructorArgs ?? []) : (declaration.delegationCall?.args ?? [])
         let delegate: JVMForeignMethod
-        if plan.isEnum {
+        if plan.isEnum && primary {
             delegate = JVMForeignMethod(owner: "java/lang/Enum", name: "<init>", descriptor: "(Ljava/lang/String;I)V", parameters: [.string, .int], result: .reference("java/lang/Enum", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
         } else if plan.isJvmRecord, let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target), method.owner == plan.name {
             delegate = method
@@ -430,15 +430,26 @@ extension JVMProgramBuilder {
         guard delegate.isConstructor else { throw JVMFrontendError(message: "Invalid JVM constructor delegation.") }
         var selected = delegate
         var values: [JVMValue]
-        if plan.isEnum { values = [builder.locals[1], builder.locals[2]] }
+        if plan.isEnum && primary { values = [builder.locals[1], builder.locals[2]] }
         else {
             let binding = sema.bindings.constructorDelegationCallBinding(for: symbol)
             let delegatePlan = classes.values.first { $0.name == delegate.owner }
-            let prefix = try delegatePlan?.isInner == true ? [builder.enclosingInstance(delegatePlan!.outer!)] : []
-            let ordered = try builder.arguments(arguments, binding: binding, parameters: Array(delegate.parameters.dropFirst(prefix.count)), declarations: target.flatMap { sourceParameters[$0] })
+            let prefix: [JVMValue]
+            let parameters: [JVMValueType]
+            if plan.isEnum {
+                prefix = [builder.locals[1], builder.locals[2]]
+                parameters = delegate.parameters
+            } else {
+                prefix = try delegatePlan?.isInner == true ? [builder.enclosingInstance(delegatePlan!.outer!)] : []
+                parameters = Array(delegate.parameters.dropFirst(prefix.count))
+            }
+            let ordered = try builder.arguments(arguments, binding: binding, parameters: parameters, declarations: target.flatMap { sourceParameters[$0] })
             values = prefix + ordered.values
-            if ordered.masks.contains(where: { $0 != 0 }) {
+            let hasDefaultArguments = ordered.masks.contains(where: { $0 != 0 })
+            if hasDefaultArguments {
                 values += try builder.maskArguments(ordered.masks, constructor: true)
+            }
+            if plan.isEnum || hasDefaultArguments {
                 let params = values.map(\.type)
                 selected = JVMForeignMethod(owner: delegate.owner, name: "<init>", descriptor: "(" + params.map(\.descriptor).joined() + ")V", parameters: params, result: delegate.result, isStatic: false, isInterface: false, isAbstract: false)
             }
@@ -464,7 +475,19 @@ extension JVMProgramBuilder {
         var function = builder.finish(constructor: true)
         function.isSecondaryConstructor = !primary
         function.parameterDefaultFlags = declaration.valueParams.map(\.hasDefaultValue)
-        function = try describe(function, signature: sema.symbols.functionSignature(for: symbol)!, parameters: [])
+        let metadataDeclaration = FunDecl(
+            range: declaration.range,
+            name: context.interner.intern("<init>"),
+            modifiers: declaration.modifiers,
+            valueParams: declaration.valueParams,
+            body: declaration.body
+        )
+        function = try describe(
+            function,
+            signature: sema.symbols.functionSignature(for: symbol)!,
+            parameters: [],
+            sourceDeclaration: (symbol, metadataDeclaration)
+        )
         if plan.isEnum {
             function.access = 0; function.isPrivate = true; function.parameterNames = declaration.valueParams.map { context.interner.resolve($0.name) }; function.kotlinParameterOffset = 2
             function.genericSignature = "(Ljava/lang/String;I" + String(function.genericSignature!.dropFirst())

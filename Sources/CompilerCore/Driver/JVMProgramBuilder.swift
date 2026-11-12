@@ -44,6 +44,10 @@ final class JVMProgramBuilder {
         noteFunctionTypes(actual)
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
+    func parameterType(_ id: TypeID) throws -> JVMValueType {
+        let value = try type(id)
+        return value == .unit ? .reference("kotlin/Unit", nullable: false) : value
+    }
     func hasSourceRangeOperator(_ id: ExprID) -> Bool {
         if let symbol = sema.bindings.callBinding(for: id)?.chosenCallee,
            methods[symbol] != nil || references[symbol] != nil || inlineDeclarations[symbol] != nil {
@@ -117,6 +121,18 @@ final class JVMProgramBuilder {
         func start(_ b: UInt8) -> Bool { (65...90).contains(b) || (97...122).contains(b) || b == 95 }
         guard let first = bytes.first, start(first) else { return false }
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
+    }
+
+    /// Checks the JVMS unqualified-name restrictions for user-defined methods.
+    static func isUnqualifiedJvmMethodName(_ value: String) -> Bool {
+        guard !value.isEmpty else { return false }
+        for scalar in value.unicodeScalars {
+            switch scalar.value {
+            case 0x2E, 0x3B, 0x5B, 0x2F, 0x3C, 0x3E: return false
+            default: continue
+            }
+        }
+        return true
     }
 
     static func fileIdentity(for file: ASTFile, context: CompilationContext) throws -> (String, String) {
@@ -913,10 +929,7 @@ extension JVMFunctionBuilder {
         if let receiver, receiver.type.referenceName == nil { object = try convert(receiver, to: .reference("java/lang/Object", nullable: false)) }
         if method.isConstructor {
             object = try value(method.result)
-            instructions.append(.allocate(method.owner, object!))
-            pendingAllocations.append(object!)
         }
-        defer { if method.isConstructor { pendingAllocations.removeLast() } }
         var values: [JVMValue] = []
         for (index, pair) in zip(args, method.parameters).enumerated() {
             let (arg, type) = pair
@@ -937,6 +950,7 @@ extension JVMFunctionBuilder {
         }
         let resultType = method.isConstructor ? method.result : try program.expressionType(id)
         let result = method.isConstructor || method.result == .unit || resultType == .unit ? nil : try value(resultType)
+        if method.isConstructor, let object { instructions.append(.allocate(method.owner, object)) }
         instructions.append(.foreignCall(method, receiver: object, arguments: values, result: result))
         return method.isConstructor ? object : result
     }

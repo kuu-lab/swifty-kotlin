@@ -106,6 +106,14 @@ private struct JVMSourceGrammar {
             try require(.symbol(.greaterThan))
         }
     }
+    mutating func whereConstraints() throws {
+        guard take(.softKeyword(.where)) else { return }
+        repeat {
+            try name()
+            try require(.symbol(.colon))
+            try type()
+        } while take(.symbol(.comma))
+    }
     mutating func file() throws {
         while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.package)) { try type(nullable: false); try separator() }
@@ -199,6 +207,7 @@ private struct JVMSourceGrammar {
             catch { index = start; try name() }
             try parameters()
             if take(.symbol(.colon)) { try type() }
+            try whereConstraints()
             if take(.symbol(.assign)) { try expression() }
             else if kind == .symbol(.lBrace) { try block() }
             else if !member { throw Unsupported() }
@@ -226,6 +235,7 @@ private struct JVMSourceGrammar {
             if take(.symbol(.lBrace)) {
                 if isEnum, kind != .symbol(.semicolon) && kind != .symbol(.rBrace) {
                     repeat {
+                        while kind == .symbol(.at) { try annotation() }
                         try name()
                         if kind == .symbol(.lParen) { try arguments() }
                         if take(.symbol(.lBrace)) {
@@ -458,7 +468,9 @@ private struct JVMSourceGrammar {
             }
             try require(.symbol(.lBrace)); semicolons()
             while !take(.symbol(.rBrace)) {
-                if !take(.keyword(.else)) {
+                if take(.keyword(.else)) {
+                    if take(.keyword(.if)) { try expression(allowNewlines: true) }
+                } else {
                     repeat {
                         if take(.keyword(.is)) { try type() }
                         else if hasSubject, take(.symbol(.bang)) {
@@ -468,6 +480,7 @@ private struct JVMSourceGrammar {
                         else if hasSubject, take(.keyword(.in)) { try expression() }
                         else { try expression() }
                     } while take(.symbol(.comma))
+                    if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
                 try require(.symbol(.arrow)); try body(); try separator(); semicolons()
             }

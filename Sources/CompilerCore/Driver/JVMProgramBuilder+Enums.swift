@@ -11,18 +11,27 @@ extension JVMProgramBuilder {
         JVMField(owner: plan.name, name: "$ENTRIES", type: .reference("kotlin/enums/EnumEntries", nullable: false), access: 0x101A)
     }
     func decorateEnum(_ plan: JVMClassPlan, result: inout JVMClass) throws {
-        result.enumEntries = plan.declaration!.enumEntries.map { context.interner.resolve($0.name) }
-        result.extraFields += result.enumEntries.map { enumField(plan, name: $0) } + [enumValuesField(plan), enumEntriesField(plan)]
+        let entries = plan.declaration!.enumEntries
+        let ownerName = sema.symbols.symbol(plan.symbol)!.fqName
+        result.enumEntries = entries.map { context.interner.resolve($0.name) }
+        let fields = try entries.map { entry -> JVMField in
+            var field = enumField(plan, name: context.interner.resolve(entry.name))
+            guard let symbol = sema.symbols.lookupAll(fqName: ownerName + [entry.name]).first(where: {
+                sema.symbols.symbol($0)?.kind == .field
+            }) else { throw JVMFrontendError(message: "Missing JVM enum entry symbol.", range: entry.range) }
+            field.annotations = try annotations(for: symbol, target: nil)
+            return field
+        }
+        result.extraFields += fields + [enumValuesField(plan), enumEntriesField(plan)]
     }
     func enumMethods(_ plan: JVMClassPlan) throws -> [JVMFunction] {
         let type = JVMValueType.reference(plan.name, nullable: false), arrayType = enumValuesField(plan).type
         let primary = plan.constructors.first { $0.2 }
-        guard let primary, let constructor = methods[primary.0] else { throw JVMFrontendError(message: "Missing JVM enum primary constructor.") }
+        guard let primary, methods[primary.0] != nil else { throw JVMFrontendError(message: "Missing JVM enum primary constructor.") }
         let b = try nominalBuilder(plan, name: "<clinit>", staticBody: true)
         let entries = plan.declaration!.enumEntries
         var values: [JVMValue] = []
         for (ordinal, entry) in entries.enumerated() {
-            guard entry.annotations.isEmpty else { throw JVMFrontendError(message: "JVM enum entry annotations are unsupported.", range: entry.range) }
             let name = context.interner.resolve(entry.name)
             let child = classes.values.first { $0.enumParent == plan.symbol && $0.enumEntry?.name == entry.name }
             let allocated = try b.value(.reference(child?.name ?? plan.name, nullable: false))
@@ -30,7 +39,12 @@ extension JVMProgramBuilder {
             var args = [try b.constant(.string(name), .string), try b.constant(.int(Int32(ordinal)), .int)]
             let entrySymbol = sema.symbols.lookupAll(fqName: sema.symbols.symbol(plan.symbol)!.fqName + [entry.name]).first { sema.symbols.symbol($0)?.kind == .field }
             let binding = entrySymbol.flatMap { sema.bindings.enumEntryConstructorBinding(for: $0) }
-            let ordered = try b.arguments(entry.constructorArgs, binding: binding, parameters: constructor.parameters, declarations: sourceParameters[primary.0])
+            let constructorSymbol = binding?.chosenCallee ?? primary.0
+            guard plan.constructors.contains(where: { $0.0 == constructorSymbol }),
+                  let constructor = methods[constructorSymbol] else {
+                throw JVMFrontendError(message: "Missing JVM enum entry constructor.", range: entry.range)
+            }
+            let ordered = try b.arguments(entry.constructorArgs, binding: binding, parameters: constructor.parameters, declarations: sourceParameters[constructorSymbol])
             args += ordered.values
             if ordered.masks.contains(where: { $0 != 0 }) { args += try b.maskArguments(ordered.masks, constructor: true) }
             let params = args.map(\.type)
