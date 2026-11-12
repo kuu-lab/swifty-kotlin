@@ -60,6 +60,7 @@ struct JVMKotlinClassProperty {
     let getterName: String
     let getterDescriptor: String
     let isNullable: Bool
+    let isVar: Bool
     let sourceType: String?
 }
 
@@ -182,8 +183,10 @@ struct JVMKotlinMetadataPayload {
                   let getterName = try names.resolve(getter.int32(1)),
                   let descriptor = try names.resolve(getter.int32(2))
             else { return nil }
+            let hasSetter = try signature.message(4) != nil
             return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
-                                           isNullable: type.nullable, sourceType: try Self.sourceType(type, types: types, names: names))
+                                           isNullable: type.nullable, isVar: (property.int32(11) ?? 0) & (1 << 8) != 0 || hasSetter,
+                                           sourceType: try Self.sourceType(type, types: types, names: names))
         }
     }
 
