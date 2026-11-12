@@ -265,12 +265,14 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         moduleName: String,
-        interner: StringInterner
+        interner: StringInterner,
+        excludingFiles: Set<FileID>
     ) {
         let encoder = MetadataEncoder()
         let targets = symbols.allSymbols().filter { symbol in
             guard Self.compilerMetadataAnnotatedKinds.contains(symbol.kind),
-                  !symbol.flags.contains(.synthetic)
+                  !symbol.flags.contains(.synthetic),
+                  excludingFiles.isEmpty || symbol.declSite.map({ !excludingFiles.contains($0.start.file) }) ?? true
             else {
                 return false
             }
