@@ -66,6 +66,15 @@ extension JVMFunctionBuilder {
         if let parent = program.sema.symbols.parentSymbol(for: symbol),
            program.sema.symbols.companionObjectSymbol(for: parent) == symbol,
            let result = try importedCompanionValue(for: parent) { return result }
+        if program.sema.symbols.symbol(symbol)?.kind == .object,
+           let owner = try? program.className(symbol), let imported = context.jvmImports?.classes[owner],
+           let singleton = imported.fields.first(where: {
+               $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(owner);"
+           }) {
+            let type = JVMValueType.reference(owner, nullable: false), result = try value(type)
+            instructions.append(.getStatic(JVMField(owner: owner, name: singleton.name, type: type, access: singleton.access), result))
+            return result
+        }
         if let entry = program.sema.symbols.symbol(symbol), entry.kind == .field,
            let parent = program.sema.symbols.parentSymbol(for: symbol), let plan = program.classes[parent], plan.isEnum,
            plan.declaration!.enumEntries.contains(where: { $0.name == entry.name }) {
