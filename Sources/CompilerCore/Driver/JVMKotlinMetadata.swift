@@ -172,9 +172,9 @@ struct JVMKotlinMetadata {
         }
     }
 
-    /// Functions whose Kotlin signature cannot be recovered from the erased
-    /// JVM descriptor. Only function-typed signatures are returned; ordinary
-    /// methods continue through the descriptor-based importer.
+    /// Functions whose Kotlin signature cannot be recovered from the erased JVM
+    /// descriptor, plus every top-level file-facade function so lazy classpath
+    /// roots can be found by callable name.
     func functions(in table: FunctionTable) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
@@ -183,7 +183,7 @@ struct JVMKotlinMetadata {
             guard let name = try names.resolve(function.int32(2)) else { continue }
             let signature = try function.message(100)
             let jvmName: String?
-            let descriptor: String?
+            var descriptor: String?
             if let signature {
                 jvmName = try names.resolve(signature.int32(1))
                 descriptor = try names.resolve(signature.int32(2))
@@ -196,6 +196,7 @@ struct JVMKotlinMetadata {
                   let resultType = try Self.sourceType(returnResolved, types: types, names: names) else { continue }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
             let receiverType = try receiver.flatMap { try Self.sourceType($0, types: types, names: names) }
+            guard receiver == nil || receiverType != nil else { continue }
             let parameterMessages = try function.messages(6)
             var parameters: [JVMKotlinFunction.Parameter] = []
             var hasFunctionTypes = resultType.contains("->") || (receiverType?.contains("->") ?? false)
@@ -219,8 +220,26 @@ struct JVMKotlinMetadata {
                 parameters.append(JVMKotlinFunction.Parameter(name: parameterName, sourceType: type, isVararg: false))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
-            guard valid, hasFunctionTypes else { continue }
+            guard valid, hasFunctionTypes || (isFileFacade == true) else { continue }
             let isSuspend = ((function.int32(9) ?? 0) & (1 << 13)) != 0
+            if !hasFunctionTypes, descriptor == nil {
+                // The signature extension can omit descriptors that the JVM
+                // backend derives from Kotlin types. Recover them so overloads
+                // with the same arity are matched by their actual carriers.
+                var inputs = [receiver].compactMap { $0 }
+                for parameter in parameterMessages {
+                    if let type = try types.resolve(parameter, inline: 3, indexed: 5) {
+                        inputs.append(type)
+                    }
+                }
+                let carriers = try inputs.compactMap {
+                    try Self.resultType($0, types: types, names: names)
+                }
+                guard carriers.count == parameters.count + (receiver == nil ? 0 : 1),
+                      let resultCarrier = try Self.resultType(returnResolved, types: types, names: names)
+                else { continue }
+                descriptor = "(" + carriers.map { $0 == .unit ? "Lkotlin/Unit;" : $0.descriptor }.joined() + ")" + resultCarrier.descriptor
+            }
             result.append(JVMKotlinFunction(
                 name: name,
                 jvmName: jvmName,

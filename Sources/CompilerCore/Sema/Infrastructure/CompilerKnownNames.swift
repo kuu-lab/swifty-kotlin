@@ -693,6 +693,7 @@ package struct KnownCompilerNames {
     let javaUtilNavigableMapFQName: [InternedString]
     let javaUtilTreeMapFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
+    let kotlinCoroutinesCoroutineContextFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
@@ -870,6 +871,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsCollectionFQName = [kotlin, collections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, collections, mutableCollection]
         kotlinCollectionsIterableFQName = [kotlin, collections, interner.intern("Iterable")]
+        kotlinCoroutinesCoroutineContextFQName = [kotlin, kotlinCoroutines, interner.intern("CoroutineContext")]
         sourceBackedArrayCopyFQNames = [
             [kotlin, collections, interner.intern("copyOf")],
             [kotlin, collections, interner.intern("copyOfRange")],

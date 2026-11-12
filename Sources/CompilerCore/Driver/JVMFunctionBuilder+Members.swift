@@ -399,10 +399,12 @@ extension JVMProgramBuilder {
                 guard let field = property.field else { throw JVMFrontendError(message: "JVM concrete default accessor needs a backing field.", range: declaration.range) }
                 if setter {
                     let source = builder.locals[plan.isFacade ? 0 : 1]
-                    builder.instructions += [field.access & 8 != 0 ? .putStatic(field, source) : .putField(field, object!, source), .returnValue(nil)]
+                    let stored = try builder.convert(source, to: field.type)
+                    builder.instructions += [field.access & 8 != 0 ? .putStatic(field, stored) : .putField(field, object!, stored), .returnValue(nil)]
                 } else {
-                    let result = try builder.value(property.type)
-                    builder.instructions.append(field.access & 8 != 0 ? .getStatic(field, result) : .getField(field, object!, result))
+                    let stored = try builder.value(field.type)
+                    builder.instructions.append(field.access & 8 != 0 ? .getStatic(field, stored) : .getField(field, object!, stored))
+                    let result = try builder.convert(stored, to: property.type)
                     if declaration.modifiers.contains(.lateinit) { _ = try builder.checkLateinit(result, name: property.name) }
                     builder.instructions.append(.returnValue(result))
                 }
