@@ -195,6 +195,7 @@ private struct JVMSourceGrammar {
         modifiers()
         while kind == .symbol(.at) { try annotation(); modifiers() }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
+        let isCompanion = tokens[declarationStart..<index].contains { $0.kind == .keyword(.companion) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
         }
@@ -216,7 +217,8 @@ private struct JVMSourceGrammar {
             let isInterface = take(.keyword(.interface))
             let isObject = take(.keyword(.object))
             if !isInterface && !isObject { try require(.keyword(.class)) }
-            if !isObject || kind != .symbol(.lBrace) && kind != .symbol(.colon) { try name() }
+            let hasObjectName = isCompanion ? kind.isLabelName : kind != .symbol(.lBrace) && kind != .symbol(.colon)
+            if !isObject || hasObjectName { try name() }
             try typeParameters()
             if !isInterface && !isObject {
                 let constructorStart = index
