@@ -353,6 +353,7 @@ final class JVMFunctionBuilder {
     var parameterInputs: [JVMValue]?
     var isStaticBody = false
     var isSuspendBody = false
+    var definitelyNotNullParameterSlots: Set<Int> = []
     var lambdaID: ExprID?
     var reifiedRuntimeTokens: [SymbolID: ReifiedRuntimeToken] = [:]
     var inlineArguments: [InternedString: InlineLambda] = [:]
@@ -410,6 +411,16 @@ final class JVMFunctionBuilder {
         let result = JVMValue(slot: nextSlot, type: type)
         nextSlot += type.width; locals.append(result)
         return result
+    }
+    func isDefinitelyNotNullTypeParameter(_ type: TypeID) -> Bool {
+        guard case let .intersection(parts) = program.sema.types.kind(of: type),
+              parts.count == 2,
+              parts.contains(where: { program.sema.types.kind(of: $0) == .any(.nonNull) })
+        else { return false }
+        return parts.contains { part in
+            if case .typeParam = program.sema.types.kind(of: part) { return true }
+            return false
+        }
     }
     func label() -> Int { defer { nextLabel += 1 }; return nextLabel }
     func mark(_ label: Int) { instructions.append(.label(label)); terminated = false }
@@ -478,6 +489,11 @@ final class JVMFunctionBuilder {
         for (i, pair) in zip(declaration.valueParams, parameters).enumerated() {
             let (param, type) = pair
             var local = Local(value: try supplied?[i] ?? value(type), mutable: false)
+            if let signature = semanticSignature,
+               signature.parameterTypes.indices.contains(i),
+               isDefinitelyNotNullTypeParameter(signature.parameterTypes[i]) {
+                definitelyNotNullParameterSlots.insert(local.value.slot)
+            }
             if let signature = semanticSignature, signature.parameterTypes.indices.contains(i), case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
@@ -486,6 +502,7 @@ final class JVMFunctionBuilder {
     }
     func finish(abstract: Bool = false, constructor: Bool = false) -> JVMFunction {
         var function = JVMFunction(reference: reference, isPrivate: declaration.modifiers.contains(.private), locals: locals, parameterCount: reference.parameters.count + (owner == nil || isStaticBody ? 0 : 1), instructions: instructions, parameterNames: declaration.valueParams.map { context.interner.resolve($0.name) }, isInternal: declaration.modifiers.contains(.internal))
+        function.definitelyNotNullParameterSlots = definitelyNotNullParameterSlots
         function.owner = owner?.name ?? program.facadeName
         if let owner {
             function.access = program.access(declaration.modifiers, final: !owner.isInterface && !constructor && program.memberFinal(declaration.modifiers)) | (abstract ? 0x0400 : 0)

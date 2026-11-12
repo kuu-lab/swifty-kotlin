@@ -75,6 +75,11 @@ private struct JVMSourceGrammar {
             } while take(.symbol(.comma))
             try require(.symbol(.greaterThan))
         }
+        if take(.symbol(.amp)) {
+            guard case let .identifier(marker) = kind,
+                  context.interner.resolve(marker) == "Any" else { throw Unsupported() }
+            index += 1
+        }
         if nullable, receiverSuffix, take(.symbol(.questionDot)) { try type(); return }
         if nullable { _ = take(.symbol(.question)) }
         if receiverSuffix, take(.symbol(.dot)) { try type() }

@@ -68,7 +68,8 @@ enum JVMMetadata {
                 if receiver != nil { var annotation = Proto(); annotation.int(1, index("kotlin/ExtensionFunctionType")); p.data(100, annotation.bytes) }
             case let .flexible(lower, upper):
                 p.bytes = sourceType(lower); p.int(4, index("kotlin.jvm.PlatformType")); p.data(5, sourceType(upper))
-            case let .parameter(id, nullable):
+            case let .parameter(id, nullable, definitelyNotNull):
+                if definitelyNotNull { p.int(1, 2) }
                 p.int(7, id)
                 if nullable { p.int(3, 1) }
             case let .named(name, arguments, nullable):
