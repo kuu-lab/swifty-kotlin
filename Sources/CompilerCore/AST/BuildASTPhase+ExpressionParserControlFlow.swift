@@ -65,7 +65,9 @@ extension BuildASTPhase.ExpressionParser {
                     index = startIndex + bodyEnd
                     return localDecl
                 }
-                if let localAssign = parseLocalAssignFromSlice(bodySlice[...]) {
+                // A later named argument can supply the assignment token in
+                // this slice. A partial branch expression is not its LHS.
+                if let localAssign = parseLocalAssignFromSlice(bodySlice[...], requiresCompleteExpressions: true) {
                     index = startIndex + bodyEnd
                     return localAssign
                 }
