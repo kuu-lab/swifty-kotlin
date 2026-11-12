@@ -524,6 +524,33 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[randomName] = info
         }
+        let instantName = "java/time/Instant"
+        if classes[instantName] == nil {
+            let instantType = JVMValueType.reference(instantName, nullable: false)
+            let methods = [
+                method(instantName, "now", [], instantType, staticMember: true),
+                method(instantName, "ofEpochSecond", [.long, .long], instantType, staticMember: true),
+                method(instantName, "getEpochSecond", [], .long),
+                method(instantName, "getNano", [], .int),
+            ]
+            let source = """
+                package java.time
+                class Instant private constructor() {
+                    fun getEpochSecond(): Long = 0L
+                    fun getNano(): Int = 0
+                    companion object {
+                        external fun now(): Instant
+                        external fun ofEpochSecond(epochSecond: Long, nanoAdjustment: Long): Instant
+                    }
+                }
+                """
+            let info = JVMClassInfo(name: instantName, flags: 0x0011, superclass: "java/lang/Object",
+                                    interfaces: [], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/time/Instant.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[instantName] = info
+        }
         let closeableName = "java/io/Closeable"
         if classes[closeableName] == nil {
             classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
