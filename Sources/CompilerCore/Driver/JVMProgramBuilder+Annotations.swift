@@ -191,6 +191,12 @@ extension JVMProgramBuilder {
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
             if ["kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
+            if KnownCompilerAnnotation.jvmOverloads.matches(name) {
+                guard sema.symbols.symbol(symbol)?.kind == .function else {
+                    throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions only.")
+                }
+                continue
+            }
             // WasExperimental stays dropped: it is internal in kotlin-stdlib, so
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
@@ -281,7 +287,7 @@ extension JVMProgramBuilder {
         }
     }
 
-    func annotated(_ function: JVMFunction, symbol: SymbolID) throws -> JVMFunction {
+    func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first {
@@ -290,14 +296,15 @@ extension JVMProgramBuilder {
             f.jvmName = name
             f.annotations.append(JVMAnnotation(descriptor: "Lkotlin/jvm/JvmName;", values: [("name", .constant(.string(name)))], visible: false))
         }
-        if let signature = sema.symbols.functionSignature(for: symbol) {
+        if let signature = providedSignature ?? sema.symbols.functionSignature(for: symbol) {
             for effect in sema.symbols.contractCallsInPlaceEffects(for: symbol) {
                 if let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol) {
                     f.callsInPlaceEffects[index] = effect.kind
                 }
             }
             let leading = max(0, f.reference.parameters.count - signature.valueParameterSymbols.count)
-            f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
+            let valueParameterCount = min(signature.valueParameterSymbols.count, f.reference.parameters.count - leading)
+            f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.prefix(valueParameterCount).map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
         }
         return f
     }

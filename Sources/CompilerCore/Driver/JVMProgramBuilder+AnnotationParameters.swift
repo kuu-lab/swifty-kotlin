@@ -28,6 +28,18 @@ extension JVMProgramBuilder {
             }
         }
         for (node, target) in nodes {
+            if sema.symbols.symbol(symbol)?.kind == .constructor,
+               KnownCompilerAnnotation.jvmOverloads.matches(node.name) {
+                if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
+                    records.append(MetadataAnnotationRecord(
+                        annotationFQName: KnownCompilerAnnotation.jvmOverloads.qualifiedName,
+                        arguments: node.arguments,
+                        useSiteTarget: target,
+                        usageID: node.usageID
+                    ))
+                }
+                continue
+            }
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
             // kotlin.internal.* annotations are compile-time-only markers;
             // consumer compiles inject them as residual-stdlib declarations
