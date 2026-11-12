@@ -306,7 +306,9 @@ extension JVMProgramBuilder {
                 guard let symbol = plan.methodSymbols[method.name + method.descriptor], let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Missing JVM member signature.") }
                 builder.functionSymbol = symbol
                 builder.semanticSignature = signature
-                functions.append(try annotated(describe(builder.build(), signature: signature, parameters: declaration.typeParams), symbol: symbol))
+                let function = try annotated(describe(builder.build(), signature: signature, parameters: declaration.typeParams), symbol: symbol)
+                functions.append(function)
+                functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
             for (_, declaration, property) in plan.properties {
                 functions += try emitAccessors(plan, declaration, property)
