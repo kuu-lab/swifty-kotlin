@@ -148,7 +148,7 @@ extension JVMFunctionBuilder {
                         return property
                     }
                 }
-                if let getter = info.kotlinCompanionProperties[name]?.getter {
+                if let getter = info.kotlinMemberProperties[name]?.getter {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
                 }
                 // `const val` members (e.g. `LinearLayout.VERTICAL`) have no
