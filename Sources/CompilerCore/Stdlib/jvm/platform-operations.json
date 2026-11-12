@@ -1197,6 +1197,13 @@
     "kind": "constructor"
   },
   {
+    "symbol": "__jvmUtf8Bytes",
+    "owner": "java/lang/String",
+    "name": "getBytes",
+    "descriptor": "(Ljava/lang/String;)[B",
+    "kind": "virtual"
+  },
+  {
     "symbol": "__jvmUnmodifiableSet",
     "owner": "java/util/Collections",
     "name": "unmodifiableSet",
