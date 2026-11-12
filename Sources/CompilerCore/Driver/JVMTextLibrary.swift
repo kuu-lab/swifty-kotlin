@@ -24,7 +24,13 @@ extension JVMProgramBuilder {
             guard let signature = sema.symbols.functionSignature(for: symbol) else { return }
             let explicitName = staticMember ? externalJvmName(for: symbol) : nil
             let resolvedName = explicitName ?? name
-            let parameters = try signature.parameterTypes.map(type), result = resolvedName == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
+            let signatureParameters = try signature.parameterTypes.map(type)
+            let signatureResult = resolvedName == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
+            func durationPhysical(_ type: JVMValueType) -> JVMValueType {
+                type.referenceName == "kotlin/time/Duration" && !type.isNullable ? .long : type
+            }
+            let parameters = owner == "kotlin/time/Duration" ? signatureParameters.map(durationPhysical) : signatureParameters
+            let result = owner == "kotlin/time/Duration" ? durationPhysical(signatureResult) : signatureResult
             var explicitParameters = parameters
             for (index, declaration) in declarations.enumerated() where declaration.isVararg { explicitParameters[index] = parameters[index].referenceName?.hasPrefix("[") == true ? parameters[index] : .reference("[" + JVMClasspathIndex.boxed(parameters[index]).descriptor, nullable: false) }
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
@@ -167,6 +173,40 @@ extension JVMProgramBuilder {
                             isInterface: false,
                             isAbstract: false
                         )
+                    }
+                }
+            }
+            if path == "<kswiftk-jvm>/duration.kt" {
+                try visit(file.topLevelDecls.filter { id in
+                    if case .classDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+                for id in file.topLevelDecls {
+                    guard case let .classDecl(duration) = ast.arena.decl(id),
+                          context.interner.resolve(duration.name) == "Duration" else { continue }
+                    let owner = "kotlin/time/Duration"
+                    for member in duration.memberFunctions {
+                        guard case let .funDecl(function) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                        let name = context.interner.resolve(function.name)
+                        switch name {
+                        case "isNegative", "isPositive", "isInfinite", "isFinite",
+                             "toDouble", "toLong", "toInt", "toString":
+                            try method(symbol, owner: owner, name: name + "-impl", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                        case "compareTo":
+                            try method(symbol, owner: owner, name: "compareTo-LRDsOJo", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                        default:
+                            break
+                        }
+                    }
+                    for member in duration.memberProperties {
+                        guard case let .propertyDecl(property) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member),
+                              let semantic = sema.symbols.propertyType(for: symbol) else { continue }
+                        let name = context.interner.resolve(property.name)
+                        guard name.hasPrefix("inWhole") else { continue }
+                        let getter = "get" + name.prefix(1).uppercased() + name.dropFirst() + "-impl"
+                        textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: getter, descriptor: "(J)" + (try type(semantic)).descriptor, parameters: [.long], result: try type(semantic), isStatic: true, isInterface: false, isAbstract: false)
                     }
                 }
             }
@@ -316,6 +356,11 @@ extension JVMFunctionBuilder {
         let list = try jdkCall("kotlin/text/MatchResult$Destructured", "toList", [], .reference("java/util/List", nullable: false), receiver: object)!
         return try jdkCall("java/util/List", "get", [.int], .reference("java/lang/Object", nullable: true), receiver: list, arguments: [constant(.int(Int32(index)), .int)], interface: true, resolved: .string)!
     }
+    func durationRawValue(_ value: JVMValue) throws -> JVMValue {
+        guard value.type != .long, value.type.referenceName == "kotlin/time/Duration" else { return value }
+        return try jdkCall("kotlin/time/Duration", "unbox-impl", [], .long, receiver: value)!
+    }
+
     func textLibraryProperty(_ id: ExprID, receiver: ExprID? = nil) throws -> JVMValue? {
         let bindings = program.sema.bindings
         let call = bindings.callBinding(for: id)?.chosenCallee
@@ -331,14 +376,14 @@ extension JVMFunctionBuilder {
         if let path = program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve),
            path.count == 5,
            Array(path.prefix(4)) == ["kotlin", "time", "Duration", "Companion"],
-           ["seconds"].contains(path[4]) {
+           ["nanoseconds", "microseconds", "milliseconds", "seconds", "minutes", "hours", "days"].contains(path[4]) {
             guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
                   [.int, .long, .double].contains(source.type) else {
                 throw fail("Duration unit properties require an Int, Long, or Double receiver.", id)
             }
             let unitType = JVMValueType.reference("kotlin/time/DurationUnit", nullable: false)
             let unit = try value(unitType)
-            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: "SECONDS", type: unitType, access: 0x4019), unit))
+            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: path[4].uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
         }
         if let field = program.textLibraryFields[symbol] {
@@ -366,7 +411,8 @@ extension JVMFunctionBuilder {
             if kotlinMathName(for: symbol) == "ulp" {
                 return try jdkCall("java/lang/Math", "ulp", method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
             }
-            return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
+            let receiverArgument = method.owner == "kotlin/time/Duration" && method.isStatic ? try durationRawValue(extensionReceiver) : extensionReceiver
+            return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiverArgument], resolved: program.expressionType(id))
         }
         let object = try receiver.map(requireValue) ?? instance(id)
         return try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface, resolved: program.expressionType(id))
@@ -457,6 +503,11 @@ extension JVMFunctionBuilder {
             }
         }
         var actual = (entry.extensionReceiver == nil ? [] : [object!]) + values, params = method.parameters
+        if method.owner == "kotlin/time/Duration", method.isStatic, entry.extensionReceiver == .long {
+            actual = try actual.indices.map { index in
+                index < params.count && params[index] == .long && actual[index].type.referenceName == "kotlin/time/Duration" ? try durationRawValue(actual[index]) : actual[index]
+            }
+        }
         let usesDefaults = ordered.masks.contains { $0 != 0 }
         if usesDefaults {
             if !method.isStatic { actual.insert(object!, at: 0); params.insert(.reference(method.owner, nullable: false), at: 0) }
