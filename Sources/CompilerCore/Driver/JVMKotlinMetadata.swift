@@ -216,6 +216,38 @@ struct JVMKotlinMetadata {
         }
     }
 
+    func constructorParameterNames(byteLimit: Int) throws -> [String: [String]] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        var result: [String: [String]] = [:]
+        for constructor in try declaration.messages(8) {
+            // Classfile visibility can expose Kotlin-internal constructors.
+            // Only public and protected declarations supply source labels.
+            let flags = constructor.int32(1) ?? 6
+            guard (flags >> 1) & 7 == 3 || (flags >> 1) & 7 == 2 else { continue }
+            let parameters = try constructor.messages(2)
+            guard !parameters.isEmpty else { continue }
+            let labels = try parameters.compactMap { try names.resolve($0.int32(2)) }
+            guard labels.count == parameters.count, Set(labels).count == labels.count,
+                  labels.allSatisfy(JVMProgramBuilder.isIdentifier) else { continue }
+            let signature = try constructor.message(100)
+            if let descriptor = try names.resolve(signature?.int32(2)) {
+                result[descriptor] = labels
+                continue
+            }
+            let carriers = try parameters.compactMap { parameter in
+                try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                    try Self.resultType($0, types: types, names: names)
+                }
+            }
+            guard carriers.count == parameters.count else { continue }
+            let descriptor = "(" + carriers.map(\.descriptor).joined() + ")V"
+            result[descriptor] = labels
+        }
+        return result
+    }
+
     func topLevelProperties(byteLimit: Int) throws -> [JVMKotlinTopLevelProperty] {
         guard kind == 2 || kind == 5, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)

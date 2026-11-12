@@ -1777,7 +1777,7 @@ final class JVMClasspathIndex {
                 nullable = suspend.parameters[metadataIndex].isNullable
                 suspendSourceType = suspend.parameters[metadataIndex].sourceType
             } else {
-                name = "p\(index)"
+                name = method.kotlinConstructorParameterNames.map { "`\($0[index])`" } ?? "p\(index)"
                 nullable = false
                 suspendSourceType = nil
             }

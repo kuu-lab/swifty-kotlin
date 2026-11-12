@@ -536,6 +536,15 @@ struct JVMClassReader {
         }
         let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: parseAnnotations)
         guard offset == bytes.count else { throw Invalid() }
+        if let metadata = classAttributes.kotlinMetadata,
+           methods.contains(where: { $0.isConstructor && !$0.parameters.isEmpty }),
+           let constructors = try? metadata.constructorParameterNames(byteLimit: bytes.count) {
+            for index in methods.indices where methods[index].isConstructor {
+                if let names = constructors[methods[index].descriptor], names.count == methods[index].parameters.count {
+                    methods[index].kotlinConstructorParameterNames = names
+                }
+            }
+        }
         let valueCarrier = methods.first(where: { !$0.isStatic && $0.name == "unbox-impl" && $0.parameters.isEmpty })?.result
         let hasValueAdapters = valueCarrier.map { carrier in
             methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
