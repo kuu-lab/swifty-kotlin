@@ -5,6 +5,9 @@ fun __jvmFileName(file: java.io.File): String = null!!
 
 fun __jvmCloseResource(resource: java.io.Closeable) {}
 
+fun __jvmStringWriter(): Any = null!!
+fun __jvmPrintWriter(writer: Any): Any = null!!
+fun __jvmPrintStackTrace(error: Throwable, writer: Any) {}
 fun __jvmThreadLocalRandom(): Any = null!!
 fun __jvmThreadLocalRandomNextInt(random: Any): Int = 0
 
