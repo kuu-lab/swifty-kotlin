@@ -14,6 +14,7 @@ extension JVMBackendTests {
                 println(Base64.decode("44GC").decodeToString())
                 println(Base64.decode("!QQ==!", startIndex = 1, endIndex = 5).decodeToString())
                 println(Base64.encodeToByteArray(byteArrayOf(65)).decodeToString())
+                println(Base64.encodeToAppendable(byteArrayOf(65), StringBuilder("prefix ")))
                 println(Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).encode(byteArrayOf(-1)))
                 try {
                     Base64.decode("QR==")
@@ -27,7 +28,7 @@ extension JVMBackendTests {
             let compiled = try jvmTool("kotlinc", ["Base64Probe.kt", "-d", app.path], root: root)
             try #require(compiled.exitCode == 0, "\(compiled.stderr)")
             let run = try java(["-Xverify:all", "-cp", app.path + ":" + stdlib.path, "Base64ProbeKt"])
-            #expect(run.stdout == "あ\nA\nQQ==\n_w\ninvalid\n")
+            #expect(run.stdout == "あ\nA\nQQ==\nprefix QQ==\n_w\ninvalid\n")
         }
     }
 }
