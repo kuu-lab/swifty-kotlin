@@ -48,6 +48,7 @@ struct JVMClassReader {
     var strings: [Int: String] = [:]
     var classes: [Int: Int] = [:]
     var constants: [Int: JVMFieldConstant] = [:]
+    var descriptorCache: JVMDescriptorCache?
     struct Invalid: Error {}
 
     mutating func u1() throws -> UInt8 {
@@ -466,7 +467,7 @@ struct JVMClassReader {
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             let methodInfo = try methodAttributes(parseAnnotations: parseMethodAnnotations)
             if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
-               let signature = try? JVMDescriptor.parse(descriptor),
+               let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
                     parameters: signature.0, result: methodName == "<init>" ? .reference(name, nullable: false) : signature.1,
@@ -539,6 +540,27 @@ struct JVMClassReader {
                 || name.hasPrefix("kotlin/jvm/functions/SuspendFunction")
                 || name.hasPrefix("kotlin/coroutines/SuspendFunction")
         }
+    }
+}
+
+final class JVMDescriptorCache {
+    private static let maximumEntries = 2_048
+    private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
+
+    func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
+        // Swift string equality can equate Unicode spellings with ASCII ones.
+        // The descriptor reader must still validate non-ASCII bytes itself.
+        guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
+            return try JVMDescriptor.parse(descriptor)
+        }
+        if let signature = entries[descriptor] { return signature }
+
+        let signature = try JVMDescriptor.parse(descriptor)
+        entries[descriptor] = signature
+        if entries.count == Self.maximumEntries {
+            entries.removeAll(keepingCapacity: true)
+        }
+        return signature
     }
 }
 
