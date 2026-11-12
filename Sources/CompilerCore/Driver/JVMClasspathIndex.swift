@@ -1350,7 +1350,8 @@ final class JVMClasspathIndex {
             }
             if !info.isInterface { source += "external " }
             // Parents may still have erased classpath signatures.
-            let usesErasedOverride = overrides && method.kotlinFunction?.isGenericFinalGetter == true
+            let usesErasedOverride = overrides
+                && (method.kotlinFunction?.isGenericFinalGetter == true || method.kotlinFunction?.hasStableFinalParameters == true)
             source += functionDeclaration(method, usesKotlinMetadata: !usesErasedOverride)
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
             if info.isInterface, !method.isAbstract || hasKotlinDefaultBody {
