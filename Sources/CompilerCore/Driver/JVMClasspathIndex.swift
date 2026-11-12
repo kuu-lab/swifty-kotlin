@@ -1105,10 +1105,14 @@ final class JVMClasspathIndex {
             return false
         }
         var source = ""
+        let kotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
         for method in own where method.isConstructor && !method.parameters.isEmpty {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
         }
         for method in own where !method.isConstructor && !method.isStatic {
+            if let getter = kotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
+                continue
+            }
             var overrides = overridesParent(method, in: info, visited: [])
             if charSequenceBridged, method.name == "subSequence" { overrides = true }
             if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
@@ -1133,6 +1137,7 @@ final class JVMClasspathIndex {
             guard let shape = propertyShape(getter) else { continue }
             let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
+                  kotlinProperties[propertyName] == nil,
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
             let propertyType = kotlinType(getter.result)
             if let setterName = shape.setterName,
@@ -1162,8 +1167,7 @@ final class JVMClasspathIndex {
                 source += modifiers + "val `\(propertyName)`: \(propertyType) get() = null!!\n"
             }
         }
-        for (name, property) in info.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
-            where exposeSuspendType(property.getter.result) {
+        for (name, property) in kotlinProperties.sorted(by: { $0.key < $1.key }) {
             let getter = property.getter
             if !getter.isStatic, overridesParent(getter, in: info, visited: []) {
                 source += getter.isFinal ? "final override " : "override "

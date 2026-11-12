@@ -579,7 +579,11 @@ struct JVMClassReader {
         }
         let isKotlinObject = fields.contains { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }
         if let metadata = classAttributes.kotlinMetadata,
-           isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: { $0.name.hasPrefix("get") && $0.name.contains("-") }),
+           isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
+               $0.name.hasPrefix("get") && $0.name.contains("-")
+                   || $0.isFinal && !$0.isStatic && $0.parameters.isEmpty
+                       && ($0.name.hasPrefix("get") || $0.name.hasPrefix("is"))
+           }),
            let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
             let valueCarrier = methods.first(where: { !$0.isStatic && $0.name == "unbox-impl" && $0.parameters.isEmpty })?.result
             let hasValueAdapters = valueCarrier.map { carrier in
@@ -593,7 +597,9 @@ struct JVMClassReader {
                     // Kotlin objects may expose a property's accessor only as @JvmStatic.
                     info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
                 } else if let sourceType = property.sourceType,
-                          (name.hasSuffix("$Companion") || getter.name.contains("-")),
+                          (name.hasSuffix("$Companion") || getter.name.contains("-")
+                              || getter.isFinal && !property.isVar
+                                  && (sourceType.contains("<") || getter.name == property.name)),
                           !getter.isStatic && getter.parameters.isEmpty
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
                     info.kotlinMemberProperties[property.name] = (getter, sourceType)
