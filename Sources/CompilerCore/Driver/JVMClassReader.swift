@@ -517,17 +517,19 @@ struct JVMClassReader {
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
-           methods.contains(where: { $0.kotlinSuspendFunction == nil && Self.hasFunctionTypeDescriptor($0) }),
+           methods.contains(where: Self.hasFunctionTypeDescriptor),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
            let functions = try? metadata.functions(in: table) {
-            for index in methods.indices where methods[index].kotlinSuspendFunction == nil {
+            for index in methods.indices {
                 let method = methods[index]
+                let isSuspend = method.kotlinSuspendFunction != nil
                 guard Self.hasFunctionTypeDescriptor(method),
                       let function = functions.first(where: { candidate in
-                          !candidate.isSuspend
+                          candidate.isSuspend == isSuspend
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
-                              && candidate.parameters.count + (candidate.receiver == nil ? 0 : 1) == method.parameters.count
+                              && candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
+                                  + (candidate.isSuspend ? 1 : 0) == method.parameters.count
                       })
                 else { continue }
                 methods[index].kotlinFunction = function

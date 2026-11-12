@@ -334,7 +334,8 @@ final class JVMClasspathIndex {
         let exposedName = method.kotlinFunction?.name ?? method.kotlinSuspendFunction?.name ?? method.name
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
-            return function.parameters.count + (function.receiver == nil ? 0 : 1) == method.parameters.count
+            return function.parameters.count + (function.receiver == nil ? 0 : 1)
+                + (function.isSuspend ? 1 : 0) == method.parameters.count
         }
         if let suspend = method.kotlinSuspendFunction {
             return JVMProgramBuilder.isIdentifier(suspend.name)
@@ -1251,6 +1252,7 @@ final class JVMClasspathIndex {
         // "package|ShortName" -> binary names, for identifier-based lookups.
         var byPackageAndShortName: [String: [String]] = [:]
         var lazyTopLevelByPackage: [String: [(short: String, name: String)]] = [:]
+        var lazyFacadeMembersByPackage: [String: [(member: String, name: String)]] = [:]
         for name in lazyClassNames {
             let normalized = name.split(separator: "/")
                 .map(String.init).joined(separator: ".")
@@ -1261,6 +1263,14 @@ final class JVMClasspathIndex {
             let package = parts.dropLast().joined(separator: ".")
             let short = parts.last!.split(separator: "$").last.map(String.init) ?? parts.last!
             byPackageAndShortName[package + "|" + short, default: []].append(name)
+            if !name.contains("$"), !isCovered(name, covered: covered), let info = classes[name] {
+                let isFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
+                if isFacade {
+                    for method in info.methods where method.isStatic && isExposed(method) {
+                        lazyFacadeMembersByPackage[package, default: []].append((method.sourceName, name))
+                    }
+                }
+            }
             if !name.contains("$") {
                 lazyTopLevelByPackage[package, default: []].append((short, name))
             }
@@ -1274,14 +1284,29 @@ final class JVMClasspathIndex {
                 if let binaries = normalizedToBinary[prefix] { matched.formUnion(binaries) }
             }
         }
+        func matchFacadeImport(_ token: String) {
+            let parts = token.split(separator: ".").map(String.init)
+            guard parts.count >= 2 else { return }
+            let package = parts.dropLast().joined(separator: ".")
+            let member = parts.last!
+            for entry in lazyFacadeMembersByPackage[package] ?? [] where entry.member == member {
+                matched.insert(entry.name)
+            }
+        }
         func identifierMatches(_ filePackage: String?, identifiers: Set<String>, packages: Set<String>) {
             for package in packages {
                 for entry in lazyTopLevelByPackage[package] ?? [] where identifiers.contains(entry.short) {
                     matched.insert(entry.name)
                 }
+                for entry in lazyFacadeMembersByPackage[package] ?? [] where identifiers.contains(entry.member) {
+                    matched.insert(entry.name)
+                }
             }
             if let filePackage {
                 for entry in lazyTopLevelByPackage[filePackage] ?? [] where identifiers.contains(entry.short) {
+                    matched.insert(entry.name)
+                }
+                for entry in lazyFacadeMembersByPackage[filePackage] ?? [] where identifiers.contains(entry.member) {
                     matched.insert(entry.name)
                 }
             }
@@ -1317,7 +1342,11 @@ final class JVMClasspathIndex {
                 if let r = Range(match.range(at: 1), in: text) { starPackages.insert(String(text[r])) }
             }
             for match in Self.dottedPattern.matches(in: text, range: range) {
-                if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
+                if let r = Range(match.range, in: text) {
+                    let token = String(text[r])
+                    matchTokenPrefixes(token)
+                    matchFacadeImport(token)
+                }
             }
             identifierMatches(filePackage, identifiers: identifiers, packages: starPackages)
         }
@@ -1408,7 +1437,7 @@ final class JVMClasspathIndex {
     }
 
     private func functionDeclaration(_ method: JVMForeignMethod, asExtension: Bool = false) -> String {
-        if method.kotlinSuspendFunction == nil, let function = method.kotlinFunction {
+        if let function = method.kotlinFunction {
             return kotlinFunctionDeclaration(function)
         }
         let suspend = method.kotlinSuspendFunction
