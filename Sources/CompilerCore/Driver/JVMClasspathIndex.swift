@@ -1011,7 +1011,6 @@ final class JVMClasspathIndex {
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
         importInheritedMembers(for: neededLazy ?? [])
-        let hasIntStateContract = composeIntStateFactory != nil
         for info in classes.values.sorted(by: { $0.name < $1.name }) {
             guard innerClassMetadata[info.name] == nil else { continue }
             // The frontend's Kotlin/JDK mapped declarations carry generic source
@@ -1019,7 +1018,6 @@ final class JVMClasspathIndex {
             if isCovered(info.name, covered: covered) { continue }
             let isLazy = lazyClassNames.contains(info.name)
             let isComposer = hasComposeRuntime && info.name == JVMCompose.composer
-            let isIntState = hasIntStateContract && info.name == Self.mutableIntState
             let isGenericState = info.name == Self.mutableState && composeStateFactory != nil
             if isLazy, !isComposer, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
@@ -1046,8 +1044,8 @@ final class JVMClasspathIndex {
                     source += functionDeclaration(method) + "\n"
                 }
                 source += "}\n"
-            } else if isIntState {
-                source += "interface `\(short)` { var intValue: Int }\n"
+            } else if let primitiveState = composePrimitiveStateSource(owner: info.name, name: short) {
+                source += primitiveState
             } else if isGenericState {
                 source += "interface `\(short)`<T> { var value: T }\n"
             } else if isFileFacade {
