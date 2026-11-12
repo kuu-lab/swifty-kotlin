@@ -121,10 +121,8 @@ extension CallLowerer {
         }
         let ownerKind = sema.symbols.parentSymbol(for: objectSymbol)
             .flatMap { sema.symbols.symbol($0)?.kind }
-        let isLocalOrAnonymous = symbol.fqName.contains { component in
-            let name = interner.resolve(component)
-            return name.hasPrefix("__localdecl_") || name.hasPrefix("__ObjectLiteral_")
-        }
+        let isLocalOrAnonymous = sema.symbols.isLocalDeclSynthetic(objectSymbol)
+            || sema.symbols.isObjectLiteralSynthetic(objectSymbol)
         if isLocalOrAnonymous
             || ownerKind.map({ [.function, .property, .local].contains($0) }) == true {
             flags |= 1 << 13
@@ -132,7 +130,7 @@ extension CallLowerer {
         // KUU-3828: anonymous object literals have no name on the JVM;
         // reflection reports null simpleName despite the synthetic fqName.
         if symbol.flags.contains(.synthetic),
-           interner.resolve(symbol.name).hasPrefix("__ObjectLiteral_") {
+           sema.symbols.isObjectLiteralSynthetic(objectSymbol) {
             flags |= 1 << 14
         }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)

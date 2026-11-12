@@ -34,6 +34,7 @@ extension ExprTypeChecker {
                 ctx: ctx,
                 locals: &locals
             )
+            sema.symbols.insertFlags(.localDeclSynthetic, for: objectSymbol)
             let objectType = objectLiteralType(for: objectSymbol, sema: sema)
             // A named `object`'s name is both a type name and the singleton
             // value name, so it registers in the lexical scope as well —
@@ -63,6 +64,7 @@ extension ExprTypeChecker {
                 ctx: ctx,
                 locals: &locals
             )
+            sema.symbols.insertFlags(.localDeclSynthetic, for: classSymbol)
             let typeArgs = sema.types.nominalTypeParameterSymbols(for: classSymbol).map { typeParameterSymbol in
                 TypeArg.invariant(sema.types.make(.typeParam(TypeParamType(symbol: typeParameterSymbol))))
             }
@@ -95,6 +97,7 @@ extension ExprTypeChecker {
                 fqNamePrefix: fqNamePrefix,
                 ctx: ctx
             )
+            sema.symbols.insertFlags(.localDeclSynthetic, for: aliasSymbol)
             // Insert at check time so the alias is visible only to statements
             // that follow its declaration in the same block.
             ctx.scope.insert(aliasSymbol)

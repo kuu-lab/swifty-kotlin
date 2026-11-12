@@ -24,7 +24,7 @@ CDECL_PATTERN = re.compile(
 )
 
 SPEC_ENTRY_PATTERN = re.compile(
-    r'abi\.(?P<kind>th|nt)\(\s*"(?P<symbol>[_a-zA-Z0-9]+)"'
+    r'\b(?:abi|abi[A-Z][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_]*ABI)\.(?P<kind>th|nt)\(\s*"(?P<symbol>[_a-zA-Z0-9]+)"'
     r'(?:,\s*"(?P<params>[^"]*)")?'
     r'(?:,\s*ret:\s*\.(?P<ret>[_a-zA-Z0-9]+))?'
     r'(?:,\s*raw:\s*(?P<raw>true|false))?'
@@ -64,6 +64,12 @@ def scan_runtime_abi_specs(abi_dir):
             with open(path, "r", encoding="utf-8") as fp:
                 content = fp.read()
             for m in SPEC_ENTRY_PATTERN.finditer(content):
+                line_start = content.rfind("\n", 0, m.start()) + 1
+                line_end = content.find("\n", m.start())
+                if line_end == -1:
+                    line_end = len(content)
+                if content[line_start:line_end].lstrip().startswith("//"):
+                    continue
                 symbol = m.group("symbol")
                 kind = m.group("kind")
                 params = (m.group("params") or "").strip()

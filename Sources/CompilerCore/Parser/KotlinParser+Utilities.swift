@@ -110,6 +110,25 @@ extension KotlinParser {
         }
     }
 
+    func isReceiverUseSiteTarget(_ token: Token) -> Bool {
+        switch token.kind {
+        case .softKeyword(.receiver):
+            return true
+        case let .identifier(id), let .backtickedIdentifier(id):
+            return interner.resolve(id) == "receiver"
+        case let .keyword(keyword):
+            return keyword.rawValue == "receiver"
+        default:
+            return false
+        }
+    }
+
+    func isReceiverAnnotationPrefix(at offset: Int = 0) -> Bool {
+        stream.peek(offset).kind == .symbol(.at)
+            && isReceiverUseSiteTarget(stream.peek(offset + 1))
+            && stream.peek(offset + 2).kind == .symbol(.colon)
+    }
+
     /// Offset just past the annotation prefix starting at the `@` seen at
     /// `offset`: an optional use-site target (`@field:`), the qualified
     /// annotation name, and an optional balanced argument group. Mirrors the

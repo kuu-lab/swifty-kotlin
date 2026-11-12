@@ -216,7 +216,7 @@ enum GoldenHarnessTargetSection {
         // and is compiler bookkeeping rather than API surface. User-facing
         // annotations (Deprecated, KsSymbolName link names, …) stay.
         let annotations = sema.symbols.annotations(for: symbol.id)
-            .filter { $0.annotationFQName != "kotlin.Metadata" }
+            .filter { $0.annotationFQName != KnownCompilerAnnotation.metadata.qualifiedName }
         if !annotations.isEmpty {
             let rendered = annotations.map { annotation -> String in
                 let prefix = annotation.useSiteTarget.map { "@\($0):" } ?? "@"

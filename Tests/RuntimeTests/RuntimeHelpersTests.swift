@@ -178,7 +178,7 @@ struct RuntimeHelpersTests {
             receivedResult = result
             dispatched.signal()
         }
-        let continuationRaw = Int(bitPattern: Unmanaged.passUnretained(continuation as AnyObject).toOpaque())
+        let continuationRaw = runtimeRegisterObject(continuation)
         let interceptedRaw = kk_continuation_interceptor_intercept_continuation(kk_dispatcher_default(), continuationRaw)
 
         #expect(

@@ -53,6 +53,15 @@ private func makeTreeMap(_ pairs: [(Int, Int)], comparatorRaw: Int = 0) -> Int {
     return raw
 }
 
+private func makeTreeMap(_ pairs: [(String, Int)]) -> Int {
+    let raw = kk_tree_map_new(0)
+    var thrown = 0
+    for (key, value) in pairs {
+        _ = kk_mutable_map_put(raw, runtimeString(key), value, &thrown)
+    }
+    return raw
+}
+
 private func mapKeys(_ raw: Int) -> [Int] {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
           let box = tryCast(ptr, to: RuntimeMapBox.self)
@@ -60,6 +69,10 @@ private func mapKeys(_ raw: Int) -> [Int] {
         return []
     }
     return box.keys
+}
+
+private func mapStringKeys(_ raw: Int) -> [String] {
+    mapKeys(raw).map { runtimeString($0) }
 }
 
 @Suite(.runtimeIsolation(.all))
@@ -327,6 +340,123 @@ struct RuntimeSortedCollectionTests {
         _ = kk_sorted_map_sub_map(subMap, 1, 3, &thrown)
         #expect(thrown != 0)
         _ = kk_sorted_map_sub_map(subMap, 2, 6, &thrown)
+        #expect(thrown != 0)
+    }
+
+    @Test
+    func sortedMapRangeViewsCountIsEmptyAndValuesUseWindow() {
+        let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60), (8, 80), (10, 100)])
+        var thrown = 0
+        let subMap = kk_sorted_map_sub_map(map, 2, 8, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(subMap) == 3)
+        #expect(kk_map_is_empty(subMap) == 0)
+        #expect(mapKeys(subMap) == [2, 4, 6])
+        #expect(runtimeMapBox(from: subMap)?.values == [20, 40, 60])
+        #expect(runtimeMapBox(from: subMap)?.entryValues.map(\.legacyRawValue) == [20, 40, 60])
+
+        let empty = kk_sorted_map_sub_map(map, 3, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(empty) == 0)
+        #expect(kk_map_is_empty(empty) == 1)
+        #expect(mapKeys(empty) == [])
+
+        let headMap = kk_sorted_map_head_map(map, 6, &thrown)
+        let tailMap = kk_sorted_map_tail_map(map, 6, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(headMap) == 3)
+        #expect(mapKeys(headMap) == [1, 2, 4])
+        #expect(kk_map_size(tailMap) == 3)
+        #expect(mapKeys(tailMap) == [6, 8, 10])
+
+        let nested = kk_sorted_map_sub_map(subMap, 4, 8, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(nested) == 2)
+        #expect(mapKeys(nested) == [4, 6])
+
+        _ = kk_mutable_map_put(map, 5, 50, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(subMap) == 4)
+        #expect(kk_map_size(nested) == 3)
+        _ = kk_mutable_map_remove(map, 4, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(nested) == 2)
+        #expect(mapKeys(nested) == [5, 6])
+    }
+
+    @Test
+    func sortedMapDescendingRangeViewKeepsWindowOrder() {
+        let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60), (8, 80), (10, 100)])
+        var thrown = 0
+        let descending = kk_sorted_map_descending(map)
+        #expect(mapKeys(descending) == [10, 8, 6, 4, 2, 1])
+        #expect(kk_map_size(descending) == 6)
+        #expect(kk_map_is_empty(descending) == 0)
+
+        let ranged = kk_sorted_map_sub_map(descending, 8, 2, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(ranged) == [8, 6, 4])
+        #expect(runtimeMapBox(from: ranged)?.values == [80, 60, 40])
+        #expect(kk_map_size(ranged) == 3)
+        #expect(kk_map_is_empty(ranged) == 0)
+
+        _ = kk_mutable_map_put(map, 5, 50, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(ranged) == [8, 6, 5, 4])
+        #expect(kk_map_size(ranged) == 4)
+    }
+
+    @Test
+    func sortedMapStringKeyRangeViewUsesOrderedWindow() {
+        let map = makeTreeMap([("a", 1), ("c", 3), ("e", 5), ("g", 7), ("i", 9)])
+        var thrown = 0
+        let subMap = kk_sorted_map_sub_map(map, runtimeString("b"), runtimeString("h"), &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(subMap) == 3)
+        #expect(kk_map_is_empty(subMap) == 0)
+        #expect(mapStringKeys(subMap) == ["c", "e", "g"])
+        #expect(runtimeMapBox(from: subMap)?.values == [3, 5, 7])
+
+        let empty = kk_sorted_map_sub_map(map, runtimeString("b"), runtimeString("c"), &thrown)
+        #expect(thrown == 0)
+        #expect(kk_map_size(empty) == 0)
+        #expect(kk_map_is_empty(empty) == 1)
+        #expect(mapStringKeys(empty) == [])
+    }
+
+    @Test
+    func mutableMapIteratorOverRangeViewRemovesThroughView() {
+        let map = makeTreeMap([(1, 10), (2, 20), (4, 40), (6, 60), (8, 80), (10, 100)])
+        var thrown = 0
+        let subMap = kk_sorted_map_sub_map(map, 2, 8, &thrown)
+        #expect(thrown == 0)
+        let iterator = kk_mutable_map_iterator(subMap)
+
+        #expect(kk_mutable_map_iterator_hasNext(iterator) == 1)
+        var entry = kk_mutable_map_iterator_next(iterator, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_pair_first(entry) == 2)
+        #expect(kk_pair_second(entry) == 20)
+        _ = kk_mutable_map_iterator_remove(iterator, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(subMap) == [4, 6])
+
+        entry = kk_mutable_map_iterator_next(iterator, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_pair_first(entry) == 4)
+        #expect(kk_pair_second(entry) == 40)
+        _ = kk_mutable_map_iterator_remove(iterator, &thrown)
+        #expect(thrown == 0)
+        #expect(mapKeys(map) == [1, 6, 8, 10])
+        #expect(mapKeys(subMap) == [6])
+
+        #expect(kk_mutable_map_iterator_hasNext(iterator) == 1)
+        entry = kk_mutable_map_iterator_next(iterator, &thrown)
+        #expect(thrown == 0)
+        #expect(kk_pair_first(entry) == 6)
+        #expect(kk_pair_second(entry) == 60)
+        #expect(kk_mutable_map_iterator_hasNext(iterator) == 0)
+        _ = kk_mutable_map_iterator_next(iterator, &thrown)
         #expect(thrown != 0)
     }
 

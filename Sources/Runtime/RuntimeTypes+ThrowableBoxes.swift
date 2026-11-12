@@ -1,5 +1,10 @@
 import Foundation
 
+private struct RuntimeThrowableHierarchyCache {
+    let typeIDs: [Int64]
+    let isBaseThrowable: Bool
+}
+
 class RuntimeThrowableBox {
     let message: String?
     /// Handle of the Kotlin `String` argument handed to the constructor, when
@@ -21,6 +26,8 @@ class RuntimeThrowableBox {
     var writableStackTrace = true
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
+    private var cachedExceptionHierarchy: RuntimeThrowableHierarchyCache?
+    private let exceptionHierarchyCacheLock = NSLock()
 
     var exceptionFQName: String {
         "kotlin.Throwable"
@@ -28,6 +35,31 @@ class RuntimeThrowableBox {
 
     var exceptionHierarchyFQNames: [String] {
         [exceptionFQName]
+    }
+
+    private func exceptionHierarchyCache() -> RuntimeThrowableHierarchyCache {
+        exceptionHierarchyCacheLock.lock()
+        defer { exceptionHierarchyCacheLock.unlock() }
+        if let cachedExceptionHierarchy {
+            return cachedExceptionHierarchy
+        }
+        let fqNames = exceptionHierarchyFQNames
+        let cache = RuntimeThrowableHierarchyCache(
+            typeIDs: fqNames.map { runtimeStableNominalTypeID(fqName: $0) },
+            isBaseThrowable: fqNames == ["kotlin.Throwable"]
+        )
+        cachedExceptionHierarchy = cache
+        return cache
+    }
+
+    /// Stable nominal IDs for `exceptionHierarchyFQNames`, computed once per box.
+    var exceptionHierarchyTypeIDs: [Int64] {
+        exceptionHierarchyCache().typeIDs
+    }
+
+    /// Whether the hierarchy is exactly `[kotlin.Throwable]` (the untyped fallback).
+    var exceptionHierarchyIsBaseThrowable: Bool {
+        exceptionHierarchyCache().isBaseThrowable
     }
 
     var renderedMessage: String {

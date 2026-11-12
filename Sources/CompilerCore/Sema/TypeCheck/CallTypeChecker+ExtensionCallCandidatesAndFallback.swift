@@ -205,7 +205,10 @@ extension CallTypeChecker {
                 // Bundled source-backed extensions obey Kotlin's package
                 // visibility: without an explicit import they are only
                 // callable from their own package or a default-import
-                // package (KUU-4299). The lenient short-name recovery stays
+                // package (KUU-4299). The `kotlin.reflect` shim package is the
+                // exception: KSP-496 keeps those KClass members importless,
+                // while `kotlin.reflect.full` remains gated above. The lenient
+                // short-name recovery stays
                 // for bundled-stdlib call sites, which rely on it for
                 // cross-package helpers such as kotlinx.io.unsafe.
                 // Member functions surfaced through this path (for example an
@@ -235,6 +238,7 @@ extension CallTypeChecker {
                 {
                     let candidatePackage = Array(symbol.fqName.dropLast())
                     let visibleWithoutImport = candidatePackage == file.packageFQName
+                        || candidatePackage == knownNames.kotlinReflectPackage
                         || TypeCheckScopeBuilder().makeDefaultImportPackages(interner: interner)
                             .contains(candidatePackage)
                     let explicitlyImported = file.imports.contains { importDecl in

@@ -27,6 +27,14 @@ struct AnonymousFunctionBlockTrailingExpressionTests {
             let context = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runSema(context)
             #expect(!context.diagnostics.hasError, "\(context.diagnostics.diagnostics)")
+            let sema = try #require(context.sema)
+            let anonymousFunctions = sema.symbols.allSymbols().filter {
+                $0.kind == .function && $0.flags.contains(.anonymousFunction)
+            }
+            #expect(anonymousFunctions.count == 4)
+            #expect(anonymousFunctions.allSatisfy {
+                sema.symbols.isAnonymousFunction($0.id, interner: context.interner)
+            })
         }
     }
 }

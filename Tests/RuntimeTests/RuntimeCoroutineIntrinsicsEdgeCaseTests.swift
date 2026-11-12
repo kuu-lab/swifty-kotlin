@@ -631,7 +631,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(__kk_coroutine_continuation_context(first) == context)
         kk_coroutine_continuation_resume(first, 0)
         #expect(completed.wait(timeout: .now() + 3) == .success)
-        #expect(completionState.completion == Int64(dispatcher))
+        #expect(completionState.completion == Int64(runtimeResolveDispatcher(from: dispatcher).tag))
         #expect(completionState.thrownException == 0)
     }
 

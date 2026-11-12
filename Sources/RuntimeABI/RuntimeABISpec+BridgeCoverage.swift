@@ -1,58 +1,17 @@
-func bridgeSpec(
-    _ name: String,
-    section: String,
-    params: [String] = [],
-    returnType: RuntimeABICType = .intptr,
-    isThrowing: Bool = true
-) -> RuntimeABIFunctionSpec {
-    RuntimeABIFunctionSpec(
-        name: name,
-        parameters: params.map { RuntimeABIParameter(name: $0, type: .intptr) },
-        returnType: returnType,
-        section: section,
-        isThrowing: isThrowing
-    )
-}
-
-func bridgeSpec(
-    _ name: String,
-    section: String,
-    typedParams: [(String, RuntimeABICType)],
-    returnType: RuntimeABICType = .intptr,
-    isThrowing: Bool = true
-) -> RuntimeABIFunctionSpec {
-    RuntimeABIFunctionSpec(
-        name: name,
-        parameters: typedParams.map { RuntimeABIParameter(name: $0.0, type: $0.1) },
-        returnType: returnType,
-        section: section,
-        isThrowing: isThrowing
-    )
-}
+private let collectionABI = RuntimeABISectionBuilder("Collection")
+private let rangeABI = RuntimeABISectionBuilder("Range")
+private let sequenceABI = RuntimeABISectionBuilder("Sequence")
+private let charABI = RuntimeABISectionBuilder("Char")
+private let numericConversionABI = RuntimeABISectionBuilder("NumericConversion")
+private let operatorABI = RuntimeABISectionBuilder("Operator")
+private let systemABI = RuntimeABISectionBuilder("System")
+private let nativeABI = RuntimeABISectionBuilder("Native")
+private let coroutineABI = RuntimeABISectionBuilder("Coroutine")
+private let delegateABI = RuntimeABISectionBuilder("Delegate")
 
 private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
-    bridgeSpec(
-        "kk_iterable_iterator",
-        section: "Collection",
-        typedParams: [
-            ("iterableRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    ),
+    collectionABI.th("kk_iterable_iterator", "iterableRaw outThrown"),
 ]
-
-private func listClosureBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
-    bridgeSpec(
-        name,
-        section: "Collection",
-        typedParams: [
-            ("listRaw", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    )
-}
 
 private let listClosureBridgeFunctions = [
     RuntimeABISpec.listMaxOfSpec,
@@ -63,44 +22,12 @@ private let listClosureBridgeFunctions = [
     RuntimeABISpec.listMinWithOrNullSpec,
 ]
 
-private func listComparatorBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
-    bridgeSpec(
-        name,
-        section: "Collection",
-        typedParams: [
-            ("listRaw", .intptr),
-            ("cmpFnPtr", .intptr),
-            ("cmpClosureRaw", .intptr),
-            ("selFnPtr", .intptr),
-            ("selClosureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    )
-}
-
 private let listComparatorBridgeFunctions = [
     RuntimeABISpec.listMaxOfWithSpec,
     RuntimeABISpec.listMaxOfWithOrNullSpec,
     RuntimeABISpec.listMinOfWithSpec,
     RuntimeABISpec.listMinOfWithOrNullSpec,
 ]
-
-private let listIndexedBridgeFunctions: [RuntimeABIFunctionSpec] = []
-
-private let listMiscBridgeFunctions: [RuntimeABIFunctionSpec] = []
-
-private func mapBridgeSpec(_ name: String) -> RuntimeABIFunctionSpec {
-    bridgeSpec(
-        name,
-        section: "Collection",
-        typedParams: [
-            ("mapRaw", .intptr),
-            ("fnPtr", .intptr),
-            ("closureRaw", .intptr),
-            ("outThrown", .nullableIntptrPointer),
-        ]
-    )
-}
 
 private let mapBridgeFunctions = [
     RuntimeABISpec.mapFlatMapSpec,
@@ -109,300 +36,167 @@ private let mapBridgeFunctions = [
 ]
 
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("__kk_range_hasNext", section: "Range", params: ["iterRaw"],
-            isThrowing: false),
-    bridgeSpec("__kk_range_iterator", section: "Range", typedParams: [
-        ("rangeRaw", .intptr),
-        ("outThrown", .nullableIntptrPointer),
-    ]),
-    bridgeSpec("__kk_range_next", section: "Range", params: ["iterRaw"],
-            isThrowing: false),
-    bridgeSpec("__kk_range_for_in_hasNext", section: "Range", params: ["iterRaw"],
-            isThrowing: false),
-    bridgeSpec("__kk_range_for_in_iterator", section: "Range", params: ["rangeRaw"],
-            isThrowing: false),
-    bridgeSpec("__kk_range_for_in_next", section: "Range", params: ["iterRaw"],
-            isThrowing: false),
+    rangeABI.nt("__kk_range_hasNext", "iterRaw"),
+    rangeABI.th("__kk_range_iterator", "rangeRaw outThrown"),
+    rangeABI.nt("__kk_range_next", "iterRaw"),
+    rangeABI.nt("__kk_range_for_in_hasNext", "iterRaw"),
+    rangeABI.nt("__kk_range_for_in_iterator", "rangeRaw"),
+    rangeABI.nt("__kk_range_for_in_next", "iterRaw"),
     RuntimeABISpec.sequenceFilterNotSpec,
-    bridgeSpec("__kk_set_of_not_null", section: "Collection", params: ["arrayRaw", "count"],
-            isThrowing: false),
-    bridgeSpec("__kk_set_of_not_null_single", section: "Collection", params: ["arrayRaw", "count"],
-            isThrowing: false),
+    collectionABI.nt("__kk_set_of_not_null", "arrayRaw count"),
+    collectionABI.nt("__kk_set_of_not_null_single", "arrayRaw count"),
 ]
 
 public extension RuntimeABISpec {
-    static let listMaxOfSpec = listClosureBridgeSpec("kk_list_maxOf")
-    static let listMaxWithSpec = listClosureBridgeSpec("kk_list_maxWith")
-    static let listMaxWithOrNullSpec = listClosureBridgeSpec("kk_list_maxWithOrNull")
-    static let listMinOfSpec = listClosureBridgeSpec("kk_list_minOf")
-    static let listMinWithSpec = listClosureBridgeSpec("kk_list_minWith")
-    static let listMinWithOrNullSpec = listClosureBridgeSpec("kk_list_minWithOrNull")
-    static let listMaxOfWithSpec = listComparatorBridgeSpec("kk_list_maxOfWith")
-    static let listMaxOfWithOrNullSpec = listComparatorBridgeSpec("kk_list_maxOfWithOrNull")
-    static let listMinOfWithSpec = listComparatorBridgeSpec("kk_list_minOfWith")
-    static let listMinOfWithOrNullSpec = listComparatorBridgeSpec("kk_list_minOfWithOrNull")
-    static let mapFlatMapSpec = mapBridgeSpec("kk_map_flatMap")
-    static let mapMaxByOrNullSpec = mapBridgeSpec("kk_map_maxByOrNull")
-    static let mapMinByOrNullSpec = mapBridgeSpec("kk_map_minByOrNull")
+    static let listMaxOfSpec = collectionABI.th("kk_list_maxOf", "listRaw fnPtr closureRaw outThrown")
+    static let listMaxWithSpec = collectionABI.th("kk_list_maxWith", "listRaw fnPtr closureRaw outThrown")
+    static let listMaxWithOrNullSpec = collectionABI.th("kk_list_maxWithOrNull", "listRaw fnPtr closureRaw outThrown")
+    static let listMinOfSpec = collectionABI.th("kk_list_minOf", "listRaw fnPtr closureRaw outThrown")
+    static let listMinWithSpec = collectionABI.th("kk_list_minWith", "listRaw fnPtr closureRaw outThrown")
+    static let listMinWithOrNullSpec = collectionABI.th("kk_list_minWithOrNull", "listRaw fnPtr closureRaw outThrown")
+    static let listMaxOfWithSpec = collectionABI.th("kk_list_maxOfWith", "listRaw cmpFnPtr cmpClosureRaw selFnPtr selClosureRaw outThrown")
+    static let listMaxOfWithOrNullSpec = collectionABI.th("kk_list_maxOfWithOrNull", "listRaw cmpFnPtr cmpClosureRaw selFnPtr selClosureRaw outThrown")
+    static let listMinOfWithSpec = collectionABI.th("kk_list_minOfWith", "listRaw cmpFnPtr cmpClosureRaw selFnPtr selClosureRaw outThrown")
+    static let listMinOfWithOrNullSpec = collectionABI.th("kk_list_minOfWithOrNull", "listRaw cmpFnPtr cmpClosureRaw selFnPtr selClosureRaw outThrown")
+    static let mapFlatMapSpec = collectionABI.th("kk_map_flatMap", "mapRaw fnPtr closureRaw outThrown")
+    static let mapMaxByOrNullSpec = collectionABI.th("kk_map_maxByOrNull", "mapRaw fnPtr closureRaw outThrown")
+    static let mapMinByOrNullSpec = collectionABI.th("kk_map_minByOrNull", "mapRaw fnPtr closureRaw outThrown")
 
-    static let sequenceFilterNotSpec: RuntimeABIFunctionSpec = bridgeSpec("kk_sequence_filterNot", section: "Sequence", params: ["seqRaw", "fnPtr", "closureRaw"],
-            isThrowing: false)
+    static let sequenceFilterNotSpec: RuntimeABIFunctionSpec = sequenceABI.nt("kk_sequence_filterNot", "seqRaw fnPtr closureRaw")
 
-    static let numericRuntimeBridgeFunctions: [RuntimeABIFunctionSpec] =
-        [
-            "kk_char_category",
-            "kk_char_code",
-            "kk_char_directionality",
-            "kk_char_toDouble",
-            "kk_char_toDoubleOrNull",
-            "kk_char_toInt",
-            "kk_char_toIntOrNull",
-        ].map { bridgeSpec($0, section: "Char", params: ["value"]) }
-        + [
-            bridgeSpec("__kk_double_toBits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_double_toRawBits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_double_fromBits", section: "NumericConversion", params: ["bits"],
-            isThrowing: false),
-            bridgeSpec("__kk_double_to_int", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_double_to_long", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_float_fromBits", section: "NumericConversion", params: ["bits"],
-            isThrowing: false),
-            bridgeSpec("__kk_float_toBits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_float_toRawBits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_float_to_double_bits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_float_to_int", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("__kk_float_to_long", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_int_to_double_bits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_int_to_float_bits", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_int_to_long", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_int_to_uint", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_int_to_ulong", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_long_to_uint", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_long_to_ulong", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_uint_to_int", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_uint_to_long", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_uint_to_ulong", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_ulong_to_int", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-            bridgeSpec("kk_ulong_to_long", section: "NumericConversion", params: ["value"],
-            isThrowing: false),
-        ]
-        + [
-            "kk_double_equals",
-            "kk_op_dadd",
-            "kk_op_ddiv",
-            "kk_op_deq",
-            "kk_op_dge",
-            "kk_op_dgt",
-            "kk_op_dle",
-            "kk_op_dlt",
-            "kk_op_dmod",
-            "kk_op_dne",
-            "kk_op_dsub",
-            "kk_op_elvis",
-            "kk_float_equals",
-            "kk_op_fadd",
-            "kk_op_fdiv",
-            "kk_op_feq",
-            "kk_op_fge",
-            "kk_op_fgt",
-            "kk_op_fle",
-            "kk_op_flt",
-            "kk_op_fmod",
-            "kk_op_fmul",
-            "kk_op_fne",
-            "kk_op_fsub",
-            "kk_structural_ne",
-        ].map { bridgeSpec($0, section: "Operator", params: ["lhs", "rhs"], isThrowing: false) }
-        + [
-            "kk_op_dfloor_mod",
-            "kk_op_ffloor_mod",
-        ].map { bridgeSpec($0, section: "Operator", params: ["lhs", "rhs"]) }
-        + [
-            bridgeSpec(
-                "kk_op_notnull",
-                section: "Operator",
-                typedParams: [
-                    ("value", .intptr),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            ),
-            bridgeSpec(
-                "kk_op_notnull_msg",
-                section: "Operator",
-                typedParams: [
-                    ("value", .intptr),
-                    ("messageRaw", .intptr),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            ),
-        ]
-        + [
-            "kk_nullable_primitive_eq",
-            "kk_nullable_primitive_ne",
-        ].map {
-            bridgeSpec($0, section: "Operator", params: ["nullableRaw", "peerRaw", "peerIsNullable"], isThrowing: false)
-        }
-        + [
-            "kk_nullable_double_equals",
-            "kk_nullable_float_equals",
-        ].map {
-            bridgeSpec($0, section: "Operator", params: ["lhs", "rhs"], isThrowing: false)
-        }
+    static let numericRuntimeBridgeFunctions: [RuntimeABIFunctionSpec] = [
+        charABI.th("kk_char_category", "value"),
+        charABI.th("kk_char_code", "value"),
+        charABI.th("kk_char_directionality", "value"),
+        charABI.th("kk_char_toDouble", "value"),
+        charABI.th("kk_char_toDoubleOrNull", "value"),
+        charABI.th("kk_char_toInt", "value"),
+        charABI.th("kk_char_toIntOrNull", "value"),
+        numericConversionABI.nt("__kk_double_toBits", "value"),
+        numericConversionABI.nt("__kk_double_toRawBits", "value"),
+        numericConversionABI.nt("__kk_double_fromBits", "bits"),
+        numericConversionABI.nt("__kk_double_to_int", "value"),
+        numericConversionABI.nt("__kk_double_to_long", "value"),
+        numericConversionABI.nt("__kk_float_fromBits", "bits"),
+        numericConversionABI.nt("__kk_float_toBits", "value"),
+        numericConversionABI.nt("__kk_float_toRawBits", "value"),
+        numericConversionABI.nt("__kk_float_to_double_bits", "value"),
+        numericConversionABI.nt("__kk_float_to_int", "value"),
+        numericConversionABI.nt("__kk_float_to_long", "value"),
+        numericConversionABI.nt("kk_int_to_double_bits", "value"),
+        numericConversionABI.nt("kk_int_to_float_bits", "value"),
+        numericConversionABI.nt("kk_int_to_long", "value"),
+        numericConversionABI.nt("kk_int_to_uint", "value"),
+        numericConversionABI.nt("kk_int_to_ulong", "value"),
+        numericConversionABI.nt("kk_long_to_uint", "value"),
+        numericConversionABI.nt("kk_long_to_ulong", "value"),
+        numericConversionABI.nt("kk_uint_to_int", "value"),
+        numericConversionABI.nt("kk_uint_to_long", "value"),
+        numericConversionABI.nt("kk_uint_to_ulong", "value"),
+        numericConversionABI.nt("kk_ulong_to_int", "value"),
+        numericConversionABI.nt("kk_ulong_to_long", "value"),
+        operatorABI.nt("kk_double_equals", "lhs rhs"),
+        operatorABI.nt("kk_op_dadd", "lhs rhs"),
+        operatorABI.nt("kk_op_ddiv", "lhs rhs"),
+        operatorABI.nt("kk_op_deq", "lhs rhs"),
+        operatorABI.nt("kk_op_dge", "lhs rhs"),
+        operatorABI.nt("kk_op_dgt", "lhs rhs"),
+        operatorABI.nt("kk_op_dle", "lhs rhs"),
+        operatorABI.nt("kk_op_dlt", "lhs rhs"),
+        operatorABI.nt("kk_op_dmod", "lhs rhs"),
+        operatorABI.nt("kk_op_dne", "lhs rhs"),
+        operatorABI.nt("kk_op_dsub", "lhs rhs"),
+        operatorABI.nt("kk_op_elvis", "lhs rhs"),
+        operatorABI.nt("kk_float_equals", "lhs rhs"),
+        operatorABI.nt("kk_op_fadd", "lhs rhs"),
+        operatorABI.nt("kk_op_fdiv", "lhs rhs"),
+        operatorABI.nt("kk_op_feq", "lhs rhs"),
+        operatorABI.nt("kk_op_fge", "lhs rhs"),
+        operatorABI.nt("kk_op_fgt", "lhs rhs"),
+        operatorABI.nt("kk_op_fle", "lhs rhs"),
+        operatorABI.nt("kk_op_flt", "lhs rhs"),
+        operatorABI.nt("kk_op_fmod", "lhs rhs"),
+        operatorABI.nt("kk_op_fmul", "lhs rhs"),
+        operatorABI.nt("kk_op_fne", "lhs rhs"),
+        operatorABI.nt("kk_op_fsub", "lhs rhs"),
+        operatorABI.nt("kk_structural_ne", "lhs rhs"),
+        operatorABI.th("kk_op_dfloor_mod", "lhs rhs"),
+        operatorABI.th("kk_op_ffloor_mod", "lhs rhs"),
+        operatorABI.th("kk_op_notnull", "value outThrown"),
+        operatorABI.th("kk_op_notnull_msg", "value messageRaw outThrown"),
+        operatorABI.nt("kk_nullable_primitive_eq", "nullableRaw peerRaw peerIsNullable"),
+        operatorABI.nt("kk_nullable_primitive_ne", "nullableRaw peerRaw peerIsNullable"),
+        operatorABI.nt("kk_nullable_double_equals", "lhs rhs"),
+        operatorABI.nt("kk_nullable_float_equals", "lhs rhs"),
+    ]
 
     static let collectionBridgeFunctions: [RuntimeABIFunctionSpec] =
         collectionBridgeBase
         + listClosureBridgeFunctions
         + listComparatorBridgeFunctions
-        + listIndexedBridgeFunctions
-        + listMiscBridgeFunctions
         + mapBridgeFunctions
         + sequenceAndSetBridgeFunctions
 
-    static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] =
-        [
-            bridgeSpec("kk_instant_compare", section: "System", params: ["aRaw", "bRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_epoch_seconds", section: "System", params: ["instantRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_from_epoch_millis", section: "System", params: ["millis"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_is_distant_future", section: "System", params: ["instantRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_is_distant_past", section: "System", params: ["instantRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_minus_duration", section: "System", params: ["instantRaw", "durationRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_nano_of_second", section: "System", params: ["instantRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_now", section: "System",
-            isThrowing: false),
-            bridgeSpec("kk_instant_plus_duration", section: "System", params: ["instantRaw", "durationRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_until", section: "System", params: ["fromRaw", "toRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_time_source_as_clock", section: "System", params: ["sourceRaw", "originRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_instant_from_epoch_seconds", section: "System", params: ["epochSeconds", "nanoOfSecond"]),
-            bridgeSpec("kk_platform_memoryModel", section: "System", params: ["platformRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_native_identityHashCode", section: "Native", params: ["objectRaw"],
-            isThrowing: false),
-            bridgeSpec("__kk_immutable_blob_of", section: "Native", params: ["elements", "count"],
-            isThrowing: false),
-            bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: ["throwableRaw"],
-            isThrowing: false),
-            bridgeSpec("kk_native_getUnhandledExceptionHook", section: "Native", params: [],
-            isThrowing: false),
-            bridgeSpec("kk_native_setUnhandledExceptionHook", section: "Native", params: ["hookRaw"],
-            isThrowing: false),
-            bridgeSpec(
-                "kk_native_processUnhandledException",
-                section: "Native",
-                typedParams: [
-                    ("throwableRaw", .intptr),
-                    ("outThrown", .nullableIntptrPointer),
-                ]
-            ),
-            bridgeSpec("kk_native_terminateWithUnhandledException", section: "Native", params: ["throwableRaw"],
-            returnType: .noreturn,
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getByteAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getShortAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getIntAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getLongAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setByteAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setShortAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setIntAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setLongAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getUByteAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getUShortAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getUIntAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getULongAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setUByteAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setUShortAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setUIntAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setULongAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getCharAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getFloatAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_getDoubleAt", section: "Native", params: ["arrayRaw", "index"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setCharAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setFloatAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
-            isThrowing: false),
-            bridgeSpec("__kk_immutable_blob_as_cpointer", section: "Native", params: ["blobRaw", "offset"],
-            isThrowing: false),
-            bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
-            isThrowing: false),
-            // withTimeout reports an expired deadline as a catchable
-            // TimeoutCancellationException, so its outThrown channel is declared
-            // explicitly (as for kk_ensure_active) rather than left implicit.
-            bridgeSpec("kk_with_timeout", section: "Coroutine", typedParams: [
-                ("timeoutMillis", .intptr),
-                ("entryPointRaw", .intptr),
-                ("continuation", .intptr),
-                ("outThrown", .nullableIntptrPointer),
-            ]),
-            bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"],
-            isThrowing: false),
-            bridgeSpec("kk_with_timeout_or_null_throwing", section: "Coroutine", typedParams: [
-                ("timeoutMillis", .intptr),
-                ("entryPointRaw", .intptr),
-                ("continuation", .intptr),
-                ("outThrown", .nullableIntptrPointer),
-            ]),
-        ]
+    static let timeAndPathBridgeFunctions: [RuntimeABIFunctionSpec] = [
+        systemABI.nt("kk_instant_compare", "aRaw bRaw"),
+        systemABI.nt("kk_instant_epoch_seconds", "instantRaw"),
+        systemABI.nt("kk_instant_from_epoch_millis", "millis"),
+        systemABI.nt("kk_instant_is_distant_future", "instantRaw"),
+        systemABI.nt("kk_instant_is_distant_past", "instantRaw"),
+        systemABI.nt("kk_instant_minus_duration", "instantRaw durationRaw"),
+        systemABI.nt("kk_instant_nano_of_second", "instantRaw"),
+        systemABI.nt("kk_instant_now"),
+        systemABI.nt("kk_instant_plus_duration", "instantRaw durationRaw"),
+        systemABI.nt("kk_instant_until", "fromRaw toRaw"),
+        systemABI.nt("kk_time_source_as_clock", "sourceRaw originRaw"),
+        systemABI.th("kk_instant_from_epoch_seconds", "epochSeconds nanoOfSecond"),
+        systemABI.nt("kk_platform_memoryModel", "platformRaw"),
+        nativeABI.nt("kk_native_identityHashCode", "objectRaw"),
+        nativeABI.nt("__kk_immutable_blob_of", "elements count"),
+        nativeABI.nt("kk_native_getStackTraceAddresses", "throwableRaw"),
+        nativeABI.nt("kk_native_getUnhandledExceptionHook"),
+        nativeABI.nt("kk_native_setUnhandledExceptionHook", "hookRaw"),
+        nativeABI.th("kk_native_processUnhandledException", "throwableRaw outThrown"),
+        nativeABI.nt("kk_native_terminateWithUnhandledException", "throwableRaw", ret: .noreturn),
+        nativeABI.nt("kk_native_byteArray_getByteAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getShortAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getIntAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getLongAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_setByteAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setShortAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setIntAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setLongAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_getUByteAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getUShortAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getUIntAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getULongAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_setUByteAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setUShortAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setUIntAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setULongAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_getCharAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getFloatAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_getDoubleAt", "arrayRaw index"),
+        nativeABI.nt("kk_native_byteArray_setCharAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setFloatAt", "arrayRaw index value"),
+        nativeABI.nt("kk_native_byteArray_setDoubleAt", "arrayRaw index value"),
+        nativeABI.nt("__kk_immutable_blob_as_cpointer", "blobRaw offset"),
+        systemABI.nt("kk_platform_isDebugBinary", "platformRaw"),
+        // withTimeout reports an expired deadline as a catchable
+        // TimeoutCancellationException, so its outThrown channel is declared
+        // explicitly (as for kk_ensure_active) rather than left implicit.
+        coroutineABI.th("kk_with_timeout", "timeoutMillis entryPointRaw continuation outThrown"),
+        coroutineABI.nt("kk_with_timeout_or_null", "timeoutMillis entryPointRaw continuation"),
+        coroutineABI.th("kk_with_timeout_or_null_throwing", "timeoutMillis entryPointRaw continuation outThrown"),
+    ]
 
     static let dispatchBridgeFunctions: [RuntimeABIFunctionSpec] = [
-        bridgeSpec("kk_itable_lookup", section: "Delegate", params: ["receiver", "ifaceSlot", "methodSlot"]),
-        bridgeSpec("kk_itable_lookup_dynamic", section: "Delegate", params: ["receiver", "interfaceTypeID", "methodSlot"]),
-        bridgeSpec("kk_vtable_lookup", section: "Delegate", params: ["receiver", "slot"]),
+        delegateABI.th("kk_itable_lookup", "receiver ifaceSlot methodSlot"),
+        delegateABI.th("kk_itable_lookup_dynamic", "receiver interfaceTypeID methodSlot"),
+        delegateABI.th("kk_vtable_lookup", "receiver slot"),
         // KUU-3910: guarded vtable lookup for `CoroutineDispatcher.isDispatchNeeded`
         // — native dispatcher objects have no Kotlin vtable, so they resolve the
         // source default while Kotlin dispatchers keep their vtable entry.
-        bridgeSpec("kk_vtable_lookup_or_default", section: "Delegate", params: ["receiver", "slot", "defaultMethod"]),
-    ]
-
-    static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = [
+        delegateABI.th("kk_vtable_lookup_or_default", "receiver slot defaultMethod"),
     ]
 }

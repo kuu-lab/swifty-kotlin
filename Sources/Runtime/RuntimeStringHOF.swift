@@ -33,7 +33,6 @@ public func __kk_string_equals_flat(
 // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
 // (StringTakeDrop.kt); their runtime bridges were removed.
 
-@_cdecl("kk_string_splitToSequence")
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)

@@ -37,6 +37,23 @@ private let runtimeJavaKnownKotlinNominalNames = [
     "java.lang.Class",
 ]
 
+// KUU-4561: token -> qualified-name lookup for the table above, built once
+// (Swift globals are lazily initialized exactly once, thread-safely) so the
+// fallback in `runtimeJavaQualifiedName` stays O(1) instead of re-hashing
+// every entry per call. The first entry wins on a token collision, matching
+// the previous linear scan.
+private let runtimeJavaKnownKotlinNominalNameByToken: [Int: String] = {
+    var namesByToken: [Int: String] = [:]
+    namesByToken.reserveCapacity(runtimeJavaKnownKotlinNominalNames.count)
+    for name in runtimeJavaKnownKotlinNominalNames {
+        let token = runtimeNominalTypeToken(runtimeStableNominalTypeID(fqName: name))
+        if namesByToken[token] == nil {
+            namesByToken[token] = name
+        }
+    }
+    return namesByToken
+}()
+
 func runtimeJavaClassDisplayText(receiverRaw: Int, typeToken: Int, nameHint: Int) -> String {
     if let arrayName = runtimeJavaArrayClassName(rawValue: receiverRaw) {
         return "class \(arrayName)"
@@ -180,9 +197,7 @@ func runtimeJavaQualifiedName(typeToken: Int, nameHint: Int = 0) -> String {
     if let qualifiedName = runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.qualifiedName {
         return qualifiedName
     }
-    if let name = runtimeJavaKnownKotlinNominalNames.first(where: {
-        runtimeNominalTypeToken(runtimeStableNominalTypeID(fqName: $0)) == typeToken
-    }) {
+    if let name = runtimeJavaKnownKotlinNominalNameByToken[typeToken] {
         return name
     }
     return extractString(from: UnsafeMutableRawPointer(bitPattern: __kk_type_token_qualified_name(typeToken, nameHint)))

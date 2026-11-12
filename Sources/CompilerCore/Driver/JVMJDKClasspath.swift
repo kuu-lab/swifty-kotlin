@@ -4,16 +4,13 @@ import Foundation
 /// lazy classpath entries. The JVM class reader consumes ordinary class files;
 /// `jimage` is the JDK-supported way to expose them from `lib/modules`.
 struct JVMJDKClasspath {
-    struct ClassFile {
+    struct ClassFile: Codable {
         let path: String
         let contents: Data
     }
 
-    let classpath: [String]
-    let lazyPaths: Set<String>
     let classFiles: [ClassFile]
     let requiredLazyClassNames: Set<String>
-    private let temporaryRoot: URL?
 
     static func prepare(for ctx: CompilationContext) throws -> JVMJDKClasspath {
         guard let javaHome = locateJavaHome() else { return empty }
@@ -56,16 +53,20 @@ struct JVMJDKClasspath {
         // These two signatures complete JDK interface hierarchies commonly
         // reached from java.lang.Iterable and java.nio.file.DirectoryStream.
         patterns += ["glob:**/java/util/Iterator.class", "glob:**/java/io/Closeable.class"]
-        if let classFiles = JVMJDKImageReader.read(image: image, jimage: jimage, patterns: patterns) {
-            return JVMJDKClasspath(
-                classpath: [], lazyPaths: [], classFiles: classFiles,
-                requiredLazyClassNames: requiredLazyClassNames, temporaryRoot: nil
-            )
+        let classFiles = try JVMJDKClasspathCache.load(image: image, jimage: jimage, patterns: patterns) {
+            if let classFiles = JVMJDKImageReader.read(image: image, jimage: jimage, patterns: patterns) {
+                return classFiles
+            }
+            return try extractClasses(image: image, jimage: jimage, patterns: patterns)
         }
+        return JVMJDKClasspath(classFiles: classFiles, requiredLazyClassNames: requiredLazyClassNames)
+    }
 
+    private static func extractClasses(image: URL, jimage: URL, patterns: [String]) throws -> [ClassFile] {
         let temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("kswiftk-jvm-jdk-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
 
         let process = Process()
         process.executableURL = jimage
@@ -76,12 +77,10 @@ struct JVMJDKClasspath {
             try process.run()
             process.waitUntilExit()
         } catch {
-            try? FileManager.default.removeItem(at: temporaryRoot)
             throw JVMFrontendError(message: "Cannot run JDK jimage: \(error)")
         }
         let errorText = String(decoding: errorPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         guard process.terminationStatus == 0 else {
-            try? FileManager.default.removeItem(at: temporaryRoot)
             throw JVMFrontendError(message: "Cannot extract JDK classes from \(image.path): \(errorText)")
         }
 
@@ -89,22 +88,17 @@ struct JVMJDKClasspath {
             at: temporaryRoot, includingPropertiesForKeys: [.isDirectoryKey]
         ).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        let classpath = moduleDirectories.map { $0.standardizedFileURL.path }
-        return JVMJDKClasspath(
-            classpath: classpath,
-            lazyPaths: Set(classpath),
-            classFiles: [],
-            requiredLazyClassNames: requiredLazyClassNames,
-            temporaryRoot: temporaryRoot
-        )
-    }
-
-    func cleanup() {
-        if let temporaryRoot { try? FileManager.default.removeItem(at: temporaryRoot) }
+        var classFiles: [ClassFile] = []
+        for module in moduleDirectories {
+            try JVMClasspathIndex.forEachClassFile(inDirectory: module) { file, path in
+                classFiles.append(ClassFile(path: path, contents: try Data(contentsOf: file)))
+            }
+        }
+        return classFiles
     }
 
     private static var empty: JVMJDKClasspath {
-        JVMJDKClasspath(classpath: [], lazyPaths: [], classFiles: [], requiredLazyClassNames: [], temporaryRoot: nil)
+        JVMJDKClasspath(classFiles: [], requiredLazyClassNames: [])
     }
 
     private static func importedPaths(in source: String) -> Set<String> {
