@@ -63,14 +63,14 @@ extension LambdaLowerer {
         // direct-call lowering for MutableList.add so a bound reference uses
         // the runtime bridge instead of looking up a missing interface slot.
         let runtimeBackedListCallee: InternedString? = receiverStaticType.flatMap { receiverType in
-            guard interner.resolve(targetInfo.name) == "add",
+            guard targetInfo.name == interner.intern("add"),
                   signature.parameterTypes.count == 1,
                   signature.returnType == sema.types.booleanType
             else {
                 return nil
             }
             return driver.callLowerer.runtimeBackedListMemberCallee(
-                memberName: "add",
+                memberName: targetInfo.name,
                 receiverType: receiverType,
                 chosenCallee: targetSymbol,
                 sema: sema,

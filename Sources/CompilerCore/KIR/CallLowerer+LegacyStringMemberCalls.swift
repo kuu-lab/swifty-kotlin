@@ -2,7 +2,7 @@ extension CallLowerer {
 
     func lowerLegacyStringLengthCall(
         receiverExpr: ExprID,
-        calleeNameStr: String,
+        calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
         interner: StringInterner,
@@ -10,7 +10,7 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        if args.isEmpty, calleeNameStr == "length" {
+        if args.isEmpty, calleeName == interner.intern("length") {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
@@ -31,7 +31,7 @@ extension CallLowerer {
 
     func lowerLegacyZeroArgStringMemberCall(
         receiverExpr: ExprID,
-        calleeNameStr: String,
+        calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
         arena: KIRArena,
@@ -44,12 +44,15 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                let calleeStr = calleeNameStr
-                if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
+                let knownNames = KnownCompilerNames(interner: interner)
+                let firstName = knownNames.first
+                let lastName = knownNames.last
+                let singleName = interner.intern("single")
+                if calleeName == firstName || calleeName == lastName || calleeName == singleName {
                     let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
                     instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "__kk_string_first_flat"
-                        : calleeStr == "last" ? "__kk_string_last_flat"
+                    let kkName = calleeName == firstName ? "__kk_string_first_flat"
+                        : calleeName == lastName ? "__kk_string_last_flat"
                         : "__kk_string_single_flat"
                     instructions.append(.call(
                         callee: interner.intern(kkName),
@@ -66,7 +69,7 @@ extension CallLowerer {
 
     func lowerLegacySingleArgStringMemberCall(
         receiverExpr: ExprID,
-        calleeNameStr: String,
+        calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
         arena: KIRArena,
@@ -79,9 +82,12 @@ extension CallLowerer {
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let calleeStr = calleeNameStr
-            let isCharSequenceTextHelper = calleeStr == "ifBlank"
-                || calleeStr == "ifEmpty"
+            let knownNames = KnownCompilerNames(interner: interner)
+            let ifBlankName = interner.intern("ifBlank")
+            let ifEmptyName = interner.intern("ifEmpty")
+            let toRegexName = interner.intern("toRegex")
+            let isCharSequenceTextHelper = calleeName == ifBlankName
+                || calleeName == ifEmptyName
             let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
             let isCharSequenceReceiver: Bool = {
                 guard let charSequenceSymbol = sema.symbols.lookup(fqName: [
@@ -108,7 +114,7 @@ extension CallLowerer {
                     interner: interner,
                     instructions: &instructions
                 )
-                let runtimeCallee = calleeStr == "ifBlank"
+                let runtimeCallee = calleeName == ifBlankName
                     ? "kk_charsequence_ifBlank"
                     : "kk_charsequence_ifEmpty"
                 instructions.append(.call(
@@ -120,7 +126,7 @@ extension CallLowerer {
                 return result
             }
             if usesStringFlatABI {
-                if calleeStr == "toRegex" {
+                if calleeName == toRegexName {
                     let argType = sema.bindings.exprTypes[args[0].expr]
                     let isSetArg: Bool = {
                         guard let argType,
@@ -151,23 +157,23 @@ extension CallLowerer {
                     )
                     return [loweredReceiverID, fnPtrExpr, envPtrExpr]
                 }()
-                let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
-                case "contains":
+                let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeName {
+                case knownNames.contains:
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
                         ("__kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         nil
                     }
-                case "ifBlank":
+                case ifBlankName:
                     flatStringHOFArguments.map { ("kk_string_ifBlank_flat", $0) }
-                case "ifEmpty":
+                case ifEmptyName:
                     flatStringHOFArguments.map { ("kk_string_ifEmpty_flat", $0) }
                 default:
                     nil
                 }
                 if let runtimeCall {
-                    let stringHOFCanThrow = calleeStr == "ifBlank"
-                        || calleeStr == "ifEmpty"
+                    let stringHOFCanThrow = calleeName == ifBlankName
+                        || calleeName == ifEmptyName
                     instructions.append(.call(
                         callee: interner.intern(runtimeCall.callee),
                         arguments: runtimeCall.arguments,
@@ -183,7 +189,7 @@ extension CallLowerer {
 
     func lowerLegacyRegexMemberCall(
         receiverExpr: ExprID,
-        calleeNameStr: String,
+        calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
         interner: StringInterner,
@@ -202,7 +208,6 @@ extension CallLowerer {
         if isRegexLikeType(nonNullReceiverType, sema: sema, interner: interner),
            !isSourceBackedRegexCall
         {
-            let calleeStr = calleeNameStr
             let usesStringFlatABI: Bool = {
                 guard let argumentType = sema.bindings.exprTypes[args[0].expr] else {
                     return false
@@ -212,10 +217,12 @@ extension CallLowerer {
                     sema.types.stringType
                 )
             }()
-            let runtimeCallee: String? = switch calleeStr {
-            case "find":
+            let findName = interner.intern("find")
+            let findAllName = interner.intern("findAll")
+            let runtimeCallee: String? = switch calleeName {
+            case findName:
                 usesStringFlatABI ? "__kk_regex_find_flat" : nil
-            case "findAll":
+            case findAllName:
                 usesStringFlatABI ? "__kk_regex_findAll_flat" : nil
             default:
                 nil
@@ -236,7 +243,7 @@ extension CallLowerer {
     func lowerLegacyStringFormatCall(
         _ exprID: ExprID,
         receiverExpr: ExprID,
-        calleeNameStr: String,
+        calleeName: InternedString,
         args: [CallArgument],
         sema: SemaModule,
         arena: KIRArena,
@@ -246,7 +253,7 @@ extension CallLowerer {
         result: KIRExprID,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        if calleeNameStr == "format",
+        if calleeName == interner.intern("format"),
            let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "__kk_string_format_flat"
         {

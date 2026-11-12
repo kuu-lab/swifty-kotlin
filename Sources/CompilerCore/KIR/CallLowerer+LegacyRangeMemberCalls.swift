@@ -3,7 +3,7 @@ extension CallLowerer {
     func lowerLegacyRangeMemberRead(
         _ exprID: ExprID,
         receiverExpr: ExprID,
-        calleeNameStr: String,
+        calleeName: InternedString,
         args: [CallArgument],
         ast: ASTModule,
         sema: SemaModule,
@@ -15,8 +15,15 @@ extension CallLowerer {
         if args.isEmpty {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let calleeText = calleeNameStr
-            if calleeText == "endExclusive",
+            let knownNames = KnownCompilerNames(interner: interner)
+            let startName = interner.intern("start")
+            let endName = interner.intern("end")
+            let endInclusiveName = interner.intern("endInclusive")
+            let endExclusiveName = interner.intern("endExclusive")
+            let firstName = knownNames.first
+            let lastName = knownNames.last
+            let stepName = knownNames.step
+            if calleeName == endExclusiveName,
                let chosen = sema.bindings.callBindings[exprID]?.chosenCallee,
                sema.symbols.symbol(chosen)?.kind == .function,
                sema.symbols.accessorOwnerProperty(for: chosen) == nil,
@@ -25,9 +32,9 @@ extension CallLowerer {
                 // A same-named extension function is not the endpoint property.
                 return nil
             }
-            if (calleeText == "start" || calleeText == "endInclusive" || calleeText == "endExclusive"),
+            if (calleeName == startName || calleeName == endInclusiveName || calleeName == endExclusiveName),
                let runtimeGetter = closedRangeInterfaceRuntimeName(
-                   memberName: calleeText,
+                   memberName: interner.resolve(calleeName),
                    receiverExpr: receiverExpr,
                    receiverType: receiverType,
                    chosenCallee: sema.bindings.callBindings[exprID]?.chosenCallee,
@@ -52,7 +59,7 @@ extension CallLowerer {
                 .intProgression, .longProgression, .charProgression,
                 .uintProgression, .ulongProgression,
             ]
-            if (calleeText == "first" || calleeText == "last"),
+            if (calleeName == firstName || calleeName == lastName),
                let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
                    receiverExpr: receiverExpr,
                    receiverType: receiverType,
@@ -65,11 +72,11 @@ extension CallLowerer {
                     let runtimeName = usesThrowingFunction
                         ? MemberRuntimeDispatch.rangeFirstLastOrThrowLinkName(
                             kind: rangeKind,
-                            wantLast: calleeText == "last"
+                            wantLast: calleeName == lastName
                         )
                         : MemberRuntimeDispatch.rangeFirstLastPropertyLinkName(
                             kind: rangeKind,
-                            wantLast: calleeText == "last"
+                            wantLast: calleeName == lastName
                         )
                     instructions.append(.call(
                         callee: interner.intern(runtimeName),
@@ -84,20 +91,20 @@ extension CallLowerer {
                 guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                     return false
                 }
-                let name = interner.resolve(symbol.name)
-                return name == "IntProgression"
-                    || name == "LongProgression"
-                    || name == "LongRange"
-                    || name == "CharProgression"
-                    || name == "UIntRange"
-                    || name == "UIntProgression"
-                    || name == "ULongRange"
-                    || name == "ULongProgression"
+                let name = symbol.name
+                return name == knownNames.intProgression
+                    || name == knownNames.longProgression
+                    || name == knownNames.longRange
+                    || name == knownNames.charProgression
+                    || name == knownNames.uintRange
+                    || name == knownNames.uintProgression
+                    || name == knownNames.ulongRange
+                    || name == knownNames.ulongProgression
             }()
             let isULongRangeSourceEndProperty = {
-                guard calleeNameStr == "endInclusive" || calleeNameStr == "endExclusive",
+                guard calleeName == endInclusiveName || calleeName == endExclusiveName,
                       let (_, receiverSymbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema),
-                      interner.resolve(receiverSymbol.name) == "ULongRange",
+                      receiverSymbol.name == knownNames.ulongRange,
                       let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
                       sema.symbols.isSourceBackedSymbol(propertySymbol),
                       sema.symbols.parentSymbol(for: propertySymbol) == receiverSymbol.id
@@ -108,21 +115,19 @@ extension CallLowerer {
             }()
             let isExplicitProgressionSourceCall = ast.arena.isExplicitCall(exprID)
                 && {
-                    let memberName = calleeNameStr
+                    let memberName = calleeName
+                    let firstOrNullName = interner.intern("firstOrNull")
+                    let lastOrNullName = interner.intern("lastOrNull")
                     guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                         return false
                     }
-                    switch interner.resolve(symbol.name) {
-                    case "CharProgression":
-                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
-                    case "IntProgression":
-                        return ["first", "last"].contains(memberName)
-                    case "LongProgression":
-                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
-                    case "UIntProgression":
-                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
-                    case "ULongProgression":
-                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
+                    switch symbol.name {
+                    case knownNames.charProgression:
+                        return [firstName, firstOrNullName, lastName, lastOrNullName].contains(memberName)
+                    case knownNames.intProgression:
+                        return [firstName, lastName].contains(memberName)
+                    case knownNames.longProgression, knownNames.uintProgression, knownNames.ulongProgression:
+                        return [firstName, firstOrNullName, lastName, lastOrNullName].contains(memberName)
                     default:
                         return false
                     }
@@ -131,19 +136,19 @@ extension CallLowerer {
             if isRangeLikeReceiver && !isExplicitProgressionSourceCall && !isULongRangeSourceEndProperty {
                 // KSP-1524: range first/last values are raw bits at this ABI
                 // boundary, so ULong can use the shared getter as well.
-                let runtimeGetter: InternedString? = switch calleeNameStr {
-                case "start":
+                let runtimeGetter: InternedString? = switch calleeName {
+                case startName:
                     interner.intern("__kk_range_first")
                 // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
-                case "end", "endInclusive":
+                case endName, endInclusiveName:
                     interner.intern("__kk_range_last")
-                case "endExclusive":
+                case endExclusiveName:
                     interner.intern("__kk_range_endExclusive")
-                case "first":
+                case firstName:
                     interner.intern("__kk_range_first")
-                case "last":
+                case lastName:
                     interner.intern("__kk_range_last")
-                case "step":
+                case stepName:
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "__kk_ulong_range_step"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
@@ -157,7 +162,7 @@ extension CallLowerer {
                         callee: runtimeGetter,
                         arguments: [loweredReceiverID],
                         result: result,
-                        canThrow: calleeNameStr == "endExclusive"
+                        canThrow: calleeName == endExclusiveName
                     ))
                     return result
                 }
