@@ -200,6 +200,28 @@ extension JVMFunctionBuilder {
                     }
                     return JVMProperty(name: name, type: type, getter: getter, setter: setter, field: nil, modifiers: [.public])
                 }
+                if let field = info.fields.first(where: {
+                    $0.name == name && $0.isPublic && $0.isStatic && $0.access & 0x1000 == 0
+                }), let fieldType = try? JVMDescriptor.parse("()" + field.descriptor).1,
+                   fieldType.descriptor == type.descriptor {
+                    let jvmField = JVMField(owner: info.name, name: field.name, type: fieldType, access: field.access)
+                    let getter = JVMForeignMethod(
+                        owner: info.name, name: field.name,
+                        descriptor: "()\(fieldType.descriptor)", parameters: [], result: fieldType,
+                        isStatic: true, isInterface: info.isInterface, isAbstract: false
+                    )
+                    var setter: JVMForeignMethod?
+                    if !field.isFinal {
+                        setter = JVMForeignMethod(
+                            owner: info.name, name: field.name,
+                            descriptor: "(\(fieldType.descriptor))V", parameters: [fieldType], result: .unit,
+                            isStatic: true, isInterface: info.isInterface, isAbstract: false
+                        )
+                    }
+                    var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: jvmField, modifiers: [.public])
+                    property.isImportedField = true
+                    return property
+                }
             }
         }
         let name: InternedString?
@@ -232,6 +254,15 @@ extension JVMFunctionBuilder {
     }
     func readProperty(_ property: JVMProperty, receiver: JVMValue, special: Bool, superReceiver: ExprID? = nil) throws -> JVMValue {
         if let literal = property.field?.constantValue { return try constant(literal, property.type) }
+        if property.isImportedField, let field = property.field {
+            let result = try value(field.type)
+            if field.access & 8 != 0 {
+                instructions.append(.getStatic(field, result))
+            } else {
+                instructions.append(.getField(field, receiver, result))
+            }
+            return result
+        }
         var getter = property.getter
         if special { getter = try superMethod(getter, receiver: superReceiver) }
         let result = try value(property.type)
@@ -258,6 +289,15 @@ extension JVMFunctionBuilder {
         return result
     }
     func writeProperty(_ property: JVMProperty, receiver: JVMValue, value source: JVMValue, initializing: Bool = false, special: Bool = false, superReceiver: ExprID? = nil) throws {
+        if property.isImportedField, let field = property.field {
+            let converted = try convert(source, to: field.type)
+            if field.access & 8 != 0 {
+                instructions.append(.putStatic(field, converted))
+            } else {
+                instructions.append(.putField(field, receiver, converted))
+            }
+            return
+        }
         let converted = try convert(source, to: property.type)
         if initializing, property.setter == nil, receiver.slot == thisValue?.slot, property.field?.owner == owner?.name, let field = property.field {
             instructions.append(.putField(field, receiver, converted)); return
@@ -390,7 +430,7 @@ extension JVMProgramBuilder {
             }
             let syntheticTarget = setter ? "set" : "get"
             if let symbol = propertySymbol,
-               sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == "kotlin.jvm.JvmSynthetic" && $0.useSiteTarget == syntheticTarget }) {
+               sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == KnownCompilerAnnotation.jvmSynthetic.qualifiedName && $0.useSiteTarget == syntheticTarget }) {
                 f.access = (f.access ?? 0) | 0x1000
             }
             f.kotlinParameters = setter ? [property.kotlinType].compactMap { $0 } : []

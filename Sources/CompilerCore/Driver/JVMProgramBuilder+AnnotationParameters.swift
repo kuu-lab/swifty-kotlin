@@ -118,7 +118,7 @@ extension JVMProgramBuilder {
         return resolveAnnotationSymbol(named: node.name, in: file, symbols: sema.symbols, interner: context.interner, types: sema.types, enclosingFQName: Array((sema.symbols.symbol(symbol)?.fqName ?? []).dropLast()))
     }
     func annotationTargets(_ owner: SymbolID) -> Set<String> {
-        guard let record = sema.symbols.annotations(for: owner).first(where: { $0.annotationFQName == "kotlin.annotation.Target" }) else { return ["VALUE_PARAMETER", "PROPERTY", "FIELD"] }
+        guard let record = sema.symbols.annotations(for: owner).first(where: { $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName }) else { return ["VALUE_PARAMETER", "PROPERTY", "FIELD"] }
         return Set(record.arguments.flatMap { $0.components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_")).inverted) })
     }
     func rawAnnotationSymbol(_ id: ExprID) -> SymbolID? {

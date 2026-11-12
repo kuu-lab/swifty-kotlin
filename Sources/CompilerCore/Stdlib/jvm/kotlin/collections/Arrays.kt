@@ -1,5 +1,6 @@
 package kotlin.collections
 
+import kotlin.jvm.internal.__jvmArrayList
 import kotlin.sequences.*
 import kotlin.sequences.emptySequence
 import kotlin.sequences.joinToString
@@ -166,6 +167,7 @@ public fun ShortArray.asSequence(): Sequence<Short> {
 }
 public fun ShortArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Short) -> CharSequence)? = null): String = this.asSequence().joinToString(separator, prefix, postfix, limit, truncated, transform)
 
+public fun <T> Array<out T>.asList(): List<T> = __jvmArrayList(this)
 fun <T> Array<out T>.toList(): List<T> = this.asSequence().toList()
 fun <T> Array<out T>.toMutableList(): MutableList<T> = this.asSequence().toMutableList()
 fun <T> Array<out T>.toSet(): Set<T> = this.asSequence().toSet()

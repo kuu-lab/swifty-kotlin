@@ -328,3 +328,65 @@ let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
 let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
 let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
+
+/// Reinstall the built-in collection hierarchy after `kk_runtime_reset_metadata`.
+/// These edges are normally installed by global type-ID initializers, which do
+/// not run again once the metadata tables have been cleared.
+func runtimeRegisterCollectionTypeEdges() {
+    let iterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+    let mutableIterable = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
+    let mutableCollection = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableCollection")
+    let abstractMutableSet = runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableSet")
+    let abstractMutableList = runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableList")
+    let abstractMutableMap = runtimeStableNominalTypeID(fqName: "kotlin.collections.AbstractMutableMap")
+
+    runtimeRegisterTypeEdge(childTypeID: collectionRuntimeTypeID, parentTypeID: iterable)
+    runtimeRegisterTypeEdge(childTypeID: mutableIterable, parentTypeID: iterable)
+    runtimeRegisterTypeEdge(childTypeID: mutableCollectionRuntimeTypeID, parentTypeID: collectionRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: mutableCollectionRuntimeTypeID, parentTypeID: mutableIterable)
+    runtimeRegisterTypeEdge(childTypeID: listRuntimeTypeID, parentTypeID: collectionRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: mutableListRuntimeTypeID, parentTypeID: listRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: mutableListRuntimeTypeID, parentTypeID: mutableCollectionRuntimeTypeID)
+
+    for flags in 0 ..< listViewRuntimeTypeIDs.count {
+        let mutable = flags & 1 != 0
+        let randomAccess = flags & 2 != 0
+        let id = listViewRuntimeTypeIDs[flags]
+        runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutable ? mutableListRuntimeTypeID : listRuntimeTypeID)
+        if mutable {
+            runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: runtimeMutableCollectionInterfaceTypeID)
+        }
+        if randomAccess {
+            runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: randomAccessRuntimeTypeID)
+        }
+    }
+
+    runtimeRegisterTypeEdge(childTypeID: arrayListRuntimeTypeID, parentTypeID: mutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: arrayListRuntimeTypeID, parentTypeID: abstractMutableList)
+    runtimeRegisterTypeEdge(childTypeID: arrayListRuntimeTypeID, parentTypeID: randomAccessRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: arrayDequeRuntimeTypeID, parentTypeID: mutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: arrayDequeRuntimeTypeID, parentTypeID: abstractMutableList)
+    runtimeRegisterTypeEdge(childTypeID: arrayDequeRuntimeTypeID, parentTypeID: mutableCollection)
+    runtimeRegisterTypeEdge(childTypeID: singletonListRuntimeTypeID, parentTypeID: listRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: singletonListRuntimeTypeID, parentTypeID: randomAccessRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: arraysBackedListRuntimeTypeID, parentTypeID: listRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: arraysBackedListRuntimeTypeID, parentTypeID: randomAccessRuntimeTypeID)
+
+    runtimeRegisterTypeEdge(childTypeID: mutableSetRuntimeTypeID, parentTypeID: mutableCollectionRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: setRuntimeTypeID, parentTypeID: collectionRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: mutableMapViewSetRuntimeTypeID, parentTypeID: mutableSetRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: mutableMapViewSetRuntimeTypeID, parentTypeID: setRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: mutableMapViewCollectionRuntimeTypeID, parentTypeID: mutableCollectionRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: hashSetRuntimeTypeID, parentTypeID: mutableSetRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: hashSetRuntimeTypeID, parentTypeID: abstractMutableSet)
+    runtimeRegisterTypeEdge(childTypeID: hashSetRuntimeTypeID, parentTypeID: setRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: linkedHashSetRuntimeTypeID, parentTypeID: hashSetRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: linkedHashSetRuntimeTypeID, parentTypeID: mutableSetRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: linkedHashSetRuntimeTypeID, parentTypeID: setRuntimeTypeID)
+
+    runtimeRegisterTypeEdge(childTypeID: mapRuntimeTypeIDs.mutableMap, parentTypeID: mapRuntimeTypeIDs.map)
+    runtimeRegisterTypeEdge(childTypeID: mapRuntimeTypeIDs.hashMap, parentTypeID: mapRuntimeTypeIDs.mutableMap)
+    runtimeRegisterTypeEdge(childTypeID: mapRuntimeTypeIDs.linkedHashMap, parentTypeID: mapRuntimeTypeIDs.hashMap)
+    runtimeRegisterTypeEdge(childTypeID: treeSetRuntimeTypeID, parentTypeID: abstractMutableSet)
+    runtimeRegisterTypeEdge(childTypeID: treeMapRuntimeTypeID, parentTypeID: abstractMutableMap)
+}

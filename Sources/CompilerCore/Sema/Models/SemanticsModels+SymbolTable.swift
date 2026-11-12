@@ -16,15 +16,37 @@ public struct PendingTypeArgumentBoundCheck {
 }
 
 extension SymbolTable {
-    /// Anonymous function literals are represented by local functions. A
-    /// source label can replace the internal name, so literal semantics come
-    /// from either the retained internal name or the synthetic marker.
+    /// Anonymous function literals are represented by local functions carrying
+    /// the dedicated synthetic marker, independent of any source label used as
+    /// the display/link name.
     public func isAnonymousFunction(_ symbolID: SymbolID, interner: StringInterner) -> Bool {
         guard let symbol = symbol(symbolID) else { return false }
         return symbol.kind == .function
             && symbol.flags.contains(.localFunction)
-            && (symbol.flags.contains(.synthetic)
-                || interner.resolve(symbol.name).hasPrefix("__AnonymousFunction_"))
+            && symbol.flags.contains(.anonymousFunction)
+    }
+
+    /// Whether `symbolID` or one of its lexical owners carries `flag`. Local
+    /// nominal members inherit their root declaration's synthetic marker
+    /// through the parent chain instead of repeating it on every member.
+    public func hasFlagOrAncestor(_ symbolID: SymbolID, _ flag: SymbolFlags) -> Bool {
+        var current = symbolID
+        var visited: Set<SymbolID> = []
+        while visited.insert(current).inserted {
+            guard let symbol = symbol(current) else { return false }
+            if symbol.flags.contains(flag) { return true }
+            guard let parent = parentSymbol(for: current) else { return false }
+            current = parent
+        }
+        return false
+    }
+
+    public func isObjectLiteralSynthetic(_ symbolID: SymbolID) -> Bool {
+        hasFlagOrAncestor(symbolID, .objectLiteralSynthetic)
+    }
+
+    public func isLocalDeclSynthetic(_ symbolID: SymbolID) -> Bool {
+        hasFlagOrAncestor(symbolID, .localDeclSynthetic)
     }
 
     /// Whether `import <path>` contributes the declarations nested under that

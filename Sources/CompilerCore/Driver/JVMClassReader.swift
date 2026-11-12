@@ -501,20 +501,25 @@ struct JVMClassReader {
         }
         let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: flags & 0x2000 != 0)
         guard offset == bytes.count else { throw Invalid() }
+        var functionTable: JVMKotlinMetadata.FunctionTable?
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
-           let functions = try? metadata.suspendFunctions(byteLimit: bytes.count) {
-            for index in methods.indices where Self.hasSuspendDescriptor(methods[index]) {
-                let method = methods[index]
-                guard let function = functions[method.name + method.descriptor],
-                      method.parameters.count == function.parameters.count + (function.receiverIsNullable == nil ? 1 : 2)
-                else { continue }
-                methods[index].kotlinSuspendFunction = function
+           let table = try? metadata.functionTable(byteLimit: bytes.count) {
+            functionTable = table
+            if let functions = try? metadata.suspendFunctions(in: table) {
+                for index in methods.indices where Self.hasSuspendDescriptor(methods[index]) {
+                    let method = methods[index]
+                    guard let function = functions[method.name + method.descriptor],
+                          method.parameters.count == function.parameters.count + (function.receiverIsNullable == nil ? 1 : 2)
+                    else { continue }
+                    methods[index].kotlinSuspendFunction = function
+                }
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: { $0.kotlinSuspendFunction == nil && Self.hasFunctionTypeDescriptor($0) }),
-           let functions = try? metadata.functions(byteLimit: bytes.count) {
+           let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
+           let functions = try? metadata.functions(in: table) {
             for index in methods.indices where methods[index].kotlinSuspendFunction == nil {
                 let method = methods[index]
                 guard Self.hasFunctionTypeDescriptor(method),

@@ -904,11 +904,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             )
         }
         withSubPhaseTiming("attachCompilerMetadataAnnotations", timer: ctx.phaseTimer) {
+            // Imported JVM declarations supply types only. JVM output writes its own classfile metadata.
+            let importedJVMFiles = ctx.jvmImports.map { Set($0.sourceClasses.keys) } ?? []
             attachCompilerMetadataAnnotations(
                 symbols: symbols,
                 types: types,
                 moduleName: ctx.options.moduleName,
-                interner: ctx.interner
+                interner: ctx.interner,
+                excludingFiles: importedJVMFiles
             )
         }
     }

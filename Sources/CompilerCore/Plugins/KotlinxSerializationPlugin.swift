@@ -439,11 +439,11 @@ struct KotlinxSerializationPlugin: CompilerPlugin {
                   !child.flags.contains(.static)
             else { return nil }
             let anns = symbols.annotations(for: childID)
-            if anns.contains(where: { $0.annotationFQName == "kotlinx.serialization.Transient" }) {
+            if anns.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.serializationTransient.qualifiedName }) {
                 return nil
             }
             var serialName = interner.resolve(child.name)
-            if let snAnn = anns.first(where: { $0.annotationFQName == "kotlinx.serialization.SerialName" }),
+            if let snAnn = anns.first(where: { $0.annotationFQName == KnownCompilerAnnotation.serializationSerialName.qualifiedName }),
                let arg = snAnn.arguments.first
             {
                 let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -129,9 +129,14 @@ struct IOAppleInteropExecutionTests {
         let inputPaths = producerLibrary ? [staged.consumer.path] : staged.producer.map(\.path) + [staged.consumer.path]
         let searchPaths = producer.map { [$0.directory.path] } ?? []
         let executable = directory.appendingPathComponent("contract")
+        let frontendJobs = min(max(ProcessInfo.processInfo.activeProcessorCount, 1), 8)
+        let frontendFlags = libraryMode || frontendJobs <= 1
+            ? []
+            : ["jobs=\(frontendJobs)", "sema-parallel", "codegen-parallel"]
         let options = CompilerOptions(
             moduleName: "KUU1763AppleConsumer", inputs: inputPaths, outputPath: executable.path,
             emit: .executable, searchPaths: searchPaths, target: TargetTriple.hostDefault(), optLevel: level,
+            frontendFlags: frontendFlags,
             stdlibLibraryPath: stdlib?.directory.path, allowDefaultStdlibLibrary: false, entryPointFQName: entry
         )
         try #require(options.inputs == inputPaths && options.searchPaths == searchPaths)

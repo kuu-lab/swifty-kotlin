@@ -254,6 +254,11 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     if !implementations.isEmpty {
         let intType = sema.types.intType
         let registerCallee = interner.intern("kk_object_register_vtable_method")
+        let anyToStringDispatchSymbol = sema.symbols.lookupAll(
+            fqName: [interner.intern("kotlin"), interner.intern("Any"), interner.intern("toString")]
+        ).first { symbolID in
+            sema.symbols.symbol(symbolID).map { isSyntheticAnyToStringSymbol($0, interner: interner) } ?? false
+        }
         for implementation in implementations {
             // The `kotlin.Any.toString` vtable slot keeps the runtime's raw
             // `(Int, Int*) -> Int` handle ABI on every object: a
@@ -266,12 +271,24 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
             // as null (KUU-4487). `kk_any_member_to_string` itself dispatches
             // through the per-object `kk_object_register_any_to_string`
             // entry, so overrides still win.
-            let registeredSymbol = if let dispatchSymbol = sema.symbols.symbol(implementation.dispatchMethod),
-                   isSyntheticAnyToStringSymbol(dispatchSymbol, interner: interner)
+            let dispatchIsThrowableToString = sema.symbols.symbol(implementation.dispatchMethod)?.fqName == [
+                interner.intern("kotlin"), interner.intern("Throwable"), interner.intern("toString")
+            ]
+            let registeredSymbol: SymbolID
+            if dispatchIsThrowableToString, let anyToStringDispatchSymbol {
+                // `kotlin.Throwable.toString` virtual calls are typed by the
+                // native emitter as the raw `__kk_throwable_toString` ABI.
+                // Registering the flat `kk_fn_toString_*` implementation here
+                // miscalls the slot (KUU-4542). The `Any.toString` dispatcher
+                // keeps the same raw handle ABI and still reaches source
+                // overrides through the per-object Any-to-string registry.
+                registeredSymbol = anyToStringDispatchSymbol
+            } else if let dispatchSymbol = sema.symbols.symbol(implementation.dispatchMethod),
+                      isSyntheticAnyToStringSymbol(dispatchSymbol, interner: interner)
             {
-                implementation.dispatchMethod
+                registeredSymbol = implementation.dispatchMethod
             } else {
-                itableBridgeSymbolForMethod(
+                registeredSymbol = itableBridgeSymbolForMethod(
                     interfaceMethod: implementation.dispatchMethod,
                     implementation: implementation.implementation,
                     nominalSymbol: nominalSymbol,

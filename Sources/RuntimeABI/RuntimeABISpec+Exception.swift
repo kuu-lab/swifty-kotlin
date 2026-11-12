@@ -35,7 +35,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_throwable_new_with_cause", "message:nullableOpaquePointer causeRaw", ret: .opaquePointer),
         bridgeThrowableNewCauseSpec,
         bridgeThrowableSetOptionsSpec,
-        abi.nt("kk_throwable_new_cause", "causeRaw", ret: .opaquePointer),
         abi.nt("__kk_freezing_exception_new", "toFreezeRaw blockerRaw"),
         bridgeNoWhenBranchMatchedExceptionNewSpec,
         bridgeNoWhenBranchMatchedExceptionNewMessageSpec,
