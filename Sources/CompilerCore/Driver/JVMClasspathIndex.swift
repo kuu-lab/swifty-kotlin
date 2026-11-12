@@ -513,6 +513,9 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
+            if function.valueOperatorParameterDescriptors != nil {
+                return method.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType(method.result)
+            }
             if function.isSuspend {
                 guard let suspend = method.kotlinSuspendFunction else { return false }
                 let composable = function.composableParameters
@@ -1164,7 +1167,7 @@ final class JVMClasspathIndex {
     private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
         let metadata = kotlinMetadata(info)
         let own = members.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
-        let statics = own.filter(\.isStatic)
+        let statics = own.filter { $0.isStatic && $0.kotlinFunction?.valueOperatorParameterDescriptors == nil }
         let kotlinProperties = info.isInterface ? kotlinMetadata(info)?.properties ?? [] : []
         func isKotlinPropertyAccessor(_ method: JVMForeignMethod) -> Bool {
             kotlinProperties.contains { $0.getter == method.name || $0.setter == method.name }
@@ -1294,6 +1297,9 @@ final class JVMClasspathIndex {
         let exposedKotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
         for method in own where method.isConstructor && !method.parameters.isEmpty {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
+        }
+        for method in own where method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
+            source += "external " + functionDeclaration(method) + "\n"
         }
         for method in own where !method.isConstructor && !method.isStatic && !isKotlinPropertyAccessor(method) {
             if let getter = exposedKotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
@@ -2131,6 +2137,16 @@ final class JVMClasspathIndex {
             candidates = indexed[name] ?? []
         } else {
             candidates = info.methods
+        }
+        if !staticMember, !signature.isSuspend, JVMKotlinFunction.valueOperators.contains(name) {
+            let logicalParameters = descriptorTypes.map(\.descriptor)
+            let valueOperators = info.methods.filter {
+                $0.sourceName == name && $0.kotlinFunction?.valueOperatorParameterDescriptors == logicalParameters
+            }
+            if valueOperators.count == 1 {
+                methods[symbol.id] = valueOperators[0]
+                return
+            }
         }
         guard let method = candidates.first(where: {
             $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
