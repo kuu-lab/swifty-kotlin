@@ -15,6 +15,7 @@ public value class Duration private constructor(private val rawValue: Long) : Co
     public fun isInfinite(): Boolean = false
     public fun isFinite(): Boolean = false
     public override fun compareTo(other: Duration): Int = 0
+    public operator fun plus(other: Duration): Duration = null!!
     public override fun toString(): String = ""
     public fun toDouble(unit: DurationUnit): Double = 0.0
     public fun toLong(unit: DurationUnit): Long = 0L

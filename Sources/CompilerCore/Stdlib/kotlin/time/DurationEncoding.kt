@@ -128,6 +128,30 @@ internal fun durationRawOfMillis(value: Long): Long =
     if (value >= -MAX_NANOS_IN_MILLIS && value <= MAX_NANOS_IN_MILLIS) durationRawOfNanos(value * NANOS_PER_MILLISECOND)
     else (value.coerceIn(-MAX_MILLIS, MAX_MILLIS) shl 1) + 1L
 
+internal fun addDurationRaw(raw: Long, other: Long): Long {
+    val infinite = durationIsInfinite(raw)
+    val otherInfinite = durationIsInfinite(other)
+    if (infinite || otherInfinite) {
+        require(!(infinite && otherInfinite && (raw < 0L) != (other < 0L))) {
+            "Summing infinite durations of different signs yields an undefined result."
+        }
+        return if (infinite) raw else other
+    }
+    val left = durationValue(raw)
+    val right = durationValue(other)
+    val leftMillis = durationIsMillis(raw)
+    if (leftMillis == durationIsMillis(other)) {
+        val sum = left + right
+        return if (leftMillis) durationRawOfMillis(sum) else durationRawOfNanos(sum)
+    }
+    val millis = if (leftMillis) left else right
+    val nanos = if (leftMillis) right else left
+    val sumMillis = millis + nanos / NANOS_PER_MILLISECOND
+    return if (sumMillis >= -MAX_NANOS_IN_MILLIS && sumMillis <= MAX_NANOS_IN_MILLIS) {
+        durationRawOfNanos(sumMillis * NANOS_PER_MILLISECOND + nanos % NANOS_PER_MILLISECOND)
+    } else durationRawOfMillis(sumMillis)
+}
+
 internal fun durationRawFromDouble(value: Double, scale: Long): Long {
     require(!value.isNaN()) { "Duration value cannot be NaN." }
     val nanos = (value * scale.toDouble()).roundToLong()
