@@ -92,6 +92,23 @@ struct JVMKotlinMetadata {
     var multifileParts: [String] { kind == 4 ? data1 : [] }
     var isMultifilePart: Bool { kind == 5 }
 
+    func sealedInterfaceSubclasses(byteLimit: Int) throws -> [String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        // Class flags store modality in bits 4–5. The classfile reader has
+        // already established that the owner is an interface.
+        guard (declaration.int32(1) ?? 0) & (3 << 4) == (3 << 4) else { return [] }
+        let children = try declaration.int32List(16)
+        let resolved = try children.compactMap { try names.resolve($0)?.replacingOccurrences(of: ".", with: "$") }
+        return resolved.count == children.count ? resolved : []
+    }
+
+    func isObject(byteLimit: Int) throws -> Bool {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return false }
+        let (declaration, _) = try declarationData(byteLimit: byteLimit)
+        return (declaration.int32(1) ?? 0) & (7 << 6) == (5 << 6)
+    }
+
     func suspendFunctions(byteLimit: Int) throws -> [String: JVMKotlinSuspendFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [:] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)

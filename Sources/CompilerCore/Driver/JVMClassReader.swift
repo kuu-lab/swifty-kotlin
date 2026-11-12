@@ -15,6 +15,8 @@ struct JVMClassInfo {
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
     var isKotlinFileFacade: Bool?
+    var kotlinSealedInterfaceSubclasses: [String] = []
+    var isKotlinObject = false
     var annotations: [JVMAnnotation] = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
@@ -584,6 +586,9 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        if info.isInterface, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
+        }
         if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
             for property in properties {
                 guard let getter = methods.first(where: {
@@ -594,6 +599,9 @@ struct JVMClassReader {
             }
         }
         let isKotlinObject = fields.contains { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }
+        if isKotlinObject, let metadata = classAttributes.kotlinMetadata {
+            info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
+        }
         if let metadata = classAttributes.kotlinMetadata,
            isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
                $0.name.hasPrefix("get") && $0.name.contains("-")

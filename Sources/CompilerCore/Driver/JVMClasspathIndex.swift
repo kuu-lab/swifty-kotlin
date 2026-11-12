@@ -219,8 +219,13 @@ final class JVMClasspathIndex {
                 source += enumDeclaration(info, name: name, visibility: visibility, indentation: indentation)
                 continue
             }
-            if info.isInterface {
-                source += indentation + visibility + (isSAM(info.name) ? "fun interface `\(name)`" : "interface `\(name)`") + "\(typeParameters)"
+            let isSealedObject = info.isKotlinObject
+                && classes[owner].map { sealedInterfaceSubclasses(of: $0).contains(info.name) } == true
+                && !info.methods.contains { $0.isStatic && isExposed($0) }
+            if isSealedObject {
+                source += indentation + visibility + "object `\(name)`"
+            } else if info.isInterface {
+                source += indentation + visibility + interfaceKeyword(info) + " `\(name)`" + typeParameters
             } else {
                 let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                 let isInner = entry.access & 0x0008 == 0
@@ -237,11 +242,23 @@ final class JVMClasspathIndex {
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
             source += memberDeclarations(info: info, members: info.methods,
-                                         allowsCompanion: entry.access & 0x0008 != 0)
+                                         allowsCompanion: !isSealedObject && entry.access & 0x0008 != 0)
             source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
             source += indentation + "}\n"
         }
         return source
+    }
+
+    private func sealedInterfaceSubclasses(of info: JVMClassInfo) -> [String] {
+        // The owner stub emits its nested subclasses together. Only that
+        // complete set can establish exhaustiveness without loading other stubs.
+        let children = info.kotlinSealedInterfaceSubclasses
+        return children.allSatisfy { innerClassMetadata[$0]?.outerName == info.name && classes[$0] != nil } ? children : []
+    }
+
+    private func interfaceKeyword(_ info: JVMClassInfo) -> String {
+        if !sealedInterfaceSubclasses(of: info).isEmpty { return "sealed interface" }
+        return isSAM(info.name) ? "fun interface" : "interface"
     }
 
     private func enumDeclaration(_ info: JVMClassInfo, name: String, visibility: String = "", indentation: String = "") -> String {
@@ -356,6 +373,8 @@ final class JVMClasspathIndex {
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
             imported.isKotlinFileFacade = info.isKotlinFileFacade
+            imported.kotlinSealedInterfaceSubclasses = info.kotlinSealedInterfaceSubclasses
+            imported.isKotlinObject = info.isKotlinObject
             imported.annotations = info.annotations
             imported.kotlinStaticProperties = info.kotlinStaticProperties
             imported.kotlinMemberProperties = info.kotlinMemberProperties
@@ -918,7 +937,7 @@ final class JVMClasspathIndex {
                     source += annotationClassDeclaration(info, short: short)
                 } else {
                 if info.isInterface {
-                    source += isSAM(info.name) ? "fun interface `\(short)`" : "interface `\(short)`"
+                    source += interfaceKeyword(info) + " `\(short)`"
                     if !info.classTypeParameterNames.isEmpty {
                         source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
                     }
