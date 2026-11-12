@@ -126,7 +126,7 @@ final class JVMProgramBuilder {
         return nil
     }
     static func isIdentifier(_ value: String) -> Bool {
-        let bytes = Array(value.utf8)
+        let bytes = value.utf8
         func start(_ b: UInt8) -> Bool { (65...90).contains(b) || (97...122).contains(b) || b == 95 }
         guard let first = bytes.first, start(first) else { return false }
         return bytes.dropFirst().allSatisfy { start($0) || (48...57).contains($0) }
