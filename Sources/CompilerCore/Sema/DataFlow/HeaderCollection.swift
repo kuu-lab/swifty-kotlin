@@ -97,9 +97,7 @@ extension DataFlowSemaPhase {
             return true
         }
         return symbols.annotations(for: symbol).contains { metaAnnotation in
-            guard metaAnnotation.annotationFQName == "Retention"
-                || metaAnnotation.annotationFQName == "kotlin.annotation.Retention"
-            else {
+            guard KnownCompilerAnnotation.retention.matches(metaAnnotation.annotationFQName) else {
                 return false
             }
             return metaAnnotation.arguments.contains { argument in

@@ -124,7 +124,7 @@ extension DataFlowSemaPhase {
             let name = resolvedFQName.flatMap { $0.isEmpty ? nil : $0 } ?? ann.name
             return MetadataAnnotationRecord(
                 annotationFQName: name,
-                arguments: name == "kotlin.annotation.Retention"
+                arguments: name == KnownCompilerAnnotation.retention.qualifiedName
                     ? canonicalRetentionArguments(ann.arguments, file: sourceFile, interner: interner) : ann.arguments,
                 useSiteTarget: ann.useSiteTarget,
                 usageID: ann.usageID

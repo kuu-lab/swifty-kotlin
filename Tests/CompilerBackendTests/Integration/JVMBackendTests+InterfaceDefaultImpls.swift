@@ -110,5 +110,22 @@ extension JVMBackendTests {
             #expect(run.stderr.isEmpty)
         }
     }
+
+    @Test
+    func kuu4572PlatformMappedCollectionDefaultsUseJDKInterfaces() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let unsignedArray = try jvmTool("javap", ["-p", "-c", "-classpath", library.path, "kotlin.UByteArray"], root: root).stdout
+            #expect(!unsignedArray.contains("kotlin/collections/Collection$DefaultImpls"))
+            #expect(!unsignedArray.contains("kotlin/collections/Iterable$DefaultImpls"))
+
+            let sequenceIterable = try jvmTool("javap", ["-p", "-c", "-classpath", library.path, "kotlin.sequences.SequencesKt$asIterable$1"], root: root).stdout
+            #expect(!sequenceIterable.contains("kotlin/collections/Iterable$DefaultImpls"))
+
+            let repositoryMap = try jvmTool("javap", ["-p", "-c", "-classpath", library.path, "kotlin.collections.builders.RepositoryMapBuilder"], root: root).stdout
+            #expect(!repositoryMap.contains("kotlin/collections/Map.getSize"))
+            #expect(repositoryMap.contains("java/util/Map.size"))
+        }
+    }
 }
 #endif

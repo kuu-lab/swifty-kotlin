@@ -17,7 +17,7 @@ func resolvedAnnotationRetention(
     guard let annotationSymbol = symbols.lookup(
         fqName: annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) }
     ), let retention = symbols.annotations(for: annotationSymbol).first(where: {
-        $0.annotationFQName == "kotlin.annotation.Retention"
+        $0.annotationFQName == KnownCompilerAnnotation.retention.qualifiedName
     }), let argument = retention.arguments.first else {
         return .runtime
     }
@@ -98,7 +98,7 @@ extension DataFlowSemaPhase {
                     ?? annotation.annotationFQName
                 return MetadataAnnotationRecord(
                     annotationFQName: name,
-                    arguments: name == "kotlin.annotation.Retention"
+                    arguments: name == KnownCompilerAnnotation.retention.qualifiedName
                         ? canonicalRetentionArguments(
                             sourceAnnotation?.arguments ?? annotation.arguments,
                             file: file, interner: interner

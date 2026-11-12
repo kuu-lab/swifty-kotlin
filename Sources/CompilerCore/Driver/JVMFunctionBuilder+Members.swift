@@ -428,7 +428,7 @@ extension JVMProgramBuilder {
             }
             let syntheticTarget = setter ? "set" : "get"
             if let symbol = propertySymbol,
-               sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == "kotlin.jvm.JvmSynthetic" && $0.useSiteTarget == syntheticTarget }) {
+               sema.symbols.annotations(for: symbol).contains(where: { $0.annotationFQName == KnownCompilerAnnotation.jvmSynthetic.qualifiedName && $0.useSiteTarget == syntheticTarget }) {
                 f.access = (f.access ?? 0) | 0x1000
             }
             f.kotlinParameters = setter ? [property.kotlinType].compactMap { $0 } : []

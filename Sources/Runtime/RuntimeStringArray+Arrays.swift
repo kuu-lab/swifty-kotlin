@@ -21,27 +21,27 @@ public func kk_array_new(_ length: Int) -> Int {
 /// negative sizes the way real Kotlin does.
 @_cdecl("kk_array_new_checked")
 public func kk_array_new_checked(_ length: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard length >= 0 else {
-        runtimeSetThrown(outThrown, runtimeAllocateNegativeArraySizeException(message: "\(length)"))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard length >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateNegativeArraySizeException(message: "\(length)"))
+        }
+        return kk_array_new(length)
     }
-    return kk_array_new(length)
 }
 
 @_cdecl("kk_array_get")
 public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Array reference is null.")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let array = runtimeArrayBox(from: arrayRaw) else {
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "Array reference is null."))
+        }
+        guard index >= 0, index < array.count else {
+            throw RuntimeThrownHandle(runtimeAllocateArrayIndexOutOfBoundsException(
+                message: "Index \(index) out of bounds for length \(array.count)"
+            ))
+        }
+        return array[index]
     }
-    guard index >= 0, index < array.count else {
-        outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Index \(index) out of bounds for length \(array.count)"
-        )
-        return 0
-    }
-    return array[index]
 }
 
 @_cdecl("kk_array_get_inbounds")
@@ -59,35 +59,33 @@ public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
 
 @_cdecl("kk_array_set")
 public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Array reference is null.")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let array = runtimeArrayBox(from: arrayRaw) else {
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "Array reference is null."))
+        }
+        guard index >= 0, index < array.count else {
+            throw RuntimeThrownHandle(runtimeAllocateArrayIndexOutOfBoundsException(
+                message: "Index \(index) out of bounds for length \(array.count)"
+            ))
+        }
+        // JVM arrays are reified: a store outside the allocation component throws
+        // ArrayStoreException. Untagged arrays and the primitive-specialized
+        // arrays carry no component metadata and keep the unchecked path; only
+        // boxed values have a knowable runtime type (KUU-4439).
+        if let component = array.componentType,
+           let pointer = UnsafeMutableRawPointer(bitPattern: value),
+           runtimeIsObjectPointer(pointer),
+           !runtimeArrayElementIsAssignable(
+               RuntimeValue(raw: value),
+               sourceComponent: nil,
+               to: component
+           )
+        {
+            throw RuntimeThrownHandle(runtimeAllocateArrayStoreException(message: nil))
+        }
+        array[index] = value
+        return value
     }
-    guard index >= 0, index < array.count else {
-        outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
-            message: "Index \(index) out of bounds for length \(array.count)"
-        )
-        return 0
-    }
-    // JVM arrays are reified: a store outside the allocation component throws
-    // ArrayStoreException. Untagged arrays and the primitive-specialized
-    // arrays carry no component metadata and keep the unchecked path; only
-    // boxed values have a knowable runtime type (KUU-4439).
-    if let component = array.componentType,
-       let pointer = UnsafeMutableRawPointer(bitPattern: value),
-       runtimeIsObjectPointer(pointer),
-       !runtimeArrayElementIsAssignable(
-           RuntimeValue(raw: value),
-           sourceComponent: nil,
-           to: component
-       )
-    {
-        outThrown?.pointee = runtimeAllocateArrayStoreException(message: nil)
-        return 0
-    }
-    array[index] = value
-    return value
 }
 
 /// Stores an object field together with its static Any-fallback type tag.

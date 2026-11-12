@@ -11,7 +11,7 @@ extension JVMProgramBuilder {
     func prepareTextLibrary() throws {
         func externalJvmName(for symbol: SymbolID) -> String? {
             guard let raw = sema.symbols.annotations(for: symbol)
-                .first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first,
+                .first(where: { $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName })?.arguments.first,
                 let literal = raw.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                 let data = ("[" + literal + "]").data(using: .utf8),
                 let names = try? JSONSerialization.jsonObject(with: data) as? [String],
@@ -302,7 +302,7 @@ extension JVMProgramBuilder {
                     else { continue }
                     try registerMapEntryComponent(id)
                 }
-                let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
+                let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
             if path.hasPrefix("<kswiftk-jvm>/m19-") || path.hasPrefix("<kswiftk-jvm>/m20-") || path.hasPrefix("<kswiftk-jvm>/m21-") { try visit(file.topLevelDecls, path: path) }

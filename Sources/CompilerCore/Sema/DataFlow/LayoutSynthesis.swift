@@ -1,4 +1,9 @@
 
+private struct MethodSlotKey: Hashable {
+    let name: InternedString
+    let arity: Int?
+}
+
 extension DataFlowSemaPhase {
     /// KUU-809: `.kklib` metadata is attacker-controlled input. A crafted
     /// artifact can declare an arbitrarily deep acyclic supertype chain (or a
@@ -450,135 +455,138 @@ extension DataFlowSemaPhase {
             }
 
         let knownNames = KnownCompilerNames(interner: interner)
-        if nominalSymbol.fqName == knownNames.kotlinCoroutinesCoroutineContextFQName {
-            // The runtime bridges use these slots for source-defined contexts.
-            let bridgeMethods = ["get", "fold", "plus", "minusKey"]
-            return methods.sorted { lhs, rhs in
-                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
-                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
-                return lhsSlot == rhsSlot ? lhs.id.rawValue < rhs.id.rawValue : lhsSlot < rhsSlot
-            }
+
+        func methodArity(_ method: SemanticSymbol) -> Int? {
+            symbols.functionSignature(for: method.id)?.parameterTypes.count
         }
 
-        let isList = nominalSymbol.fqName == knownNames.kotlinCollectionsListFQName
-        if isList {
+        func slotKey(_ name: InternedString, _ arity: Int?) -> MethodSlotKey {
+            MethodSlotKey(name: name, arity: arity)
+        }
+
+        func sortedBySlot(_ methods: [SemanticSymbol], slotFor: (SemanticSymbol) -> Int) -> [SemanticSymbol] {
+            methods
+                .map { (method: $0, slot: slotFor($0)) }
+                .sorted { lhs, rhs in
+                    if lhs.slot != rhs.slot {
+                        return lhs.slot < rhs.slot
+                    }
+                    return lhs.method.id.rawValue < rhs.method.id.rawValue
+                }
+                .map { $0.method }
+        }
+
+        if nominalSymbol.fqName == knownNames.kotlinCoroutinesCoroutineContextFQName {
+            // The runtime bridges use these slots for source-defined contexts.
+            let bridgeSlots: [InternedString: Int] = [
+                knownNames.get: 0,
+                knownNames.fold: 1,
+                knownNames.plus: 2,
+                interner.intern("minusKey"): 3,
+            ]
+            return sortedBySlot(methods) { bridgeSlots[$0.name] ?? bridgeSlots.count }
+        }
+
+        if nominalSymbol.fqName == knownNames.kotlinCollectionsListFQName {
             // Runtime List bridges dispatch source implementations through
             // the List itable using fixed slots, so every member's slot is
             // pinned independently of synthetic-symbol definition order:
             // get/listIterator(index)/subList occupy slots 0-2, the runtime
             // indexOf/lastIndexOf bridges use slots 6 and 7.
-            return methods.sorted { lhs, rhs in
-                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
-                    let name = interner.resolve(symbol.name)
-                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
-                    if name == "get" && arity == 1 { return 0 }
-                    if name == "listIterator" && arity == 1 { return 1 }
-                    if name == "subList" && arity == 2 { return 2 }
-                    if name == "iterator" && arity == 0 { return 3 }
-                    if name == "isEmpty" && arity == 0 { return 4 }
-                    if name == "listIterator" && arity == 0 { return 5 }
-                    if name == "indexOf" && arity == 1 { return 6 }
-                    if name == "lastIndexOf" && arity == 1 { return 7 }
-                    return 8
-                }
-                let lhsSlot = fixedSlot(lhs)
-                let rhsSlot = fixedSlot(rhs)
-                if lhsSlot != rhsSlot {
-                    return lhsSlot < rhsSlot
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
+            let listIterator = interner.intern("listIterator")
+            let slots: [MethodSlotKey: Int] = [
+                slotKey(knownNames.get, 1): 0,
+                slotKey(listIterator, 1): 1,
+                slotKey(knownNames.subList, 2): 2,
+                slotKey(knownNames.iterator, 0): 3,
+                slotKey(knownNames.isEmpty, 0): 4,
+                slotKey(listIterator, 0): 5,
+                slotKey(knownNames.indexOf, 1): 6,
+                slotKey(knownNames.lastIndexOf, 1): 7,
+            ]
+            return sortedBySlot(methods) { method in
+                slots[slotKey(method.name, methodArity(method))] ?? 8
             }
         }
 
-        let isMap = nominalSymbol.fqName == knownNames.kotlinCollectionsMapFQName
-        if isMap {
+        if nominalSymbol.fqName == knownNames.kotlinCollectionsMapFQName {
             // Runtime Map bridges dispatch source implementations through the
             // Map itable: isEmpty/get/containsKey/containsValue occupy method
             // slots 0-3, and the property getters (entries, keys, size,
             // values) are laid out right after them.
-            let bridgeMethods = ["isEmpty", "get", "containsKey", "containsValue"]
-            return methods.sorted { lhs, rhs in
-                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
-                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
-                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
-                return lhs.id.rawValue < rhs.id.rawValue
-            }
+            let slots: [InternedString: Int] = [
+                knownNames.isEmpty: 0,
+                knownNames.get: 1,
+                knownNames.containsKey: 2,
+                interner.intern("containsValue"): 3,
+            ]
+            return sortedBySlot(methods) { slots[$0.name] ?? slots.count }
         }
 
-        let isMutableList = nominalSymbol.fqName == knownNames.kotlinCollectionsMutableListFQName
-        if isMutableList {
+        if nominalSymbol.fqName == knownNames.kotlinCollectionsMutableListFQName {
             // MutableList runtime bridges share these stable source dispatch slots.
             // Preserve the existing subList/set slots for live mutable views.
-            return methods.sorted { lhs, rhs in
-                func fixedSlot(_ symbol: SemanticSymbol) -> Int {
-                    let name = interner.resolve(symbol.name)
-                    let arity = symbols.functionSignature(for: symbol.id)?.parameterTypes.count
-                    if name == "subList" && arity == 2 { return 0 }
-                    if name == "set" && arity == 2 { return 1 }
-                    if name == "add" && arity == 1 { return 2 }
-                    if name == "add" && arity == 2 { return 3 }
-                    if name == "addAll" && arity == 1 { return 4 }
-                    if name == "addAll" && arity == 2 { return 5 }
-                    if name == "removeAt" && arity == 1 { return 6 }
-                    if name == "remove" && arity == 1 { return 7 }
-                    if name == "clear" && arity == 0 { return 8 }
-                    if name == "removeAll" && arity == 1 { return 9 }
-                    if name == "retainAll" && arity == 1 { return 10 }
-                    if name == "listIterator" && arity == 0 { return 11 }
-                    if name == "listIterator" && arity == 1 { return 12 }
-                    return 13
-                }
-                let lhsSlot = fixedSlot(lhs)
-                let rhsSlot = fixedSlot(rhs)
-                if lhsSlot != rhsSlot {
-                    return lhsSlot < rhsSlot
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
+            let listIterator = interner.intern("listIterator")
+            let setFunction = interner.intern("set")
+            let removeAt = interner.intern("removeAt")
+            let slots: [MethodSlotKey: Int] = [
+                slotKey(knownNames.subList, 2): 0,
+                slotKey(setFunction, 2): 1,
+                slotKey(knownNames.add, 1): 2,
+                slotKey(knownNames.add, 2): 3,
+                slotKey(knownNames.addAll, 1): 4,
+                slotKey(knownNames.addAll, 2): 5,
+                slotKey(removeAt, 1): 6,
+                slotKey(knownNames.remove, 1): 7,
+                slotKey(knownNames.clear, 0): 8,
+                slotKey(knownNames.removeAll, 1): 9,
+                slotKey(knownNames.retainAll, 1): 10,
+                slotKey(listIterator, 0): 11,
+                slotKey(listIterator, 1): 12,
+            ]
+            return sortedBySlot(methods) { method in
+                slots[slotKey(method.name, methodArity(method))] ?? 13
             }
         }
 
-        let isMutableCollection = nominalSymbol.fqName == knownNames.kotlinCollectionsMutableCollectionFQName
-        if isMutableCollection {
-            let bridgeMethods = ["add", "addAll", "clear", "remove", "removeAll", "retainAll"]
-            return methods.sorted { lhs, rhs in
-                let lhsSlot = bridgeMethods.firstIndex(of: interner.resolve(lhs.name)) ?? bridgeMethods.count
-                let rhsSlot = bridgeMethods.firstIndex(of: interner.resolve(rhs.name)) ?? bridgeMethods.count
-                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
-                return lhs.id.rawValue < rhs.id.rawValue
-            }
+        if nominalSymbol.fqName == knownNames.kotlinCollectionsMutableCollectionFQName {
+            let slots: [InternedString: Int] = [
+                knownNames.add: 0,
+                knownNames.addAll: 1,
+                knownNames.clear: 2,
+                knownNames.remove: 3,
+                knownNames.removeAll: 4,
+                knownNames.retainAll: 5,
+            ]
+            return sortedBySlot(methods) { slots[$0.name] ?? slots.count }
         }
 
-        let isMutableSet = nominalSymbol.fqName == knownNames.kotlinCollectionsMutableSetFQName
-        if isMutableSet {
+        if nominalSymbol.fqName == knownNames.kotlinCollectionsMutableSetFQName {
             // Preserve add/remove/clear slots used by existing source Set bridges.
-            let bridgeMethods = ["add", "remove", "clear", "addAll", "removeAll", "retainAll"]
-            return methods.sorted { lhs, rhs in
-                func fixedSlot(_ method: SemanticSymbol) -> Int {
-                    guard symbols.isSourceBackedSymbol(method.id) else { return bridgeMethods.count }
-                    return bridgeMethods.firstIndex(of: interner.resolve(method.name)) ?? bridgeMethods.count
-                }
-                let lhsSlot = fixedSlot(lhs)
-                let rhsSlot = fixedSlot(rhs)
-                if lhsSlot != rhsSlot { return lhsSlot < rhsSlot }
-                return lhs.id.rawValue < rhs.id.rawValue
+            let slots: [InternedString: Int] = [
+                knownNames.add: 0,
+                knownNames.remove: 1,
+                knownNames.clear: 2,
+                knownNames.addAll: 3,
+                knownNames.removeAll: 4,
+                knownNames.retainAll: 5,
+            ]
+            return sortedBySlot(methods) { method in
+                guard symbols.isSourceBackedSymbol(method.id) else { return slots.count }
+                return slots[method.name] ?? slots.count
             }
         }
 
-        let isSequence = nominalSymbol.fqName == knownNames.kotlinSequenceFQName
-        guard isSequence else {
-            return methods.sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        if nominalSymbol.fqName == knownNames.kotlinSequenceFQName {
+            let slots: [MethodSlotKey: Int] = [
+                slotKey(knownNames.iterator, 0): 0,
+            ]
+            return sortedBySlot(methods) { method in
+                slots[slotKey(method.name, methodArity(method))] ?? 1
+            }
         }
 
-        return methods.sorted { lhs, rhs in
-            let lhsIsIterator = interner.resolve(lhs.name) == "iterator"
-                && (symbols.functionSignature(for: lhs.id)?.parameterTypes.isEmpty ?? false)
-            let rhsIsIterator = interner.resolve(rhs.name) == "iterator"
-                && (symbols.functionSignature(for: rhs.id)?.parameterTypes.isEmpty ?? false)
-            if lhsIsIterator != rhsIsIterator {
-                return lhsIsIterator && !rhsIsIterator
-            }
-            return lhs.id.rawValue < rhs.id.rawValue
-        }
+        return methods.sorted(by: { $0.id.rawValue < $1.id.rawValue })
     }
 
     /// Shared by header-time named layouts and body-time local/anonymous layouts.

@@ -8,7 +8,7 @@ import Testing
 /// `node` binary with `node:wasi` is available — real execution.
 @Suite(.serialized)
 struct WasmCodegenTests {
-    private let interner = StringInterner()
+    let interner = StringInterner()
 
     // MARK: - Target classification
 
@@ -209,7 +209,7 @@ struct WasmCodegenTests {
 
     /// Emits `module` with `entrySymbol` for wasm32-wasi and asserts clean
     /// diagnostics.
-    private func emit(_ module: KIRModule, entry: SymbolID) throws -> [UInt8] {
+    func emit(_ module: KIRModule, entry: SymbolID) throws -> [UInt8] {
         let diagnostics = DiagnosticEngine()
         let result = try WasmEmitter().emitModule(
             module: module,
@@ -226,7 +226,7 @@ struct WasmCodegenTests {
 
     /// Runs a wasm module under `node:wasi`; returns stdout, stderr, and exit
     /// status, or nil when Node isn't installed.
-    private func runUnderNode(_ bytes: [UInt8]) throws -> (stdout: String, stderr: String, status: Int32)? {
+    func runUnderNode(_ bytes: [UInt8]) throws -> (stdout: String, stderr: String, status: Int32)? {
         guard let node = nodePath() else { return nil }
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("wasm-e2e-\(UUID().uuidString)")
