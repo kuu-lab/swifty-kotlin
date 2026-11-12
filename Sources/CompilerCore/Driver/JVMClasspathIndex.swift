@@ -496,8 +496,9 @@ final class JVMClasspathIndex {
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
             if function.isSuspend {
-                guard hasComposableLambdaFactory, let suspend = method.kotlinSuspendFunction else { return false }
+                guard let suspend = method.kotlinSuspendFunction else { return false }
                 let composable = function.composableParameters
+                guard composable.isEmpty || hasComposableLambdaFactory else { return false }
                 return method.sourceParameters.enumerated().allSatisfy { index, type in
                     if composable.contains(index - function.leadingParameterCount) {
                         return type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
@@ -2298,7 +2299,7 @@ private extension JVMForeignMethod {
         kotlinSuspendFunction == nil ? parameters : Array(parameters.dropLast())
     }
 
-    fileprivate var logicalSuspendMethod: JVMForeignMethod? {
+    var logicalSuspendMethod: JVMForeignMethod? {
         guard let suspend = kotlinSuspendFunction else { return nil }
         // Coroutine lowering supplies the continuation and restores the physical descriptor.
         return JVMForeignMethod(
