@@ -19,6 +19,7 @@ inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
 fun <T> List<T>.firstOrNull(): T? = null!!
 fun <T> List<T>.getOrNull(index: Int): T? = null!!
 operator fun <T> Iterable<T>.contains(element: T): Boolean = null!!
+fun Collection<Boolean>.toBooleanArray(): BooleanArray = null!!
 fun Collection<Int>.toIntArray(): IntArray = null!!
 fun <T> Iterable<T>.lastOrNull(): T? = null!!
 fun <T> List<T>.lastOrNull(): T? = null!!
