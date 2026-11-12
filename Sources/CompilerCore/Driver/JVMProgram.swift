@@ -120,7 +120,7 @@ public struct JVMValue {
     public let type: JVMValueType
 }
 
-public enum JVMConstant {
+public enum JVMConstant: Sendable {
     case int(Int32), long(Int64), float(Float), double(Double), boolean(Bool), string(String)
     case null
 }
@@ -254,7 +254,7 @@ public struct JVMProgram {
     public var typeAliases: [JVMTypeAlias] = []
 }
 
-public struct JVMForeignMethod {
+public struct JVMForeignMethod: Sendable {
     public let owner: String
     public let name: String
     public let descriptor: String
@@ -398,7 +398,7 @@ public struct JVMTypeParameter {
     public var isReified = false
 }
 
-public struct JVMAnnotation {
+public struct JVMAnnotation: Sendable {
     public let descriptor: String
     public var values: [(String, JVMAnnotationValue)]
     public var visible: Bool = true
@@ -406,7 +406,7 @@ public struct JVMAnnotation {
         self.descriptor = descriptor; self.values = values; self.visible = visible
     }
 }
-public indirect enum JVMAnnotationValue {
+public indirect enum JVMAnnotationValue: Sendable {
     case constant(JVMConstant)
     case integral(Int32, UInt8)
     case enumEntry(String, String)

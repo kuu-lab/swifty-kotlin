@@ -22,19 +22,12 @@ final class JVMClasspathIndex {
 
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
-        fallbackClassFiles: [(String, Data)] = []
+        fallbackClassFiles: [(String, Data)] = [],
+        archiveJobs: Int = min(4, ProcessInfo.processInfo.activeProcessorCount)
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         var seen: Set<String> = []
-        func insert(_ bytes: [UInt8], path: String) throws {
-            var reader = JVMClassReader(bytes: bytes)
-            let info: JVMClassInfo
-            do {
-                info = try reader.read()
-            } catch {
-                throw JVMFrontendError(message: "Cannot read JVM class \(path) at offset \(reader.offset)/\(bytes.count): \(error)")
-            }
-            guard info.name + ".class" == path else { throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)") }
+        func insert(_ info: JVMClassInfo) {
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
         }
@@ -52,14 +45,31 @@ final class JVMClasspathIndex {
                 for file in files {
                     let relative = file.resolvingSymlinksInPath().pathComponents.dropFirst(base.pathComponents.count).joined(separator: "/")
                     guard !relative.hasPrefix("META-INF/"), !relative.hasSuffix("module-info.class"), !relative.hasSuffix("package-info.class") else { continue }
-                    try insert(Array(Data(contentsOf: file)), path: relative)
+                    insert(try readClass(Array(Data(contentsOf: file)), path: relative))
                 }
             } else {
                 let archive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: path)))
-                for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
-                    guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
-                          !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-                    try insert(archive.contents(of: entry), path: entry.name)
+                let entries = archive.entries.filter { entry in
+                    entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                        && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
+                }.sorted { $0.name < $1.name }
+                if archiveJobs > 1 && entries.count >= 128 {
+                    let batchSize = 64
+                    let batchCount = (entries.count + batchSize - 1) / batchSize
+                    let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs) { index in
+                        let start = index * batchSize
+                        let end = min(start + batchSize, entries.count)
+                        return try entries[start ..< end].map { entry in
+                            try readClass(archive.contents(of: entry), path: entry.name)
+                        }
+                    }
+                    for batch in batches {
+                        for info in batch { insert(info) }
+                    }
+                } else {
+                    for entry in entries {
+                        insert(try readClass(archive.contents(of: entry), path: entry.name))
+                    }
                 }
             }
             if isLazy {
@@ -71,7 +81,7 @@ final class JVMClasspathIndex {
         // Preserve an explicitly supplied resource class, including when its
         // JAR will be dexed along with the application.
         for (path, data) in fallbackClassFiles where !seen.contains(String(path.dropLast(".class".count))) {
-            try insert(Array(data), path: path)
+            insert(try readClass(Array(data), path: path))
             result.fallbackClassFiles.append((path, data))
         }
         result.indexInnerClasses()
@@ -80,6 +90,20 @@ final class JVMClasspathIndex {
         }
         result.importInheritedMembers()
         return result
+    }
+
+    private static func readClass(_ bytes: [UInt8], path: String) throws -> JVMClassInfo {
+        var reader = JVMClassReader(bytes: bytes)
+        let info: JVMClassInfo
+        do {
+            info = try reader.read()
+        } catch {
+            throw JVMFrontendError(message: "Cannot read JVM class \(path) at offset \(reader.offset)/\(bytes.count): \(error)")
+        }
+        guard info.name + ".class" == path else {
+            throw JVMFrontendError(message: "JVM class name does not match entry path: \(info.name) in \(path)")
+        }
+        return info
     }
 
     private func indexInnerClasses() {

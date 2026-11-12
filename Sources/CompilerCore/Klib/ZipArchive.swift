@@ -7,8 +7,8 @@ import Foundation
 ///
 /// Limitations (none apply to real .klib files): multi-disk archives and
 /// ZIP64 are rejected; only `stored` and `deflate` compression are supported.
-package struct ZipArchive {
-    package struct Entry {
+package struct ZipArchive: Sendable {
+    package struct Entry: Sendable {
         /// Entry path, using `/` separators (e.g. `default/manifest`).
         package let name: String
         /// 0 = stored, 8 = deflate.
