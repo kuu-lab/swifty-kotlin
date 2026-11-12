@@ -1285,7 +1285,9 @@ final class JVMClasspathIndex {
             if !info.isInterface && method.isFinal { source += "final " }
             source += overrides ? "override " : ""
             if !info.isInterface { source += overrides || method.isFinal ? "" : "open " }
-            if method.sourceName == "get", method.sourceParameters.count == 1 { source += "operator " }
+            if method.sourceName == "get", method.sourceParameters.count == 1, method.kotlinFunction?.isOperator != true {
+                source += "operator "
+            }
             if !info.isInterface { source += "external " }
             source += functionDeclaration(method)
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
@@ -1901,7 +1903,9 @@ final class JVMClasspathIndex {
         }
         let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
         let inline = function.hasInlineContextCallback && !asFacadeMember ? "inline " : ""
-        return prefix + inline + (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
+        let operatorModifier = function.isOperator && !asFacadeMember ? "operator " : ""
+        let infix = function.isInfix && !asFacadeMember ? "infix " : ""
+        return prefix + inline + operatorModifier + infix + (function.isSuspend ? "suspend " : "") + "fun \(generics)\(receiver)`\(function.name)`("
             + parameters.joined(separator: ", ") + "): " + function.result + whereClause
     }
 
