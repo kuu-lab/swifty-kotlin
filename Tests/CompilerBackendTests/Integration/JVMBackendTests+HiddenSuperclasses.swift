@@ -62,7 +62,8 @@ extension JVMBackendTests {
             #expect(child.superclass == "dep/Ancestor")
             #expect(child.methods.contains { $0.name == "inherited" && $0.owner == "dep/Child" })
             #expect(child.methods.contains { $0.name == "fixed" && $0.isFinal })
-            #expect(!child.methods.contains { ["protectedValue", "packageValue", "privateValue"].contains($0.name) })
+            #expect(child.methods.contains { $0.name == "protectedValue" && $0.isProtected })
+            #expect(!child.methods.contains { ["packageValue", "privateValue"].contains($0.name) })
             let source = """
             import dep.Child
             import dep.FinalChild
@@ -70,7 +71,10 @@ extension JVMBackendTests {
             import dep.NestedChild
             import dep.CovariantChild
             import dep.ReverseChild
-            class KotlinChild : Child() { override fun choose(p0: Int): Int = p0 + 200 }
+            class KotlinChild : Child() {
+                override fun choose(p0: Int): Int = p0 + 200
+                fun callProtected(): Int = protectedValue()
+            }
             fun main() {
                 val child = Child()
                 println(child.inherited())
@@ -85,13 +89,13 @@ extension JVMBackendTests {
                 println(CovariantChild().value().length); println(ReverseChild().value().length)
                 println(child.fixed()); println(KotlinChild().choose(2))
                 println(FinalChild().inherited())
-                println(child.fixedSize)
+                println(child.fixedSize); println(KotlinChild().callProtected())
             }
             """
             let result = try compile(source, root: root, mode: mode, classpath: [classpath])
             try #require(result.0 == 0, "\(result.1.map(\.message))")
             let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
-            let expected = "7\n102\n23\n40\n5\n6\n51\n62\n73\n31\n7\n5\n88\n1\n1\n17\n202\n7\n19\n"
+            let expected = "7\n102\n23\n40\n5\n6\n51\n62\n73\n31\n7\n5\n88\n1\n1\n17\n202\n7\n19\n90\n"
             let execution = try java(["-cp", artifact + ":" + dependency.path, "HelloKt"])
             #expect(execution.stdout == expected)
             #expect(execution.stderr.isEmpty)

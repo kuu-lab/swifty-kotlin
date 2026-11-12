@@ -81,6 +81,25 @@ struct JVMKotlinMetadata {
         return result
     }
 
+    /// Names of primary-constructor parameters declared `vararg`. Annotation
+    /// classes expose those parameters as element methods, so classfile flags
+    /// alone cannot recover the Kotlin source shape.
+    func annotationVarargElements(byteLimit: Int) throws -> Set<String> {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let bytes = try decodedData(limit: byteLimit)
+        var cursor = ProtoCursor(bytes[...])
+        guard let tableLength = Int(exactly: try cursor.readVarint()) else { throw JVMClassReader.Invalid() }
+        let names = try JVMMetadataNames(ProtoFields(cursor.readBytes(tableLength)), strings: data2)
+        let declaration = try ProtoFields(bytes[cursor.position...])
+        var result = Set<String>()
+        for constructor in try declaration.messages(8) {
+            for parameter in try constructor.messages(2) where parameter.has(4) || parameter.has(6) {
+                if let name = try names.resolve(parameter.int32(2)) { result.insert(name) }
+            }
+        }
+        return result
+    }
+
     private struct TypeTable {
         let entries: [ProtoFields]
         let firstNullable: Int
