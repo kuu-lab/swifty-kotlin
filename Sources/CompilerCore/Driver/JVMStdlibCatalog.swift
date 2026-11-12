@@ -17,6 +17,7 @@ package enum JVMStdlibCatalog {
         let runtimeFacade: String?
         let onlyForStdlibBuild: Bool?
         let appendForConsumers: String?
+        let consumerIdentifiers: Set<String>?
     }
     static func resourceRoot() throws -> URL {
         guard let resources = Bundle.module.resourcePath else { throw JVMFrontendError(message: "Missing JVM stdlib resources.") }
@@ -50,9 +51,14 @@ package enum JVMStdlibCatalog {
         return names
     }
     static func injectDeclarations(into ctx: CompilationContext) throws {
-        for declaration in try manifest().declarations {
+        let declarations = try manifest().declarations
+        let optionalIdentifiers = Set(declarations.flatMap { $0.consumerIdentifiers ?? [] })
+        let referencedIdentifiers = ctx.options.stdlibOnly ? [] : sourceReferences(to: optionalIdentifiers, in: ctx)
+        for declaration in declarations {
             if ctx.options.stdlibOnly && declaration.excludeFromStdlibBuild { continue }
             if !ctx.options.stdlibOnly && declaration.onlyForStdlibBuild == true { continue }
+            if let identifiers = declaration.consumerIdentifiers,
+               !ctx.options.stdlibOnly, identifiers.isDisjoint(with: referencedIdentifiers) { continue }
             var source = try read(declaration.path, commonSource: declaration.commonSource == true)
             if !ctx.options.stdlibOnly, let extra = declaration.appendForConsumers {
                 let content = String(decoding: try read(extra), as: UTF8.self)
@@ -61,5 +67,30 @@ package enum JVMStdlibCatalog {
             guard !ctx.sourceManager.containsFile(path: declaration.virtualPath) else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration injection.") }
             _ = ctx.sourceManager.addFile(path: declaration.virtualPath, contents: source, origin: .residualStdlib)
         }
+    }
+
+    // Optional adapters can refer to platform classes whose signatures pull
+    // more dependencies into the lazy importer. Load those contracts on use.
+    private static func sourceReferences(to identifiers: Set<String>, in ctx: CompilationContext) -> Set<String> {
+        guard !identifiers.isEmpty else { return [] }
+        var referenced: Set<String> = []
+        for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.origin(of: file) == .user {
+            let contents = ctx.sourceManager.contents(of: file)
+            let text = String(decoding: contents, as: UTF8.self)
+            guard identifiers.contains(where: { text.contains($0) }) else { continue }
+            let interner = StringInterner()
+            let lexer = KotlinLexer(file: file, source: contents, interner: interner, diagnostics: DiagnosticEngine())
+            for token in lexer.lexAll() {
+                switch token.kind {
+                case let .identifier(name), let .backtickedIdentifier(name):
+                    let name = interner.resolve(name)
+                    if identifiers.contains(name) { referenced.insert(name) }
+                default:
+                    break
+                }
+            }
+            if referenced == identifiers { break }
+        }
+        return referenced
     }
 }
