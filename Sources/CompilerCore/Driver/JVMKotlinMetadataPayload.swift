@@ -116,8 +116,19 @@ struct JVMKotlinMetadataPayload {
                   let descriptor = try names.resolve(signature.int32(2)) else { continue }
             let jvmName = try names.resolve(signature.int32(1)) ?? name
             let types = try function.message(30).map(TypeTable.init) ?? classTypes
-            guard let returnType = try types.resolve(function, inline: 3, indexed: 7),
-                  let carrier = try Self.resultType(returnType, types: types, names: names) else { continue }
+            guard let returnType = try types.resolve(function, inline: 3, indexed: 7) else { continue }
+            let carrier: JVMValueType
+            if let concrete = try Self.resultType(returnType, types: types, names: names) {
+                carrier = concrete
+            } else if try function.messages(4).contains(where: { parameter in
+                returnType.type.int32(7).map { $0 == parameter.int32(1) } == true
+                    || returnType.type.int32(9).map { $0 == parameter.int32(2) } == true
+            }) {
+                // Type-parameter results travel as boxed objects across the continuation boundary.
+                carrier = .reference("java/lang/Object", nullable: true)
+            } else {
+                continue
+            }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
             let parameters = try function.messages(6).map { parameter in
                 JVMKotlinSuspendFunction.Parameter(
