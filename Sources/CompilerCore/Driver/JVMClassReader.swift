@@ -517,12 +517,12 @@ struct JVMClassReader {
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
-           methods.contains(where: { $0.kotlinSuspendFunction == nil && Self.hasFunctionTypeDescriptor($0) }),
+           (metadata.isFileFacade == true || methods.contains(where: { $0.kotlinSuspendFunction == nil && Self.hasFunctionTypeDescriptor($0) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
            let functions = try? metadata.functions(in: table) {
             for index in methods.indices where methods[index].kotlinSuspendFunction == nil {
                 let method = methods[index]
-                guard Self.hasFunctionTypeDescriptor(method),
+                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method),
                       let function = functions.first(where: { candidate in
                           !candidate.isSuspend
                               && (candidate.jvmName ?? candidate.name) == method.name
