@@ -43,6 +43,16 @@ extension JVMBackendTests {
                     if (metadata == null || !Arrays.asList(metadata.d2()).contains("flatten")) {
                         throw new AssertionError("flatten is missing from Kotlin metadata");
                     }
+                    try {
+                        java.lang.reflect.Method flatten = CollectionsKt.class.getMethod("flatten", Iterable.class);
+                        java.lang.reflect.Type receiverType = flatten.getGenericParameterTypes()[0];
+                        if (!(receiverType instanceof java.lang.reflect.ParameterizedType)
+                            || !receiverType.getTypeName().contains("T")) {
+                            throw new AssertionError("flatten is missing its generic JVM signature");
+                        }
+                    } catch (NoSuchMethodException exception) {
+                        throw new AssertionError(exception);
+                    }
                     List<List<Integer>> values = Arrays.asList(
                         Arrays.asList(1), Collections.<Integer>emptyList(), Arrays.asList(2, 3)
                     );
@@ -52,7 +62,7 @@ extension JVMBackendTests {
             }
             """#
             try javaSource.write(to: root.appendingPathComponent("JavaConsumer.java"), atomically: true, encoding: .utf8)
-            _ = try javac(["--release", "8", "-classpath", library.path, "JavaConsumer.java"])
+            _ = try javac(["--release", "8", "-Xlint:unchecked", "-Werror", "-classpath", library.path, "JavaConsumer.java"])
             let javaConsumer = try java(["-cp", root.path + ":" + library.path, "JavaConsumer"])
             #expect(javaConsumer.stdout == "[1, 2, 3]\n")
             #expect(javaConsumer.stderr.isEmpty)
