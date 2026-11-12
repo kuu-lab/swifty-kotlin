@@ -70,6 +70,12 @@
       "consumerIdentifiers": ["readBytes"]
     },
     {
+      "path": "declarations/UStrings.kt",
+      "virtualPath": "<kswiftk-jvm>/unsigned-strings.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/UStringsKt"
+    },
+    {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
       "excludeFromStdlibBuild": true

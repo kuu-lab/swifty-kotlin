@@ -77,6 +77,13 @@
     "kind": "virtual"
   },
   {
+    "symbol": "__jvmCharDigit",
+    "owner": "java/lang/Character",
+    "name": "digit",
+    "descriptor": "(CI)I",
+    "kind": "static"
+  },
+  {
     "symbol": "__jvmThreadLocalRandom",
     "owner": "java/util/concurrent/ThreadLocalRandom",
     "name": "current",
