@@ -19,10 +19,17 @@ struct JVMClassInfo {
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
+    var kotlinCompanionProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
     var isKotlinMultifilePart = false
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
+
+    func isRuntimeStaticField(_ field: JVMForeignField) -> Bool {
+        isKotlinFileFacade == nil && field.isPublic && field.isStatic
+            && field.constantValue == nil && field.access & 0x5000 == 0
+    }
 }
 
 struct JVMInnerClassInfo {
@@ -500,8 +507,9 @@ struct JVMClassReader {
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
+            let isValueAdapter = hasKotlinMetadata && ["box-impl", "unbox-impl", "constructor-impl"].contains(methodName)
             if access & 0x0005 != 0,
-               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -578,6 +586,15 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
+            for property in properties {
+                guard let getter = methods.first(where: {
+                    $0.isStatic && !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor
+                        && $0.parameters.count == (property.receiver == nil ? 0 : 1) && $0.result != .unit
+                }) else { continue }
+                info.kotlinTopLevelProperties.append((property, getter))
+            }
+        }
         // Kotlin objects may expose a property's accessor only as @JvmStatic.
         if let metadata = classAttributes.kotlinMetadata,
            fields.contains(where: { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }),
@@ -588,6 +605,16 @@ struct JVMClassReader {
                         && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
                 info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+            }
+        }
+        if name.hasSuffix("$Companion"), let metadata = classAttributes.kotlinMetadata,
+           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
+            for property in properties {
+                guard let sourceType = property.sourceType, let getter = methods.first(where: {
+                    !$0.isStatic && !$0.isProtected && $0.name == property.getterName
+                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                }) else { continue }
+                info.kotlinCompanionProperties[property.name] = (getter, sourceType)
             }
         }
         return info

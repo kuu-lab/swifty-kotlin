@@ -26,9 +26,10 @@ extension JVMFunctionBuilder {
         var args: [JVMValue] = []
         for (arg, type) in zip(arguments, parameters) { args.append(try convert(arg, to: type)) }
         let method = JVMForeignMethod(owner: owner, name: name, descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + resultType.descriptor, parameters: parameters, result: resultType, isStatic: receiver == nil, isInterface: interface, isAbstract: false)
-        let result = resultType == .unit ? nil : try value(resolved ?? resultType)
+        let logical = resolved ?? resultType
+        let result = resultType == .unit ? nil : try value(foreignResultType(resultType, resolved: logical))
         instructions.append(.foreignCall(method, receiver: receiver, arguments: args, result: result))
-        return result
+        return try result.map { try convert($0, to: logical) }
     }
     func constructJDK(_ name: String, parameters: [JVMValueType] = [], arguments: [JVMValue] = []) throws -> JVMValue {
         let object = try value(.reference(name, nullable: false))
