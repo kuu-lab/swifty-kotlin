@@ -1273,10 +1273,14 @@ final class JVMClasspathIndex {
             return false
         }
         var source = ""
+        let exposedKotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
         for method in own where method.isConstructor && !method.parameters.isEmpty {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
         }
         for method in own where !method.isConstructor && !method.isStatic && !isKotlinPropertyAccessor(method) {
+            if let getter = exposedKotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
+                continue
+            }
             var overrides = overridesParent(method, in: info)
             if charSequenceBridged, method.name == "subSequence" { overrides = true }
             if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
@@ -1303,6 +1307,7 @@ final class JVMClasspathIndex {
             let kotlinProperty = kotlinProperties.first { $0.getter == getter.name }
             let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
+                  exposedKotlinProperties[propertyName] == nil,
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
             let propertyType = kotlinType(getter.result)
             if let setterName = shape.setterName,
@@ -1338,8 +1343,7 @@ final class JVMClasspathIndex {
                 source += modifiers + "val `\(propertyName)`: \(propertyType) get() = null!!\n"
             }
         }
-        for (name, property) in info.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
-            where exposeSuspendType(property.getter.result) {
+        for (name, property) in exposedKotlinProperties.sorted(by: { $0.key < $1.key }) {
             let getter = property.getter
             if !getter.isStatic, overridesParent(getter, in: info) {
                 source += getter.isFinal ? "final override " : "override "
