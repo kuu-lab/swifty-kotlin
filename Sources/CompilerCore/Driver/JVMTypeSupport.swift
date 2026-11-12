@@ -272,7 +272,14 @@ extension JVMProgramBuilder {
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
             f.genericSignature = prefix + "(" + (try f.kotlinReceiver == nil ? "" : signatureType(signature.receiverType!, parameterPosition: true)) + (try signature.parameterTypes.enumerated().map { i, parameter in (declaration.valueParams[i].isVararg ? "[" : "") + (try signatureType(parameter, parameterPosition: true)) }).joined() + ")" + (try signatureType(signature.returnType))
-            f.access = (f.access ?? 9) | 0x80
+            // ACC_VARARGS is valid only when the final parameter in the emitted
+            // signature is the vararg array. Emission rechecks this after
+            // lowerings that append physical parameters.
+            let hasTerminalVararg = declaration.valueParams.last?.isVararg == true
+                && f.reference.parameters.last?.descriptor.hasPrefix("[") == true
+            if hasTerminalVararg {
+                f.access = (f.access ?? 9) | 0x80
+            }
         }
         return f
     }

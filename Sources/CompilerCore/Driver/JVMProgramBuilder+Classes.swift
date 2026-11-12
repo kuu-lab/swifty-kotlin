@@ -221,8 +221,7 @@ extension JVMProgramBuilder {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), (p.receiverType == nil || plan.isFacade), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
-                  p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const]).isEmpty,
-                  p.getter?.isInline != true, p.setter?.isInline != true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
@@ -264,8 +263,15 @@ extension JVMProgramBuilder {
                 }
             }
             let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmField" }
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade ? 8 : 0) | (p.isVar || plan.isObject ? 0 : 16)) : nil
+            guard !exposedField || (hasField && p.delegateExpression == nil) else {
+                throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
+            }
+            let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
+            let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
+            property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
+            property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
@@ -306,7 +312,9 @@ extension JVMProgramBuilder {
                 guard let symbol = plan.methodSymbols[method.name + method.descriptor], let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Missing JVM member signature.") }
                 builder.functionSymbol = symbol
                 builder.semanticSignature = signature
-                functions.append(try annotated(describe(builder.build(), signature: signature, parameters: declaration.typeParams), symbol: symbol))
+                let function = try annotated(describe(builder.build(), signature: signature, parameters: declaration.typeParams), symbol: symbol)
+                functions.append(function)
+                functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
             for (_, declaration, property) in plan.properties {
                 functions += try emitAccessors(plan, declaration, property)
