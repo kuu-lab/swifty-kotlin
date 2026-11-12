@@ -29,8 +29,8 @@ final class TypeCheckAttribution {
         /// `ClassMemberScope.deferredCandidates` invocations — each walks the
         /// owner's supertype chain scanning children by name.
         case memberScopeQueries
-        /// `children(of:)` entries scanned inside member-scope queries.
-        case memberScopeChildrenScanned
+        /// Entries probed in the owner or short-name index during a member-scope query.
+        case memberScopeCandidatesScanned
         /// `SymbolTable.lookupAll` / `lookupByShortName` calls.
         case symbolTableLookups
         /// Compact-index drains demanded by the above lookups.
@@ -128,7 +128,7 @@ final class TypeCheckAttribution {
         scope lookup visits:                 \(value(.scopeLookupVisits))
           package-scope queries:             \(value(.packageScopeQueries))
           member-scope queries:              \(value(.memberScopeQueries))
-          member-scope children scanned:     \(value(.memberScopeChildrenScanned))
+          member-scope candidates scanned:   \(value(.memberScopeCandidatesScanned))
         symbol-table fqName lookups:         \(value(.symbolTableLookups))
           compact-index drains:              \(value(.indexDrainCalls))
         resolveCall / probeCall attempts:    \(value(.resolveCallAttempts)) / \(value(.probeCallAttempts))
