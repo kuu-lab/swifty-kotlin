@@ -141,6 +141,19 @@ extension JVMFunctionBuilder {
                     )
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
                 }
+                if sema.symbols.symbol(parent)?.kind == .object,
+                   let importedField = info.fields.first(where: {
+                       $0.name == name && $0.descriptor == type.descriptor && info.isRuntimeStaticField($0)
+                   }) {
+                    let field = JVMField(owner: owner, name: name, type: type, access: importedField.access)
+                    let getter = JVMForeignMethod(
+                        owner: owner, name: "get" + capital, descriptor: "()" + type.descriptor,
+                        parameters: [], result: type, isStatic: true, isInterface: info.isInterface, isAbstract: false
+                    )
+                    var property = JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
+                    property.readsStaticField = true
+                    return property
+                }
                 if let getter = info.kotlinStaticProperties[name]?.getter, getter.result.descriptor == type.descriptor,
                    sema.symbols.symbol(parent)?.kind == .object {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
@@ -241,6 +254,11 @@ extension JVMFunctionBuilder {
     }
     func readProperty(_ property: JVMProperty, receiver: JVMValue, special: Bool, superReceiver: ExprID? = nil) throws -> JVMValue {
         if let literal = property.field?.constantValue { return try constant(literal, property.type) }
+        if property.readsStaticField, let field = property.field {
+            let result = try value(field.type)
+            instructions.append(.getStatic(field, result))
+            return result
+        }
         var getter = property.getter
         if special { getter = try superMethod(getter, receiver: superReceiver) }
         let result = try value(property.type)

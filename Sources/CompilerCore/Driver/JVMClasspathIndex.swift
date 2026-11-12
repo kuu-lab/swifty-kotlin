@@ -1160,9 +1160,14 @@ final class JVMClasspathIndex {
             return "const val `\(field.name)`: \(kotlin) = \(literal)\n"
         }
         let constantFields = info.fields.compactMap(constantField)
-        if allowsCompanion, !statics.isEmpty || !constantFields.isEmpty {
+        let runtimeFields = info.fields.compactMap { field -> String? in
+            guard let type = runtimeStaticFieldType(field, in: info) else { return nil }
+            return "val `\(field.name)`: \(kotlinType(type)) get() = null!!\n"
+        }
+        if allowsCompanion, !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object {\n"
             for declaration in constantFields { source += declaration }
+            for declaration in runtimeFields { source += declaration }
             for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
                 where isExposed(property.getter) {
                 let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
@@ -1174,6 +1179,12 @@ final class JVMClasspathIndex {
             source += "}\n"
         }
         return source
+    }
+
+    private func runtimeStaticFieldType(_ field: JVMForeignField, in info: JVMClassInfo) -> JVMValueType? {
+        guard info.isRuntimeStaticField(field), JVMProgramBuilder.isIdentifier(field.name),
+              let type = try? JVMDescriptor.parse("()" + field.descriptor).1, expose(type) else { return nil }
+        return type
     }
 
     // MARK: - Lazy classpath injection
@@ -1393,6 +1404,11 @@ final class JVMClasspathIndex {
                 // no stub; every other lazy supertype joins the closure.
                 if lazyClassNames.contains(parent), isInjected(parent) {
                     markNeeded(parent)
+                }
+            }
+            for field in info.fields {
+                if let type = runtimeStaticFieldType(field, in: info) {
+                    for ref in signatureNames(type) { markNeeded(ref) }
                 }
             }
             for method in info.methods where isExposed(method) {

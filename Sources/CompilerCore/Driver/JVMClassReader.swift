@@ -18,6 +18,11 @@ struct JVMClassInfo {
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
+
+    func isRuntimeStaticField(_ field: JVMForeignField) -> Bool {
+        isKotlinFileFacade == nil && field.isPublic && field.isStatic && field.isFinal
+            && field.constantValue == nil && field.access & 0x1000 == 0
+    }
 }
 
 struct JVMInnerClassInfo {
