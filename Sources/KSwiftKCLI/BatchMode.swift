@@ -32,7 +32,7 @@ enum BatchMode {
             let fields = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
             guard fields.count >= 4 else { continue }
             let exitCode = withRedirectedOutput(stdout: fields[0], stderr: fields[1]) {
-                CLICompilerService.shared.run(args: Array(fields.dropFirst(3)))
+                CLICompilerService.shared.run(args: Array(fields.dropFirst(3)), reuseJVMClasspath: true)
             }
             try? "\(exitCode)\n".write(toFile: fields[2], atomically: true, encoding: .utf8)
         }

@@ -367,7 +367,7 @@ final class CompileDaemonServer: @unchecked Sendable {
         }
         defer { _ = FileManager.default.changeCurrentDirectoryPath(previousDirectory) }
         return CLIOutputCapture.run {
-            CLICompilerService.shared.run(args: request.arguments)
+            CLICompilerService.shared.run(args: request.arguments, reuseJVMClasspath: true)
         }
     }
 }

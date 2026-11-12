@@ -54,7 +54,8 @@ final class JVMPreparationPhase: CompilerPhase {
             }
             let imports = try JVMClasspathIndex.load(
                 classpath, lazilyInjecting: lazyPaths,
-                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? []
+                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? [],
+                archiveCache: ctx.jvmClasspathArchiveCache
             )
             ctx.jvmImports = imports
         } catch let error as AndroidSDKError {
