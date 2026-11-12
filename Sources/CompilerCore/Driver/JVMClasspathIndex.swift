@@ -680,6 +680,9 @@ final class JVMClasspathIndex {
         return supertypeReference(name, childParams: child.classTypeParameterNames)
     }
     private func isSAM(_ name: String) -> Bool {
+        // Annotation's equals, hashCode and toString are redeclared abstract
+        // and represented in the Kotlin stub as overrides of Any.
+        if name == "java/lang/annotation/Annotation" { return false }
         var members: [String: JVMForeignMethod] = [:], visited: Set<String> = []
         func visit(_ name: String) {
             guard visited.insert(name).inserted, let info = classes[name] else { return }
