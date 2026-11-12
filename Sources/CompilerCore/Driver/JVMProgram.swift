@@ -187,6 +187,7 @@ public struct JVMFunction {
     public var isPrivate: Bool
     public var locals: [JVMValue]
     public var parameterCount: Int
+    public var definitelyNotNullParameterSlots: Set<Int> = []
     public var instructions: [JVMInstruction]
     public var parameterNames: [String]
     /// Java reflection names and flags in JVM descriptor order.
@@ -379,7 +380,7 @@ public struct JVMExceptionHandler {
 /// Source types retained independently of JVM erasure for Kotlin consumers.
 public indirect enum JVMKotlinType {
     case named(String, [JVMKotlinTypeArgument], nullable: Bool)
-    case parameter(Int, nullable: Bool)
+    case parameter(Int, nullable: Bool, definitelyNotNull: Bool)
     case flexible(JVMKotlinType, JVMKotlinType)
     case function([JVMKotlinType], JVMKotlinType, receiver: JVMKotlinType?, nullable: Bool, isSuspend: Bool = false)
 }
@@ -418,6 +419,7 @@ public struct JVMTypeAlias {
     public let modifiers: Modifiers
     public let typeParameters: [JVMTypeParameter]
     public let underlyingType: JVMKotlinType
+    public var annotations: [JVMAnnotation] = []
 }
 
 /// Reference value classes return raw storage synchronously and boxed values on resume.

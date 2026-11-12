@@ -24,6 +24,8 @@ extension JVMFunctionBuilder {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
             } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "text", "RegexOption"] {
                 field = JVMField(owner: "kotlin/text/RegexOption", name: path[3], type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
+            } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "time", "DurationUnit"] {
+                field = JVMField(owner: "kotlin/time/DurationUnit", name: path[3], type: .reference("kotlin/time/DurationUnit", nullable: false), access: 0x4019)
             } else { field = nil }
             if let field { let result = try value(field.type); instructions.append(.getStatic(field, result)); return result }
         }

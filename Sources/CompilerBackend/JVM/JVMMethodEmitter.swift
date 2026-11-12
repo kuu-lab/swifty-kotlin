@@ -133,7 +133,7 @@ final class JVMMethodEmitter {
         if function.isConstructor { uninitialized[0] = -1 }
         // Fixed-type, eagerly initialized scratch locals keep all CFG joins
         // verifier-compatible. Source definite-assignment checks happen in Sema.
-        for parameter in function.locals.prefix(function.parameterCount) where function.checksParameters && parameter.type.referenceName != nil && !parameter.type.isNullable && (function.owner == nil || parameter.slot != 0 || function.access == nil) {
+        for parameter in function.locals.prefix(function.parameterCount) where function.checksParameters && parameter.type.referenceName != nil && (!parameter.type.isNullable || function.definitelyNotNullParameterSlots.contains(parameter.slot)) && (function.owner == nil || parameter.slot != 0 || function.access == nil) {
             load(parameter)
             if function.isInline {
                 // Kotlin's bytecode inliner removes this recognized check when

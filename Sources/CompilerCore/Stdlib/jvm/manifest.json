@@ -46,6 +46,17 @@
       "runtimeFacade": "kotlin/PreconditionsKt"
     },
     {
+      "path": "declarations/KotlinTimeDuration.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-time-duration.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/KotlinTimeMeasureTime.kt",
+      "virtualPath": "<kswiftk-jvm>/kotlin-time-measure-time.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/MeasureTimeKt"
+    },
+    {
       "path": "declarations/Math.kt",
       "virtualPath": "<kswiftk-jvm>/math.kt",
       "excludeFromStdlibBuild": true,
@@ -148,6 +159,12 @@
       "path": "declarations/Text.kt",
       "virtualPath": "<kswiftk-jvm>/text.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/StringEncoding.kt",
+      "virtualPath": "<kswiftk-jvm>/string-encoding.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
       "path": "declarations/StringConstructors.kt",
@@ -326,6 +343,12 @@
     {
       "path": "declarations/ArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
+      "path": "declarations/ArraySlicing.kt",
+      "virtualPath": "<kswiftk-jvm>/array-slicing.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/ArraysKt"
     },
@@ -530,6 +553,18 @@
       "virtualPath": "<kswiftk-jvm>/collection-elements.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/Grouping.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/GroupingEachCount.kt",
+      "virtualPath": "<kswiftk-jvm>/grouping-each-count.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/GroupingKt"
     },
     {
       "path": "declarations/JavaLang.kt",

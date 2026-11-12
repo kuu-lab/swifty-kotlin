@@ -75,6 +75,11 @@ private struct JVMSourceGrammar {
             } while take(.symbol(.comma))
             try require(.symbol(.greaterThan))
         }
+        if take(.symbol(.amp)) {
+            guard case let .identifier(marker) = kind,
+                  context.interner.resolve(marker) == "Any" else { throw Unsupported() }
+            index += 1
+        }
         if nullable, receiverSuffix, take(.symbol(.questionDot)) { try type(); return }
         if nullable { _ = take(.symbol(.question)) }
         if receiverSuffix, take(.symbol(.dot)) { try type() }
@@ -258,6 +263,10 @@ private struct JVMSourceGrammar {
             while true {
                 let saved = index
                 semicolons(); modifiers()
+                while kind == .symbol(.at) {
+                    try annotation()
+                    modifiers()
+                }
                 if take(.softKeyword(.get)) {
                     try parameters()
                 } else if take(.softKeyword(.set)) {
@@ -540,7 +549,10 @@ private struct JVMSourceGrammar {
                     guard kind == .symbol(.lParen) || startsTrailingLambda() else { throw Unsupported() }
                 } catch { index = saved; break }
             } else if take(.symbol(.lBracket)) {
-                try expression(allowNewlines: true); try require(.symbol(.rBracket))
+                repeat {
+                    try expression(allowNewlines: true)
+                } while take(.symbol(.comma)) && kind != .symbol(.rBracket)
+                try require(.symbol(.rBracket))
             } else if take(.symbol(.lParen)) {
                 let header = inDelegationHeader; inDelegationHeader = false
                 if !take(.symbol(.rParen)) {

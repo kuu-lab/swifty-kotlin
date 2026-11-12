@@ -42,6 +42,11 @@ final class JVMProgramBuilder {
     func type(_ id: TypeID) throws -> JVMValueType {
         let actual = specialized(id)
         noteFunctionTypes(actual)
+        if case let .classType(type) = sema.types.kind(of: actual),
+           type.nullability == .nonNull,
+           sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve) == ["kotlin", "time", "Duration"] {
+            return .long
+        }
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
     }
     func parameterType(_ id: TypeID) throws -> JVMValueType {
@@ -61,6 +66,11 @@ final class JVMProgramBuilder {
     /// parameters to their bounds rather than adopt a call site's argument.
     func erasedType(_ id: TypeID) throws -> JVMValueType {
         noteFunctionTypes(id)
+        if case let .classType(type) = sema.types.kind(of: id),
+           type.nullability == .nonNull,
+           sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve) == ["kotlin", "time", "Duration"] {
+            return .long
+        }
         return try JVMClasspathIndex.type(id, sema: sema, ctx: context)
     }
     func expressionType(_ id: ExprID) throws -> JVMValueType {
@@ -135,7 +145,7 @@ final class JVMProgramBuilder {
         return true
     }
 
-    static func fileIdentity(for file: ASTFile, context: CompilationContext) throws -> (String, String) {
+    static func fileIdentity(for file: ASTFile, context: CompilationContext) throws -> (String, String, Bool) {
         guard file.scriptBody.isEmpty else {
             throw JVMFrontendError(message: "JVM source files cannot contain scripts.")
         }
@@ -159,14 +169,27 @@ final class JVMProgramBuilder {
                 jvmNameSpellings.insert(context.interner.resolve(alias) + ".JvmName")
             }
         }
+        var jvmMultifileSpellings: Set<String> = ["kotlin.jvm.JvmMultifileClass", "JvmMultifileClass"]
+        for imported in file.imports {
+            let importPath = imported.path.map(context.interner.resolve).joined(separator: ".")
+            if importPath == "kotlin.jvm.JvmMultifileClass", let name = imported.alias ?? imported.path.last {
+                jvmMultifileSpellings.insert(context.interner.resolve(name))
+            } else if importPath == "kotlin.jvm", imported.isWildcard {
+                jvmMultifileSpellings.insert("JvmMultifileClass")
+            } else if importPath == "kotlin.jvm", let alias = imported.alias {
+                jvmMultifileSpellings.insert(context.interner.resolve(alias) + ".JvmMultifileClass")
+            }
+        }
         let jvmNameAnnotations = file.annotations.filter { annotation in
             jvmNameSpellings.contains(annotation.name)
         }
         guard jvmNameAnnotations.count <= 1 else {
-            throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.")
+            throw JVMFrontendError(message: "JVM supports one @file:kotlin.jvm.JvmName annotation.")
         }
         if let annotation = jvmNameAnnotations.first {
-            guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
+            guard annotation.useSiteTarget == "file",
+                  annotation.name == "kotlin.jvm.JvmName" || annotation.name == "JvmName",
+                  annotation.arguments.count == 1,
                   let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                   let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
                   names.count == 1, isIdentifier(names[0]) else {
@@ -174,7 +197,24 @@ final class JVMProgramBuilder {
             }
             facade = names[0]
         }
-        return ((package + [facade]).joined(separator: "/"), filename)
+        let multifileAnnotations = file.annotations.filter { annotation in
+            jvmMultifileSpellings.contains(annotation.name)
+        }
+        guard multifileAnnotations.count <= 1 else {
+            throw JVMFrontendError(message: "JVM supports one @file:kotlin.jvm.JvmMultifileClass annotation.")
+        }
+        let isMultifileClass = !multifileAnnotations.isEmpty
+        if let annotation = multifileAnnotations.first {
+            guard !jvmNameAnnotations.isEmpty else {
+                throw JVMFrontendError(message: "JVM @file:kotlin.jvm.JvmMultifileClass requires @file:kotlin.jvm.JvmName.")
+            }
+            guard annotation.useSiteTarget == "file",
+                  annotation.name == "kotlin.jvm.JvmMultifileClass" || annotation.name == "JvmMultifileClass",
+                  annotation.arguments.isEmpty else {
+                throw JVMFrontendError(message: "JVM @file:kotlin.jvm.JvmMultifileClass must be a fully qualified file annotation without arguments.")
+            }
+        }
+        return ((package + [facade]).joined(separator: "/"), filename, isMultifileClass)
     }
 
     private func isMainWithArguments(_ declaration: FunDecl, reference: JVMFunctionReference, symbol: SymbolID) -> Bool {
@@ -196,16 +236,27 @@ final class JVMProgramBuilder {
         let files = ast.files.filter { context.sourceManager.origin(of: $0.fileID) == .user }
         guard !files.isEmpty else { throw JVMFrontendError(message: "JVM compilation requires source files.") }
         let names = try files.map { try Self.fileIdentity(for: $0, context: context) }
+        let sourceGroups = Dictionary(grouping: files.indices, by: { names[$0].0 })
+        let multifileFacadeNames = Set(sourceGroups.compactMap { name, indices in
+            indices.count > 1 && indices.allSatisfy { names[$0].2 } ? name : nil
+        })
         if Set(names.map { $0.0 }).count != names.count {
-            guard context.options.stdlibOnly else { throw JVMFrontendError(message: "Duplicate JVM file facade name.") }
-            let repeated = Dictionary(grouping: names.indices, by: { names[$0].0 }).values.filter { $0.count > 1 }.flatMap { $0 }
-            guard repeated.allSatisfy({ index in
-                files[index].topLevelDecls.allSatisfy {
-                    guard case let .propertyDecl(property) = ast.arena.decl($0) else { return true }
-                    return isComputedExtension(property)
+            if context.options.stdlibOnly {
+                let repeated = sourceGroups.values.filter { $0.count > 1 }.flatMap { $0 }
+                guard repeated.allSatisfy({ index in
+                    files[index].topLevelDecls.allSatisfy {
+                        guard case let .propertyDecl(property) = ast.arena.decl($0) else { return true }
+                        return isComputedExtension(property)
+                    }
+                }) else {
+                    throw JVMFrontendError(message: "A shared stdlib facade supports only computed extension properties.")
                 }
-            }) else {
-                throw JVMFrontendError(message: "A shared stdlib facade supports only computed extension properties.")
+            } else {
+                guard sourceGroups.values.filter({ $0.count > 1 }).allSatisfy({ indices in
+                    indices.allSatisfy { names[$0].2 }
+                }) else {
+                    throw JVMFrontendError(message: "Duplicate JVM file facade name.")
+                }
             }
         }
         facadeName = names[0].0
@@ -285,18 +336,31 @@ final class JVMProgramBuilder {
             output.typeAliases = try aliases(file.topLevelDecls.compactMap { if case let .typeAliasDecl(alias) = ast.arena.decl($0) { return alias }; return nil }, package: file.packageFQName)
             facades.append(output)
         }
-        if context.options.stdlibOnly {
+        guard facades.filter(\.hasMain).count <= 1 else { throw JVMFrontendError(message: "Multiple JVM entry points in one module.") }
+        if context.options.stdlibOnly || !multifileFacadeNames.isEmpty {
             var merged: [JVMProgram] = []
             for facade in facades {
-                if let index = merged.firstIndex(where: { $0.internalClassName == facade.internalClassName }) {
-                    merged[index].functions += facade.functions
-                    merged[index].properties += facade.properties
-                    merged[index].typeAliases += facade.typeAliases
+                let shouldMerge = context.options.stdlibOnly || multifileFacadeNames.contains(facade.internalClassName)
+                if shouldMerge, let index = merged.firstIndex(where: { $0.internalClassName == facade.internalClassName }) {
+                    let existing = merged[index]
+                    var combined = JVMProgram(
+                        internalClassName: existing.internalClassName,
+                        sourceFileName: existing.hasMain || !facade.hasMain ? existing.sourceFileName : facade.sourceFileName,
+                        functions: existing.functions + facade.functions,
+                        hasMain: existing.hasMain || facade.hasMain,
+                        moduleName: existing.moduleName,
+                        classes: existing.classes + facade.classes
+                    )
+                    combined.stdlibRequirements = existing.stdlibRequirements + facade.stdlibRequirements
+                    combined.properties = existing.properties + facade.properties
+                    combined.extraFields = existing.extraFields + facade.extraFields
+                    combined.annotations = existing.annotations + facade.annotations
+                    combined.typeAliases = existing.typeAliases + facade.typeAliases
+                    merged[index] = combined
                 } else { merged.append(facade) }
             }
             facades = merged
         }
-        guard facades.filter(\.hasMain).count <= 1 else { throw JVMFrontendError(message: "Multiple JVM entry points in one module.") }
         // The manifest and launcher belong to the file containing main.
         if let main = facades.firstIndex(where: \.hasMain), main != 0 { facades.swapAt(0, main) }
         facadeName = facades[0].internalClassName
@@ -355,6 +419,7 @@ final class JVMFunctionBuilder {
     var parameterInputs: [JVMValue]?
     var isStaticBody = false
     var isSuspendBody = false
+    var definitelyNotNullParameterSlots: Set<Int> = []
     var lambdaID: ExprID?
     var reifiedRuntimeTokens: [SymbolID: ReifiedRuntimeToken] = [:]
     var inlineArguments: [InternedString: InlineLambda] = [:]
@@ -412,6 +477,16 @@ final class JVMFunctionBuilder {
         let result = JVMValue(slot: nextSlot, type: type)
         nextSlot += type.width; locals.append(result)
         return result
+    }
+    func isDefinitelyNotNullTypeParameter(_ type: TypeID) -> Bool {
+        guard case let .intersection(parts) = program.sema.types.kind(of: type),
+              parts.count == 2,
+              parts.contains(where: { program.sema.types.kind(of: $0) == .any(.nonNull) })
+        else { return false }
+        return parts.contains { part in
+            if case .typeParam = program.sema.types.kind(of: part) { return true }
+            return false
+        }
     }
     func label() -> Int { defer { nextLabel += 1 }; return nextLabel }
     func mark(_ label: Int) { instructions.append(.label(label)); terminated = false }
@@ -480,6 +555,11 @@ final class JVMFunctionBuilder {
         for (i, pair) in zip(declaration.valueParams, parameters).enumerated() {
             let (param, type) = pair
             var local = Local(value: try supplied?[i] ?? value(type), mutable: false)
+            if let signature = semanticSignature,
+               signature.parameterTypes.indices.contains(i),
+               isDefinitelyNotNullTypeParameter(signature.parameterTypes[i]) {
+                definitelyNotNullParameterSlots.insert(local.value.slot)
+            }
             if let signature = semanticSignature, signature.parameterTypes.indices.contains(i), case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
@@ -488,6 +568,7 @@ final class JVMFunctionBuilder {
     }
     func finish(abstract: Bool = false, constructor: Bool = false) -> JVMFunction {
         var function = JVMFunction(reference: reference, isPrivate: declaration.modifiers.contains(.private), locals: locals, parameterCount: reference.parameters.count + (owner == nil || isStaticBody ? 0 : 1), instructions: instructions, parameterNames: declaration.valueParams.map { context.interner.resolve($0.name) }, isInternal: declaration.modifiers.contains(.internal))
+        function.definitelyNotNullParameterSlots = definitelyNotNullParameterSlots
         function.owner = owner?.name ?? program.facadeName
         if let owner {
             function.access = program.access(declaration.modifiers, final: !owner.isInterface && !constructor && program.memberFinal(declaration.modifiers)) | (abstract ? 0x0400 : 0)
