@@ -23,10 +23,17 @@ struct JVMClassInfo {
     var isKotlinMultifilePart = false
     var isInterface: Bool { flags & 0x0200 != 0 }
     var isAnnotation: Bool { flags & 0x2000 != 0 }
+    var repeatableAnnotationContainer: String? {
+        guard isAnnotation,
+              let repeatable = annotations.first(where: { $0.descriptor == "Ljava/lang/annotation/Repeatable;" }),
+              case let .classType(container)? = repeatable.values.first(where: { $0.0 == "value" })?.1,
+              container.hasPrefix("L"), container.hasSuffix(";") else { return nil }
+        return String(container.dropFirst().dropLast())
+    }
 
     func isRuntimeStaticField(_ field: JVMForeignField) -> Bool {
         isKotlinFileFacade == nil && field.isPublic && field.isStatic
-            && field.constantValue == nil && field.access & 0x5000 == 0
+            && (!field.isFinal || field.constantValue == nil) && field.access & 0x5000 == 0
     }
 }
 
