@@ -42,6 +42,11 @@ fun <T: Any> Iterable<T?>.filterNotNull(): List<T> { val result = mutableListOf<
 inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Iterable<R>): List<R> { val result = mutableListOf<R>(); for (item in this) { val iterator = transform(item).iterator(); while (iterator.hasNext()) result.add(iterator.next()) }; return result }
 inline fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T> { val result = mutableListOf<T>(); val seen = mutableSetOf<K>(); for (item in this) if (seen.add(selector(item))) result.add(item); return result }
 inline fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> { val result = mutableListOf<T>(); for (item in this) if (predicate(item)) result.add(item); return result }
+inline fun <T> Iterable<T>.filterNot(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) if (!predicate(item)) result.add(item)
+    return result
+}
 inline fun <T> Iterable<T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
 inline fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
     var index = 0
