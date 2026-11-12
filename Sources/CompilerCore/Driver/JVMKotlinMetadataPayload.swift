@@ -47,6 +47,7 @@ struct JVMKotlinFunction {
     var isOperator = false
     var isInfix = false
     var valueOperatorParameterDescriptors: [String]?
+    var isGenericFinalGetter = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
     var composableParameters: Set<Int> {
@@ -414,7 +415,8 @@ struct JVMKotlinMetadataPayload {
                 descriptor = nil
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
-            if isInfix || isSubList { types.parameterNames = ownerTypeParameters }
+            let isFinal = (flags >> 4) & 3 == 0
+            if isInfix || isSubList || isFinal { types.parameterNames = ownerTypeParameters }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade == true else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
@@ -450,6 +452,8 @@ struct JVMKotlinMetadataPayload {
             }
             guard contextParameters.count == contextMessages.count else { continue }
             let parameterMessages = try function.messages(6)
+            let isGenericFinalGetter = isFileFacade != true && isFinal && !name.hasPrefix("get")
+                && returnResolved.type.has(2) && parameterMessages.isEmpty
             var parameters: [JVMKotlinFunction.Parameter] = []
             var hasFunctionTypes = resultType.contains("->") || (receiverType?.contains("->") ?? false)
             var valid = true
@@ -477,7 +481,8 @@ struct JVMKotlinMetadataPayload {
             }
             let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
-            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator || isSubList else { continue }
+            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator || isSubList
+                || isGenericFinalGetter else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var valueOperatorParameterDescriptors: [String]?
             if isValueOperator {
@@ -520,7 +525,8 @@ struct JVMKotlinMetadataPayload {
                 isInline: flags & (1 << 10) != 0,
                 isOperator: isOperator,
                 isInfix: isInfix,
-                valueOperatorParameterDescriptors: valueOperatorParameterDescriptors
+                valueOperatorParameterDescriptors: valueOperatorParameterDescriptors,
+                isGenericFinalGetter: isGenericFinalGetter
             ))
         }
         return result
