@@ -1295,6 +1295,13 @@ final class JVMClasspathIndex {
         }
         var source = ""
         let exposedKotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
+        let instanceFields = info.fields.compactMap { field -> (JVMForeignField, JVMValueType)? in
+            guard info.isRuntimeInstanceField(field), JVMProgramBuilder.isIdentifier(field.name),
+                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1, exposeSuspendType(type)
+            else { return nil }
+            return (field, type)
+        }
+        let instanceFieldNames = Set(instanceFields.map { $0.0.name })
         for method in own where method.isConstructor && !method.parameters.isEmpty {
             source += (method.isProtected ? "protected " : "") + "constructor(" + parameters(method) + ") : this() {}\n"
         }
@@ -1332,6 +1339,7 @@ final class JVMClasspathIndex {
             let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
                   exposedKotlinProperties[propertyName] == nil,
+                  !instanceFieldNames.contains(propertyName),
                   !own.contains(where: { !$0.isStatic && !$0.isConstructor && $0.name == propertyName }) else { continue }
             let propertyType = kotlinType(getter.result)
             if let setterName = shape.setterName,
@@ -1375,6 +1383,17 @@ final class JVMClasspathIndex {
                 source += "open "
             }
             source += "val `\(name)`: \(property.sourceType)" + (info.isInterface ? "\n" : " get() = null!!\n")
+        }
+        for (field, type) in instanceFields {
+            let setter = field.isFinal ? "" : " set(value) {}"
+            // Preserve the existing override relationship when this field
+            // replaces a projected accessor on the same class.
+            let overrides = own.contains {
+                !$0.isStatic && $0.parameters.isEmpty && $0.result.descriptor == field.descriptor
+                    && propertyShape($0)?.name == field.name && overridesParent($0, in: info)
+            }
+            source += (overrides ? "override " : "") + (field.isFinal ? "val" : "var")
+                + " `\(field.name)`: \(kotlinType(type)) get() = null!!" + setter + "\n"
         }
         // Concrete classes must implement every abstract property the
         // transitive interfaces declare; classfiles occasionally omit the
@@ -1826,7 +1845,7 @@ final class JVMClasspathIndex {
                     markSourceTypes(function.parameters.compactMap(\.sourceType))
                 }
             }
-            for field in info.fields where field.isStatic && field.isPublic && field.access & 0x1000 == 0 {
+            for field in info.fields where (field.isStatic || info.isRuntimeInstanceField(field)) && field.isPublic && field.access & 0x1000 == 0 {
                 guard let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
                       expose(type)
                 else { continue }
