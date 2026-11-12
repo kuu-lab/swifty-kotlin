@@ -74,14 +74,14 @@ struct TailrecDiagnosticTests {
             return call() + 1
         }
         fun main() {}
-        """, expectedWarningCount: 1),
+        """, expectedWarningCount: 2),
         Case(name: "returnInTryIsNotTailCall", source: """
         tailrec fun count(n: Int): Int {
             if (n == 0) return 0
             try { return count(n - 1) } finally {}
         }
         fun main() {}
-        """, expectedWarningCount: 1),
+        """, expectedWarningCount: 2),
         Case(name: "differentReceiverOverload", source: """
         fun Int.gcd(other: Long): Long = other
         tailrec fun Long.gcd(other: Long): Long =
@@ -104,12 +104,41 @@ struct TailrecDiagnosticTests {
         tailrec fun Long.gcd(other: Long): Long =
             if (other == 0L) this else 1L + other.gcd(this % other)
         fun main() {}
-        """, expectedWarningCount: 1),
+        """, expectedWarningCount: 2),
         Case(name: "thisReceiverNonTail", source: """
         tailrec fun Long.count(other: Long): Long =
             if (other == 0L) this else 1L + this.count(other - 1L)
         fun main() {}
+        """, expectedWarningCount: 2),
+        Case(name: "memberTailrecProperTailCall", source: """
+        class C {
+            tailrec fun count(n: Int): Int = if (n == 0) 0 else count(n - 1)
+        }
+        fun main() {}
+        """, expectedWarningCount: 0),
+        Case(name: "memberTailrecNonTail", source: """
+        class C {
+            tailrec fun count(n: Int): Int = if (n == 0) 0 else n * count(n - 1)
+        }
+        fun main() {}
+        """, expectedWarningCount: 2),
+        Case(name: "objectMemberTailrecNonTail", source: """
+        object O {
+            tailrec fun count(n: Int): Int = if (n == 0) 0 else n * count(n - 1)
+        }
+        fun main() {}
+        """, expectedWarningCount: 2),
+        Case(name: "nestedCallInArgumentIsNonTail", source: """
+        tailrec fun count(n: Int): Int = if (n == 0) 0 else count(count(n - 1))
+        fun main() {}
         """, expectedWarningCount: 1),
+        Case(name: "tailCallInWhenBranch", source: """
+        tailrec fun count(n: Int): Int = when {
+            n == 0 -> 0
+            else -> count(n - 1)
+        }
+        fun main() {}
+        """, expectedWarningCount: 0),
     ]
 
     @Test(arguments: cases)
