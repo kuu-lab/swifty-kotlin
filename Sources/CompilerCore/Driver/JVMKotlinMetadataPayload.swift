@@ -79,6 +79,12 @@ struct JVMKotlinTopLevelProperty {
     let getterDescriptor: String
 }
 
+struct JVMKotlinValueConstructor {
+    let descriptor: String
+    let parameters: [JVMKotlinFunction.Parameter]
+    let visibility: String
+}
+
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
 /// numbers follow metadata.proto and jvm_metadata.proto.
 struct JVMKotlinMetadataPayload {
@@ -344,6 +350,37 @@ struct JVMKotlinMetadataPayload {
             guard carriers.count == parameters.count else { continue }
             let descriptor = "(" + carriers.map(\.descriptor).joined() + ")V"
             result[descriptor] = labels
+        }
+        return result
+    }
+
+    func valueParameterConstructors(byteLimit: Int) throws -> [JVMKotlinValueConstructor] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        let types = try TypeTable(declaration.message(30))
+        var result: [JVMKotlinValueConstructor] = []
+        let marker = "Lkotlin/jvm/internal/DefaultConstructorMarker;)V"
+        for constructor in try declaration.messages(8) {
+            let visibility = ((constructor.int32(1) ?? 6) >> 1) & 7
+            guard visibility == 2 || visibility == 3,
+                  let signature = try constructor.message(100),
+                  let bridgeDescriptor = try names.resolve(signature.int32(2)),
+                  bridgeDescriptor.hasSuffix(marker),
+                  let (carriers, jvmResult) = try? JVMDescriptor.parse(bridgeDescriptor),
+                  jvmResult == .unit else { continue }
+            let fields = try constructor.messages(2)
+            guard fields.count + 1 == carriers.count, !fields.isEmpty else { continue }
+            let descriptor = String(bridgeDescriptor.dropLast(marker.count)) + ")V"
+            let parameters = try fields.compactMap { parameter -> JVMKotlinFunction.Parameter? in
+                guard !parameter.has(4), !parameter.has(6),
+                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                      let type = try types.resolve(parameter, inline: 3, indexed: 5),
+                      let sourceType = try Self.sourceType(type, types: types, names: names) else { return nil }
+                return .init(name: name, sourceType: sourceType, isVararg: false,
+                             hasDefaultValue: (parameter.int32(1) ?? 0) & 2 != 0)
+            }
+            guard fields.count == parameters.count else { continue }
+            result.append(.init(descriptor: descriptor, parameters: parameters, visibility: visibility == 2 ? "protected " : ""))
         }
         return result
     }
