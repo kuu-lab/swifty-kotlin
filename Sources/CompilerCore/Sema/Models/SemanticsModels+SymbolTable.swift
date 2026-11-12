@@ -371,6 +371,8 @@ public final class SymbolTable {
     private var contractCallsInPlaceEffects: [SymbolID: [ContractCallsInPlaceEffect]] = [:]
     private var contractReturnsNotNullEffects: Set<SymbolID> = []
     private var contractConditionEffects: [SymbolID: ContractConditionEffect] = [:]
+    private var deferredFunctionSignatures: Set<SymbolID> = []
+    private var deferredFunctionSignatureLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoader: ((SymbolID) -> Void)?
     private var lazyImportedMetadataLoaded: Set<SymbolID> = []
     private var lazyImportedMetadataLoadInProgress: Set<SymbolID> = []
@@ -621,7 +623,8 @@ public final class SymbolTable {
     public var hasLazySymbolMaterialization: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return lazyImportedMetadataLoader != nil
+        return !deferredFunctionSignatures.isEmpty
+            || hasLazyImportedMetadataLoader
             || importedLayoutSynthesizer != nil
             || !indexedLibraryProviders.isEmpty
     }
@@ -886,9 +889,22 @@ public final class SymbolTable {
         importedNominalsWithIncompleteInitializerInfo.contains(symbol)
     }
 
-    func ensureLazyImportedMetadataLoaded(for symbol: SymbolID) {
+    /// Foreign source stubs publish their source types up front. This loader
+    /// applies the JVM ABI and platform types at the first signature query.
+    func deferFunctionSignatures(_ signatures: Set<SymbolID>, loader: @escaping (SymbolID) -> Void) {
+        guard !signatures.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
+        deferredFunctionSignatures = signatures
+        deferredFunctionSignatureLoader = loader
+    }
+
+    func ensureLazyImportedMetadataLoaded(for symbol: SymbolID, resolvingFunctionSignature: Bool = false) {
+        lock.lock()
+        defer { lock.unlock() }
+        if resolvingFunctionSignature, deferredFunctionSignatures.remove(symbol) != nil {
+            deferredFunctionSignatureLoader?(symbol)
+        }
         let loadSymbol = accessorOwnerProperties[symbol] ?? symbol
         guard let loader = lazyImportedMetadataLoader,
               !lazyImportedMetadataLoaded.contains(loadSymbol),
@@ -1542,7 +1558,7 @@ public final class SymbolTable {
     }
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
-        ensureLazyImportedMetadataLoaded(for: symbol)
+        ensureLazyImportedMetadataLoaded(for: symbol, resolvingFunctionSignature: true)
         return functionSignatures[symbol]
     }
 

@@ -959,6 +959,13 @@ extension DeclTypeChecker {
         diagnostics: DiagnosticEngine,
         baseLocals: LocalBindings = [:]
     ) {
+        // A generated classpath declaration with no body supplies its
+        // signature to callers. It has no body or defaults to check here.
+        if function.body == .unit, function.annotations.isEmpty, function.modifiers.contains(.external),
+           function.valueParams.allSatisfy({ $0.defaultValue == nil }),
+           driver.compilationContext?.jvmImports?.classpathStubFiles.contains(ctx.currentFileID) == true {
+            return
+        }
         let tracksInferredFunction = driver.inferredReturnFunctions[symbol] != nil
         if tracksInferredFunction {
             guard !driver.checkedInferredReturnFunctions.contains(symbol),
@@ -1421,6 +1428,7 @@ extension DeclTypeChecker {
     }
 
     func precollectContractEffects(function: FunDecl, symbol: SymbolID, ctx: TypeInferenceContext) {
+        guard case .block = function.body else { return }
         guard let signature = ctx.sema.symbols.functionSignature(for: symbol) else { return }
         let scope = FunctionScope(parent: ctx.scope, symbols: ctx.sema.symbols)
         // Same shadowing rule as the function-body scope: class type

@@ -86,7 +86,8 @@ package enum JVMStdlibCatalog {
                 source.append(Data(content.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().joined(separator: "\n").utf8))
             }
             guard !ctx.sourceManager.containsFile(path: declaration.virtualPath) else { throw JVMFrontendError(message: "Duplicate JVM stdlib declaration injection.") }
-            _ = ctx.sourceManager.addFile(path: declaration.virtualPath, contents: source, origin: .residualStdlib)
+            let file = ctx.sourceManager.addFile(path: declaration.virtualPath, contents: source, origin: .residualStdlib)
+            ctx.jvmStdlibDeclarationFiles.insert(file)
         }
     }
 

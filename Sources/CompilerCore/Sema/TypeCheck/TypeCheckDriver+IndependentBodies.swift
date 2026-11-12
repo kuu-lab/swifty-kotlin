@@ -130,7 +130,7 @@ private final class IndependentFileWork: @unchecked Sendable {
 
 extension TypeCheckDriver {
     func checkIndependentBodies(files: [ASTFile], fileScopes: [Int32: FileScope], frontendJobs: Int) throws -> [DeclID: IndependentBodyResult] {
-        guard frontendJobs > 1, !sema.symbols.hasLazyImportedMetadataLoader else { return [:] }
+        guard frontendJobs > 1, !sema.symbols.hasLazySymbolMaterialization else { return [:] }
         // The parent is the sole module writer until all workers have joined.
         // Inferred/deferred declaration ledgers stay on that parent; admissible
         // workers have no path to demand them.

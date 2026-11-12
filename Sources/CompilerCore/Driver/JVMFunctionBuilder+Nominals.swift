@@ -144,7 +144,7 @@ extension JVMFunctionBuilder {
             guard let name else { continue }
             let symbol = program.sema.bindings.destructuringComponentCallee(for: id, index: i)
             let method = symbol.flatMap {
-                program.methods[$0] ?? context.jvmImports?.methods[$0] ?? program.textLibraryMethods[$0]?.method
+                program.methods[$0] ?? context.jvmImports?.method(for: $0) ?? program.textLibraryMethods[$0]?.method
             }
             let result: JVMValue
             if let method {

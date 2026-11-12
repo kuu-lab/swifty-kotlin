@@ -46,7 +46,7 @@ extension JVMProgramBuilder {
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             for symbol in sema.symbols.classDelegationForwardingMethodSymbols(forClass: plan.symbol) {
                 guard let info = sema.symbols.classDelegationForwardingMethodInfo(for: symbol) else { throw JVMFrontendError(message: "Missing JVM delegated interface method binding.") }
-                let target = methods[info.interfaceMethodSymbol] ?? collectionInterfaceMethods[info.interfaceMethodSymbol] ?? context.jvmImports?.methods[info.interfaceMethodSymbol]
+                let target = methods[info.interfaceMethodSymbol] ?? collectionInterfaceMethods[info.interfaceMethodSymbol] ?? context.jvmImports?.method(for: info.interfaceMethodSymbol)
                 if target == nil, let member = sema.symbols.symbol(info.interfaceMethodSymbol), member.flags.contains(.synthetic),
                    let parent = sema.symbols.parentSymbol(for: member.id), (try? className(parent))?.hasPrefix("kotlin/collections/") == true {
                     // Native bootstrap lookup shims (for example random) are
