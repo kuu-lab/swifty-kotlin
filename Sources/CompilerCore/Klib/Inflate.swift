@@ -110,19 +110,27 @@ package enum Inflater {
             bitCount -= drop
         }
 
-        mutating func bits(_ count: Int) throws -> Int {
+        mutating func peek(_ count: Int) -> Int? {
             precondition(count <= 32)
             while bitCount < count {
-                guard index < bytes.endIndex else {
-                    throw KlibFormatError.corruptDeflateStream("unexpected end of input")
-                }
+                guard index < bytes.endIndex else { return nil }
                 bitBuffer |= UInt64(bytes[index]) << bitCount
                 index = bytes.index(after: index)
                 bitCount += 8
             }
-            let value = Int(bitBuffer & ((1 << UInt64(count)) - 1))
+            return Int(bitBuffer & ((1 << UInt64(count)) - 1))
+        }
+
+        mutating func consume(_ count: Int) {
             bitBuffer >>= count
             bitCount -= count
+        }
+
+        mutating func bits(_ count: Int) throws -> Int {
+            guard let value = peek(count) else {
+                throw KlibFormatError.corruptDeflateStream("unexpected end of input")
+            }
+            consume(count)
             return value
         }
 
@@ -164,12 +172,17 @@ package enum Inflater {
         }
     }
 
-    /// Decoding walks lengths 1...maxLen accumulating one bit at a time — same
-    /// scheme as zlib's simplest decoder, O(maxLen) per symbol.
     private struct HuffmanTable {
+        private struct Prefix {
+            let symbol: Int16
+            let length: UInt8
+        }
+
         let counts: [Int]
         let symbols: [Int]
         let maxLength: Int
+        private let prefixLength: Int
+        private let prefixes: [Prefix]
 
         init(codeLengths: [Int]) throws {
             var counts = [Int](repeating: 0, count: 16)
@@ -196,9 +209,47 @@ package enum Inflater {
                 offsets[length] += 1
             }
             self.symbols = symbols
+            prefixLength = min(maxLength, 8)
+            prefixes = Self.makePrefixes(counts: counts, symbols: symbols, length: prefixLength)
+        }
+
+        private static func makePrefixes(counts: [Int], symbols: [Int], length: Int) -> [Prefix] {
+            guard length > 0 else { return [] }
+            var prefixes = Array(repeating: Prefix(symbol: 0, length: 0), count: 1 << length)
+            var first = 0
+            var offset = 0
+            for width in 1 ... length {
+                let count = counts[width]
+                guard first + count <= 1 << width else { return [] }
+                for index in 0 ..< count {
+                    // Canonical codes arrive most-significant bit first, while
+                    // the bit reader stores the next bit in the low position.
+                    var code = first + index
+                    var slot = 0
+                    for _ in 0 ..< width {
+                        slot = (slot << 1) | (code & 1)
+                        code >>= 1
+                    }
+                    let prefix = Prefix(symbol: Int16(symbols[offset + index]), length: UInt8(width))
+                    while slot < prefixes.count {
+                        prefixes[slot] = prefix
+                        slot += 1 << width
+                    }
+                }
+                first = (first + count) << 1
+                offset += count
+            }
+            return prefixes
         }
 
         func decode(reader: inout BitReader) throws -> Int {
+            if !prefixes.isEmpty, let bits = reader.peek(prefixLength) {
+                let prefix = prefixes[bits]
+                if prefix.length > 0 {
+                    reader.consume(Int(prefix.length))
+                    return Int(prefix.symbol)
+                }
+            }
             // An all-zero-length table is legal in DEFLATE (a block that never
             // uses back-references may carry an empty distance table); it must
             // error here rather than form an invalid `1 ... 0` range.

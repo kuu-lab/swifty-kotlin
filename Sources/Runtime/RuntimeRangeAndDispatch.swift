@@ -1120,7 +1120,12 @@ public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<I
             return objectResult
         }
         // Iterator<T>.next() crosses an erased generic boundary. Source-backed
-        // CharIterator implementations return the raw Char scalar from their
+        // primitive iterators return raw scalar words from their concrete
+        // methods, so box them before generic consumers store the value.
+        if let boxedPrimitive = runtimeBoxSourceIteratorPrimitiveValue(objectResult, iteratorRaw: iterRaw) {
+            return boxedPrimitive
+        }
+        // Source-backed CharIterator implementations return the raw Char scalar from their
         // concrete method, so box it before generic consumers store the value.
         if runtimeSourceIteratorValue(objectResult, iteratorRaw: iterRaw).tag == RuntimeValue.charTag {
             return kk_box_char(objectResult)
