@@ -84,7 +84,7 @@ extension JVMFunctionBuilder {
               signature.parameterTypes.count == explicitTypes.count
         else { throw fail("Invalid JVM Compose library signature.", id) }
         let explicit = try arguments(args, binding: binding, parameters: explicitTypes, declarations: nil, id: id,
-                                     composableParameter: contract.contentParameter)
+                                     composableParameters: Set([contract.contentParameter].compactMap { $0 }))
         var supplied = explicit.values.makeIterator()
         let values = try declared.enumerated().map { index, type in
             if contract.usesDefault(at: index) { return try zero(type) }
