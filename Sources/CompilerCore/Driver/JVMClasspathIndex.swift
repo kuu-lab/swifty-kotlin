@@ -17,6 +17,7 @@ final class JVMClasspathIndex {
     private var requiredLazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
+    private var innerClassesByOwner: [String: [JVMInnerClassInfo]] = [:]
     /// Covered names for the `inject(into:)` run in progress; supertypes that
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
@@ -120,6 +121,11 @@ final class JVMClasspathIndex {
                   innerClassMetadata[selfEntry.name] == nil else { continue }
             innerClassMetadata[selfEntry.name] = selfEntry
         }
+        for entry in innerClassMetadata.values {
+            if let owner = entry.outerName {
+                innerClassesByOwner[owner, default: []].append(entry)
+            }
+        }
     }
 
     private func isImportableClassifier(_ name: String, visited: Set<String>) -> Bool {
@@ -138,8 +144,8 @@ final class JVMClasspathIndex {
     }
 
     private func nestedClassDeclarations(of owner: String, indentation: String = "    ") -> String {
-        let children = innerClassMetadata.values
-            .filter { $0.outerName == owner && classes[$0.name] != nil }
+        let children = (innerClassesByOwner[owner] ?? [])
+            .filter { classes[$0.name] != nil }
             .sorted { ($0.innerName ?? "") < ($1.innerName ?? "") }
         var source = ""
         for entry in children {
@@ -1324,7 +1330,7 @@ final class JVMClasspathIndex {
             // Nested classes are emitted inside their owner's stub but are
             // not worklist items themselves; their signature types still
             // need to join the closure.
-            for entry in innerClassMetadata.values where entry.outerName == name {
+            for entry in innerClassesByOwner[name] ?? [] {
                 if classes[entry.name] != nil { processEdges(entry.name) }
             }
         }
