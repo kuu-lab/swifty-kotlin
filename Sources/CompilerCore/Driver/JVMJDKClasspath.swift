@@ -54,7 +54,10 @@ struct JVMJDKClasspath {
         // reached from java.lang.Iterable and java.nio.file.DirectoryStream.
         patterns += ["glob:**/java/util/Iterator.class", "glob:**/java/io/Closeable.class"]
         let classFiles = try JVMJDKClasspathCache.load(image: image, jimage: jimage, patterns: patterns) {
-            try extractClasses(image: image, jimage: jimage, patterns: patterns)
+            if let classFiles = JVMJDKImageReader.read(image: image, jimage: jimage, patterns: patterns) {
+                return classFiles
+            }
+            return try extractClasses(image: image, jimage: jimage, patterns: patterns)
         }
         return JVMJDKClasspath(classFiles: classFiles, requiredLazyClassNames: requiredLazyClassNames)
     }

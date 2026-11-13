@@ -16,8 +16,8 @@ extension CallLowerer {
             return nil
         }
         let knownNames = KnownCompilerNames(interner: interner)
-        guard symbol.fqName == knownNames.kotlinRangesPackageFQName + [knownNames.ulongRange]
-                || symbol.fqName == knownNames.kotlinRangesPackageFQName + [knownNames.ulongProgression]
+        guard symbol.fqName == knownNames.kotlinRangesULongRangeFQName
+                || symbol.fqName == knownNames.kotlinRangesULongProgressionFQName
         else {
             return nil
         }

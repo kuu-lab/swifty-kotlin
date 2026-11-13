@@ -58,7 +58,8 @@ func canonicalRetentionArguments(
         // entry keeps its meaning even if an import alias shadows its last part.
         guard !value.contains("."), let imported = file?.imports.first(where: {
             ($0.alias.map(interner.resolve) ?? $0.path.last.map(interner.resolve)) == value
-                && $0.path.dropLast().map(interner.resolve) == ["kotlin", "annotation", "AnnotationRetention"]
+                && $0.path.count == 4
+                && $0.path.starts(with: KnownCompilerNames(interner: interner).kotlinAnnotationAnnotationRetentionFQName)
         }), let importedEntry = imported.path.last else { return argument }
         let entry = interner.resolve(importedEntry)
         guard entry != value, ["SOURCE", "BINARY", "RUNTIME"].contains(entry) else { return argument }

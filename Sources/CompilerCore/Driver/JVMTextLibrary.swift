@@ -302,7 +302,7 @@ extension JVMProgramBuilder {
                     else { continue }
                     try registerMapEntryComponent(id)
                 }
-                let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
+                let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
             if path.hasPrefix("<kswiftk-jvm>/m19-") || path.hasPrefix("<kswiftk-jvm>/m20-") || path.hasPrefix("<kswiftk-jvm>/m21-") { try visit(file.topLevelDecls, path: path) }
@@ -373,17 +373,19 @@ extension JVMFunctionBuilder {
         }
         let symbol = bindings.identifierSymbol(for: id) ?? accessorProperty ?? call
         guard let symbol else { return nil }
-        if let path = program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve),
-           path.count == 5,
-           Array(path.prefix(4)) == ["kotlin", "time", "Duration", "Companion"],
-           ["nanoseconds", "microseconds", "milliseconds", "seconds", "minutes", "hours", "days"].contains(path[4]) {
+        let knownNames = KnownCompilerNames(interner: context.interner)
+        if let fqName = program.sema.symbols.symbol(symbol)?.fqName,
+           fqName.count == 5,
+           fqName.starts(with: knownNames.kotlinTimeDurationFQName),
+           fqName[3] == knownNames.companion,
+           ["nanoseconds", "microseconds", "milliseconds", "seconds", "minutes", "hours", "days"].contains(context.interner.resolve(fqName[4])) {
             guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
                   [.int, .long, .double].contains(source.type) else {
                 throw fail("Duration unit properties require an Int, Long, or Double receiver.", id)
             }
             let unitType = JVMValueType.reference("kotlin/time/DurationUnit", nullable: false)
             let unit = try value(unitType)
-            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: path[4].uppercased(), type: unitType, access: 0x4019), unit))
+            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
         }
         if let field = program.textLibraryFields[symbol] {

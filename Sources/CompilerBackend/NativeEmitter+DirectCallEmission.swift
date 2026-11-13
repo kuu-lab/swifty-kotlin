@@ -349,7 +349,7 @@ extension NativeEmitter.FunctionEmissionContext {
         // bodies. Their serialized KIR is expanded by consumers, while
         // the native fallback must not reference a bodyless stdlib stub.
         if calleeName == "$reifiedEnumValues", let symbol,
-           symbols?.symbol(symbol)?.fqName.map(interner.resolve) == ["kotlin", "enumValues"] {
+           symbols?.symbol(symbol)?.fqName == KnownCompilerNames(interner: interner).kotlinEnumValuesFQName {
             if let trap = declareExternalFunction(named: "kk_abort_unreachable", argumentCount: 1, appendThrownChannel: false) {
                 _ = bindings.buildCall(builder, functionType: trap.type, callee: trap.value, arguments: [nullThrownPointer], name: "reified_enum_template")
             }

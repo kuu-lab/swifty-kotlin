@@ -6,7 +6,7 @@ extension OverloadResolver {
         _ call: CallExpr, symbol: SemanticSymbol, signature: FunctionSignature, ctx: SemaModule
     ) -> CallExpr {
         guard let interner = ctx.interner,
-              symbol.fqName.map({ interner.resolve($0) }) == ["java", "util", "Collections", "checkedList"],
+              symbol.fqName == KnownCompilerNames(interner: interner).javaUtilCollectionsCheckedListFQName,
               ctx.bundledIndex.contains(ownerFQName: Array(symbol.fqName.dropLast()), name: symbol.name, arity: 2),
               signature.parameterTypes.count == 2, call.args.count == 2,
               case let .classType(parameter) = ctx.types.kind(of: signature.parameterTypes[0]),

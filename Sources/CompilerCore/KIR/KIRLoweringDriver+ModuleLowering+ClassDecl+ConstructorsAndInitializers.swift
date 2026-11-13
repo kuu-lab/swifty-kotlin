@@ -315,10 +315,10 @@ extension KIRLoweringDriver {
             return
         }
 
-        let resolvedSuperclassFQName = superclassInfo.fqName.map(shared.interner.resolve)
+        let knownNames = KnownCompilerNames(interner: shared.interner)
         let isSourceBackedTimeSource =
-            resolvedSuperclassFQName == ["kotlin", "time", "AbstractDoubleTimeSource"]
-                || resolvedSuperclassFQName == ["kotlin", "time", "AbstractLongTimeSource"]
+            superclassInfo.fqName == knownNames.kotlinTimeAbstractDoubleTimeSourceFQName
+                || superclassInfo.fqName == knownNames.kotlinTimeAbstractLongTimeSourceFQName
         let superArgs = superArgsOverride
             ?? classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs
             ?? []

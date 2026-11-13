@@ -114,6 +114,53 @@ extension JVMBackendTests {
     }
 
     @Test
+    func externalKotlinSuspendFunctionTypesResolveAndRun() throws {
+        try withWorkspace { root in
+            try """
+            package fixture
+
+            class Widget
+
+            suspend fun Widget.render(content: (Int, Int) -> Unit) {
+                content(20, 22)
+            }
+            """.write(to: root.appendingPathComponent("Provider.kt"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("kotlinc", ["Provider.kt", "-d", "provider.jar"], root: root)
+            let provider = root.appendingPathComponent("provider.jar")
+
+            let compiled = try compile("""
+            import fixture.Widget
+            import fixture.render
+            import kotlin.coroutines.*
+
+            class Done : Continuation<Unit> {
+                override val context: CoroutineContext get() = EmptyCoroutineContext
+                override fun resumeWith(result: Result<Unit>) {
+                    result.getOrThrow()
+                    println("done")
+                }
+            }
+
+            fun main() {
+                val work: suspend () -> Unit = {
+                    Widget().render { left, right -> println(left + right) }
+                }
+                work.startCoroutine(Done())
+            }
+            """, root: root, mode: .jvmJar, classpath: [provider.path])
+            try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
+
+            let runtime = try m11Runtime()
+            let execution = try java([
+                "-cp", root.appendingPathComponent("hello.jar").path + ":" + provider.path + ":" + runtime,
+                "HelloKt",
+            ])
+            #expect(execution.stderr.isEmpty)
+            #expect(execution.stdout == "42\ndone\n")
+        }
+    }
+
+    @Test
     func externalKotlinSuspendRequiresSuspendContext() throws {
         try withWorkspace { root in
             let provider = try externalSuspendProvider(root)

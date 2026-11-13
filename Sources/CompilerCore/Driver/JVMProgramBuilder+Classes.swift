@@ -55,7 +55,7 @@ extension JVMProgramBuilder {
         while let current = pending.popLast() {
             guard visited.insert(current).inserted,
                   let declaration = sema.symbols.symbol(current) else { continue }
-            if declaration.fqName.map(context.interner.resolve) == ["kotlin", "Number"] {
+            if declaration.fqName == KnownCompilerNames(interner: context.interner).kotlinNumberFQName {
                 return true
             }
             pending.append(contentsOf: sema.symbols.directSupertypes(for: current))
@@ -255,6 +255,11 @@ extension JVMProgramBuilder {
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
+            let backingFieldSemanticType = sema.symbols.backingFieldSymbol(for: symbol)
+                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType
+            let mappedBackingFieldType = try self.type(backingFieldSemanticType)
+            let backingFieldType = nominalRangeResultType(for: symbol, mapped: mappedBackingFieldType)
+                ?? mappedBackingFieldType
             let extensionReceiverSemantic = sema.symbols.extensionPropertyReceiverType(for: symbol)
             let extensionReceiver = try extensionReceiverSemantic.map(self.type)
             let getterParameters = extensionReceiver.map { [$0] } ?? []
@@ -278,7 +283,7 @@ extension JVMProgramBuilder {
             let backing = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             let usesField: (ExprID) -> Bool = { self.sema.bindings.identifierSymbol(for: $0) == backing }
             let hasField = extensionReceiver == nil && !plan.isInterface && !p.modifiers.contains(.abstract) &&
-                (!validator.accessorHasBody(p.getter) || (p.isVar && !validator.accessorHasBody(p.setter)) ||
+                (p.explicitBackingField != nil || !validator.accessorHasBody(p.getter) || (p.isVar && !validator.accessorHasBody(p.setter)) ||
                  validator.accessorUsesBackingField(p.getter, isBackingFieldReference: usesField) ||
                  validator.accessorUsesBackingField(p.setter, isBackingFieldReference: usesField))
             var fieldModifiers = p.modifiers
@@ -297,13 +302,14 @@ extension JVMProgramBuilder {
             }
             let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
+            property.fieldGenericSignature = try signatureType(backingFieldSemanticType)
             property.receiverGenericSignature = try extensionReceiverSemantic.map { try signatureType($0, parameterPosition: true) }
             property.customGetter = (p.getter?.body ?? .unit) != .unit || (p.getter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)
             property.customSetter = (p.setter?.body ?? .unit) != .unit || (p.setter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)

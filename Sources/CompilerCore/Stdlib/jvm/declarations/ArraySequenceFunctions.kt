@@ -1,5 +1,6 @@
 package kotlin.collections
 fun <T> kotlin.Array<out T>.asSequence(): kotlin.sequences.Sequence<T> = null!!
+fun <T> kotlin.Array<out T>.asIterable(): Iterable<T> = null!!
 fun <T> kotlin.Array<out T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String = null!!
 fun kotlin.IntArray.asSequence(): kotlin.sequences.Sequence<Int> = null!!
 fun kotlin.IntArray.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((Int) -> CharSequence)? = null): String = null!!

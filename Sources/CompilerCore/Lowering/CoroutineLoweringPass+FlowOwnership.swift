@@ -124,7 +124,7 @@ extension CoroutineLoweringPass {
         guard terminals.contains(name) else { return false }
         if !hasRealDeclaration(symbol, in: ctx) { return true }
         guard let symbol, let info = ctx.sema?.symbols.symbol(symbol) else { return false }
-        return info.fqName.prefix(3).map(ctx.interner.resolve) == ["kotlinx", "coroutines", "flow"]
+        return info.fqName.starts(with: KnownCompilerNames(interner: ctx.interner).kotlinxCoroutinesFlowPackageFQName)
     }
 
     private func escapingFlowArguments(

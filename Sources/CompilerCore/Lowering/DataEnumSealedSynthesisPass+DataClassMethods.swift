@@ -1048,7 +1048,7 @@ extension DataEnumSealedSynthesisPass {
                 return true
             case let .classType(classType):
                 return sema.symbols.symbol(classType.classSymbol)?.fqName
-                    .map { interner.resolve($0) } == ["kotlin", "reflect", "KClass"]
+                    == KnownCompilerNames(interner: interner).kotlinReflectKClassFQName
             default:
                 return false
             }

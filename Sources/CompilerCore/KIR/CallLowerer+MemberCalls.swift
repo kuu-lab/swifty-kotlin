@@ -46,7 +46,7 @@ extension CallLowerer {
         // assignability to the reified T — the same rule `as? Array<T>` uses.
         if let binding = sema.bindings.callBindings[exprID],
            let calleeSymbol = sema.symbols.symbol(binding.chosenCallee),
-           calleeSymbol.fqName.map(interner.resolve) == ["kotlin", "isArrayOf"]
+           calleeSymbol.fqName == KnownCompilerNames(interner: interner).kotlinIsArrayOfFQName
         {
             let receiver = driver.lowerExpr(receiverExpr, shared: shared, emit: &instructions)
             // kotlinc's `isArrayOf` is a non-inline reified function: a

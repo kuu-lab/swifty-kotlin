@@ -1025,7 +1025,10 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-        return symbol.fqName.map { interner.resolve($0) } == ["kotlin", name]
+        let knownNames = KnownCompilerNames(interner: interner)
+        return symbol.fqName.count == 2
+            && symbol.fqName[0] == knownNames.kotlin
+            && interner.resolve(symbol.fqName[1]) == name
     }
 
     /// True when `candidate` is a non-stdlib declaration that is applicable to the

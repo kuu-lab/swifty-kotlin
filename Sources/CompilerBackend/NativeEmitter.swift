@@ -406,7 +406,7 @@ struct NativeEmitter {
         interner: StringInterner,
         symbols: SymbolTable
     ) -> Bool {
-        let throwableFQName = ["kotlin", "Throwable"]
+        let knownNames = KnownCompilerNames(interner: interner)
         var visited: Set<SymbolID> = []
         var pending = [symbol]
         while let candidate = pending.popLast() {
@@ -415,7 +415,7 @@ struct NativeEmitter {
             else {
                 continue
             }
-            if symbolInfo.fqName.map(interner.resolve) == throwableFQName {
+            if symbolInfo.fqName == knownNames.kotlinThrowableFQName {
                 return true
             }
             pending.append(contentsOf: symbols.directSupertypes(for: candidate))

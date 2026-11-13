@@ -9,7 +9,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> TypeID {
         guard fqName.count == 4,
-              fqName.prefix(3).map({ interner.resolve($0) }) == ["java", "lang", "ThreadLocal"],
+              fqName.starts(with: KnownCompilerNames(interner: interner).javaLangThreadLocalFQName),
               ["get", "initialValue"].contains(interner.resolve(fqName[3])),
               case .typeParam = types.kind(of: type)
         else { return type }

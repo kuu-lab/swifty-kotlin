@@ -371,6 +371,7 @@ extension CallLowerer {
         }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
+        let knownNames = KnownCompilerNames(interner: interner)
         let receiverType = receiverTypeOverride ?? sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         // Safe calls skip the legacy array-member lowering, so mirror its bridge mapping here.
         if chosenCallee == nil,
@@ -437,9 +438,7 @@ extension CallLowerer {
                    sema.types.makeNonNullable(receiverType),
                    sema: sema
                ),
-               receiverSymbol.fqName.map(interner.resolve) == [
-                   "kotlin", "native", "concurrent", "Worker",
-               ]
+               receiverSymbol.fqName == knownNames.kotlinNativeConcurrentWorkerFQName
             {
                 // Worker receiver APIs are declared in bundled Kotlin source,
                 // but their implementation boundary is the native runtime ABI.
@@ -500,8 +499,8 @@ extension CallLowerer {
                 if isExactListIteratorReceiverType(receiverType, sema: sema, interner: interner),
                    let parentSymbol = sema.symbols.parentSymbol(for: chosenCallee)
                        .flatMap(sema.symbols.symbol),
-                   (parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "Iterator"]
-                       || parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]),
+                   (parentSymbol.fqName == knownNames.kotlinCollectionsIteratorFQName
+                       || parentSymbol.fqName == knownNames.kotlinCollectionsListIteratorFQName),
                    fallbackName == "hasNext" || fallbackName == "next"
                 {
                     return fallback
@@ -523,11 +522,7 @@ extension CallLowerer {
                 if fallbackName == "size",
                    let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
                    let owner = sema.symbols.symbol(ownerID),
-                   owner.fqName == [
-                       interner.intern("kotlin"),
-                       interner.intern("collections"),
-                       interner.intern("Collection"),
-                   ],
+                   owner.fqName == knownNames.kotlinCollectionsCollectionFQName,
                    let collectionSize = unresolvedCollectionMemberCallee(
                        memberName: fallback,
                        receiverType: receiverType,
@@ -666,7 +661,7 @@ extension CallLowerer {
             return false
         }
         return symbol.kind == .interface
-            && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
+            && symbol.fqName == KnownCompilerNames(interner: interner).kotlinCollectionsListIteratorFQName
     }
 
     /// `BroadcastChannel` is the first source-backed `SendChannel` implementation.
@@ -684,9 +679,7 @@ extension CallLowerer {
         else {
             return false
         }
-        return symbol.fqName.map(interner.resolve) == [
-            "kotlinx", "coroutines", "channels", "BroadcastChannel",
-        ]
+        return symbol.fqName == KnownCompilerNames(interner: interner).kotlinxCoroutinesBroadcastChannelFQName
     }
 
     func isChannelRuntimeBridgeCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
@@ -767,7 +760,7 @@ extension CallLowerer {
                     of: sema.types.makeNonNullable(receiverType)
                 ),
                 let symbol = sema.symbols.symbol(classType.classSymbol),
-                symbol.fqName.map(interner.resolve) == ["kotlin", "ranges", "OpenEndRange"]
+                symbol.fqName == KnownCompilerNames(interner: interner).kotlinRangesOpenEndRangeFQName
             else {
                 return nil
             }
@@ -795,7 +788,7 @@ extension CallLowerer {
                         }
                     guard let property,
                           let owner = sema.symbols.parentSymbol(for: property).flatMap(sema.symbols.symbol),
-                          owner.fqName.map(interner.resolve) == ["kotlin", "ranges", "OpenEndRange"]
+                          owner.fqName == KnownCompilerNames(interner: interner).kotlinRangesOpenEndRangeFQName
                     else { return nil }
                 } else if !sema.bindings.isOpenFloatingPointRangeExpr(receiverExpr),
                           nominalFloatingPointElementType == nil

@@ -25,7 +25,8 @@ extension JVMProgramBuilder {
 
     func isLazyDelegate(_ symbol: SymbolID) -> Bool {
         guard let accessor = sema.symbols.delegateGetValueSymbol(for: symbol), let s = sema.symbols.symbol(accessor) else { return false }
-        return s.fqName.map(context.interner.resolve).starts(with: ["kotlin"]) && context.interner.resolve(s.name) == "getValue" && sema.symbols.functionSignature(for: accessor)?.receiverType.flatMap({ try? type($0).referenceName }) == "kotlin/Lazy"
+        let knownNames = KnownCompilerNames(interner: context.interner)
+        return s.fqName.count > 0 && s.fqName[0] == knownNames.kotlin && context.interner.resolve(s.name) == "getValue" && sema.symbols.functionSignature(for: accessor)?.receiverType.flatMap({ try? type($0).referenceName }) == "kotlin/Lazy"
     }
 
     func prepareClassDelegates() throws {

@@ -23,16 +23,17 @@ extension JVMFunctionBuilder {
         guard case let .memberCall(receiver, name, _, args, _) = arena.expr(id), args.isEmpty,
               let symbol = program.sema.bindings.identifierSymbol(for: receiver),
               let declaration = program.sema.symbols.symbol(symbol) else { return nil }
-        var path = declaration.fqName.map(context.interner.resolve)
-        if path.last == "Companion" { path.removeLast() }
-        if path == ["java", "lang", "Math"], declaration.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
+        let knownNames = KnownCompilerNames(interner: context.interner)
+        var fqName = declaration.fqName
+        if let last = fqName.last, last == knownNames.companion { fqName.removeLast() }
+        if fqName == knownNames.javaLangMathFQName, declaration.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
             switch context.interner.resolve(name) {
             case "PI": return try constant(.double(.pi), .double)
             case "E": return try constant(.double(2.718281828459045), .double)
             default: return nil
             }
         }
-        guard path.count == 2, path[0] == "kotlin", let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long, .float, .double].first(where: { $0.kotlinName == path[1] }) else { return nil }
+        guard fqName.count == 2, fqName[0] == knownNames.kotlin, let primitive = [PrimitiveType.char, .byte, .short, .uint, .ulong, .ubyte, .ushort, .int, .long, .float, .double].first(where: { $0.kotlinName == context.interner.resolve(fqName[1]) }) else { return nil }
         let member = context.interner.resolve(name), type = JVMValueType.primitive(primitive)
         let bits = [.byte, .ubyte].contains(type) ? 8 : ([.char, .short, .ushort].contains(type) ? 16 : (type.width == 2 ? 64 : 32))
         if member == "SIZE_BITS" || member == "SIZE_BYTES" { return try constant(.int(Int32(member == "SIZE_BITS" ? bits : bits / 8)), .int) }
