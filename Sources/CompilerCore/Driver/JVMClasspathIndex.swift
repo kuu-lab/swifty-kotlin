@@ -493,6 +493,7 @@ final class JVMClasspathIndex {
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.kotlinComparableSupertype = info.kotlinComparableSupertype
+            imported.kotlinParameterizedSupertypes = info.kotlinParameterizedSupertypes
             imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
@@ -721,6 +722,10 @@ final class JVMClasspathIndex {
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
         if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
         if name == "java/lang/Comparable", let comparable = child.kotlinComparableSupertype { return comparable }
+        if let parent = classes[name], parent.methods.contains(where: { $0.kotlinFunction?.result.contains("->") == true }),
+           let source = child.kotlinParameterizedSupertypes[name.replacingOccurrences(of: "$", with: ".")] {
+            return source
+        }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),
            let end = signature[prefix.upperBound...].range(of: ";>;") {
@@ -1432,6 +1437,16 @@ final class JVMClasspathIndex {
                 continue
             }
             var overrides = overridesParent(method, in: info)
+            if !overrides, method.kotlinFunction?.result.contains("->") == true,
+               !info.kotlinParameterizedSupertypes.isEmpty {
+                // A generic callback override can have a specialized JVM
+                // descriptor. Its bridge still matches the erased parent.
+                overrides = info.bridgeMethods.contains { bridge in
+                    bridge.name == method.name && bridge.parameters.count == method.parameters.count
+                        && bridge.result.descriptor == method.result.descriptor
+                        && overridesParent(bridge, in: info)
+                }
+            }
             if charSequenceBridged, method.name == "subSequence" { overrides = true }
             if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
             if appendableBridged, isAppendableMember(method) { overrides = true }
@@ -1670,7 +1685,7 @@ final class JVMClasspathIndex {
                 let declaration = companion.flatMap { companion in
                     companion.methods.first {
                         !$0.isStatic && $0.name == method.name && $0.descriptor == method.descriptor
-                            && $0.kotlinFunction != nil && !overridesParent($0, in: companion, visited: [])
+                            && $0.kotlinFunction != nil && !overridesParent($0, in: companion)
                     }
                 } ?? method
                 source += "external " + functionDeclaration(declaration) + "\n"
@@ -1961,6 +1976,7 @@ final class JVMClasspathIndex {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
+            markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
             for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
