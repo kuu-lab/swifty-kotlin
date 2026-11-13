@@ -441,9 +441,8 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
-        try primary()
-        while let level = precedence(), level >= minimum,
-              allowNewlines || kind == .symbol(.questionColon) || !newlineBeforeCurrent() {
+        try primary(allowNewlines: allowNewlines)
+        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() || ParserBoundaryPolicy.continuesExpressionBeforeNewline(kind) {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {
@@ -492,7 +491,7 @@ private struct JVMSourceGrammar {
             && tokens[index + 1].kind == .symbol(.at)
             && tokens[index + 2].kind == .symbol(.lBrace)
     }
-    mutating func primary() throws {
+    mutating func primary(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
@@ -543,17 +542,12 @@ private struct JVMSourceGrammar {
                 }
                 try require(.symbol(.arrow)); try body(); try separator(); semicolons()
             }
-            return
-        }
-        if take(.keyword(.if)) {
+        } else if take(.keyword(.if)) {
             try condition(); try body()
             if take(.keyword(.else)) { try body() }
-            return
-        }
-        if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
-            index += 1; try primary(); return
-        }
-        if take(.symbol(.doubleColon)) { try name()
+        } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
+            index += 1; try primary(allowNewlines: allowNewlines); return
+        } else if take(.symbol(.doubleColon)) { try name()
         } else if kind == .keyword(.fun) {
             try anonymousFunction()
         } else if kind == .keyword(.object) {
@@ -590,6 +584,8 @@ private struct JVMSourceGrammar {
             try name()
         } }
         while true {
+            if !allowNewlines, newlineBeforeCurrent(),
+               kind == .symbol(.lParen) || kind == .symbol(.lBracket) { break }
             if kind == .symbol(.lessThan) {
                 let saved = index
                 do {
