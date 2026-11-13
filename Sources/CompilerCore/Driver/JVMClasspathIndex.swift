@@ -1090,7 +1090,11 @@ final class JVMClasspathIndex {
                 } else {
                 let isNonCancellable = info.name == "kotlinx/coroutines/NonCancellable" && info.isKotlinObject
                     && info.superclass == "kotlin/coroutines/AbstractCoroutineContextElement"
-                if isNonCancellable {
+                let isComposeObject = info.isKotlinObject && info.kotlinMemberProperties.values.contains {
+                    $0.getter.composePropertyABI(hasReceiver: false)
+                } && own.allSatisfy { !$0.isStatic }
+                let isObject = isNonCancellable || isComposeObject
+                if isObject {
                     source += "object `\(short)`"
                 } else if info.isInterface {
                     source += interfaceKeyword(info) + " `\(short)`"
@@ -1117,8 +1121,9 @@ final class JVMClasspathIndex {
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
-                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
-                if info.name == Self.compositionLocal, let getter = compositionLocalGetter,
+                source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObject)
+                if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
+                   let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
                     let readonly = getter.annotations.contains {
                         $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
@@ -1374,7 +1379,7 @@ final class JVMClasspathIndex {
         for method in own where !method.isConstructor && !method.isStatic {
             if inheritedKotlinGetters.contains(memberKey(method)) || kotlinProperties.contains(where: { name, property in
                 property.getter.name == method.name && property.getter.descriptor == method.descriptor
-                    && (info.isInterface || method.name == name)
+                    && (info.isInterface || method.name == name || method.composePropertyABI(hasReceiver: false))
             }) {
                 continue
             }
@@ -1462,7 +1467,13 @@ final class JVMClasspathIndex {
             } else if !info.isInterface && !getter.isFinal {
                 source += "open "
             }
-            source += "val `\(name)`: \(property.sourceType)" + (info.isInterface ? "\n" : " get() = null!!\n")
+            let composable = getter.composePropertyABI(hasReceiver: false)
+            let annotations = composable ? " @androidx.compose.runtime.Composable" : ""
+            let readonly = composable && getter.annotations.contains {
+                $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+            } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+            source += "val `\(name)`: \(property.sourceType)"
+                + (info.isInterface && !composable ? "\n" : "\(annotations)\(readonly) get() = null!!\n")
         }
         for (field, type) in instanceFields {
             let setter = field.isFinal ? "" : " set(value) {}"
