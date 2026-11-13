@@ -1406,7 +1406,26 @@ final class JVMClasspathIndex {
             return false
         }
         var source = ""
-        let exposedKotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
+        var exposedKotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
+        var inheritedKotlinGetters: Set<String> = []
+        var propertyParents = [info.superclass].compactMap { $0 } + info.interfaces
+        var visitedPropertyParents: Set<String> = []
+        while let name = propertyParents.popLast() {
+            guard visitedPropertyParents.insert(name).inserted, let parent = classes[name] else { continue }
+            propertyParents += [parent.superclass].compactMap { $0 } + parent.interfaces
+            for (propertyName, property) in parent.kotlinMemberProperties where property.getter.isAbstract {
+                guard let getter = own.first(where: {
+                    !$0.isStatic && $0.parameters.isEmpty && $0.name == property.getter.name
+                        && exposeSuspendType($0.result)
+                }) else { continue }
+                inheritedKotlinGetters.insert(memberKey(getter))
+                if exposedKotlinProperties[propertyName] == nil {
+                    let type = getter.result.descriptor == property.getter.result.descriptor
+                        ? property.sourceType : kotlinType(getter.result)
+                    exposedKotlinProperties[propertyName] = (getter, type)
+                }
+            }
+        }
         let instanceFields = info.fields.compactMap { field -> (JVMForeignField, JVMValueType)? in
             guard info.isRuntimeInstanceField(field), JVMProgramBuilder.isIdentifier(field.name),
                   let type = try? JVMDescriptor.parse("()" + field.descriptor).1, exposeSuspendType(type)
@@ -1441,6 +1460,7 @@ final class JVMClasspathIndex {
             source += "external " + functionDeclaration(method) + "\n"
         }
         for method in own where !method.isConstructor && !method.isStatic && !isKotlinPropertyAccessor(method) {
+            if inheritedKotlinGetters.contains(memberKey(method)) { continue }
             if let getter = exposedKotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
                 continue
             }
@@ -1483,7 +1503,7 @@ final class JVMClasspathIndex {
             let kotlinProperty = kotlinProperties.first { $0.getter == getter.name }
             let propertyName = shape.name
             guard JVMProgramBuilder.isIdentifier(propertyName),
-                  exposedKotlinProperties[propertyName] == nil,
+                  !inheritedKotlinGetters.contains(memberKey(getter)), exposedKotlinProperties[propertyName] == nil,
                   !instanceFieldNames.contains(propertyName),
                   !own.contains(where: {
                       !$0.isStatic && !$0.isConstructor && $0.name == propertyName
@@ -1527,7 +1547,8 @@ final class JVMClasspathIndex {
             let getter = property.getter
             let overridesMapView = info.kotlinReadOnlyCollectionSupertypes["java/util/Map"] != nil
                 && ["keys", "values", "entries"].contains(name)
-            if !getter.isStatic, overridesMapView || overridesParent(getter, in: info) {
+            if !getter.isStatic, overridesMapView || inheritedKotlinGetters.contains(memberKey(getter))
+                || overridesParent(getter, in: info) {
                 source += getter.isFinal ? "final override " : "override "
             } else if !info.isInterface && !getter.isFinal {
                 source += "open "
