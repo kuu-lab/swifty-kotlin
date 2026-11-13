@@ -9,6 +9,7 @@ struct JVMClassInfo {
     var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
     var defaultArgumentMethods: [JVMForeignMethod] = []
+    var metroAccessors: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
     var kotlinTypeParameterVariance: [String: String] = [:]
     var genericSignature: String?
@@ -144,10 +145,15 @@ struct JVMClassReader {
     /// Method attributes: the generic signature, annotation-class element
     /// defaults, and annotations carried by those element declarations. Other
     /// attributes keep the declaration-only skipping behavior.
-    private mutating func methodAttributes(parseAnnotations: Bool) throws -> (signature: String?, annotations: [JVMAnnotation], annotationDefault: JVMAnnotationValue?) {
+    private struct MethodAttributes {
         var signature: String?
         var annotations: [JVMAnnotation] = []
-        var annotationDefault: JVMAnnotationValue? = nil
+        var annotationDefault: JVMAnnotationValue?
+        var parameterAnnotations: [[JVMAnnotation]] = []
+    }
+
+    private mutating func methodAttributes(parseAnnotations: Bool, parseParameters: Bool) throws -> MethodAttributes {
+        var attributes = MethodAttributes()
         let count = try u2()
         for _ in 0..<count {
             let nameIndex = Int(try u2())
@@ -155,20 +161,29 @@ struct JVMClassReader {
             let end = offset + Int(size)
             let attributeName = try text(nameIndex)
             if attributeName == "Signature" {
-                guard signature == nil, size == 2 else { throw Invalid() }
-                signature = try text(Int(u2()))
+                guard attributes.signature == nil, size == 2 else { throw Invalid() }
+                attributes.signature = try text(Int(u2()))
             } else if parseAnnotations, attributeName == "AnnotationDefault" {
-                annotationDefault = try readAnnotationValue(tag: u1())
+                attributes.annotationDefault = try readAnnotationValue(tag: u1())
             } else if parseAnnotations, attributeName == "RuntimeVisibleAnnotations" {
-                annotations += try readAnnotations(visible: true)
+                attributes.annotations += try readAnnotations(visible: true)
             } else if parseAnnotations, attributeName == "RuntimeInvisibleAnnotations" {
-                annotations += try readAnnotations(visible: false)
+                attributes.annotations += try readAnnotations(visible: false)
+            } else if parseParameters,
+                      attributeName == "RuntimeVisibleParameterAnnotations" || attributeName == "RuntimeInvisibleParameterAnnotations" {
+                let parameterCount = Int(try u1())
+                let visible = attributeName == "RuntimeVisibleParameterAnnotations"
+                for index in 0..<parameterCount {
+                    let annotations = try readAnnotations(visible: visible)
+                    if index == attributes.parameterAnnotations.count { attributes.parameterAnnotations.append(annotations) }
+                    else { attributes.parameterAnnotations[index] += annotations }
+                }
             } else {
                 try skip(Int(size))
             }
             guard offset == end else { throw Invalid() }
         }
-        return (signature, annotations, annotationDefault)
+        return attributes
     }
     private mutating func classAttributes(hasKotlinMetadata: Bool, parseAnnotations: Bool) throws -> (
         signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool,
@@ -516,12 +531,15 @@ struct JVMClassReader {
         var bridgeMethods: [JVMForeignMethod] = []
         var defaultArgumentMethods: [JVMForeignMethod] = []
         var syntheticConstructors: [JVMForeignMethod] = []
+        var metroAccessors: [JVMForeignMethod] = []
         let methodCount = try u2()
         let parseAnnotations = flags & 0x2000 != 0 || hasMetroAnnotation
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads)
+            let methodInfo = try methodAttributes(
+                parseAnnotations: parseAnnotations || hasComposableAnnotation || hasJvmOverloads, parseParameters: hasMetroAnnotation
+            )
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             let isSyntheticConstructor = hasKotlinMetadata && access & 0x1001 == 0x1001 && methodName == "<init>"
                 && descriptor.hasSuffix("Lkotlin/jvm/internal/DefaultConstructorMarker;)V")
@@ -530,7 +548,9 @@ struct JVMClassReader {
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
-            if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder), methodName != "<clinit>",
+            let isMetroAccessor = hasMetroAnnotation && (methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } && access & 0x0002 != 0
+                || access & 0x1009 == 0x1009 && methodName.hasPrefix("access$"))
+            if isMetroAccessor || (access & 0x0005 != 0 && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder)), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -547,7 +567,10 @@ struct JVMClassReader {
                 }
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
-                if isSyntheticConstructor { syntheticConstructors.append(method) }
+                method.parameterAnnotations = methodInfo.parameterAnnotations
+                method.genericSignature = methodInfo.signature
+                if isMetroAccessor { metroAccessors.append(method) }
+                else if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
                 else if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
@@ -681,6 +704,7 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        info.metroAccessors = metroAccessors
         if info.isInterface, !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }

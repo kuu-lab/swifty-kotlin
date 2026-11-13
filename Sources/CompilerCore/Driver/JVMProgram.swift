@@ -270,6 +270,8 @@ public struct JVMForeignMethod {
     public var annotations: [JVMAnnotation] = []
     public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
+    var parameterAnnotations: [[JVMAnnotation]] = []
+    var genericSignature: String?
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
     var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
     var kotlinOwnerResultParameter: String?

@@ -17,10 +17,12 @@ extension JVMProgramBuilder {
             }
             let factorySymbol = factory.methodSymbols[jvmMemberKey(method)]
             let parameterSymbols = factorySymbol.flatMap { sema.symbols.functionSignature(for: $0)?.valueParameterSymbols } ?? []
-            guard try parameterSymbols.count == method.parameters.count && parameterSymbols.allSatisfy({
-                try (annotations(for: $0, target: nil) + annotations(for: $0, target: "param"))
-                    .contains { $0.descriptor == JVMMetro.provides }
-            }) else {
+            guard parameterSymbols.count == method.parameters.count else {
+                throw JVMFrontendError(message: "Metro factory argument bindings are unavailable.", range: range)
+            }
+            let factoryMethod = try factorySymbol.map { try metroSourceMethod(method, symbol: $0) } ?? method
+            guard factoryMethod.parameterAnnotations.count == method.parameters.count,
+                  factoryMethod.parameterAnnotations.allSatisfy({ !$0.metro(JVMMetro.provides).isEmpty }) else {
                 throw JVMFrontendError(message: "Metro factory arguments must declare @Provides instance bindings.", range: range)
             }
 
@@ -28,54 +30,75 @@ extension JVMProgramBuilder {
             let fields = method.parameters.enumerated().map { index, type in
                 JVMField(owner: implementation, name: "input" + String(index), type: type, access: 0x0012)
             }
-            let graphMethods = try metroGraphMethods(graph, implementation: implementation, inputs: fields)
+            let graphAnnotation = try annotations(for: graph.symbol, target: nil).metro(JVMMetro.graph).first
+            let scope = graphAnnotation?.metroClass("scope")
+            let additionalScopes = graphAnnotation?.metroClasses("additionalScopes") ?? []
+            let excluded = Set(graphAnnotation?.metroClasses("excludes") ?? [])
+            var bindings = try metroBindings(scope: scope, additionalScopes: additionalScopes, excluded: excluded)
+            for (key, field) in zip(try metroDependencies(factoryMethod), fields) {
+                bindings[key, default: []].append(JVMMetroBinding(recipe: .input(field), type: field.type, scope: nil))
+            }
+            let emitter = JVMMetroBindingEmitter(
+                program: self, graph: graph, implementation: implementation, range: graph.interface!.range,
+                scopes: Set([scope].compactMap { $0 } + additionalScopes), bindings: bindings
+            )
+            let entries = try metroGraphMethods(graph).map { method in
+                try emitter.entry(method, key: metroBindingKey(method.metroTypes.result, annotations: method.annotations))
+            }
             var graphClass = rawClass(implementation, interfaces: [graph.name], access: 0x0031,
-                                      functions: [metroConstructor(implementation, fields: fields)] + graphMethods, fields: fields)
+                                      functions: [metroConstructor(implementation, fields: fields)] + entries + emitter.methods,
+                                      fields: fields + emitter.fields)
             graphClass.outerName = graph.name
             graphClass.innerName = "Impl"
             graphClass.annotations = [JVMAnnotation(descriptor: JVMMetro.implementation)]
             let (factoryClass, instance) = try metroFactoryClass(factory, method: method, implementation: implementation)
             metroFactoryFields[factory.symbol] = instance
-            metroClasses += [graphClass, factoryClass]
+            metroClasses += [graphClass, factoryClass] + emitter.classes
         }
     }
 
-    private func metroGraphMethods(
-        _ graph: JVMClassPlan, implementation: String, inputs: [JVMField]
-    ) throws -> [JVMFunction] {
-        var entries = effectiveInterfaceMethods(graph)
-        var pending = graph.interfaces
+    private func metroGraphMethods(_ graph: JVMClassPlan) throws -> [JVMForeignMethod] {
+        var entries: [String: JVMForeignMethod] = [:]
+        var pending = [graph.name]
         var visited: Set<String> = []
         while let owner = pending.popLast() {
             guard visited.insert(owner).inserted else { continue }
+            let declared: [JVMForeignMethod]
             if let source = classes.values.first(where: { $0.name == owner && $0.isInterface }) {
-                pending += source.interfaces
-            } else if let info = context.jvmImports?.classes[owner] {
-                pending += info.interfaces
-                for method in info.methods where method.owner == owner && !method.isStatic && !method.isConstructor {
-                    if entries[jvmMemberKey(method)] == nil { entries[jvmMemberKey(method)] = method }
+                pending += source.interfaces.reversed()
+                declared = try declaredInterfaceMethods(source).map { method in
+                    if let symbol = source.methodSymbols[jvmMemberKey(method)] {
+                        return try metroSourceMethod(method, symbol: symbol)
+                    }
+                    var method = method
+                    if let property = source.properties.first(where: { jvmMemberKey($0.2.getter) == jvmMemberKey(method) }),
+                       let symbol = sema.bindings.declSymbol(for: property.0) {
+                        method.annotations = try annotations(for: symbol, target: "get")
+                        method.genericSignature = "()" + (property.2.genericSignature ?? method.result.descriptor)
+                    }
+                    return method
                 }
+            } else if let info = context.jvmImports?.metroClassInfo(owner) {
+                pending += info.interfaces.reversed()
+                declared = info.methods.filter { !$0.isStatic && !$0.isConstructor }
+            } else {
+                continue
+            }
+            for method in declared where entries[jvmMemberKey(method)] == nil {
+                entries[jvmMemberKey(method)] = method
             }
         }
-
-        let groupedInputs = Dictionary(grouping: inputs, by: { $0.type.descriptor })
-        let receiver = JVMValue(slot: 0, type: .reference(implementation, nullable: false))
-        return try entries.values.filter(\.isAbstract).sorted { jvmMemberKey($0) < jvmMemberKey($1) }.map { method in
-            guard !method.isSuspend, method.parameters.isEmpty,
-                  let matches = groupedInputs[method.result.descriptor], matches.count == 1, let field = matches.first else {
-                throw JVMFrontendError(
-                    message: "Metro graph \(graph.name) cannot resolve binding for \(method.name)\(method.descriptor).",
-                    range: graph.interface?.range
-                )
-            }
-            let result = JVMValue(slot: 1, type: field.type)
-            return rawFunction(implementation, name: method.name, parameters: [], result: method.result,
-                               access: 0x0011, locals: [receiver, result],
-                               instructions: [.getField(field, receiver, result), .returnValue(result)])
+        let methods = entries.values.filter(\.isAbstract).sorted { jvmMemberKey($0) < jvmMemberKey($1) }
+        for method in methods where method.isSuspend || !method.parameters.isEmpty || method.result == .unit {
+            throw JVMFrontendError(
+                message: "Unsupported Metro graph entry \(graph.name).\(method.name)\(method.descriptor).",
+                range: graph.interface?.range
+            )
         }
+        return methods
     }
 
-    private func metroConstructor(_ owner: String, fields: [JVMField], access: UInt16 = 0) -> JVMFunction {
+    func metroConstructor(_ owner: String, fields: [JVMField], access: UInt16 = 0) -> JVMFunction {
         let receiver = JVMValue(slot: 0, type: .reference(owner, nullable: false))
         var locals = [receiver]
         var instructions: [JVMInstruction] = [.foreignCall(objectConstructor(), receiver: receiver, arguments: [], result: nil)]
