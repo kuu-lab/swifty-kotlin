@@ -114,7 +114,7 @@ extension JVMBackendTests {
                 val maker: Graph.Maker = factory()
                 println(maker.make("factory").message)
                 println(createGraph<Graph>().message)
-                println(factory<LegacyGraph.Factory>().create("legacy").message)
+                println(factory<LegacyGraph.Factory>().create(message = "legacy").message)
             }
             """, root: root, mode: .jvmJar, classpath: [classpath])
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
