@@ -62,7 +62,7 @@ extension JVMFunctionBuilder {
     }
     func functionValueCall(_ callee: ExprID, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         if case let .nameRef(name, _) = arena.expr(callee), let lambda = inlineArgument(name) { return JVMIntrinsicResult(value: try expandLambda(lambda, args: args, id: id)) }
-        if let binding = program.sema.bindings.callBinding(for: id), program.references[binding.chosenCallee] != nil || program.methods[binding.chosenCallee] != nil || context.jvmImports?.methods[binding.chosenCallee] != nil { return nil }
+        if let binding = program.sema.bindings.callBinding(for: id), program.references[binding.chosenCallee] != nil || program.methods[binding.chosenCallee] != nil || context.jvmImports?.method(for: binding.chosenCallee) != nil { return nil }
         var signature = functionType(callee)
         if let bound = program.sema.bindings.callableValueCallBinding(for: id), case let .functionType(f) = program.sema.types.kind(of: bound.functionType) { signature = f }
         if signature == nil, case let .nameRef(name, _) = arena.expr(callee) { signature = try? lookup(name).functionType }

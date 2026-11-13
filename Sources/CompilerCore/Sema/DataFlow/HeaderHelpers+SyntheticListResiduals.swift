@@ -283,6 +283,78 @@ extension DataFlowSemaPhase {
             supertype: listInterfaceSymbol
         )
 
+        // The JVM no-stdlib fallback keeps AbstractList as a compiler shell while
+        // the JDK supplies its skeletal implementations. Model those concrete
+        // methods so List's abstract declarations are not reported as missing.
+        registerSyntheticCollectionClassFunctionStub(
+            name: "indexOf",
+            ownerSymbol: abstractListSymbol,
+            ownerFQName: abstractListFQName,
+            ownerType: abstractListType,
+            typeParameterSymbol: typeParamSymbol,
+            parameterTypes: [typeParamType],
+            returnType: types.intType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCollectionClassFunctionStub(
+            name: "lastIndexOf",
+            ownerSymbol: abstractListSymbol,
+            ownerFQName: abstractListFQName,
+            ownerType: abstractListType,
+            typeParameterSymbol: typeParamSymbol,
+            parameterTypes: [typeParamType],
+            returnType: types.intType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCollectionClassFunctionStub(
+            name: "subList",
+            ownerSymbol: abstractListSymbol,
+            ownerFQName: abstractListFQName,
+            ownerType: abstractListType,
+            typeParameterSymbol: typeParamSymbol,
+            parameterTypes: [types.intType, types.intType],
+            returnType: types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(typeParamType)],
+                nullability: .nonNull
+            ))),
+            symbols: symbols,
+            interner: interner
+        )
+
+        let listIteratorFQName = kotlinCollectionsPkg + [interner.intern("ListIterator")]
+        if let listIteratorSymbol = symbols.lookupNominal(fqName: listIteratorFQName) {
+            let listIteratorType = types.make(.classType(ClassType(
+                classSymbol: listIteratorSymbol,
+                args: [.out(typeParamType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticCollectionClassFunctionStub(
+                name: "listIterator",
+                ownerSymbol: abstractListSymbol,
+                ownerFQName: abstractListFQName,
+                ownerType: abstractListType,
+                typeParameterSymbol: typeParamSymbol,
+                parameterTypes: [],
+                returnType: listIteratorType,
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticCollectionClassFunctionStub(
+                name: "listIterator",
+                ownerSymbol: abstractListSymbol,
+                ownerFQName: abstractListFQName,
+                ownerType: abstractListType,
+                typeParameterSymbol: typeParamSymbol,
+                parameterTypes: [types.intType],
+                returnType: listIteratorType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         let initName = interner.intern("<init>")
         let initFQName = abstractListFQName + [initName]
         if symbols.lookup(fqName: initFQName) == nil {

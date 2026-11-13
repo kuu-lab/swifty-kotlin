@@ -919,7 +919,7 @@ final class JVMFunctionBuilder {
             if let result = try implicitExtensionCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try implicitCollectionIteratorCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try intrinsicCall(binding.chosenCallee, args: args, id: id) { return result.value }
-            if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
+            if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.method(for: binding.chosenCallee) {
                 return try foreign(method, receiver: method.isConstructor || method.isStatic ? nil : instance(id), args: args, id: id)
             }
             if let function = program.references[binding.chosenCallee] {

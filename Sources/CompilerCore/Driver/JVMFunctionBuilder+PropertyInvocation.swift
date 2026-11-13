@@ -22,7 +22,7 @@ extension JVMFunctionBuilder {
         if let result = try sourceCall(args, receiver: receiver, id: id) { return result }
         if let result = try extensionOrInvoke(receiver, name: context.interner.intern("invoke"), args: args, id: id) { return result }
         if let call = program.sema.bindings.callBinding(for: id),
-           let method = program.methods[call.chosenCallee] ?? context.jvmImports?.methods[call.chosenCallee] {
+           let method = program.methods[call.chosenCallee] ?? context.jvmImports?.method(for: call.chosenCallee) {
             return JVMIntrinsicResult(value: try foreign(method, receiver: method.isStatic ? nil : function, args: args, id: id))
         }
         throw fail("Missing JVM property invoke target.", id)
