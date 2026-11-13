@@ -637,11 +637,12 @@ struct JVMClassReader {
         }
         let isMetroFactory = classAttributes.annotations.contains { $0.descriptor == JVMMetro.factory }
         let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
+        let defaultMethodNames = Set(defaultArgumentMethods.map { String($0.name.dropLast("$default".count)) })
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || isMetroFactory || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, metroFactory: isMetroFactory) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, metroFactory: isMetroFactory, defaultMethodNames: defaultMethodNames) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -654,7 +655,9 @@ struct JVMClassReader {
                           return candidate.isSuspend == isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
-                                      && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
+                                      && (candidate.receiver != nil || (defaultMethodNames.contains(method.name)
+                                          && candidate.parameters.contains(where: \.hasDefaultValue)
+                                          || candidate.isInfix || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
                                           || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
