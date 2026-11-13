@@ -1,3 +1,4 @@
+@file:kotlin.jvm.JvmName("MapsKt")
 package kotlin.collections
 
 @kotlin.internal.InlineOnly
@@ -22,3 +23,5 @@ public fun <K, V> Map<out K, V>.toMap(): Map<K, V> = null!!
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> = null!!
 
 public fun <K, V> hashMapOf(vararg pairs: Pair<K, V>): java.util.HashMap<K, V> = null!!
+
+public fun <K, V, R> Map<out K, V>.map(transform: (Map.Entry<K, V>) -> R): List<R> = null!!

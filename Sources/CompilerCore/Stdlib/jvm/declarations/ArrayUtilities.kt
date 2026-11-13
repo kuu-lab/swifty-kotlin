@@ -1,5 +1,9 @@
 package kotlin.collections
 
+public operator fun <T> Array<out T>.plus(element: T): Array<T> = null!!
+public operator fun <T> Array<out T>.plus(elements: Array<out T>): Array<T> = null!!
+
+
 public fun <T> Array<out T>.asList(): List<T> = null!!
 public fun <T> Array<out T>.asIterable(): Iterable<T> = null!!
 

@@ -264,7 +264,7 @@ extension JVMFunctionBuilder {
         // Array HOF inference may leave no callee binding, including when its
         // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
-        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), builtinHOF || intrinsicHOF {
+        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), (builtinHOF || intrinsicHOF), higherOrderReceiver(receiverID) {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
         if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
@@ -336,6 +336,22 @@ extension JVMFunctionBuilder {
         }
         if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
             return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
+        }
+        if member == "toTypedArray", args.isEmpty,
+           let symbol = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map(context.interner.intern)),
+           let receiverType = program.sema.bindings.exprType(for: receiverID),
+           program.sema.types.isSubtype(receiverType, program.sema.types.make(.classType(ClassType(classSymbol: symbol)))) {
+            let collection = JVMValueType.reference("java/util/Collection", nullable: false)
+            let array = JVMValueType.reference("[Ljava/lang/Object;", nullable: false)
+            let source = try convert(requireValue(receiverID), to: collection)
+            let emptyArray = try allocateArray(
+                program.expressionType(id), semantic: program.sema.bindings.exprType(for: id),
+                count: constant(.int(0), .int), id: id
+            )
+            return JVMIntrinsicResult(value: try jdkCall(
+                "java/util/Collection", "toArray", [array], array, receiver: source,
+                arguments: [emptyArray], interface: true, resolved: program.expressionType(id)
+            ))
         }
         let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {

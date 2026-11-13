@@ -130,6 +130,12 @@ public fun FloatArray.copyOfRange(fromIndex: Int, toIndex: Int): FloatArray {
     return java.util.Arrays.copyOfRange(this, fromIndex, toIndex)!!
 }
 
+public fun FloatArray.slice(indices: IntRange): List<Float> {
+    if (indices.isEmpty()) return emptyList()
+    if (indices.endInclusive >= size) throw IndexOutOfBoundsException()
+    return copyOfRange(indices.first, indices.endInclusive + 1).toList()
+}
+
 public fun DoubleArray.copyOfRange(fromIndex: Int, toIndex: Int): DoubleArray {
     checkCopyRangeEnd(toIndex, size)
     return java.util.Arrays.copyOfRange(this, fromIndex, toIndex)!!
