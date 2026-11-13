@@ -132,8 +132,9 @@ final class JVMMetroBindingEmitter {
             return try invoke(method, on: parent, using: builder)
         case let .extensionGraph(name):
             return try builder.constructJDK(name, parameters: [receiver.type], arguments: [receiver])
-        case let .constructor(method, dependencies):
-            let args = try zip(dependencies, method.parameters).map { key, type in try builder.convert(dependency(key), to: type) }
+        case let .constructor(method, dependencies, marker):
+            var args = try zip(dependencies, method.parameters).map { key, type in try builder.convert(dependency(key), to: type) }
+            if marker, let type = method.parameters.last { args.append(try builder.constant(.null, type)) }
             let value = try builder.value(method.result)
             builder.instructions += [.allocate(method.owner, value), .foreignCall(method, receiver: value, arguments: args, result: nil)]
             return value
