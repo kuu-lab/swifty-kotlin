@@ -582,6 +582,24 @@ public fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequenc
     for (element in elements) if (this.add(element)) changed = true
     return changed
 }
+public fun <T> MutableList<T>.removeAll(predicate: (T) -> Boolean): Boolean {
+    val list: MutableList<T> = this
+    if (this !is java.util.RandomAccess) return (this as MutableIterable<T>).removeAll(predicate)
+    val originalSize = size
+    var writeIndex = 0
+    for (readIndex in 0 until originalSize) {
+        val element = list[readIndex]
+        if (!predicate(element)) {
+            if (writeIndex != readIndex) list[writeIndex] = element
+            writeIndex++
+        }
+    }
+    if (writeIndex == originalSize) return false
+    var index = originalSize - 1
+    while (index >= writeIndex) removeAt(index--)
+    return true
+}
+
 public fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean {
     val iterator = iterator()
     var changed = false
