@@ -562,6 +562,9 @@ final class JVMClasspathIndex {
     }
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
+        if JVMAndroidXActivityViewModel.isEntry(owner: method.owner, name: method.name, descriptor: method.descriptor) {
+            return false
+        }
         if method.isReifiedGlanceAction || method.isReifiedWorkBuilder || JVMAndroidXContextService.isEntry(method) { return false }
         if Self.isReifiedHiltViewModel(owner: method.owner, name: method.name, descriptor: method.descriptor) { return false }
         let exposedName = method.sourceName
