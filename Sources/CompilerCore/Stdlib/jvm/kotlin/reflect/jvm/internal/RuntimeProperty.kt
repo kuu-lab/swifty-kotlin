@@ -21,6 +21,7 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
     }
     fun readZero(): Any? = boxResult(callArray(arrayOf<Any?>(), true), metadata, metadata.type(propertyNode, 3, 9))
     fun readOne(receiver: Any?): Any? = boxResult(callArray(arrayOf(receiver), true), metadata, metadata.type(propertyNode, 3, 9))
+    fun readTwo(receiver1: Any?, receiver2: Any?): Any? = callArray(arrayOf(receiver1, receiver2), true)
     private fun classCompanionFieldOwner(): Any? {
         if ((metadata.root.number(1) and 448) != 384) return null
         val outerName = __jvmClassName(ownerClass).substringBeforeLast("$")
@@ -64,7 +65,9 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
         write(boundReceiver, value)
     }
     fun writeOne(receiver: Any?, value: Any?) { write(receiver, value) }
-    fun delegateZero(): Any? {
+    fun delegateZero(): Any? = delegateFor(boundReceiver)
+
+    fun delegateFor(receiver: Any?): Any? {
         if (signatureString == "<local>") return null
         val fieldName = name + "\$delegate"
         for (field in __jvmDeclaredFields(ownerClass)) {
@@ -72,7 +75,7 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
                 if ((__jvmFieldModifiers(field) and 1) == 0) {
                     throw IllegalPropertyDelegateAccessException(IllegalAccessException())
                 }
-                return __jvmFieldGet(field, if ((__jvmFieldModifiers(field) and 8) != 0) null else boundReceiver)
+                return __jvmFieldGet(field, if ((__jvmFieldModifiers(field) and 8) != 0) null else receiver)
             }
         }
         return null
