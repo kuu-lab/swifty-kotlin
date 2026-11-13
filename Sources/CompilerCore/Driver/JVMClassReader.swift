@@ -27,6 +27,7 @@ struct JVMClassInfo {
     var annotations: [JVMAnnotation] = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
     var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
     var isKotlinMultifilePart = false
@@ -755,6 +756,10 @@ struct JVMClassReader {
         }
         if info.isInterface, let metadata = classAttributes.kotlinMetadata {
             info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
+        }
+        if info.isKotlinMultifilePart || fields.contains(where: { $0.isStatic && $0.isFinal && $0.constantValue != nil }),
+           let metadata = classAttributes.kotlinMetadata {
+            info.kotlinTopLevelConstants = (try? metadata.topLevelConstants(byteLimit: bytes.count)) ?? [:]
         }
         if let metadata = classAttributes.kotlinMetadata, let properties = try? metadata.topLevelProperties(byteLimit: bytes.count) {
             for property in properties {

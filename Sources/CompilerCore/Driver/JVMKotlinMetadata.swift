@@ -413,6 +413,20 @@ struct JVMKotlinMetadata {
         }
     }
 
+    func topLevelConstants(byteLimit: Int) throws -> [String: String] {
+        guard kind == 2 || kind == 5, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var constants: [String: String] = [:]
+        for property in try declaration.messages(4) {
+            let flags = property.int32(11) ?? 6
+            guard flags & (1 << 9) != 0, (flags >> 1) & 7 == 3,
+                  let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
+                  let signature = try property.message(100), let field = try signature.message(1) else { continue }
+            constants[try names.resolve(field.int32(1)) ?? name] = name
+        }
+        return constants
+    }
+
     func topLevelProperties(byteLimit: Int) throws -> [JVMKotlinTopLevelProperty] {
         guard kind == 2 || kind == 5, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
