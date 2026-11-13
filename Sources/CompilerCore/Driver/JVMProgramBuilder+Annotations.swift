@@ -61,7 +61,7 @@ extension JVMProgramBuilder {
         }
         if let symbol = sema.bindings.identifierSymbol(for: id) ?? rawAnnotationSymbol(id) {
             if let parent = sema.symbols.parentSymbol(for: symbol), sema.symbols.symbol(parent)?.kind == .enumClass { return .enumEntry("L" + (try className(parent)) + ";", context.interner.resolve(sema.symbols.symbol(symbol)!.name)) }
-            if let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
+            if let declaration = declarationIDsBySymbol[symbol]?.first,
                case let .propertyDecl(property) = ast.arena.decl(declaration), property.modifiers.contains(.const), let initial = property.initializer { return try annotationConstant(initial, depth: depth + 1, includeDefaults: includeDefaults) }
         }
         throw JVMFrontendError(message: "Unsupported JVM annotation constant.", range: ast.arena.exprRange(id))
@@ -82,7 +82,7 @@ extension JVMProgramBuilder {
                   "kotlin.Deprecated", "kotlin.ReplaceWith", "kotlin.SinceKotlin",
                   "kotlin.DeprecatedSinceKotlin", "kotlin.RequiresOptIn", "kotlin.ExperimentalUnsignedTypes",
               ].contains(name),
-              let declaration = sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
+              let declaration = declarationIDsBySymbol[symbol]?.first,
               case let .classDecl(c) = ast.arena.decl(declaration), c.modifiers.contains(.annotationClass) else { return nil }
         return JVMClassPlan(symbol: symbol, name: name.replacingOccurrences(of: ".", with: "/"), declaration: c)
     }
