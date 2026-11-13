@@ -118,6 +118,12 @@ public fun <T> Iterable<T>.toSet(): Set<T> {
     if (result.size == 1) return setOf(result.iterator().next())
     return result
 }
+public infix fun <T> Iterable<T>.intersect(other: Iterable<T>): Set<T> {
+    val result = toMutableSet()
+    result.retainAll(other)
+    return result
+}
+
 public fun <T> Iterable<T>.distinct(): List<T> = this.toMutableSet().toList()
 private fun <T> reverseInPlace(list: MutableList<T>) {
     var left = 0
