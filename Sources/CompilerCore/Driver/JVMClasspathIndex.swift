@@ -1790,6 +1790,11 @@ final class JVMClasspathIndex {
         "java/lang/Deprecated",
     ]
 
+    private static let boxedJavaPrimitives: Set<String> = [
+        "java/lang/Boolean", "java/lang/Byte", "java/lang/Character", "java/lang/Short",
+        "java/lang/Integer", "java/lang/Long", "java/lang/Float", "java/lang/Double",
+    ]
+
     private static let identifierPattern = try! NSRegularExpression(pattern: #"[A-Za-z_][A-Za-z0-9_]*"#)
     private static let dottedPattern = try! NSRegularExpression(pattern: #"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+"#)
     private static let starImportPattern = try! NSRegularExpression(pattern: #"import\s+([A-Za-z_][A-Za-z0-9_.]*?)\.\*"#)
@@ -2101,7 +2106,7 @@ final class JVMClasspathIndex {
                 suspendSourceType = suspend.parameters[metadataIndex].sourceType
             } else {
                 name = method.kotlinConstructorParameterNames.map { "`\($0[index])`" } ?? "p\(index)"
-                nullable = false
+                nullable = parameter.referenceName.map(Self.boxedJavaPrimitives.contains) == true
                 suspendSourceType = nil
             }
             let parameterType: String
