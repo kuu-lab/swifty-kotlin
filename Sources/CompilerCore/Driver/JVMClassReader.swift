@@ -651,7 +651,7 @@ struct JVMClassReader {
            (metadata.isFileFacade == true || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames, ownerIsInterface: flags & 0x0200 != 0) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -670,7 +670,7 @@ struct JVMClassReader {
                                           && candidate.parameters.contains(where: \.hasDefaultValue)
                                           || candidate.isInfix || candidate.isOperator || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
-                                          || method.isFinal && candidate.hasStableFinalParameters
+                                          || candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
