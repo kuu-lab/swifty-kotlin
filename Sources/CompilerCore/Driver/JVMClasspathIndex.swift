@@ -795,6 +795,12 @@ final class JVMClasspathIndex {
         }
     }
 
+    func javaAnnotationVarargElement(_ type: JVMValueType, name: String, in info: JVMClassInfo) -> JVMValueType? {
+        guard info.isKotlinFileFacade == nil, name == "value", let descriptor = type.referenceName,
+              descriptor.hasPrefix("[") else { return nil }
+        return try? JVMDescriptor.parse("()" + descriptor.dropFirst()).1
+    }
+
     private func annotationElementKotlinType(_ type: JVMValueType) -> String? {
         switch type {
         case .unit:
