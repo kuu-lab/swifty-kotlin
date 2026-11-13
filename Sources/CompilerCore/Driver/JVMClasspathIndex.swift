@@ -1012,6 +1012,18 @@ final class JVMClasspathIndex {
     /// Member declarations shared by top-level stubs and nested-class shells:
     /// constructors, methods, synthesized properties, and the statics
     /// companion. Emitted without indentation; Kotlin is brace-delimited.
+    private func staticCompanionObjectName(for info: JVMClassInfo) -> String? {
+        let nestedNames = Set((innerClassesByOwner[info.name] ?? []).compactMap(\.innerName))
+        guard nestedNames.contains("Companion") else { return nil }
+        var name = "__JvmStaticMembers"
+        var suffix = 1
+        while nestedNames.contains(name) {
+            name = "__JvmStaticMembers\(suffix)"
+            suffix += 1
+        }
+        return name
+    }
+
     private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
         let metadata = kotlinMetadata(info)
         let own = members.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
@@ -1332,7 +1344,9 @@ final class JVMClasspathIndex {
         let runtimeFields = info.fields.compactMap(runtimeField)
         if allowsCompanion, metadata?.companion == nil,
            !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
-            source += "companion object {\n"
+            source += "companion object"
+            if let name = staticCompanionObjectName(for: info) { source += " \(name)" }
+            source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
             for method in statics {
@@ -1848,8 +1862,12 @@ final class JVMClasspathIndex {
         let parameters = descriptorTypes.map(\.descriptor).joined()
         let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
         let descriptor = "(" + parameters + continuation + ")"
-        let isCompanionMember = parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false
-        let staticMember = isTopLevel || isExtension || (isCompanionMember && !info.name.hasSuffix("$Companion"))
+        let parentName = parent.map { ctx.interner.resolve($0.name) }
+        let isNamedStaticContainer = staticCompanionObjectName(for: info).map { parentName == $0 } ?? false
+        let isCompanionMember = parentName == "Companion"
+        let staticMember = isTopLevel || isExtension
+            || (isCompanionMember && !info.name.hasSuffix("$Companion"))
+            || isNamedStaticContainer
         let candidates: [JVMForeignMethod]
         if let indexed = methodsByOwnerAndName[info.name] {
             candidates = indexed[name] ?? []
