@@ -21,7 +21,7 @@ struct JVMClassInfo {
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
-    var kotlinParameterizedSupertypes: [String: String] = [:]
+    var kotlinParameterizedSupertypes: [String: [String]] = [:]
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -743,7 +743,7 @@ struct JVMClassReader {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
-        if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+        if classAttributes.signature?.contains("<") == true, let metadata = classAttributes.kotlinMetadata {
             info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
         }
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {

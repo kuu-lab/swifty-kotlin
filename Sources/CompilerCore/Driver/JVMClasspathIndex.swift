@@ -721,12 +721,22 @@ final class JVMClasspathIndex {
         return base + "<" + args.joined(separator: ", ") + ">"
     }
 
+    private func inheritsKotlinProperties(_ name: String, visited: Set<String> = []) -> Bool {
+        guard !visited.contains(name), let info = classes[name] else { return false }
+        if !info.kotlinMemberProperties.isEmpty { return true }
+        let parents = [info.superclass].compactMap { $0 } + info.interfaces
+        return parents.contains { inheritsKotlinProperties($0, visited: visited.union([name])) }
+    }
+
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
         if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
         if name == "java/lang/Comparable", let comparable = child.kotlinComparableSupertype { return comparable }
-        if let parent = classes[name], parent.methods.contains(where: { $0.kotlinFunction?.result.contains("->") == true }),
-           let source = child.kotlinParameterizedSupertypes[name.replacingOccurrences(of: "$", with: ".")] {
-            return source
+        if let parent = classes[name],
+           parent.methods.contains(where: { $0.kotlinFunction?.result.contains("->") == true })
+               || inheritsKotlinProperties(name),
+           let arguments = child.kotlinParameterizedSupertypes[name],
+           let base = kotlinSupertypeName(name) {
+            return base + "<" + arguments.joined(separator: ", ") + ">"
         }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),
@@ -748,7 +758,7 @@ final class JVMClasspathIndex {
             return Self.dottedTypeName(workParent) + "<" + Self.dottedTypeName(workBuilder)
                 + ", " + Self.dottedTypeName(workRequest) + ">()"
         }
-        guard let type = supertypeReference(name, childParams: child.classTypeParameterNames) else { return nil }
+        guard let type = supertypeReference(name, child: child) else { return nil }
         // The covered class keeps its Kotlin constructor instead of the
         // placeholder no-argument constructor used by ordinary JVM stubs.
         let arguments = name == "kotlin/coroutines/AbstractCoroutineContextElement" ? "null!!" : ""
@@ -1408,11 +1418,34 @@ final class JVMClasspathIndex {
         var source = ""
         var exposedKotlinProperties = info.kotlinMemberProperties.filter { exposeSuspendType($0.value.getter.result) }
         var inheritedKotlinGetters: Set<String> = []
-        var propertyParents = [info.superclass].compactMap { $0 } + info.interfaces
+        func specialize(_ type: String, substitutions: [String: String]) -> String {
+            // Metadata renders every type parameter as a quoted identifier.
+            // Replace whole tokens in one pass, since an argument can contain
+            // one of the child's own type parameters.
+            let tokens = type.split(separator: "`", omittingEmptySubsequences: false)
+            return tokens.enumerated().map { index, token in
+                guard index % 2 != 0 else { return String(token) }
+                return substitutions[String(token)] ?? "`\(token)`"
+            }.joined()
+        }
+        func propertyParents(of child: JVMClassInfo, substitutions: [String: String]) -> [(String, [String: String])] {
+            ([child.superclass].compactMap { $0 } + child.interfaces).map { name in
+                let parameters = classes[name]?.classTypeParameterNames ?? []
+                let arguments = child.kotlinParameterizedSupertypes[name]
+                    ?? (parameters.count == child.classTypeParameterNames.count
+                        ? child.classTypeParameterNames.map { "`\($0)`" }
+                        : Array(repeating: "kotlin.Any", count: parameters.count))
+                let bindings = Dictionary(uniqueKeysWithValues: zip(parameters, arguments.map {
+                    specialize($0, substitutions: substitutions)
+                }))
+                return (name, bindings)
+            }
+        }
+        var pendingPropertyParents = propertyParents(of: info, substitutions: [:])
         var visitedPropertyParents: Set<String> = []
-        while let name = propertyParents.popLast() {
+        while let (name, substitutions) = pendingPropertyParents.popLast() {
             guard visitedPropertyParents.insert(name).inserted, let parent = classes[name] else { continue }
-            propertyParents += [parent.superclass].compactMap { $0 } + parent.interfaces
+            pendingPropertyParents += propertyParents(of: parent, substitutions: substitutions)
             for (propertyName, property) in parent.kotlinMemberProperties where property.getter.isAbstract {
                 guard let getter = own.first(where: {
                     !$0.isStatic && $0.parameters.isEmpty && $0.name == property.getter.name
@@ -1421,7 +1454,7 @@ final class JVMClasspathIndex {
                 inheritedKotlinGetters.insert(memberKey(getter))
                 if exposedKotlinProperties[propertyName] == nil {
                     let type = getter.result.descriptor == property.getter.result.descriptor
-                        ? property.sourceType : kotlinType(getter.result)
+                        ? specialize(property.sourceType, substitutions: substitutions) : kotlinType(getter.result)
                     exposedKotlinProperties[propertyName] = (getter, type)
                 }
             }
@@ -1998,7 +2031,7 @@ final class JVMClasspathIndex {
                 markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
-            markSourceTypes(Array(info.kotlinParameterizedSupertypes.values))
+            markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
             for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
