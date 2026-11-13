@@ -147,8 +147,6 @@ fun __jvmUIntString(value: Int): String = null!!
 fun __jvmULongString(value: Long): String = null!!
 fun __jvmUIntCompare(first: Int, second: Int): Int = 0
 fun __jvmULongCompare(first: Long, second: Long): Int = 0
-fun __jvmMonitorEnter(lock: Any) {}
-fun __jvmMonitorExit(lock: Any) {}
 fun __jvmClassName(type: Any): String = null!!
 fun __jvmClassSimpleName(type: Any): String = null!!
 fun __jvmClassModifiers(type: Any): Int = 0
