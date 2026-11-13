@@ -497,6 +497,17 @@ final class JVMFunctionBuilder {
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
         }
+        if let owner, isStaticBody, owner.isObject,
+           let functionSymbol, program.isJvmStatic(functionSymbol) {
+            thisValue = try singleton(owner)
+        }
+        if let owner, isStaticBody, let thisValue {
+            contextualReceivers[owner.symbol] = thisValue
+            contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)] = thisValue
+            if let functionSymbol, extensionValue == nil {
+                contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)] = thisValue
+            }
+        }
         if reference.name != "<init>" && !isStaticBody { try prepareEnclosingInstances() }
     }
     func finish(abstract: Bool = false, constructor: Bool = false) -> JVMFunction {

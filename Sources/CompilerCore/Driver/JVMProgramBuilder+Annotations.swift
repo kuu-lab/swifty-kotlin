@@ -209,7 +209,7 @@ extension JVMProgramBuilder {
             // WasExperimental stays dropped: it is internal in kotlin-stdlib, so
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
-            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
+            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmStatic", "JvmStatic", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
             let annotationOwner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) })
             if isPlanlessKotlinInternalAnnotation(name, owner: annotationOwner) { continue }
             if JVMCompose.markers.contains(name), context.jvmImports?.hasComposeRuntime == true,
