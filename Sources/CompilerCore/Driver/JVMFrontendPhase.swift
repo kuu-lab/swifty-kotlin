@@ -52,9 +52,11 @@ final class JVMPreparationPhase: CompilerPhase {
                     classpath.append(androidJar)
                 }
             }
+            let source = sourceDeclarations(in: ctx)
             let imports = try JVMClasspathIndex.load(
                 classpath, lazilyInjecting: lazyPaths,
-                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? []
+                fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? [],
+                sourcePackages: source.packages, sourceClassNames: source.classes
             )
             ctx.jvmImports = imports
         } catch let error as AndroidSDKError {
@@ -75,6 +77,46 @@ final class JVMPreparationPhase: CompilerPhase {
         try ctx.jvmImports?.injectJDKPlatformDeclarations(into: ctx)
         try ctx.jvmImports?.injectJDKStreamPlatformDeclarations(into: ctx)
         try ctx.jvmImports?.inject(into: ctx)
+    }
+
+    private func sourceDeclarations(in ctx: CompilationContext) -> (packages: Set<String>, classes: Set<String>) {
+        let diagnostics = DiagnosticEngine()
+        let interner = StringInterner()
+        var packages: Set<String> = []
+        var classes: Set<String> = []
+        for file in ctx.sourceManager.fileIDs() where ctx.sourceManager.origin(of: file) == .user {
+            let tokens = KotlinLexer(file: file, source: ctx.sourceManager.contents(of: file),
+                                     interner: interner, diagnostics: diagnostics).lexAll()
+            let (syntax, root) = KotlinParser(tokens: tokens, interner: interner, diagnostics: diagnostics).parseFile()
+            let builder = BuildASTPhase()
+            let children = syntax.children(of: root).compactMap { child -> NodeID? in
+                guard case let .node(node) = child else { return nil }
+                return node
+            }
+            let packageHeader = children.first { syntax.node($0).kind == .packageHeader }
+            let package = packageHeader.map {
+                builder.extractQualifiedPath(from: $0, in: syntax, interner: interner, isPackageHeader: true)
+                    .map { interner.resolve($0) }.joined(separator: "/")
+            } ?? ""
+            packages.insert(package)
+            func collect(_ node: NodeID, prefix: String) {
+                switch syntax.node(node).kind {
+                case .classDecl, .interfaceDecl, .objectDecl:
+                    let name = interner.resolve(builder.declarationName(from: node, in: syntax, interner: interner))
+                    guard !name.isEmpty else { return }
+                    let binaryName = prefix + name
+                    classes.insert(binaryName)
+                    for case let .node(body) in syntax.children(of: node) where syntax.node(body).kind == .block {
+                        for case let .node(child) in syntax.children(of: body) {
+                            collect(child, prefix: binaryName + "$")
+                        }
+                    }
+                default: break
+                }
+            }
+            for node in children { collect(node, prefix: package.isEmpty ? "" : package + "/") }
+        }
+        return (packages, classes)
     }
 }
 

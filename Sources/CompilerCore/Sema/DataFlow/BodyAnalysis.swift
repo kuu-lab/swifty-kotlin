@@ -264,7 +264,8 @@ extension DataFlowSemaPhase {
                 // Header resolution has no enclosing-class context here. The
                 // source-origin check enforces the stdlib's internal module
                 // boundary; private/protected source access uses type checking.
-                if resolved.flags.contains(.importedLibrary) || (isBundledDeclaration && resolved.visibility == .internal), let usageRange {
+                if resolved.flags.contains(.importedLibrary) || (isBundledDeclaration && resolved.visibility == .internal)
+                    || symbols.jvmPackageAccess[resolved.id] != nil, let usageRange {
                     let fileID = usageRange.start.file
                     let suppressed = ast.file(for: fileID)?.annotations.contains { annotation in
                         KnownCompilerAnnotation.suppress.matches(annotation.name)
