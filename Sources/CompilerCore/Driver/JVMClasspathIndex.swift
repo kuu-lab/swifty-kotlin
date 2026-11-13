@@ -1118,10 +1118,7 @@ final class JVMClasspathIndex {
                 } else {
                 let isNonCancellable = info.name == "kotlinx/coroutines/NonCancellable" && info.isKotlinObject
                     && info.superclass == "kotlin/coroutines/AbstractCoroutineContextElement"
-                let isComposeObject = info.isKotlinObject && info.kotlinMemberProperties.values.contains {
-                    $0.getter.composePropertyABI(hasReceiver: false)
-                } && own.allSatisfy { !$0.isStatic }
-                let isObject = isNonCancellable || isComposeObject
+                let isObject = isNonCancellable || info.isKotlinObject && own.allSatisfy { !$0.isStatic }
                 if isObject {
                     source += "object `\(short)`"
                 } else if info.isInterface {
@@ -1592,6 +1589,9 @@ final class JVMClasspathIndex {
             let keyword = field.isFinal ? "val" : "var"
             let setter = field.isFinal ? "" : " set(value) {}"
             return "\(keyword) `\(field.name)`: \(kotlinType(type)) get() = null!!\(setter)\n"
+        }
+        if !allowsCompanion, info.isKotlinObject {
+            for declaration in constantFields { source += declaration }
         }
         if allowsCompanion, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
