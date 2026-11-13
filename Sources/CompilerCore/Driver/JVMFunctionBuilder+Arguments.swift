@@ -130,6 +130,7 @@ extension JVMFunctionBuilder {
         guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
         if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
         if let binding, let action = try importedGlanceActivityAction(binding, args: args, id: id) { return action }
+        if let binding, let builder = try importedOneTimeWorkRequestBuilder(binding, id: id) { return builder }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
