@@ -10,7 +10,6 @@ extension JVMBackendTests {
         try withWorkspace { root in
             let source = """
             import java.io.File
-            import java.io.FileOutputStream
 
             fun main(args: Array<String>) {
                 val folder = File(File(args[0]), "nested")
@@ -18,7 +17,7 @@ extension JVMBackendTests {
                 println(folder.absolutePath.endsWith("nested"))
                 val noParent = File(null as File?, "relative")
                 println(noParent.path)
-+            }
+            }
             """
             let (app, exit, diagnostics) = try m22Build(
                 root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: [library.path]
