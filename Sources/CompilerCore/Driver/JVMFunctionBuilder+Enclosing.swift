@@ -59,7 +59,7 @@ extension JVMProgramBuilder {
     }
     func objectSuper(_ plan: JVMClassPlan) throws -> (method: JVMForeignMethod, binding: CallBinding?) {
         let binding = sema.bindings.constructorDelegationCallBinding(for: plan.symbol)
-        if let binding, let method = methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] ?? builtinMethod(binding.chosenCallee) { return (method, binding) }
+        if let binding, let method = methods[binding.chosenCallee] ?? context.jvmImports?.method(for: binding.chosenCallee) ?? builtinMethod(binding.chosenCallee) { return (method, binding) }
         if plan.superclass == "java/lang/Object" { return (objectConstructor(), nil) }
         throw JVMFrontendError(message: "Missing JVM object superclass constructor binding.", range: plan.object?.range)
     }

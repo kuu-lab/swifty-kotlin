@@ -738,6 +738,7 @@ final class TypeCheckDriver {
         // Workers cannot demand an inferred declaration or modify a signature.
         let independentBodies = try checkIndependentBodies(files: files, fileScopes: fileScopes, frontendJobs: frontendJobs)
 
+        var deferredJVMInlineBodies: [SymbolID: (declaration: DeclID, function: FunDecl, context: TypeInferenceContext)] = [:]
         isCheckingSourceOrderBodies = true
         for file in files {
             guard let inferCtx = inferenceContext(for: file) else { continue }
@@ -771,6 +772,10 @@ final class TypeCheckDriver {
                 }
                 switch decl {
                 case let .funDecl(function):
+                    if compilationContext?.deferredJVMInlineBodies[declID] != nil {
+                        deferredJVMInlineBodies[declSymbol] = (declID, function, inferCtx.with(currentDeclSymbol: declSymbol))
+                        continue
+                    }
                     declChecker.typeCheckFunctionDecl(
                         function,
                         symbol: declSymbol,
@@ -830,6 +835,7 @@ final class TypeCheckDriver {
                 }
             }
         }
+        checkDemandedJVMInlineBodies(&deferredJVMInlineBodies)
     }
 
     /// `diagnosticCode`/`failureMessage` replace the generic

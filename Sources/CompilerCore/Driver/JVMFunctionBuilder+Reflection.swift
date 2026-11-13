@@ -84,7 +84,7 @@ extension JVMFunctionBuilder {
         // Source-backed inline declarations also retain an ordinary runtime
         // entry for references, independently of call-site body expansion.
         let sourceBacked = program.inlineDeclarations[symbol] != nil ? program.textLibraryMethods[symbol] : nil
-        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? sourceBacked?.method
+        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? sourceBacked?.method
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true

@@ -45,7 +45,7 @@ extension JVMFunctionBuilder {
                 break
             }
         }
-        if let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? program.textLibraryMethods[symbol]?.method {
+        if let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? program.textLibraryMethods[symbol]?.method {
             let extensionMethod = program.extensionSymbols.contains(symbol) || program.textLibraryMethods[symbol]?.extensionReceiver != nil
             let inputs = (extensionMethod ? [delegate] : []) + arguments
             var args: [JVMValue] = []

@@ -594,6 +594,12 @@ public final class ASTArena: @unchecked Sendable {
         return _decls[index]
     }
 
+    func replaceDecl(_ id: DeclID, with decl: Decl) {
+        lock.lock()
+        defer { lock.unlock() }
+        _decls[Int(id.rawValue)] = decl
+    }
+
     public func declarations() -> [Decl] {
         lock.lock()
         defer { lock.unlock() }
