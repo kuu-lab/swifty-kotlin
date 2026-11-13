@@ -229,7 +229,7 @@ extension DataFlowSemaPhase {
                 // the synthetic runtime bridge. Other bundled members may be
                 // intentionally retained runtime bridges (for example the
                 // Collection interface methods), so do not clear them globally.
-                if ownerFQName.map(interner.resolve) == ["kotlin", "sequences", "SequenceScope"] {
+                if ownerFQName == KnownCompilerNames(interner: interner).kotlinSequencesSequenceScopeFQName {
                     symbols.clearExternalLinkName(for: memberSymbol)
                 }
                 symbols.setDeclSite(funDecl.range, for: memberSymbol)
@@ -244,7 +244,13 @@ extension DataFlowSemaPhase {
                 )
             }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
-            if symbols.symbol(ownerSymbol)?.kind != .interface {
+            // kotlinc reports only the site diagnostic for `external`
+            // members of interfaces; annotation-class members are already
+            // rejected wholesale, so the reserved-stdlib diagnostic is
+            // redundant there too.
+            if let ownerKind = symbols.symbol(ownerSymbol)?.kind,
+               ownerKind != .interface, ownerKind != .annotationClass
+            {
                 diagnoseReservedExternalFunctionUse(
                     funDecl,
                     sourceFileID: sourceFileID,
@@ -435,7 +441,7 @@ extension DataFlowSemaPhase {
                     valueParameterIsVararg: params.paramIsVararg,
                     valueParameterAllowsNonLocalReturn: params.paramAllowsNonLocalReturn,
                     hasStableParameterNames: !symbols.annotations(for: memberSymbol).contains {
-                        $0.annotationFQName == "kotlin.internal.NonStableParameterNames"
+                        $0.annotationFQName == KnownCompilerAnnotation.nonStableParameterNames.qualifiedName
                     },
                     typeParameterSymbols: allTypeParameterSymbols,
                     reifiedTypeParameterIndices: offsetReifiedIndices,

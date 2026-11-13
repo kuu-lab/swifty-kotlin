@@ -4,13 +4,21 @@
     "kotlin/Pair/Pair.kt",
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
-    "kotlin/annotations/ExperimentalUnsignedTypes.kt"
+    "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/time/DurationEncoding.kt",
+    "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
     {
       "path": "kotlin/Deprecation.kt",
       "virtualPath": "<kswiftk-jvm>/deprecation.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "kotlin/RequiresOptIn.kt",
+      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
     },
     {
       "path": "kotlin/SinceKotlin.kt",
@@ -64,9 +72,16 @@
       "runtimeFacade": "kotlin/PreconditionsKt"
     },
     {
-      "path": "declarations/KotlinTimeDuration.kt",
-      "virtualPath": "<kswiftk-jvm>/kotlin-time-duration.kt",
-      "excludeFromStdlibBuild": true
+      "path": "kotlin/time/DurationUnit.kt",
+      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
+      "excludeFromStdlibBuild": true,
+      "commonSource": true
+    },
+    {
+      "path": "declarations/Duration.kt",
+      "virtualPath": "<kswiftk-jvm>/duration.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
       "path": "declarations/KotlinTimeMeasureTime.kt",
@@ -213,6 +228,12 @@
       "runtimeFacade": "java/nio/file/Files"
     },
     {
+      "path": "declarations/Files.kt",
+      "virtualPath": "<kswiftk-jvm>/files.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/FilesKt"
+    },
+    {
       "path": "declarations/TextRuntimeFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/text-runtime-functions.kt",
       "excludeFromStdlibBuild": true
@@ -300,12 +321,6 @@
       "path": "declarations/IndexedValue.kt",
       "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
       "excludeFromStdlibBuild": true
-    },
-    {
-      "path": "kotlin/RequiresOptIn.kt",
-      "virtualPath": "<kswiftk-jvm>/requires-opt-in.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
     },
     {
       "path": "kotlin/annotations/ExperimentalUnsignedTypes.kt",

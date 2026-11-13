@@ -242,10 +242,10 @@ extension JVMProgramBuilder {
         let records = try annotationRecords(for: symbol)
         // File annotations affect the source file/facade and are not emitted on
         // individual JVM declarations. They can coexist with member annotations.
-        if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "file"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
+        if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "receiver", "file"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
-            if ["kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
+            if [KnownCompilerAnnotation.repeatable.qualifiedName, KnownCompilerAnnotation.jvmRepeatable.qualifiedName].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
             if KnownCompilerAnnotation.jvmOverloads.matches(name) {
                 guard sema.symbols.symbol(symbol)?.kind == .function else {
                     throw JVMFrontendError(message: "JVM @JvmOverloads currently supports functions only.")
@@ -255,7 +255,25 @@ extension JVMProgramBuilder {
             // WasExperimental stays dropped: it is internal in kotlin-stdlib, so
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
-            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
+            if [
+                KnownCompilerAnnotation.metadata.qualifiedName,
+                KnownCompilerAnnotation.publishedApi.qualifiedName,
+                KnownCompilerAnnotation.publishedApi.simpleName,
+                KnownCompilerAnnotation.jvmInline.qualifiedName,
+                KnownCompilerAnnotation.jvmName.qualifiedName,
+                KnownCompilerAnnotation.jvmField.qualifiedName,
+                KnownCompilerAnnotation.jvmSynthetic.qualifiedName,
+                KnownCompilerAnnotation.suppress.qualifiedName,
+                KnownCompilerAnnotation.suppress.simpleName,
+                KnownCompilerAnnotation.optIn.qualifiedName,
+                KnownCompilerAnnotation.retention.qualifiedName,
+                KnownCompilerAnnotation.target.qualifiedName,
+                KnownCompilerAnnotation.mustBeDocumented.qualifiedName,
+                KnownCompilerAnnotation.repeatable.qualifiedName,
+                KnownCompilerAnnotation.jvmRepeatable.qualifiedName,
+                KnownCompilerAnnotation.wasExperimental.qualifiedName,
+                KnownCompilerAnnotation.wasExperimental.simpleName,
+            ].contains(name) { continue }
             let annotationOwner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) })
             if isPlanlessKotlinInternalAnnotation(name, owner: annotationOwner) { continue }
             guard let owner = annotationOwner, annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM annotation: " + name) }
@@ -277,7 +295,7 @@ extension JVMProgramBuilder {
         return annotationPlan(owner) == nil
     }
     func annotationRetention(_ symbol: SymbolID) -> String {
-        guard let retention = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.annotation.Retention" })?.arguments.first else { return "RUNTIME" }
+        guard let retention = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == KnownCompilerAnnotation.retention.qualifiedName })?.arguments.first else { return "RUNTIME" }
         return retention.components(separatedBy: CharacterSet.alphanumerics.inverted).last(where: { ["RUNTIME", "BINARY", "SOURCE"].contains($0) }) ?? "RUNTIME"
     }
     func annotationElementType(_ type: JVMValueType) throws -> JVMValueType {
@@ -285,13 +303,13 @@ extension JVMProgramBuilder {
         if let name = type.referenceName, name == "[Lkotlin/reflect/KClass;" { return .reference("[Ljava/lang/Class;", nullable: false) }
         return type
     }
-    func recordsContain(_ symbol: SymbolID, _ name: String) -> Bool {
-        sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == name }
+    func recordsContain(_ symbol: SymbolID, _ annotation: KnownCompilerAnnotation) -> Bool {
+        sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == annotation.qualifiedName }
     }
     func decorateAnnotation(_ plan: JVMClassPlan, result: inout JVMClass) throws {
         if let container = try repeatableContainerName(plan.symbol) {
             result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Repeatable;", values: [("value", .classType("L" + container + ";"))]))
-            if recordsContain(plan.symbol, "kotlin.annotation.Repeatable") { result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/Repeatable;")) }
+            if recordsContain(plan.symbol, .repeatable) { result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/Repeatable;")) }
         }
         let params = plan.declaration!.primaryConstructorParams
         let owner = sema.symbols.symbol(plan.symbol)!
@@ -308,13 +326,13 @@ extension JVMProgramBuilder {
             result.annotationConstructor = ctor
         }
         let retention = annotationRetention(plan.symbol)
-        if recordsContain(plan.symbol, "kotlin.annotation.Retention") {
+        if recordsContain(plan.symbol, .retention) {
             result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/Retention;", values: [("value", .enumEntry("Lkotlin/annotation/AnnotationRetention;", retention))]))
         }
         result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Retention;", values: [("value", .enumEntry("Ljava/lang/annotation/RetentionPolicy;", retention == "BINARY" ? "CLASS" : retention))]))
         let records = sema.symbols.annotations(for: plan.symbol)
-        let targets = records.first { $0.annotationFQName == "kotlin.annotation.Target" }?.arguments ?? []
-        if records.contains(where: { $0.annotationFQName == "kotlin.annotation.Target" }) {
+        let targets = records.first { $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName }?.arguments ?? []
+        if records.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName }) {
             let mapping = ["CLASS": "TYPE", "ANNOTATION_CLASS": "ANNOTATION_TYPE", "TYPE_PARAMETER": "TYPE_PARAMETER", "FUNCTION": "METHOD", "PROPERTY_GETTER": "METHOD", "PROPERTY_SETTER": "METHOD", "FIELD": "FIELD", "VALUE_PARAMETER": "PARAMETER", "CONSTRUCTOR": "CONSTRUCTOR", "LOCAL_VARIABLE": "LOCAL_VARIABLE"]
             var names: [String] = [], kotlinNames: [String] = []
             for argument in targets {
@@ -326,7 +344,7 @@ extension JVMProgramBuilder {
             result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/Target;", values: [("allowedTargets", .array(kotlinNames.map { .enumEntry("Lkotlin/annotation/AnnotationTarget;", $0) }))]))
             result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Target;", values: [("value", .array(names.map { .enumEntry("Ljava/lang/annotation/ElementType;", $0) }))]))
         }
-        if records.contains(where: { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" }) { result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/MustBeDocumented;")); result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Documented;")) }
+        if records.contains(where: { $0.annotationFQName == KnownCompilerAnnotation.mustBeDocumented.qualifiedName }) { result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/annotation/MustBeDocumented;")); result.annotations.append(JVMAnnotation(descriptor: "Ljava/lang/annotation/Documented;")) }
         // Annotation elements use primitive/String/Class/enum/annotation/array JVM types.
         for i in result.functions.indices {
             let name = result.functions[i].reference.name
@@ -346,7 +364,7 @@ extension JVMProgramBuilder {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: {
-            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget != "file"
+            $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
         })?.arguments.first {
             let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let name = names.first, (Self.isIdentifier(name) || context.options.stdlibOnly && Self.isIdentifier(name.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "JVM @JvmName requires a constant ASCII identifier.") }
@@ -360,8 +378,12 @@ extension JVMProgramBuilder {
                 }
             }
             let leading = max(0, f.reference.parameters.count - signature.valueParameterSymbols.count)
+            var leadingAnnotations = Array(repeating: [JVMAnnotation](), count: leading)
+            if signature.receiverType != nil, !leadingAnnotations.isEmpty {
+                leadingAnnotations[0] = try annotations(for: symbol, target: "receiver")
+            }
             let valueParameterCount = min(signature.valueParameterSymbols.count, f.reference.parameters.count - leading)
-            f.parameterAnnotations = Array(repeating: [], count: leading) + (try signature.valueParameterSymbols.prefix(valueParameterCount).map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
+            f.parameterAnnotations = leadingAnnotations + (try signature.valueParameterSymbols.prefix(valueParameterCount).map { try annotations(for: $0, target: nil) + annotations(for: $0, target: "param") })
         }
         return f
     }

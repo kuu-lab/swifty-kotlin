@@ -163,6 +163,20 @@ private struct JVMSourceGrammar {
             try require(.symbol(.rParen))
         }
     }
+    mutating func contextParameters() throws {
+        try require(.softKeyword(.context))
+        try require(.symbol(.lParen))
+        if !take(.symbol(.rParen)) {
+            repeat {
+                while kind == .symbol(.at) { try annotation() }
+                while take(.keyword(.crossinline)) || take(.keyword(.noinline)) {}
+                try name()
+                try require(.symbol(.colon))
+                try type()
+            } while take(.symbol(.comma))
+            try require(.symbol(.rParen))
+        }
+    }
     mutating func argument() throws {
         if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.assign) { index += 2 }
         _ = take(.symbol(.star))
@@ -196,9 +210,18 @@ private struct JVMSourceGrammar {
         inDelegationHeader = false
         defer { inDelegationHeader = enclosingHeader }
         let declarationStart = index
+        let hasContextParameters = kind == .softKeyword(.context)
+        if hasContextParameters {
+            try contextParameters()
+        }
         while kind == .symbol(.at) { try annotation() }
         modifiers()
         while kind == .symbol(.at) { try annotation(); modifiers() }
+        if !hasContextParameters, kind == .softKeyword(.context) {
+            try contextParameters()
+            modifiers()
+            while kind == .symbol(.at) { try annotation(); modifiers() }
+        }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
@@ -261,6 +284,7 @@ private struct JVMSourceGrammar {
             try propertyName()
             if take(.symbol(.colon)) { try type() }
             if take(.symbol(.assign)) || take(.softKeyword(.by)) { try expression() }
+            var sawExplicitBackingField = false
             while true {
                 let saved = index
                 semicolons(); modifiers()
@@ -276,6 +300,12 @@ private struct JVMSourceGrammar {
                         if take(.symbol(.colon)) { try type() }
                         try require(.symbol(.rParen))
                     } else { continue }
+                } else if take(.softKeyword(.field)) {
+                    guard !sawExplicitBackingField else { throw Unsupported() }
+                    sawExplicitBackingField = true
+                    if take(.symbol(.colon)) { try type() }
+                    try require(.symbol(.assign))
+                    try expression()
                 } else { index = saved; break }
                 if take(.symbol(.assign)) { try expression() }
                 else if kind == .symbol(.lBrace) { try block() }

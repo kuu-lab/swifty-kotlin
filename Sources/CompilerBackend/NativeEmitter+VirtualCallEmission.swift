@@ -40,6 +40,7 @@ extension NativeEmitter.FunctionEmissionContext {
         }
 
         let calleeName = interner.resolve(callee)
+        let knownNames = KnownCompilerNames(interner: interner)
         let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
         let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
         // A vtable slot retains the erased signature of its root-most
@@ -729,7 +730,7 @@ extension NativeEmitter.FunctionEmissionContext {
                let member = symbols.symbol(effectiveSymbol),
                interner.resolve(member.name) == "isDispatchNeeded",
                let owner = symbols.parentSymbol(for: effectiveSymbol),
-               symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlinx", "coroutines", "CoroutineDispatcher"],
+               symbols.symbol(owner)?.fqName == knownNames.kotlinxCoroutinesCoroutineDispatcherFQName,
                !member.flags.contains(.abstractType),
                symbols.isSourceBackedSymbol(effectiveSymbol),
                let defaultFunction = sourceDefaultImplementationFunction(
@@ -791,7 +792,7 @@ extension NativeEmitter.FunctionEmissionContext {
            let member = symbols.symbol(effectiveSymbol),
            ["indexOf", "lastIndexOf"].contains(interner.resolve(member.name)),
            let owner = symbols.parentSymbol(for: effectiveSymbol),
-           symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
+           symbols.symbol(owner)?.fqName == knownNames.kotlinCollectionsListFQName,
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
            let defaultFunction = sourceDefaultImplementationFunction(
@@ -824,7 +825,7 @@ extension NativeEmitter.FunctionEmissionContext {
            let member = symbols.symbol(effectiveSymbol),
            ["get", "minusKey"].contains(interner.resolve(member.name)),
            let owner = symbols.parentSymbol(for: effectiveSymbol),
-           symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "coroutines", "ContinuationInterceptor"],
+           symbols.symbol(owner)?.fqName == knownNames.kotlinCoroutinesContinuationInterceptorFQName,
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
            let defaultFunction = sourceDefaultImplementationFunction(
@@ -857,11 +858,11 @@ extension NativeEmitter.FunctionEmissionContext {
            let symbols,
            let member = symbols.symbol(effectiveSymbol),
            let owner = symbols.parentSymbol(for: effectiveSymbol),
-           let ownerName = symbols.symbol(owner)?.fqName.map(interner.resolve),
+           let ownerFQName = symbols.symbol(owner)?.fqName,
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol),
-           (ownerName == ["kotlin", "collections", "MutableMap"] && interner.resolve(member.name) == "asJsMapView"
-            || ownerName == ["kotlin", "collections", "MutableSet"] && interner.resolve(member.name) == "asJsSetView")
+           (ownerFQName == knownNames.kotlinCollectionsMutableMapFQName && interner.resolve(member.name) == "asJsMapView"
+            || ownerFQName == knownNames.kotlinCollectionsMutableSetFQName && interner.resolve(member.name) == "asJsSetView")
         {
             if let defaultFunction = sourceDefaultImplementationFunction(
                 for: effectiveSymbol,
@@ -894,7 +895,7 @@ extension NativeEmitter.FunctionEmissionContext {
            let member = symbols.symbol(effectiveSymbol),
            interner.resolve(member.name) == "asJsReadonlyArrayView",
            let owner = symbols.parentSymbol(for: effectiveSymbol),
-           symbols.symbol(owner)?.fqName.map(interner.resolve) == ["kotlin", "collections", "List"],
+           symbols.symbol(owner)?.fqName == knownNames.kotlinCollectionsListFQName,
            !member.flags.contains(.abstractType),
            symbols.isSourceBackedSymbol(effectiveSymbol)
         {

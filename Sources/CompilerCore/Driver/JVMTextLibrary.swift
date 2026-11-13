@@ -11,7 +11,7 @@ extension JVMProgramBuilder {
     func prepareTextLibrary() throws {
         func externalJvmName(for symbol: SymbolID) -> String? {
             guard let raw = sema.symbols.annotations(for: symbol)
-                .first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first,
+                .first(where: { $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName })?.arguments.first,
                 let literal = raw.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                 let data = ("[" + literal + "]").data(using: .utf8),
                 let names = try? JSONSerialization.jsonObject(with: data) as? [String],
@@ -24,7 +24,13 @@ extension JVMProgramBuilder {
             guard let signature = sema.symbols.functionSignature(for: symbol) else { return }
             let explicitName = staticMember ? externalJvmName(for: symbol) : nil
             let resolvedName = explicitName ?? name
-            let parameters = try signature.parameterTypes.map(type), result = resolvedName == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
+            let signatureParameters = try signature.parameterTypes.map(type)
+            let signatureResult = resolvedName == "<init>" ? JVMValueType.reference(owner, nullable: false) : try type(signature.returnType)
+            func durationPhysical(_ type: JVMValueType) -> JVMValueType {
+                type.referenceName == "kotlin/time/Duration" && !type.isNullable ? .long : type
+            }
+            let parameters = owner == "kotlin/time/Duration" ? signatureParameters.map(durationPhysical) : signatureParameters
+            let result = owner == "kotlin/time/Duration" ? durationPhysical(signatureResult) : signatureResult
             var explicitParameters = parameters
             for (index, declaration) in declarations.enumerated() where declaration.isVararg { explicitParameters[index] = parameters[index].referenceName?.hasPrefix("[") == true ? parameters[index] : .reference("[" + JVMClasspathIndex.boxed(parameters[index]).descriptor, nullable: false) }
             let params = (extensionReceiver.map { [$0] } ?? []) + explicitParameters
@@ -170,6 +176,40 @@ extension JVMProgramBuilder {
                     }
                 }
             }
+            if path == "<kswiftk-jvm>/duration.kt" {
+                try visit(file.topLevelDecls.filter { id in
+                    if case .classDecl = ast.arena.decl(id) { return true }
+                    return false
+                }, path: path)
+                for id in file.topLevelDecls {
+                    guard case let .classDecl(duration) = ast.arena.decl(id),
+                          context.interner.resolve(duration.name) == "Duration" else { continue }
+                    let owner = "kotlin/time/Duration"
+                    for member in duration.memberFunctions {
+                        guard case let .funDecl(function) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member) else { continue }
+                        let name = context.interner.resolve(function.name)
+                        switch name {
+                        case "isNegative", "isPositive", "isInfinite", "isFinite",
+                             "toDouble", "toLong", "toInt", "toString":
+                            try method(symbol, owner: owner, name: name + "-impl", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                        case "compareTo":
+                            try method(symbol, owner: owner, name: "compareTo-LRDsOJo", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                        default:
+                            break
+                        }
+                    }
+                    for member in duration.memberProperties {
+                        guard case let .propertyDecl(property) = ast.arena.decl(member),
+                              let symbol = sema.bindings.declSymbol(for: member),
+                              let semantic = sema.symbols.propertyType(for: symbol) else { continue }
+                        let name = context.interner.resolve(property.name)
+                        guard name.hasPrefix("inWhole") else { continue }
+                        let getter = "get" + name.prefix(1).uppercased() + name.dropFirst() + "-impl"
+                        textLibraryProperties[symbol] = JVMForeignMethod(owner: owner, name: getter, descriptor: "(J)" + (try type(semantic)).descriptor, parameters: [.long], result: try type(semantic), isStatic: true, isInterface: false, isAbstract: false)
+                    }
+                }
+            }
             if let owner = runtimeFacades[path] {
                 for id in file.topLevelDecls {
                     switch ast.arena.decl(id) {
@@ -262,7 +302,7 @@ extension JVMProgramBuilder {
                     else { continue }
                     try registerMapEntryComponent(id)
                 }
-                let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
+                let factories: Set<String> = ["arrayListOf", "listOf", "setOf", "mapOf", "mutableListOf", "mutableSetOf", "linkedSetOf", "mutableMapOf", "emptyList", "emptySet", "emptyMap"]
                 try visit(file.topLevelDecls.filter { id in if case let .funDecl(f) = ast.arena.decl(id) { return factories.contains(context.interner.resolve(f.name)) }; return false }, path: "<kswiftk-jvm>/m20-factories-runtime.kt")
             }
             if path.hasPrefix("<kswiftk-jvm>/m19-") || path.hasPrefix("<kswiftk-jvm>/m20-") || path.hasPrefix("<kswiftk-jvm>/m21-") { try visit(file.topLevelDecls, path: path) }
@@ -316,6 +356,11 @@ extension JVMFunctionBuilder {
         let list = try jdkCall("kotlin/text/MatchResult$Destructured", "toList", [], .reference("java/util/List", nullable: false), receiver: object)!
         return try jdkCall("java/util/List", "get", [.int], .reference("java/lang/Object", nullable: true), receiver: list, arguments: [constant(.int(Int32(index)), .int)], interface: true, resolved: .string)!
     }
+    func durationRawValue(_ value: JVMValue) throws -> JVMValue {
+        guard value.type != .long, value.type.referenceName == "kotlin/time/Duration" else { return value }
+        return try jdkCall("kotlin/time/Duration", "unbox-impl", [], .long, receiver: value)!
+    }
+
     func textLibraryProperty(_ id: ExprID, receiver: ExprID? = nil) throws -> JVMValue? {
         let bindings = program.sema.bindings
         let call = bindings.callBinding(for: id)?.chosenCallee
@@ -328,17 +373,19 @@ extension JVMFunctionBuilder {
         }
         let symbol = bindings.identifierSymbol(for: id) ?? accessorProperty ?? call
         guard let symbol else { return nil }
-        if let path = program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve),
-           path.count == 5,
-           Array(path.prefix(4)) == ["kotlin", "time", "Duration", "Companion"],
-           ["seconds"].contains(path[4]) {
+        let knownNames = KnownCompilerNames(interner: context.interner)
+        if let fqName = program.sema.symbols.symbol(symbol)?.fqName,
+           fqName.count == 5,
+           fqName.starts(with: knownNames.kotlinTimeDurationFQName),
+           fqName[3] == knownNames.companion,
+           ["nanoseconds", "microseconds", "milliseconds", "seconds", "minutes", "hours", "days"].contains(context.interner.resolve(fqName[4])) {
             guard let source = try receiver.map(requireValue) ?? implicitExtensionReceiver(id),
                   [.int, .long, .double].contains(source.type) else {
                 throw fail("Duration unit properties require an Int, Long, or Double receiver.", id)
             }
             let unitType = JVMValueType.reference("kotlin/time/DurationUnit", nullable: false)
             let unit = try value(unitType)
-            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: "SECONDS", type: unitType, access: 0x4019), unit))
+            instructions.append(.getStatic(JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[4]).uppercased(), type: unitType, access: 0x4019), unit))
             return try jdkCall("kotlin/time/DurationKt", "toDuration", [source.type, unitType], .long, arguments: [source, unit], resolved: program.expressionType(id))
         }
         if let field = program.textLibraryFields[symbol] {
@@ -366,7 +413,8 @@ extension JVMFunctionBuilder {
             if kotlinMathName(for: symbol) == "ulp" {
                 return try jdkCall("java/lang/Math", "ulp", method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
             }
-            return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [extensionReceiver], resolved: program.expressionType(id))
+            let receiverArgument = method.owner == "kotlin/time/Duration" && method.isStatic ? try durationRawValue(extensionReceiver) : extensionReceiver
+            return try jdkCall(method.owner, method.name, method.parameters, method.result, arguments: [receiverArgument], resolved: program.expressionType(id))
         }
         let object = try receiver.map(requireValue) ?? instance(id)
         return try jdkCall(method.owner, method.name, [], method.result, receiver: object, interface: method.isInterface, resolved: program.expressionType(id))
@@ -403,11 +451,11 @@ extension JVMFunctionBuilder {
         let implicit = implicitExtensionReceiver(id)
         let object = try method.isConstructor || method.isStatic && entry.extensionReceiver == nil ? nil : explicit ?? (entry.extensionReceiver != nil ? implicit : instance(id))
         let parameters = Array(method.parameters.dropFirst(entry.extensionReceiver == nil ? 0 : 1))
-        let ordered: (values: [JVMValue], masks: [UInt32])
+        let ordered: (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue])
         if entry.declarations.count == 1, entry.declarations[0].isVararg {
             let any = try arrayComponent(parameters[0])
             let op = JVMTextOperation(name: method.name, receiver: "", receiverType: any, parameters: [JVMTextParameter(name: context.interner.resolve(entry.declarations[0].name), type: any, fallback: nil, variadic: true)], sourceResult: "", result: method.result, owner: method.owner, method: nil, instance: false)
-            ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0])
+            ordered = (try textArguments(op, args: args, binding: binding, source: zero(any), id: id), [0], [:])
         } else { ordered = try arguments(args, binding: binding, parameters: parameters, declarations: entry.declarations, id: id) }
         let values = ordered.values
         if let result = try kotlinMathFunctionCall(binding.chosenCallee, entry: entry, receiver: object, values: values, id: id) {
@@ -457,6 +505,11 @@ extension JVMFunctionBuilder {
             }
         }
         var actual = (entry.extensionReceiver == nil ? [] : [object!]) + values, params = method.parameters
+        if method.owner == "kotlin/time/Duration", method.isStatic, entry.extensionReceiver == .long {
+            actual = try actual.indices.map { index in
+                index < params.count && params[index] == .long && actual[index].type.referenceName == "kotlin/time/Duration" ? try durationRawValue(actual[index]) : actual[index]
+            }
+        }
         let usesDefaults = ordered.masks.contains { $0 != 0 }
         if usesDefaults {
             if !method.isStatic { actual.insert(object!, at: 0); params.insert(.reference(method.owner, nullable: false), at: 0) }

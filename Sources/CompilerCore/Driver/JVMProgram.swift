@@ -293,10 +293,12 @@ public struct JVMProperty {
     public var getter: JVMForeignMethod
     public var setter: JVMForeignMethod?
     public var field: JVMField?
+    public var isImportedField = false
     public let modifiers: Modifiers
     public var kotlinType: JVMKotlinType? = nil
     public var kotlinReceiver: JVMKotlinType? = nil
     public var genericSignature: String? = nil
+    public var fieldGenericSignature: String? = nil
     public var receiverGenericSignature: String? = nil
     public var delegateField: JVMField? = nil
     public var delegateSymbol: SymbolID? = nil

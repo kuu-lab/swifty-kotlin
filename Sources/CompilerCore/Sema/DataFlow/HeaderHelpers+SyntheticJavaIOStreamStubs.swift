@@ -142,6 +142,9 @@ extension DataFlowSemaPhase {
             classSymbol: fileSymbol, args: [], nullability: .nonNull
         )))
         symbols.setPropertyType(fileType, for: fileSymbol)
+        let hasSourceBackedFileContract = symbols.symbol(fileSymbol).map { symbol in
+            symbol.declSite != nil || !symbol.flags.contains(.synthetic)
+        } ?? false
 
         let listSymbol = resolveListSymbol(symbols: symbols, interner: interner)
         if listSymbol == nil {
@@ -167,55 +170,57 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // KUU-4440: `File.separator`/`pathSeparator`/`separatorChar`/
-        // `pathSeparatorChar` are exposed as Kotlin-source extension
-        // properties on `File.Companion` in `Stdlib/java/io/File.kt`; the
-        // companion object must exist for them to resolve (same pattern as
-        // the synthetic Instant companion).
-        _ = ensureSyntheticCompanionSymbol(
-            ownerSymbol: fileSymbol,
-            symbols: symbols,
-            interner: interner
-        )
+        if !hasSourceBackedFileContract {
+            // KUU-4440: `File.separator`/`pathSeparator`/`separatorChar`/
+            // `pathSeparatorChar` are exposed as Kotlin-source extension
+            // properties on `File.Companion` in `Stdlib/java/io/File.kt`; the
+            // companion object must exist for them to resolve (same pattern as
+            // the synthetic Instant companion).
+            _ = ensureSyntheticCompanionSymbol(
+                ownerSymbol: fileSymbol,
+                symbols: symbols,
+                interner: interner
+            )
 
-        // KSP-483: `path` reads File's internal state, so it stays a direct
-        // synthetic member (not migrated to Kotlin source). A Kotlin-source
-        // extension property named `path` would collide with the
-        // `kotlin.io.path` package FQName in this compiler's symbol table.
-        // Consumed by `Stdlib/kotlin/io/Files.kt`'s pure-logic extension
-        // properties, `FileIO.kt`'s line-iteration helpers, and by
-        // `kotlin.io.FileSystemException.file`/`.other` (KSP-619).
-        registerFileMemberProperty(
-            named: "path",
-            externalLinkName: "__kk_file_path",
-            ownerSymbol: fileSymbol,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
+            // KSP-483: `path` reads File's internal state, so it stays a direct
+            // synthetic member (not migrated to Kotlin source). A Kotlin-source
+            // extension property named `path` would collide with the
+            // `kotlin.io.path` package FQName in this compiler's symbol table.
+            // Consumed by `Stdlib/kotlin/io/Files.kt`'s pure-logic extension
+            // properties, `FileIO.kt`'s line-iteration helpers, and by
+            // `kotlin.io.FileSystemException.file`/`.other` (KSP-619).
+            registerFileMemberProperty(
+                named: "path",
+                externalLinkName: "__kk_file_path",
+                ownerSymbol: fileSymbol,
+                returnType: types.stringType,
+                symbols: symbols,
+                interner: interner
+            )
 
-        // File must stay constructible even though its own member facade
-        // (readText/exists/bufferedReader/etc., STDLIB-320/321) was removed:
-        // `kotlin.io.FileSystemException` and friends (KSP-619) take `File`
-        // parameters, and `Files.kt`'s `resolveSibling`/`normalize` (KSP-483)
-        // build new `File` values from a path. Without a constructor, none
-        // of that source-backed surface could ever be exercised.
-        registerFileConstructor(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("path", types.stringType)],
-            externalLinkName: "__kk_file_new",
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileConstructor(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("parent", types.stringType), ("child", types.stringType)],
-            externalLinkName: "__kk_file_new_parent_child",
-            symbols: symbols,
-            interner: interner
-        )
+            // File must stay constructible even though its own member facade
+            // (readText/exists/bufferedReader/etc., STDLIB-320/321) was removed:
+            // `kotlin.io.FileSystemException` and friends (KSP-619) take `File`
+            // parameters, and `Files.kt`'s `resolveSibling`/`normalize` (KSP-483)
+            // build new `File` values from a path. Without a constructor, none
+            // of that source-backed surface could ever be exercised.
+            registerFileConstructor(
+                ownerSymbol: fileSymbol,
+                ownerType: fileType,
+                parameters: [("path", types.stringType)],
+                externalLinkName: "__kk_file_new",
+                symbols: symbols,
+                interner: interner
+            )
+            registerFileConstructor(
+                ownerSymbol: fileSymbol,
+                ownerType: fileType,
+                parameters: [("parent", types.stringType), ("child", types.stringType)],
+                externalLinkName: "__kk_file_new_parent_child",
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // `kotlin.io.createTempDir`/`createTempFile` are real (if
         // force-deprecated since Kotlin 1.4, level=ERROR) top-level stdlib

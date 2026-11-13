@@ -50,6 +50,7 @@ struct JVMClassReader {
     var strings: [Int: String] = [:]
     var classes: [Int: Int] = [:]
     var constants: [Int: JVMFieldConstant] = [:]
+    var descriptorCache: JVMDescriptorCache?
     struct Invalid: Error {}
 
     mutating func u1() throws -> UInt8 {
@@ -485,7 +486,7 @@ struct JVMClassReader {
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             let methodInfo = try methodAttributes(parseAnnotations: parseMethodAnnotations)
             if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
-               let signature = try? JVMDescriptor.parse(descriptor),
+               let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
                     parameters: signature.0, result: methodName == "<init>" ? .reference(name, nullable: false) : signature.1,
@@ -502,28 +503,35 @@ struct JVMClassReader {
         }
         let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: flags & 0x2000 != 0)
         guard offset == bytes.count else { throw Invalid() }
+        var functionTable: JVMKotlinMetadataPayload.FunctionTable?
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
-           let functions = try? metadata.suspendFunctions(byteLimit: bytes.count) {
-            for index in methods.indices where Self.hasSuspendDescriptor(methods[index]) {
-                let method = methods[index]
-                guard let function = functions[method.name + method.descriptor],
-                      method.parameters.count == function.parameters.count + (function.receiverIsNullable == nil ? 1 : 2)
-                else { continue }
-                methods[index].kotlinSuspendFunction = function
+           let table = try? metadata.functionTable(byteLimit: bytes.count) {
+            functionTable = table
+            if let functions = try? metadata.suspendFunctions(in: table) {
+                for index in methods.indices where Self.hasSuspendDescriptor(methods[index]) {
+                    let method = methods[index]
+                    guard let function = functions[method.name + method.descriptor],
+                          method.parameters.count == function.parameters.count + (function.receiverIsNullable == nil ? 1 : 2)
+                    else { continue }
+                    methods[index].kotlinSuspendFunction = function
+                }
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
-           methods.contains(where: { $0.kotlinSuspendFunction == nil && Self.hasFunctionTypeDescriptor($0) }),
-           let functions = try? metadata.functions(byteLimit: bytes.count) {
-            for index in methods.indices where methods[index].kotlinSuspendFunction == nil {
+           (metadata.isFileFacade == true || methods.contains(where: Self.hasFunctionTypeDescriptor)),
+           let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
+           let functions = try? metadata.functions(in: table) {
+            for index in methods.indices {
                 let method = methods[index]
-                guard Self.hasFunctionTypeDescriptor(method),
+                let isSuspend = method.kotlinSuspendFunction != nil
+                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method),
                       let function = functions.first(where: { candidate in
-                          !candidate.isSuspend
+                          candidate.isSuspend == isSuspend
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
-                              && candidate.parameters.count + (candidate.receiver == nil ? 0 : 1) == method.parameters.count
+                              && candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
+                                  + (candidate.isSuspend ? 1 : 0) == method.parameters.count
                       })
                 else { continue }
                 methods[index].kotlinFunction = function
@@ -563,6 +571,27 @@ struct JVMClassReader {
                 || name.hasPrefix("kotlin/jvm/functions/SuspendFunction")
                 || name.hasPrefix("kotlin/coroutines/SuspendFunction")
         }
+    }
+}
+
+final class JVMDescriptorCache {
+    private static let maximumEntries = 2_048
+    private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
+
+    func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
+        // Swift string equality can equate Unicode spellings with ASCII ones.
+        // The descriptor reader must still validate non-ASCII bytes itself.
+        guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
+            return try JVMDescriptor.parse(descriptor)
+        }
+        if let signature = entries[descriptor] { return signature }
+
+        let signature = try JVMDescriptor.parse(descriptor)
+        entries[descriptor] = signature
+        if entries.count == Self.maximumEntries {
+            entries.removeAll(keepingCapacity: true)
+        }
+        return signature
     }
 }
 

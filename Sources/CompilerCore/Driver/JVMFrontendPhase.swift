@@ -13,6 +13,7 @@ final class JVMPreparationPhase: CompilerPhase {
               o.entryPointFQName == nil, o.incrementalCachePath == nil,
               o.frontendFlags.allSatisfy({
                   $0 == "time-phases" || $0 == "no-incremental" || $0 == "full-value-classes"
+                      || $0.hasPrefix("jobs=")
               }),
               o.irFlags.isEmpty, o.runtimeFlags.isEmpty, o.optLevel == .O0,
               !o.debugInfo, o.target == .hostDefault(),
@@ -23,20 +24,13 @@ final class JVMPreparationPhase: CompilerPhase {
         do {
             var classpath = o.jvmClasspath
             var lazyPaths: Set<String> = []
-            var requiredLazyClassNames: Set<String> = []
             var jdkClasspath: JVMJDKClasspath?
             if !o.stdlibOnly && (o.emit == .jvmClass || o.emit == .jvmJar) {
                 lazyPaths.formUnion(o.jvmClasspath.map {
                     URL(fileURLWithPath: $0).standardizedFileURL.path
                 })
                 jdkClasspath = try JVMJDKClasspath.prepare(for: ctx)
-                if let jdkClasspath {
-                    classpath.insert(contentsOf: jdkClasspath.classpath, at: 0)
-                    lazyPaths.formUnion(jdkClasspath.lazyPaths)
-                    requiredLazyClassNames.formUnion(jdkClasspath.requiredLazyClassNames)
-                }
             }
-            defer { jdkClasspath?.cleanup() }
             if o.emit == .apk, o.android.resourcePath != nil {
                 let toolchain = try AndroidSDKLocator.locate(
                     sdkPath: o.android.sdkPath, buildToolsVersion: o.android.buildToolsVersion,
@@ -68,8 +62,9 @@ final class JVMPreparationPhase: CompilerPhase {
             }
             let imports = try JVMClasspathIndex.load(
                 classpath, lazilyInjecting: lazyPaths,
+                platformClassFiles: jdkClasspath?.classFiles ?? [],
                 fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? [],
-                requiredLazyClassNames: requiredLazyClassNames
+                requiredLazyClassNames: jdkClasspath?.requiredLazyClassNames ?? []
             )
             ctx.jvmImports = imports
         } catch let error as AndroidSDKError {

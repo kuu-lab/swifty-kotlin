@@ -444,7 +444,6 @@ extension CallTypeChecker {
            ) == .uintRange,
            let sourceType = bindSourceRangeHOFCall(
                request.id,
-               memberName: "contains",
                calleeName: request.calleeName,
                receiverID: request.receiverID,
                args: request.args,
@@ -472,7 +471,6 @@ extension CallTypeChecker {
            ) == .ulongRange,
            let sourceType = bindSourceRangeHOFCall(
                request.id,
-               memberName: "isEmpty",
                calleeName: request.calleeName,
                receiverID: request.receiverID,
                args: request.args,

@@ -34,6 +34,29 @@ package enum JVMStdlibCatalog {
         guard !path.hasPrefix("/"), !path.split(separator: "/").contains("..") else { throw JVMFrontendError(message: "Invalid JVM stdlib resource path.") }
         return try Data(contentsOf: resourceRoot().appendingPathComponent(commonSource ? path : "jvm/" + path))
     }
+
+    package static func runtimeSourceFingerprint() throws -> String {
+        let root = try resourceRoot()
+        let jvm = root.appendingPathComponent("jvm")
+        guard let files = FileManager.default.enumerator(at: jvm, includingPropertiesForKeys: nil) else {
+            throw JVMFrontendError(message: "Missing JVM stdlib resources.")
+        }
+        let sources = files.compactMap { $0 as? URL }.filter { $0.pathExtension == "kt" }
+        var parts = [FileFingerprint.sha256Hex(try Data(contentsOf: jvm.appendingPathComponent("manifest.json")))]
+        let rootDepth = root.pathComponents.count
+        for source in sources.sorted(by: { $0.path < $1.path }) {
+            parts.append(source.pathComponents.dropFirst(rootDepth).joined(separator: "/"))
+            parts.append(FileFingerprint.sha256Hex(try Data(contentsOf: source)))
+        }
+        let catalog = try manifest()
+        let common = Set(catalog.commonSources + catalog.declarations.filter { $0.commonSource == true }.map(\.path))
+        for path in common.sorted() {
+            parts.append(path)
+            parts.append(FileFingerprint.sha256Hex(try read(path, commonSource: true)))
+        }
+        return ContentAddressedStore.makeKey(parts: parts)
+    }
+
     /// Classpath imports must not redeclare types whose source contracts are
     /// already selected. Nested binary names are filtered by the class reader.
     static func nominalNames(in ctx: CompilationContext) throws -> Set<String> {

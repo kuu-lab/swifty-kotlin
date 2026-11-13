@@ -13,7 +13,7 @@ extension JVMClasspathIndex {
     ) -> String {
         guard let value = sema.symbols.symbol(symbol) else { return "" }
         let name = ctx.interner.resolve(value.name)
-        if isAnonymousObjectLiteral(value, interner: ctx.interner),
+        if isAnonymousObjectLiteral(value),
            !resolvingAnonymous.contains(symbol),
            let info = anonymousObjectName(
                symbol,
@@ -39,7 +39,7 @@ extension JVMClasspathIndex {
         resolvingAnonymous: Set<SymbolID>
     ) -> JVMAnonymousObjectNameInfo? {
         guard let value = sema.symbols.symbol(symbol),
-              isAnonymousObjectLiteral(value, interner: ctx.interner),
+              isAnonymousObjectLiteral(value),
               let ast = ctx.ast
         else {
             return nil
@@ -189,10 +189,10 @@ extension JVMClasspathIndex {
         )
     }
 
-    private static func isAnonymousObjectLiteral(_ symbol: SemanticSymbol, interner: StringInterner) -> Bool {
+    private static func isAnonymousObjectLiteral(_ symbol: SemanticSymbol) -> Bool {
         symbol.kind == .class
             && symbol.flags.contains(.synthetic)
-            && interner.resolve(symbol.name).hasPrefix("__ObjectLiteral_")
+            && symbol.flags.contains(.objectLiteralSynthetic)
     }
 }
 
@@ -210,9 +210,9 @@ extension JVMProgramBuilder {
                 guard
                       c.modifiers.subtracting([.public, .internal, .private, .protected, .open, .final, .abstract, .data, .sealed, .enumModifier, .inner, .value, .annotationClass]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM M9 class declaration.", range: c.range) }
                 let hasJvmInline = c.annotations.contains {
-                    $0.name == "JvmInline" || $0.name == "kotlin.jvm.JvmInline"
+                    KnownCompilerAnnotation.jvmInline.matches($0.name)
                 } || sema.symbols.annotations(for: symbol).contains {
-                    $0.annotationFQName == "kotlin.jvm.JvmInline"
+                    $0.annotationFQName == KnownCompilerAnnotation.jvmInline.qualifiedName
                 }
                 let isJvmInlineValue = c.modifiers.contains(.value)
                     && (!context.options.fullValueClassesEnabled || hasJvmInline)
@@ -222,7 +222,7 @@ extension JVMProgramBuilder {
                     declaration: c,
                     isValue: isJvmInlineValue
                 )
-                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmRecord" }
+                plan.isJvmRecord = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == KnownCompilerAnnotation.jvmRecord.qualifiedName }
                 classes[symbol] = plan
                 try collectNominals(c.nestedClasses + c.nestedObjects, outer: symbol)
                 if let companion = c.companionObject { try collectNominals([companion], outer: symbol, companion: true) }
@@ -285,13 +285,14 @@ extension JVMProgramBuilder {
                 let id = c.memberProperties[index]
                 guard let (_, declaration, property) = plan.properties.first(where: { $0.0 == id }) else { throw JVMFrontendError(message: "Missing JVM property initializer.") }
                 if declaration.modifiers.contains(.const) { continue }
+                let initializer = declaration.explicitBackingField?.initializer ?? declaration.initializer
                 if let delegate = declaration.delegateExpression, let field = property.delegateField, let symbol = property.delegateSymbol {
                     let initial = try builder.requireValue(delegate)
                     let token = try builder.delegateToken(symbol, plan: plan)
                     let stored = try builder.provideDelegate(initial, symbol: symbol, token: token)
                     let converted = try builder.convert(stored, to: field.type)
                     builder.instructions.append(plan.isFacade ? .putStatic(field, converted) : .putField(field, object, converted))
-                } else if let initializer = declaration.initializer {
+                } else if let initializer {
                     guard let field = property.field else { throw JVMFrontendError(message: "JVM initializer needs a backing field.") }
                     let initial = try builder.convert(builder.requireValue(initializer), to: field.type)
                     let isStatic = plan.isFacade || (field.access & 8 != 0)

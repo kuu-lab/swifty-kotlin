@@ -5,7 +5,7 @@ struct JVMIntrinsicResult { let value: JVMValue? }
 extension JVMProgramBuilder {
     func builtinMethod(_ symbolID: SymbolID) -> JVMForeignMethod? {
         if let symbol = sema.symbols.symbol(symbolID),
-           symbol.fqName.map(context.interner.resolve) == ["java", "lang", "System", "Companion", "arraycopy"],
+           symbol.fqName == KnownCompilerNames(interner: context.interner).javaLangSystemCompanionArraycopyFQName,
            symbol.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true {
             let object: JVMValueType = .reference("java/lang/Object", nullable: true)
             return JVMForeignMethod(owner: "java/lang/System", name: "arraycopy", descriptor: "(Ljava/lang/Object;ILjava/lang/Object;II)V", parameters: [object, .int, object, .int, .int], result: .unit, isStatic: true, isInterface: false, isAbstract: false)
@@ -386,7 +386,7 @@ extension JVMFunctionBuilder {
         }
         if let coroutine = try coroutineMember(receiverID, name: member, args: args, id: id) { return coroutine }
         let binding = program.sema.bindings.callBinding(for: id)
-        let builtinHOF = binding.flatMap { program.sema.symbols.symbol($0.chosenCallee) }?.fqName.map(context.interner.resolve).starts(with: ["kotlin", "collections"]) == true
+        let builtinHOF = binding.flatMap { program.sema.symbols.symbol($0.chosenCallee) }?.fqName.starts(with: KnownCompilerNames(interner: context.interner).kotlinCollectionsPackage) == true
         // Array HOF inference may leave no callee binding, including when its
         // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
@@ -397,7 +397,7 @@ extension JVMFunctionBuilder {
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         // `to` is resolved as an extension; evaluate its receiver before the value.
         if member == "to", let binding = program.sema.bindings.callBinding(for: id),
-           let symbol = program.sema.symbols.symbol(binding.chosenCallee), symbol.fqName.map(context.interner.resolve) == ["kotlin", "to"], args.count == 1 {
+           let symbol = program.sema.symbols.symbol(binding.chosenCallee), symbol.fqName == KnownCompilerNames(interner: context.interner).kotlinToFQName, args.count == 1 {
             let left = try convert(requireValue(receiverID), to: object), right = try convert(requireValue(args[0].expr), to: object)
             return JVMIntrinsicResult(value: try constructJDK("kotlin/Pair", parameters: [object, object], arguments: [left, right]))
         }
@@ -462,7 +462,7 @@ extension JVMFunctionBuilder {
         if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
             return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
         }
-        let collections: Set<String> = ["java/util/ArrayList", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
+        let collections: Set<String> = ["java/util/ArrayList", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             if member == "withIndex", args.isEmpty {
                 let iterableType = JVMValueType.reference("java/lang/Iterable", nullable: false)
@@ -501,6 +501,8 @@ extension JVMFunctionBuilder {
             }
             if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
+            if owner == "java/util/LinkedHashSet" { owner = "java/util/Set" }
+            if owner == "java/util/LinkedHashMap" { owner = "java/util/Map" }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:
             // when it picked a Kotlin extension, the fixed JDK member signature

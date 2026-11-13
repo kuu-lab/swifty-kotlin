@@ -113,7 +113,8 @@ extension JVMProgramBuilder {
         case let .typeParam(t): return "T" + context.interner.resolve(sema.symbols.symbol(t.symbol)!.name) + ";"
         case let .classType(t):
             let source = try className(t.classSymbol)
-            if source == "kotlin/time/Duration", sema.types.nullability(of: id) == .nonNull {
+            if usesLegacyDurationLongMapping(),
+               source == "kotlin/time/Duration", sema.types.nullability(of: id) == .nonNull {
                 return boxed ? "Lkotlin/time/Duration;" : "J"
             }
             if source == "kotlin/Result" { return "Ljava/lang/Object;" }

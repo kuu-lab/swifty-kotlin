@@ -77,7 +77,7 @@ func hasImplicitIntegerCoercionAnnotation(
     forParameter: Bool
 ) -> Bool {
     annotations.contains { annotation in
-        guard annotation.annotationFQName == "kotlin.internal.ImplicitIntegerCoercion" else {
+        guard annotation.annotationFQName == KnownCompilerAnnotation.implicitIntegerCoercion.qualifiedName else {
             return false
         }
         switch annotation.useSiteTarget?.lowercased() {

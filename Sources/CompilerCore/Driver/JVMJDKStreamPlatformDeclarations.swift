@@ -87,6 +87,16 @@ extension JVMClasspathIndex {
             package java.util
             interface Spliterator<T>
             """, 0x0601, "java/lang/Object", [], []),
+            ("java/util/Spliterators", """
+            package java.util
+            class Spliterators private constructor() {
+                companion object {
+                    external fun <T> spliteratorUnknownSize(iterator: kotlin.collections.Iterator<T>, characteristics: Int): java.util.Spliterator<T>
+                }
+            }
+            """, 0x0031, "java/lang/Object", [], [
+                method("java/util/Spliterators", "spliteratorUnknownSize", [.reference("java/util/Iterator", nullable: false), .int], spliterator, isStatic: true, isAbstract: false),
+            ]),
             ("java/util/stream/Collector", """
             package java.util.stream
             interface Collector<T, A, R>

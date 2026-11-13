@@ -610,24 +610,25 @@ extension CallTypeChecker {
                     // beside it so its function parameter supplies the lambda's
                     // implicit `it` type before overload resolution rejects the
                     // String replacement candidate.
-                    func isNominalType(_ type: TypeID, fqName: [String]) -> Bool {
+                    let knownNames = KnownCompilerNames(interner: request.interner)
+                    func isNominalType(_ type: TypeID, fqName: [InternedString]) -> Bool {
                         guard let nominal = driver.helpers.nominalSymbol(of: type, types: request.sema.types),
                               let symbol = request.sema.symbols.symbol(nominal)
                         else {
                             return false
                         }
-                        return symbol.fqName.map(request.interner.resolve) == fqName
+                        return symbol.fqName == fqName
                     }
                     guard request.args.count == 2,
                           signature.parameterTypes.count == 2,
-                          isNominalType(declaredReceiver, fqName: ["kotlin", "CharSequence"]),
-                          isNominalType(signature.parameterTypes[0], fqName: ["kotlin", "text", "Regex"]),
+                          isNominalType(declaredReceiver, fqName: knownNames.kotlinCharSequenceFQName),
+                          isNominalType(signature.parameterTypes[0], fqName: knownNames.kotlinRegexFQName),
                           case let .functionType(transformType) = request.sema.types.kind(
                               of: request.sema.types.makeNonNullable(signature.parameterTypes[1])
                           ),
                           transformType.params.count == 1,
-                          isNominalType(transformType.params[0], fqName: ["kotlin", "text", "MatchResult"]),
-                          isNominalType(transformType.returnType, fqName: ["kotlin", "CharSequence"])
+                          isNominalType(transformType.params[0], fqName: knownNames.kotlinTextMatchResultFQName),
+                          isNominalType(transformType.returnType, fqName: knownNames.kotlinCharSequenceFQName)
                     else {
                         return false
                     }

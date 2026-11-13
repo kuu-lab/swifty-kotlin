@@ -136,7 +136,7 @@ extension DataFlowSemaPhase {
         let symbolID = bindings.declSymbols[declID]
         let explicitlyExported = symbolID.map {
             symbols.annotations(for: $0).contains {
-                $0.annotationFQName == "kotlin.js.JsExport"
+                $0.annotationFQName == KnownCompilerAnnotation.jsExport.qualifiedName
             }
         } ?? false
         let isExported = explicitlyExported || (isTopLevel && exportsFileDeclarations)
@@ -434,7 +434,7 @@ extension DataFlowSemaPhase {
                 }
             }
             let isExported = symbols.annotations(for: classType.classSymbol).contains {
-                $0.annotationFQName == "kotlin.js.JsExport"
+                $0.annotationFQName == KnownCompilerAnnotation.jsExport.qualifiedName
             }
             guard isExported || externalTypes.contains(classType.classSymbol) else {
                 return false
@@ -517,7 +517,7 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         interner: StringInterner
     ) -> Bool {
-        symbols.symbol(annotation)?.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.js.JsExport"
+        symbols.symbol(annotation)?.fqName == KnownCompilerNames(interner: interner).kotlinJsJsExportFQName
     }
 
     private func collectExternalTypeSymbols(

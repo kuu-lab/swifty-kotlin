@@ -55,7 +55,7 @@ extension JVMProgramBuilder {
         while let current = pending.popLast() {
             guard visited.insert(current).inserted,
                   let declaration = sema.symbols.symbol(current) else { continue }
-            if declaration.fqName.map(context.interner.resolve) == ["kotlin", "Number"] {
+            if declaration.fqName == KnownCompilerNames(interner: context.interner).kotlinNumberFQName {
                 return true
             }
             pending.append(contentsOf: sema.symbols.directSupertypes(for: current))
@@ -76,9 +76,12 @@ extension JVMProgramBuilder {
     }
     func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool) throws -> JVMFunctionReference {
         let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
-        guard function.contextReceivers.isEmpty,
-              function.modifiers.subtracting(allowed).isEmpty,
+        guard function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
+        guard function.contextReceivers.count == signature.contextParameterTypes.count,
+              function.contextReceivers.allSatisfy({ $0.isContextParameter && $0.name != nil }) else {
+            throw JVMFrontendError(message: "JVM functions require named context parameters.", range: function.range)
+        }
         let interfaceMember = sema.symbols.parentSymbol(for: symbol).flatMap { sema.symbols.symbol($0)?.kind } == .interface
         if function.isTailrec && member && (!memberFinal(function.modifiers) || interfaceMember && !function.modifiers.contains(.private)) {
             throw JVMFrontendError(message: "tailrec is prohibited on open JVM members.", range: function.range)
@@ -90,18 +93,22 @@ extension JVMProgramBuilder {
         guard Self.isUnqualifiedJvmMethodName(name) else { throw JVMFrontendError(message: "Unsupported JVM function name.", range: function.range) }
         try validateSignature(signature, instance: member, extensionReceiver: function.receiverType != nil)
         if function.receiverType != nil { extensionSymbols.insert(symbol) }
-        var parameters = try ((function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map(parameterType)
-        let offset = function.receiverType == nil ? 0 : 1
+        var parameters = try (
+            (function.receiverType == nil ? [] : [signature.receiverType].compactMap { $0 })
+                + signature.contextParameterTypes
+                + signature.parameterTypes
+        ).map(parameterType)
+        let valueParameterOffset = (function.receiverType == nil ? 0 : 1) + signature.contextParameterTypes.count
         for (i, parameter) in function.valueParams.enumerated() where parameter.isVararg {
             let component = try varargComponentType(signature.parameterTypes[i])
-            parameters[i + offset] = .reference("[" + component.descriptor, nullable: false)
+            parameters[i + valueParameterOffset] = .reference("[" + component.descriptor, nullable: false)
         }
         let mappedResult = try functionReturnType(signature.returnType)
         let result = nominalRangeResultType(for: symbol, mapped: mappedResult) ?? mappedResult
         let unsigned = parameters.contains { $0.unsignedName != nil }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
         if let annotation = sema.symbols.annotations(for: symbol).first(where: {
-            $0.annotationFQName == "kotlin.jvm.JvmName" && $0.useSiteTarget != "file"
+            $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
         }), let raw = annotation.arguments.first {
             let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = ("[" + literal + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String], let explicit = names.first, (Self.isIdentifier(explicit) || context.options.stdlibOnly && Self.isIdentifier(explicit.replacingOccurrences(of: "-", with: "_"))) else { throw JVMFrontendError(message: "Invalid JVM method name.") }
@@ -117,9 +124,11 @@ extension JVMProgramBuilder {
         return try type(actual)
     }
     func validateSignature(_ signature: FunctionSignature, instance: Bool, extensionReceiver: Bool = false) throws {
-        let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : []) + signature.parameterTypes
+        let parameterTypes = (extensionReceiver ? [signature.receiverType].compactMap { $0 } : [])
+            + signature.contextParameterTypes
+            + signature.parameterTypes
         let parameters = try parameterTypes.map(parameterType)
-        guard parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
+        guard !parameters.contains(.unit), parameters.reduce(instance ? 1 : 0, { $0 + $1.width }) <= 255,
               !parameterTypes.contains(where: { if case .nothing = sema.types.kind(of: $0) { return true }; return false }) else {
             throw JVMFrontendError(message: "Unsupported JVM signature or method parameter slot limit exceeded.")
         }
@@ -140,9 +149,9 @@ extension JVMProgramBuilder {
         for plan in classes.values.sorted(by: { $0.name < $1.name }) {
             let numberSubclass = isKotlinNumberSubclass(plan.symbol)
             guard plan.name.split(whereSeparator: { $0 == "/" || $0 == "$" }).allSatisfy({ component in
-                Self.isIdentifier(String(component))
+                Self.isJvmClassIdentifier(String(component))
                     || plan.isAnonymous && !component.isEmpty && component.utf8.allSatisfy { (48...57).contains($0) }
-            }) else { throw JVMFrontendError(message: "JVM classes require ASCII names.") }
+            }) else { throw JVMFrontendError(message: "JVM classes require valid identifier names.") }
             if plan.isJvmRecord { plan.superclass = "java/lang/Record" }
             if let parent = plan.enumParent { plan.superclass = classes[parent]!.name }
             for parent in plan.enumParent == nil ? sema.symbols.directSupertypes(for: plan.symbol) : [] {
@@ -221,11 +230,18 @@ extension JVMProgramBuilder {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
-                  p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
+                  p.getter?.isInline != true, p.setter?.isInline != true,
+                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)
             let type = nominalRangeResultType(for: symbol, mapped: mappedPropertyType) ?? mappedPropertyType
+            let backingFieldSemanticType = sema.symbols.backingFieldSymbol(for: symbol)
+                .flatMap { sema.symbols.propertyType(for: $0) } ?? propertyType
+            let mappedBackingFieldType = try self.type(backingFieldSemanticType)
+            let backingFieldType = nominalRangeResultType(for: symbol, mapped: mappedBackingFieldType)
+                ?? mappedBackingFieldType
             let extensionReceiverSemantic = sema.symbols.extensionPropertyReceiverType(for: symbol)
             let extensionReceiver = try extensionReceiverSemantic.map(self.type)
             let getterParameters = extensionReceiver.map { [$0] } ?? []
@@ -249,7 +265,7 @@ extension JVMProgramBuilder {
             let backing = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             let usesField: (ExprID) -> Bool = { self.sema.bindings.identifierSymbol(for: $0) == backing }
             let hasField = extensionReceiver == nil && !plan.isInterface && !p.modifiers.contains(.abstract) &&
-                (!validator.accessorHasBody(p.getter) || (p.isVar && !validator.accessorHasBody(p.setter)) ||
+                (p.explicitBackingField != nil || !validator.accessorHasBody(p.getter) || (p.isVar && !validator.accessorHasBody(p.setter)) ||
                  validator.accessorUsesBackingField(p.getter, isBackingFieldReference: usesField) ||
                  validator.accessorUsesBackingField(p.setter, isBackingFieldReference: usesField))
             var fieldModifiers = p.modifiers
@@ -262,19 +278,20 @@ extension JVMProgramBuilder {
                 case .internal: fieldModifiers.insert(.internal)
                 }
             }
-            let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == "kotlin.jvm.JvmField" }
+            let exposedField = sema.symbols.annotations(for: symbol).contains { $0.annotationFQName == KnownCompilerAnnotation.jvmField.qualifiedName }
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
             let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
-            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: type, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
+            let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
             property.isGetterInline = p.modifiers.contains(.inline) || p.getter?.isInline == true
             property.isSetterInline = p.modifiers.contains(.inline) || p.setter?.isInline == true
             property.kotlinType = try kotlinType(propertyType)
             property.kotlinReceiver = try extensionReceiverSemantic.map(kotlinType)
             property.genericSignature = try signatureType(propertyType)
+            property.fieldGenericSignature = try signatureType(backingFieldSemanticType)
             property.receiverGenericSignature = try extensionReceiverSemantic.map { try signatureType($0, parameterPosition: true) }
             property.customGetter = (p.getter?.body ?? .unit) != .unit || (p.getter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)
             property.customSetter = (p.setter?.body ?? .unit) != .unit || (p.setter?.visibility.map { $0 != Visibility(modifiers: p.modifiers) } ?? false)

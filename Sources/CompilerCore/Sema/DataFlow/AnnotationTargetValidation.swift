@@ -265,7 +265,7 @@ extension DataFlowSemaPhase {
                     types: types, enclosingFQName: resolutionContext.enclosingFQName,
                     lexicalEnclosingFQNames: enclosingOwners
                 ), let symbol = symbols.symbol(symbolID),
-                   symbol.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.Suppress" {
+                   symbol.fqName == KnownCompilerNames(interner: interner).kotlinSuppressFQName {
                     let concatenatedArguments = concatenatedExpressionAnnotationArguments(annotation)
                     for (index, argument) in annotation.arguments.enumerated() where !concatenatedArguments.contains(index) {
                         guard let literal = extractKotlinStringLiteralContent(argument) else { continue }
@@ -488,7 +488,7 @@ extension DataFlowSemaPhase {
                 types: resolutionContext.types, enclosingFQName: resolutionContext.enclosingFQName,
                 lexicalEnclosingFQNames: resolutionContext.lexicalEnclosingFQNames
             ), let symbol = symbols.symbol(annotationID) else { return false }
-            return symbol.fqName.map(interner.resolve) == ["kotlin", "jvm", "JvmRecord"]
+            return symbol.fqName == KnownCompilerNames(interner: interner).kotlinJvmJvmRecordFQName
         }
         if isJvmRecord, case .classDecl = decl, !resolutionContext.hasInferredBodies {
             // Accessor bodies must be resolved before a local named `field` can
@@ -1124,9 +1124,8 @@ extension DataFlowSemaPhase {
             }
             return .classLike(ownerSymbol?.kind ?? fallbackClassLikeKind(for: decl))
         case .funDecl:
-            guard useSiteTarget == nil else {
-                return nil
-            }
+            if useSiteTarget == "receiver" { return .extensionReceiver }
+            guard useSiteTarget == nil else { return nil }
             return .function
         case .propertyDecl:
             switch useSiteTarget {
@@ -1309,6 +1308,11 @@ extension DataFlowSemaPhase {
             return allowedTargets.contains("CONSTRUCTOR")
         case .valueParameter:
             return allowedTargets.contains("VALUE_PARAMETER")
+        case .extensionReceiver:
+            guard case let .funDecl(functionDecl)? = decl,
+                  functionDecl.receiverType != nil
+            else { return false }
+            return allowedTargets.contains("VALUE_PARAMETER")
         case .typeParameter:
             return allowedTargets.contains("TYPE_PARAMETER")
         case .constructorPropertyParameter:
@@ -1394,6 +1398,8 @@ extension DataFlowSemaPhase {
             return "a constructor"
         case .valueParameter:
             return "a value parameter"
+        case .extensionReceiver:
+            return "an extension receiver"
         case .typeParameter:
             return "a type parameter"
         case .constructorPropertyParameter:
@@ -1466,6 +1472,7 @@ extension DataFlowSemaPhase {
         case function
         case constructor
         case valueParameter
+        case extensionReceiver
         case typeParameter
         case constructorPropertyParameter
         case enumEntry

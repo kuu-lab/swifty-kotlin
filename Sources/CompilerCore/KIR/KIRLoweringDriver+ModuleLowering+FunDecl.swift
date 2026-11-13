@@ -73,7 +73,7 @@ extension KIRLoweringDriver {
         // context-function parameter through the ordinary Function0 ABI while
         // also passing its context receivers as arguments, producing invalid IR.
         let isContextIntrinsic = function.isInline
-            && sema.symbols.symbol(symbol)?.fqName.map(shared.interner.resolve) == ["kotlin", "context"]
+            && sema.symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: shared.interner).kotlinContextFQName
         let isInlineOnly = explicitlyInlineOnly || (!function.isInline && autoInline) || isContextIntrinsic
         let kirID = arena.appendDecl(.function(KIRFunction(
             symbol: symbol, name: function.name, params: params,

@@ -43,7 +43,10 @@ final class LinkPhase: CompilerPhase {
         // The wasm backend emits the final module itself; there is no host
         // object link step.
         guard !ctx.options.target.isWasm else { return }
-        guard let objectPath = ctx.generatedObjectPath else {
+        let objectPaths = ctx.generatedObjectPaths.isEmpty
+            ? ctx.generatedObjectPath.map { [$0] } ?? []
+            : ctx.generatedObjectPaths
+        guard !objectPaths.isEmpty else {
             ctx.diagnostics.error(
                 "KSWIFTK-LINK-0004",
                 "Link phase expected a generated object file path, but none was recorded after codegen.",
@@ -51,13 +54,15 @@ final class LinkPhase: CompilerPhase {
             )
             throw CompilerPipelineError.outputUnavailable
         }
-        guard FileManager.default.fileExists(atPath: objectPath) else {
-            ctx.diagnostics.error(
-                "KSWIFTK-LINK-0004",
-                "Link phase expected object file at '\(objectPath)', but the file does not exist.",
-                range: nil
-            )
-            throw CompilerPipelineError.outputUnavailable
+        for objectPath in objectPaths {
+            guard FileManager.default.fileExists(atPath: objectPath) else {
+                ctx.diagnostics.error(
+                    "KSWIFTK-LINK-0004",
+                    "Link phase expected object file at '\(objectPath)', but the file does not exist.",
+                    range: nil
+                )
+                throw CompilerPipelineError.outputUnavailable
+            }
         }
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available during link.")
@@ -81,11 +86,11 @@ final class LinkPhase: CompilerPhase {
             throw CompilerPipelineError.outputUnavailable
         }
         try CodegenCriticalSection.withLinuxExecutableToolchainLock(target: ctx.options.target) {
-            try performLink(objectPath: objectPath, entrySymbol: entry.symbol, takesArguments: entry.takesArguments, ctx: ctx)
+            try performLink(objectPaths: objectPaths, entrySymbol: entry.symbol, takesArguments: entry.takesArguments, ctx: ctx)
         }
     }
 
-    private func performLink(objectPath: String, entrySymbol: String, takesArguments: Bool, ctx: CompilationContext) throws {
+    private func performLink(objectPaths: [String], entrySymbol: String, takesArguments: Bool, ctx: CompilationContext) throws {
         let libraryInputs = withSubPhaseTiming("libraryObjects", timer: ctx.phaseTimer) {
             discoverLibraryLinkInputs(
                 searchPaths: ctx.options.effectiveLibrarySearchPaths,
@@ -132,7 +137,7 @@ final class LinkPhase: CompilerPhase {
                 }
             }
             let linkInputs = buildLinkInputs(
-                objectPath: objectPath, entryWrapperObjectPath: entryWrapperObjectPath,
+                objectPaths: objectPaths, entryWrapperObjectPath: entryWrapperObjectPath,
                 runtimeObjects: runtimeObjects, autoLinkedObjects: libraryInputs.objects
             )
             var args = linkInputs
@@ -165,7 +170,7 @@ final class LinkPhase: CompilerPhase {
                 var dropForceLoads = false
                 let prelinked = withSubPhaseTiming("prelinkedObjects", timer: ctx.phaseTimer) {
                     MacOSPrelinkedObjects.resolve(
-                        inputs: Array(linkInputs.dropFirst(2)),
+                        inputs: Array(linkInputs.dropFirst(objectPaths.count + 1)),
                         forceLoadPaths: forceLoadPaths,
                         cacheDirectory: linkerCacheDirectory
                             .appendingPathComponent("prelinked", isDirectory: true),
@@ -175,7 +180,7 @@ final class LinkPhase: CompilerPhase {
                     )
                 }
                 if let prelinked {
-                    finalInputs = [objectPath, entryWrapperObjectPath, prelinked]
+                    finalInputs = objectPaths + [entryWrapperObjectPath, prelinked]
                     dropForceLoads = plan.forceLoadedPaths != nil
                 }
                 _ = try CommandRunner.run(
@@ -256,12 +261,12 @@ final class LinkPhase: CompilerPhase {
     }
 
     private func buildLinkInputs(
-        objectPath: String,
+        objectPaths: [String],
         entryWrapperObjectPath: String,
         runtimeObjects: [String],
         autoLinkedObjects: [String]
     ) -> [String] {
-        var linkInputs: [String] = [objectPath, entryWrapperObjectPath]
+        var linkInputs: [String] = objectPaths + [entryWrapperObjectPath]
         for obj in runtimeObjects where !linkInputs.contains(obj) {
             linkInputs.append(obj)
         }
@@ -313,7 +318,7 @@ final class LinkPhase: CompilerPhase {
                   signature.typeParameterSymbols.isEmpty, !signature.isSuspend,
                   case let .classType(arrayType) = types.kind(of: function.params[0].type),
                   arrayType.nullability == .nonNull,
-                  symbols.symbol(arrayType.classSymbol)?.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.Array",
+                  symbols.symbol(arrayType.classSymbol)?.fqName == KnownCompilerNames(interner: interner).kotlinArrayFQName,
                   arrayType.args.count == 1
             else { return nil }
             let elementType: TypeID

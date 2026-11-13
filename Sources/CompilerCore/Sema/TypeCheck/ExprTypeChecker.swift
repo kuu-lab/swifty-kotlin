@@ -1622,7 +1622,7 @@ final class ExprTypeChecker {
                 }
             }
             if let sourceSymbol = driver.callChecker.sourceRangeHOFSymbol(
-                memberName: "contains",
+                calleeName: containsName,
                 rangeKind: .longRange,
                 argCount: 1,
                 argumentTypes: [sema.types.makeNonNullable(resolvedElementType)],
@@ -1695,7 +1695,7 @@ final class ExprTypeChecker {
                 return
             }
             if let sourceSymbol = driver.callChecker.sourceRangeHOFSymbol(
-                memberName: "contains",
+                calleeName: containsName,
                 rangeKind: .ulongRange,
                 argCount: 1,
                 argumentTypes: [sema.types.makeNonNullable(resolvedElementType)],
@@ -1731,7 +1731,7 @@ final class ExprTypeChecker {
         [MemberDispatchReceiverKind.intProgression, .longProgression, .charProgression,
          .uintProgression, .ulongProgression].contains(rangeKind) {
             if let sourceSymbol = driver.callChecker.sourceRangeHOFSymbol(
-                memberName: "contains",
+                calleeName: containsName,
                 rangeKind: rangeKind,
                 argCount: 1,
                 argumentTypes: [sema.types.makeNonNullable(elementType)],

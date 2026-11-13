@@ -498,7 +498,7 @@ extension CallTypeChecker {
         guard !vis.isEmpty else { return nil }
 
         if request.sema.requiresResolvedLibraryCalls,
-           receiverPath.map(request.interner.resolve) == ["kotlin", "sequences"],
+           receiverPath == KnownCompilerNames(interner: request.interner).kotlinSequencesPackage,
            ["sequence", "iterator"].contains(request.interner.resolve(request.calleeName)),
            vis.contains(where: { candidate in
                request.ctx.cachedSymbol(candidate)?.declSite.map { driver.sourceManager?.origin(of: $0.start.file) == .residualStdlib } == true

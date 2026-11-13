@@ -36,6 +36,20 @@ package enum KnownCompilerAnnotation: CaseIterable {
     case ksSymbolName
     case nativeThreadLocal
     case inlineOnly
+    case retention
+    case mustBeDocumented
+    case jvmInline
+    case jvmRecord
+    case jvmSynthetic
+    case jvmRepeatable
+    case lowPriorityInOverloadResolution
+    case implicitIntegerCoercion
+    case onlyInputTypes
+    case nonStableParameterNames
+    case jsExport
+    case inherited
+    case serializationTransient
+    case serializationSerialName
 
     /// Every known annotation's simple name is the last component of its qualified name.
     var simpleName: String {
@@ -114,6 +128,48 @@ package enum KnownCompilerAnnotation: CaseIterable {
             "kotlin.native.concurrent.ThreadLocal"
         case .inlineOnly:
             "kotlin.internal.InlineOnly"
+        case .retention:
+            "kotlin.annotation.Retention"
+        case .mustBeDocumented:
+            "kotlin.annotation.MustBeDocumented"
+        case .jvmInline:
+            "kotlin.jvm.JvmInline"
+        case .jvmRecord:
+            "kotlin.jvm.JvmRecord"
+        case .jvmSynthetic:
+            "kotlin.jvm.JvmSynthetic"
+        case .jvmRepeatable:
+            "kotlin.jvm.JvmRepeatable"
+        case .lowPriorityInOverloadResolution:
+            "kotlin.internal.LowPriorityInOverloadResolution"
+        case .implicitIntegerCoercion:
+            "kotlin.internal.ImplicitIntegerCoercion"
+        case .onlyInputTypes:
+            "kotlin.internal.OnlyInputTypes"
+        case .nonStableParameterNames:
+            "kotlin.internal.NonStableParameterNames"
+        case .jsExport:
+            "kotlin.js.JsExport"
+        case .inherited:
+            "java.lang.annotation.Inherited"
+        case .serializationTransient:
+            "kotlinx.serialization.Transient"
+        case .serializationSerialName:
+            "kotlinx.serialization.SerialName"
+        }
+    }
+
+    /// The unresolved-annotation fallback stays frozen to the names the compiler
+    /// already recognised by name; cases added for `annotationFQName` lookups do
+    /// not widen it implicitly.
+    private var isKnownBuiltInFallback: Bool {
+        switch self {
+        case .retention, .mustBeDocumented, .jvmInline, .jvmRecord, .jvmSynthetic, .jvmRepeatable,
+             .lowPriorityInOverloadResolution, .implicitIntegerCoercion, .onlyInputTypes,
+             .nonStableParameterNames, .jsExport, .inherited, .serializationTransient, .serializationSerialName:
+            false
+        default:
+            true
         }
     }
 
@@ -126,7 +182,7 @@ package enum KnownCompilerAnnotation: CaseIterable {
     /// text library omits SOURCE-retention metadata annotations such as
     /// `kotlin.Suppress` or `kotlin.UnsafeVariance`).
     package static func isKnownBuiltInAnnotation(_ rawName: String) -> Bool {
-        allCases.contains { $0.matches(rawName) }
+        allCases.contains { $0.isKnownBuiltInFallback && $0.matches(rawName) }
     }
 }
 
@@ -438,7 +494,7 @@ package struct KnownCompilerNames {
     let comparator: InternedString
     let sequenceScope: InternedString
     let closedFloatingPointRange: InternedString
-    let kotlin: InternedString
+    package let kotlin: InternedString
     let sequences: InternedString
     let initName: InternedString
     let invoke: InternedString
@@ -452,6 +508,31 @@ package struct KnownCompilerNames {
     let cancel: InternedString
     let join: InternedString
     let awaitName: InternedString
+
+    // Range and array fallback member names dispatched by `calleeName`.
+    let start: InternedString
+    let end: InternedString
+    let endInclusive: InternedString
+    let endExclusive: InternedString
+    let random: InternedString
+    let randomOrNull: InternedString
+    let findLast: InternedString
+    let anyMember: InternedString
+    let allMember: InternedString
+    let noneMember: InternedString
+    let mapIndexed: InternedString
+    let mapNotNull: InternedString
+    let filterNot: InternedString
+    let concatToString: InternedString
+    let copyOf: InternedString
+    let copyOfRange: InternedString
+    let copyInto: InternedString
+    let fill: InternedString
+    let call: InternedString
+    let name: InternedString
+    let returnType: InternedString
+    let isSuspend: InternedString
+    let parameters: InternedString
 
     // Additional member/marker names compared by name during type checking.
     let receive: InternedString
@@ -470,6 +551,8 @@ package struct KnownCompilerNames {
     let equals: InternedString
     let hashCode: InternedString
     let mod: InternedString
+    let floorDiv: InternedString
+    let companion: InternedString
     let inv: InternedString
     let mutableListOf: InternedString
     let asFlow: InternedString
@@ -494,8 +577,9 @@ package struct KnownCompilerNames {
     let kotlinTextPackage: [InternedString]
     let kotlinTimePackage: [InternedString]
     let kotlinMathPackage: [InternedString]
+    let kotlinReflectPackage: [InternedString]
     let kotlinReflectFullPackage: [InternedString]
-    let kotlinArrayFQName: [InternedString]
+    package let kotlinArrayFQName: [InternedString]
     let kotlinComparatorFQName: [InternedString]
     let kotlinIntArrayFQName: [InternedString]
     let kotlinLongArrayFQName: [InternedString]
@@ -517,6 +601,62 @@ package struct KnownCompilerNames {
     let kotlinRangesCharRangeFQName: [InternedString]
     let kotlinRangesClosedFloatingPointRangeFQName: [InternedString]
     let kotlinTimeInstantFQName: [InternedString]
+    let kotlinAnyFQName: [InternedString]
+    let kotlinUnitFQName: [InternedString]
+    let kotlinNumberFQName: [InternedString]
+    package let kotlinThrowableFQName: [InternedString]
+    let kotlinCharSequenceFQName: [InternedString]
+    package let kotlinEnumValuesFQName: [InternedString]
+    let kotlinIsArrayOfFQName: [InternedString]
+    let kotlinAssertFQName: [InternedString]
+    let kotlinContextOfFQName: [InternedString]
+    let kotlinToFQName: [InternedString]
+    let kotlinContextFQName: [InternedString]
+    let kotlinTextPlusFQName: [InternedString]
+    package let kotlinTextCharsetFQName: [InternedString]
+    let kotlinTextCharsetsFQName: [InternedString]
+    let kotlinTextCodeFQName: [InternedString]
+    package let kotlinCollectionsSizeGetFQName: [InternedString]
+    package let kotlinLengthGetFQName: [InternedString]
+    let kotlinTextRegexCompanionFQName: [InternedString]
+    let kotlinTextRegexOptionFQName: [InternedString]
+    let kotlinTextMatchResultFQName: [InternedString]
+    let kotlinCollectionsListIteratorFQName: [InternedString]
+    let kotlinCollectionsFillFQName: [InternedString]
+    package let kotlinCoroutinesContinuationInterceptorFQName: [InternedString]
+    let kotlinCoroutinesContinuationInterceptorKeyFQName: [InternedString]
+    let kotlinCoroutinesCoroutineContextElementFQName: [InternedString]
+    let kotlinCoroutinesEmptyCoroutineContextFQName: [InternedString]
+    package let kotlinxCoroutinesCoroutineDispatcherFQName: [InternedString]
+    let kotlinxCoroutinesBroadcastChannelFQName: [InternedString]
+    let kotlinxCoroutinesFlowPackageFQName: [InternedString]
+    let kotlinNativeConcurrentWorkerFQName: [InternedString]
+    let kotlinRangesOpenEndRangeFQName: [InternedString]
+    let kotlinRangesClosedRangeFQName: [InternedString]
+    let kotlinRangesULongRangeFQName: [InternedString]
+    let kotlinRangesULongProgressionFQName: [InternedString]
+    let kotlinSequencesSequenceScopeFQName: [InternedString]
+    let kotlinSequencesBuilderIteratorFQName: [InternedString]
+    let kotlinPropertiesDelegatesFQName: [InternedString]
+    let kotlinTimeDurationFQName: [InternedString]
+    let kotlinTimeDurationUnitFQName: [InternedString]
+    let kotlinTimeAbstractDoubleTimeSourceFQName: [InternedString]
+    let kotlinTimeAbstractLongTimeSourceFQName: [InternedString]
+    let kotlinJsJsFileNameFQName: [InternedString]
+    let kotlinJsJsStaticFQName: [InternedString]
+    let kotlinJsJsExportFQName: [InternedString]
+    let kotlinJvmJvmRecordFQName: [InternedString]
+    let kotlinSuppressFQName: [InternedString]
+    let kotlinOptInFQName: [InternedString]
+    let kotlinAnnotationAnnotationRetentionFQName: [InternedString]
+    let javaUtilCollectionsPackageFQName: [InternedString]
+    let javaUtilCollectionsNewSetFromMapFQName: [InternedString]
+    let javaUtilCollectionsCheckedListFQName: [InternedString]
+    let javaLangSystemCompanionArraycopyFQName: [InternedString]
+    let javaLangThreadLocalFQName: [InternedString]
+    let javaLangMathFQName: [InternedString]
+    let kotlinReflectKClassFQName: [InternedString]
+    let kotlinReflectKDeclarationContainerFQName: [InternedString]
 
     // Constant member-name sets for the collection-member fallback and
     // regular-resolution dispatch, interned once per interner instead of
@@ -591,14 +731,14 @@ package struct KnownCompilerNames {
     let kotlinContinuationFQName: [InternedString]
     let kotlinSuspendCoroutineFQName: [InternedString]
     let kotlinCollectionsArrayListFQName: [InternedString]
-    let kotlinCollectionsListFQName: [InternedString]
+    package let kotlinCollectionsListFQName: [InternedString]
     let kotlinCollectionsMutableListFQName: [InternedString]
     let kotlinCollectionsSetFQName: [InternedString]
-    let kotlinCollectionsMutableSetFQName: [InternedString]
+    package let kotlinCollectionsMutableSetFQName: [InternedString]
     let kotlinCollectionsHashSetFQName: [InternedString]
     let kotlinCollectionsLinkedHashSetFQName: [InternedString]
     let kotlinCollectionsMapFQName: [InternedString]
-    let kotlinCollectionsMutableMapFQName: [InternedString]
+    package let kotlinCollectionsMutableMapFQName: [InternedString]
     let kotlinCollectionsHashMapFQName: [InternedString]
     let kotlinCollectionsLinkedHashMapFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
@@ -611,6 +751,7 @@ package struct KnownCompilerNames {
     let javaUtilNavigableMapFQName: [InternedString]
     let javaUtilTreeMapFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
+    let kotlinCoroutinesCoroutineContextFQName: [InternedString]
     let kotlinCoroutinesFQName: [InternedString]
     let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
@@ -621,7 +762,7 @@ package struct KnownCompilerNames {
     let kotlinxCoroutinesLaunchFQName: [InternedString]
     let kotlinxCoroutinesAsyncFQName: [InternedString]
     let kotlinRangesPackageFQName: [InternedString]
-    let kotlinResultFQName: [InternedString]
+    package let kotlinResultFQName: [InternedString]
     /// Bundled Kotlin-source Array copy entry points (KSP-1515).
     let sourceBackedArrayCopyFQNames: Set<[InternedString]>
     let atomicScalarFactoryFQNames: Set<[InternedString]>
@@ -631,6 +772,9 @@ package struct KnownCompilerNames {
     /// `MutableSet` plus its concrete stdlib/`java.util` subtype FQ names,
     /// shared by `isMutableSetSymbol` and `isSetLikeSymbol`.
     let mutableSetLikeFQNames: Set<[InternedString]>
+    /// Nominals whose reused synthetic shell must keep the bundled declaration
+    /// source-backed (see HeaderCollection's declSite restoration path).
+    let reusableSyntheticSourceBackedFQNames: Set<[InternedString]>
 
     package init(interner: StringInterner) {
         self = interner.cachedCompilerNames {
@@ -788,6 +932,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsCollectionFQName = [kotlin, collections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, collections, mutableCollection]
         kotlinCollectionsIterableFQName = [kotlin, collections, interner.intern("Iterable")]
+        kotlinCoroutinesCoroutineContextFQName = [kotlin, kotlinCoroutines, interner.intern("CoroutineContext")]
         sourceBackedArrayCopyFQNames = [
             [kotlin, collections, interner.intern("copyOf")],
             [kotlin, collections, interner.intern("copyOfRange")],
@@ -1053,6 +1198,8 @@ package struct KnownCompilerNames {
         equals = interner.intern("equals")
         hashCode = interner.intern("hashCode")
         mod = interner.intern("mod")
+        floorDiv = interner.intern("floorDiv")
+        companion = interner.intern("Companion")
         inv = interner.intern("inv")
         mutableListOf = interner.intern("mutableListOf")
         asFlow = interner.intern("asFlow")
@@ -1077,6 +1224,30 @@ package struct KnownCompilerNames {
         join = interner.intern("join")
         awaitName = interner.intern("await")
 
+        start = interner.intern("start")
+        end = interner.intern("end")
+        endInclusive = interner.intern("endInclusive")
+        endExclusive = interner.intern("endExclusive")
+        random = interner.intern("random")
+        randomOrNull = interner.intern("randomOrNull")
+        findLast = interner.intern("findLast")
+        anyMember = interner.intern("any")
+        allMember = interner.intern("all")
+        noneMember = interner.intern("none")
+        mapIndexed = interner.intern("mapIndexed")
+        mapNotNull = interner.intern("mapNotNull")
+        filterNot = interner.intern("filterNot")
+        concatToString = interner.intern("concatToString")
+        copyOf = interner.intern("copyOf")
+        copyOfRange = interner.intern("copyOfRange")
+        copyInto = interner.intern("copyInto")
+        fill = interner.intern("fill")
+        call = interner.intern("call")
+        name = interner.intern("name")
+        returnType = interner.intern("returnType")
+        isSuspend = interner.intern("isSuspend")
+        parameters = interner.intern("parameters")
+
         let kotlinRanges = interner.intern("ranges")
         let kotlinTime = interner.intern("time")
         let kotlinMath = interner.intern("math")
@@ -1086,7 +1257,8 @@ package struct KnownCompilerNames {
         kotlinTextPackage = [kotlin, kotlinText]
         kotlinTimePackage = [kotlin, kotlinTime]
         kotlinMathPackage = [kotlin, kotlinMath]
-        kotlinReflectFullPackage = [kotlin, interner.intern("reflect"), interner.intern("full")]
+        kotlinReflectPackage = [kotlin, interner.intern("reflect")]
+        kotlinReflectFullPackage = kotlinReflectPackage + [interner.intern("full")]
         kotlinArrayFQName = [kotlin, array]
         kotlinComparatorFQName = [kotlin, comparator]
         kotlinIntArrayFQName = [kotlin, intArray]
@@ -1109,6 +1281,103 @@ package struct KnownCompilerNames {
         kotlinRangesCharRangeFQName = [kotlin, kotlinRanges, charRange]
         kotlinRangesClosedFloatingPointRangeFQName = [kotlin, kotlinRanges, closedFloatingPointRange]
         kotlinTimeInstantFQName = [kotlin, kotlinTime, interner.intern("Instant")]
+        kotlinAnyFQName = ["kotlin", "Any"].map(interner.intern)
+        kotlinUnitFQName = ["kotlin", "Unit"].map(interner.intern)
+        kotlinNumberFQName = ["kotlin", "Number"].map(interner.intern)
+        kotlinThrowableFQName = ["kotlin", "Throwable"].map(interner.intern)
+        kotlinCharSequenceFQName = ["kotlin", "CharSequence"].map(interner.intern)
+        kotlinEnumValuesFQName = ["kotlin", "enumValues"].map(interner.intern)
+        kotlinIsArrayOfFQName = ["kotlin", "isArrayOf"].map(interner.intern)
+        kotlinAssertFQName = ["kotlin", "assert"].map(interner.intern)
+        kotlinContextOfFQName = ["kotlin", "contextOf"].map(interner.intern)
+        kotlinToFQName = ["kotlin", "to"].map(interner.intern)
+        kotlinContextFQName = ["kotlin", "context"].map(interner.intern)
+        kotlinTextPlusFQName = ["kotlin", "text", "plus"].map(interner.intern)
+        kotlinTextCharsetFQName = ["kotlin", "text", "Charset"].map(interner.intern)
+        kotlinTextCharsetsFQName = ["kotlin", "text", "Charsets"].map(interner.intern)
+        kotlinTextCodeFQName = ["kotlin", "text", "code"].map(interner.intern)
+        kotlinCollectionsSizeGetFQName = ["kotlin", "collections", "size", "$get"].map(interner.intern)
+        kotlinLengthGetFQName = ["kotlin", "length", "$get"].map(interner.intern)
+        kotlinTextRegexCompanionFQName = [kotlin, kotlinText, regex, interner.intern("Companion")]
+        kotlinTextRegexOptionFQName = [kotlin, kotlinText, interner.intern("RegexOption")]
+        kotlinTextMatchResultFQName = [kotlin, kotlinText, interner.intern("MatchResult")]
+        kotlinCollectionsListIteratorFQName = [kotlin, kotlinCollections, interner.intern("ListIterator")]
+        kotlinCollectionsFillFQName = [kotlin, kotlinCollections, interner.intern("fill")]
+        kotlinCoroutinesContinuationInterceptorFQName = ["kotlin", "coroutines", "ContinuationInterceptor"].map(interner.intern)
+        kotlinCoroutinesContinuationInterceptorKeyFQName = ["kotlin", "coroutines", "ContinuationInterceptor", "Key"].map(interner.intern)
+        kotlinCoroutinesCoroutineContextElementFQName = ["kotlin", "coroutines", "CoroutineContext", "Element"].map(interner.intern)
+        kotlinCoroutinesEmptyCoroutineContextFQName = ["kotlin", "coroutines", "EmptyCoroutineContext"].map(interner.intern)
+        kotlinxCoroutinesCoroutineDispatcherFQName = ["kotlinx", "coroutines", "CoroutineDispatcher"].map(interner.intern)
+        kotlinxCoroutinesBroadcastChannelFQName = ["kotlinx", "coroutines", "channels", "BroadcastChannel"].map(interner.intern)
+        kotlinxCoroutinesFlowPackageFQName = ["kotlinx", "coroutines", "flow"].map(interner.intern)
+        kotlinNativeConcurrentWorkerFQName = ["kotlin", "native", "concurrent", "Worker"].map(interner.intern)
+        kotlinRangesOpenEndRangeFQName = [kotlin, kotlinRanges, openEndRange]
+        kotlinRangesClosedRangeFQName = [kotlin, kotlinRanges, interner.intern("ClosedRange")]
+        kotlinRangesULongRangeFQName = [kotlin, kotlinRanges, ulongRange]
+        kotlinRangesULongProgressionFQName = [kotlin, kotlinRanges, ulongProgression]
+        kotlinSequencesSequenceScopeFQName = [kotlin, kotlinSequences, sequenceScope]
+        kotlinSequencesBuilderIteratorFQName = [kotlin, kotlinSequences, interner.intern("BuilderIterator")]
+        kotlinPropertiesDelegatesFQName = ["kotlin", "properties", "Delegates"].map(interner.intern)
+        kotlinTimeDurationFQName = [kotlin, kotlinTime, interner.intern("Duration")]
+        kotlinTimeDurationUnitFQName = [kotlin, kotlinTime, interner.intern("DurationUnit")]
+        kotlinTimeAbstractDoubleTimeSourceFQName = [kotlin, kotlinTime, interner.intern("AbstractDoubleTimeSource")]
+        kotlinTimeAbstractLongTimeSourceFQName = [kotlin, kotlinTime, interner.intern("AbstractLongTimeSource")]
+        kotlinJsJsFileNameFQName = ["kotlin", "js", "JsFileName"].map(interner.intern)
+        kotlinJsJsStaticFQName = ["kotlin", "js", "JsStatic"].map(interner.intern)
+        kotlinJsJsExportFQName = ["kotlin", "js", "JsExport"].map(interner.intern)
+        kotlinJvmJvmRecordFQName = ["kotlin", "jvm", "JvmRecord"].map(interner.intern)
+        kotlinSuppressFQName = ["kotlin", "Suppress"].map(interner.intern)
+        kotlinOptInFQName = ["kotlin", "OptIn"].map(interner.intern)
+        kotlinAnnotationAnnotationRetentionFQName = ["kotlin", "annotation", "AnnotationRetention"].map(interner.intern)
+        javaUtilCollectionsPackageFQName = ["java", "util", "Collections"].map(interner.intern)
+        javaUtilCollectionsNewSetFromMapFQName = ["java", "util", "Collections", "newSetFromMap"].map(interner.intern)
+        javaUtilCollectionsCheckedListFQName = ["java", "util", "Collections", "checkedList"].map(interner.intern)
+        javaLangSystemCompanionArraycopyFQName = ["java", "lang", "System", "Companion", "arraycopy"].map(interner.intern)
+        javaLangThreadLocalFQName = ["java", "lang", "ThreadLocal"].map(interner.intern)
+        javaLangMathFQName = ["java", "lang", "Math"].map(interner.intern)
+        kotlinReflectKClassFQName = [kotlin, interner.intern("reflect"), interner.intern("KClass")]
+        kotlinReflectKDeclarationContainerFQName = [kotlin, interner.intern("reflect"), interner.intern("KDeclarationContainer")]
+        reusableSyntheticSourceBackedFQNames = Set([
+            ["kotlinx", "coroutines", "CoroutineName"],
+            ["java", "io", "BufferedReader"],
+            ["kotlin", "collections", "Iterator"],
+            ["kotlin", "collections", "Map", "Entry"],
+            ["kotlin", "collections", "MutableMap", "MutableEntry"],
+            ["kotlin", "native", "ref", "WeakReference"],
+            ["kotlin", "native", "runtime", "RootSetStatistics"],
+            ["kotlin", "native", "runtime", "Debugging"],
+            ["kotlin", "ranges", "IntProgression"],
+            ["kotlin", "ranges", "LongProgression"],
+            ["kotlin", "ranges", "UIntProgression"],
+            ["kotlin", "ranges", "CharProgression"],
+            ["kotlin", "time", "Duration"],
+            ["kotlin", "time", "DurationUnit"],
+            ["kotlin", "time", "AbstractDoubleTimeSource"],
+            ["kotlin", "time", "AbstractLongTimeSource"],
+            ["kotlin", "time", "Clock"],
+            ["kotlin", "time", "ComparableTimeMark"],
+            ["kotlin", "time", "ExperimentalTime"],
+            ["kotlin", "time", "Instant"],
+            ["kotlin", "time", "TestTimeSource"],
+            ["kotlin", "time", "TimeMark"],
+            ["kotlin", "time", "TimeSource"],
+            ["kotlin", "time", "TimedValue"],
+            ["kotlin", "native", "concurrent", "Future"],
+            ["kotlin", "text", "CharCategory"],
+            ["kotlin", "text", "CharDirectionality"],
+            ["kotlinx", "coroutines", "CoroutineStart"],
+            ["kotlin", "native", "concurrent", "TransferMode"],
+            ["kotlin", "native", "concurrent", "InvalidMutabilityException"],
+            ["kotlin", "sequences", "SequenceScope"],
+            ["kotlin", "concurrent", "atomics", "AtomicNativePtr"],
+            ["kotlin", "concurrent", "AtomicArray"],
+            ["kotlin", "concurrent", "AtomicInt"],
+            ["kotlin", "concurrent", "AtomicIntArray"],
+            ["kotlin", "concurrent", "AtomicLong"],
+            ["kotlin", "concurrent", "AtomicLongArray"],
+            ["kotlin", "concurrent", "AtomicNativePtr"],
+            ["kotlin", "concurrent", "AtomicReference"],
+        ].map { $0.map(interner.intern) })
 
         collectionMembers = Set(["size", "isEmpty", "contains", "containsAll", "first", "last", "indexOf", "lastIndexOf", "indexOfFirst", "indexOfLast", "count", "iterator", "filter", "filterNotNull", "filterIsInstanceTo", "filterNotNullTo", "fold", "foldRight", "foldIndexed", "foldRightIndexed", "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull", "reduceOrNull", "reduceIndexed", "reduceIndexedOrNull", "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "sortedBy", "find", "zip", "unzip", "withIndex", "min", "maxOrNull", "minOrNull", "asSequence", "asIterable", "toList", "toCollection", "toTypedArray", "toCharArray", "toBooleanArray", "toShortArray", "toDoubleArray", "toFloatArray", "toIntArray", "toLongArray", "toByteArray", "toUByteArray", "toUShortArray", "toUIntArray", "toULongArray", "take", "drop", "reversed", "asReversed", "sorted", "shuffled", "distinct", "distinctBy", "flatten", "chunked", "windowed", "firstNotNullOf", "firstNotNullOfOrNull", "sortedDescending", "sortedByDescending", "sortedWith", "partition", "filterIsInstance", "firstOrNull", "lastOrNull", "singleOrNull", "joinToString", "elementAt", "single", "toMutableList", "sum", "average", "minusElement"].map { interner.intern($0) })
         listOnlyMembers = Set(["get", "subList", "slice", "getOrNull", "elementAtOrNull", "binarySearch", "binarySearchBy"].map { interner.intern($0) })

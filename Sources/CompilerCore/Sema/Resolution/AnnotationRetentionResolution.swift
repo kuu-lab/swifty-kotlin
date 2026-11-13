@@ -17,7 +17,7 @@ func resolvedAnnotationRetention(
     guard let annotationSymbol = symbols.lookup(
         fqName: annotation.annotationFQName.split(separator: ".").map { interner.intern(String($0)) }
     ), let retention = symbols.annotations(for: annotationSymbol).first(where: {
-        $0.annotationFQName == "kotlin.annotation.Retention"
+        $0.annotationFQName == KnownCompilerAnnotation.retention.qualifiedName
     }), let argument = retention.arguments.first else {
         return .runtime
     }
@@ -58,7 +58,8 @@ func canonicalRetentionArguments(
         // entry keeps its meaning even if an import alias shadows its last part.
         guard !value.contains("."), let imported = file?.imports.first(where: {
             ($0.alias.map(interner.resolve) ?? $0.path.last.map(interner.resolve)) == value
-                && $0.path.dropLast().map(interner.resolve) == ["kotlin", "annotation", "AnnotationRetention"]
+                && $0.path.count == 4
+                && $0.path.starts(with: KnownCompilerNames(interner: interner).kotlinAnnotationAnnotationRetentionFQName)
         }), let importedEntry = imported.path.last else { return argument }
         let entry = interner.resolve(importedEntry)
         guard entry != value, ["SOURCE", "BINARY", "RUNTIME"].contains(entry) else { return argument }
@@ -97,7 +98,7 @@ extension DataFlowSemaPhase {
                     ?? annotation.annotationFQName
                 return MetadataAnnotationRecord(
                     annotationFQName: name,
-                    arguments: name == "kotlin.annotation.Retention"
+                    arguments: name == KnownCompilerAnnotation.retention.qualifiedName
                         ? canonicalRetentionArguments(
                             sourceAnnotation?.arguments ?? annotation.arguments,
                             file: file, interner: interner

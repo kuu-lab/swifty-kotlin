@@ -1280,12 +1280,11 @@ extension CallTypeChecker {
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema),
-              let name = symbol.fqName.last
+              symbol.fqName == knownNames.kotlinSequencesSequenceScopeFQName
         else {
             return false
         }
-        return name == knownNames.sequenceScope
-            && symbol.fqName.dropLast().map(interner.resolve) == ["kotlin", "sequences"]
+        return true
     }
 
     private func sequenceScopeYieldAllPreferredParameterOwnerName(

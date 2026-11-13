@@ -263,7 +263,8 @@ extension JVMProgramBuilder {
               classes[symbol] == nil,
               sema.symbols.symbol(symbol)?.kind == .interface,
               let declaration = interfaceDeclaration(for: symbol),
-              let owner = try? className(symbol) else {
+              let owner = try? className(symbol),
+              JVMClasspathIndex.builtinName(owner).map({ $0 == owner }) ?? true else {
             foreignInterfaceDefaultMethodsCache[symbol] = [:]
             return [:]
         }

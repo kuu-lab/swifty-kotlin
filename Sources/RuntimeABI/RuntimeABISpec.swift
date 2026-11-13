@@ -145,7 +145,6 @@ public enum RuntimeABISpec {
         securityFunctions,
         sequenceFunctions,
         staticPrimitiveBoxingFunctions,
-        stringBridgeFunctions,
         stringBuilderFunctions,
         stringFunctions,
         stringParsingFunctions,

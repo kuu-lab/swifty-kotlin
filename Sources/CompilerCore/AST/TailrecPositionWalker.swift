@@ -1,5 +1,8 @@
 /// Enumerates calls in result positions without crossing a new return scope or
 /// a try region. Other expression children are still searched for explicit returns.
+/// `onSelfCall` additionally reports every call reachable in a non-tail
+/// position — crossing lambdas, local declarations and object literals —
+/// with a flag marking calls inside try/catch/finally regions.
 enum TailrecPositionWalker {
     static func visit(
         _ id: ExprID,
@@ -7,20 +10,68 @@ enum TailrecPositionWalker {
         isValuePosition: Bool,
         includeLabeledReturns: Bool = false,
         inlineLambdaArguments: Set<ExprID> = [],
-        onCandidate: (ExprID) -> Void
+        nestedScope: Bool = false,
+        inTryRegion: Bool = false,
+        onCandidate: (ExprID) -> Void,
+        onSelfCall: ((ExprID, Bool) -> Void)? = nil
     ) {
         guard let node = arena.expr(id) else { return }
-        func child(_ id: ExprID, result: Bool = false) {
+        func child(_ id: ExprID, result: Bool = false, nested: Bool? = nil, inTry: Bool? = nil) {
             visit(id, in: arena, isValuePosition: result,
                   includeLabeledReturns: includeLabeledReturns,
                   inlineLambdaArguments: inlineLambdaArguments,
-                  onCandidate: onCandidate)
+                  nestedScope: nested ?? nestedScope,
+                  inTryRegion: inTry ?? inTryRegion,
+                  onCandidate: onCandidate,
+                  onSelfCall: onSelfCall)
+        }
+        func bodyExprs(_ body: FunctionBody) -> [ExprID] {
+            switch body {
+            case .unit:
+                return []
+            case let .expr(exprID, _):
+                return [exprID]
+            case let .block(exprIDs, _):
+                return exprIDs
+            }
+        }
+        func memberFunBodies(_ declID: DeclID?) -> [FunctionBody] {
+            guard let declID else { return [] }
+            let memberFunctions: [DeclID]
+            switch arena.decl(declID) {
+            case let .classDecl(decl):
+                memberFunctions = decl.memberFunctions
+                    + decl.enumEntries.flatMap(\.memberFunctions)
+            case let .objectDecl(decl):
+                memberFunctions = decl.memberFunctions
+            default:
+                return []
+            }
+            return memberFunctions.compactMap { memberID in
+                guard case let .funDecl(fun) = arena.decl(memberID) else { return nil }
+                return fun.body
+            }
         }
         switch node {
         case let .returnExpr(value, label, _):
-            if label == nil || includeLabeledReturns, let value { child(value, result: true) }
+            if let value {
+                // Inside a nested scope or a try region, `return` does not
+                // deliver this function's result, so calls under it are
+                // not tail positions.
+                if !nestedScope && !inTryRegion,
+                   label == nil || includeLabeledReturns
+                {
+                    child(value, result: true)
+                } else {
+                    child(value)
+                }
+            }
         case let .call(callee, _, args, _):
-            if isValuePosition { onCandidate(id) }
+            if isValuePosition {
+                onCandidate(id)
+            } else {
+                onSelfCall?(id, inTryRegion)
+            }
             child(callee)
             for argument in args {
                 if inlineLambdaArguments.contains(argument.expr),
@@ -32,7 +83,11 @@ enum TailrecPositionWalker {
                 }
             }
         case let .memberCall(receiver, _, _, args, _), let .safeMemberCall(receiver, _, _, args, _):
-            if isValuePosition { onCandidate(id) }
+            if isValuePosition {
+                onCandidate(id)
+            } else {
+                onSelfCall?(id, inTryRegion)
+            }
             child(receiver)
             for argument in args {
                 if inlineLambdaArguments.contains(argument.expr),
@@ -96,8 +151,22 @@ enum TailrecPositionWalker {
             }
         case let .callableRef(receiver, _, _):
             if let receiver { child(receiver) }
-        case .lambdaLiteral, .localFunDecl, .localNominalDecl, .objectLiteral, .tryExpr:
-            break
+        case let .lambdaLiteral(_, body, _, _):
+            child(body, nested: true)
+        case let .localFunDecl(_, _, _, _, body, _, _, _, _):
+            for exprID in bodyExprs(body) { child(exprID, nested: true) }
+        case let .localNominalDecl(declID, _):
+            for body in memberFunBodies(declID) {
+                for exprID in bodyExprs(body) { child(exprID, nested: true) }
+            }
+        case let .objectLiteral(_, declID, _):
+            for body in memberFunBodies(declID) {
+                for exprID in bodyExprs(body) { child(exprID, nested: true) }
+            }
+        case let .tryExpr(body, catchClauses, finallyExpr, _):
+            child(body, inTry: true)
+            for clause in catchClauses { child(clause.body, inTry: true) }
+            if let finallyExpr { child(finallyExpr, inTry: true) }
         case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral, .floatLiteral, .doubleLiteral,
              .charLiteral, .nullLiteral, .boolLiteral, .stringLiteral, .nameRef,
              .breakExpr, .continueExpr, .superRef, .thisRef:

@@ -16,15 +16,37 @@ public struct PendingTypeArgumentBoundCheck {
 }
 
 extension SymbolTable {
-    /// Anonymous function literals are represented by local functions. A
-    /// source label can replace the internal name, so literal semantics come
-    /// from either the retained internal name or the synthetic marker.
+    /// Anonymous function literals are represented by local functions carrying
+    /// the dedicated synthetic marker, independent of any source label used as
+    /// the display/link name.
     public func isAnonymousFunction(_ symbolID: SymbolID, interner: StringInterner) -> Bool {
         guard let symbol = symbol(symbolID) else { return false }
         return symbol.kind == .function
             && symbol.flags.contains(.localFunction)
-            && (symbol.flags.contains(.synthetic)
-                || interner.resolve(symbol.name).hasPrefix("__AnonymousFunction_"))
+            && symbol.flags.contains(.anonymousFunction)
+    }
+
+    /// Whether `symbolID` or one of its lexical owners carries `flag`. Local
+    /// nominal members inherit their root declaration's synthetic marker
+    /// through the parent chain instead of repeating it on every member.
+    public func hasFlagOrAncestor(_ symbolID: SymbolID, _ flag: SymbolFlags) -> Bool {
+        var current = symbolID
+        var visited: Set<SymbolID> = []
+        while visited.insert(current).inserted {
+            guard let symbol = symbol(current) else { return false }
+            if symbol.flags.contains(flag) { return true }
+            guard let parent = parentSymbol(for: current) else { return false }
+            current = parent
+        }
+        return false
+    }
+
+    public func isObjectLiteralSynthetic(_ symbolID: SymbolID) -> Bool {
+        hasFlagOrAncestor(symbolID, .objectLiteralSynthetic)
+    }
+
+    public func isLocalDeclSynthetic(_ symbolID: SymbolID) -> Bool {
+        hasFlagOrAncestor(symbolID, .localDeclSynthetic)
     }
 
     /// Whether `import <path>` contributes the declarations nested under that
@@ -1881,6 +1903,24 @@ public final class SymbolTable {
             drainIndexedChildren(parentFQName: parentInfo.fqName)
         }
         return (childrenByParent[parent] ?? []).sorted { $0.rawValue < $1.rawValue }
+    }
+
+    /// Returns the exact owner's same-named children in declaration order.
+    func children(of parent: SymbolID, named name: InternedString) -> [SymbolID] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let parentInfo = symbol(parent) {
+            drainIndexedChildren(parentFQName: parentInfo.fqName)
+        }
+        guard let children = childrenByParent[parent], let named = byShortName[name] else {
+            return []
+        }
+        // Probe the smaller index. Common names may be repeated across many owners.
+        attribution?.increment(.memberScopeCandidatesScanned, by: min(children.count, named.count))
+        if named.count <= children.count {
+            return named.filter { children.contains($0) }
+        }
+        return children.filter { self.name(of: $0) == name }.sorted { $0.rawValue < $1.rawValue }
     }
 
     /// Returns members *declared* directly on this exact nominal, in

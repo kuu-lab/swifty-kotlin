@@ -4,6 +4,7 @@ extension DeclTypeChecker {
     /// function results, so their metadata never leaks anonymous member types.
     func exposedAnonymousType(_ type: TypeID, symbol: SymbolID, range: SourceRange, ctx: TypeInferenceContext) -> TypeID {
         let sema = ctx.sema
+        let knownNames = KnownCompilerNames(interner: ctx.interner)
         guard sema.symbols.symbol(symbol)?.visibility != .private else { return type }
         func expose(_ id: TypeID) -> TypeID {
             switch sema.types.kind(of: id) {
@@ -16,11 +17,11 @@ extension DeclTypeChecker {
                 // without them erases the capture (`G<T>.It` -> bare `It`)
                 // and later member calls fail to bind (KUU-3874).
                 let enclosingArguments = c.enclosingTypeArgs.map { $0.mapTypes(expose) }
-                guard let info = sema.symbols.symbol(c.classSymbol), info.kind == .class, info.flags.contains(.synthetic), ctx.interner.resolve(info.name).hasPrefix("__ObjectLiteral_") else {
+                guard let info = sema.symbols.symbol(c.classSymbol), info.kind == .class, info.flags.contains(.synthetic), sema.symbols.isObjectLiteralSynthetic(c.classSymbol) else {
                     return sema.types.make(.classType(ClassType(classSymbol: c.classSymbol, args: arguments, enclosingTypeArgs: enclosingArguments, nullability: c.nullability)))
                 }
                 let parents = sema.symbols.directSupertypes(for: c.classSymbol).filter {
-                    sema.symbols.symbol($0)?.fqName.map(ctx.interner.resolve) != ["kotlin", "Any"]
+                    sema.symbols.symbol($0)?.fqName != knownNames.kotlinAnyFQName
                 }
                 guard parents.count <= 1 else {
                     sema.diagnostics.error("KSWIFTK-SEMA-0001", "An exposed anonymous object with multiple supertypes requires an explicit type.", range: range)
