@@ -717,10 +717,6 @@ final class ExprTypeChecker {
             return boolType
 
         case let .asCast(exprID, typeRefID, isSafe, range):
-            let sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
-            // `as`/`as?` run their own cast on the raw operand; the operand
-            // position itself does not claim the erased result (KUU-3893).
-            driver.recordGenericCallConsumer(exprID, type: sema.types.nullableAnyType)
             var targetType = driver.helpers.resolveTypeRef(
                 typeRefID,
                 ast: ast,
@@ -732,6 +728,31 @@ final class ExprTypeChecker {
                 usageRange: range,
                 allowBareGenericTypeAliasProjection: true
             )
+            var sourceType: TypeID
+            let isDirectCall = switch ast.arena.expr(exprID) {
+            case .call, .memberCall, .safeMemberCall: ast.arena.isExplicitCall(exprID)
+            default: false
+            }
+            if isDirectCall, targetType != sema.types.errorType {
+                let checkpoint = sema.diagnostics.checkpoint()
+                var trialLocals = locals
+                // A cast target can supply a missing generic result argument.
+                // Keep ordinary casts between unrelated types admissible.
+                sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &trialLocals)
+                let errors = sema.diagnostics.diagnostics.dropFirst(checkpoint).filter { $0.severity == .error }
+                let inferenceErrors: Set<String> = ["KSWIFTK-SEMA-INFER", "KSWIFTK-TYPE-0001"]
+                if !errors.isEmpty, errors.allSatisfy({ inferenceErrors.contains($0.code) }) {
+                    sema.diagnostics.rollback(to: checkpoint)
+                    sema.bindings.removeExprBindings(exprID)
+                    sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: targetType)
+                } else {
+                    locals = trialLocals
+                }
+            } else {
+                sourceType = driver.inferExpr(exprID, ctx: ctx, locals: &locals)
+            }
+            // The cast itself checks the erased value, including a safe cast.
+            driver.recordGenericCallConsumer(exprID, type: sema.types.nullableAnyType)
             // A bare generic cast recovers arguments from the source's known
             // nominal type, just as a bare `is` check does. Explicit arguments
             // (including star projections) must keep their declared meaning.
