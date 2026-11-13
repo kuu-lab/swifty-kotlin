@@ -440,7 +440,11 @@ extension JVMProgramBuilder {
         }
         result.nestedNames = classes.values.filter { $0.outer == plan.symbol && $0.enumParent == nil }.map { String($0.name.split(separator: "$").last!) }.sorted()
         result.companionName = classes.values.first(where: { $0.companionOwner == plan.symbol }).map { context.interner.resolve(sema.symbols.symbol($0.symbol)!.name) }
-        result.sealedSubclasses = try (sema.symbols.sealedSubclasses(for: plan.symbol) ?? []).map(className).sorted()
+        if result.isSealed {
+            let subclasses = sema.symbols.sealedSubclasses(for: plan.symbol)
+                ?? sema.symbols.directSubtypes(of: plan.symbol)
+            result.sealedSubclasses = try subclasses.map(className).sorted()
+        }
         if plan.isObject && plan.companionOwner == nil { result.extraFields.append(singletonField(plan)) }
         if let storage = interfaceCompanionStorage(plan) { result.extraFields.append(storage) }
         if let companion = classes.values.first(where: { $0.companionOwner == plan.symbol }) {
