@@ -112,14 +112,17 @@ extension JVMFunctionBuilder {
         return JVMCompose.key(identity + "@" + String(arena.exprRange(id)?.start.offset ?? 0))
     }
 
-    func beginComposableBody() throws {
-        guard let symbol = functionSymbol, program.jvmComposableFunctions.contains(symbol) else { return }
+    func beginComposableBody() throws -> JVMValue? {
+        guard let symbol = functionSymbol, program.jvmComposableFunctions.contains(symbol) else { return nil }
         let composer = try value(JVMCompose.composerType)
         _ = try value(.int)
+        let defaults = declaration.valueParams.contains(where: \.hasDefaultValue) ? try value(.int) : nil
         activeComposer = composer
-        guard !program.sema.readonlyComposableFunctions.contains(symbol) else { return }
-        let identity = (reference.owner ?? program.facadeName) + "." + reference.name + reference.descriptor
-        try beginComposeGroup(composer, key: JVMCompose.key(identity))
+        if !program.sema.readonlyComposableFunctions.contains(symbol) {
+            let identity = (reference.owner ?? program.facadeName) + "." + reference.name + reference.descriptor
+            try beginComposeGroup(composer, key: JVMCompose.key(identity))
+        }
+        return defaults
     }
 
     func beginComposeGroup(_ composer: JVMValue, key: Int32) throws {
@@ -127,7 +130,7 @@ extension JVMFunctionBuilder {
         _ = try jdkCall(JVMCompose.composer, JVMCompose.begin, [.int], .unit, receiver: composer, arguments: [keyValue], interface: true)
     }
 
-    func composableCall(_ target: JVMFunctionReference, symbol: SymbolID, arguments: [JVMValue], result: JVMValue?, at id: ExprID) throws {
+    func composableCall(_ target: JVMFunctionReference, symbol: SymbolID, arguments: [JVMValue], result: JVMValue?, defaults: UInt32?, at id: ExprID) throws {
         guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
         let needsGroup = !program.sema.readonlyComposableFunctions.contains(symbol)
@@ -136,7 +139,9 @@ extension JVMFunctionBuilder {
             try beginComposeGroup(composer, key: composeCallKey(at: id))
         }
         let changed = try constant(.int(0), .int)
-        instructions.append(.call(target, arguments + [composer, changed], result))
+        var hidden = [composer, changed]
+        if let defaults { hidden.append(try constant(.int(Int32(bitPattern: defaults)), .int)) }
+        instructions.append(.call(target, arguments + hidden, result))
         if needsGroup { _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true) }
     }
 
