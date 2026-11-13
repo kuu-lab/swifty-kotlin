@@ -12,6 +12,18 @@ import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
 import kotlin.random.Random
 
+public fun <T> MutableList<T>.reverse() {
+    var left = 0
+    var right = size - 1
+    while (left < right) {
+        val value = this[left]
+        this[left] = this[right]
+        this[right] = value
+        left++
+        right--
+    }
+}
+
 public fun <T : Comparable<T>> MutableList<T>.sort() {
     if (size > 1) __jvmSortList(this)
 }
