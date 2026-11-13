@@ -9,6 +9,21 @@ internal class RuntimeType(private val metadata: RuntimeMetadata, private val ty
         if (!type.has(6)) return null
         return ClassReference(loadMetadataType(metadata.string(type.number(6)), metadata.owner) as java.lang.Class<Any>)
     }
+    override val arguments: List<KTypeProjection>
+        get() {
+            val result = mutableListOf<KTypeProjection>()
+            for (argument in type.children(2)) {
+                val projection = argument.number(1)
+                val nested = metadata.type(argument, 2, 3)
+                result.add(when (projection) {
+                    0 -> KTypeProjection.contravariant(RuntimeType(metadata, nested, parameters))
+                    1 -> KTypeProjection.covariant(RuntimeType(metadata, nested, parameters))
+                    3 -> KTypeProjection.STAR
+                    else -> KTypeProjection.invariant(RuntimeType(metadata, nested, parameters))
+                })
+            }
+            return result
+        }
     override fun toString(): String = renderRuntimeType(metadata, type, parameters)
 }
 internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, private val node: Proto): KTypeParameter {
@@ -23,6 +38,7 @@ internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, priva
 internal class RuntimeClassType(private val owner: Any): KType {
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = false
+    override val arguments: List<KTypeProjection> get() = emptyList()
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
     override fun toString(): String = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
 }
