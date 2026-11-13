@@ -10,6 +10,7 @@ struct JVMClassInfo {
     var bridgeMethods: [JVMForeignMethod] = []
     var defaultArgumentMethods: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
+    var kotlinTypeParameterVariance: [String: String] = [:]
     var genericSignature: String?
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
@@ -673,6 +674,9 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        if info.isInterface, !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
+        }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
             info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)

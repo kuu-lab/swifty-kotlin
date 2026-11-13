@@ -210,9 +210,7 @@ final class JVMClasspathIndex {
         for entry in children {
             guard let name = entry.innerName, let info = classes[entry.name],
                   classes[owner].flatMap(kotlinCompanion)?.name != entry.name else { continue }
-            let typeParameters = info.classTypeParameterNames.isEmpty
-                ? ""
-                : "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
+            let typeParameters = typeParameterDeclaration(info)
             let visibility = entry.access & 0x0007 == 0x0004 ? "protected " : ""
             if info.flags & 0x2000 != 0 {
                 source += annotationClassDeclaration(info, short: name, visibility: visibility, indentation: indentation)
@@ -382,6 +380,7 @@ final class JVMClasspathIndex {
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
+            imported.kotlinTypeParameterVariance = info.kotlinTypeParameterVariance
             imported.genericSignature = info.genericSignature
             imported.innerClasses = info.innerClasses
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
@@ -558,6 +557,12 @@ final class JVMClasspathIndex {
     private static func dottedTypeName(_ name: String) -> String {
         name.split(separator: "/").flatMap { $0.split(separator: "$") }
             .map { "`\($0)`" }.joined(separator: ".")
+    }
+
+    private func typeParameterDeclaration(_ info: JVMClassInfo) -> String {
+        guard !info.classTypeParameterNames.isEmpty else { return "" }
+        let parameters = info.classTypeParameterNames.map { (info.kotlinTypeParameterVariance[$0] ?? "") + "`\($0)`" }
+        return "<" + parameters.joined(separator: ", ") + ">"
     }
     /// Supertype reference with type arguments: classfiles erase generic
     /// arguments, so the child's own type parameters are reused when the
@@ -993,9 +998,7 @@ final class JVMClasspathIndex {
                     source += "object `\(short)`"
                 } else if info.isInterface {
                     source += interfaceKeyword(info) + " `\(short)`"
-                    if !info.classTypeParameterNames.isEmpty {
-                        source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
-                    }
+                    source += typeParameterDeclaration(info)
                 }
                 else {
                     source += info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")

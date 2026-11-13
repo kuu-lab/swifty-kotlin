@@ -165,6 +165,21 @@ struct JVMKotlinMetadata {
         return parameters
     }
 
+    func classTypeParameterVariance(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var result: [String: String] = [:]
+        for parameter in try declaration.messages(5) {
+            guard let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name) else { continue }
+            switch parameter.int32(4) {
+            case 0: result[name] = "in "
+            case 1: result[name] = "out "
+            default: continue
+            }
+        }
+        return result
+    }
+
     func suspendFunctions(byteLimit: Int) throws -> [String: JVMKotlinSuspendFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [:] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
