@@ -417,6 +417,19 @@ extension JVMFunctionBuilder {
             return try constant(literal, program.expressionType(id))
         }
         guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
+        if method.composePropertyABI(hasReceiver: method.parameters.count == 3) {
+            guard let composer = activeComposer else { throw fail("JVM @Composable property requires an active Composer.", id) }
+            var arguments: [JVMValue] = []
+            if method.parameters.count == 3 {
+                guard let value = try receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
+                    throw fail("Missing JVM Compose extension property receiver.", id)
+                }
+                arguments.append(try convert(value, to: method.parameters[0]))
+            }
+            arguments += [composer, try constant(.int(0), .int)]
+            return try jdkCall(method.owner, method.name, method.parameters, method.result,
+                               arguments: arguments, resolved: program.expressionType(id))
+        }
         if method.isStatic {
             if method.parameters.isEmpty {
                 return try jdkCall(method.owner, method.name, [], method.result, resolved: program.expressionType(id))
