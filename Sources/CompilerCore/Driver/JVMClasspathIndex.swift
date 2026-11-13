@@ -540,7 +540,10 @@ final class JVMClasspathIndex {
                 let composable = function.composableParameters
                 guard composable.isEmpty || hasComposableLambdaFactory else { return false }
                 return method.sourceParameters.enumerated().allSatisfy { index, type in
-                    if composable.contains(index - function.leadingParameterCount) {
+                    let parameterIndex = index - function.leadingParameterCount
+                    if composable.contains(parameterIndex)
+                        || function.parameters.indices.contains(parameterIndex)
+                            && function.parameters[parameterIndex].sourceType.contains("->") {
                         return type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
                     }
                     return exposeSuspendType(type)
@@ -1112,7 +1115,7 @@ final class JVMClasspathIndex {
                 }
                 source += "}\n"
                 for method in statics {
-                    if let suspend = method.kotlinSuspendFunction {
+                    if let suspend = method.kotlinSuspendFunction, method.kotlinFunction == nil {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
                         continue
                     }
