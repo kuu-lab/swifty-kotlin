@@ -13,6 +13,7 @@ struct JVMClassInfo {
     var classTypeParameterNames: [String] = []
     var kotlinTypeParameterVariance: [String: String] = [:]
     var genericSignature: String?
+    var genericSupertypeSignatures: [String: String] = [:]
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
@@ -65,6 +66,7 @@ struct JVMForeignField {
     /// `ConstantValue` attribute payload for `static final` fields, when the
     /// classfile carries one. Used to emit Kotlin `const`-style literals.
     var constantValue: JVMFieldConstant?
+    var genericSignature: String?
     var isStatic: Bool { access & 8 != 0 }
     var isPublic: Bool { access & 1 != 0 }
     var isFinal: Bool { access & 16 != 0 }
@@ -127,22 +129,22 @@ struct JVMClassReader {
         }
         return nil
     }
-    /// Field attributes: returns the resolved `ConstantValue` payload, if any.
-    mutating func fieldAttributes() throws -> JVMFieldConstant? {
-        var result: JVMFieldConstant?
+    mutating func readFieldAttributes(into field: inout JVMForeignField) throws {
         let count = try u2()
         for _ in 0..<count {
             let nameIndex = Int(try u2())
             let size = try u4()
             let end = offset + Int(size)
-            if try text(nameIndex) == "ConstantValue", size == 2 {
-                result = constants[Int(try u2())]
+            let attribute = try text(nameIndex)
+            if attribute == "ConstantValue", size == 2 {
+                field.constantValue = constants[Int(try u2())]
+            } else if attribute == "Signature", size == 2 {
+                field.genericSignature = try text(Int(u2()))
             } else {
                 try skip(Int(size))
             }
             guard offset == end else { throw Invalid() }
         }
-        return result
     }
     /// Method attributes: the generic signature, annotation-class element
     /// defaults, and annotations carried by those element declarations. Other
@@ -385,10 +387,10 @@ struct JVMClassReader {
         }
     }
 
-    private static func classTypeParameterNames(in signature: String?) throws -> [String] {
-        guard let signature, signature.first == "<" else { return [] }
+    private static func classSignature(_ signature: String?) throws -> (parameters: [String], supertypes: [String: String]) {
+        guard let signature else { return ([], [:]) }
         let scalars = Array(signature)
-        var index = 1
+        var index = scalars.first == "<" ? 1 : 0
         var names: [String] = []
 
         func parseReferenceType() throws {
@@ -429,22 +431,35 @@ struct JVMClassReader {
             try parseReferenceType()
         }
 
-        while index < scalars.count, scalars[index] != ">" {
-            let start = index
-            while index < scalars.count, scalars[index] != ":" { index += 1 }
-            guard index < scalars.count, index > start else { throw Invalid() }
-            let name = String(scalars[start..<index])
-            guard JVMProgramBuilder.isIdentifier(name) else { throw Invalid() }
-            names.append(name)
-            index += 1
-            if index < scalars.count, scalars[index] != ":" { try parseReferenceType() }
-            while index < scalars.count, scalars[index] == ":" {
+        if index == 1 {
+            while index < scalars.count, scalars[index] != ">" {
+                let start = index
+                while index < scalars.count, scalars[index] != ":" { index += 1 }
+                guard index < scalars.count, index > start else { throw Invalid() }
+                let name = String(scalars[start..<index])
+                guard JVMProgramBuilder.isIdentifier(name) else { throw Invalid() }
+                names.append(name)
                 index += 1
-                try parseReferenceType()
+                if index < scalars.count, scalars[index] != ":" { try parseReferenceType() }
+                while index < scalars.count, scalars[index] == ":" {
+                    index += 1
+                    try parseReferenceType()
+                }
+            }
+            guard index < scalars.count, scalars[index] == ">" else { throw Invalid() }
+            index += 1
+        }
+        var supertypes: [String: String] = [:]
+        while index < scalars.count {
+            let start = index
+            try parseReferenceType()
+            let type = String(scalars[start..<index])
+            if type.first == "L", type.contains("<") {
+                let name = String(type.dropFirst().prefix { $0 != "<" && $0 != ";" })
+                supertypes[name] = type
             }
         }
-        guard index < scalars.count, scalars[index] == ">" else { throw Invalid() }
-        return names
+        return (names, supertypes)
     }
 
     mutating func read() throws -> JVMClassInfo {
@@ -526,7 +541,7 @@ struct JVMClassReader {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let fieldName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
             var field = JVMForeignField(name: fieldName, descriptor: descriptor, access: access)
-            field.constantValue = try fieldAttributes()
+            try readFieldAttributes(into: &field)
             fields.append(field)
         }
         var methods: [JVMForeignMethod] = []
@@ -567,6 +582,7 @@ struct JVMClassReader {
                     isStatic: access & 8 != 0, isInterface: flags & 0x0200 != 0, isAbstract: access & 0x0400 != 0)
                 method.isFinal = access & 16 != 0
                 method.isProtected = access & 0x0004 != 0
+                method.isPackagePrivate = isPackageConstructor
                 method.isVarargs = access & 0x0080 != 0
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
                 if name == "androidx/work/WorkRequest$Builder", let signature = methodInfo.signature {
@@ -578,7 +594,6 @@ struct JVMClassReader {
                 method.annotationDefault = methodInfo.annotationDefault
                 method.parameterAnnotations = methodInfo.parameterAnnotations
                 method.genericSignature = methodInfo.signature
-                method.isPackagePrivate = isPackageConstructor
                 if isMetroAccessor { metroAccessors.append(method) }
                 else if isSyntheticConstructor { syntheticConstructors.append(method) }
                 else if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
@@ -718,6 +733,7 @@ struct JVMClassReader {
                 }
             }
         }
+        let classSignature = try Self.classSignature(classAttributes.signature)
         var info = JVMClassInfo(
             name: name,
             flags: flags,
@@ -727,7 +743,7 @@ struct JVMClassReader {
             fields: fields,
             bridgeMethods: bridgeMethods,
             defaultArgumentMethods: defaultArgumentMethods,
-            classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
+            classTypeParameterNames: classSignature.parameters,
             innerClasses: classAttributes.innerClasses,
             hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,
             hasEnclosingMethod: classAttributes.hasEnclosingMethod,
@@ -737,6 +753,7 @@ struct JVMClassReader {
         info.kotlinMultifileParts = classAttributes.kotlinMetadata?.multifileParts ?? []
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
+        info.genericSupertypeSignatures = classSignature.supertypes
         info.metroAccessors = metroAccessors
         if !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
