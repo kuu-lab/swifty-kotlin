@@ -546,6 +546,7 @@ final class JVMClasspathIndex {
             imported.classTypeParameterNames = info.classTypeParameterNames
             imported.kotlinTypeParameterVariance = info.kotlinTypeParameterVariance
             imported.genericSignature = info.genericSignature
+            imported.genericSupertypeSignatures = info.genericSupertypeSignatures
             imported.innerClasses = info.innerClasses
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
@@ -628,7 +629,8 @@ final class JVMClasspathIndex {
             return JVMProgramBuilder.isIdentifier(suspend.name)
                 && method.sourceParameters.allSatisfy(exposeSuspendType) && exposeSuspendType(suspend.result)
         }
-        return method.parameters.allSatisfy(expose) && expose(method.result)
+        if method.parameters.allSatisfy(expose), expose(method.result) { return true }
+        return javaGenericTypes(method) != nil
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
 
@@ -733,6 +735,9 @@ final class JVMClasspathIndex {
                 // types the Kotlin standard library already covers).
                 if let mapped = Self.jdkToKotlinTypeNames[name] { return mapped }
                 base = Self.dottedTypeName(name)
+                if let arity = classes[name]?.classTypeParameterNames.count, arity > 0 {
+                    return base + "<" + Array(repeating: "*", count: arity).joined(separator: ", ") + ">"
+                }
             }
             // Classfiles do not retain Kotlin nullability without metadata. Use
             // non-null source declarations as the current platform-type approximation.
@@ -831,6 +836,7 @@ final class JVMClasspathIndex {
                 return Self.dottedTypeName(name) + "<" + Self.dottedTypeName(argument) + ">"
             }
         }
+        if let generic = javaGenericSupertype(name, of: child) { return generic.source }
         return supertypeReference(name, childParams: child.classTypeParameterNames)
     }
 
@@ -1809,7 +1815,11 @@ final class JVMClasspathIndex {
             guard let type = runtimeStaticFieldType(field, in: info) else { return nil }
             let keyword = field.isFinal ? "val" : "var"
             let setter = field.isFinal ? "" : " set(value) {}"
-            return "\(keyword) `\(field.name)`: \(kotlinType(type)) get() = null!!\(setter)\n"
+            var accessor = JVMForeignMethod(owner: info.name, name: field.name, descriptor: "()" + field.descriptor,
+                parameters: [], result: type, isStatic: true, isInterface: info.isInterface, isAbstract: false)
+            accessor.genericSignature = field.genericSignature.map { "()" + $0 }
+            let sourceType = javaGenericTypes(accessor)?.result ?? kotlinType(type)
+            return "\(keyword) `\(field.name)`: \(sourceType) get() = null!!\(setter)\n"
         }
         if !allowsCompanion, info.isKotlinObject {
             for declaration in constantFields { source += declaration }
@@ -2194,6 +2204,11 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
+            for name in info.genericSupertypeSignatures.keys {
+                if let supertype = javaGenericSupertype(name, of: info) {
+                    for reference in supertype.referencedClasses { markNeeded(reference) }
+                }
+            }
             for (constructor, _, _) in info.kotlinLoweredConstructors {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
@@ -2297,19 +2312,21 @@ final class JVMClasspathIndex {
         }
         let javaTypes = javaGenericTypes(method)
         let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
-            ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
             ?? javaTypes?.result
+            ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
-        let generic = method.genericResultParameter.map { parameter -> String in
+        let generic = javaTypes.map {
+            $0.typeParameters.isEmpty ? "" : "<" + $0.typeParameters.map { "`\($0)`" }.joined(separator: ", ") + "> "
+        } ?? method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
             return "<`\(parameter.name)`: \(bound)> "
-        } ?? javaTypes.map {
-            $0.typeParameters.isEmpty ? "" : "<" + $0.typeParameters.map { "`\($0)`" }.joined(separator: ", ") + "> "
         } ?? ""
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters) + "): " + result
+        let bounds = javaTypes?.bounds.map { "`\($0.name)`: \($0.type)" } ?? []
+        let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
+        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters) + "): " + result + whereClause
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
@@ -2781,6 +2798,7 @@ final class JVMClasspathIndex {
         case .unit: return .unit
         case .nothing(.nonNull): return .reference("java/lang/Void", nullable: false)
         case .nullableUnit: return .reference("kotlin/Unit", nullable: true)
+        case .platformUnit: return .reference("kotlin/Unit", nullable: true, platform: true)
         case .nothing(.nullable): return .reference("java/lang/Object", nullable: true)
         case let .any(nullability): return .reference("java/lang/Object", nullable: nullability != .nonNull, platform: nullability == .platformType)
         case let .stringStruct(nullability): return nullability == .nonNull ? .string : .reference("java/lang/String", nullable: true, platform: nullability == .platformType)
