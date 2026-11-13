@@ -333,8 +333,19 @@ extension CallTypeChecker {
             let importCandidates = explicitImportTopLevelFunctions(named: calleeName, ctx: ctx)
             guard importCandidates.allSatisfy({ candidates.contains($0) }) else { return nil }
         }
-        guard candidates.count == 1,
-              let candidate = candidates.first,
+        let placeholderArguments = args.map {
+            CallArg.source($0, type: ctx.sema.types.anyType, callRange: range, ast: ctx.ast)
+        }
+        let applicableShapes = candidates.filter { candidate in
+            guard let signature = ctx.sema.symbols.functionSignature(for: candidate) else { return false }
+            return ctx.resolver.buildParameterMapping(
+                signature: signature, callArgs: placeholderArguments, symbols: ctx.sema.symbols,
+                typeSystem: ctx.sema.types,
+                isCallableArgument: { ctx.ast.arena.expr(args[$0].expr)?.isLambdaOrCallableRef == true }
+            ) != nil
+        }
+        guard applicableShapes.count == 1,
+              let candidate = applicableShapes.first,
               let signature = ctx.sema.symbols.functionSignature(for: candidate),
               signature.classTypeParameterCount == 0,
               !signature.typeParameterSymbols.isEmpty,
@@ -358,7 +369,7 @@ extension CallTypeChecker {
         guard (signature.receiverType == nil) == (resolvedReceiverType == nil),
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,
-                  callArgs: args.map { CallArg.source($0, type: ctx.sema.types.anyType, callRange: range, ast: ctx.ast) },
+                  callArgs: placeholderArguments,
                   symbols: ctx.sema.symbols,
                   typeSystem: ctx.sema.types,
                   isCallableArgument: { ctx.ast.arena.expr(args[$0].expr)?.isLambdaOrCallableRef == true }
@@ -409,6 +420,7 @@ extension CallTypeChecker {
         )
         var argumentTypes = [TypeID](repeating: sema.types.errorType, count: args.count)
         var knownArguments: [Int: TypeID] = [:]
+        var postponedArguments: [Int: TypeID] = [:]
         for index in args.indices where index != lambdaIndex {
             // Variables pinned by arguments already checked in this loop are
             // just as fixed as the receiver/explicit-argument seed: leaving
@@ -434,10 +446,17 @@ extension CallTypeChecker {
                     in: $0, substitution: iterationSubstitution, typeVarBySymbol: variables
                 )
             }
+            let dependsOnBuilder = contextualType.map { session.mentionsVariable($0, types: sema.types) } == true
+            let checkpoint = sema.diagnostics.checkpoint()
             let type = driver.inferExpr(
                 args[index].expr, ctx: ctx, locals: &locals,
-                expectedType: contextualType.flatMap { session.mentionsVariable($0, types: sema.types) ? nil : $0 }
+                expectedType: dependsOnBuilder ? nil : contextualType
             )
+            if dependsOnBuilder, let parameter = mapping[index], type == sema.types.errorType {
+                sema.diagnostics.rollback(to: checkpoint)
+                postponedArguments[index] = signature.parameterTypes[parameter]
+                continue
+            }
             argumentTypes[index] = type
             if let parameter = mapping[index] {
                 knownArguments[parameter] = type
@@ -516,6 +535,12 @@ extension CallTypeChecker {
             substitution: solution.substitution, typeVarBySymbol: variables
         )
         session.isFinalized = true
+        for index in postponedArguments.keys.sorted() {
+            let expected = sema.types.substituteTypeParameters(
+                in: postponedArguments[index]!, substitution: solution.substitution, typeVarBySymbol: variables
+            )
+            argumentTypes[index] = driver.inferExpr(args[index].expr, ctx: ctx, locals: &locals, expectedType: expected)
+        }
         var finalContext = ctx
         finalContext.builderInference = session
         argumentTypes[lambdaIndex] = driver.inferExpr(
