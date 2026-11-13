@@ -11,6 +11,25 @@ extension JVMClasspathIndex {
         return (base + types.result[arguments...], types.referencedClasses)
     }
 
+    func javaTypeParameterBounds(_ info: JVMClassInfo) -> (bounds: [String], referencedClasses: Set<String>) {
+        var bounds: [String] = []
+        var references: Set<String> = []
+        for name in info.classTypeParameterNames {
+            for bound in info.javaClassTypeParameterBounds[name] ?? [] where bound.first == "L" {
+                let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
+                let carrier: JVMValueType = .reference(binary, nullable: false)
+                guard exposeSuspendType(carrier) else { continue }
+                // A simple bound has the same erasure and source type.
+                // Parameterized bounds need a projection such as Enum<*>.
+                let source = kotlinType(carrier)
+                guard !source.contains("<") else { continue }
+                bounds.append("`\(name)`: " + source)
+                references.insert(binary)
+            }
+        }
+        return (bounds, references)
+    }
+
     /// Recover Java source types for simple parameterized signatures. The
     /// classfile descriptor remains the source of truth for invocation.
     func javaGenericTypes(_ method: JVMForeignMethod) -> (parameters: [String], result: String, typeParameters: [String], bounds: [(name: String, type: String)], referencedClasses: Set<String>)? {

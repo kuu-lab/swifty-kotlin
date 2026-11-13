@@ -346,6 +346,8 @@ final class JVMClasspathIndex {
                 classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
             }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+            let bounds = javaTypeParameterBounds(info).bounds
+            if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
             source += " {\n"
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
@@ -547,6 +549,7 @@ final class JVMClasspathIndex {
             imported.kotlinTypeParameterVariance = info.kotlinTypeParameterVariance
             imported.genericSignature = info.genericSignature
             imported.genericSupertypeSignatures = info.genericSupertypeSignatures
+            imported.javaClassTypeParameterBounds = info.javaClassTypeParameterBounds
             imported.innerClasses = info.innerClasses
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
@@ -1339,6 +1342,8 @@ final class JVMClasspathIndex {
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                let bounds = javaTypeParameterBounds(info).bounds
+                if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObject)
                 if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
@@ -2204,6 +2209,7 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
+            for name in javaTypeParameterBounds(info).referencedClasses { markNeeded(name) }
             for name in info.genericSupertypeSignatures.keys {
                 if let supertype = javaGenericSupertype(name, of: info) {
                     for reference in supertype.referencedClasses { markNeeded(reference) }

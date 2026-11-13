@@ -11,6 +11,7 @@ struct JVMClassInfo {
     var defaultArgumentMethods: [JVMForeignMethod] = []
     var metroAccessors: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
+    var javaClassTypeParameterBounds: [String: [String]] = [:]
     var kotlinTypeParameterVariance: [String: String] = [:]
     var genericSignature: String?
     var genericSupertypeSignatures: [String: String] = [:]
@@ -391,11 +392,12 @@ struct JVMClassReader {
         }
     }
 
-    private static func classSignature(_ signature: String?) throws -> (parameters: [String], supertypes: [String: String]) {
-        guard let signature else { return ([], [:]) }
+    private static func classSignature(_ signature: String?) throws -> (parameters: [String], bounds: [String: [String]], supertypes: [String: String]) {
+        guard let signature else { return ([], [:], [:]) }
         let scalars = Array(signature)
         var index = scalars.first == "<" ? 1 : 0
         var names: [String] = []
+        var bounds: [String: [String]] = [:]
 
         func parseReferenceType() throws {
             guard index < scalars.count else { throw Invalid() }
@@ -435,6 +437,12 @@ struct JVMClassReader {
             try parseReferenceType()
         }
 
+        func parseBound(for name: String) throws {
+            let start = index
+            try parseReferenceType()
+            let bound = String(scalars[start..<index])
+            if bound != "Ljava/lang/Object;" { bounds[name, default: []].append(bound) }
+        }
         if index == 1 {
             while index < scalars.count, scalars[index] != ">" {
                 let start = index
@@ -444,10 +452,10 @@ struct JVMClassReader {
                 guard JVMProgramBuilder.isIdentifier(name) else { throw Invalid() }
                 names.append(name)
                 index += 1
-                if index < scalars.count, scalars[index] != ":" { try parseReferenceType() }
+                if index < scalars.count, scalars[index] != ":" { try parseBound(for: name) }
                 while index < scalars.count, scalars[index] == ":" {
                     index += 1
-                    try parseReferenceType()
+                    try parseBound(for: name)
                 }
             }
             guard index < scalars.count, scalars[index] == ">" else { throw Invalid() }
@@ -463,7 +471,7 @@ struct JVMClassReader {
                 supertypes[name] = type
             }
         }
-        return (names, supertypes)
+        return (names, bounds, supertypes)
     }
 
     private mutating func readModifiedUTF8(length: Int) throws -> String {
@@ -774,6 +782,7 @@ struct JVMClassReader {
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
         info.genericSupertypeSignatures = classSignature.supertypes
+        if info.isKotlinFileFacade == nil { info.javaClassTypeParameterBounds = classSignature.bounds }
         info.metroAccessors = metroAccessors
         if !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
