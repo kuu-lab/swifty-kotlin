@@ -25,6 +25,7 @@ extension TypeCheckDriver {
             }
         }
         if let identSym = sema.bindings.identifierSymbol(for: id),
+           sema.symbols.symbol(identSym)?.kind != .object,
            sema.composableFunctions.contains(identSym)
         {
             result.append(identSym)
