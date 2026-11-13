@@ -548,7 +548,7 @@ struct JVMClassReader {
                 && methodName == "actionStartActivity" && descriptor == "(Landroidx/glance/action/ActionParameters;)Landroidx/glance/action/Action;"
             let isReifiedWorkBuilder = hasKotlinMetadata && name == "androidx/work/OneTimeWorkRequestKt"
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
-            let isMetroAccessor = hasMetroAnnotation && (methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } && access & 0x0002 != 0
+            let isMetroAccessor = hasMetroAnnotation && ((methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } || methodName == "<init>") && access & 0x0002 != 0
                 || access & 0x1009 == 0x1009 && methodName.hasPrefix("access$"))
             if isMetroAccessor || (access & 0x0005 != 0 && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder)), methodName != "<clinit>",
                let signature = try? JVMDescriptor.parse(descriptor),
@@ -610,7 +610,7 @@ struct JVMClassReader {
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
-           (metadata.isFileFacade == true || hasValueAdapters
+           (metadata.isFileFacade == true || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let functions = try? metadata.functions(
                byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype
@@ -643,6 +643,13 @@ struct JVMClassReader {
                       })
                 else { continue }
                 methods[index].kotlinFunction = function
+            }
+            for index in metroAccessors.indices {
+                let method = metroAccessors[index]
+                guard method.annotations.contains(where: { $0.descriptor == JVMMetro.provides }) else { continue }
+                metroAccessors[index].kotlinFunction = functions.first {
+                    ($0.jvmName ?? $0.name) == method.name && $0.descriptor == method.descriptor
+                }
             }
         }
         if classAttributes.kotlinMetadata != nil, hasJvmOverloads {

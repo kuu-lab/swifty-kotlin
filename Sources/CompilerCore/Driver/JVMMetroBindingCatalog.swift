@@ -91,7 +91,8 @@ extension JVMProgramBuilder {
     func addMetroProviders(from info: JVMClassInfo, to bindings: inout [JVMMetroBindingKey: [JVMMetroBinding]]) throws {
         for method in info.methods + info.metroAccessors where method.annotations.metro(JVMMetro.provides).count == 1 {
             guard !method.isConstructor, !method.isAbstract, !method.isSuspend, method.result != .unit else { continue }
-            let key = try metroBindingKey(method.metroTypes.result, annotations: method.annotations)
+            let logicalResult = method.kotlinFunction.flatMap { metroValueType($0.result) }
+            let key = try metroBindingKey(logicalResult?.descriptor ?? method.metroTypes.result, annotations: method.annotations)
             let scope = method.annotations.metro(JVMMetro.singleIn).first?.metroClass("scope")
             let receiver = method.isStatic ? nil : info.name
             var target = method
@@ -108,7 +109,7 @@ extension JVMProgramBuilder {
             }
             bindings[key, default: []].append(JVMMetroBinding(
                 recipe: .provider(target, receiver: receiver, try metroDependencies(method)),
-                type: method.result, scope: scope
+                type: logicalResult ?? method.result, scope: scope
             ))
         }
     }
