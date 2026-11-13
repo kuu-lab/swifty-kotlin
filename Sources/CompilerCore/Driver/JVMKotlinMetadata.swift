@@ -536,7 +536,7 @@ struct JVMKotlinMetadata {
     func functions(
         byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false,
         functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [],
-        composableMemberNames: Set<String> = [], metroFactory: Bool = false, ownerIsInterface: Bool = false
+        composableMemberNames: Set<String> = [], metroFactory: Bool = false, ownerIsInterface: Bool = false, ownerIsSAM: Bool = false
     ) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -643,7 +643,7 @@ struct JVMKotlinMetadata {
                 nil
             }
             let hasStableParameters = hasStableMemberParameters && !isMangledMember
-                && (metroFactory || parameters.allSatisfy { parameter in
+                && (metroFactory || ownerIsSAM || parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)

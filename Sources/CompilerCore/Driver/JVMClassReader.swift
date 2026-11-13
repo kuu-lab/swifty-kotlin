@@ -630,7 +630,8 @@ struct JVMClassReader {
            let functions = try? metadata.functions(
                byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype,
                functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), defaultMethodNames: defaultMethodNames,
-               composableMemberNames: composableMemberNames, metroFactory: isMetroFactory, ownerIsInterface: flags & 0x0200 != 0
+               composableMemberNames: composableMemberNames, metroFactory: isMetroFactory, ownerIsInterface: flags & 0x0200 != 0,
+               ownerIsSAM: flags & 0x0200 != 0 && methods.filter { $0.isAbstract && !$0.isStatic }.count == 1
            ) {
             for index in methods.indices {
                 let method = methods[index]
