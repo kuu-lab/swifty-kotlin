@@ -318,6 +318,24 @@ final class JVMClasspathIndex {
         }
         for info in classes.values {
             var methods = info.methods
+            var inheritedConstants: [String: JVMForeignField] = [:]
+            var ambiguousConstants: Set<String> = []
+            var visitedConstantOwners: Set<String> = []
+            let declaredFieldNames = Set(info.fields.map(\.name))
+            func inheritInterfaceConstants(_ name: String) {
+                guard visitedConstantOwners.insert(name).inserted, let owner = hierarchyClasses[name],
+                      owner.isInterface, owner.isKotlinFileFacade == nil else { return }
+                for field in owner.fields where field.isPublic && field.isStatic && field.isFinal
+                    && field.constantValue != nil && !declaredFieldNames.contains(field.name) {
+                    if inheritedConstants.updateValue(field, forKey: field.name) != nil {
+                        ambiguousConstants.insert(field.name)
+                    }
+                }
+                for parent in owner.interfaces { inheritInterfaceConstants(parent) }
+            }
+            if info.isKotlinFileFacade == nil {
+                for parent in info.interfaces { inheritInterfaceConstants(parent) }
+            }
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -387,7 +405,11 @@ final class JVMClasspathIndex {
                    bridge.descriptor == "(Ljava/lang/Object;)I" { continue }
                 methods.append(accessibleMethod(bridge, on: info))
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            let fields = info.fields + inheritedConstants.keys.sorted().compactMap { name in
+                ambiguousConstants.contains(name) ? nil : inheritedConstants[name]
+            }
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass,
+                                        interfaces: interfaces, methods: methods, fields: fields)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
