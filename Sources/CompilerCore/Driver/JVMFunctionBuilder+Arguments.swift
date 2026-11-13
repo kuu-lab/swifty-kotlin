@@ -141,6 +141,7 @@ extension JVMFunctionBuilder {
     func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         let binding = program.sema.bindings.callBinding(for: id)
         guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
+        if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }

@@ -427,6 +427,7 @@ struct JVMClassReader {
         let count = Int(try u2())
         var index = 1
         var hasKotlinMetadata = false
+        var hasMetroAnnotation = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
         // pool; resolve those references once the pool is fully read.
         var pendingStringRefs: [Int: Int] = [:]
@@ -437,6 +438,10 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
+                   JVMMetro.annotationDescriptors.contains(string) {
+                    hasMetroAnnotation = true
+                }
             case 7: classes[index] = Int(try u2())
             case 3:
                 constants[index] = .int(Int32(bitPattern: try u4()))
@@ -483,11 +488,11 @@ struct JVMClassReader {
         var bridgeMethods: [JVMForeignMethod] = []
         var defaultArgumentMethods: [JVMForeignMethod] = []
         let methodCount = try u2()
-        let parseMethodAnnotations = flags & 0x2000 != 0
+        let parseAnnotations = flags & 0x2000 != 0 || hasMetroAnnotation
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseMethodAnnotations)
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             if access & 0x0005 != 0,
                (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
@@ -507,7 +512,7 @@ struct JVMClassReader {
                 else { methods.append(method) }
             }
         }
-        let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: flags & 0x2000 != 0)
+        let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: parseAnnotations)
         guard offset == bytes.count else { throw Invalid() }
         var functionTable: JVMKotlinMetadataPayload.FunctionTable?
         if let metadata = classAttributes.kotlinMetadata,
