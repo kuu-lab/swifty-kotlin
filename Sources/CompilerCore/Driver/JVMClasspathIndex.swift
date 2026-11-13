@@ -16,7 +16,7 @@ final class JVMClasspathIndex {
     private(set) var classpathStubFiles: Set<FileID> = []
 
     var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
-    var importedComposables: [SymbolID: JVMCompose.ImportedCall] = [:]
+    var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var composeContentSymbols: Set<SymbolID> = []
 
     private(set) var fallbackClassFiles: [(String, Data)] = []
@@ -384,6 +384,7 @@ final class JVMClasspathIndex {
             }
             var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
             imported.bridgeMethods = bridges
+            imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
             imported.innerClasses = info.innerClasses
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
@@ -841,6 +842,7 @@ final class JVMClasspathIndex {
             let isLazy = lazyClassNames.contains(info.name)
             let isComposer = hasComposeRuntime && info.name == JVMCompose.composer
             let isIntState = hasIntStateContract && info.name == Self.mutableIntState
+            let isGenericState = info.name == Self.mutableState && composeStateFactory != nil
             if isLazy, !isComposer, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
             guard let short = parts.last else { throw JVMClassReader.Invalid() }
@@ -861,6 +863,8 @@ final class JVMClasspathIndex {
                 source += "}\n"
             } else if isIntState {
                 source += "interface `\(short)` { var intValue: Int }\n"
+            } else if isGenericState {
+                source += "interface `\(short)`<T> { var value: T }\n"
             } else if isFileFacade {
                 // The facade class itself stays importable: `import api.HelloKt`
                 // resolves the nominal and `HelloKt.member(...)` reaches its
@@ -1753,7 +1757,8 @@ final class JVMClasspathIndex {
         let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
         if let contract = composeStaticContracts[site.start.file], symbol.kind == .function {
             methods[symbol.id] = contract.method
-            importedComposables[symbol.id] = contract.composable
+            importedComposeCalls[symbol.id] = contract.composable
+            if contract.composable?.hasExtensionReceiver == true { extensionSymbols.insert(symbol.id) }
             return
         }
         if name == "setContent", sourceClasses[site.start.file]?.name == Self.composeView,

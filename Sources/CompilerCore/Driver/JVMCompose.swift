@@ -1,10 +1,21 @@
 struct JVMCompose {
     struct ImportedCall {
+        enum Convention {
+            case composable(changedMasks: Int)
+            case kotlinDefault(extensionReceiver: Bool)
+        }
+
         let defaultMask: Int32
         var contentParameter: Int? = nil
+        var convention: Convention = .composable(changedMasks: 1)
 
         func usesDefault(at index: Int) -> Bool {
             UInt32(bitPattern: defaultMask) & (1 << index) != 0
+        }
+
+        var hasExtensionReceiver: Bool {
+            if case .kotlinDefault(extensionReceiver: true) = convention { return true }
+            return false
         }
     }
 
@@ -45,10 +56,29 @@ extension JVMFunctionBuilder {
                            arguments: [key, tracked, body])!
     }
 
-    func importedComposableCall(_ method: JVMForeignMethod, contract: JVMCompose.ImportedCall, args: [CallArgument], binding: CallBinding?, id: ExprID) throws -> JVMIntrinsicResult {
-        guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
-        guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
-        let declared = method.parameters.dropLast(JVMCompose.suffix.count + 1)
+    func importedComposeCall(_ method: JVMForeignMethod, contract: JVMCompose.ImportedCall, args: [CallArgument], binding: CallBinding?, receiver: ExprID?, receiverValue: JVMValue?, expectedResult: JVMValueType?, id: ExprID) throws -> JVMIntrinsicResult {
+        let composer: JVMValue?
+        let changedMasks: Int
+        let trailingCount: Int
+        switch contract.convention {
+        case let .composable(masks):
+            guard let activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
+            guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
+            composer = activeComposer
+            changedMasks = masks
+            trailingCount = masks + 2
+        case .kotlinDefault:
+            composer = nil
+            changedMasks = 0
+            trailingCount = 2
+        }
+        var prefix: [JVMValue] = []
+        if contract.hasExtensionReceiver {
+            guard let dispatch = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id),
+                  let type = method.parameters.first else { throw fail("Missing JVM Compose receiver.", id) }
+            prefix.append(try convert(dispatch, to: type))
+        }
+        let declared = method.parameters.dropFirst(prefix.count).dropLast(trailingCount)
         let explicitTypes = declared.enumerated().compactMap { contract.usesDefault(at: $0.offset) ? nil : $0.element }
         guard let binding, let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),
               signature.parameterTypes.count == explicitTypes.count
@@ -61,12 +91,20 @@ extension JVMFunctionBuilder {
             guard let next = supplied.next() else { throw fail("Missing JVM Compose library argument.", id) }
             return next
         }
-        let changed = try constant(.int(0), .int)
         let defaults = try constant(.int(contract.defaultMask), .int)
-        try beginComposeGroup(composer, key: composeCallKey(at: id))
-        instructions.append(.foreignCall(method, receiver: nil, arguments: values + [composer, changed, defaults], result: nil))
-        _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
-        return JVMIntrinsicResult(value: nil)
+        let hidden: [JVMValue]
+        if let composer {
+            let unchanged = try constant(.int(0), .int)
+            hidden = [composer] + Array(repeating: unchanged, count: changedMasks) + [defaults]
+            try beginComposeGroup(composer, key: composeCallKey(at: id))
+        } else {
+            let marker = try constant(.null, .reference("java/lang/Object", nullable: true))
+            hidden = [defaults, marker]
+        }
+        let result = method.result == .unit ? nil : try value(expectedResult ?? program.expressionType(id))
+        instructions.append(.foreignCall(method, receiver: nil, arguments: prefix + values + hidden, result: result))
+        if let composer { _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true) }
+        return JVMIntrinsicResult(value: result)
     }
 
     private func composeCallKey(at id: ExprID) -> Int32 {
