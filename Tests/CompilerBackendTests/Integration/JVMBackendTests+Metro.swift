@@ -18,6 +18,13 @@ extension JVMBackendTests {
                     @interface Factory {}
                 }
                 """,
+                "Provides.java": """
+                package dev.zacsweers.metro;
+                import java.lang.annotation.Retention;
+                import java.lang.annotation.RetentionPolicy;
+                @Retention(RetentionPolicy.RUNTIME)
+                public @interface Provides {}
+                """,
                 "CreateGraphKt.java": """
                 package dev.zacsweers.metro;
                 public final class CreateGraphKt {
@@ -59,7 +66,7 @@ extension JVMBackendTests {
                     }
                     @DependencyGraph.Factory
                     interface Missing {}
-                    final class Companion implements Maker {
+                    final class Companion {
                         @GraphFactoryInvokeFunctionMarker
                         public Graph invoke() { return () -> "graph"; }
                         @GraphFactoryInvokeFunctionMarker
@@ -93,6 +100,38 @@ extension JVMBackendTests {
             #expect(execution.exitCode == 0)
             #expect(execution.stdout == "factory\ngraph\n")
             #expect(execution.stderr.isEmpty)
+
+            let generated = try compile("""
+            import dev.zacsweers.metro.DependencyGraph
+            import dev.zacsweers.metro.Provides
+            import dev.zacsweers.metro.createGraphFactory
+
+            interface View { val name: String }
+            @DependencyGraph
+            interface SourceGraph : View {
+                val count: Long
+                @DependencyGraph.Factory
+                fun interface Factory {
+                    fun create(@Provides name: String, @Provides count: Long): SourceGraph
+                }
+            }
+
+            fun main() {
+                val factory = createGraphFactory<SourceGraph.Factory>()
+                val first = factory.create("one", 17L)
+                val second = factory.create("two", 24L)
+                println(first.name)
+                println(first.count)
+                println(second.name)
+                println(second.count)
+                println(factory === createGraphFactory<SourceGraph.Factory>())
+            }
+            """, root: root, mode: .jvmJar, classpath: [classpath])
+            try #require(generated.0 == 0, "\(generated.1.map(\.message))")
+            let generatedRun = try java(["-Xverify:all", "-cp", app + ":" + classpath, "HelloKt"])
+            #expect(generatedRun.exitCode == 0)
+            #expect(generatedRun.stdout == "one\n17\ntwo\n24\ntrue\n")
+            #expect(generatedRun.stderr.isEmpty)
 
             let rejected = try compile("""
             import dev.zacsweers.metro.createGraphFactory
