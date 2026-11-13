@@ -924,13 +924,20 @@ final class JVMClasspathIndex {
             return parameter
         }.joined(separator: ", ")
         let declaration = visibility + "annotation class `\(short)`(" + parameters + ")"
-        let nested = nestedClassDeclarations(of: info.name, indentation: indentation + "    ")
-        guard !nested.isEmpty else {
+        let memberIndentation = indentation + "    "
+        var body = nestedClassDeclarations(of: info.name, indentation: memberIndentation)
+        let constants = info.fields.compactMap { constantFieldDeclaration($0, sourceName: $0.name) }
+        if !constants.isEmpty {
+            body += memberIndentation + "companion object {\n"
+            for constant in constants { body += memberIndentation + "    " + constant }
+            body += memberIndentation + "}\n"
+        }
+        guard !body.isEmpty else {
             lines.append(declaration)
             return lines.map { indentation + $0 }.joined(separator: "\n") + "\n"
         }
         var result = lines.map { indentation + $0 }.joined(separator: "\n") + "\n"
-        result += indentation + declaration + " {\n" + nested + indentation + "}\n"
+        result += indentation + declaration + " {\n" + body + indentation + "}\n"
         return result
     }
 
