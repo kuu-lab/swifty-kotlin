@@ -774,6 +774,8 @@ extension ExprTypeChecker {
             && sema.types.isBuiltinArithmeticOperand(rhs)
             && ((lhs == charType) == (rhs == charType)))
             || (lhs == boolType && rhs == boolType)
+            || (sema.types.isString(lhs) && sema.types.isString(rhs)
+                && sema.types.nullability(of: lhs) != .nullable && sema.types.nullability(of: rhs) != .nullable)
         let isNullablePrimitiveReceiver: Bool = if case .primitive(_, .nullable) = sema.types.kind(of: lhs) {
             true
         } else {

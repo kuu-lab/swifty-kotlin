@@ -43,7 +43,10 @@ extension JVMFunctionBuilder {
         if let entry = program.sema.symbols.symbol(symbol) {
             let path = entry.fqName.map(context.interner.resolve)
             let field: JVMField?
-            if path == ["kotlin", "text", "Regex"] || path == ["kotlin", "text", "Regex", "Companion"] {
+            if path == ["kotlin", "String"] || path == ["kotlin", "String", "Companion"] {
+                let owner = "kotlin/jvm/internal/StringCompanionObject"
+                field = JVMField(owner: owner, name: "INSTANCE", type: .reference(owner, nullable: false), access: 0x19)
+            } else if path == ["kotlin", "text", "Regex"] || path == ["kotlin", "text", "Regex", "Companion"] {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
             } else if path == ["kotlin", "coroutines", "ContinuationInterceptor"] || path == ["kotlin", "coroutines", "ContinuationInterceptor", "Key"] {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)

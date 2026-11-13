@@ -4,6 +4,8 @@ class Class<T> : java.lang.reflect.Type {
     val simpleName: kotlin.String get() = ""
     val isAnnotation: Boolean get() = false
     fun isInstance(value: Any?): Boolean = false
+    fun isAssignableFrom(type: Class<*>): Boolean = false
+    fun getDeclaredField(name: kotlin.String): java.lang.reflect.Field = null!!
     fun <A: Annotation> getAnnotation(annotationClass: Class<A>): A? = null
     fun <A: Annotation> getAnnotationsByType(annotationClass: Class<A>): Array<A> = null!!
 }

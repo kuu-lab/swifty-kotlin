@@ -205,6 +205,17 @@ extension JVMFunctionBuilder {
             jump(end); mark(next); jump(loop); mark(end)
             return JVMIntrinsicResult(value: result)
         }
+        if ownerName == "java/lang/Class", args.count == 1 {
+            if name == "isAssignableFrom" {
+                return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [sourceType], .boolean,
+                    receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)]))
+            }
+            if name == "getDeclaredField" {
+                let field = JVMValueType.reference("java/lang/reflect/Field", nullable: false)
+                return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.string], field,
+                    receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)]))
+            }
+        }
         if ownerName == "java/lang/Class", name == "getAnnotation", args.count == 1 {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [.reference("java/lang/Class", nullable: false)], .reference("java/lang/annotation/Annotation", nullable: true), receiver: requireValue(receiverID), arguments: [requireValue(args[0].expr)], resolved: program.expressionType(id)))
         }

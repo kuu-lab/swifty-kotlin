@@ -125,6 +125,8 @@ public fun CharSequence.repeat(n: Int): String {
 }
 public fun String.uppercase(): String = __jvmUppercase(this, __jvmRootLocale())
 public fun String.lowercase(): String = __jvmLowercase(this, __jvmRootLocale())
+public fun String.toUpperCase(): String = __jvmUppercase(this, java.util.Locale.getDefault())
+public fun String.toLowerCase(): String = __jvmLowercase(this, java.util.Locale.getDefault())
 @Deprecated("Use replaceFirstChar instead.")
 public fun String.capitalize(): String {
     if (this.length == 0) return this

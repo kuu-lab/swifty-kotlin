@@ -85,7 +85,10 @@ extension JVMClasspathIndex {
             ]),
             ("java/util/Spliterator", """
             package java.util
-            interface Spliterator<T>
+            interface Spliterator<T> {
+                interface OfLong
+                interface OfDouble
+            }
             """, 0x0601, "java/lang/Object", [], []),
             ("java/util/stream/Collector", """
             package java.util.stream

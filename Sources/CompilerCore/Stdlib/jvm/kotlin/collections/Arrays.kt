@@ -24,6 +24,11 @@ public fun <T> Array<out T>.first(): T {
     return this[0]
 }
 
+public inline fun <T> Array<out T>.first(predicate: (T) -> Boolean): T {
+    for (element in this) if (predicate(element)) return element
+    throw NoSuchElementException("Array contains no element matching the predicate.")
+}
+
 public fun <T> Array<out T>.last(): T {
     if (size == 0) throw NoSuchElementException("Array is empty.")
     return this[size - 1]
@@ -35,6 +40,11 @@ public fun <T> Array<out T>.lastOrNull(): T? = getOrNull(size - 1)
 
 public fun IntArray.getOrNull(index: Int): Int? =
     if (index < 0 || index >= size) null else this[index]
+
+public inline fun CharArray.any(predicate: (Char) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return true
+    return false
+}
 
 public fun IntArray.first(): Int {
     if (size == 0) throw NoSuchElementException("Array is empty.")

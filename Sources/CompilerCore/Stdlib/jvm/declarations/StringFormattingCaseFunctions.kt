@@ -24,3 +24,8 @@ fun String.replaceFirstChar(transform: (Char) -> Char): String = null!!
 @OverloadResolutionByLambdaReturnType
 @JvmName("replaceFirstCharWithCharSequence")
 fun String.replaceFirstChar(transform: (Char) -> CharSequence): String = null!!
+
+fun String.toUpperCase(): String = null!!
+fun String.toLowerCase(): String = null!!
+
+val String.Companion.CASE_INSENSITIVE_ORDER: Comparator<String> get() = null!!
