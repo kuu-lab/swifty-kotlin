@@ -183,16 +183,17 @@ public func __kk_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThr
 
 @_cdecl("__kk_random_nextInt_rangeObject")
 public func __kk_random_nextInt_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "__kk_random_nextInt_rangeObject") { range in
-        let isEmpty = RuntimeSignedRangeHOFKind.isEmpty(range)
-        if isEmpty {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random range is empty: \(range.first)..\(range.last)."
-            )
-            return 0
+    runtimeThrowingBridge(outThrown) {
+        runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "__kk_random_nextInt_rangeObject") { range in
+            let isEmpty = RuntimeSignedRangeHOFKind.isEmpty(range)
+            if isEmpty {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "Random range is empty: \(range.first)..\(range.last)."
+                )
+                return 0
+            }
+            return RuntimeSignedRangeHOFKind.random(range, randomRaw: randomRaw, outThrown: outThrown)
         }
-        return RuntimeSignedRangeHOFKind.random(range, randomRaw: randomRaw, outThrown: outThrown)
     }
 }
 
