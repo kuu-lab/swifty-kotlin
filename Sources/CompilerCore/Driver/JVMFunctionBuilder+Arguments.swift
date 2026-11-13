@@ -162,6 +162,10 @@ extension JVMFunctionBuilder {
         if let binding, let service = try importedContextService(binding, receiver: receiver, receiverValue: receiverValue, id: id) {
             return service
         }
+        if let binding, let model = try importedActivityViewModel(binding, args: args, receiver: receiver,
+                                                                receiverValue: receiverValue, id: id) {
+            return model
+        }
         if let binding, let model = try importedHiltViewModel(binding, args: args, expectedResult: expectedResult, id: id) {
             return model
         }
