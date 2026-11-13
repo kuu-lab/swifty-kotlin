@@ -25,9 +25,10 @@ final class CLICompilerService: @unchecked Sendable {
         )
     }
 
-    func run(args: [String]) -> Int32 {
+    func run(args: [String], reuseJVMClasspath: Bool = false) -> Int32 {
         lock.lock()
         defer { lock.unlock() }
+        if reuseJVMClasspath { driver.enableJVMClasspathCache() }
 
         do {
             let parsedOptions = try CLIParser.parse(args: args)

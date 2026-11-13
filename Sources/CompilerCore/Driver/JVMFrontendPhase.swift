@@ -64,7 +64,8 @@ final class JVMPreparationPhase: CompilerPhase {
                 classpath, lazilyInjecting: lazyPaths,
                 platformClassFiles: jdkClasspath?.classFiles ?? [],
                 fallbackClassFiles: ctx.androidResourceLink?.classFiles ?? [],
-                requiredLazyClassNames: jdkClasspath?.requiredLazyClassNames ?? []
+                requiredLazyClassNames: jdkClasspath?.requiredLazyClassNames ?? [],
+                archiveCache: ctx.jvmClasspathArchiveCache
             )
             ctx.jvmImports = imports
         } catch let error as AndroidSDKError {

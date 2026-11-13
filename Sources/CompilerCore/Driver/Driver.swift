@@ -14,6 +14,7 @@ public final class CompilerDriver {
     /// ready instead of paying for it after Codegen. Must not block, throw, or
     /// trigger expensive builds; failures are left for the real phase to report.
     private let backendPrefetch: @Sendable (CompilerOptions) -> Void
+    private var jvmClasspathArchiveCache: JVMClasspathArchiveCache?
 
     public init(
         backendPhases: @escaping @Sendable () -> [CompilerPhase] = { [] },
@@ -26,6 +27,12 @@ public final class CompilerDriver {
     public func run(options: CompilerOptions) -> Int {
         let result = runInternal(options: options, printDiagnostics: true)
         return result.exitCode
+    }
+
+    package func enableJVMClasspathCache() {
+        if jvmClasspathArchiveCache == nil {
+            jvmClasspathArchiveCache = JVMClasspathArchiveCache()
+        }
     }
 
     func runForTesting(options: CompilerOptions) -> (exitCode: Int, diagnostics: [Diagnostic]) {
@@ -221,6 +228,7 @@ public final class CompilerDriver {
             diagnostics: DiagnosticEngine(),
             interner: KklibSemaSession.makeInterner(options: options) ?? StringInterner()
         )
+        context.jvmClasspathArchiveCache = jvmClasspathArchiveCache
 
         let timePhasesEnabled = options.frontendFlags.contains("time-phases")
         if timePhasesEnabled {
