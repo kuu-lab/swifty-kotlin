@@ -160,14 +160,29 @@ public func kk_kproperty_stub_create_member(
     _ isMutable: Int
 ) -> Int {
     registerReflectionRuntimeTypeMetadata()
-    return registerRuntimeObject(
+    let typeID = runtimeKPropertyStubTypeID(arity: arity, isMutable: isMutable != 0)
+    let rawValue = registerRuntimeObject(
         RuntimeKPropertyStub(
             name: nameRaw,
             returnType: returnTypeRaw,
             isMutable: isMutable != 0
         ),
-        typeID: runtimeKPropertyStubTypeID(arity: arity, isMutable: isMutable != 0)
+        typeID: typeID
     )
+    if arity == 1 {
+        runtimeStorage.withDelegateLock { state in
+            state.callableRefMetadataByValue[rawValue] = RuntimeCallableRefMetadata(
+                nameRaw: nameRaw,
+                returnTypeRaw: returnTypeRaw,
+                arity: arity,
+                kind: .property,
+                isSuspend: false
+            )
+        }
+        runtimeRegisterKCallableItableIfNeeded(rawValue: rawValue, typeID: typeID)
+        runtimeRegisterKProperty1ItableIfNeeded(rawValue: rawValue, typeID: typeID)
+    }
+    return rawValue
 }
 
 /// Returns one KProperty stub per delegated declaration so getValue, setValue,

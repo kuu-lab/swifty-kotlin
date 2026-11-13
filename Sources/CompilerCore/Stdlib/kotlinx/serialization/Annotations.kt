@@ -28,9 +28,7 @@ private object GeneratedSerializerMarker : KSerializer<Any> {
  * for the annotated class, property or type usage.
  *
  * The `with` argument names a [KSerializer] implementation (e.g. `object UrlSerializer : KSerializer<Url>`).
- * Without a compiler plugin no `serializer()` is generated for the annotated class, so this
- * declaration only provides the API surface; an explicit `with =` argument is required for
- * serialization to actually work at runtime.
+ * For the default form, the native compiler plugin provides a companion `serializer()` entry point.
  */
 @MustBeDocumented
 @Target(AnnotationTarget.PROPERTY, AnnotationTarget.CLASS, AnnotationTarget.TYPE)
