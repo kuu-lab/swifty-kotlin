@@ -62,12 +62,10 @@ public inline fun IntRange.all(predicate: (Int) -> Boolean): Boolean {
     return true
 }
 
-public interface ClosedFloatingPointRange<T : Comparable<T>> {
-    public val start: T
-    public val endInclusive: T
+public interface ClosedFloatingPointRange<T : Comparable<T>> : ClosedRange<T> {
     public fun lessThanOrEquals(a: T, b: T): Boolean
-    public operator fun contains(value: T): Boolean
-    public fun isEmpty(): Boolean
+    public override operator fun contains(value: T): Boolean
+    public override fun isEmpty(): Boolean
 }
 
 public fun <T : Comparable<T>> T.coerceIn(range: ClosedFloatingPointRange<T>): T {

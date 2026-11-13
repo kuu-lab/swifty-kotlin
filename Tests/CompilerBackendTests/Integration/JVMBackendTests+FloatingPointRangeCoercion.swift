@@ -11,6 +11,9 @@ extension JVMBackendTests {
             let source = """
             fun main() {
                 val floats = 0.0f..1.0f
+                val closed: ClosedRange<Float> = floats
+                println(closed.start)
+                println(0.5f in closed)
                 println((-0.5f).coerceIn(floats))
                 println(0.5f.coerceIn(floats))
                 println(1.5f.coerceIn(floats))
@@ -31,7 +34,7 @@ extension JVMBackendTests {
             try #require(compiled.exitCode == 0, "\(compiled.stderr)")
             let official = try java(["-cp", app.path + ":" + m11Runtime(), "ProbeKt"])
             let candidate = try java(["-cp", app.path + ":" + stdlib.path, "ProbeKt"])
-            #expect(candidate.stdout == "0.0\n0.5\n1.0\ntrue\n-2147483648\n1.0\nempty\n")
+            #expect(candidate.stdout == "0.0\ntrue\n0.0\n0.5\n1.0\ntrue\n-2147483648\n1.0\nempty\n")
             #expect(candidate.stdout == official.stdout)
         }
     }
