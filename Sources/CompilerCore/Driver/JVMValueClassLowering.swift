@@ -173,7 +173,7 @@ extension JVMProgramBuilder {
                         : ref.parameters.map(element).joined() + (original.isSuspend ? "_" : "")
                     // The bundled time ABI predates return-type mangling for these operators.
                     let legacyTimeOperator = context.options.stdlibOnly && (
-                        owner == "kotlin/time/Duration" && ref.name == "plus" && ref.parameters.map(\.referenceName) == [owner]
+                        owner == "kotlin/time/Duration" && ["plus", "minus"].contains(ref.name) && ref.parameters.map(\.referenceName) == [owner]
                         || owner == "kotlin/time/TimeSource$Monotonic$ValueTimeMark" && ["plus", "minus"].contains(ref.name)
                             && (ref.parameters.map(\.referenceName) == [owner] || ref.parameters.map(\.referenceName) == ["kotlin/time/Duration"])
                     )
