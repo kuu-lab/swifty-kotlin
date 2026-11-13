@@ -40,6 +40,12 @@ final class JVMClasspathIndex {
     private(set) var lazyClassNames: Set<String> = []
     private var requiredLazyClassNames: Set<String> = []
     private var hierarchyClasses: [String: JVMClassInfo] = [:]
+    private var sourcePackages: Set<String> = []
+    private var sourceClassNames: Set<String> = []
+
+    private static func binaryPackage(_ name: String) -> String {
+        name.lastIndex(of: "/").map { String(name.prefix(upTo: $0)) } ?? ""
+    }
     private var innerClassMetadata: [String: JVMInnerClassInfo] = [:]
     private var innerClassesByOwner: [String: [JVMInnerClassInfo]] = [:]
     private var overrideSignaturesByOwner: [String: Set<OverrideSignature>] = [:]
@@ -83,12 +89,15 @@ final class JVMClasspathIndex {
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
         platformClassFiles: [JVMJDKClasspath.ClassFile] = [],
         fallbackClassFiles: [(String, Data)] = [],
+        sourcePackages: Set<String> = [], sourceClassNames: Set<String> = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit,
         archiveCache: JVMClasspathArchiveCache? = nil
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
         result.requiredLazyClassNames = requiredLazyClassNames
+        result.sourcePackages = sourcePackages
+        result.sourceClassNames = sourceClassNames
         let descriptors = JVMDescriptorCache()
         var seen: Set<String> = []
         func insert(_ info: JVMClassInfo, isLazy: Bool = false) {
@@ -133,7 +142,10 @@ final class JVMClasspathIndex {
         }
         result.linkKotlinMultifileFacades()
         result.indexInnerClasses()
-        for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
+        for var info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
+            if !sourcePackages.contains(binaryPackage(info.name)) {
+                info.methods.removeAll(where: \.isPackagePrivate)
+            }
             result.classes[info.name] = info
         }
         result.hasComposeRuntime = result.detectsComposeRuntime()
@@ -266,7 +278,8 @@ final class JVMClasspathIndex {
                   isImportableClassifier(outer, visited: visited.union([name])) else { return false }
             return true
         }
-        guard info.flags & 1 != 0, !name.contains("$"),
+        guard info.flags & 1 != 0 || sourcePackages.contains(Self.binaryPackage(name)),
+              !name.contains("$"),
               name.split(separator: "/").allSatisfy({ JVMProgramBuilder.isIdentifier(String($0)) }) else { return false }
         return true
     }
@@ -325,12 +338,12 @@ final class JVMClasspathIndex {
                     + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
-            if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
+            if !info.isInterface, let base = info.superclass, classes[base] != nil || sourceClassNames.contains(base) || mappedJavaException(base) != nil,
                let mapped = superclassReference(base, child: info) {
                 parents.append(mapped)
             }
             parents += info.interfaces.filter {
-                classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
             }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
             source += " {\n"
@@ -442,7 +455,7 @@ final class JVMClasspathIndex {
             var interfaceMethods: [String: JVMForeignMethod] = [:]
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
-                if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil
+                if classes[name] != nil || sourceClassNames.contains(name) || info.kotlinReadOnlyCollectionSupertypes[name] != nil
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
                     return
@@ -469,10 +482,17 @@ final class JVMClasspathIndex {
                     superclass = name
                     hiddenSegment = false
                 }
-                guard let base = hierarchyClasses[name] else { break }
+                guard let base = hierarchyClasses[name] else {
+                    if superclass == nil, sourceClassNames.contains(name) { superclass = name }
+                    break
+                }
                 let visible = classes[name] != nil
-                if visible && superclass == nil { superclass = name; hiddenSegment = false }
-                for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
+                if (visible || sourceClassNames.contains(name)) && superclass == nil {
+                    superclass = name
+                    hiddenSegment = false
+                }
+                for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment)
+                    && (visible || !method.isProtected) {
                     if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
                         // when its implementation is inherited from a hidden base.
@@ -548,7 +568,7 @@ final class JVMClasspathIndex {
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
         return name == "java/lang/String" || name == "java/lang/Object" || name == "java/lang/Class"
-            || name == "kotlin/coroutines/Continuation" || classes[name] != nil
+            || name == "kotlin/coroutines/Continuation" || classes[name] != nil || sourceClassNames.contains(name)
     }
 
     func exposeSuspendType(_ type: JVMValueType) -> Bool {
@@ -1139,7 +1159,8 @@ final class JVMClasspathIndex {
     }
 
     private func isCovered(_ name: String, covered: Set<String>) -> Bool {
-        name.hasPrefix("kotlin/") || covered.contains(name)
+        name.hasPrefix("kotlin/") || covered.contains(name) || sourceClassNames.contains(name)
+            || name.firstIndex(of: "$").map { sourceClassNames.contains(String(name.prefix(upTo: $0))) } == true
     }
 
     func inject(into ctx: CompilationContext) throws {
@@ -1297,12 +1318,12 @@ final class JVMClasspathIndex {
                         ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
-                if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
+                if !info.isInterface, let base = info.superclass, classes[base] != nil || sourceClassNames.contains(base) || mappedJavaException(base) != nil,
                    let mapped = superclassReference(base, child: info) {
                     parents.append(mapped)
                 }
                 parents += info.interfaces.filter {
-                    classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                    classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
@@ -2625,6 +2646,9 @@ final class JVMClasspathIndex {
             return
         }
         methods[symbol.id] = method
+        if method.isPackagePrivate, let file = ctx.ast?.file(for: site.start.file) {
+            sema.symbols.setJVMPackageAccess(file.packageFQName, for: symbol.id)
+        }
         if signature.valueParameterHasDefaultValues.contains(true) {
             let owner = classes[method.owner] ?? info
             let companion = isCompanionMember && method.isStatic ? kotlinCompanion(of: info) : nil
