@@ -658,7 +658,7 @@ extension ExprTypeChecker {
                 else {
                     return false
                 }
-                let isBuiltinStringFallback = symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "text", "plus"]
+                let isBuiltinStringFallback = symbol.fqName == KnownCompilerNames(interner: interner).kotlinTextPlusFQName
                     && signature.receiverType.map(sema.types.isString) == true
                     && signature.parameterTypes == [sema.types.nullableAnyType]
                 guard !isBuiltinStringFallback else { return false }

@@ -95,8 +95,9 @@ extension JVMFunctionBuilder {
         instructions.append(.referenceCompare(.notEqual, stored, missing, result)); return result
     }
     func delegationIntrinsic(_ symbol: SemanticSymbol, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
-        let fq = symbol.fqName.map(context.interner.resolve)
-        guard fq == ["kotlin", "lazy"] else { return nil }
+        let knownNames = KnownCompilerNames(interner: context.interner)
+        guard symbol.fqName.count == 2, symbol.fqName[0] == knownNames.kotlin,
+              symbol.fqName[1] == context.interner.intern("lazy") else { return nil }
         let signature = program.sema.symbols.functionSignature(for: symbol.id)!
         let types = try signature.parameterTypes.map(program.type)
         let ordered = try arguments(args, binding: program.sema.bindings.callBinding(for: id), parameters: types, declarations: nil, id: id)

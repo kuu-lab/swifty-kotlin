@@ -391,7 +391,7 @@ extension TypeCheckHelpers {
                           interner: ctx.interner, types: ctx.sema.types,
                           enclosingSymbol: ctx.currentDeclSymbol
                       ), let info = ctx.sema.symbols.symbol(symbol),
-                      info.fqName.map(ctx.interner.resolve).joined(separator: ".") == KnownCompilerAnnotation.optIn.qualifiedName
+                      info.fqName == KnownCompilerNames(interner: ctx.interner).kotlinOptInFQName
                 else { return nil }
                 return MetadataAnnotationRecord(
                     annotationFQName: KnownCompilerAnnotation.optIn.qualifiedName,

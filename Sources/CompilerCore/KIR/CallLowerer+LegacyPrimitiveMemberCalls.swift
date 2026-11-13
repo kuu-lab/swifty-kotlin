@@ -468,7 +468,7 @@ extension CallLowerer {
             // unbound name-based lookups) may become the kk_char_code read.
             if let chosenCallee,
                let chosenSymbol = sema.symbols.symbol(chosenCallee),
-               chosenSymbol.fqName.map({ interner.resolve($0) }) != ["kotlin", "text", "code"]
+               chosenSymbol.fqName != KnownCompilerNames(interner: interner).kotlinTextCodeFQName
             {
                 return nil
             }

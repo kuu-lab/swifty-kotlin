@@ -6,9 +6,10 @@ extension CallTypeChecker {
     ) -> Bool {
         let sema = ctx.sema
         let interner = ctx.interner
+        let knownNames = KnownCompilerNames(interner: interner)
         guard let symbol = sema.symbols.symbol(chosenCallee),
               sema.symbols.isSourceBackedSymbol(chosenCallee),
-              symbol.fqName == ["kotlin", "collections", "fill"].map(interner.intern)
+              symbol.fqName == knownNames.kotlinCollectionsFillFQName
         else { return false }
         // User extensions, including declarations in kotlin.collections, must
         // retain their own receiver contract.
@@ -21,8 +22,8 @@ extension CallTypeChecker {
               let declaredReceiver = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
               case let .classType(declared) = sema.types.kind(of: sema.types.makeNonNullable(declaredReceiver)),
               case let .classType(actual) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
-              sema.symbols.symbol(declared.classSymbol)?.fqName == ["kotlin", "Array"].map(interner.intern),
-              sema.symbols.symbol(actual.classSymbol)?.fqName == ["kotlin", "Array"].map(interner.intern),
+              sema.symbols.symbol(declared.classSymbol)?.fqName == knownNames.kotlinArrayFQName,
+              sema.symbols.symbol(actual.classSymbol)?.fqName == knownNames.kotlinArrayFQName,
               actual.args.count == 1
         else { return false }
         switch actual.args[0] {
@@ -46,7 +47,7 @@ extension CallTypeChecker {
               let (_, receiverSymbol) = resolveClassTypeSymbol(
                   sema.types.makeNonNullable(receiverType), sema: sema
               ),
-              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "Array"],
+              receiverSymbol.fqName == knownNames.kotlinArrayFQName,
               ctx.ast.arena.expr(args[0].expr)?.isLambdaOrCallableRef != true,
               let comparatorSymbol = sema.symbols.lookup(fqName: [
                   interner.intern("kotlin"), interner.intern("Comparator"),
@@ -259,8 +260,8 @@ extension CallTypeChecker {
            let (_, receiverSymbol) = resolveClassTypeSymbol(
                sema.types.makeNonNullable(receiverType), sema: sema
            ),
-           receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "FloatArray"]
-               || receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "DoubleArray"]
+           receiverSymbol.fqName == knownNames.kotlinFloatArrayFQName
+               || receiverSymbol.fqName == knownNames.kotlinDoubleArrayFQName
         {
             return nil
         }

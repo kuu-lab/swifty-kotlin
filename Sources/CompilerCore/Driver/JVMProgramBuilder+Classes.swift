@@ -55,7 +55,7 @@ extension JVMProgramBuilder {
         while let current = pending.popLast() {
             guard visited.insert(current).inserted,
                   let declaration = sema.symbols.symbol(current) else { continue }
-            if declaration.fqName.map(context.interner.resolve) == ["kotlin", "Number"] {
+            if declaration.fqName == KnownCompilerNames(interner: context.interner).kotlinNumberFQName {
                 return true
             }
             pending.append(contentsOf: sema.symbols.directSupertypes(for: current))

@@ -52,7 +52,7 @@ final class JVMProgramBuilder {
         if usesLegacyDurationLongMapping(),
            case let .classType(type) = sema.types.kind(of: actual),
            type.nullability == .nonNull,
-           sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve) == ["kotlin", "time", "Duration"] {
+           sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
             return .long
         }
         return try JVMClasspathIndex.type(actual, sema: sema, ctx: context)
@@ -77,7 +77,7 @@ final class JVMProgramBuilder {
         if usesLegacyDurationLongMapping(),
            case let .classType(type) = sema.types.kind(of: id),
            type.nullability == .nonNull,
-           sema.symbols.symbol(type.classSymbol)?.fqName.map(context.interner.resolve) == ["kotlin", "time", "Duration"] {
+           sema.symbols.symbol(type.classSymbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinTimeDurationFQName {
             return .long
         }
         return try JVMClasspathIndex.type(id, sema: sema, ctx: context)
@@ -729,14 +729,14 @@ final class JVMFunctionBuilder {
         case let .nameRef(name, _):
             if let value = try nominalValue(id) { return value }
             if let symbol = program.sema.bindings.identifierSymbol(for: id),
-               program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve) == ["kotlin", "Unit"] {
+               program.sema.symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinUnitFQName {
                 program.functionArities.insert(0)
                 let type: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(type)
                 instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: type, access: 0x19), result))
                 return result
             }
             if let symbol = program.sema.bindings.identifierSymbol(for: id),
-               program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve) == ["kotlin", "coroutines", "EmptyCoroutineContext"] {
+               program.sema.symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinCoroutinesEmptyCoroutineContextFQName {
                 let type: JVMValueType = .reference("kotlin/coroutines/EmptyCoroutineContext", nullable: false), result = try value(type)
                 instructions.append(.getStatic(JVMField(owner: "kotlin/coroutines/EmptyCoroutineContext", name: "INSTANCE", type: type, access: 0x19), result))
                 return result
