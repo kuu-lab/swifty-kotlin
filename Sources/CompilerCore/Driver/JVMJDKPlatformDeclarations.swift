@@ -219,6 +219,14 @@ extension JVMClasspathIndex {
             package java.util.function
             fun interface ToIntFunction<T> { fun applyAsInt(value: T): Int }
             """, 0x0601, "java/lang/Object", [method("java/util/function/ToIntFunction", "applyAsInt", [object], .int, interface: true)]),
+            ("java/util/concurrent/Callable", """
+            package java.util.concurrent
+            fun interface Callable<V> {
+                fun call(): V
+            }
+            """, 0x0601, "java/lang/Object", [
+                method("java/util/concurrent/Callable", "call", [], object, interface: true),
+            ]),
             ("java/util/Comparator", """
             package java.util
             fun interface Comparator<T> {
