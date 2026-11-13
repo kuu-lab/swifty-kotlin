@@ -805,8 +805,15 @@ final class JVMClasspathIndex {
         }.joined(separator: ", ")
         lines.append(visibility + "annotation class `\(short)`(" + parameters + ")")
         let declaration = lines.map { indentation + $0 }.joined(separator: "\n")
-        let nested = nestedClassDeclarations(of: info.name, indentation: indentation + "    ")
-        return nested.isEmpty ? declaration + "\n" : declaration + " {\n" + nested + indentation + "}\n"
+        let memberIndentation = indentation + "    "
+        var body = nestedClassDeclarations(of: info.name, indentation: memberIndentation)
+        let constants = info.fields.compactMap { constantFieldDeclaration($0, sourceName: $0.name) }
+        if !constants.isEmpty {
+            body += memberIndentation + "companion object {\n"
+            for constant in constants { body += memberIndentation + "    " + constant }
+            body += memberIndentation + "}\n"
+        }
+        return body.isEmpty ? declaration + "\n" : declaration + " {\n" + body + indentation + "}\n"
     }
 
     private func javaAnnotationRetention(_ annotations: [JVMAnnotation]) -> String {
