@@ -44,6 +44,7 @@ extension JVMProgramBuilder {
                 }
                 continue
             }
+            if node.name == "Suppress" || node.name == "kotlin.Suppress" { continue }
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
             // kotlin.internal.* annotations are compile-time-only markers;
             // consumer compiles inject them as residual-stdlib declarations
