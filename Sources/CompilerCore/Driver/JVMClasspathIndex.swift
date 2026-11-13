@@ -1268,9 +1268,7 @@ final class JVMClasspathIndex {
                 else {
                     source += info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                     source += "`\(short)`"
-                    if !info.classTypeParameterNames.isEmpty {
-                        source += "<" + info.classTypeParameterNames.map { "`\($0)`" }.joined(separator: ", ") + ">"
-                    }
+                    source += typeParameterDeclaration(info)
                     source += " "
                     source += own.contains(where: { $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected })
                         ? "()" : "protected constructor()"
