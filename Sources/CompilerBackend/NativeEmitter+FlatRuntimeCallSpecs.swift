@@ -182,11 +182,6 @@ extension NativeEmitter {
                 stringArgumentCount: 2,
                 extraArgumentCount: 0
             ),
-            "kk_string_split_flat": FlatScalarReturnCallSpec(
-                flatName: "kk_string_split_flat",
-                stringArgumentCount: 2,
-                extraArgumentCount: 0
-            ),
             "__kk_regex_create_flat": FlatScalarReturnCallSpec(
                 flatName: "__kk_regex_create_flat",
                 stringArgumentCount: 1,

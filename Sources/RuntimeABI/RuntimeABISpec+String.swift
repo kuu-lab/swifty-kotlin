@@ -558,22 +558,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_split_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "delimiterData", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "delimiterLength", type: .intptr),
-                RuntimeABIParameter(name: "delimiterByteCount", type: .intptr),
-                RuntimeABIParameter(name: "delimiterHash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_string_split_limit",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
