@@ -134,6 +134,9 @@ extension JVMFunctionBuilder {
         if let binding, let service = try importedContextService(binding, receiver: receiver, receiverValue: receiverValue, id: id) {
             return service
         }
+        if let binding, let model = try importedHiltViewModel(binding, args: args, expectedResult: expectedResult, id: id) {
+            return model
+        }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
