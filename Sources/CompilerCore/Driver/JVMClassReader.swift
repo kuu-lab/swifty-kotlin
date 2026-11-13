@@ -439,7 +439,7 @@ struct JVMClassReader {
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
-                   JVMMetro.annotationDescriptors.contains(string) {
+                   (string == JVMMetro.invoke || JVMMetro.annotationDescriptors.contains(string)) {
                     hasMetroAnnotation = true
                 }
             case 7: classes[index] = Int(try u2())
