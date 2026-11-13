@@ -13,6 +13,7 @@ final class JVMPreparationPhase: CompilerPhase {
               o.entryPointFQName == nil, o.incrementalCachePath == nil,
               o.frontendFlags.allSatisfy({
                   $0 == "time-phases" || $0 == "no-incremental" || $0 == "full-value-classes"
+                    || $0 == CompilerOptions.legacyNonExhaustiveWhenFlag
               }),
               o.irFlags.isEmpty, o.runtimeFlags.isEmpty, o.optLevel == .O0,
               !o.debugInfo, o.target == .hostDefault(),
