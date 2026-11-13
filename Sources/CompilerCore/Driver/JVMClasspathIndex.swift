@@ -1242,9 +1242,12 @@ final class JVMClasspathIndex {
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isNonCancellable)
-                if info.name == Self.compositionLocal, compositionLocalGetter != nil,
+                if info.name == Self.compositionLocal, let getter = compositionLocalGetter,
                    let type = info.classTypeParameterNames.first {
-                    source += "@get:androidx.compose.runtime.Composable val current: `\(type)` get() = null!!\n"
+                    let readonly = getter.annotations.contains {
+                        $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;"
+                    } ? " @androidx.compose.runtime.ReadOnlyComposable" : ""
+                    source += "val current: `\(type)` @androidx.compose.runtime.Composable\(readonly) get() = null!!\n"
                 }
                 if info.name == Self.composeView, composeContentMethod != nil {
                     source += "external fun setContent(content: @androidx.compose.runtime.Composable () -> Unit): Unit\n"
