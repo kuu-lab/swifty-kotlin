@@ -14,6 +14,7 @@ extension JVMFunctionBuilder {
         let returns: [InlineReturn]
         let arguments: [InternedString: InlineLambda]
         let lexicalLambda: ExprID?
+        let stack: Set<SymbolID>
     }
     func inlineArgument(_ name: InternedString) -> InlineLambda? {
         // A block-local function value can shadow an inline parameter.
@@ -46,7 +47,7 @@ extension JVMFunctionBuilder {
             guard declaration.valueParams.indices.contains(i), supplied.insert(i).inserted else { throw fail("Invalid inline argument mapping.", id) }
             let parameter = declaration.valueParams[i]
             if !parameter.isNoinline && !parameter.isCrossinline, case .lambdaLiteral = arena.expr(argument.expr) {
-                lambdas[parameter.name] = InlineLambda(id: argument.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID)
+                lambdas[parameter.name] = InlineLambda(id: argument.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
             } else if !parameter.isNoinline && !parameter.isCrossinline, case let .nameRef(name, _) = arena.expr(argument.expr), let forwarded = inlineArgument(name) {
                 lambdas[parameter.name] = forwarded
             } else {
@@ -91,7 +92,7 @@ extension JVMFunctionBuilder {
         for (i, parameter) in declaration.valueParams.enumerated() where !supplied.contains(i) {
             guard let expression = parameter.defaultValue else { throw fail("Missing inline default expression.", id) }
             if !parameter.isNoinline && !parameter.isCrossinline, case .lambdaLiteral = arena.expr(expression) {
-                inlineArguments[parameter.name] = InlineLambda(id: expression, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID)
+                inlineArguments[parameter.name] = InlineLambda(id: expression, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
             } else {
                 let returned = try self.expression(expression)
                 if terminated { return JVMIntrinsicResult(value: nil) }
@@ -136,7 +137,10 @@ extension JVMFunctionBuilder {
         let savedArguments = inlineArguments, savedReturns = inlineReturns, savedLambda = lambdaID
         scopes = lambda.scopes + [[:]]; thisValue = lambda.dispatch; extensionValue = lambda.receiver; contextualReceivers = lambda.contexts
         inlineArguments = lambda.arguments; inlineReturns = lambda.returns; lambdaID = lambda.lexicalLambda
+        let savedStack = inlineStack
+        inlineStack = lambda.stack
         defer {
+            inlineStack = savedStack
             scopes = savedScopes; thisValue = savedThis; extensionValue = savedReceiver; contextualReceivers = savedContexts
             inlineArguments = savedArguments; inlineReturns = savedReturns; lambdaID = savedLambda
         }
