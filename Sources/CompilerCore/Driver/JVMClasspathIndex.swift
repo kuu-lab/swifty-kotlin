@@ -236,7 +236,7 @@ final class JVMClasspathIndex {
                 source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
             }
             var parents: [String] = []
-            if !info.isInterface, let base = info.superclass, classes[base] != nil,
+            if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
                let mapped = superclassReference(base, child: info) {
                 parents.append(mapped)
             }
@@ -344,7 +344,12 @@ final class JVMClasspathIndex {
             var next = info.superclass
             var superclass: String?
             var hiddenSegment = true
-            while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
+            while let name = next, visited.insert(name).inserted {
+                if superclass == nil, mappedJavaException(name) != nil {
+                    superclass = name
+                    hiddenSegment = false
+                }
+                guard let base = hierarchyClasses[name] else { break }
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
@@ -565,6 +570,12 @@ final class JVMClasspathIndex {
             return base
         }
     }
+    private func mappedJavaException(_ name: String) -> String? {
+        guard name.hasPrefix("java/lang/"),
+              Self.exceptionNames.contains(String(name.dropFirst("java/lang/".count))) else { return nil }
+        return Self.jdkToKotlinTypeNames[name]
+    }
+
     /// Supertype positions keep the erased JDK name: Kotlin mapped types
     /// declare property-style members that Java method stubs cannot satisfy,
     /// so `extends`/`implements` clauses must name the interface the
@@ -577,6 +588,11 @@ final class JVMClasspathIndex {
         case "java/lang/String": return "kotlin.String"
         case "java/lang/Enum", "java/lang/Record": return nil
         default:
+            // Kotlin typealiases for the Java exception family share one
+            // throwable hierarchy, including imported Java subclasses.
+            if let mapped = mappedJavaException(name) {
+                return mapped
+            }
             // Covered classes get no stub, so an erased `java.*` supertype
             // would not resolve. When the JDK->Kotlin mapped-type table names
             // a provided Kotlin counterpart (kotlin.Number, kotlin.text
@@ -1091,7 +1107,7 @@ final class JVMClasspathIndex {
                         ? "()" : "protected constructor()"
                 }
                 var parents: [String] = []
-                if !info.isInterface, let base = info.superclass, classes[base] != nil,
+                if !info.isInterface, let base = info.superclass, classes[base] != nil || mappedJavaException(base) != nil,
                    let mapped = superclassReference(base, child: info) {
                     parents.append(mapped)
                 }
