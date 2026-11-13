@@ -28,6 +28,12 @@ public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
     for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
+public fun <K, V> hashMapOf(vararg pairs: Pair<K, V>): java.util.HashMap<K, V> {
+    val result = java.util.HashMap<K, V>()
+    for (pair in pairs) result.put(pair.first, pair.second)
+    return result
+}
+
 public fun <K, V> linkedMapOf(vararg pairs: Pair<K, V>): java.util.LinkedHashMap<K, V> {
     val result = java.util.LinkedHashMap<K, V>()
     for (pair in pairs) result.put(pair.first, pair.second)
