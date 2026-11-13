@@ -572,9 +572,11 @@ struct JVMClassReader {
                 && methodName == "OneTimeWorkRequestBuilder" && descriptor == "()Landroidx/work/OneTimeWorkRequest$Builder;"
             let isReifiedContextService = hasKotlinMetadata && access & 0x1009 == 0x1009
                 && JVMAndroidXContextService.isEntry(owner: name, name: methodName, descriptor: descriptor)
+            let isReifiedHiltViewModel = hasKotlinMetadata && access & 0x1009 == 0x1009
+                && JVMClasspathIndex.isReifiedHiltViewModel(owner: name, name: methodName, descriptor: descriptor)
             let isMetroAccessor = hasMetroAnnotation && ((methodInfo.annotations.contains { $0.descriptor == JVMMetro.provides } || methodName == "<init>") && access & 0x0002 != 0
                 || access & 0x1009 == 0x1009 && methodName.hasPrefix("access$"))
-            if isMetroAccessor || (access & 0x0005 != 0 && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder || isReifiedContextService)), methodName != "<clinit>",
+            if isMetroAccessor || (access & 0x0005 != 0 && (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod || isValueAdapter || isSyntheticConstructor || isReifiedGlanceAction || isReifiedWorkBuilder || isReifiedContextService || isReifiedHiltViewModel)), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
