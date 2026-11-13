@@ -1,5 +1,7 @@
 package kotlin.collections
 
+public fun <T> Array<out T>.asList(): List<T> = null!!
+
 public infix fun <T> Array<out T>?.contentEquals(other: Array<out T>?): Boolean = null!!
 public fun <T> Array<out T>?.contentHashCode(): Int = null!!
 public fun <T> Array<out T>?.contentToString(): String = null!!

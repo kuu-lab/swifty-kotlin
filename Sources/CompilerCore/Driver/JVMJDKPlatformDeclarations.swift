@@ -391,7 +391,7 @@ extension JVMClasspathIndex {
             ("java/util/Collections", """
             package java.util
             class Collections private constructor() {
-                companion object { external fun <T> sort(list: List<T>, c: java.util.Comparator<in T>): Unit }
+                companion object { external fun <T> sort(list: kotlin.collections.List<T>, c: java.util.Comparator<in T>): Unit }
             }
             """, 0x0031, "java/lang/Object", [method("java/util/Collections", "sort", [.reference("java/util/List", nullable: false), comparator], .unit, staticMember: true)]),
             ("java/security/InvalidParameterException", """
