@@ -55,6 +55,7 @@ struct JVMTextOperation {
             add(name, [p("chars", .char, variadic: true)])
         }
         add("trimIndent")
+        add("lines", sourceResult: "List<String>", result: list, receiver: "CharSequence", jvmReceiver: sequence)
         add("trimMargin", [p("marginPrefix", .string, "margin")])
         for name in ["uppercase", "lowercase", "reversed"] { add(name) }
         add("repeat", [p("n", .int)], jvmReceiver: sequence)
