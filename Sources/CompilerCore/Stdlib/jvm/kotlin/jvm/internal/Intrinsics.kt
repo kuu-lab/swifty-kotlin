@@ -1,6 +1,8 @@
 @file:kotlin.jvm.JvmName("Intrinsics")
 package kotlin.jvm.internal
 
+public fun stringPlus(prefix: String?, value: Any?): String = "$prefix$value"
+
 public fun areEqual(first: Any?, second: Any?): Boolean = first == second
 
 public fun checkNotNullParameter(value: Any?, message: String?) {
