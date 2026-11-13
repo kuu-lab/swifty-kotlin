@@ -73,6 +73,7 @@ inline fun <T> kotlin.Array<out T>.find(predicate: (T) -> Boolean): T? {
     }
     return null
 }
+inline fun <T> kotlin.Array<out T>.firstOrNull(predicate: (T) -> Boolean): T? = find(predicate)
 inline fun <T, R> kotlin.Array<out T>.map(transform: (T) -> R): List<R> { val result = mutableListOf<R>(); for (item in this) result.add(transform(item)); return result }
 inline fun <T> kotlin.Array<out T>.filter(predicate: (T) -> Boolean): List<T> { val result = mutableListOf<T>(); for (item in this) if (predicate(item)) result.add(item); return result }
 inline fun <T> kotlin.Array<out T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
