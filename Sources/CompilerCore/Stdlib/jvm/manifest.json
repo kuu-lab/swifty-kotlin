@@ -237,6 +237,11 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/JavaReflectionType.kt",
+      "virtualPath": "<kswiftk-jvm>/javaReflectionType.kt",
+      "excludeFromStdlibBuild": false
+    },
+    {
       "path": "declarations/JavaReflection.kt",
       "virtualPath": "<kswiftk-jvm>/javaReflection.kt",
       "excludeFromStdlibBuild": false
