@@ -34,10 +34,13 @@ interface KMutableProperty0<V>: KProperty0<V>, KMutableProperty<V> {
 }
 interface KMutableProperty1<T, V>: KProperty1<T, V>, KMutableProperty<V> { fun set(receiver: T, value: V) }
 interface KClassifier
-interface KClass<T>: KAnnotatedElement, KClassifier {
+interface KDeclarationContainer {
+    val members: Collection<KCallable<*>>
+}
+
+interface KClass<T>: KAnnotatedElement, KClassifier, KDeclarationContainer {
     val simpleName: String?
     val qualifiedName: String?
-    val members: Collection<KCallable<*>>
     val constructors: Collection<KFunction<T>>
     val nestedClasses: Collection<KClass<*>>
     val objectInstance: T?
