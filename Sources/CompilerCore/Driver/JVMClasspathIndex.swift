@@ -576,11 +576,32 @@ final class JVMClasspathIndex {
     private(set) var projectsCoroutineContextIsActive = false
 
     func metroFactoryInstance(_ factory: String) -> JVMField? {
+        guard let factoryInfo = hierarchyClasses[factory],
+              factoryInfo.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) else { return nil }
         let name = factory + "$Impl"
-        guard hierarchyClasses[factory]?.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) == true,
-              let impl = hierarchyClasses[name], impl.flags & 1 != 0, impl.interfaces.contains(factory),
-              impl.annotations.contains(where: { $0.descriptor == JVMMetro.implementation }) else { return nil }
-        return metroSingleton(in: impl, named: "INSTANCE", type: name)
+        if let impl = hierarchyClasses[name], impl.flags & 1 != 0, impl.interfaces.contains(factory),
+           impl.annotations.contains(where: { $0.descriptor == JVMMetro.implementation }),
+           let instance = metroSingleton(in: impl, named: "INSTANCE", type: name) {
+            return instance
+        }
+        return metroCompanionFactory(for: factoryInfo)
+    }
+
+    /// Metro 0.5 emits the factory implementation on the graph companion.
+    private func metroCompanionFactory(for factory: JVMClassInfo) -> JVMField? {
+        guard let graphName = innerClassMetadata[factory.name]?.outerName,
+              let graph = hierarchyClasses[graphName],
+              graph.annotations.contains(where: { $0.descriptor == JVMMetro.graph }),
+              let companion = hierarchyClasses[graphName + "$Companion"],
+              companion.flags & 1 != 0, companion.interfaces.contains(factory.name),
+              companion.methods.contains(where: { method in
+                  !method.isStatic && !method.isProtected
+                      && method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke })
+                      && factory.methods.contains(where: {
+                          $0.isAbstract && $0.name == method.name && $0.descriptor == method.descriptor
+                      })
+              }) else { return nil }
+        return metroSingleton(in: graph, named: "Companion", type: companion.name)
     }
 
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
