@@ -275,7 +275,9 @@ final class TypeCheckDriver {
             callSuspensionContexts[id] = ctx.suspensionContext
         }
         if !composableCallTargets(for: id).isEmpty {
-            callComposableContexts[id] = ctx.suspensionContext
+            var composition = ctx.suspensionContext
+            if composition.function == nil { composition.function = ctx.defaultArgumentComposableFunction }
+            callComposableContexts[id] = composition
         }
         if isCoroutineContextPropertyRead(id) {
             coroutineContextPropertySuspensionContexts[id] = ctx.suspensionContext
