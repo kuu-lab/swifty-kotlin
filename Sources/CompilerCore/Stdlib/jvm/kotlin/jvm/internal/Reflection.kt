@@ -7,3 +7,6 @@ fun getOrCreateKotlinClasses(types: Array<java.lang.Class<*>>): Array<kotlin.ref
 fun mutableProperty1(reference: MutablePropertyReference1): kotlin.reflect.KMutableProperty1<Any?, Any?> = reference
 
 fun property2(reference: PropertyReference2): kotlin.reflect.KProperty2<Any?, Any?, Any?> = reference
+
+fun typeOf(type: java.lang.Class<*>): kotlin.reflect.KType =
+    kotlin.reflect.jvm.internal.RuntimeClassType(type)
