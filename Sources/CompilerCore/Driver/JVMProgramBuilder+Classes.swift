@@ -316,7 +316,9 @@ extension JVMProgramBuilder {
             if p.delegateExpression != nil {
                 let storage = sema.symbols.delegateStorageSymbol(for: symbol) ?? SymbolID(rawValue: -(symbol.rawValue + 50000))
                 guard let semantic = sema.symbols.delegateProvideDelegateSymbol(for: symbol).flatMap({ sema.symbols.functionSignature(for: $0)?.returnType }) ?? sema.symbols.propertyType(for: storage) ?? p.delegateExpression.flatMap({ sema.bindings.exprType(for: $0) }) else { throw JVMFrontendError(message: "Missing JVM delegate storage type.", range: p.range) }
-                property.delegateField = JVMField(owner: plan.name, name: name + "$delegate", type: try self.type(semantic), access: 2 | (plan.isObject ? 0 : 16) | (plan.isFacade ? 8 : 0))
+                var delegateField = JVMField(owner: plan.name, name: name + "$delegate", type: try self.type(semantic), access: 2 | (plan.isObject ? 0 : 16) | (plan.isFacade ? 8 : 0))
+                delegateField.annotations = try annotations(for: symbol, target: "delegate")
+                property.delegateField = delegateField
                 property.delegateSymbol = symbol
                 if needsDelegateToken(symbol) { plan.propertyTokens[symbol] = JVMField(owner: plan.name, name: "$property$" + name, type: .reference("kotlin/reflect/KProperty", nullable: false), access: 0x101A) }
             }

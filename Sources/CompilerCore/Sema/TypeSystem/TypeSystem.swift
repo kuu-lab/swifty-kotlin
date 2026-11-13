@@ -32,6 +32,13 @@ struct TypeSystemSemaSnapshot: Codable {
     let unitClassSymbol: SymbolID?
 }
 
+struct NominalSupertypeClosureCacheEntry {
+    let symbols: Set<SymbolID>
+    let linkedTargets: Set<SymbolID>
+    let directSupertypesVersion: UInt64
+    let linkVersion: UInt64?
+}
+
 public final class TypeSystem {
     private var nextCaptureIdentity = 0
 
@@ -118,6 +125,9 @@ public final class TypeSystem {
     /// star-projection bounds queries resolve them through this map.
     private var nominalTypeParameterOwnerMap: [SymbolID: (owner: SymbolID, index: Int)] = [:]
     private var nominalSupertypeTypeArgsMap: [SymbolID: [SymbolID: [TypeArg]]] = [:]
+    private var nominalDirectSupertypesVersion: UInt64 = 0
+    private var nominalSupertypeClosures: [SymbolID: NominalSupertypeClosureCacheEntry] = [:]
+    private var nominalForwardLinksCache: [SymbolID: (targets: Set<SymbolID>, linkVersion: UInt64)] = [:]
     // Break recursive argument joins such as A : Producer<A>, B : Producer<B>.
     var activeNominalLUBInputs: Set<Set<TypeID>> = []
     static let maxNominalLUBDepth = 16
@@ -254,6 +264,9 @@ public final class TypeSystem {
         worker.nominalTypeParameterSymbolsMap = nominalTypeParameterSymbolsMap
         worker.nominalTypeParameterOwnerMap = nominalTypeParameterOwnerMap
         worker.nominalSupertypeTypeArgsMap = nominalSupertypeTypeArgsMap
+        worker.nominalDirectSupertypesVersion = nominalDirectSupertypesVersion
+        worker.nominalSupertypeClosures = nominalSupertypeClosures
+        worker.nominalForwardLinksCache = nominalForwardLinksCache
         worker.comparableInterfaceSymbol = comparableInterfaceSymbol
         worker.serializableInterfaceSymbol = serializableInterfaceSymbol
         worker.annotationInterfaceSymbol = annotationInterfaceSymbol
@@ -566,12 +579,91 @@ public final class TypeSystem {
         let isImported = ensureImportedNominalMetadataLoaded(for: symbol)
         let existing = isImported ? nominalDirectSupertypes[symbol] ?? [] : []
         let unique = Array(Set(existing + supertypes)).sorted(by: { $0.rawValue < $1.rawValue })
+        let changed = (nominalDirectSupertypes[symbol] ?? []) != unique
         nominalDirectSupertypes[symbol] = unique
+        if changed {
+            nominalDirectSupertypesVersion &+= 1
+        }
     }
 
     public func directNominalSupertypes(for symbol: SymbolID) -> [SymbolID] {
         ensureImportedNominalMetadataLoaded(for: symbol)
         return nominalDirectSupertypes[symbol] ?? []
+    }
+
+    /// Cached transitive nominal-supertype reachability. `symbols` is the
+    /// candidate plus every symbol reachable through direct nominal edges;
+    /// `linkedTargets` folds each reachable symbol's expect/actual and
+    /// typealias forward links so subtype checks stay set lookups.
+    func nominalSupertypeClosure(for symbol: SymbolID) -> NominalSupertypeClosureCacheEntry {
+        while true {
+            let linkVersion = currentNominalLinkVersion()
+            if let cached = nominalSupertypeClosures[symbol],
+               cached.directSupertypesVersion == nominalDirectSupertypesVersion,
+               cached.linkVersion == linkVersion
+            {
+                return cached
+            }
+
+            let directSupertypesVersion = nominalDirectSupertypesVersion
+            var symbols: Set<SymbolID> = [symbol]
+            var queue = directNominalSupertypes(for: symbol)
+            var head = 0
+            while head < queue.count {
+                let current = queue[head]
+                head += 1
+                if symbols.insert(current).inserted {
+                    queue.append(contentsOf: directNominalSupertypes(for: current))
+                }
+            }
+
+            var linkedTargets: Set<SymbolID> = []
+            for reachable in symbols {
+                linkedTargets.formUnion(nominalForwardLinks(for: reachable))
+            }
+
+            guard nominalDirectSupertypesVersion == directSupertypesVersion,
+                  currentNominalLinkVersion() == linkVersion
+            else {
+                continue
+            }
+            let entry = NominalSupertypeClosureCacheEntry(
+                symbols: symbols,
+                linkedTargets: linkedTargets,
+                directSupertypesVersion: directSupertypesVersion,
+                linkVersion: linkVersion
+            )
+            nominalSupertypeClosures[symbol] = entry
+            return entry
+        }
+    }
+
+    /// Forward nominal links used by expect/actual and typealias subtype
+    /// checks: the actual symbol and the typealias's nominal target.
+    func nominalForwardLinks(for symbol: SymbolID) -> Set<SymbolID> {
+        guard let symbolTable else { return [] }
+        let linkVersion = symbolTable.nominalLinkMutationVersion
+        if let cached = nominalForwardLinksCache[symbol], cached.linkVersion == linkVersion {
+            return cached.targets
+        }
+
+        var targets: Set<SymbolID> = []
+        if let actual = symbolTable.actualSymbol(for: symbol) {
+            targets.insert(actual)
+        }
+        if let target = actualTypeAliasTargetNominalSymbol(for: symbol, symbols: symbolTable) {
+            targets.insert(target)
+        }
+
+        if symbolTable.nominalLinkMutationVersion == linkVersion {
+            nominalForwardLinksCache[symbol] = (targets: targets, linkVersion: linkVersion)
+        }
+        return targets
+    }
+
+    private func currentNominalLinkVersion() -> UInt64? {
+        guard let symbolTable else { return nil }
+        return symbolTable.nominalLinkMutationVersion
     }
 
     public func setNominalTypeParameterVariances(_ variances: [TypeVariance], for symbol: SymbolID) {

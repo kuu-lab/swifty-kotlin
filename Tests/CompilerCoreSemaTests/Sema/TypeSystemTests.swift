@@ -282,6 +282,82 @@ struct TypeSystemTests {
     }
 
     @Test
+    func testNominalSubtypeClosureInvalidatesOnDirectSupertypeChange() {
+        let ts = TypeSystem()
+        let grandparentSymbol = SymbolID(rawValue: 100)
+        let parentSymbol = SymbolID(rawValue: 101)
+        let childSymbol = SymbolID(rawValue: 102)
+        let grandchildSymbol = SymbolID(rawValue: 103)
+        ts.setNominalDirectSupertypes([grandparentSymbol], for: parentSymbol)
+        ts.setNominalDirectSupertypes([parentSymbol], for: childSymbol)
+        ts.setNominalDirectSupertypes([childSymbol], for: grandchildSymbol)
+
+        let grandparentType = ts.make(.classType(ClassType(classSymbol: grandparentSymbol)))
+        let parentType = ts.make(.classType(ClassType(classSymbol: parentSymbol)))
+        let childType = ts.make(.classType(ClassType(classSymbol: childSymbol)))
+        let grandchildType = ts.make(.classType(ClassType(classSymbol: grandchildSymbol)))
+
+        #expect(ts.isSubtype(grandchildType, grandparentType))
+        #expect(ts.isSubtype(childType, grandparentType))
+        #expect(!(ts.isSubtype(grandparentType, grandchildType)))
+
+        ts.setNominalDirectSupertypes([], for: parentSymbol)
+
+        #expect(!(ts.isSubtype(childType, grandparentType)))
+        #expect(!(ts.isSubtype(grandchildType, grandparentType)))
+        #expect(ts.isSubtype(childType, parentType))
+        #expect(ts.isSubtype(grandchildType, parentType))
+    }
+
+    @Test
+    func testNominalSubtypeClosureInvalidatesOnExpectActualLink() {
+        let ts = TypeSystem()
+        let symbols = SymbolTable()
+        let interner = StringInterner()
+        ts.symbolTable = symbols
+
+        let expectName = interner.intern("ExpectBase")
+        let actualName = interner.intern("ActualBase")
+        let childName = interner.intern("Child")
+        let expectSymbol = symbols.define(
+            kind: .class,
+            name: expectName,
+            fqName: [expectName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.expectDeclaration]
+        )
+        let actualSymbol = symbols.define(
+            kind: .class,
+            name: actualName,
+            fqName: [actualName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.actualDeclaration]
+        )
+        let childSymbol = symbols.define(
+            kind: .class,
+            name: childName,
+            fqName: [childName],
+            declSite: nil,
+            visibility: .public
+        )
+        ts.setNominalDirectSupertypes([expectSymbol], for: childSymbol)
+
+        let childType = ts.make(.classType(ClassType(classSymbol: childSymbol)))
+        let expectType = ts.make(.classType(ClassType(classSymbol: expectSymbol)))
+        let actualType = ts.make(.classType(ClassType(classSymbol: actualSymbol)))
+
+        #expect(ts.isSubtype(childType, expectType))
+        #expect(!(ts.isSubtype(childType, actualType)))
+
+        symbols.setExpectActualLink(expect: expectSymbol, actual: actualSymbol)
+
+        #expect(ts.isSubtype(childType, expectType))
+        #expect(ts.isSubtype(childType, actualType))
+    }
+
+    @Test
     func testAnnotationSubtyping() {
         let ts = TypeSystem()
         let st = SymbolTable()

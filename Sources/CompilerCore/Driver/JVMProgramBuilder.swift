@@ -24,6 +24,12 @@ final class JVMProgramBuilder {
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
     var sourceParameters: [SymbolID: [ValueParamDecl]] = [:]
     var sourceDeclarations: [SymbolID: FunDecl] = [:]
+    // Sema has finished binding declarations before JVM emission begins.
+    lazy var declarationIDsBySymbol: [SymbolID: [DeclID]] = {
+        sema.bindings.declSymbols.reduce(into: [:]) { result, binding in
+            result[binding.value, default: []].append(binding.key)
+        }
+    }()
     var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
@@ -921,7 +927,7 @@ final class JVMFunctionBuilder {
             if let result = try implicitExtensionCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try implicitCollectionIteratorCall(binding.chosenCallee, args: args, id: id) { return result.value }
             if let result = try intrinsicCall(binding.chosenCallee, args: args, id: id) { return result.value }
-            if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.methods[binding.chosenCallee] {
+            if let method = program.methods[binding.chosenCallee] ?? context.jvmImports?.method(for: binding.chosenCallee) {
                 return try foreign(method, receiver: method.isConstructor || method.isStatic ? nil : instance(id), args: args, id: id)
             }
             if let function = program.references[binding.chosenCallee] {

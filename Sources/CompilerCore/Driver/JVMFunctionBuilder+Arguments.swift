@@ -142,12 +142,12 @@ extension JVMFunctionBuilder {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
         let reference = program.references[symbol]
-        let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol]
+        let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol)
         guard reference != nil || method != nil else { return nil }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
-        let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true
+        let extensionCall = program.extensionSymbols.contains(symbol) || context.jvmImports?.isExtension(symbol) == true
         var dispatch: JVMValue?, prefix: [JVMValue] = []
         if constructor, let plan, plan.isLocalNominal, !plan.captures.isEmpty {
             prefix = try localFunctionCaptureValues(plan.captures)

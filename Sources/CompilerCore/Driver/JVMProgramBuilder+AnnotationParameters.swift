@@ -6,7 +6,9 @@ extension JVMProgramBuilder {
     func annotationRecords(for symbol: SymbolID) throws -> [MetadataAnnotationRecord] {
         var records = sema.symbols.annotations(for: symbol)
         var nodes: [(AnnotationNode, String?)] = []
-        if let constructor = classes.values.flatMap({ $0.constructors }).first(where: { $0.0 == symbol }) {
+        if sema.symbols.symbol(symbol)?.kind == .constructor,
+           let owner = sema.symbols.parentSymbol(for: symbol),
+           let constructor = classes[owner]?.constructors.first(where: { $0.0 == symbol }) {
             nodes += constructor.1.annotations.map { ($0, $0.useSiteTarget) }
         }
         if let pair = sema.bindings.primaryConstructorPropertyParameters[symbol] {
@@ -18,9 +20,11 @@ extension JVMProgramBuilder {
                 }
             }
         }
-        let owners = sourceDeclarations.map { ($0.key, $0.value.valueParams) } + classes.values.flatMap { $0.constructors.map { ($0.0, $0.1.valueParams) } }
-        for (owner, parameters) in owners {
-            guard let signature = sema.symbols.functionSignature(for: owner), let index = signature.valueParameterSymbols.firstIndex(of: symbol), parameters.indices.contains(index) else { continue }
+        if let owner = sema.symbols.valueParameterOwner(for: symbol),
+           let parameters = sourceParameters[owner],
+           let signature = sema.symbols.functionSignature(for: owner),
+           let index = signature.valueParameterSymbols.firstIndex(of: symbol),
+           parameters.indices.contains(index) {
             let parameter = parameters[index]
             for node in parameter.annotations where node.useSiteTarget == nil || node.useSiteTarget == "param" {
                 if parameter.isProperty, node.useSiteTarget == nil, let annotation = annotationOwner(node, symbol: symbol), !annotationTargets(annotation).contains("VALUE_PARAMETER") { continue }
@@ -56,8 +60,10 @@ extension JVMProgramBuilder {
             }
         }
         var accessorTargets: [String: String] = [:]
-        for (declaration, boundSymbol) in sema.bindings.declSymbols where boundSymbol == symbol {
+        var isProperty = false
+        for declaration in declarationIDsBySymbol[symbol] ?? [] {
             guard case let .propertyDecl(property)? = ast.arena.decl(declaration) else { continue }
+            isProperty = true
             for annotation in property.annotations + (property.getter?.annotations ?? []) + (property.setter?.annotations ?? []) {
                 if var tokens = annotation.constructionTokens, let last = tokens.last {
                     try rememberRawAnnotationConstruction(annotation, tokens: &tokens, lastToken: last, message: "Unsupported JVM property annotation arguments.")
@@ -83,9 +89,6 @@ extension JVMProgramBuilder {
                 factorySymbol: record.factorySymbol,
                 factoryLinkName: record.factoryLinkName
             )
-        }
-        let isProperty = sema.bindings.declSymbols.contains { id, bound in
-            guard bound == symbol, case .propertyDecl = ast.arena.decl(id) else { return false }; return true
         }
         if isProperty {
             records = records.map { record in

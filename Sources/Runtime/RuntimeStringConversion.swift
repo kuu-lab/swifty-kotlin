@@ -72,20 +72,17 @@ func runtimeNumberFormatInputMessage(_ source: String, radix: Int) -> String {
 func runtimeParseNarrowKotlinInteger<T: FixedWidthInteger & SignedInteger>(
     _ source: String,
     radix: Int,
-    as _: T.Type,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
+    as _: T.Type
+) throws -> Int {
     guard let wide = runtimeParseKotlinInteger(source, radix: radix, as: Int32.self) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
+        throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(
             message: runtimeNumberFormatInputMessage(source, radix: radix)
-        )
-        return 0
+        ))
     }
     guard let value = T(exactly: wide) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
+        throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(
             message: "Value out of range. Value:\"\(source)\" Radix:\(radix)"
-        )
-        return 0
+        ))
     }
     return Int(value)
 }
@@ -111,19 +108,16 @@ private func runtimeStringIntegerOrNullRadix<T: FixedWidthInteger>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     box: (T) -> Int
 ) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: caller)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard (2 ... 36).contains(radix) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36"))
+        }
+        guard let value = runtimeParseKotlinInteger(source, radix: radix, as: T.self) else {
+            return runtimeNullSentinelInt
+        }
+        return box(value)
     }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: T.self) else {
-        return runtimeNullSentinelInt
-    }
-    return box(value)
 }
 
 @_cdecl("__kk_string_toInt")
@@ -271,21 +265,20 @@ private func runtimeParseDouble(_ trimmed: String) -> Double? {
 
 @_cdecl("__kk_string_toDouble")
 public func __kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let trimmed = runtimeTrimJavaWhitespace(source)
-    if trimmed.isEmpty {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "empty String")
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        let trimmed = runtimeTrimJavaWhitespace(source)
+        if trimmed.isEmpty {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "empty String"))
+        }
 
-    guard let parsed = runtimeParseDouble(trimmed) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(trimmed)\""
-        )
-        return 0
+        guard let parsed = runtimeParseDouble(trimmed) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(
+                message: "For input string: \"\(trimmed)\""
+            ))
+        }
+        return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
     }
-    return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
 }
 
 @_cdecl("__kk_string_toDouble_flat")
@@ -405,21 +398,20 @@ public func __kk_string_toLongOrNull_radix(
 
 @_cdecl("__kk_string_toFloat")
 public func __kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let trimmed = runtimeTrimJavaWhitespace(source)
-    if trimmed.isEmpty {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "empty String")
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        let trimmed = runtimeTrimJavaWhitespace(source)
+        if trimmed.isEmpty {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(message: "empty String"))
+        }
 
-    guard let parsed = runtimeParseFloat(trimmed) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(
-            message: "For input string: \"\(trimmed)\""
-        )
-        return 0
+        guard let parsed = runtimeParseFloat(trimmed) else {
+            throw RuntimeThrownHandle(runtimeAllocateNumberFormatException(
+                message: "For input string: \"\(trimmed)\""
+            ))
+        }
+        return runtimeFloatBitsToInt(parsed)
     }
-    return runtimeFloatBitsToInt(parsed)
 }
 
 @_cdecl("__kk_string_toFloatOrNull")
@@ -440,9 +432,10 @@ public func __kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
 
 @_cdecl("__kk_string_toShort")
 public func __kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeParseNarrowKotlinInteger(source, radix: 10, as: Int16.self, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        try runtimeParseNarrowKotlinInteger(source, radix: 10, as: Int16.self)
+    }
 }
 
 @_cdecl("__kk_string_toShortOrNull")
@@ -452,9 +445,10 @@ public func __kk_string_toShortOrNull(_ strRaw: Int) -> Int {
 
 @_cdecl("__kk_string_toByte")
 public func __kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeParseNarrowKotlinInteger(source, radix: 10, as: Int8.self, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        try runtimeParseNarrowKotlinInteger(source, radix: 10, as: Int8.self)
+    }
 }
 
 @_cdecl("__kk_string_toByte_radix")
@@ -463,16 +457,13 @@ public func __kk_string_toByte_radix(
     _ radix: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard (2 ... 36).contains(radix) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36"))
+        }
+        return try runtimeParseNarrowKotlinInteger(source, radix: radix, as: Int8.self)
     }
-    return runtimeParseNarrowKotlinInteger(source, radix: radix, as: Int8.self, outThrown: outThrown)
 }
 
 @_cdecl("__kk_string_toByteOrNull")
