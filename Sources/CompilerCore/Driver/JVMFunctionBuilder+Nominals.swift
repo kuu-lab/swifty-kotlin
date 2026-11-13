@@ -151,6 +151,17 @@ extension JVMFunctionBuilder {
             }
             return JVMIntrinsicResult(value: try jdkCall(plan.name, "copy", method.parameters, method.result, receiver: object, arguments: values, resolved: program.expressionType(id)))
         }
+        if receiver == nil, args.isEmpty,
+           let target = program.sema.bindings.callBinding(for: id)?.chosenCallee,
+           let symbol = program.sema.symbols.symbol(target), symbol.flags.contains(.synthetic),
+           context.interner.resolve(symbol.name) == "values" {
+            let parent = program.sema.symbols.parentSymbol(for: target)
+            let owner = parent.flatMap { program.classes[$0] } ?? self.owner
+            if let owner, let plan = owner.companionOwner.flatMap({ program.classes[$0] }) ?? (owner.isEnum ? owner : nil),
+               plan.isEnum {
+                return JVMIntrinsicResult(value: try jdkCall(plan.name, "values", [], program.enumValuesField(plan).type))
+            }
+        }
         guard let receiver, let name else { return nil }
         let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver)
         let enumPlan = receiverSymbol.flatMap { program.classes[$0] }
