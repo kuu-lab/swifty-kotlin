@@ -770,7 +770,8 @@ struct JVMClassReader {
             for property in properties {
                 guard let getter = methods.first(where: {
                     $0.isStatic && !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor
-                        && $0.parameters.count == (property.receiver == nil ? 0 : 1) && $0.result != .unit
+                        && ($0.parameters.count == (property.receiver == nil ? 0 : 1)
+                            || $0.composePropertyABI(hasReceiver: property.receiver != nil)) && $0.result != .unit
                 }) else { continue }
                 info.kotlinTopLevelProperties.append((property, getter))
             }
