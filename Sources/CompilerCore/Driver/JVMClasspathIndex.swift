@@ -1276,7 +1276,10 @@ final class JVMClasspathIndex {
             source += "external " + functionDeclaration(method) + "\n"
         }
         for method in own where !method.isConstructor && !method.isStatic {
-            if let getter = kotlinProperties[method.name]?.getter, getter.descriptor == method.descriptor {
+            if kotlinProperties.contains(where: { name, property in
+                property.getter.name == method.name && property.getter.descriptor == method.descriptor
+                    && (info.isInterface || method.name == name)
+            }) {
                 continue
             }
             var overrides = overridesParent(method, in: info, visited: [])
