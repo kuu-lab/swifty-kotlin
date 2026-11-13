@@ -40,6 +40,10 @@ struct VisibilityChecker {
             }
             return declarationFileID == accessFileID
         }
+        if let package = symbols.jvmPackageAccess[symbol.id],
+           symbols.jvmFilePackages[accessFileID] != package {
+            return false
+        }
         // A nested declaration cannot expose an owner that is invisible at its
         // use site, for source declarations or imported metadata alike.
         if let parent = symbols.parentSymbol(for: symbol.id),
@@ -161,6 +165,7 @@ struct VisibilityChecker {
     }
 
     func isPublicAPI(_ symbol: SemanticSymbol, allowProtected: Bool = true) -> Bool {
+        if symbols.jvmPackageAccess[symbol.id] != nil { return false }
         if symbol.flags.contains(.constructorVisibilityInherited),
            let parent = symbols.parentSymbol(for: symbol.id),
            let owner = symbols.symbol(parent) {
