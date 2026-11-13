@@ -12,6 +12,8 @@ fun Float.coerceAtMost(maximumValue: Float): Float = if (this > maximumValue) ma
 fun Double.coerceAtLeast(minimumValue: Double): Double = if (this < minimumValue) minimumValue else this
 fun Double.coerceAtMost(maximumValue: Double): Double = if (this > maximumValue) maximumValue else this
 
+public fun <T : Comparable<T>> T.coerceAtLeast(minimumValue: T): T = if (this < minimumValue) minimumValue else this
+
 public fun <T : Comparable<T>> T.coerceIn(minimumValue: T?, maximumValue: T?): T {
     if (minimumValue != null && maximumValue != null && minimumValue > maximumValue) {
         throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
