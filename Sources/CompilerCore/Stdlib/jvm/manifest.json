@@ -270,6 +270,12 @@
       "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
+      "path": "declarations/Utf8Decoding.kt",
+      "virtualPath": "<kswiftk-jvm>/utf8-decoding.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "declarations/StringBuilder.kt",
       "virtualPath": "<kswiftk-jvm>/m19-builder.kt",
       "excludeFromStdlibBuild": false
