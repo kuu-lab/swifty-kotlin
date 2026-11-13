@@ -45,7 +45,7 @@ extension JVMFunctionBuilder {
                 count = size
                 allocated = try allocateArray(type, semantic: program.sema.bindings.exprType(for: id), count: size, id: id)
             } else if case .lambdaLiteral = arena.expr(arg.expr) {
-                initializer = InlineLambda(id: arg.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID)
+                initializer = InlineLambda(id: arg.expr, scopes: scopes, dispatch: thisValue, receiver: extensionValue, contexts: contextualReceivers, returns: inlineReturns, arguments: inlineArguments, lexicalLambda: lambdaID, stack: inlineStack)
             } else if isDirectInlineArrayInitializer(arg.expr) {
                 throw fail("An inline parameter must be invoked inside an array initializer lambda or declared noinline.", arg.expr)
             } else { supplied[index] = (arg.expr, try requireValue(arg.expr)) }
