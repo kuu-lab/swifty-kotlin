@@ -565,6 +565,14 @@ final class JVMClasspathIndex {
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
 
+    func metroClassInfo(_ name: String) -> JVMClassInfo? { hierarchyClasses[name] }
+
+    var metroAnnotatedClasses: [JVMClassInfo] {
+        hierarchyClasses.values.filter {
+            $0.annotations.contains { JVMMetro.annotationDescriptors.contains($0.descriptor) }
+        }.sorted { $0.name < $1.name }
+    }
+
     private(set) var projectsCoroutineContextIsActive = false
 
     func metroFactoryInstance(_ factory: String) -> JVMField? {
