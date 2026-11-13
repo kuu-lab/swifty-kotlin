@@ -1115,7 +1115,7 @@ extension DeclTypeChecker {
         if !property.isVar {
             diagnostics.error(
                 "KSWIFTK-SEMA-0005",
-                "Setter is not allowed for read-only property.",
+                "a 'val' property cannot have a setter.",
                 range: setter.range
             )
         }

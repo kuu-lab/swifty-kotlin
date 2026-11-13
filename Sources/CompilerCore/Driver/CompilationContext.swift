@@ -20,6 +20,8 @@ public final class CompilationContext: @unchecked Sendable {
     public internal(set) var jvmProgram: JVMProgram?
     var jvmImports: JVMClasspathIndex?
     var jvmClasspathArchiveCache: JVMClasspathArchiveCache?
+    var jvmStdlibDeclarationFiles: Set<FileID> = []
+    var deferredJVMInlineBodies: [DeclID: JVMInlineBodySyntax] = [:]
     var jvmRuntimeClassAliases: [String: String] = [:]
     package var androidResourceLink: AndroidResourceLink?
     package var androidResourceClassFiles: [(String, Data)] {

@@ -155,14 +155,14 @@ extension JVMFunctionBuilder {
     func collectionCallIsExtension(_ id: ExprID) -> Bool {
         guard let callee = program.sema.bindings.callBinding(for: id)?.chosenCallee else { return false }
         if program.extensionSymbols.contains(callee)
-            || context.jvmImports?.extensionSymbols.contains(callee) == true {
+            || context.jvmImports?.isExtension(callee) == true {
             return true
         }
         if let entry = program.textLibraryMethods[callee] {
             return entry.extensionReceiver != nil || entry.method.isStatic
         }
         if let method = program.methods[callee] { return method.isStatic }
-        if let method = context.jvmImports?.methods[callee] { return method.isStatic }
+        if let method = context.jvmImports?.method(for: callee) { return method.isStatic }
         return program.references[callee] != nil
     }
 
@@ -835,7 +835,7 @@ extension JVMFunctionBuilder {
     ) throws -> JVMValue? {
         let symbol = binding.chosenCallee
         let isExtension = program.extensionSymbols.contains(symbol)
-            || context.jvmImports?.extensionSymbols.contains(symbol) == true
+            || context.jvmImports?.isExtension(symbol) == true
 
         if let reference = program.references[symbol] {
             let arguments: [JVMValue]
@@ -856,7 +856,7 @@ extension JVMFunctionBuilder {
         }
 
         guard let method = program.methods[symbol]
-            ?? context.jvmImports?.methods[symbol]
+            ?? context.jvmImports?.method(for: symbol)
             ?? program.textLibraryMethods[symbol]?.method
         else {
             return nil

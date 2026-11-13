@@ -1497,6 +1497,24 @@ struct DeclarationPositionValidationTests {
         assertHasDiagnostic("KSWIFTK-SEMA-0427", in: ctx)
     }
 
+    @Test func valPropertySetterReportsKotlincWording() throws {
+        let ctx = try semaContextWithoutStdlib(for: """
+            class C {
+                val x: Int
+                    get() = 1
+                    set(v) {}
+            }
+            """)
+        // kotlinc: "a 'val' property cannot have a setter." at `set`.
+        let diagnostics = ctx.diagnostics.diagnostics
+            .filter { $0.code == "KSWIFTK-SEMA-0005" }
+        #expect(diagnostics.map(\.message) == ["a 'val' property cannot have a setter."])
+        #expect(diagnostics.first?.primaryRange.map {
+            let pos = ctx.sourceManager.lineColumn(of: $0.start)
+            return "\(pos.line):\(pos.column)"
+        } == "4:9")
+    }
+
     // MARK: - Functional interfaces
 
     @Test func funInterfaceWithTwoAbstractFunctionsIsRejected() throws {

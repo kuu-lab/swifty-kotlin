@@ -111,19 +111,16 @@ private func runtimeStringIntegerOrNullRadix<T: FixedWidthInteger>(
     _ outThrown: UnsafeMutablePointer<Int>?,
     box: (T) -> Int
 ) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: caller)
-    guard (2 ... 36).contains(radix) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36")
-        )
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard (2 ... 36).contains(radix) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "radix \(radix) was not in valid range 2..36"))
+        }
+        guard let value = runtimeParseKotlinInteger(source, radix: radix, as: T.self) else {
+            return runtimeNullSentinelInt
+        }
+        return box(value)
     }
-    guard let value = runtimeParseKotlinInteger(source, radix: radix, as: T.self) else {
-        return runtimeNullSentinelInt
-    }
-    return box(value)
 }
 
 @_cdecl("__kk_string_toInt")
