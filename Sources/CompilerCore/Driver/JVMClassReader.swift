@@ -639,11 +639,14 @@ struct JVMClassReader {
         }
         let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
         let defaultMethodNames = Set(defaultArgumentMethods.map { String($0.name.dropLast("$default".count)) })
+        let composableMemberNames = Set(methods.lazy.filter {
+            !$0.isStatic && $0.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+        }.map(\.name))
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, defaultMethodNames: defaultMethodNames) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -655,6 +658,7 @@ struct JVMClassReader {
                           }
                           return candidate.isSuspend == isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
+                                  || method.composeABI(for: candidate) != nil
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (defaultMethodNames.contains(method.name)
                                           && candidate.parameters.contains(where: \.hasDefaultValue)

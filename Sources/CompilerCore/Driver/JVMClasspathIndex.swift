@@ -10,7 +10,7 @@ final class JVMClasspathIndex {
     private(set) var declarationFiles: Set<FileID> = []
     var kotlinMetadataByClass: [String: JVMKotlinClassMetadata] = [:]
     var metadataChecked: Set<String> = []
-    private var extensionSymbols: Set<SymbolID> = []
+    var extensionSymbols: Set<SymbolID> = []
     private weak var boundSymbols: SymbolTable?
     private var methodsByOwnerAndName: [String: [String: [JVMForeignMethod]]] = [:]
     private(set) var classpathStubFiles: Set<FileID> = []
@@ -1554,6 +1554,13 @@ final class JVMClasspathIndex {
             if charSequenceBridged, method.name == "subSequence" { overrides = true }
             if charSequenceBridged, isCharSequenceGet(method) { overrides = true }
             if appendableBridged, isAppendableMember(method) { overrides = true }
+            let composeABI = method.kotlinComposeABI
+            if composeABI != nil {
+                source += "@androidx.compose.runtime.Composable "
+                if method.annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;" }) {
+                    source += "@androidx.compose.runtime.ReadOnlyComposable "
+                }
+            }
             if method.isProtected { source += "protected " }
             if !info.isInterface && method.isFinal { source += "final " }
             source += overrides ? "override " : ""
@@ -1566,7 +1573,8 @@ final class JVMClasspathIndex {
             let usesErasedOverride = overrides
                 && (method.kotlinFunction?.isGenericFinalGetter == true || method.kotlinFunction?.hasStableFinalParameters == true)
             source += functionDeclaration(
-                method, acceptsDefaults: !usesErasedOverride && defaultArgumentMethod(for: method, in: info) != nil,
+                method, acceptsDefaults: !usesErasedOverride
+                    && (composeABI?.defaults == 1 || defaultArgumentMethod(for: method, in: info) != nil),
                 usesKotlinMetadata: !usesErasedOverride
             )
             let hasKotlinDefaultBody = kotlinFunction(method)?.isAbstract == false
@@ -2512,6 +2520,23 @@ final class JVMClasspathIndex {
             }
             if mangledMembers.count == 1 {
                 methods[symbol.id] = mangledMembers[0]
+                return
+            }
+        }
+        if !staticMember {
+            let names = signature.valueParameterSymbols.map { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
+            let composeMethods = candidates.filter {
+                !$0.isStatic && $0.sourceName == name && $0.kotlinComposeABI != nil
+                    && $0.kotlinFunction?.parameters.map(\.name) == names
+                    && zip($0.parameters, descriptorTypes).allSatisfy { $0.descriptor == $1.descriptor
+                        || $0.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
+                            && $1.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true }
+            }
+            if composeMethods.count == 1, let method = composeMethods.first {
+                methods[symbol.id] = method
+                if hasComposableLambdaFactory, let function = method.kotlinFunction {
+                    importedComposableParameters[symbol.id] = function.composableParameters
+                }
                 return
             }
         }
