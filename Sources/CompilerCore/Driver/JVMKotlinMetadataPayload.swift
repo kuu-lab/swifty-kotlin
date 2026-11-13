@@ -557,7 +557,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = []) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -620,7 +620,8 @@ struct JVMKotlinMetadataPayload {
             let parameterMessages = try function.messages(6)
             let isGenericFinalGetter = isFileFacade != true && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
-            let hasStableFinalParameters = isFileFacade != true && isFinal && receiver == nil && contextParameters.isEmpty
+            let hasStableMemberParameters = isFileFacade != true && (isFinal || metroFactory)
+                && receiver == nil && contextParameters.isEmpty
                 && !parameterMessages.isEmpty && flags & (1 << 15) == 0
                 && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
             var parameters: [JVMKotlinFunction.Parameter] = []
@@ -658,14 +659,14 @@ struct JVMKotlinMetadataPayload {
             } else {
                 nil
             }
-            let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
-                && parameters.allSatisfy { parameter in
+            let hasStableParameters = hasStableMemberParameters && !isMangledMember
+                && (metroFactory || parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
-                }
+                })
             guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator || isSubList
-                || isGenericFinalGetter || isMangledMember || hasStableScalarParameters else { continue }
+                || isGenericFinalGetter || isMangledMember || hasStableParameters else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
             if isValueOperator || isMangledMember {
@@ -712,7 +713,7 @@ struct JVMKotlinMetadataPayload {
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
                 mangledExtensionReceiverDescriptor: mangledExtensionReceiverDescriptor,
                 isGenericFinalGetter: isGenericFinalGetter,
-                hasStableFinalParameters: hasStableScalarParameters
+                hasStableFinalParameters: hasStableParameters
             ))
         }
         return result
