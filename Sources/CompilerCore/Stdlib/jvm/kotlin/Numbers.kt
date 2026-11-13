@@ -1,6 +1,8 @@
 @file:kotlin.jvm.JvmName("NumbersKt")
 package kotlin
 
+public inline operator fun Int.dec(): Int = this - 1
+
 public inline fun Double.isNaN(): Boolean = this != this
 public inline fun Float.isNaN(): Boolean = this != this
 

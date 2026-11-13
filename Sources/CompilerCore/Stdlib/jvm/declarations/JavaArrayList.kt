@@ -6,7 +6,7 @@ class ArrayList<T>: kotlin.collections.MutableList<T> {
     override fun contains(element: T): Boolean = false
     override fun containsAll(elements: kotlin.collections.Collection<out T>): Boolean = false
     override fun iterator(): kotlin.collections.Iterator<T> = null!!
-    override fun get(index: Int): T = null!!
+    override operator fun get(index: Int): T = null!!
     override fun indexOf(element: T): Int = -1
     override fun lastIndexOf(element: T): Int = -1
     override fun listIterator(): kotlin.collections.MutableListIterator<T> = null!!
