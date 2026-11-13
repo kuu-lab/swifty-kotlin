@@ -1,11 +1,13 @@
 package kotlin.coroutines.jvm.internal
 import kotlin.coroutines.*
-abstract class ContinuationImpl(completion: Continuation<Any?>?): BaseContinuationImpl(completion) {
-    private var providedContext: CoroutineContext? = null
+abstract class ContinuationImpl(
+    completion: Continuation<Any?>?,
+    private val providedContext: CoroutineContext?
+): BaseContinuationImpl(completion) {
     private var cachedInterception: Continuation<Any?>? = null
 
-    constructor(completion: Continuation<Any?>?, context: CoroutineContext): this(completion) { providedContext = context }
-    override val context: CoroutineContext get() = providedContext ?: super.context
+    constructor(completion: Continuation<Any?>?): this(completion, completion?.context)
+    override val context: CoroutineContext get() = providedContext!!
 
     fun intercepted(): Continuation<Any?> {
         val cached = cachedInterception
