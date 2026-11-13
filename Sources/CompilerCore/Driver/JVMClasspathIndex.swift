@@ -25,6 +25,7 @@ final class JVMClasspathIndex {
     var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var glanceActivityFile: FileID?
+    var oneTimeWorkRequestBuilderFile: FileID?
     var composeContentSymbols: Set<SymbolID> = []
 
     private(set) var fallbackClassFiles: [(String, Data)] = []
@@ -524,7 +525,7 @@ final class JVMClasspathIndex {
     }
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
-        if method.isReifiedGlanceAction { return false }
+        if method.isReifiedGlanceAction || method.isReifiedWorkBuilder { return false }
         let exposedName = method.sourceName
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
@@ -700,6 +701,14 @@ final class JVMClasspathIndex {
     }
 
     private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
+        let workBuilder = "androidx/work/OneTimeWorkRequest$Builder"
+        let workParent = "androidx/work/WorkRequest$Builder"
+        let workRequest = "androidx/work/OneTimeWorkRequest"
+        if name == workParent, child.name == workBuilder,
+           child.genericSignature?.contains("L\(workParent)<L\(workBuilder);L\(workRequest);>;") == true {
+            return Self.dottedTypeName(workParent) + "<" + Self.dottedTypeName(workBuilder)
+                + ", " + Self.dottedTypeName(workRequest) + ">()"
+        }
         guard let type = supertypeReference(name, childParams: child.classTypeParameterNames) else { return nil }
         // The covered class keeps its Kotlin constructor instead of the
         // placeholder no-argument constructor used by ordinary JVM stubs.
@@ -1024,6 +1033,7 @@ final class JVMClasspathIndex {
         defer { overrideSignaturesByOwner.removeAll() }
         injectComposeUIContracts(into: ctx)
         injectGlanceActivityAction(into: ctx)
+        injectOneTimeWorkRequestBuilder(into: ctx)
         let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
             entry.method.owner + "." + entry.method.name + entry.method.descriptor
         })
@@ -2008,7 +2018,8 @@ final class JVMClasspathIndex {
         if asExtension, let type = method.sourceParameters.first {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
-        let result = method.genericResultParameter.map { "`\($0.name)`" }
+        let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
+            ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
