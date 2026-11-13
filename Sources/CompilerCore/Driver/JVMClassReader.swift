@@ -774,7 +774,7 @@ struct JVMClassReader {
         info.genericSignature = classAttributes.signature
         info.genericSupertypeSignatures = classSignature.supertypes
         info.metroAccessors = metroAccessors
-        if info.isInterface, !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+        if !info.classTypeParameterNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
