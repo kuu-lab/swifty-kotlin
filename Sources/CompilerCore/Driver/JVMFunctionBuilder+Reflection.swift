@@ -89,7 +89,7 @@ extension JVMFunctionBuilder {
         let ref = program.references[symbol]
         guard method != nil || ref != nil else { throw fail("Unsupported JVM callable reference target.", id) }
         let constructor = method?.isConstructor == true
-        let isExtension = program.extensionSymbols.contains(symbol) || sourceBacked?.extensionReceiver != nil
+        let isExtension = program.extensionSymbols.contains(symbol) || context.jvmImports?.extensionSymbols.contains(symbol) == true || sourceBacked?.extensionReceiver != nil
         let ownerName = ref?.owner ?? method!.owner
         let staticTarget = ref != nil || method?.isStatic == true
         let bound = !unbound && !constructor && (!staticTarget || isExtension) ? try receiver.map(requireValue) ?? instance(id) : nil
