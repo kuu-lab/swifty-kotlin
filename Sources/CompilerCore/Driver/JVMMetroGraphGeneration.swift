@@ -39,13 +39,13 @@ extension JVMProgramBuilder {
                 bindings[key, default: []].append(JVMMetroBinding(recipe: .input(field), type: field.type, scope: nil))
             }
             let emitter = JVMMetroBindingEmitter(
-                program: self, graph: graph, implementation: implementation, range: graph.interface!.range,
-                scopes: Set([scope].compactMap { $0 } + additionalScopes), bindings: bindings
+                program: self, implementation: implementation, range: graph.interface!.range,
+                scopes: Set([scope].compactMap { $0 } + additionalScopes), bindings: bindings, graphInterface: graph.name
             )
-            let entries = try metroGraphMethods(graph).map { method in
+            let entries = try metroGraphMethods(graph.name, range: graph.interface?.range).map { method in
                 try emitter.entry(method, key: metroBindingKey(method.metroTypes.result, annotations: method.annotations))
             }
-            var graphClass = rawClass(implementation, interfaces: [graph.name], access: 0x0031,
+            var graphClass = rawClass(implementation, interfaces: [graph.name] + emitter.extensionInterfaces, access: 0x0031,
                                       functions: [metroConstructor(implementation, fields: fields)] + entries + emitter.methods,
                                       fields: fields + emitter.fields)
             graphClass.outerName = graph.name
@@ -57,9 +57,9 @@ extension JVMProgramBuilder {
         }
     }
 
-    private func metroGraphMethods(_ graph: JVMClassPlan) throws -> [JVMForeignMethod] {
+    func metroGraphMethods(_ graph: String, range: SourceRange?) throws -> [JVMForeignMethod] {
         var entries: [String: JVMForeignMethod] = [:]
-        var pending = [graph.name]
+        var pending = [graph]
         var visited: Set<String> = []
         while let owner = pending.popLast() {
             guard visited.insert(owner).inserted else { continue }
@@ -91,8 +91,8 @@ extension JVMProgramBuilder {
         let methods = entries.values.filter(\.isAbstract).sorted { jvmMemberKey($0) < jvmMemberKey($1) }
         for method in methods where method.isSuspend || !method.parameters.isEmpty || method.result == .unit {
             throw JVMFrontendError(
-                message: "Unsupported Metro graph entry \(graph.name).\(method.name)\(method.descriptor).",
-                range: graph.interface?.range
+                message: "Unsupported Metro graph entry \(graph).\(method.name)\(method.descriptor).",
+                range: range
             )
         }
         return methods
