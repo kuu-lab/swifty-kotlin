@@ -44,80 +44,85 @@ public func kk_mutable_collection_retainAll_checked(_ raw: Int, _ argument: Int,
 
 @_cdecl("__kk_mutable_list_addAll_checked")
 public func kk_mutable_list_addAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
-    if runtimeListBox(from: raw) == nil {
-        return runtimeSourceInterfaceCall1(
-            raw, argument,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 4,
-            context: "MutableList.addAll dispatch",
-            outThrown: outThrown
-        ) ?? kk_box_bool(0)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
+        if runtimeListBox(from: raw) == nil {
+            return runtimeSourceInterfaceCall1(
+                raw, argument,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 4,
+                context: "MutableList.addAll dispatch",
+                outThrown: outThrown
+            ) ?? kk_box_bool(0)
+        }
+        return kk_mutable_list_addAll(raw, argument)
     }
-    return kk_mutable_list_addAll(raw, argument)
 }
 
 @_cdecl("__kk_mutable_list_remove_checked")
 public func kk_mutable_list_remove_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
-    if runtimeListBox(from: raw) == nil {
-        return runtimeSourceInterfaceCall1(
-            raw, argument,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 7,
-            context: "MutableList.remove dispatch",
-            outThrown: outThrown
-        ) ?? kk_box_bool(0)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
+        if runtimeListBox(from: raw) == nil {
+            return runtimeSourceInterfaceCall1(
+                raw, argument,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 7,
+                context: "MutableList.remove dispatch",
+                outThrown: outThrown
+            ) ?? kk_box_bool(0)
+        }
+        return kk_mutable_list_remove_dispatch(raw, argument, outThrown)
     }
-    return kk_mutable_list_remove_dispatch(raw, argument, outThrown)
 }
 
 @_cdecl("__kk_mutable_list_clear_checked")
 public func kk_mutable_list_clear_checked(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
-    if runtimeListBox(from: raw) == nil {
-        return runtimeSourceInterfaceCall0(
-            raw,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 8,
-            context: "MutableList.clear dispatch",
-            outThrown: outThrown
-        ) ?? 0
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
+        if runtimeListBox(from: raw) == nil {
+            return runtimeSourceInterfaceCall0(
+                raw,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 8,
+                context: "MutableList.clear dispatch",
+                outThrown: outThrown
+            ) ?? 0
+        }
+        return kk_mutable_list_clear(raw)
     }
-    return kk_mutable_list_clear(raw)
 }
 
 @_cdecl("__kk_mutable_list_removeAll_checked")
 public func kk_mutable_list_removeAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
-    if runtimeListBox(from: raw) == nil {
-        return runtimeSourceInterfaceCall1(
-            raw, argument,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 9,
-            context: "MutableList.removeAll dispatch",
-            outThrown: outThrown
-        ) ?? kk_box_bool(0)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
+        if runtimeListBox(from: raw) == nil {
+            return runtimeSourceInterfaceCall1(
+                raw, argument,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 9,
+                context: "MutableList.removeAll dispatch",
+                outThrown: outThrown
+            ) ?? kk_box_bool(0)
+        }
+        return kk_mutable_list_removeAll(raw, argument)
     }
-    return kk_mutable_list_removeAll(raw, argument)
 }
 
 @_cdecl("__kk_mutable_list_retainAll_checked")
 public func kk_mutable_list_retainAll_checked(_ raw: Int, _ argument: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
-    if runtimeListBox(from: raw) == nil {
-        return runtimeSourceInterfaceCall1(
-            raw, argument,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 10,
-            context: "MutableList.retainAll dispatch",
-            outThrown: outThrown
-        ) ?? kk_box_bool(0)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(raw, outThrown) else { return 0 }
+        if runtimeListBox(from: raw) == nil {
+            return runtimeSourceInterfaceCall1(
+                raw, argument,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 10,
+                context: "MutableList.retainAll dispatch",
+                outThrown: outThrown
+            ) ?? kk_box_bool(0)
+        }
+        return kk_mutable_list_retainAll(raw, argument)
     }
-    return kk_mutable_list_retainAll(raw, argument)
 }
