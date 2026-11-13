@@ -12,10 +12,26 @@ enum JVMMetro: String {
     static let graph = "L" + package + "DependencyGraph;"
     static let factory = "L" + package + "DependencyGraph$Factory;"
     static let provides = "L" + package + "Provides;"
+    static let inject = "L" + package + "Inject;"
+    static let singleIn = "L" + package + "SingleIn;"
+    static let qualifier = "L" + package + "Qualifier;"
+    static let contributesTo = "L" + package + "ContributesTo;"
+    static let contributesBinding = "L" + package + "ContributesBinding;"
+    static let contributesIntoSet = "L" + package + "ContributesIntoSet;"
+    static let binds = "L" + package + "Binds;"
+    static let intoSet = "L" + package + "IntoSet;"
+    static let graphExtension = "L" + package + "GraphExtension;"
+    static let extensionFactory = "L" + package + "GraphExtension$Factory;"
+    static let contribution = "L" + package + "internal/MetroContribution;"
+    static let origin = "L" + package + "Origin;"
     static let implementation = "L" + package + "internal/MetroImplMarker;"
     static let provider = "L" + package + "internal/CallableMetadata;"
     static let invoke = "L" + package + "internal/GraphFactoryInvokeFunctionMarker;"
-    static let annotationDescriptors: Set<String> = [graph, factory, implementation, provider, invoke]
+    static let annotationDescriptors: Set<String> = [
+        graph, factory, implementation, provider, invoke, provides, inject, singleIn, qualifier,
+        contributesTo, contributesBinding, contributesIntoSet, binds, intoSet, graphExtension, extensionFactory,
+        contribution, "L" + package + "BindingContainer;", origin,
+    ]
 
     static let sourcePath = "<kswiftk-jvm-import>/metro-intrinsics.kt"
     static let source = """
