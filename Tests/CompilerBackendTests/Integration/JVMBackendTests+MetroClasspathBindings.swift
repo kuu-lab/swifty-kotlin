@@ -22,6 +22,10 @@ extension JVMBackendTests {
                 "Binds": "",
                 "IntoSet": "",
                 "Origin": "Class<?> value();",
+                "GraphExtension": """
+                Class<?> scope();
+                @Retention(RetentionPolicy.RUNTIME) @interface Factory {}
+                """,
             ]
             var files: [String] = []
             for (name, body) in annotations.sorted(by: { $0.key < $1.key }) {
@@ -55,6 +59,8 @@ extension JVMBackendTests {
                 import java.lang.annotation.*;
                 public final class Library {
                     public static final class Scope {}
+                    public static final class ChildScope {}
+                    public static final class ScreenScope {}
                     @Qualifier @Retention(RetentionPolicy.RUNTIME) public @interface Qualified {}
                     @ContributesTo(scope=Scope.class)
                     public interface Providers {
@@ -64,6 +70,18 @@ extension JVMBackendTests {
                         default int size(java.util.Set<? extends Message> messages) { return messages.size(); }
                     }
                     public interface Message { String text(); }
+                    @GraphExtension(scope=ChildScope.class)
+                    public interface Child {
+                        Message message();
+                        Screen.Factory screens();
+                    }
+                    @GraphExtension(scope=ScreenScope.class)
+                    public interface Screen {
+                        long number();
+                        Message message();
+                        @GraphExtension.Factory @ContributesTo(scope=ChildScope.class)
+                        interface Factory { Screen open(@Provides long number); }
+                    }
                     @Inject @SingleIn(scope=Scope.class) @ContributesBinding(scope=Scope.class) @ContributesIntoSet(scope=Scope.class)
                     public static final class Implementation implements Message {
                         private final String text;
@@ -95,6 +113,7 @@ extension JVMBackendTests {
                 val message: Library.Message
                 val implementation: Library.Implementation
                 val count: Int
+                val child: Library.Child
                 @DependencyGraph.Factory
                 interface Factory { fun create(@Provides input: String): Graph }
             }
@@ -107,13 +126,17 @@ extension JVMBackendTests {
                 println(first.message === first.implementation)
                 println(first.message === second.message)
                 println(first.count)
+                val child = first.child
+                val screen = child.screens().open(19L)
+                println(screen.number())
+                println(screen.message() === first.message && child.message() === first.message)
             }
             """
             let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: [classpath])
             try #require(exit == 0, "\(diagnostics.map(\.message))")
             let run = try java(["-cp", app.path + ":" + classpath, "MainKt"])
             #expect(run.exitCode == 0, "\(run.stderr)")
-            #expect(run.stdout == "first!\nsecond!\ntrue\nfalse\n1\n")
+            #expect(run.stdout == "first!\nsecond!\ntrue\nfalse\n1\n19\ntrue\n")
         }
     }
 }
