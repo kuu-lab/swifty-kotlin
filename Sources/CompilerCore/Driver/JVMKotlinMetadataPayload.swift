@@ -49,6 +49,7 @@ struct JVMKotlinFunction {
     var isInfix = false
     var valueOperatorParameterDescriptors: [String]?
     var mangledMemberParameterDescriptors: [String]?
+    var mangledExtensionReceiverDescriptor: String?
     var isGenericFinalGetter = false
     var hasStableFinalParameters = false
 
@@ -633,6 +634,12 @@ struct JVMKotlinMetadataPayload {
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
             let isMangledMember = isFileFacade != true && receiver == nil && contextParameters.isEmpty
                 && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
+            let mangledExtensionReceiverDescriptor: String? = if isFileFacade != true, contextParameters.isEmpty,
+                jvmName?.hasPrefix(name + "-") == true, let receiver {
+                try Self.resultType(receiver, types: types, names: names)?.descriptor
+            } else {
+                nil
+            }
             let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
                 && parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
@@ -685,6 +692,7 @@ struct JVMKotlinMetadataPayload {
                 isInfix: isInfix,
                 valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
+                mangledExtensionReceiverDescriptor: mangledExtensionReceiverDescriptor,
                 isGenericFinalGetter: isGenericFinalGetter,
                 hasStableFinalParameters: hasStableScalarParameters
             ))
