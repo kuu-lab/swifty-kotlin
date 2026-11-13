@@ -131,6 +131,9 @@ extension JVMFunctionBuilder {
         if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
         if let binding, let action = try importedGlanceActivityAction(binding, args: args, id: id) { return action }
         if let binding, let builder = try importedOneTimeWorkRequestBuilder(binding, id: id) { return builder }
+        if let binding, let service = try importedContextService(binding, receiver: receiver, receiverValue: receiverValue, id: id) {
+            return service
+        }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
