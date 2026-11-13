@@ -143,6 +143,22 @@ struct JVMKotlinMetadata {
         return result
     }
 
+    func parameterizedSupertypes(byteLimit: Int) throws -> [String: String] {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return [:] }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        var result: [String: String] = [:]
+        for type in inline + indexed where type.type.has(2) {
+            guard let name = try names.resolve(type.type.int32(6)), !name.hasPrefix("kotlin/"),
+                  let source = try Self.sourceType(type, types: types, names: names) else { continue }
+            result[name] = source
+        }
+        return result
+    }
+
     func comparableSupertype(byteLimit: Int) throws -> String? {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return nil }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -492,7 +508,10 @@ struct JVMKotlinMetadata {
     }
 
     /// Recover function types and top-level extension receivers from Kotlin metadata.
-    func functions(byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false) throws -> [JVMKotlinFunction] {
+    func functions(
+        byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false,
+        functionTypeMemberNames: Set<String> = []
+    ) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
         let classTypes = try TypeTable(declaration.message(30))
@@ -516,7 +535,9 @@ struct JVMKotlinMetadata {
             }
             var types = try function.message(30).map(TypeTable.init) ?? classTypes
             let isFinal = (flags >> 4) & 3 == 0
-            if isInfix || isSubList || isFinal { types.parameterNames = ownerTypeParameters }
+            if isInfix || isSubList || isFinal || functionTypeMemberNames.contains(jvmName ?? name) {
+                types.parameterNames = ownerTypeParameters
+            }
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
