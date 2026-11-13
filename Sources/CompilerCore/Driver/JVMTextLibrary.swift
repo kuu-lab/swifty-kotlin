@@ -408,6 +408,14 @@ extension JVMFunctionBuilder {
             if context.interner.resolve(property.name) == "length" { return size }
             let result = try value(.int); instructions.append(.binary(.subtract, size, try constant(.int(1), .int), result)); return result
         }
+        if let declaration = program.sema.bindings.declSymbols.first(where: { $0.value == symbol })?.key,
+           case let .propertyDecl(property) = arena.decl(declaration), property.modifiers.contains(.const),
+           let site = program.sema.symbols.symbol(symbol)?.declSite,
+           context.sourceManager.path(of: site.start.file).hasPrefix("<kswiftk-jvm-import>/"),
+           let initializer = property.initializer,
+           case let .constant(literal) = try program.annotationConstant(initializer) {
+            return try constant(literal, program.expressionType(id))
+        }
         guard let method = program.textLibraryProperties[symbol] ?? context.jvmImports?.importedTopLevelGetters[symbol] else { return nil }
         if method.isStatic {
             if method.parameters.isEmpty {

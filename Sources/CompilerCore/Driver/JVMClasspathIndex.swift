@@ -210,6 +210,7 @@ final class JVMClasspathIndex {
                 for method in part.methods where method.isStatic && (method.kotlinFunction != nil || method.kotlinSuspendFunction != nil) {
                     methods[method.name + method.descriptor] = method
                 }
+                facade.kotlinTopLevelConstants.merge(part.kotlinTopLevelConstants) { existing, _ in existing }
                 for (source, method) in part.kotlinTopLevelProperties {
                     if let getter = facade.methods.first(where: {
                         $0.isStatic && $0.name == method.name && $0.descriptor == method.descriptor
@@ -501,6 +502,7 @@ final class JVMClasspathIndex {
             imported.kotlinAnnotationVarargElementNames = info.kotlinAnnotationVarargElementNames
             imported.kotlinStaticProperties = info.kotlinStaticProperties
             imported.kotlinMemberProperties = info.kotlinMemberProperties
+            imported.kotlinTopLevelConstants = info.kotlinTopLevelConstants
             imported.kotlinTopLevelProperties = info.kotlinTopLevelProperties
             classes[info.name] = imported
         }
@@ -1169,6 +1171,12 @@ final class JVMClasspathIndex {
                         source += "external fun \(kotlinType(receiver)).`\(method.name)`(\(rest)): \(kotlinType(method.result))\n"
                     }
                 }
+                for field in info.fields {
+                    if let name = info.kotlinTopLevelConstants[field.name],
+                       let declaration = constantFieldDeclaration(field, sourceName: name) {
+                        source += declaration
+                    }
+                }
                 for (property, _) in topLevelProperties {
                     let receiver = property.receiver.map { $0 + "." } ?? ""
                     source += "val \(receiver)`\(property.name)`: \(property.result) get() = null!!\n"
@@ -1601,67 +1609,13 @@ final class JVMClasspathIndex {
                     + (hasJavaMethod ? "`\(javaName)`()" : "null!!") + "\n"
             }
         }
-        /// `static final` fields with a `ConstantValue` attribute render as
-        /// Kotlin `const val`s inside the companion object, matching how
-        /// kotlinc exposes Java constants (e.g. `LinearLayout.VERTICAL`).
-        func constantField(_ field: JVMForeignField) -> String? {
-            guard field.isStatic, field.isFinal, field.isPublic,
-                  field.constantValue != nil, JVMProgramBuilder.isIdentifier(field.name),
-                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
-                  expose(type) else { return nil }
-            let kotlin = kotlinType(type)
-            let literal: String
-            switch (field.constantValue!, kotlin) {
-            case (.int(let v), "kotlin.Boolean"): literal = v != 0 ? "true" : "false"
-            case (.int(let v), "kotlin.Char"): literal = String(format: "'\\u%04X'", UInt32(bitPattern: v))
-            case (.int(let v), let t) where ["kotlin.Byte", "kotlin.Short", "kotlin.Int"].contains(t):
-                literal = String(v)
-            case (.long(let v), "kotlin.Long"):
-                // The magnitude of Int64.min cannot be parsed as a signed literal.
-                literal = v == Int64.min ? "kotlin.Long.MIN_VALUE" : String(v)
-            case (.float(let v), "kotlin.Float") where v.isFinite:
-                literal = "\(v)f"
-            case (.double(let v), "kotlin.Double") where v.isFinite:
-                literal = "\(v)"
-            case (.string(let s), "kotlin.String"):
-                var escaped = "\""
-                for scalar in s.unicodeScalars {
-                    switch scalar {
-                    case "\\": escaped += "\\\\"
-                    case "\"": escaped += "\\\""
-                    case "\n": escaped += "\\n"
-                    case "\r": escaped += "\\r"
-                    case "\t": escaped += "\\t"
-                    case "$": escaped += "\\$"
-                    default: escaped.unicodeScalars.append(scalar)
-                    }
-                }
-                literal = escaped + "\""
-            default: return nil
-            }
-            return "const val `\(field.name)`: \(kotlin) = \(literal)\n"
+        let constantFields = info.fields.compactMap { constantFieldDeclaration($0, sourceName: $0.name) }
+        let runtimeFields = info.fields.compactMap { field -> String? in
+            guard let type = runtimeStaticFieldType(field, in: info) else { return nil }
+            let keyword = field.isFinal ? "val" : "var"
+            let setter = field.isFinal ? "" : " set(value) {}"
+            return "\(keyword) `\(field.name)`: \(kotlinType(type)) get() = null!!\(setter)\n"
         }
-        let constantFields = info.fields.compactMap(constantField)
-        let constantFieldKeys = Set(info.fields.compactMap { field in
-            constantField(field) == nil ? nil : field.name + "\u{1F}" + field.descriptor
-        })
-        /// Static fields without a usable `ConstantValue` still name a real
-        /// classfile field, so expose them as companion properties for the
-        /// backend to bind to `getstatic`/`putstatic`.
-        func runtimeField(_ field: JVMForeignField) -> String? {
-            guard field.isStatic, field.isPublic, field.access & 0x1000 == 0,
-                  JVMProgramBuilder.isIdentifier(field.name),
-                  field.descriptor != "L\(info.name)$\(field.name);",
-                  !constantFieldKeys.contains(field.name + "\u{1F}" + field.descriptor),
-                  let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
-                  expose(type) else { return nil }
-            let kotlin = kotlinType(type)
-            if field.isFinal {
-                return "val `\(field.name)`: \(kotlin) get() = null!!\n"
-            }
-            return "var `\(field.name)`: \(kotlin) get() = null!! set(value) {}\n"
-        }
-        let runtimeFields = info.fields.compactMap(runtimeField)
         let companion = allowsCompanion ? kotlinCompanion(of: info) : nil
         if allowsCompanion, metadata?.companion == nil, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
@@ -1711,6 +1665,53 @@ final class JVMClasspathIndex {
             source += "}\n"
         }
         return source
+    }
+
+    private func constantFieldDeclaration(_ field: JVMForeignField, sourceName: String) -> String? {
+        guard field.isStatic, field.isFinal, field.isPublic,
+              let constant = field.constantValue, JVMProgramBuilder.isIdentifier(sourceName),
+              let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+              expose(type) else { return nil }
+        let kotlin = kotlinType(type)
+        let literal: String
+        switch (constant, kotlin) {
+        case (.int(let v), "kotlin.Boolean"): literal = v != 0 ? "true" : "false"
+        case (.int(let v), "kotlin.Char"): literal = String(format: "'\\u%04X'", UInt32(bitPattern: v))
+        case (.int(let v), let t) where ["kotlin.Byte", "kotlin.Short", "kotlin.Int"].contains(t):
+            literal = String(v)
+        case (.long(let v), "kotlin.Long"):
+            // The magnitude of Int64.min cannot be parsed as a signed literal.
+            literal = v == Int64.min ? "kotlin.Long.MIN_VALUE" : String(v)
+        case (.float(let v), "kotlin.Float") where v.isFinite:
+            literal = "\(v)f"
+        case (.double(let v), "kotlin.Double") where v.isFinite:
+            literal = "\(v)"
+        case (.string(let s), "kotlin.String"):
+            var escaped = "\""
+            for scalar in s.unicodeScalars {
+                switch scalar {
+                case "\\": escaped += "\\\\"
+                case "\"": escaped += "\\\""
+                case "\n": escaped += "\\n"
+                case "\r": escaped += "\\r"
+                case "\t": escaped += "\\t"
+                case "$": escaped += "\\$"
+                default: escaped.unicodeScalars.append(scalar)
+                }
+            }
+            literal = escaped + "\""
+        default: return nil
+        }
+        return "const val `\(sourceName)`: \(kotlin) = \(literal)\n"
+    }
+
+    private func runtimeStaticFieldType(_ field: JVMForeignField, in info: JVMClassInfo) -> JVMValueType? {
+        guard info.isRuntimeStaticField(field), JVMProgramBuilder.isIdentifier(field.name),
+              field.descriptor != "L\(info.name)$\(field.name);",
+              let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+              expose(type) || field.isFinal && type.referenceName.map(Self.jdkToKotlinTypeNames.keys.contains) == true
+        else { return nil }
+        return type
     }
 
     // MARK: - Lazy classpath injection
@@ -1840,7 +1841,7 @@ final class JVMClasspathIndex {
             // Imports name Kotlin callables by package, not their JVM facade.
             if let info = classes[name], info.isKotlinFileFacade == true, !isCovered(name, covered: covered) {
                 let functions = Set(info.methods.filter { $0.isStatic && isExposed($0) }.map(\.sourceName)
-                    + info.kotlinTopLevelProperties.map { $0.source.name })
+                    + info.kotlinTopLevelProperties.map { $0.source.name } + info.kotlinTopLevelConstants.values)
                 for function in functions {
                     facadesByCallable[package + "." + function, default: []].append(name)
                     lazyCallablesByPackage[package, default: []].append((function, name))
@@ -2448,7 +2449,7 @@ final class JVMClasspathIndex {
             for file in ast.files {
                 if let getters = kotlinFacadeGetters[file.fileID] {
                     let properties = file.topLevelDecls.filter { declaration in
-                        if case .propertyDecl = ast.arena.decl(declaration) { return true }
+                        if case let .propertyDecl(property) = ast.arena.decl(declaration) { return !property.modifiers.contains(.const) }
                         return false
                     }
                     if properties.count == getters.count {
