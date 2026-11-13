@@ -644,7 +644,7 @@ struct JVMKotlinMetadata {
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
                 })
-            guard valid, composableMemberNames.contains(jvmName ?? name) || hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList
+            guard valid, composableMemberNames.contains(jvmName ?? name) || hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isOperator || isSubList
                 || isGenericFinalGetter || isMangledMember || hasStableParameters || hasMemberDefaults else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?

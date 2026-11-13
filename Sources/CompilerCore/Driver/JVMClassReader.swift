@@ -648,7 +648,7 @@ struct JVMClassReader {
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (defaultMethodNames.contains(method.name)
                                           && candidate.parameters.contains(where: \.hasDefaultValue)
-                                          || candidate.isInfix || hasReadOnlyListSupertype
+                                          || candidate.isInfix || candidate.isOperator || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
                                           || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
