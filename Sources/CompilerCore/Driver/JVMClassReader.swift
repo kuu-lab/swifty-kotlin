@@ -630,7 +630,7 @@ struct JVMClassReader {
            let functions = try? metadata.functions(
                byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype,
                functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), defaultMethodNames: defaultMethodNames,
-               composableMemberNames: composableMemberNames, metroFactory: isMetroFactory
+               composableMemberNames: composableMemberNames, metroFactory: isMetroFactory, ownerIsInterface: flags & 0x0200 != 0
            ) {
             for index in methods.indices {
                 let method = methods[index]
@@ -656,7 +656,7 @@ struct JVMClassReader {
                                           && candidate.parameters.contains(where: \.hasDefaultValue)
                                           || candidate.isInfix || candidate.isOperator || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
-                                          || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
+                                          || candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.parameters.count + candidate.leadingParameterCount == method.parameters.count

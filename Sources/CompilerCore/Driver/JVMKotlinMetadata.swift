@@ -536,7 +536,7 @@ struct JVMKotlinMetadata {
     func functions(
         byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false,
         functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [],
-        composableMemberNames: Set<String> = [], metroFactory: Bool = false
+        composableMemberNames: Set<String> = [], metroFactory: Bool = false, ownerIsInterface: Bool = false
     ) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -603,7 +603,7 @@ struct JVMKotlinMetadata {
                 && parameterMessages.contains { ($0.int32(1) ?? 0) & 2 != 0 }
             let isGenericFinalGetter = !isFileFacade && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
-            let hasStableMemberParameters = !isFileFacade && (isFinal || metroFactory)
+            let hasStableMemberParameters = !isFileFacade && (isFinal || metroFactory || ownerIsInterface)
                 && receiver == nil && contextParameters.isEmpty
                 && !parameterMessages.isEmpty && flags & (1 << 15) == 0
                 && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
