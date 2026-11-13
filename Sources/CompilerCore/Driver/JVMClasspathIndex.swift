@@ -6,7 +6,7 @@ final class JVMClasspathIndex {
     static let composeIntrinsicPath = "<kswiftk-jvm-import>/compose-intrinsics.kt"
     var classes: [String: JVMClassInfo] = [:]
     var sourceClasses: [FileID: JVMClassInfo] = [:]
-    private(set) var methods: [SymbolID: JVMForeignMethod] = [:]
+    var methods: [SymbolID: JVMForeignMethod] = [:]
     private(set) var declarationFiles: Set<FileID> = []
     var kotlinMetadataByClass: [String: JVMKotlinClassMetadata] = [:]
     var metadataChecked: Set<String> = []
@@ -2656,6 +2656,7 @@ final class JVMClasspathIndex {
             methods[symbol.id] = JVMForeignMethod(owner: "java/lang/Object", name: name, descriptor: descriptor, parameters: parameters, result: result, isStatic: false, isInterface: false, isAbstract: false)
         }
         bindJDKResourceMethods(in: ctx, sema: sema)
+        try bindJDKFileMembers(in: ctx, sema: sema)
     }
     private func topLevelFunction(at site: SourceRange, in ctx: CompilationContext) -> FunDecl? {
         guard let ast = ctx.ast,
