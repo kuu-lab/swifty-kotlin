@@ -13,6 +13,8 @@ external fun Float.coerceAtMost(maximumValue: Float): Float
 external fun Double.coerceAtLeast(minimumValue: Double): Double
 external fun Double.coerceAtMost(maximumValue: Double): Double
 
+external fun <T : Comparable<T>> T.coerceAtLeast(minimumValue: T): T
+
 external fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long
 external fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double
 external fun <T : Comparable<T>> T.coerceIn(minimumValue: T?, maximumValue: T?): T
