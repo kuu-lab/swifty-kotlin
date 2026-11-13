@@ -241,6 +241,7 @@ public fun String.startsWith(prefix: String, ignoreCase: Boolean = false): Boole
 public fun String.startsWith(prefix: String, startIndex: Int, ignoreCase: Boolean = false): Boolean = regionMatches(this, startIndex, prefix, ignoreCase)
 public fun String.endsWith(suffix: String, ignoreCase: Boolean = false): Boolean = regionMatches(this, this.length - suffix.length, suffix, ignoreCase)
 public fun CharSequence.startsWith(char: Char, ignoreCase: Boolean = false): Boolean = this.length > 0 && charsEqual(this[0], char, ignoreCase)
+public fun CharSequence.endsWith(suffix: CharSequence, ignoreCase: Boolean = false): Boolean = regionMatches(this, length - suffix.length, suffix, ignoreCase)
 public fun CharSequence.endsWith(char: Char, ignoreCase: Boolean = false): Boolean = this.length > 0 && charsEqual(this[this.length - 1], char, ignoreCase)
 
 public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
