@@ -40,6 +40,8 @@ public fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double {
     return this
 }
 
+public infix fun Int.downTo(to: Int): IntProgression = IntProgression(this, to, -1)
+
 public infix fun Int.until(to: Int): IntRange =
     if (to == Int.MIN_VALUE) IntRange(1, 0) else IntRange(this, to - 1)
 
