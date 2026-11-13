@@ -460,8 +460,9 @@ extension JVMFunctionBuilder {
             let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
             return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getIndices", [array], .reference("kotlin/ranges/IntRange", nullable: false), arguments: [requireValue(receiverID)]))
         }
-        if owner == "[I", member == "lastIndex", args.isEmpty {
-            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [.reference("[I", nullable: false)], .int, arguments: [requireValue(receiverID)]))
+        if member == "lastIndex", args.isEmpty, owner == "[I" || owner.hasPrefix("[L") || owner.hasPrefix("[[") {
+            let array: JVMValueType = .reference(owner == "[I" ? "[I" : "[Ljava/lang/Object;", nullable: false)
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/collections/ArraysKt", "getLastIndex", [array], .int, arguments: [requireValue(receiverID)]))
         }
         if owner.hasPrefix("["), member == "size", args.isEmpty {
             let source = try requireValue(receiverID), result = try value(.int)
