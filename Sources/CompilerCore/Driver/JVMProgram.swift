@@ -309,6 +309,7 @@ public struct JVMProperty {
     public var customGetter: Bool = false
     public var customSetter: Bool = false
     var accessesForeignField = false
+    var usesPrivateBackingField = false
 }
 
 public struct JVMRecordComponent {

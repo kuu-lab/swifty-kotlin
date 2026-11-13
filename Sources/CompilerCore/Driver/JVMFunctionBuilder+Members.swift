@@ -266,7 +266,7 @@ extension JVMFunctionBuilder {
     }
     func readProperty(_ property: JVMProperty, receiver: JVMValue, special: Bool, superReceiver: ExprID? = nil) throws -> JVMValue {
         if let literal = property.field?.constantValue { return try constant(literal, property.type) }
-        if property.accessesForeignField, let field = property.field {
+        if property.accessesForeignField || property.usesPrivateBackingField, let field = property.field {
             let result = try value(field.type)
             instructions.append(field.access & 8 != 0 ? .getStatic(field, result) : .getField(field, receiver, result))
             return result
@@ -306,7 +306,8 @@ extension JVMFunctionBuilder {
     }
     func writeProperty(_ property: JVMProperty, receiver: JVMValue, value source: JVMValue, initializing: Bool = false, special: Bool = false, superReceiver: ExprID? = nil) throws {
         let converted = try convert(source, to: property.type)
-        if property.accessesForeignField, let field = property.field, field.access & 0x0010 == 0 {
+        if property.accessesForeignField || property.usesPrivateBackingField,
+           let field = property.field, initializing || field.access & 0x0010 == 0 {
             instructions.append(field.access & 8 != 0 ? .putStatic(field, converted) : .putField(field, receiver, converted))
             return
         }
@@ -358,7 +359,7 @@ extension JVMProgramBuilder {
         let propertyID = plan.properties.first(where: { $0.1.range == declaration.range })?.0
         let propertySymbol = propertyID.flatMap { sema.bindings.declSymbol(for: $0) }
         var functions: [JVMFunction] = []
-        for setter in [false, true] where !declaration.modifiers.contains(.const) {
+        for setter in [false, true] where !declaration.modifiers.contains(.const) && !property.usesPrivateBackingField {
             guard let method = setter ? property.setter : property.getter else { continue }
             let accessor = setter ? declaration.setter : declaration.getter
             var modifiers = declaration.modifiers
