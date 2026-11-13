@@ -14,137 +14,141 @@ private func ioInteropOutput(_ raw: Int) -> RuntimeOutputStreamBox? {
 public func __kk_input_stream_read_range(
     _ stream: Int, _ bytes: Int, _ offset: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let callback = runtimeKotlinInputStream(from: stream) {
-        // Kotlin validates the original arguments after checking Source.closed.
-        return callback.readRange(bytes, offset, count, outThrown)
-    }
-    if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
-       let sequence = tryCast(pointer, to: RuntimeSequenceInputStreamBox.self) {
-        return sequence.readRange(bytes, offset, count, outThrown)
-    }
-    guard let input = ioInteropInput(stream) else {
-        fatalError("KSwiftK panic: invalid InputStream handle")
-    }
-    let array = runtimeArrayBox(from: bytes)
-    let list = runtimeListBox(from: bytes)
-    guard let size = array?.count ?? list?.count else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray")
-        return -1
-    }
-    guard offset >= 0, count >= 0, offset <= size - count else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(message: "offset/count out of bounds")
-        return -1
-    }
-    if count == 0 { return 0 }
-    if let chunked = input as? RuntimeChunkedInputStream {
-        // A single underlying read: the caller receives whatever the stream
-        // currently yields, matching `InputStream.read(byte[])` semantics.
-        let chunk = chunked.readChunk(count)
-        for (index, value) in chunk.enumerated() {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        if let callback = runtimeKotlinInputStream(from: stream) {
+            // Kotlin validates the original arguments after checking Source.closed.
+            return callback.readRange(bytes, offset, count, outThrown)
+        }
+        if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
+           let sequence = tryCast(pointer, to: RuntimeSequenceInputStreamBox.self) {
+            return sequence.readRange(bytes, offset, count, outThrown)
+        }
+        guard let input = ioInteropInput(stream) else {
+            fatalError("KSwiftK panic: invalid InputStream handle")
+        }
+        let array = runtimeArrayBox(from: bytes)
+        let list = runtimeListBox(from: bytes)
+        guard let size = array?.count ?? list?.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected ByteArray"))
+        }
+        guard offset >= 0, count >= 0, offset <= size - count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(message: "offset/count out of bounds"))
+        }
+        if count == 0 { return 0 }
+        if let chunked = input as? RuntimeChunkedInputStream {
+            // A single underlying read: the caller receives whatever the stream
+            // currently yields, matching `InputStream.read(byte[])` semantics.
+            let chunk = chunked.readChunk(count)
+            for (index, value) in chunk.enumerated() {
+                let byte = Int(Int8(truncatingIfNeeded: value))
+                if let array { array[offset + index] = byte }
+                else { list?[offset + index] = byte }
+            }
+            runtimePropagateInputStreamError(input, outThrown)
+            return chunk.isEmpty ? -1 : chunk.count
+        }
+        var copied = 0
+        while copied < count {
+            let value = input.readByte()
+            if value == -1 { break }
             let byte = Int(Int8(truncatingIfNeeded: value))
-            if let array { array[offset + index] = byte }
-            else { list?[offset + index] = byte }
+            if let array { array[offset + copied] = byte }
+            else { list?[offset + copied] = byte }
+            copied += 1
         }
         runtimePropagateInputStreamError(input, outThrown)
-        return chunk.isEmpty ? -1 : chunk.count
+        return copied == 0 ? -1 : copied
     }
-    var copied = 0
-    while copied < count {
-        let value = input.readByte()
-        if value == -1 { break }
-        let byte = Int(Int8(truncatingIfNeeded: value))
-        if let array { array[offset + copied] = byte }
-        else { list?[offset + copied] = byte }
-        copied += 1
-    }
-    runtimePropagateInputStreamError(input, outThrown)
-    return copied == 0 ? -1 : copied
 }
 
 @_cdecl("__kk_output_stream_write_range")
 public func __kk_output_stream_write_range(
     _ stream: Int, _ bytes: Int, _ offset: Int, _ count: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let output = ioInteropOutput(stream) else {
-        fatalError("KSwiftK panic: invalid OutputStream handle")
-    }
-    do {
-        if try output.writeKotlinRange(bytes, offset: offset, count: count) { return 0 }
-        let array = runtimeArrayBox(from: bytes)
-        let list = runtimeListBox(from: bytes)
-        guard let size = array?.count ?? list?.count else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray")
-            return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let output = ioInteropOutput(stream) else {
+            fatalError("KSwiftK panic: invalid OutputStream handle")
         }
-        guard offset >= 0, count >= 0, offset <= size - count else {
-            outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(message: "offset/count out of bounds")
-            return 0
+        do {
+            if try output.writeKotlinRange(bytes, offset: offset, count: count) { return 0 }
+            let array = runtimeArrayBox(from: bytes)
+            let list = runtimeListBox(from: bytes)
+            guard let size = array?.count ?? list?.count else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray")
+                return 0
+            }
+            guard offset >= 0, count >= 0, offset <= size - count else {
+                outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(message: "offset/count out of bounds")
+                return 0
+            }
+            let values = (offset ..< offset + count).map { array?[$0] ?? kk_unbox_int(list?[$0] ?? 0) }
+            try output.writeBytes(values)
+        } catch let error as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(error.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
         }
-        let values = (offset ..< offset + count).map { array?[$0] ?? kk_unbox_int(list?[$0] ?? 0) }
-        try output.writeBytes(values)
-    } catch let error as RuntimeKotlinThrownError {
-        outThrown?.pointee = error.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
+        return 0
     }
-    return 0
 }
 
 // The original one-word exported available/close functions remain untouched.
 // New source declarations select these bridges to propagate callback errors.
 @_cdecl("__kk_input_stream_available_throwing")
 public func __kk_input_stream_available_throwing(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if let callback = runtimeKotlinInputStream(from: stream) { return callback.available(outThrown) }
-    if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
-       let sequence = tryCast(pointer, to: RuntimeSequenceInputStreamBox.self) { return sequence.available(outThrown) }
-    return __kk_input_stream_available(stream)
+    runtimeThrowingBridge(outThrown) {
+        if let callback = runtimeKotlinInputStream(from: stream) { return callback.available(outThrown) }
+        if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
+           let sequence = tryCast(pointer, to: RuntimeSequenceInputStreamBox.self) { return sequence.available(outThrown) }
+        return __kk_input_stream_available(stream)
+    }
 }
 
 @_cdecl("__kk_input_stream_close_throwing")
 public func __kk_input_stream_close_throwing(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if let callback = runtimeKotlinInputStream(from: stream) {
-        callback.close(outThrown)
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        if let callback = runtimeKotlinInputStream(from: stream) {
+            callback.close(outThrown)
+            return 0
+        }
+        if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
+           let sequence = tryCast(pointer, to: RuntimeSequenceInputStreamBox.self) { sequence.close(outThrown); return 0 }
+        return __kk_input_stream_close(stream)
     }
-    if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
-       let sequence = tryCast(pointer, to: RuntimeSequenceInputStreamBox.self) { sequence.close(outThrown); return 0 }
-    return __kk_input_stream_close(stream)
 }
 
 @_cdecl("__kk_output_stream_close_throwing")
 public func __kk_output_stream_close_throwing(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let output = ioInteropOutput(stream) else { fatalError("KSwiftK panic: invalid OutputStream handle") }
-    do { try output.closeThrowing() }
-    catch let error as RuntimeKotlinThrownError { outThrown?.pointee = error.thrownRaw }
-    catch { outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription) }
-    return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let output = ioInteropOutput(stream) else { fatalError("KSwiftK panic: invalid OutputStream handle") }
+        do { try output.closeThrowing() }
+        catch let error as RuntimeKotlinThrownError { throw RuntimeThrownHandle(error.thrownRaw) }
+        catch { throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription)) }
+        return 0
+    }
 }
 
 // Source bindings use a throwing channel so callback-backed stream close errors survive.
 @_cdecl("__kk_buffered_writer_close_throwing")
 public func __kk_buffered_writer_close_throwing(_ writer: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: writer) else {
-        fatalError("KSwiftK panic: invalid Writer handle")
-    }
-    if let stringWriter = tryCast(pointer, to: RuntimeStringWriterBox.self) {
-        do { try stringWriter.closeThrowing() }
-        catch let failure as RuntimeKotlinThrownError { outThrown?.pointee = failure.thrownRaw }
-        catch { outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription) }
+    runtimeThrowingBridge(outThrown) {
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: writer) else {
+            fatalError("KSwiftK panic: invalid Writer handle")
+        }
+        if let stringWriter = tryCast(pointer, to: RuntimeStringWriterBox.self) {
+            do { try stringWriter.closeThrowing() }
+            catch let failure as RuntimeKotlinThrownError { throw RuntimeThrownHandle(failure.thrownRaw) }
+            catch { throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription)) }
+            return 0
+        }
+        guard let box = tryCast(pointer, to: RuntimeBufferedWriterBox.self) else {
+            fatalError("KSwiftK panic: invalid Writer handle")
+        }
+        do { try box.closeThrowing() }
+        catch let failure as RuntimeKotlinThrownError { throw RuntimeThrownHandle(failure.thrownRaw) }
+        catch { throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription)) }
         return 0
     }
-    guard let box = tryCast(pointer, to: RuntimeBufferedWriterBox.self) else {
-        fatalError("KSwiftK panic: invalid Writer handle")
-    }
-    do { try box.closeThrowing() }
-    catch let failure as RuntimeKotlinThrownError { outThrown?.pointee = failure.thrownRaw }
-    catch { outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription) }
-    return 0
 }
 
 // SequenceInputStream shares the InputStream available/close paths, so these only forward.

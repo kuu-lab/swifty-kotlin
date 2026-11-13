@@ -98,57 +98,59 @@ public func __kk_io_fs_exists(_ pathRaw: Int) -> Int {
 
 @_cdecl("__kk_io_fs_delete")
 public func __kk_io_fs_delete(_ pathRaw: Int, _ mustExist: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let path = ioFileSystemPath(pathRaw)
-    if remove(path) != 0 {
-        let code = errno
-        if code == ENOENT && mustExist == 0 { return 0 }
-        outThrown?.pointee = ioFileSystemError(
-            "Delete failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
-        )
+    runtimeThrowingBridge(outThrown) {
+        let path = ioFileSystemPath(pathRaw)
+        if remove(path) != 0 {
+            let code = errno
+            if code == ENOENT && mustExist == 0 { return 0 }
+            throw RuntimeThrownHandle(ioFileSystemError(
+                "Delete failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
+            ))
+        }
+        return 0
     }
-    return 0
 }
 
 @_cdecl("__kk_io_fs_create_directories")
 public func __kk_io_fs_create_directories(
     _ pathRaw: Int, _ mustCreate: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let path = ioFileSystemPath(pathRaw)
-    if let info = ioFileSystemStat(path) {
-        if mustCreate != 0 || (info.st_mode & mode_t(S_IFMT)) != mode_t(S_IFDIR) {
-            outThrown?.pointee = ioFileSystemError("Path already exists: \(path)")
+    runtimeThrowingBridge(outThrown) {
+        let path = ioFileSystemPath(pathRaw)
+        if let info = ioFileSystemStat(path) {
+            if mustCreate != 0 || (info.st_mode & mode_t(S_IFMT)) != mode_t(S_IFDIR) {
+                throw RuntimeThrownHandle(ioFileSystemError("Path already exists: \(path)"))
+            }
+            return 0
+        }
+        do {
+            try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
+        } catch {
+            throw RuntimeThrownHandle(ioFileSystemError(error.localizedDescription))
         }
         return 0
     }
-    do {
-        try FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
-    } catch {
-        outThrown?.pointee = ioFileSystemError(error.localizedDescription)
-    }
-    return 0
 }
 
 @_cdecl("__kk_io_fs_atomic_move")
 public func __kk_io_fs_atomic_move(
     _ sourceRaw: Int, _ destinationRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let source = ioFileSystemPath(sourceRaw)
-    let destination = ioFileSystemPath(destinationRaw)
-    if access(source, F_OK) != 0 {
-        outThrown?.pointee = ioFileSystemError("Source does not exist: \(source)", missing: true)
+    runtimeThrowingBridge(outThrown) {
+        let source = ioFileSystemPath(sourceRaw)
+        let destination = ioFileSystemPath(destinationRaw)
+        if access(source, F_OK) != 0 {
+            throw RuntimeThrownHandle(ioFileSystemError("Source does not exist: \(source)", missing: true))
+        }
+        if rename(source, destination) != 0 {
+            let code = errno
+            let message = "Move failed for \(source) to \(destination): \(String(cString: strerror(code)))"
+            throw RuntimeThrownHandle(code == EXDEV
+                ? runtimeAllocateUnsupportedOperationException(message: message)
+                : ioFileSystemError(message))
+        }
         return 0
     }
-    if rename(source, destination) != 0 {
-        let code = errno
-        let message = "Move failed for \(source) to \(destination): \(String(cString: strerror(code)))"
-        outThrown?.pointee = code == EXDEV
-            ? runtimeAllocateUnsupportedOperationException(message: message)
-            : ioFileSystemError(message)
-    }
-    return 0
 }
 
 @_cdecl("__kk_io_fs_metadata")
@@ -165,40 +167,38 @@ public func __kk_io_fs_metadata(_ pathRaw: Int) -> Int {
 
 @_cdecl("__kk_io_fs_list")
 public func __kk_io_fs_list(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let path = ioFileSystemPath(pathRaw)
-    guard let info = ioFileSystemStat(path) else {
-        let code = errno
-        outThrown?.pointee = ioFileSystemError(
-            "Directory lookup failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
-        )
-        return runtimeNullSentinelInt
-    }
-    guard (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else {
-        outThrown?.pointee = ioFileSystemError("Not a directory: \(path)")
-        return runtimeNullSentinelInt
-    }
-    do {
-        return runtimeMakeStringListRaw(try FileManager.default.contentsOfDirectory(atPath: path))
-    } catch {
-        outThrown?.pointee = ioFileSystemError(error.localizedDescription)
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let path = ioFileSystemPath(pathRaw)
+        guard let info = ioFileSystemStat(path) else {
+            let code = errno
+            throw RuntimeThrownHandle(ioFileSystemError(
+                "Directory lookup failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
+            ))
+        }
+        guard (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) else {
+            throw RuntimeThrownHandle(ioFileSystemError("Not a directory: \(path)"))
+        }
+        do {
+            return runtimeMakeStringListRaw(try FileManager.default.contentsOfDirectory(atPath: path))
+        } catch {
+            throw RuntimeThrownHandle(ioFileSystemError(error.localizedDescription))
+        }
     }
 }
 
 @_cdecl("__kk_io_fs_resolve")
 public func __kk_io_fs_resolve(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let path = ioFileSystemPath(pathRaw)
-    guard let resolved = realpath(path, nil) else {
-        let code = errno
-        outThrown?.pointee = ioFileSystemError(
-            "Resolve failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
-        )
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let path = ioFileSystemPath(pathRaw)
+        guard let resolved = realpath(path, nil) else {
+            let code = errno
+            throw RuntimeThrownHandle(ioFileSystemError(
+                "Resolve failed for \(path): \(String(cString: strerror(code)))", missing: code == ENOENT
+            ))
+        }
+        defer { free(resolved) }
+        return runtimeMakeStringRaw(String(cString: resolved))
     }
-    defer { free(resolved) }
-    return runtimeMakeStringRaw(String(cString: resolved))
 }
 
 // FileSource/FileSink bridges. Open failures always surface as
@@ -208,47 +208,46 @@ public func __kk_io_fs_resolve(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer
 
 @_cdecl("__kk_io_fs_open_read")
 public func __kk_io_fs_open_read(_ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let path = ioFileSystemPath(pathRaw)
-    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-    let descriptor = open(path, O_RDONLY)
-    let openError = errno
-    if gcBlocking { runtimeGCSafepoints.endBlocking() }
-    if descriptor < 0 {
-        outThrown?.pointee = ioFileSystemError(
-            "Open failed for \(path): \(String(cString: strerror(openError)))", missing: true
-        )
-        return -1
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        let path = ioFileSystemPath(pathRaw)
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+        let descriptor = open(path, O_RDONLY)
+        let openError = errno
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
+        if descriptor < 0 {
+            throw RuntimeThrownHandle(ioFileSystemError(
+                "Open failed for \(path): \(String(cString: strerror(openError)))", missing: true
+            ))
+        }
+        var info = stat()
+        if fstat(descriptor, &info) != 0 || (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) {
+            close(descriptor)
+            throw RuntimeThrownHandle(ioFileSystemError(
+                "Open failed for \(path): \(String(cString: strerror(EISDIR)))", missing: true
+            ))
+        }
+        return Int(descriptor)
     }
-    var info = stat()
-    if fstat(descriptor, &info) != 0 || (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFDIR) {
-        close(descriptor)
-        outThrown?.pointee = ioFileSystemError(
-            "Open failed for \(path): \(String(cString: strerror(EISDIR)))", missing: true
-        )
-        return -1
-    }
-    return Int(descriptor)
 }
 
 @_cdecl("__kk_io_fs_open_write")
 public func __kk_io_fs_open_write(
     _ pathRaw: Int, _ append: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let path = ioFileSystemPath(pathRaw)
-    let flags = O_WRONLY | O_CREAT | (append != 0 ? O_APPEND : O_TRUNC)
-    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-    let descriptor = open(path, flags, 0o666)
-    let openError = errno
-    if gcBlocking { runtimeGCSafepoints.endBlocking() }
-    if descriptor < 0 {
-        outThrown?.pointee = ioFileSystemError(
-            "Open failed for \(path): \(String(cString: strerror(openError)))", missing: true
-        )
-        return -1
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        let path = ioFileSystemPath(pathRaw)
+        let flags = O_WRONLY | O_CREAT | (append != 0 ? O_APPEND : O_TRUNC)
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+        let descriptor = open(path, flags, 0o666)
+        let openError = errno
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
+        if descriptor < 0 {
+            throw RuntimeThrownHandle(ioFileSystemError(
+                "Open failed for \(path): \(String(cString: strerror(openError)))", missing: true
+            ))
+        }
+        return Int(descriptor)
     }
-    return Int(descriptor)
 }
 
 @_cdecl("__kk_io_fs_read")
@@ -259,54 +258,50 @@ public func __kk_io_fs_read(
     _ byteCount: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard descriptor >= 0 else {
-        outThrown?.pointee = ioFileSystemClosedError()
-        return 0
-    }
-    guard byteCount >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "byteCount (\(byteCount)) < 0"
-        )
-        return 0
-    }
-    guard byteCount > 0 else { return 0 }
-    guard let dstLength = ioFileSystemByteArrayLength(dstRaw),
-          dstOffset >= 0, dstOffset + byteCount <= dstLength
-    else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Destination range [\(dstOffset), \(dstOffset + byteCount)) is out of bounds."
-        )
-        return 0
-    }
-    let fd = Int32(descriptor)
-    var readError: Int32 = 0
-    var scratch = [UInt8](repeating: 0, count: byteCount)
-    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-    let readCount = scratch.withUnsafeMutableBytes { buffer -> Int in
-        guard let base = buffer.baseAddress else { return 0 }
-        while true {
-            let result = read(fd, base, byteCount)
-            if result < 0 {
-                if errno == EINTR { continue }
-                readError = errno
-                return -1
-            }
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard descriptor >= 0 else {
+            throw RuntimeThrownHandle(ioFileSystemClosedError())
         }
+        guard byteCount >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "byteCount (\(byteCount)) < 0"
+            ))
+        }
+        guard byteCount > 0 else { return 0 }
+        guard let dstLength = ioFileSystemByteArrayLength(dstRaw),
+              dstOffset >= 0, dstOffset + byteCount <= dstLength
+        else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "Destination range [\(dstOffset), \(dstOffset + byteCount)) is out of bounds."
+            ))
+        }
+        let fd = Int32(descriptor)
+        var readError: Int32 = 0
+        var scratch = [UInt8](repeating: 0, count: byteCount)
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+        let readCount = scratch.withUnsafeMutableBytes { buffer -> Int in
+            guard let base = buffer.baseAddress else { return 0 }
+            while true {
+                let result = read(fd, base, byteCount)
+                if result < 0 {
+                    if errno == EINTR { continue }
+                    readError = errno
+                    return -1
+                }
+                return result
+            }
+        }
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
+        if readCount < 0 {
+            throw RuntimeThrownHandle(ioFileSystemError("Read failed: \(String(cString: strerror(readError)))"))
+        }
+        if readCount > 0, !ioFileSystemStoreBytes(dstRaw, offset: dstOffset, bytes: Array(scratch[0 ..< readCount])) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "Destination range [\(dstOffset), \(dstOffset + readCount)) is out of bounds."
+            ))
+        }
+        return readCount
     }
-    if gcBlocking { runtimeGCSafepoints.endBlocking() }
-    if readCount < 0 {
-        outThrown?.pointee = ioFileSystemError("Read failed: \(String(cString: strerror(readError)))")
-        return 0
-    }
-    if readCount > 0, !ioFileSystemStoreBytes(dstRaw, offset: dstOffset, bytes: Array(scratch[0 ..< readCount])) {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Destination range [\(dstOffset), \(dstOffset + readCount)) is out of bounds."
-        )
-        return 0
-    }
-    return readCount
 }
 
 @_cdecl("__kk_io_fs_write")
@@ -317,61 +312,59 @@ public func __kk_io_fs_write(
     _ byteCount: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard descriptor >= 0 else {
-        outThrown?.pointee = ioFileSystemClosedError()
-        return 0
-    }
-    guard byteCount >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "byteCount (\(byteCount)) < 0"
-        )
-        return 0
-    }
-    guard byteCount > 0 else { return 0 }
-    guard let bytes = ioFileSystemByteSlice(srcRaw, offset: srcOffset, count: byteCount) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Source range [\(srcOffset), \(srcOffset + byteCount)) is out of bounds."
-        )
-        return 0
-    }
-    let fd = Int32(descriptor)
-    var writeError: Int32 = EIO
-    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-    let writeResult = bytes.withUnsafeBytes { buffer -> Int in
-        guard let base = buffer.baseAddress else { return -1 }
-        var writtenTotal = 0
-        while writtenTotal < bytes.count {
-            let result = write(fd, base.advanced(by: writtenTotal), bytes.count - writtenTotal)
-            if result < 0 {
-                if errno == EINTR { continue }
-                writeError = errno
-                return -1
-            }
-            if result == 0 { return -1 }
-            writtenTotal += result
+    runtimeThrowingBridge(outThrown) {
+        guard descriptor >= 0 else {
+            throw RuntimeThrownHandle(ioFileSystemClosedError())
         }
-        return writtenTotal
+        guard byteCount >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "byteCount (\(byteCount)) < 0"
+            ))
+        }
+        guard byteCount > 0 else { return 0 }
+        guard let bytes = ioFileSystemByteSlice(srcRaw, offset: srcOffset, count: byteCount) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "Source range [\(srcOffset), \(srcOffset + byteCount)) is out of bounds."
+            ))
+        }
+        let fd = Int32(descriptor)
+        var writeError: Int32 = EIO
+        let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+        let writeResult = bytes.withUnsafeBytes { buffer -> Int in
+            guard let base = buffer.baseAddress else { return -1 }
+            var writtenTotal = 0
+            while writtenTotal < bytes.count {
+                let result = write(fd, base.advanced(by: writtenTotal), bytes.count - writtenTotal)
+                if result < 0 {
+                    if errno == EINTR { continue }
+                    writeError = errno
+                    return -1
+                }
+                if result == 0 { return -1 }
+                writtenTotal += result
+            }
+            return writtenTotal
+        }
+        if gcBlocking { runtimeGCSafepoints.endBlocking() }
+        if writeResult < 0 {
+            throw RuntimeThrownHandle(ioFileSystemError("Write failed: \(String(cString: strerror(writeError)))"))
+        }
+        return 0
     }
-    if gcBlocking { runtimeGCSafepoints.endBlocking() }
-    if writeResult < 0 {
-        outThrown?.pointee = ioFileSystemError("Write failed: \(String(cString: strerror(writeError)))")
-    }
-    return 0
 }
 
 @_cdecl("__kk_io_fs_close")
 public func __kk_io_fs_close(_ descriptor: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard descriptor >= 0 else {
-        outThrown?.pointee = ioFileSystemClosedError()
+    runtimeThrowingBridge(outThrown) {
+        guard descriptor >= 0 else {
+            throw RuntimeThrownHandle(ioFileSystemClosedError())
+        }
+        if close(Int32(descriptor)) != 0 {
+            let code = errno
+            throw RuntimeThrownHandle(ioFileSystemError("Close failed: \(String(cString: strerror(code)))"))
+        }
         return 0
     }
-    if close(Int32(descriptor)) != 0 {
-        let code = errno
-        outThrown?.pointee = ioFileSystemError("Close failed: \(String(cString: strerror(code)))")
-    }
-    return 0
 }
 
 // Host information boundary; public Path construction remains in Kotlin.

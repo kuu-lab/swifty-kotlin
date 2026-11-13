@@ -25,12 +25,12 @@ public func __kk_bytearray_output_stream_new_default() -> Int {
 
 @_cdecl("__kk_bytearray_output_stream_new")
 public func __kk_bytearray_output_stream_new(_ capacity: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard capacity >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Negative initial size: \(capacity)")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard capacity >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Negative initial size: \(capacity)"))
+        }
+        return runtimeRegisterIoStream(RuntimeOutputStreamBox(sink: RuntimeByteArrayOutputStreamSink(capacity: capacity)), fqName: "java.io.ByteArrayOutputStream", input: false)
     }
-    return runtimeRegisterIoStream(RuntimeOutputStreamBox(sink: RuntimeByteArrayOutputStreamSink(capacity: capacity)), fqName: "java.io.ByteArrayOutputStream", input: false)
 }
 
 @_cdecl("__kk_bytearray_output_stream_to_byte_array")

@@ -152,10 +152,11 @@ public func __kk_kotlin_sink_output_stream_range(
 /// pre-existing erased exception policy is documented separately.
 @_cdecl("__kk_io_stream_to_string")
 public func __kk_io_stream_to_string(_ stream: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if let input = runtimeKotlinInputStream(from: stream) { return input.kotlinDescription(outThrown) }
-    if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
-       let output = tryCast(pointer, to: RuntimeOutputStreamBox.self),
-       let result = output.kotlinDescription(outThrown) { return result }
-    return runtimeMakeStringRaw("java.io.Stream@" + String(UInt(bitPattern: stream), radix: 16))
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        if let input = runtimeKotlinInputStream(from: stream) { return input.kotlinDescription(outThrown) }
+        if let pointer = UnsafeMutableRawPointer(bitPattern: stream),
+           let output = tryCast(pointer, to: RuntimeOutputStreamBox.self),
+           let result = output.kotlinDescription(outThrown) { return result }
+        return runtimeMakeStringRaw("java.io.Stream@" + String(UInt(bitPattern: stream), radix: 16))
+    }
 }
