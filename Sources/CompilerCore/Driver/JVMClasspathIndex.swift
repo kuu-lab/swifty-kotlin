@@ -1557,7 +1557,9 @@ final class JVMClasspathIndex {
             }
             source += "external " + functionDeclaration(method) + "\n"
         }
+        let composeContent = info.name == Self.composeView ? composeContentMethod : nil
         for method in own where !method.isConstructor && !method.isStatic && !isKotlinPropertyAccessor(method) {
+            if let composeContent, memberKey(method) == memberKey(composeContent) { continue }
             if inheritedKotlinGetters.contains(memberKey(method)) { continue }
             if let getter = exposedKotlinProperties[method.name]?.getter,
                getter.descriptor == method.descriptor || method.composePropertyABI(hasReceiver: false) {
