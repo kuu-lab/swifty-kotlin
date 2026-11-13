@@ -114,6 +114,7 @@ struct JVMKotlinMetadataPayload {
     var multifileParts: [String] { kind == 4 ? data1 : [] }
     var isMultifilePart: Bool { kind == 5 }
 
+
     func functionTable(byteLimit: Int) throws -> FunctionTable? {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return nil }
         let bytes = try decodedData(limit: byteLimit)
@@ -135,11 +136,10 @@ struct JVMKotlinMetadataPayload {
                              ownerTypeParameters: ownerTypeParameters)
     }
 
-    func sealedInterfaceSubclasses(byteLimit: Int) throws -> [String] {
+    func sealedSubclasses(byteLimit: Int) throws -> [String] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
-        // Class flags store modality in bits 4–5. The classfile reader has
-        // already established that the owner is an interface.
+        // Class flags store modality in bits 4–5.
         guard (declaration.int32(1) ?? 0) & (3 << 4) == (3 << 4) else { return [] }
         let children = try declaration.int32List(16)
         let resolved = try children.compactMap { try names.resolve($0)?.replacingOccurrences(of: ".", with: "$") }

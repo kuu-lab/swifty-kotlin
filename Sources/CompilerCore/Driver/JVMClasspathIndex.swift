@@ -330,7 +330,7 @@ final class JVMClasspathIndex {
             } else if info.isInterface {
                 source += indentation + visibility + interfaceKeyword(info) + " `\(name)`" + typeParameters
             } else {
-                let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
+                let classKind = classKeyword(info)
                 let isInner = entry.access & 0x0008 == 0
                 let publicNoArgs = info.methods.contains { $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected }
                 let constructor = publicNoArgs ? "()" : " private constructor()"
@@ -368,15 +368,21 @@ final class JVMClasspathIndex {
         }.joined()
     }
 
-    private func sealedInterfaceSubclasses(of info: JVMClassInfo) -> [String] {
+    private func sealedSubclasses(of info: JVMClassInfo) -> [String] {
         // The owner stub emits its nested subclasses together. Only that
         // complete set can establish exhaustiveness without loading other stubs.
-        let children = info.kotlinSealedInterfaceSubclasses
+        let children = info.kotlinSealedSubclasses
         return children.allSatisfy { innerClassMetadata[$0]?.outerName == info.name && classes[$0] != nil } ? children : []
     }
 
+    private func classKeyword(_ info: JVMClassInfo) -> String {
+        if !sealedSubclasses(of: info).isEmpty { return "sealed class " }
+        if info.flags & 0x0400 != 0 { return "abstract class " }
+        return info.flags & 0x0010 != 0 ? "class " : "open class "
+    }
+
     private func interfaceKeyword(_ info: JVMClassInfo) -> String {
-        if !sealedInterfaceSubclasses(of: info).isEmpty { return "sealed interface" }
+        if !sealedSubclasses(of: info).isEmpty { return "sealed interface" }
         if !info.kotlinReadOnlyCollectionSupertypes.isEmpty { return "interface" }
         return isSAM(info.name) ? "fun interface" : "interface"
     }
@@ -544,7 +550,7 @@ final class JVMClasspathIndex {
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
             imported.isKotlinFileFacade = info.isKotlinFileFacade
-            imported.kotlinSealedInterfaceSubclasses = info.kotlinSealedInterfaceSubclasses
+            imported.kotlinSealedSubclasses = info.kotlinSealedSubclasses
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
             imported.kotlinComparableSupertype = info.kotlinComparableSupertype
@@ -1310,7 +1316,7 @@ final class JVMClasspathIndex {
                     source += typeParameterDeclaration(info)
                 }
                 else {
-                    source += info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
+                    source += classKeyword(info)
                     source += "`\(short)`"
                     source += typeParameterDeclaration(info)
                     source += " "

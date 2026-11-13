@@ -17,7 +17,7 @@ struct JVMClassInfo {
     var hasInnerClassesAttribute = false
     var hasEnclosingMethod = false
     var isKotlinFileFacade: Bool?
-    var kotlinSealedInterfaceSubclasses: [String] = []
+    var kotlinSealedSubclasses: [String] = []
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
@@ -795,8 +795,8 @@ struct JVMClassReader {
                 }
             }
         }
-        if info.isInterface, let metadata = classAttributes.kotlinMetadata {
-            info.kotlinSealedInterfaceSubclasses = (try? metadata.sealedInterfaceSubclasses(byteLimit: bytes.count)) ?? []
+        if info.flags & 0x0400 != 0, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinSealedSubclasses = (try? metadata.sealedSubclasses(byteLimit: bytes.count)) ?? []
         }
         if info.isKotlinMultifilePart || fields.contains(where: { $0.isStatic && $0.isFinal && $0.constantValue != nil }),
            let metadata = classAttributes.kotlinMetadata {
