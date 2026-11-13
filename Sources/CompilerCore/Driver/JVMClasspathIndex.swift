@@ -1399,7 +1399,9 @@ final class JVMClasspathIndex {
             }
             source += "external " + functionDeclaration(method) + "\n"
         }
+        let composeContent = info.name == Self.composeView ? composeContentMethod : nil
         for method in own where !method.isConstructor && !method.isStatic {
+            if let composeContent, memberKey(method) == memberKey(composeContent) { continue }
             if inheritedKotlinGetters.contains(memberKey(method)) || kotlinProperties.contains(where: { name, property in
                 property.getter.name == method.name && property.getter.descriptor == method.descriptor
                     && (info.isInterface || method.name == name || method.composePropertyABI(hasReceiver: false))
