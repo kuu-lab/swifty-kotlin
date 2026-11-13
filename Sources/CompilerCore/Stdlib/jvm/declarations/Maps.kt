@@ -16,6 +16,7 @@ public fun <K, V> Map<out K, V>.toSortedMap(comparator: kotlin.Comparator<in K>)
 
 public fun <K, V> Map<K, V>.getValue(key: K): V = null!!
 
+public fun <K, V> Map<out K, V>.toList(): List<Pair<K, V>> = null!!
 public fun <K, V> Map<out K, V>.toMutableMap(): MutableMap<K, V> = null!!
 public fun <K, V> Map<out K, V>.toMap(): Map<K, V> = null!!
 public fun <K, V> Array<out Pair<K, V>>.toMap(): Map<K, V> = null!!
