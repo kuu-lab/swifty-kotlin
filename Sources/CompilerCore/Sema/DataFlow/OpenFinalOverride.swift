@@ -3211,8 +3211,8 @@ extension DataFlowSemaPhase {
                 else {
                     return false
                 }
-                return childSymbol.flags.contains(.memberExtension)
-                    == parentSymbol.flags.contains(.memberExtension)
+                return !ctx.symbols.isJVMJavaBeanProperty(parent.memberID)
+                    && childSymbol.flags.contains(.memberExtension) == parentSymbol.flags.contains(.memberExtension)
             }
         } else {
             matchingParents = []

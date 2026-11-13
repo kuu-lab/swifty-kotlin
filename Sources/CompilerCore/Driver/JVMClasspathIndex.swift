@@ -2271,6 +2271,21 @@ final class JVMClasspathIndex {
             default: return type
             }
         }
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .property {
+            guard let site = symbol.declSite, sourceClasses[site.start.file] != nil,
+                  let owner = sema.symbols.parentSymbol(for: symbol.id),
+                  let info = classes[Self.binaryName(owner, sema: sema, ctx: ctx)],
+                  info.isKotlinFileFacade == nil,
+                  let type = sema.symbols.propertyType(for: symbol.id) else { continue }
+            let name = ctx.interner.resolve(symbol.name)
+            let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
+            let getterName = name.hasPrefix("is") && name.dropFirst(2).first?.isUppercase == true ? name : "get" + capital
+            let isBean = info.methods.contains { !$0.isStatic && $0.name == getterName && $0.parameters.isEmpty }
+            let isField = info.fields.contains { $0.name == name && info.isRuntimeInstanceField($0) }
+            guard isBean || isField else { continue }
+            sema.symbols.setPropertyType(platform(type), for: symbol.id)
+            if isBean && !isField { sema.symbols.markJVMJavaBeanProperty(symbol.id) }
+        }
         for symbol in sema.symbols.allSymbols() {
             guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
                   let signature = sema.symbols.functionSignature(for: symbol.id) else { continue }
