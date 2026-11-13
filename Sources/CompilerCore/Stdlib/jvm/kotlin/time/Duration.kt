@@ -11,6 +11,18 @@ public value class Duration private constructor(private val rawValue: Long) : Co
     public val inWholeDays: Long get() = toLong(DurationUnit.DAYS)
 
     @PublishedApi
+    internal val hoursComponent: Int
+        get() = if (isInfinite()) 0 else (inWholeHours % 24L).toInt()
+
+    @PublishedApi
+    internal val minutesComponent: Int
+        get() = if (isInfinite()) 0 else (inWholeMinutes % 60L).toInt()
+
+    @PublishedApi
+    internal val secondsComponent: Int
+        get() = if (isInfinite()) 0 else (inWholeSeconds % 60L).toInt()
+
+    @PublishedApi
     internal val nanosecondsComponent: Int
         get() {
             if (isInfinite()) return 0
