@@ -21,6 +21,7 @@ final class JVMClasspathIndex {
     var oneTimeWorkRequestBuilderFile: FileID?
     var contextServiceFile: FileID?
     var hiltViewModelFile: FileID?
+    var activityViewModelFile: FileID?
     var composeContentSymbols: Set<SymbolID> = []
     private(set) var fallbackClassFiles: [(String, Data)] = []
     /// Classes kept indexed for signature mapping and d8 input while
@@ -308,6 +309,7 @@ final class JVMClasspathIndex {
             result.kotlinSuspendFunction = method.kotlinSuspendFunction
             result.isVarargs = method.isVarargs
             result.genericResultParameter = method.genericResultParameter
+            result.genericSignature = method.genericSignature
             result.kotlinCollisionSourceName = method.kotlinCollisionSourceName
             result.kotlinFunction = method.kotlinFunction
             return result
@@ -496,6 +498,12 @@ final class JVMClasspathIndex {
     }
     func hasClassFile(_ name: String) -> Bool { hierarchyClasses[name] != nil }
 
+    func hasPublicConstructor(_ owner: String, descriptor: String) -> Bool {
+        hierarchyClasses[owner]?.methods.contains {
+            $0.isConstructor && !$0.isProtected && $0.descriptor == descriptor
+        } == true
+    }
+
     func metroClassInfo(_ name: String) -> JVMClassInfo? { hierarchyClasses[name] }
 
     var metroAnnotatedClasses: [JVMClassInfo] {
@@ -676,6 +684,10 @@ final class JVMClasspathIndex {
            let arguments = child.kotlinParameterizedSupertypes[name],
            let base = kotlinSupertypeName(name) {
             return base + "<" + arguments.joined(separator: ", ") + ">"
+        }
+        if name == "androidx/activity/result/contract/ActivityResultContract",
+           let arguments = child.kotlinParameterizedSupertypes[name], let base = kotlinSupertypeName(name) {
+            return base + "<" + arguments.map { $0 == "java.lang.Void?" ? "kotlin.Nothing?" : $0 }.joined(separator: ", ") + ">"
         }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),
@@ -1002,6 +1014,7 @@ final class JVMClasspathIndex {
         injectGlanceActivityAction(into: ctx)
         injectOneTimeWorkRequestBuilder(into: ctx)
         injectContextService(into: ctx)
+        injectActivityViewModel(into: ctx)
         injectHiltViewModel(into: ctx)
         let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
             entry.method.owner + "." + entry.method.name + entry.method.descriptor
@@ -1462,7 +1475,13 @@ final class JVMClasspathIndex {
                       !$0.isStatic && !$0.isConstructor && $0.name == propertyName
                           && memberKey($0) != memberKey(getter)
                   }) else { continue }
-            let propertyType = kotlinType(getter.result)
+            let erasedType = kotlinType(getter.result)
+            // Keep the erased declaration for mutable or inherited bean properties.
+            let propertyType = !pairedGetters.contains(memberKey(getter))
+                && !overridesParent(getter, in: info, visited: [])
+                && shape.setterName.map({ !ancestorHasSetter($0, type: erasedType) }) != false
+                && requiredProps[propertyName]?.isVar != true
+                ? javaGenericTypes(getter)?.result ?? erasedType : erasedType
             if let setterName = shape.setterName,
                inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
                 continue
@@ -2046,6 +2065,8 @@ final class JVMClasspathIndex {
             let resultType = kotlinType(method.result)
             let bound = resultType == "kotlin.Any" ? "kotlin.Any?" : resultType
             return "<`\(parameter.name)`: \(bound)> "
+        } ?? javaTypes.map {
+            $0.typeParameters.isEmpty ? "" : "<" + $0.typeParameters.map { "`\($0)`" }.joined(separator: ", ") + "> "
         } ?? ""
         let modifier = suspend == nil ? "" : "suspend "
         return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters) + "): " + result
