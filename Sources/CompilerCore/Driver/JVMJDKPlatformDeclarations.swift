@@ -599,6 +599,21 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[durationName] = info
         }
+        // The shared frontend already declares File, its constructors and
+        // path. Supply their JDK signatures even with no platform jar.
+        let fileName = "java/io/File"
+        if classes[fileName] == nil {
+            let fileType = JVMValueType.reference(fileName, nullable: false)
+            classes[fileName] = JVMClassInfo(name: fileName, flags: 0x0001, superclass: "java/lang/Object",
+                                           interfaces: ["java/io/Serializable", "java/lang/Comparable"], methods: [
+                method(fileName, "<init>", [.string], fileType),
+                method(fileName, "<init>", [.string, .string], fileType),
+                method(fileName, "<init>", [fileType, .string], fileType),
+                method(fileName, "getPath", [], .string),
+                method(fileName, "getAbsolutePath", [], .string),
+                method(fileName, "mkdirs", [], .boolean),
+            ])
+        }
         let closeableName = "java/io/Closeable"
         if classes[closeableName] == nil {
             classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
@@ -631,6 +646,34 @@ extension JVMClasspathIndex {
         if let file = ctx.sourceManager.fileIDs().first(where: { ctx.sourceManager.path(of: $0) == comparatorPath }),
            let info = classes["java/util/Comparator"] {
             sourceClasses[file] = info
+        }
+    }
+
+    func bindJDKFileMembers(in ctx: CompilationContext, sema: SemaModule) throws {
+        guard let file = classes["java/io/File"] else { return }
+        let path = ["java", "io", "File"].map(ctx.interner.intern)
+        for name in ["<init>", "mkdirs"] {
+            for symbol in sema.symbols.lookupAll(fqName: path + [ctx.interner.intern(name)]) {
+                guard sema.symbols.symbol(symbol)?.declSite == nil,
+                      let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+                let parameters = try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx).descriptor }
+                let result = name == "<init>" ? "V" : "Z"
+                let descriptor = "(" + parameters.joined() + ")" + result
+                methods[symbol] = file.methods.first { $0.name == name && $0.descriptor == descriptor }
+            }
+        }
+        for owner in ["java/io/OutputStream", "java/io/FileOutputStream", "java/io/Closeable", "java/io/InputStream"] {
+            let names = owner.hasSuffix("OutputStream") ? ["flush", "close"] : ["close"]
+            let path = owner.split(separator: "/").map { ctx.interner.intern(String($0)) }
+            for name in names {
+                for symbol in sema.symbols.lookupAll(fqName: path + [ctx.interner.intern(name)]) {
+                    guard sema.symbols.symbol(symbol)?.declSite == nil,
+                          sema.symbols.functionSignature(for: symbol)?.parameterTypes.isEmpty == true else { continue }
+                    methods[symbol] = JVMForeignMethod(owner: owner, name: name, descriptor: "()V", parameters: [],
+                                                       result: .unit, isStatic: false, isInterface: owner == "java/io/Closeable",
+                                                       isAbstract: owner == "java/io/Closeable")
+                }
+            }
         }
     }
 }
