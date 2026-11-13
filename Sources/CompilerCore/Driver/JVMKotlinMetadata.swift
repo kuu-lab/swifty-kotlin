@@ -510,7 +510,7 @@ struct JVMKotlinMetadata {
     /// Recover function types and top-level extension receivers from Kotlin metadata.
     func functions(
         byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false,
-        functionTypeMemberNames: Set<String> = []
+        functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false
     ) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -575,7 +575,8 @@ struct JVMKotlinMetadata {
             let parameterMessages = try function.messages(6)
             let isGenericFinalGetter = !isFileFacade && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
-            let hasStableFinalParameters = !isFileFacade && isFinal && receiver == nil && contextParameters.isEmpty
+            let hasStableMemberParameters = !isFileFacade && (isFinal || metroFactory)
+                && receiver == nil && contextParameters.isEmpty
                 && !parameterMessages.isEmpty && flags & (1 << 15) == 0
                 && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
             var parameters: [JVMKotlinFunction.Parameter] = []
@@ -613,14 +614,14 @@ struct JVMKotlinMetadata {
             } else {
                 nil
             }
-            let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
-                && parameters.allSatisfy { parameter in
+            let hasStableParameters = hasStableMemberParameters && !isMangledMember
+                && (metroFactory || parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
-                }
+                })
             guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList
-                || isGenericFinalGetter || isMangledMember || hasStableScalarParameters else { continue }
+                || isGenericFinalGetter || isMangledMember || hasStableParameters else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
             if isValueOperator || isMangledMember {
@@ -667,7 +668,7 @@ struct JVMKotlinMetadata {
                 mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
                 mangledExtensionReceiverDescriptor: mangledExtensionReceiverDescriptor,
                 isGenericFinalGetter: isGenericFinalGetter,
-                hasStableFinalParameters: hasStableScalarParameters
+                hasStableFinalParameters: hasStableParameters
             ))
         }
         return result
