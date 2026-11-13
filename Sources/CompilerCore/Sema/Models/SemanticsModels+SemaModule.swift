@@ -165,6 +165,7 @@ public final class SemaModule {
     var requiresResolvedLibraryCalls = false
     /// The trusted JVM runtime owns the implementation of restricted suspension.
     var isJVMStdlibBuild = false
+    var jvmClasspathStubFiles: Set<FileID> = []
 
     /// Stdlib profile of this compilation (`--profile`). Under `minimal`, an
     /// unresolved import into an excluded package gets a dedicated diagnostic
