@@ -617,3 +617,17 @@ private class ReversedListView<T>(private val source: List<T>) : AbstractList<T>
         return source[count - 1 - index]
     }
 }
+
+// Precompiled Kotlin callers can link the static facade even for a List receiver.
+public fun <T> List<T>.indexOf(element: T): Int = this.indexOf(element)
+
+public fun <T> Iterable<T>.indexOf(element: T): Int {
+    if (this is List<T>) return this.indexOf(element)
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (item == element) return index
+        index++
+    }
+    return -1
+}
