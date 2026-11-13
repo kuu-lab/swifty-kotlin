@@ -305,10 +305,10 @@ final class JVMClasspathIndex {
                 source += enumDeclaration(info, name: name, visibility: visibility, indentation: indentation)
                 continue
             }
-            let isSealedObject = info.isKotlinObject
-                && classes[owner].map { sealedInterfaceSubclasses(of: $0).contains(info.name) } == true
-                && !info.methods.contains { $0.isStatic && isExposed($0) }
-            if isSealedObject {
+            // A nested singleton remains a value even if some of its sealed
+            // parent's subclasses are outside the parent stub.
+            let isObject = info.isKotlinObject && !info.methods.contains { $0.isStatic && isExposed($0) }
+            if isObject {
                 source += indentation + visibility + "object `\(name)`"
             } else if info.isInterface {
                 source += indentation + visibility + interfaceKeyword(info) + " `\(name)`" + typeParameters
@@ -330,7 +330,7 @@ final class JVMClasspathIndex {
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
             source += memberDeclarations(info: info, members: info.methods,
-                                         allowsCompanion: !isSealedObject && entry.access & 0x0008 != 0)
+                                         allowsCompanion: !isObject && entry.access & 0x0008 != 0)
             source += nestedClassDeclarations(of: entry.name, indentation: indentation + "    ")
             source += indentation + "}\n"
         }
