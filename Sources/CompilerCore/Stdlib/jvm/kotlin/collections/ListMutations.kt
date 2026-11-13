@@ -24,3 +24,7 @@ public fun <T> MutableList<T>.replaceAll(transform: (T) -> T) {
         index += 1
     }
 }
+
+public fun <T> MutableList<T>.removeFirstOrNull(): T? = if (isEmpty()) null else removeAt(0)
+
+public fun <T> MutableList<T>.removeLastOrNull(): T? = if (isEmpty()) null else removeAt(size - 1)

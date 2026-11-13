@@ -28,13 +28,21 @@ extension JVMFunctionBuilder {
     func coroutineMember(_ receiver: ExprID, name: String, args: [CallArgument], id: ExprID) throws -> JVMIntrinsicResult? {
         let object: JVMValueType = .reference("java/lang/Object", nullable: true)
         let continuation: JVMValueType = .reference("kotlin/coroutines/Continuation", nullable: false)
-        if name == "startCoroutine", let signature = functionType(receiver), signature.isSuspend {
+        if ["startCoroutine", "createCoroutine"].contains(name), let signature = functionType(receiver), signature.isSuspend {
+            if name == "createCoroutine" {
+                guard let binding = program.sema.bindings.callBinding(for: id),
+                      let callee = program.sema.symbols.symbol(binding.chosenCallee),
+                      callee.fqName.map(context.interner.resolve) == ["kotlin", "coroutines", name],
+                      callee.declSite.map({ context.sourceManager.origin(of: $0.start.file) != .user }) == true
+                else { return nil }
+            }
             let source = try requireValue(receiver)
             var values = [source]
             for arg in args { values.append(try requireValue(arg.expr)) }
-            guard values.count == (signature.receiver == nil ? 2 : 3) else { throw fail("Unsupported startCoroutine arguments.", id) }
+            guard values.count == (signature.receiver == nil ? 2 : 3) else { throw fail("Unsupported \(name) arguments.", id) }
             let parameters: [JVMValueType] = [.reference("kotlin/jvm/functions/Function" + String(signature.receiver == nil ? 1 : 2), nullable: false)] + (signature.receiver == nil ? [] : [object]) + [continuation]
-            return JVMIntrinsicResult(value: try jdkCall("kotlin/coroutines/ContinuationKt", "startCoroutine", parameters, .unit, arguments: values))
+            let result: JVMValueType = name == "createCoroutine" ? continuation : .unit
+            return JVMIntrinsicResult(value: try jdkCall("kotlin/coroutines/ContinuationKt", name, parameters, result, arguments: values))
         }
         guard let semantic = program.sema.bindings.exprType(for: receiver) else { return nil }
         func nominal(_ id: TypeID, _ target: String, visited: Set<SymbolID> = []) -> Bool {

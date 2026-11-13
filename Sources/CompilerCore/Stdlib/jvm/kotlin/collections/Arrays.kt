@@ -5,6 +5,24 @@ import kotlin.sequences.*
 import kotlin.sequences.emptySequence
 import kotlin.sequences.joinToString
 
+public fun <T> Array<out T>.indexOf(element: T): Int {
+    var index = 0
+    while (index < size) {
+        if (this[index] == element) return index
+        index += 1
+    }
+    return -1
+}
+
+public fun <T> Array<out T>.lastIndexOf(element: T): Int {
+    var index = size - 1
+    while (index >= 0) {
+        if (this[index] == element) return index
+        index -= 1
+    }
+    return -1
+}
+
 public fun <T> Array<out T>.asSequence(): Sequence<T> {
     if (this.size == 0) return emptySequence<T>()
     val source = this

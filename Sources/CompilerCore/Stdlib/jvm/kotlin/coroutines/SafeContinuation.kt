@@ -3,8 +3,10 @@ import kotlin.jvm.internal.*
 import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
 private object Undecided
 private object Resumed
-class SafeContinuation<in T>(private val delegate: Continuation<T>): Continuation<T> {
-    private val state: Any = __jvmAtomicReference(Undecided)
+class SafeContinuation<in T>(private val delegate: Continuation<T>, initialResult: Any?): Continuation<T> {
+    constructor(delegate: Continuation<T>) : this(delegate, Undecided)
+
+    private val state: Any = __jvmAtomicReference(initialResult)
     override val context: CoroutineContext get() = delegate.context
     override fun resumeWith(result: kotlin.Result<T>) {
         val value = __jvmResultValue(result)

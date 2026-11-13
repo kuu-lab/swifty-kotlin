@@ -301,6 +301,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/AbstractList.kt",
+      "virtualPath": "<kswiftk-jvm>/abstractList.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/AbstractSet.kt",
       "virtualPath": "<kswiftk-jvm>/abstractSet.kt",
       "excludeFromStdlibBuild": true
@@ -403,6 +408,12 @@
       "path": "declarations/ArrayUtilities.kt",
       "virtualPath": "<kswiftk-jvm>/m20-arrays-utility-runtime.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/ArraySearch.kt",
+      "virtualPath": "<kswiftk-jvm>/array-search.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
     },
     {
       "path": "declarations/ArrayWithIndex.kt",

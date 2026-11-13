@@ -82,8 +82,9 @@ extension JVMProgramBuilder {
                 sema.types.isNominalSubtypeSymbol(plan.symbol, of: $0)
             } == true
         }
-        // AbstractSet owns a Kotlin getSize accessor plus its JDK size bridge.
-        if name == "size", !subtype("AbstractSet"), subtype("Collection") || (!context.options.stdlibOnly && subtype("Map")) { return "size" }
+        // These bases own the size bridge. Their subclasses override getSize.
+        if name == "size", !subtype("AbstractSet"), !subtype("AbstractList"),
+           subtype("Collection") || (!context.options.stdlibOnly && subtype("Map")) { return "size" }
         if !context.options.stdlibOnly, subtype("Map") { return ["keys": "keySet", "values": "values", "entries": "entrySet"][name] }
         return nil
     }

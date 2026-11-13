@@ -2,6 +2,15 @@
 package kotlin.coroutines
 import kotlin.jvm.internal.*
 import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+import kotlin.coroutines.intrinsics.createCoroutineUnintercepted
+import kotlin.coroutines.intrinsics.intercepted
+
+fun <T> (suspend () -> T).createCoroutine(completion: Continuation<T>): Continuation<Unit> =
+    SafeContinuation(createCoroutineUnintercepted(completion).intercepted(), COROUTINE_SUSPENDED)
+
+fun <R, T> (suspend R.() -> T).createCoroutine(receiver: R, completion: Continuation<T>): Continuation<Unit> =
+    SafeContinuation(createCoroutineUnintercepted(receiver, completion).intercepted(), COROUTINE_SUSPENDED)
+
 internal fun <T> startEncoded(block: (Continuation<T>) -> Any?, completion: Continuation<T>) {
     var result: Any? = null
     try { result = block(completion) } catch (failure: Throwable) {
