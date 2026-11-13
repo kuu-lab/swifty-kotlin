@@ -692,7 +692,9 @@ final class JVMClasspathIndex {
             return parameter
         }.joined(separator: ", ")
         lines.append(visibility + "annotation class `\(short)`(" + parameters + ")")
-        return lines.map { indentation + $0 }.joined(separator: "\n") + "\n"
+        let declaration = lines.map { indentation + $0 }.joined(separator: "\n")
+        let nested = nestedClassDeclarations(of: info.name, indentation: indentation + "    ")
+        return nested.isEmpty ? declaration + "\n" : declaration + " {\n" + nested + indentation + "}\n"
     }
 
     private func javaAnnotationRetention(_ annotations: [JVMAnnotation]) -> String {
@@ -948,7 +950,7 @@ final class JVMClasspathIndex {
             }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
             if info.isAnnotation && own.allSatisfy(\.isStatic) {
-                source += "annotation class `\(short)`\n"
+                source += annotationClassDeclaration(info, short: short)
             } else if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
             } else if isComposer {
