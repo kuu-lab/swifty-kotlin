@@ -163,12 +163,11 @@ final class JVMClasspathIndex {
         if archiveJobs > 1 && entries.count >= 128 {
             let batchSize = 64
             let batchCount = (entries.count + batchSize - 1) / batchSize
-            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs) { index in
+            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs, cancelOnFirstError: true) { index in
                 let start = index * batchSize
                 let end = min(start + batchSize, entries.count)
-                let batchDescriptors = JVMDescriptorCache()
                 return try entries[start ..< end].map { entry in
-                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: batchDescriptors)
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache)
                 }
             }
             for batch in batches {
