@@ -417,7 +417,8 @@ final class JVMClasspathIndex {
             var interfaceMethods: [String: JVMForeignMethod] = [:]
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
-                if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil {
+                if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil
+                    || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
                     return
                 }
@@ -471,6 +472,8 @@ final class JVMClasspathIndex {
                 // Erased imports need a real bridge when an inherited raw method
                 // has different parameters from the specialized implementation.
                 for bridge in bridges {
+                    if info.kotlinComparableSupertype != nil, bridge.name == "compareTo",
+                       bridge.descriptor == "(Ljava/lang/Object;)I" { continue }
                     let signature = key(bridge)
                     if abstractMethods.contains(signature), methodKeys.insert(signature).inserted {
                         methods.append(accessibleMethod(bridge, on: info))
@@ -489,6 +492,7 @@ final class JVMClasspathIndex {
             imported.kotlinSealedInterfaceSubclasses = info.kotlinSealedInterfaceSubclasses
             imported.isKotlinObject = info.isKotlinObject
             imported.kotlinReadOnlyCollectionSupertypes = info.kotlinReadOnlyCollectionSupertypes
+            imported.kotlinComparableSupertype = info.kotlinComparableSupertype
             imported.kotlinLoweredConstructors = info.kotlinLoweredConstructors
             imported.kotlinValueClassConstructors = info.kotlinValueClassConstructors
             imported.annotations = info.annotations
@@ -678,6 +682,7 @@ final class JVMClasspathIndex {
 
     private func supertypeReference(_ name: String, child: JVMClassInfo) -> String? {
         if let collection = child.kotlinReadOnlyCollectionSupertypes[name] { return collection }
+        if name == "java/lang/Comparable", let comparable = child.kotlinComparableSupertype { return comparable }
         if name == "kotlin/coroutines/CoroutineContext$Key", let signature = child.genericSignature,
            let prefix = signature.range(of: "L" + name + "<L"),
            let end = signature[prefix.upperBound...].range(of: ";>;") {
@@ -1158,6 +1163,7 @@ final class JVMClasspathIndex {
                 }
                 parents += info.interfaces.filter {
                     classes[$0] != nil || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                        || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
@@ -1372,6 +1378,9 @@ final class JVMClasspathIndex {
             source += "constructor(" + declarations.joined(separator: ", ") + ") : this() {}\n"
         }
         for method in own where method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
+            if info.kotlinComparableSupertype != nil, method.sourceName == "compareTo" {
+                source += "override "
+            }
             source += "external " + functionDeclaration(method) + "\n"
         }
         for method in own where !method.isConstructor && !method.isStatic && !isKotlinPropertyAccessor(method) {

@@ -18,6 +18,7 @@ struct JVMClassInfo {
     var kotlinSealedInterfaceSubclasses: [String] = []
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
+    var kotlinComparableSupertype: String?
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -698,6 +699,9 @@ struct JVMClassReader {
         info.isKotlinMultifilePart = classAttributes.kotlinMetadata?.isMultifilePart == true
         info.genericSignature = classAttributes.signature
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
+            info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
+        }
         if hasValueAdapters, let valueCarrier, let metadata = classAttributes.kotlinMetadata,
            let constructors = try? metadata.valueClassConstructors(byteLimit: bytes.count) {
             for constructor in constructors {
