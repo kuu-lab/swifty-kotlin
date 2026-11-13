@@ -651,7 +651,7 @@ struct JVMClassReader {
            (metadata.isFileFacade == true || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames, ownerIsInterface: flags & 0x0200 != 0) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames, ownerIsInterface: flags & 0x0200 != 0, ownerIsSAM: flags & 0x0200 != 0 && methods.filter { $0.isAbstract && !$0.isStatic }.count == 1) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil

@@ -582,7 +582,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = [], ownerIsInterface: Bool = false) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = [], ownerIsInterface: Bool = false, ownerIsSAM: Bool = false) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -686,11 +686,11 @@ struct JVMKotlinMetadataPayload {
                 nil
             }
             let hasStableScalarParameters = hasStableFinalParameters && !isMangledMember
-                && parameters.allSatisfy { parameter in
+                && (ownerIsSAM || parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
-                }
+                })
             guard valid, composableMemberNames.contains(jvmName ?? name)
                 || functionTypeMemberNames.contains(jvmName ?? name) && resultType.hasPrefix("kotlinx.coroutines.flow.Flow<")
                 || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isSubList
