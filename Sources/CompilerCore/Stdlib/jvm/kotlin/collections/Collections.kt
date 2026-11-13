@@ -12,6 +12,10 @@ import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
 import kotlin.random.Random
 
+public fun <T : Comparable<T>> MutableList<T>.sort() {
+    if (size > 1) __jvmSortList(this)
+}
+
 public fun <T> Collection<T>.random(): T = random(Random.Default)
 
 public fun <T> Collection<T>.random(random: Random): T {
