@@ -60,6 +60,14 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     for (element in this) result.add(element)
     return result
 }
+public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        for (nestedElement in element) result.add(nestedElement)
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.toList(): List<T> {
     if (this is Collection<*>) {
         if (this.size == 0) return emptyList<T>()

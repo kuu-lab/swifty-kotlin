@@ -1,5 +1,6 @@
 package kotlin.collections
 fun <T> Iterable<T>.joinToString(separator: CharSequence = ", ", prefix: CharSequence = "", postfix: CharSequence = "", limit: Int = -1, truncated: CharSequence = "...", transform: ((T) -> CharSequence)? = null): String = null!!
+fun <T> Iterable<Iterable<T>>.flatten(): List<T> = null!!
 fun <T> Iterable<T>.toList(): List<T> = null!!
 fun <T> Iterable<T>.toMutableList(): MutableList<T> = null!!
 fun <T> Iterable<T>.toSet(): Set<T> = null!!
