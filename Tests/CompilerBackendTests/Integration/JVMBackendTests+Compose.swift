@@ -70,8 +70,34 @@ extension JVMBackendTests {
         }
     }
 
-    private func composeJVMFixture(_ root: URL) throws -> URL {
-        let sources = [
+    @Test
+    func jvmComposeViewWrapsKotlinContent() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let dependencies = try composeJVMFixture(root, stdlib: stdlib)
+            let source = """
+                import androidx.compose.foundation.text.BasicText
+                import androidx.compose.runtime.Composable
+                import androidx.compose.ui.platform.ComposeView
+
+                @Composable private fun Screen(text: String) { BasicText(text) }
+
+                fun main() {
+                    val text = "Kotlin Compose"
+                    ComposeView().setContent { Screen(text) }
+                }
+                """
+            let classpath = [dependencies.path, stdlib.path]
+            let (app, exit, diagnostics) = try m22Build(root: root, sources: [("Main.kt", source)], name: "app.jar", classpath: classpath)
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let run = try java(["-Xverify:all", "-cp", ([app.path] + classpath).joined(separator: ":"), "MainKt"])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "Kotlin Compose\n")
+        }
+    }
+
+    private func composeJVMFixture(_ root: URL, stdlib: URL? = nil) throws -> URL {
+        var sources = [
             "Composable.java": """
                 package androidx.compose.runtime;
                 import java.lang.annotation.*;
@@ -125,12 +151,99 @@ extension JVMBackendTests {
                 }
                 """,
         ]
+        if stdlib != nil {
+            sources.merge(composeUIFixtureSources) { _, new in new }
+        }
         for (name, source) in sources {
             try source.write(to: root.appendingPathComponent(name), atomically: true, encoding: .utf8)
         }
-        _ = try jvmTool("javac", ["--release", "8", "-d", "dependencies"] + sources.keys.sorted(), root: root)
+        let classpath = stdlib.map { ["-cp", $0.path] } ?? []
+        _ = try jvmTool("javac", ["--release", "8", "-d", "dependencies"] + classpath + sources.keys.sorted(), root: root)
+        if stdlib != nil {
+            // Java source cannot spell a Kotlin value-class-mangled JVM method name.
+            let path = root.appendingPathComponent("dependencies/androidx/compose/foundation/text/BasicTextKt.class")
+            var bytes = try Data(contentsOf: path)
+            let name = try #require(bytes.range(of: Data("BasicText_VhcvRP8".utf8)))
+            bytes.replaceSubrange(name, with: Data("BasicText-VhcvRP8".utf8))
+            try bytes.write(to: path)
+        }
         _ = try jvmTool("jar", ["cf", "dependencies.jar", "-C", "dependencies", "."], root: root)
         return root.appendingPathComponent("dependencies.jar")
+    }
+
+    private var composeUIFixtureSources: [String: String] {
+        [
+            "ComposableLambda.java": """
+                package androidx.compose.runtime.internal;
+                import androidx.compose.runtime.Composer;
+                import kotlin.Unit;
+                import kotlin.jvm.functions.Function2;
+                public interface ComposableLambda extends Function2<Composer, Integer, Unit> {}
+                """,
+            "ComposableLambdaKt.java": """
+                package androidx.compose.runtime.internal;
+                import androidx.compose.runtime.Composer;
+                import kotlin.Unit;
+                import kotlin.jvm.functions.Function2;
+                public class ComposableLambdaKt {
+                    @SuppressWarnings("unchecked")
+                    public static ComposableLambda composableLambdaInstance(int key, boolean tracked, Object body) {
+                        if (!tracked) throw new AssertionError("untracked content");
+                        Function2<Composer, Integer, Unit> content = (Function2<Composer, Integer, Unit>) body;
+                        return content::invoke;
+                    }
+                }
+                """,
+            "ComposeView.java": """
+                package androidx.compose.ui.platform;
+                import androidx.compose.runtime.Composer;
+                import androidx.compose.runtime.internal.ComposableLambda;
+                import fixture.Bridge;
+                import kotlin.Unit;
+                import kotlin.jvm.functions.Function2;
+                public class ComposeView {
+                    public void setContent(Function2<? super Composer, ? super Integer, Unit> content) {
+                        if (!(content instanceof ComposableLambda)) throw new AssertionError("missing Compose wrapper");
+                        if (content.invoke(Bridge.COMPOSER, 0) != Unit.INSTANCE) throw new AssertionError("missing Unit");
+                        Bridge.checkClosed(3);
+                    }
+                    public void setViewCompositionStrategy(ViewCompositionStrategy strategy) {}
+                }
+                """,
+            "ViewCompositionStrategy.java": """
+                package androidx.compose.ui.platform;
+                import kotlin.Unit;
+                import kotlin.jvm.functions.Function0;
+                public interface ViewCompositionStrategy {
+                    Function0<Unit> installFor(ComposeView view);
+                }
+                """,
+            "BasicTextKt.java": """
+                package androidx.compose.foundation.text;
+                import androidx.compose.runtime.Composer;
+                import androidx.compose.ui.Modifier;
+                import androidx.compose.ui.graphics.ColorProducer;
+                import androidx.compose.ui.text.TextStyle;
+                import fixture.Bridge;
+                import kotlin.jvm.functions.Function1;
+                public class BasicTextKt {
+                    public static void BasicText_VhcvRP8(String text, Modifier modifier, TextStyle style, Function1 callback,
+                            int overflow, boolean softWrap, int maxLines, int minLines, ColorProducer color,
+                            Composer composer, int changed, int defaults) {
+                        int depth = Bridge.depth(composer);
+                        if (depth != 3 || changed != 0 || defaults != 0x1FE)
+                            throw new AssertionError("depth=" + depth + ", changed=" + changed + ", defaults=" + defaults);
+                        if (modifier != null || style != null || callback != null || overflow != 0 || softWrap
+                                || maxLines != 0 || minLines != 0 || color != null)
+                            throw new AssertionError("incorrect default placeholders");
+                        System.out.println(text);
+                    }
+                }
+                """,
+            "Modifier.java": "package androidx.compose.ui; public interface Modifier {}",
+            "TextStyle.java": "package androidx.compose.ui.text; public class TextStyle {}",
+            "ColorProducer.java": "package androidx.compose.ui.graphics; public interface ColorProducer {}",
+        ]
     }
 }
 #endif
