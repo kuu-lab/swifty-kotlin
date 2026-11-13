@@ -152,14 +152,15 @@ extension JVMFunctionBuilder {
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
                 }
                 if let importedField = info.fields.first(where: {
-                    $0.name == name && $0.descriptor == type.descriptor
+                    $0.name == name && ($0.descriptor == type.descriptor
+                        || $0.isFinal && $0.descriptor == JVMClasspathIndex.boxed(type).descriptor)
                         && (info.isRuntimeInstanceField($0)
                             || sema.symbols.symbol(parent)?.kind == .object && info.isRuntimeStaticField($0))
-                }) {
-                    let field = JVMField(owner: owner, name: name, type: type, access: importedField.access)
+                }), let fieldType = try? JVMDescriptor.parse("()" + importedField.descriptor).1 {
+                    let field = JVMField(owner: owner, name: name, type: fieldType, access: importedField.access)
                     let getter = JVMForeignMethod(
-                        owner: owner, name: "get" + capital, descriptor: "()" + type.descriptor,
-                        parameters: [], result: type, isStatic: importedField.isStatic, isInterface: info.isInterface, isAbstract: false
+                        owner: owner, name: "get" + capital,
+                        descriptor: "()" + fieldType.descriptor, parameters: [], result: fieldType, isStatic: importedField.isStatic, isInterface: info.isInterface, isAbstract: false
                     )
                     var property = JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
                     property.accessesForeignField = true
