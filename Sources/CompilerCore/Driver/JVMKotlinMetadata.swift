@@ -19,7 +19,7 @@ struct JVMKotlinSuspendFunction {
 /// parameters include function types. The physical descriptor stays on
 /// `JVMForeignMethod`; this carries only the declaration shape Sema needs.
 struct JVMKotlinFunction {
-    static let valueOperators: Set<String> = ["plus", "minus", "times", "div", "rem"]
+    static let valueOperators: Set<String> = ["plus", "minus", "times", "div", "rem", "compareTo"]
 
     struct TypeParameter {
         let name: String
@@ -140,6 +140,19 @@ struct JVMKotlinMetadata {
             result[carrier] = source
         }
         return result
+    }
+
+    func comparableSupertype(byteLimit: Int) throws -> String? {
+        guard kind == 1, let major = version.first, (1...2).contains(major) else { return nil }
+        let (declaration, names) = try declarationData(byteLimit: byteLimit)
+        var types = try TypeTable(declaration.message(30))
+        types.parameterNames = try Self.classTypeParameters(declaration, names: names)
+        let inline = try declaration.messages(6).map { (type: $0, nullable: $0.bool(3) == true) }
+        let indexed = try declaration.int32List(2).compactMap { types.resolve(index: $0) }
+        for type in inline + indexed where try names.resolve(type.type.int32(6)) == "kotlin/Comparable" {
+            return try Self.sourceType(type, types: types, names: names)
+        }
+        return nil
     }
 
     private static func classTypeParameters(_ declaration: ProtoFields, names: JVMMetadataNames) throws -> [Int32: String] {
