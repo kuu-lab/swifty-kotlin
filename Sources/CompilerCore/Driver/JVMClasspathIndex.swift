@@ -1527,7 +1527,9 @@ final class JVMClasspathIndex {
 
     private func runtimeStaticFieldType(_ field: JVMForeignField, in info: JVMClassInfo) -> JVMValueType? {
         guard info.isRuntimeStaticField(field), JVMProgramBuilder.isIdentifier(field.name),
-              let type = try? JVMDescriptor.parse("()" + field.descriptor).1, expose(type) else { return nil }
+              let type = try? JVMDescriptor.parse("()" + field.descriptor).1,
+              expose(type) || field.isFinal && type.referenceName.map(Self.jdkToKotlinTypeNames.keys.contains) == true
+        else { return nil }
         return type
     }
 
