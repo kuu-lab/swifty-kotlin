@@ -1593,7 +1593,12 @@ final class JVMClasspathIndex {
         if allowsCompanion, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
             if let companion {
-                let parents = companion.interfaces.filter { classes[$0] != nil }.compactMap {
+                var parents: [String] = []
+                if let base = companion.superclass, base != "java/lang/Object", classes[base] != nil,
+                   let superclass = superclassReference(base, child: companion) {
+                    parents.append(superclass)
+                }
+                parents += companion.interfaces.filter { classes[$0] != nil }.compactMap {
                     supertypeReference($0, child: companion)
                 }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
@@ -1641,6 +1646,7 @@ final class JVMClasspathIndex {
                         method, acceptsDefaults: defaultArgumentMethod(for: method, in: companion) != nil
                     ) + "\n"
                 }
+                source += nestedClassDeclarations(of: companion.name)
             }
             source += "}\n"
         }
