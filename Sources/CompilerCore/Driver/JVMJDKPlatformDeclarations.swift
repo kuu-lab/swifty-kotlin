@@ -228,6 +228,27 @@ extension JVMClasspathIndex {
                 }
             }
             """, 0x0601, "java/lang/Object", [method("java/util/Comparator", "compare", [object, object], .int, interface: true), method("java/util/Comparator", "comparingInt", [extractor], comparator, staticMember: true, interface: true)]),
+            ("java/util/HashMap", """
+            package java.util
+            open class HashMap<K, V> : kotlin.collections.MutableMap<K, V> {
+                constructor()
+                override val size: Int get() = 0
+                override val keys: kotlin.collections.Set<K> get() = null!!
+                override val values: kotlin.collections.Collection<V> get() = null!!
+                override val entries: kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<K, V>> get() = null!!
+                override fun get(key: K): V? = null
+                override fun containsKey(key: K): Boolean = false
+                override fun containsValue(value: V): Boolean = false
+                override fun isEmpty(): Boolean = false
+                override fun put(key: K, value: V): V? = null
+                override operator fun set(key: K, value: V) {}
+                override fun remove(key: K): V? = null
+                override fun clear() {}
+            }
+            """, 0x0001, "java/lang/Object", [
+                method("java/util/HashMap", "<init>", [], .reference("java/util/HashMap", nullable: false)),
+                method("java/util/HashMap", "put", [object, object], object),
+            ]),
             ("java/util/LinkedHashMap", """
             package java.util
             open class LinkedHashMap<K, V> : kotlin.collections.MutableMap<K, V> {
