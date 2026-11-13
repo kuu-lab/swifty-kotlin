@@ -180,7 +180,9 @@ extension JVMFunctionBuilder {
         }
         let allTypes = reference?.parameters ?? method!.parameters
         let isComposable = program.jvmComposableFunctions.contains(symbol)
-        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
+        let composeDefaults = isComposable && program.sourceParameters[symbol]?.contains(where: \.hasDefaultValue) == true
+        let composeSuffixCount = JVMCompose.suffix.count + (composeDefaults ? 1 : 0)
+        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? composeSuffixCount : 0))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         let importedDefault = context.jvmImports?.importedDefaultMethods[symbol]
@@ -213,6 +215,9 @@ extension JVMFunctionBuilder {
             values += usesDefaults ? try maskArguments(ordered.masks, constructor: true)
                 : [try constant(.null, .reference("kotlin/jvm/internal/DefaultConstructorMarker", nullable: true))]
             instructions.append(.foreignCall(target, receiver: object, arguments: values, result: nil))
+        } else if isComposable, let reference {
+            try composableCall(reference, symbol: symbol, arguments: values, result: result,
+                               defaults: composeDefaults ? ordered.masks.first : nil, at: id)
         } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
@@ -247,8 +252,7 @@ extension JVMFunctionBuilder {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
         } else if let reference {
-            if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
-            else { instructions.append(.call(reference, values, result)) }
+            instructions.append(.call(reference, values, result))
         }
         return JVMIntrinsicResult(value: try object ?? result.map { try convert($0, to: resultType) })
     }
