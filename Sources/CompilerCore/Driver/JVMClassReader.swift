@@ -21,6 +21,7 @@ struct JVMClassInfo {
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
+    var kotlinParameterizedSupertypes: [String: String] = [:]
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -609,11 +610,13 @@ struct JVMClassReader {
                 methods[index].kotlinSuspendFunction = function
             }
         }
+        let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let functions = try? metadata.functions(
-               byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype
+               byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype,
+               functionTypeMemberNames: functionTypeMemberNames
            ) {
             for index in methods.indices {
                 let method = methods[index]
@@ -716,6 +719,9 @@ struct JVMClassReader {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
             info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
         }
