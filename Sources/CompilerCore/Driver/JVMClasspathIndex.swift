@@ -15,8 +15,8 @@ final class JVMClasspathIndex {
     private var methodsByOwnerAndName: [String: [String: [JVMForeignMethod]]] = [:]
     private(set) var classpathStubFiles: Set<FileID> = []
 
-    var composeStaticContracts: [FileID: (method: JVMForeignMethod, defaultMask: Int32?)] = [:]
-    var composeDefaults: [SymbolID: Int32] = [:]
+    var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
+    var importedComposables: [SymbolID: JVMCompose.ImportedCall] = [:]
     var composeContentSymbols: Set<SymbolID> = []
 
     private(set) var fallbackClassFiles: [(String, Data)] = []
@@ -827,6 +827,7 @@ final class JVMClasspathIndex {
         let covered = try coveredClassNames(in: ctx)
         activeCoveredNames = covered
         defer { overrideSignaturesByOwner.removeAll() }
+        injectComposeUIContracts(into: ctx)
         let neededLazy = lazyClassNames.isEmpty ? nil : referencedLazyClasses(
             into: ctx, covered: covered, additionalRoots: requiredLazyClassNames
         )
@@ -840,7 +841,7 @@ final class JVMClasspathIndex {
             let isLazy = lazyClassNames.contains(info.name)
             let isComposer = hasComposeRuntime && info.name == JVMCompose.composer
             let isIntState = hasIntStateContract && info.name == Self.mutableIntState
-            if isLazy, !isComposer, !isIntState, neededLazy?.contains(info.name) != true { continue }
+            if isLazy, !isComposer, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
             guard let short = parts.last else { throw JVMClassReader.Invalid() }
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
@@ -956,7 +957,6 @@ final class JVMClasspathIndex {
                 """
             _ = ctx.sourceManager.addFile(path: Self.composeIntrinsicPath, contents: Data(source.utf8), origin: .residualStdlib)
         }
-        injectComposeUIContracts(into: ctx)
     }
 
     /// Member declarations shared by top-level stubs and nested-class shells:
@@ -1475,7 +1475,10 @@ final class JVMClasspathIndex {
                 for match in Self.dottedPattern.matches(in: text, range: range) {
                     if let r = Range(match.range, in: text) { matchTokenPrefixes(String(text[r])) }
                 }
-                continue
+                // Projected Compose declarations can name a scope that the app
+                // only uses as an implicit lambda receiver, so scan their
+                // identifiers as well as fully qualified signature types.
+                if composeStaticContracts[file] == nil { continue }
             }
             var identifiers = Set<String>()
             for match in Self.identifierPattern.matches(in: text, range: range) {
@@ -1750,7 +1753,7 @@ final class JVMClasspathIndex {
         let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
         if let contract = composeStaticContracts[site.start.file], symbol.kind == .function {
             methods[symbol.id] = contract.method
-            composeDefaults[symbol.id] = contract.defaultMask
+            importedComposables[symbol.id] = contract.composable
             return
         }
         if name == "setContent", sourceClasses[site.start.file]?.name == Self.composeView,

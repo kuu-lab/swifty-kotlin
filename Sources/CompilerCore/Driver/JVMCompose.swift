@@ -1,4 +1,13 @@
 struct JVMCompose {
+    struct ImportedCall {
+        let defaultMask: Int32
+        var contentParameter: Int? = nil
+
+        func usesDefault(at index: Int) -> Bool {
+            UInt32(bitPattern: defaultMask) & (1 << index) != 0
+        }
+    }
+
     static let composer = "androidx/compose/runtime/Composer"
     static let composerType = JVMValueType.reference(composer, nullable: false)
     static let suffix: [JVMValueType] = [composerType, .int]
@@ -25,7 +34,7 @@ struct JVMCompose {
 extension JVMFunctionBuilder {
     func composeContent(_ id: ExprID) throws -> JVMValue {
         guard case .lambdaLiteral = arena.expr(id) else {
-            throw fail("ComposeView.setContent requires a JVM composable lambda literal.", id)
+            throw fail("JVM Compose content requires a composable lambda literal.", id)
         }
         let body = try closure(id, composable: true)
         let key = try constant(.int(composeCallKey(at: id)), .int)
@@ -36,20 +45,26 @@ extension JVMFunctionBuilder {
                            arguments: [key, tracked, body])!
     }
 
-    func importedComposableCall(_ method: JVMForeignMethod, mask: Int32, args: [CallArgument], binding: CallBinding?, id: ExprID) throws -> JVMIntrinsicResult {
+    func importedComposableCall(_ method: JVMForeignMethod, contract: JVMCompose.ImportedCall, args: [CallArgument], binding: CallBinding?, id: ExprID) throws -> JVMIntrinsicResult {
         guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
-        let declaredCount = method.parameters.count - JVMCompose.suffix.count - 1
+        let declared = method.parameters.dropLast(JVMCompose.suffix.count + 1)
+        let explicitTypes = declared.enumerated().compactMap { contract.usesDefault(at: $0.offset) ? nil : $0.element }
         guard let binding, let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee),
-              signature.parameterTypes.count <= declaredCount
+              signature.parameterTypes.count == explicitTypes.count
         else { throw fail("Invalid JVM Compose library signature.", id) }
-        let logicalCount = signature.parameterTypes.count
-        let explicit = try arguments(args, binding: binding, parameters: Array(method.parameters.prefix(logicalCount)), declarations: nil, id: id)
-        let omitted = try method.parameters[logicalCount..<declaredCount].map(zero)
+        let explicit = try arguments(args, binding: binding, parameters: explicitTypes, declarations: nil, id: id,
+                                     composableParameter: contract.contentParameter)
+        var supplied = explicit.values.makeIterator()
+        let values = try declared.enumerated().map { index, type in
+            if contract.usesDefault(at: index) { return try zero(type) }
+            guard let next = supplied.next() else { throw fail("Missing JVM Compose library argument.", id) }
+            return next
+        }
         let changed = try constant(.int(0), .int)
-        let defaults = try constant(.int(mask), .int)
+        let defaults = try constant(.int(contract.defaultMask), .int)
         try beginComposeGroup(composer, key: composeCallKey(at: id))
-        instructions.append(.foreignCall(method, receiver: nil, arguments: explicit.values + omitted + [composer, changed, defaults], result: nil))
+        instructions.append(.foreignCall(method, receiver: nil, arguments: values + [composer, changed, defaults], result: nil))
         _ = try jdkCall(JVMCompose.composer, JVMCompose.end, [], .unit, receiver: composer, interface: true)
         return JVMIntrinsicResult(value: nil)
     }

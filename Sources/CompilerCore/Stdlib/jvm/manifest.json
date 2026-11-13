@@ -317,12 +317,6 @@
       "appendForConsumers": "declarations/CollectionFactories.kt"
     },
     {
-      "path": "declarations/ListMutations.kt",
-      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/collections/CollectionsKt"
-    },
-    {
       "path": "declarations/IndexedValue.kt",
       "virtualPath": "<kswiftk-jvm>/indexed-value.kt",
       "excludeFromStdlibBuild": true
@@ -432,6 +426,17 @@
       "virtualPath": "<kswiftk-jvm>/array-mutations.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
+      "path": "kotlin/collections/ListMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/Deque.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-deque-runtime.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/UnsignedArrayWithIndex.kt",
