@@ -883,7 +883,8 @@ final class TypeCheckDriver {
         } else if !suppressPlatformWarning,
                   let warningRange = range,
                   sema.types.nullability(of: left) == .platformType,
-                  sema.types.nullability(of: right) == .nonNull
+                  sema.types.nullability(of: right) == .nonNull,
+                  !isCompilerOwnedSourceRange(warningRange)
         {
             diagnostics.warning(
                 "KSWIFTK-SEMA-PLATFORM",
@@ -892,6 +893,15 @@ final class TypeCheckDriver {
                 range: warningRange
             )
         }
+    }
+
+    /// The platform-type lint targets user code. Bundled and residual stdlib
+    /// sources are compiler-owned, so platform flows inside them (e.g. the
+    /// flexible `java.util.concurrent.atomic.AtomicReference<T>` type
+    /// parameter flowing through Kotlin extension loops) are unactionable
+    /// noise and must not leak into user-facing diagnostics.
+    private func isCompilerOwnedSourceRange(_ range: SourceRange) -> Bool {
+        sourceManager?.origin(of: range.start.file)?.isBundledStdlib == true
     }
 
     private func withExpectedTypeOrigin(
