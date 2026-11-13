@@ -91,7 +91,6 @@ struct StdlibSurfaceSpecTests {
             sequence("flatMap", 1),
             sequence("flatMapIndexed", 1),
             sequence("plus", 1),
-            sequence("randomOrNull", 0),
             sequence("plusElement", 1),
             sequence("contains", 1),
             sequence("indexOf", 1),
@@ -142,9 +141,7 @@ struct StdlibSurfaceSpecTests {
                 // KSP-1344 migrated the Sequence firstNotNullOf family to
                 // bundled Kotlin source as well.
                 // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
-                (.sequence, ["kotlin", "sequences", "Sequence"], "random", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
