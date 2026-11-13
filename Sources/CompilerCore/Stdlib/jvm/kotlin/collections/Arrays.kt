@@ -10,6 +10,12 @@ public val LongArray.lastIndex: Int get() = size - 1
 
 public operator fun <T> Array<out T>.contains(element: T): Boolean = indexOf(element) >= 0
 
+public fun <T : Any> Array<out T?>.filterNotNull(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) if (element != null) result.add(element)
+    return result
+}
+
 public fun <T> Array<out T>.getOrNull(index: Int): T? =
     if (index < 0 || index >= size) null else this[index]
 
