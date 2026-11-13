@@ -608,7 +608,7 @@ extension JVMClasspathIndex {
                                            interfaces: ["java/io/Serializable", "java/lang/Comparable"], methods: [
                 method(fileName, "<init>", [.string], fileType),
                 method(fileName, "<init>", [.string, .string], fileType),
-                method(fileName, "<init>", [fileType, .string], fileType),
+                method(fileName, "<init>", [.reference(fileName, nullable: true), .string], fileType),
                 method(fileName, "getPath", [], .string),
                 method(fileName, "getAbsolutePath", [], .string),
                 method(fileName, "mkdirs", [], .boolean),
