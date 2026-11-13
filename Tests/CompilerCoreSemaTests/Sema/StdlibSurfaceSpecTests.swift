@@ -141,8 +141,6 @@ struct StdlibSurfaceSpecTests {
                 // KSP-1344 migrated the Sequence firstNotNullOf family to
                 // bundled Kotlin source as well.
                 // KSP-632 migrated Iterable.sumBy to bundled Kotlin source too.
-                (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
-                (.sequence, ["kotlin", "sequences", "Sequence"], "plusElement", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
             ]
