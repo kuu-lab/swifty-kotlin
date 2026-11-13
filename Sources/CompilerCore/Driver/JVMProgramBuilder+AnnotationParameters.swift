@@ -51,6 +51,7 @@ extension JVMProgramBuilder {
             // that are never emitted, so there is no classfile plan to attach
             // (mirrors the skip in annotations(for:)).
             let annotationFqName = info.fqName.map(context.interner.resolve).joined(separator: ".")
+            if annotationFqName == "kotlin.OptIn" { continue }
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
             if var tokens = node.constructionTokens, let last = tokens.last {
