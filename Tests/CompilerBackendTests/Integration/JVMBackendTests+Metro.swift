@@ -83,22 +83,46 @@ extension JVMBackendTests {
             )
             try #require(dependencies.exitCode == 0, "\(dependencies.stderr)")
             let classpath = root.appendingPathComponent("dependencies").path
+            let legacySource = """
+            package example
+            import dev.zacsweers.metro.DependencyGraph
+            import dev.zacsweers.metro.internal.GraphFactoryInvokeFunctionMarker
+
+            @DependencyGraph
+            interface LegacyGraph {
+                val message: String
+                @DependencyGraph.Factory
+                fun interface Factory { fun create(message: String): LegacyGraph }
+                companion object : Factory {
+                    @GraphFactoryInvokeFunctionMarker
+                    override fun create(message: String): LegacyGraph = object : LegacyGraph {
+                        override val message = message
+                    }
+                }
+            }
+            """
+            try legacySource.write(to: root.appendingPathComponent("LegacyGraph.kt"), atomically: true, encoding: .utf8)
+            let legacy = try jvmTool("kotlinc", ["LegacyGraph.kt", "-classpath", classpath, "-d", classpath], root: root)
+            try #require(legacy.exitCode == 0, "\(legacy.stderr)")
             let compiled = try compile("""
             import dev.zacsweers.metro.createGraph
             import dev.zacsweers.metro.createGraphFactory as factory
             import example.Graph
+            import example.LegacyGraph
 
             fun main() {
                 val maker: Graph.Maker = factory()
                 println(maker.make("factory").message)
                 println(createGraph<Graph>().message)
+                println(factory<LegacyGraph.Factory>().create("legacy").message)
             }
             """, root: root, mode: .jvmJar, classpath: [classpath])
             try #require(compiled.0 == 0, "\(compiled.1.map(\.message))")
             let app = root.appendingPathComponent("hello.jar").path
-            let execution = try java(["-Xverify:all", "-cp", app + ":" + classpath, "HelloKt"])
+            let runtime = try ownStdlibLibrary()
+            let execution = try java(["-cp", [app, classpath, runtime.path].joined(separator: ":"), "HelloKt"])
             #expect(execution.exitCode == 0)
-            #expect(execution.stdout == "factory\ngraph\n")
+            #expect(execution.stdout == "factory\ngraph\nlegacy\n")
             #expect(execution.stderr.isEmpty)
 
             let generated = try compile("""
