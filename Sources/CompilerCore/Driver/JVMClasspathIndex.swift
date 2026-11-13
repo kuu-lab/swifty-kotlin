@@ -1001,6 +1001,8 @@ final class JVMClasspathIndex {
             }
             let topLevelProperties = info.kotlinTopLevelProperties.filter {
                 !isContextIsActive($0.source, $0.getter)
+                    && !(info.name == "androidx/compose/runtime/ComposablesKt" && $0.source.name == "currentComposer")
+                    && (!$0.getter.composePropertyABI(hasReceiver: $0.source.receiver != nil) || hasComposeRuntime)
                     && $0.getter.parameters.allSatisfy(exposeSuspendType) && exposeSuspendType($0.getter.result)
             }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
@@ -1060,9 +1062,11 @@ final class JVMClasspathIndex {
                         source += declaration
                     }
                 }
-                for (property, _) in topLevelProperties {
+                for (property, getter) in topLevelProperties {
                     let receiver = property.receiver.map { $0 + "." } ?? ""
-                    source += "val \(receiver)`\(property.name)`: \(property.result) get() = null!!\n"
+                    let annotation = getter.composePropertyABI(hasReceiver: property.receiver != nil)
+                        ? " @androidx.compose.runtime.Composable" : ""
+                    source += "val \(receiver)`\(property.name)`: \(property.result)\(annotation) get() = null!!\n"
                 }
             } else {
                 if info.flags & 0x2000 != 0 {
