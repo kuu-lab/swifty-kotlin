@@ -81,7 +81,7 @@ extension JVMForeignMethod {
 struct JVMMetroBinding {
     enum Recipe {
         case input(JVMField)
-        case constructor(JVMForeignMethod, [JVMMetroBindingKey])
+        case constructor(JVMForeignMethod, [JVMMetroBindingKey], marker: Bool)
         case provider(JVMForeignMethod, receiver: String?, [JVMMetroBindingKey])
         case alias(JVMMetroBindingKey)
         case set([JVMMetroBindingKey])
@@ -170,7 +170,30 @@ extension JVMProgramBuilder {
             return try metroInjectableConstructor(constructors, annotations: typeAnnotations, owner: name)
         }
         guard let info = context.jvmImports?.metroClassInfo(name) else { return nil }
-        return try metroInjectableConstructor(info.methods.filter { $0.isConstructor && !$0.isProtected }, annotations: info.annotations, owner: name)
+        let constructors = info.methods.filter { $0.isConstructor && !$0.isProtected }
+        if !info.annotations.metro(JVMMetro.inject).isEmpty,
+           let lowered = info.kotlinLoweredConstructors.first(where: { $0.entry.parameters.count == $0.source.parameters.count + 1 }),
+           let source = info.metroAccessors.first(where: { $0.isConstructor && $0.descriptor == lowered.source.descriptor }) {
+            let keys = try metroDependencies(source).enumerated().map { index, key in
+                let type = metroValueType(lowered.source.parameters[index].sourceType)?.descriptor ?? key.type
+                return JVMMetroBindingKey(type, qualifiers: key.qualifiers)
+            }
+            return JVMMetroBinding(recipe: .constructor(lowered.entry, keys, marker: true), type: lowered.entry.result,
+                                   scope: info.annotations.metro(JVMMetro.singleIn).first?.metroClass("scope"))
+        }
+        return try metroInjectableConstructor(constructors, annotations: info.annotations, owner: name)
+    }
+
+    func metroValueType(_ kotlinName: String) -> JVMValueType? {
+        guard !kotlinName.contains("<"), !kotlinName.hasSuffix("?"), !kotlinName.hasPrefix("kotlin."),
+              let imports = context.jvmImports else { return nil }
+        let segments = kotlinName.split(separator: ".").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "`")) }
+        for boundary in segments.indices.reversed() {
+            let name = (segments.prefix(boundary) + [segments.dropFirst(boundary).joined(separator: "$")]).joined(separator: "/")
+            let type = JVMValueType.reference(name, nullable: false)
+            if imports.importedValueCarrier(for: type) != nil { return type }
+        }
+        return nil
     }
 
     private func metroInjectableConstructor(
@@ -183,6 +206,6 @@ extension JVMProgramBuilder {
             throw JVMFrontendError(message: "Metro class \(owner) has multiple injectable constructors.")
         }
         let scope = (method.annotations + annotations).metro(JVMMetro.singleIn).first?.metroClass("scope")
-        return JVMMetroBinding(recipe: .constructor(method, try metroDependencies(method)), type: method.result, scope: scope)
+        return JVMMetroBinding(recipe: .constructor(method, try metroDependencies(method), marker: false), type: method.result, scope: scope)
     }
 }
