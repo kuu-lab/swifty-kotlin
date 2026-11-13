@@ -67,6 +67,23 @@ public fun <K, V> Iterable<Pair<K, V>>.toMap(): Map<K, V> {
 
 public fun <K, V> kotlin.sequences.Sequence<Pair<K, V>>.toMap(): Map<K, V> = this.asIterable().toMap()
 
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Map<out K, V>.toList(): List<Pair<K, V>> {
+    val size = this.size
+    if (size == 0) return emptyList<Pair<K, V>>()
+    val entries = __jvmMapEntries(this).iterator()
+    if (size == 1) {
+        val entry = entries.next()
+        return listOf(Pair(__jvmMapEntryKey(entry) as K, __jvmMapEntryValue(entry) as V))
+    }
+    val result = mutableListOf<Pair<K, V>>()
+    while (entries.hasNext()) {
+        val entry = entries.next()
+        result.add(Pair(__jvmMapEntryKey(entry) as K, __jvmMapEntryValue(entry) as V))
+    }
+    return result
+}
+
 public fun <K, V> Map<out K, V>.toMutableMap(): MutableMap<K, V> = __jvmCopyMap(this)
 
 @Suppress("UNCHECKED_CAST")

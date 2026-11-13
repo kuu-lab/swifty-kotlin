@@ -19,7 +19,21 @@ public fun Int.coerceIn(minimumValue: Int, maximumValue: Int): Int {
     return this
 }
 
+public fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long {
+    if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    if (this < minimumValue) return minimumValue
+    if (this > maximumValue) return maximumValue
+    return this
+}
+
 public fun Float.coerceIn(minimumValue: Float, maximumValue: Float): Float {
+    if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
+    if (this < minimumValue) return minimumValue
+    if (this > maximumValue) return maximumValue
+    return this
+}
+
+public fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double {
     if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
     if (this < minimumValue) return minimumValue
     if (this > maximumValue) return maximumValue

@@ -367,16 +367,25 @@ extension BuildASTPhase.ExpressionParser {
         return declaration
     }
 
-    func parseLocalAssignFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {
+    func parseLocalAssignFromSlice(
+        _ tokens: ArraySlice<Token>,
+        requiresCompleteExpressions: Bool = false
+    ) -> ExprID? {
         let interner = interner
         let astArena = astArena
         let context = BuildASTPhase.LocalStatementCoreContext(
             interner: interner,
             astArena: astArena,
             parseExpression: { slice in
-                BuildASTPhase.ExpressionParser(
+                let parser = BuildASTPhase.ExpressionParser(
                     tokens: slice, interner: interner, astArena: astArena, diagnostics: self.diagnostics
-                ).parse()
+                )
+                guard let expression = parser.parse() else { return nil }
+                if requiresCompleteExpressions,
+                   parser.index != slice.endIndex || parser.hasIncompleteExpression {
+                    return nil
+                }
+                return expression
             },
             parseTypeReference: { _ in nil },
             resolveDeclarationName: { _, _ in nil },

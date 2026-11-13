@@ -365,7 +365,7 @@ extension JVMBackendTests {
     }
 
     @Test(arguments: [
-        "@file:JvmName(\"Ignored\")\nfun main() {}",
+        "@file:JvmName(\"bad.name\")\nfun main() {}",
         "annotation class Number(val n: Int); fun bad(@Number(\"wrong\") n: Int): Int = n",
         "annotation class Number(val n: Int); fun bad(@Number(4294967296) n: Int): Int = n",
         "@JvmName(\"second\") fun first(): Int = 1; fun second(): Int = 2"

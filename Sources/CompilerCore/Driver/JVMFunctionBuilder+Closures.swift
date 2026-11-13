@@ -107,13 +107,13 @@ extension JVMFunctionBuilder {
            let property = program.properties[symbol],
            case let .functionType(signature) = program.sema.types.kind(of: bound.functionType) {
             let object = try requireValue(receiver)
-            let function = try readProperty(property, receiver: object, special: isSuper(receiver), superReceiver: receiver)
+            let function = try readProperty(property, receiver: object, at: id, special: isSuper(receiver), superReceiver: receiver)
             var values: [JVMValue] = signature.receiver != nil && args.count == signature.params.count ? [object] : []
             for arg in args { values.append(try requireValue(arg.expr)) }
             return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
         }
         if let bound = program.sema.bindings.invokeOperatorPropertyCalls[id], let property = program.properties[bound.property], case let .functionType(signature) = program.sema.types.kind(of: bound.propertyType) {
-            let function = try readProperty(property, receiver: requireValue(receiver), special: false)
+            let function = try readProperty(property, receiver: requireValue(receiver), at: id, special: false)
             var values: [JVMValue] = []
             for arg in args { values.append(try requireValue(arg.expr)) }
             return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
@@ -147,7 +147,7 @@ extension JVMFunctionBuilder {
         }
         return nil
     }
-    func closure(_ id: ExprID, destination: JVMValue? = nil) throws -> JVMValue {
+    func closure(_ id: ExprID, destination: JVMValue? = nil, composable: Bool = false) throws -> JVMValue {
         guard case let .lambdaLiteral(parameters, body, _, _) = arena.expr(id), let function = functionType(id), function.contextReceivers.isEmpty else { throw fail("Unsupported JVM lambda type or SAM conversion.", id) }
         program.noteFunctionTypes(program.sema.bindings.exprType(for: id)!)
         let number = program.nextClosure; program.nextClosure += 1
@@ -187,7 +187,8 @@ extension JVMFunctionBuilder {
             captures.append(("type\(i)Nullable", token.nullable))
             captures.append(("type\(i)MutableKind", token.mutableKind))
         }
-        let inputTypes = try ([function.receiver].compactMap { $0 } + function.params).map(program.type)
+        let logicalInputs = try ([function.receiver].compactMap { $0 } + function.params).map(program.type)
+        let inputTypes = logicalInputs + (composable ? JVMCompose.suffix : [])
         let resultType = try program.type(function.returnType)
         let unitType = JVMValueType.reference("kotlin/Unit", nullable: false)
         let helperResultType = resultType == .unit ? unitType : resultType
@@ -198,6 +199,7 @@ extension JVMFunctionBuilder {
         helper.isStaticBody = true; helper.lambdaID = id; helper.isSuspendBody = function.isSuspend
         helper.backingProperty = backingProperty
         let values = try helperRef.parameters.map { try helper.value($0) }
+        if composable { helper.activeComposer = values[captures.count + logicalInputs.count] }
         for (i, entry) in captured.enumerated() {
             var local = entry.value
             if local.cell != nil { local.cell = values[i]; local = Local(value: try helper.value(entry.value.value.type), mutable: entry.value.mutable, cell: values[i], functionType: entry.value.functionType, symbol: entry.value.symbol) }
@@ -248,6 +250,7 @@ extension JVMFunctionBuilder {
         let instantiatedInputs = invokedInputs.map { $0 == .unit ? unitType : JVMClasspathIndex.boxed($0) }
         let instantiatedResult = function.isSuspend ? objectType : (resultType == .unit ? unitType : JVMClasspathIndex.boxed(resultType))
         let arity = invokedInputs.count
+        if composable { program.functionArities.insert(arity) }
         let adapterReference = JVMFunctionReference(
             name: "$lambdaInvoke" + String(number),
             parameters: captures.map { $0.1.type } + instantiatedInputs,
@@ -288,7 +291,7 @@ extension JVMFunctionBuilder {
             instantiatedDescriptor: instantiatedDescriptor,
             result: result
         ))
-        if program.sema.bindings.samUnderlyingFunctionType(for: id) != nil || program.sema.bindings.samInterfaceType(for: id) != nil {
+        if composable || program.sema.bindings.samUnderlyingFunctionType(for: id) != nil || program.sema.bindings.samInterfaceType(for: id) != nil {
             return try convert(result, to: functionInterface)
         }
         return destination == nil ? try convert(result, to: program.expressionType(id)) : result

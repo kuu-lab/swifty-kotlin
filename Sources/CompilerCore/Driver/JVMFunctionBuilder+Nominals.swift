@@ -1,4 +1,26 @@
 extension JVMFunctionBuilder {
+    func implicitEnumProperty(_ id: ExprID) throws -> JVMValue? {
+        let sema = program.sema
+        guard let selected = sema.bindings.identifierSymbol(for: id) ?? sema.bindings.callBinding(for: id)?.chosenCallee,
+              let property = sema.symbols.symbol(sema.symbols.propertySymbol(forAccessor: selected) ?? selected),
+              property.kind == .property,
+              let parent = sema.symbols.parentSymbol(for: property.id) else { return nil }
+        let name = context.interner.resolve(property.name)
+        if name == "entries", property.flags.contains(.static), let plan = program.classes[parent], plan.isEnum {
+            return try jdkCall(plan.name, "getEntries", [], program.enumEntriesField(plan).type)
+        }
+        guard name == "name" || name == "ordinal",
+              let declaringType = sema.symbols.symbol(parent),
+              declaringType.fqName.map(context.interner.resolve) == ["kotlin", "Enum"]
+                || (declaringType.kind == .enumClass && property.flags.contains(.synthetic)) else { return nil }
+        let implicit = sema.bindings.implicitReceiverOuterReceiver(for: id).flatMap { contextualReceivers[$0] }
+        let enumOwner = "java/lang/Enum"
+        guard let receiver = implicit ?? [extensionValue, beforeDelegation ? nil : thisValue].compactMap({ $0 }).first(where: { isMemberReceiver($0, owner: enumOwner) }) else {
+            throw fail("JVM enum property requires an initialized receiver.", id)
+        }
+        return try jdkCall(enumOwner, name, [], name == "name" ? .string : .int, receiver: receiver)
+    }
+
     func singleton(_ plan: JVMClassPlan) throws -> JVMValue {
         let field = program.singletonField(plan), value = try value(field.type)
         instructions.append(.getStatic(field, value)); return value
@@ -10,6 +32,24 @@ extension JVMFunctionBuilder {
               let field = imported.fields.first(where: { $0.name == "Companion" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(companionName);" }) else { return nil }
         let type = JVMValueType.reference(companionName, nullable: false), result = try value(type)
         instructions.append(.getStatic(JVMField(owner: owner, name: field.name, type: type, access: field.access), result))
+        return result
+    }
+    func importedSingleton(_ name: String) throws -> JVMValue? {
+        guard let imports = context.jvmImports, let info = imports.classes[name] else { return nil }
+        let descriptor = "L\(name);"
+        let fieldOwner: JVMClassInfo
+        let fieldName: String
+        if let marker = name.lastIndex(of: "$"), let outer = imports.classes[String(name[..<marker])],
+           imports.kotlinMetadata(info)?.isCompanion == true || name.hasSuffix("$Companion") {
+            fieldOwner = outer
+            fieldName = String(name[name.index(after: marker)...])
+        } else {
+            fieldOwner = info
+            fieldName = "INSTANCE"
+        }
+        guard let field = fieldOwner.fields.first(where: { $0.name == fieldName && $0.isPublic && $0.isStatic && $0.descriptor == descriptor }) else { return nil }
+        let type = JVMValueType.reference(name, nullable: false), result = try value(type)
+        instructions.append(.getStatic(JVMField(owner: fieldOwner.name, name: field.name, type: type, access: field.access), result))
         return result
     }
     func nominalValue(_ id: ExprID) throws -> JVMValue? {

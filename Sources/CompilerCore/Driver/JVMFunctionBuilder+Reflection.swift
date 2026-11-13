@@ -12,6 +12,10 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
+    func runtimeClass(of source: JVMValue) throws -> JVMValue {
+        let receiver = try convert(source, to: .reference("java/lang/Object", nullable: false))
+        return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver)!
+    }
     func javaClass(_ type: JVMValueType) throws -> JVMValue {
         let result = try value(.reference("java/lang/Class", nullable: false))
         let wrappers: [JVMValueType: String] = [.byte: "Byte", .short: "Short", .char: "Character", .int: "Integer", .long: "Long", .float: "Float", .double: "Double", .boolean: "Boolean", .unit: "Void"]
@@ -47,6 +51,7 @@ extension JVMFunctionBuilder {
             return try jdkCall("kotlin/jvm/internal/Reflection", "getOrCreateKotlinClass", [klass.type], .reference("kotlin/reflect/KClass", nullable: false), arguments: [klass])!
         }
         guard let symbol = program.sema.bindings.callableReferenceBinding(for: id)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { throw fail("Missing JVM callable reference binding.", id) }
+        guard !program.sema.composableFunctions.contains(symbol) else { throw fail("JVM @Composable callable references are unsupported.", id) }
         if let local = program.localFunctions[symbol] {
             return try localFunctionReference(id, symbol: symbol, receiver: receiver, plan: local)
         }

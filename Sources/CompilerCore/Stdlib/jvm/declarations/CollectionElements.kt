@@ -12,7 +12,15 @@ fun <T> List<T>.first(): T = null!!
 fun <T> Iterable<T>.last(): T = null!!
 fun <T> List<T>.last(): T = null!!
 fun <T> Iterable<T>.firstOrNull(): T? = null!!
+inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
 fun <T> List<T>.firstOrNull(): T? = null!!
+fun <T> List<T>.getOrNull(index: Int): T? = null!!
+operator fun <T> Iterable<T>.contains(element: T): Boolean = null!!
+fun Collection<Boolean>.toBooleanArray(): BooleanArray = null!!
+fun Collection<Int>.toIntArray(): IntArray = null!!
 fun <T> Iterable<T>.lastOrNull(): T? = null!!
 fun <T> List<T>.lastOrNull(): T? = null!!
 fun <T> Iterable<T>.single(): T = null!!
@@ -51,3 +59,5 @@ fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? = null
 fun <T> Iterable<T>.elementAt(index: Int): T = null!!
 fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T = null!!
 fun <T> Iterable<T>.elementAtOrNull(index: Int): T? = null!!
+
+fun <T> List<T>.slice(indices: IntRange): List<T> = null!!

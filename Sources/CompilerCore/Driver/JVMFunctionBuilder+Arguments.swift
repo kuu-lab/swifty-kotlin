@@ -45,7 +45,8 @@ extension JVMFunctionBuilder {
         parameters: [JVMValueType],
         declarations: [ValueParamDecl]?,
         contextParameterTypes: [JVMValueType] = [],
-        id: ExprID? = nil
+        id: ExprID? = nil,
+        composableParameter: Int? = nil
     ) throws -> (values: [JVMValue], masks: [UInt32], contextValues: [Int: JVMValue]) {
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let varargIndex = declarations?.firstIndex(where: \.isVararg)
@@ -85,7 +86,7 @@ extension JVMFunctionBuilder {
             }
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
-            let evaluated = try expression(arg.expr)
+            let evaluated = try index == composableParameter ? composeContent(arg.expr) : expression(arg.expr)
             if terminated { throw JVMTerminatedExpression() }
             let sourceValue: JVMValue
             if let evaluated { sourceValue = evaluated }
@@ -123,7 +124,9 @@ extension JVMFunctionBuilder {
                 values.append(try textVararg(varargValues, element: varargElement!))
             } else if let value = supplied[i] { values.append(value) }
             else {
-                guard declarations?.indices.contains(i) == true, declarations![i].hasDefaultValue else { throw fail("Missing JVM argument without a default.", id) }
+                let hasDefault = declarations.flatMap { $0.indices.contains(i) ? $0[i].hasDefaultValue : nil }
+                    ?? (signature.map { $0.valueParameterHasDefaultValues.indices.contains(i) && $0.valueParameterHasDefaultValues[i] } ?? false)
+                guard hasDefault else { throw fail("Missing JVM argument without a default.", id) }
                 masks[i / 32] |= UInt32(1) << UInt32(i % 32)
                 values.append(try zero(type))
             }
@@ -138,12 +141,17 @@ extension JVMFunctionBuilder {
     func sourceCall(_ args: [CallArgument], receiver: ExprID? = nil, receiverValue: JVMValue? = nil, id: ExprID, expectedResult: JVMValueType? = nil) throws -> JVMIntrinsicResult? {
         let binding = program.sema.bindings.callBinding(for: id)
         guard let symbol = binding?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { return nil }
+        if let binding, let metro = try importedMetroCall(binding, id: id) { return metro }
         if let local = program.localFunctions[symbol] {
             return try localFunctionCall(local, symbol: symbol, args: args, receiver: receiver, id: id, expectedResult: expectedResult)
         }
         let reference = program.references[symbol]
         let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol)
         guard reference != nil || method != nil else { return nil }
+        if let method, let contract = context.jvmImports?.importedComposeCalls[symbol] {
+            return try importedComposeCall(method, contract: contract, args: args, binding: binding,
+                                           receiver: receiver, receiverValue: receiverValue, expectedResult: expectedResult, id: id)
+        }
         let constructor = method?.isConstructor == true
         let plan = method.flatMap { m in program.classes.values.first { $0.name == m.owner } }
         if constructor, plan?.isEnum == true { throw fail("JVM enum constructors can only initialize enum entries.", id) }
@@ -157,15 +165,22 @@ extension JVMFunctionBuilder {
         } else if let method, !method.isStatic && !constructor {
             dispatch = try (receiver != nil || receiverValue != nil) && !extensionCall ? receiverValue ?? requireValue(receiver!) : instance(id)
         }
+        if let method, context.jvmImports?.composeContentSymbols.contains(symbol) == true {
+            guard let dispatch, args.count == 1 else { throw fail("Invalid JVM ComposeView.setContent call.", id) }
+            let content = try composeContent(args[0].expr)
+            instructions.append(.foreignCall(method, receiver: dispatch, arguments: [content], result: nil))
+            return JVMIntrinsicResult(value: nil)
+        }
         if extensionCall {
             let implicit = implicitExtensionReceiver(id)
             guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicit else { throw fail("Missing JVM extension receiver.", id) }
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
+        let isComposable = program.jvmComposableFunctions.contains(symbol)
+        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
-        let types = Array(allTypes.dropFirst(prefix.count))
         guard types.count >= contextParameterTypes.count else { throw fail("JVM context parameter signature mismatch.", id) }
         let valueTypes = Array(types.dropFirst(contextParameterTypes.count))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
@@ -222,7 +237,10 @@ extension JVMFunctionBuilder {
         } else if var method {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
-        } else if let reference { instructions.append(.call(reference, values, result)) }
+        } else if let reference {
+            if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
+            else { instructions.append(.call(reference, values, result)) }
+        }
         return JVMIntrinsicResult(value: object ?? result)
     }
 }

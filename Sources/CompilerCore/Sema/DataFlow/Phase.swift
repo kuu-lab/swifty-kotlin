@@ -142,7 +142,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             // JVM intrinsic nominals own their headers before residual
             // registration, just as source-backed Native stdlib types do.
             if ctx.options.emit.isJVM {
-                for file in ast.sortedFiles where ctx.sourceManager.path(of: file.fileID).hasPrefix("<kswiftk-jvm>/") {
+                for file in ast.sortedFiles {
+                    let isPlatform = ctx.sourceManager.path(of: file.fileID).hasPrefix("<kswiftk-jvm>/")
+                    // The residual coroutine registry reuses real classpath
+                    // nominals when their headers are already available.
+                    let isImportedCoroutine = ctx.jvmImports?.sourceClasses[file.fileID]?.name.hasPrefix("kotlinx/coroutines/") == true
+                    guard isPlatform || isImportedCoroutine else { continue }
                     if let scope = fileScopes[file.fileID.rawValue] {
                         predeclareNominalTypeHeaders(file: file, ast: ast, symbols: symbols, scope: scope, sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics, interner: ctx.interner, into: &predeclaredEarlyHeaders)
                     }
@@ -783,20 +788,23 @@ final class DataFlowSemaPhase: CompilerPhase {
         withSubPhaseTiming("validateAbstractOverrides", timer: ctx.phaseTimer) {
             validateAbstractOverrides(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
-                diagnostics: ctx.diagnostics, interner: ctx.interner
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateDiamondOverrides", timer: ctx.phaseTimer) {
             validateDiamondOverrides(
                 ast: ast, symbols: symbols, bindings: bindings,
-                diagnostics: ctx.diagnostics, interner: ctx.interner
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
             validateOpenFinalOverride(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner,
-                compilationModuleName: ctx.options.moduleName
+                compilationModuleName: ctx.options.moduleName,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateExpectActualMatching", timer: ctx.phaseTimer) {

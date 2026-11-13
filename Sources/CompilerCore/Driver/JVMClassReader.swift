@@ -8,6 +8,7 @@ struct JVMClassInfo: Sendable {
     let methods: [JVMForeignMethod]
     var fields: [JVMForeignField] = []
     var bridgeMethods: [JVMForeignMethod] = []
+    var defaultArgumentMethods: [JVMForeignMethod] = []
     var classTypeParameterNames: [String] = []
     var innerClasses: [JVMInnerClassInfo] = []
     var hasInnerClassesAttribute = false
@@ -17,6 +18,7 @@ struct JVMClassInfo: Sendable {
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var isInterface: Bool { flags & 0x0200 != 0 }
+    var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
 
 struct JVMInnerClassInfo {
@@ -129,14 +131,14 @@ struct JVMClassReader {
     }
     private mutating func classAttributes(hasKotlinMetadata: Bool, parseAnnotations: Bool) throws -> (
         signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool,
-        hasEnclosingMethod: Bool, kotlinMetadata: JVMKotlinMetadata?, annotations: [JVMAnnotation]
+        hasEnclosingMethod: Bool, kotlinMetadata: JVMKotlinMetadataPayload?, annotations: [JVMAnnotation]
     ) {
         let count = try u2()
         var signature: String?
         var innerClasses: [JVMInnerClassInfo] = []
         var hasInnerClassesAttribute = false
         var hasEnclosingMethod = false
-        var kotlinMetadata: JVMKotlinMetadata?
+        var kotlinMetadata: JVMKotlinMetadataPayload?
         var annotations: [JVMAnnotation] = []
         for _ in 0..<count {
             let attributeName = try text(Int(u2()))
@@ -174,9 +176,10 @@ struct JVMClassReader {
                     var annotationReader = JVMClassReader(bytes: Array(bytes[offset..<end]), strings: strings, constants: constants)
                     kotlinMetadata = try? annotationReader.readKotlinMetadata()
                 }
-                if parseAnnotations {
+                if parseAnnotations || hasKotlinMetadata {
                     var annotationReader = JVMClassReader(bytes: Array(bytes[offset..<end]), strings: strings, constants: constants)
-                    annotations += (try? annotationReader.readAnnotations(visible: visible)) ?? []
+                    let parsed = (try? annotationReader.readAnnotations(visible: visible)) ?? []
+                    annotations += parseAnnotations ? parsed : parsed.filter { $0.descriptor == "Lkotlin/Metadata;" }
                 }
                 offset = end
             default:
@@ -187,7 +190,7 @@ struct JVMClassReader {
         return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod, kotlinMetadata, annotations)
     }
 
-    private mutating func readKotlinMetadata() throws -> JVMKotlinMetadata? {
+    private mutating func readKotlinMetadata() throws -> JVMKotlinMetadataPayload? {
         let count = try u2()
         for _ in 0..<count {
             let descriptor = try text(Int(u2()))
@@ -199,7 +202,7 @@ struct JVMClassReader {
                 }
                 continue
             }
-            var metadata = JVMKotlinMetadata()
+            var metadata = JVMKotlinMetadataPayload()
             for _ in 0..<elementCount {
                 let name = try text(Int(u2()))
                 let tag = try u1()
@@ -424,6 +427,7 @@ struct JVMClassReader {
         let count = Int(try u2())
         var index = 1
         var hasKotlinMetadata = false
+        var hasMetroAnnotation = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
         // pool; resolve those references once the pool is fully read.
         var pendingStringRefs: [Int: Int] = [:]
@@ -434,6 +438,10 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
+                   JVMMetro.annotationDescriptors.contains(string) {
+                    hasMetroAnnotation = true
+                }
             case 7: classes[index] = Int(try u2())
             case 3:
                 constants[index] = .int(Int32(bitPattern: try u4()))
@@ -478,13 +486,16 @@ struct JVMClassReader {
         }
         var methods: [JVMForeignMethod] = []
         var bridgeMethods: [JVMForeignMethod] = []
+        var defaultArgumentMethods: [JVMForeignMethod] = []
         let methodCount = try u2()
-        let parseMethodAnnotations = flags & 0x2000 != 0
+        let parseAnnotations = flags & 0x2000 != 0 || hasMetroAnnotation
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseMethodAnnotations)
-            if access & 0x0005 != 0, (access & 0x1040 == 0 || access & 0x0040 != 0), methodName != "<clinit>",
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations)
+            let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
+            if access & 0x0005 != 0,
+               (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
                let signature = try? (descriptorCache?.parse(descriptor) ?? JVMDescriptor.parse(descriptor)),
                signature.0.reduce(0, { $0 + $1.width }) <= (access & 8 != 0 ? 255 : 254) {
                 var method = JVMForeignMethod(owner: name, name: methodName, descriptor: descriptor,
@@ -496,13 +507,14 @@ struct JVMClassReader {
                 method.genericResultParameter = Self.genericResultParameter(in: methodInfo.signature, method: method)
                 method.annotations = methodInfo.annotations
                 method.annotationDefault = methodInfo.annotationDefault
-                if access & 0x0040 != 0 { bridgeMethods.append(method) }
+                if isDefaultArgumentMethod { defaultArgumentMethods.append(method) }
+                else if access & 0x0040 != 0 { bridgeMethods.append(method) }
                 else { methods.append(method) }
             }
         }
-        let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: flags & 0x2000 != 0)
+        let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: parseAnnotations)
         guard offset == bytes.count else { throw Invalid() }
-        var functionTable: JVMKotlinMetadata.FunctionTable?
+        var functionTable: JVMKotlinMetadataPayload.FunctionTable?
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let table = try? metadata.functionTable(byteLimit: bytes.count) {
@@ -544,6 +556,7 @@ struct JVMClassReader {
             methods: methods,
             fields: fields,
             bridgeMethods: bridgeMethods,
+            defaultArgumentMethods: defaultArgumentMethods,
             classTypeParameterNames: try Self.classTypeParameterNames(in: classAttributes.signature),
             innerClasses: classAttributes.innerClasses,
             hasInnerClassesAttribute: classAttributes.hasInnerClassesAttribute,

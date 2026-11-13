@@ -12,6 +12,7 @@ final class JVMProgramBuilder {
     var facadeName = ""
     var facadePlan: JVMClassPlan?
     var references: [SymbolID: JVMFunctionReference] = [:]
+    var jvmComposableFunctions: Set<SymbolID> = []
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
@@ -23,6 +24,12 @@ final class JVMProgramBuilder {
     var inlineDeclarations: [SymbolID: FunDecl] = [:]
     var sourceParameters: [SymbolID: [ValueParamDecl]] = [:]
     var sourceDeclarations: [SymbolID: FunDecl] = [:]
+    // Sema has finished binding declarations before JVM emission begins.
+    lazy var declarationIDsBySymbol: [SymbolID: [DeclID]] = {
+        sema.bindings.declSymbols.reduce(into: [:]) { result, binding in
+            result[binding.value, default: []].append(binding.key)
+        }
+    }()
     var sourceRangeResultSymbols: Set<SymbolID> = []
     var inlineTypeArguments: [SymbolID: TypeID] = [:]
     var textLibraryMethods: [SymbolID: JVMTextLibraryMethod] = [:]
@@ -302,7 +309,7 @@ final class JVMProgramBuilder {
             for id in file.topLevelDecls {
                 guard case let .funDecl(f) = ast.arena.decl(id) else { continue }
                 guard let symbol = sema.bindings.declSymbol(for: id) else { throw JVMFrontendError(message: "Missing JVM function binding.") }
-                let ref = try functionReference(f, symbol: symbol, member: false)
+                let ref = try functionReference(f, symbol: symbol, member: false, allowComposable: true)
                 guard signatures.insert(ref.name + ref.descriptor).inserted else { throw JVMFrontendError(message: "Duplicate JVM method signature.", range: f.range) }
                 var owned = ref; owned.owner = facadeName
                 references[symbol] = owned; declarations.append((f, owned, symbol))
@@ -437,6 +444,7 @@ final class JVMFunctionBuilder {
     let owner: JVMClassPlan?
     var thisValue: JVMValue?
     var extensionValue: JVMValue?
+    var activeComposer: JVMValue?
     var semanticSignature: FunctionSignature?
     var functionSymbol: SymbolID?
     var leadingCaptureCount = 0
@@ -522,13 +530,16 @@ final class JVMFunctionBuilder {
     func requireValue(_ id: ExprID) throws -> JVMValue {
         let result = try expression(id)
         if terminated { throw JVMTerminatedExpression() }
-        if result == nil, program.sema.bindings.exprType(for: id) == program.sema.types.unitType {
+        if result == nil,
+           program.sema.bindings.exprType(for: id) == program.sema.types.unitType || (try? program.expressionType(id)) == .unit {
             program.functionArities.insert(0)
             let unit: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(unit)
             instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), result))
             return result
         }
-        guard let result else { throw fail("JVM value expression does not produce a supported value.", id) }
+        guard let result else {
+            throw fail("JVM value expression does not produce a supported value.", id)
+        }
         return result
     }
     func localStorageType(_ semantic: TypeID) throws -> JVMValueType {
@@ -649,6 +660,7 @@ final class JVMFunctionBuilder {
     func build() throws -> JVMFunction {
         try prepareParameters()
         if declaration.modifiers.contains(.abstract) || (owner?.isInterface == true && declaration.body == .unit) { return finish(abstract: true) }
+        try beginComposableBody()
         try prepareTailrec()
         // A function body may shadow a parameter, as ordinary nested blocks do.
         scopes.append([:])
@@ -671,6 +683,7 @@ final class JVMFunctionBuilder {
             guard reference.result == .unit else { throw fail("JVM non-Unit function must return on every path.") }
             instructions.append(.returnValue(nil))
         }
+        finishComposableBody()
         return finish()
     }
 
@@ -727,6 +740,7 @@ final class JVMFunctionBuilder {
             if case .thisRef = expr { return try convert(thisValue, to: program.expressionType(id)) }
             return thisValue
         case let .nameRef(name, _):
+            if let composer = try readCurrentComposer(id) { return composer }
             if let value = try nominalValue(id) { return value }
             if let symbol = program.sema.bindings.identifierSymbol(for: id),
                program.sema.symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinUnitFQName {
@@ -748,9 +762,10 @@ final class JVMFunctionBuilder {
                 else { instructions.append(.getField(field, thisValue!, result)) }; return result
             }
             if let result = try implicitReceiverProperty(id, name: name) { return result }
+            if !scopes.contains(where: { $0[name] != nil }), let result = try implicitEnumProperty(id) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
-                return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
+                return try convert(readProperty(property, receiver: implicitPropertyReceiver(property, at: id), at: id, special: false), to: program.expressionType(id))
             }
             if !scopes.contains(where: { $0[name] != nil }), let result = try textLibraryProperty(id) { return result }
             // Snapshot reads before evaluating later operands/arguments, which
@@ -818,7 +833,7 @@ final class JVMFunctionBuilder {
             }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 let object = try instance(id), result = try requireValue(rhs)
-                try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject)
+                try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject)
                 return nil
             }
             let local = try lookup(name)
@@ -939,7 +954,7 @@ final class JVMFunctionBuilder {
                 ? constant(.null, .reference("java/lang/Object", nullable: true))
                 : requireValue(receiver)
             let result = try requireValue(rhs)
-            try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
+            try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
@@ -948,6 +963,7 @@ final class JVMFunctionBuilder {
                 : requireValue(receiver)
             return try propertyCompound(property, receiver: object, op: op, rhs: rhs, id: id, special: isSuper(receiver), superReceiver: receiver)
         case let .memberCall(receiver, name, typeArgs, args, _):
+            if let composer = try readCurrentComposer(id) { return composer }
             if let folded = try constantFoldedText(id) { return folded }
             return try memberExpression(id, receiver: receiver, name: name, typeArgs: typeArgs, args: args)
         case let .safeMemberCall(receiver, name, typeArgs, args, _):

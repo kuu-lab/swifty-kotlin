@@ -17,6 +17,16 @@ public fun <T> listOf(vararg elements: T): List<T> {
     if (elements.size == 0) return emptyList<T>()
     return __jvmArrayList(elements)
 }
+public fun <T : Any> listOfNotNull(element: T?): List<T> =
+    if (element != null) listOf(element) else emptyList()
+
+public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
+    val result = mutableListOf<T>()
+    for (element in elements) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
 public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     val result = __jvmNewList<T>()
     for (element in elements) result.add(element)
@@ -29,6 +39,11 @@ public val List<*>.lastIndex: Int get() = this.lastIndex()
 public fun Collection<*>.indices(): IntRange = 0..this.size - 1
 public fun <T> List<T>.indices(): IntRange = 0..this.size - 1
 public fun <T> List<T>.lastIndex(): Int = this.size - 1
+
+public fun <T> List<T>.slice(indices: IntRange): List<T> {
+    if (indices.isEmpty()) return emptyList()
+    return subList(indices.first, indices.last + 1).toList()
+}
 
 public operator fun <T> List<T>.component1(): T = this[0]
 public operator fun <T> List<T>.component2(): T = this[1]
@@ -62,6 +77,12 @@ public fun <T> Iterable<T>.toList(): List<T> {
 public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
+    return result
+}
+public fun <T> Iterable<T>.toHashSet(): java.util.HashSet<T> {
+    val size = if (this is Collection<*>) this.size else 12
+    val result = java.util.HashSet<T>(mapCapacity(size))
+    for (item in this) result.add(item)
     return result
 }
 public fun <T> Iterable<T>.toSet(): Set<T> {
@@ -209,6 +230,40 @@ public fun <T> Iterable<T>.asSequence(): kotlin.sequences.Sequence<T> {
 }
 
 public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> = IndexingIterable(this)
+
+public inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
+
+public fun <T> List<T>.getOrNull(index: Int): T? = if (index >= 0 && index < size) this[index] else null
+
+public operator fun <T> Iterable<T>.contains(element: T): Boolean {
+    @Suppress("UNCHECKED_CAST")
+    if (this is Collection<*>) return (this as Collection<T>).contains(element)
+    for (value in this) if (value == element) return true
+    return false
+}
+
+public fun Collection<Boolean>.toBooleanArray(): BooleanArray {
+    val result = BooleanArray(size)
+    var index = 0
+    for (value in this) {
+        result[index] = value
+        index += 1
+    }
+    return result
+}
+
+public fun Collection<Int>.toIntArray(): IntArray {
+    val result = IntArray(size)
+    var index = 0
+    for (value in this) {
+        result[index] = value
+        index += 1
+    }
+    return result
+}
 
 public fun <T> Iterable<T>.first(): T {
     if (this is List<*>) return (this as List<T>).first()

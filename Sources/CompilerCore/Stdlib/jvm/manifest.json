@@ -54,6 +54,18 @@
       "runtimeFacade": "kotlin/StandardKt"
     },
     {
+      "path": "kotlin/system/Process.kt",
+      "virtualPath": "<kswiftk-jvm>/exit-process.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/system/ProcessKt"
+    },
+    {
+      "path": "kotlin/text/Appendable.kt",
+      "virtualPath": "<kswiftk-jvm>/appendable-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "kotlin/Preconditions.kt",
       "virtualPath": "<kswiftk-jvm>/preconditions.kt",
       "excludeFromStdlibBuild": true,
@@ -198,9 +210,22 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/io/path/PathFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/path-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/path/PathsKt"
+    },
+    {
       "path": "declarations/KotlinIoPath.kt",
       "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
-      "excludeFromStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "java/nio/file/Paths"
+    },
+    {
+      "path": "declarations/PathPredicates.kt",
+      "virtualPath": "<kswiftk-jvm>/path-predicates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "java/nio/file/Files"
     },
     {
       "path": "declarations/Files.kt",
@@ -276,6 +301,11 @@
       "excludeFromStdlibBuild": false
     },
     {
+      "path": "declarations/AbstractList.kt",
+      "virtualPath": "<kswiftk-jvm>/abstractList.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
       "path": "declarations/AbstractSet.kt",
       "virtualPath": "<kswiftk-jvm>/abstractSet.kt",
       "excludeFromStdlibBuild": true
@@ -285,12 +315,6 @@
       "virtualPath": "<kswiftk-jvm>/collections.kt",
       "excludeFromStdlibBuild": false,
       "appendForConsumers": "declarations/CollectionFactories.kt"
-    },
-    {
-      "path": "declarations/ListMutations.kt",
-      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
       "path": "declarations/IndexedValue.kt",
@@ -380,6 +404,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/ArraySearch.kt",
+      "virtualPath": "<kswiftk-jvm>/array-search.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
       "path": "declarations/ArrayWithIndex.kt",
       "virtualPath": "<kswiftk-jvm>/array-with-index.kt",
       "excludeFromStdlibBuild": true,
@@ -396,6 +426,17 @@
       "virtualPath": "<kswiftk-jvm>/array-mutations.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/ArraysKt"
+    },
+    {
+      "path": "kotlin/collections/ListMutations.kt",
+      "virtualPath": "<kswiftk-jvm>/list-mutations.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/Deque.kt",
+      "virtualPath": "<kswiftk-jvm>/m20-deque-runtime.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "declarations/UnsignedArrayWithIndex.kt",
@@ -570,6 +611,12 @@
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },
     {
+      "path": "kotlin/collections/CollectionNullability.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-nullability.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
       "path": "declarations/MapsOperators.kt",
       "virtualPath": "<kswiftk-jvm>/map-operators.kt",
       "excludeFromStdlibBuild": true,
@@ -621,6 +668,12 @@
       "virtualPath": "<kswiftk-jvm>/list-builders.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "declarations/SetBuilders.kt",
+      "virtualPath": "<kswiftk-jvm>/set-builders.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/SetsKt"
     },
     {
       "path": "declarations/MapBuilders.kt",

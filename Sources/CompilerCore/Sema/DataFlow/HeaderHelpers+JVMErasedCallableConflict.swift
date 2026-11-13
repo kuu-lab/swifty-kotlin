@@ -110,6 +110,10 @@ extension DataFlowSemaPhase {
         else {
             return
         }
+        // A classfile can distinguish members by their return descriptor
+        // even when the Kotlin source emitter cannot declare that ABI.
+        if isJVMTarget, let file = symbols.sourceFileID(for: symbol),
+           sourceManager.path(of: file).hasPrefix("<kswiftk-jvm-import>/") { return }
 
         let hasConflict = symbols.lookupAll(fqName: fqName).contains { existingID in
             guard existingID != symbol,

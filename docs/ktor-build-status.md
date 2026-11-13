@@ -196,7 +196,15 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
 | kotlinx_io | 0 | 30 | 0 | 0 |
 | ktor_io | 0 | 45 | 0 | 1 |
 | ktor_utils | 0 | 55 | 0 | 5 |
-| ktor_http | 1 | 62 | 13 | 0 |
+| ktor_http | 1 | 62 | 4 | 0 |
+
+master `d52aa0b2e8` + #13254（implicit receiver のメンバーが単一 scope 拡張候補を
+shadow）の時点では ktor_http の実残件は **4 errors**: `Mimes.kt:1007/1009` の
+`flatMapTo(ArrayList(size))` / `return@flatMapTo emptySequence()` 推論（#13252）と
+`Versions.kt:278-279` の `map` ラムダ内 `check(cond) { ... }` 未解決（#13253）。
+修正前は `Pipeline.kt:522` の SEMA-INFER（#12951、拡張の builder-inference セッションが
+メンバー解決を迂回していた問題）が `ktor_utils.kklib` の生成を阻み、ktor_http の診断は
+`io.ktor.util.*` 未解決カスケード（312 errors 表示）に隠れていた。
 
 - kotlinx_io は上流ソースが完全クリーンにコンパイルできる（旧5件のドリフトは解消）
 - ktor_io は引き続き 0 errors。consumer ハーネスも O0/O2 とも PASS
@@ -221,5 +229,6 @@ declaration の所有権を持つため上流側がすべて `KSWIFTK-LIB-0031` 
 
 pinned `ktor-io` は consumer まで含めて O0/O2 で動作し、`ktor_build.sh` の ktor_io プローブも
 0 errors を維持している。ktor_utils も coroutines 内部 API を internal 可視性のまま解決し、
-55 files / 0 errors / 5 warnings でコンパイルできる。KUU-3920 の再計測で ktor_http は
-62 files / 13 errors（Regex API・型推論まわり）まで確認できた。
+55 files / 0 errors / 5 warnings でコンパイルできる。`d52aa0b2e8` + #13254 の再計測で
+ktor_http は 62 files / **4 errors**（`flatMapTo(ArrayList)` 推論・`check` ラムダ内解決、
+#13252/#13253 起票済み）まで絞れた。

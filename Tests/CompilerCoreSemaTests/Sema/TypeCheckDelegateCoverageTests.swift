@@ -1,4 +1,5 @@
 @testable import CompilerCore
+import Foundation
 import Testing
 @testable import CompilerTestSupport
 
@@ -192,10 +193,12 @@ struct TypeCheckDelegateCoverageTests {
         var locals: LocalBindings = [:]
         let range = makeRange()
 
+        // The raw-array fallback is reserved for bundled kotlin.<Name> arrays;
+        // a source-level `IntArray` is an ordinary class (KUU-3615).
         let intArraySymbol = fixture.symbols.define(
             kind: .class,
             name: fixture.interner.intern("IntArray"),
-            fqName: [fixture.interner.intern("IntArray")],
+            fqName: [fixture.interner.intern("kotlin"), fixture.interner.intern("IntArray")],
             declSite: nil,
             visibility: .public
         )
@@ -710,6 +713,55 @@ struct TypeCheckDelegateCoverageTests {
         )
         #expect(!(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" }))
     }
+
+    @Test
+    func testEmitSubtypeConstraintSkipsPlatformWarningInBundledStdlib() {
+        let sourceManager = SourceManager()
+        let bundledFile = sourceManager.addFile(
+            path: "__bundled_kotlin/collections/Atomics.kt",
+            contents: Data("package kotlin.collections\n".utf8),
+            origin: .bundledStdlib
+        )
+        let residualFile = sourceManager.addFile(
+            path: "<residual>/java/util/concurrent/atomic/AtomicReference.kt",
+            contents: Data("package java.util.concurrent.atomic\n".utf8),
+            origin: .residualStdlib
+        )
+        let fixture = makeTypeCheckFixture(sourceManager: sourceManager)
+        let platformAny = fixture.types.withNullability(.platformType, for: fixture.types.anyType)
+        for file in [bundledFile, residualFile] {
+            fixture.driver.emitSubtypeConstraint(
+                left: platformAny,
+                right: fixture.types.anyType,
+                range: makeRange(file: file, start: 10, end: 20),
+                solver: ConstraintSolver(),
+                sema: fixture.sema,
+                diagnostics: fixture.diagnostics
+            )
+        }
+        #expect(!(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" }))
+    }
+
+    @Test
+    func testEmitSubtypeConstraintEmitsPlatformWarningInUserSource() {
+        let sourceManager = SourceManager()
+        let userFile = sourceManager.addFile(
+            path: "Main.kt",
+            contents: Data("fun main() {}\n".utf8),
+            origin: .user
+        )
+        let fixture = makeTypeCheckFixture(sourceManager: sourceManager)
+        let platformAny = fixture.types.withNullability(.platformType, for: fixture.types.anyType)
+        fixture.driver.emitSubtypeConstraint(
+            left: platformAny,
+            right: fixture.types.anyType,
+            range: makeRange(file: userFile, start: 10, end: 20),
+            solver: ConstraintSolver(),
+            sema: fixture.sema,
+            diagnostics: fixture.diagnostics
+        )
+        #expect(fixture.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-PLATFORM" })
+    }
 }
 
 private struct TypeCheckFixture {
@@ -752,7 +804,7 @@ private struct TypeCheckFixture {
     }
 }
 
-private func makeTypeCheckFixture() -> TypeCheckFixture {
+private func makeTypeCheckFixture(sourceManager: SourceManager? = nil) -> TypeCheckFixture {
     let interner = StringInterner()
     let diagnostics = DiagnosticEngine()
     let symbols = SymbolTable()
@@ -786,6 +838,7 @@ private func makeTypeCheckFixture() -> TypeCheckFixture {
     let driver = TypeCheckDriver(
         ast: ast,
         sema: sema,
+        sourceManager: sourceManager,
         solver: ConstraintSolver(),
         resolver: resolver,
         dataFlow: dataFlow,

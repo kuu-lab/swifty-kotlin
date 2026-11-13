@@ -8,8 +8,7 @@ extension JVMClasspathIndex {
     static func builtinName(_ name: String) -> String? {
         if name == "java/util/MapEntry" { return "java/util/Map$Entry" }
         if ["java/util/AbstractCollection", "java/util/RandomAccess", "java/util/AbstractList", "java/util/AbstractSet", "java/util/AbstractMap", "java/util/ListIterator"].contains(name) { return name }
-        if name == "kotlin/collections/AbstractList" { return "java/util/AbstractList" }
-        if name == "kotlin/collections/AbstractSet" { return name }
+        if name == "kotlin/collections/AbstractList" || name == "kotlin/collections/AbstractSet" { return name }
         if ["kotlin/Function", "kotlin/Lazy", "kotlin/LazyThreadSafetyMode", "kotlin/reflect/KProperty", "kotlin/reflect/KMutableProperty", "kotlin/NotImplementedError", "kotlin/UninitializedPropertyAccessException", "kotlin/properties/ReadOnlyProperty", "kotlin/properties/ReadWriteProperty", "kotlin/properties/Delegates"].contains(name) { return name }
         if name.hasPrefix("kotlin/reflect/") || name == "java/lang/Class" { return name }
         if ["java/util/NoSuchElementException", "java/util/Locale", "java/lang/StackTraceElement", "java/lang/IllegalAccessException", "java/lang/StringIndexOutOfBoundsException", "java/lang/reflect/Method", "java/lang/reflect/InvocationHandler", "java/nio/charset/Charset"].contains(name) { return name }
@@ -23,6 +22,7 @@ extension JVMClasspathIndex {
         if ["kotlin/coroutines/Continuation", "kotlin/coroutines/CoroutineContext", "kotlin/coroutines/CoroutineContext$Key",
             "kotlin/coroutines/CoroutineContext$Element", "kotlin/coroutines/EmptyCoroutineContext"].contains(name) { return name }
         if name == "kotlin/text/StringBuilder" { return "java/lang/StringBuilder" }
+        if name == "kotlin/text/Appendable" { return "java/lang/Appendable" }
         if ["kotlin/text/Regex", "kotlin/text/Regex$Companion", "kotlin/text/RegexOption", "kotlin/text/MatchResult", "kotlin/text/MatchResult$Destructured", "kotlin/text/MatchGroup", "kotlin/text/MatchGroupCollection", "kotlin/ranges/IntRange", "kotlin/ranges/LongRange", "kotlin/ranges/CharRange", "kotlin/sequences/Sequence", "kotlin/sequences/SequenceScope"].contains(name) { return name }
         if name == "kotlin/NoSuchElementException" { return "java/util/NoSuchElementException" }
         if name == "kotlin/CharSequence" { return "java/lang/CharSequence" }
@@ -271,6 +271,10 @@ extension JVMProgramBuilder {
         f.kotlinResult = try kotlinType(signature.returnType)
         if !f.isConstructor && f.reference.parameters.count == signature.parameterTypes.count + 1 { f.kotlinReceiver = try signature.receiverType.map(kotlinType) }
         f.genericSignature = (f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">") + "(" + (try ((f.kotlinReceiver == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (f.isConstructor ? "V" : try signatureType(signature.returnType))
+        if let symbol = sourceDeclaration?.key, jvmComposableFunctions.contains(symbol),
+           let closing = f.genericSignature?.lastIndex(of: ")") {
+            f.genericSignature?.insert(contentsOf: JVMCompose.suffix.map(\.descriptor).joined(), at: closing)
+        }
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
             let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
             f.genericSignature = prefix + "(" + (try f.kotlinReceiver == nil ? "" : signatureType(signature.receiverType!, parameterPosition: true)) + (try signature.parameterTypes.enumerated().map { i, parameter in (declaration.valueParams[i].isVararg ? "[" : "") + (try signatureType(parameter, parameterPosition: true)) }).joined() + ")" + (try signatureType(signature.returnType))

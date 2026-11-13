@@ -342,6 +342,26 @@ final class ClassMemberScope: BaseScope {
     private let thisType: TypeID?
     private let memberLookupSymbols: SymbolTable
 
+    /// One memoized `deferredCandidates` answer (KUU-4574): the dependency
+    /// versions of every supertype-chain parent the walk visited, sampled
+    /// after the walk, plus the filtered candidates. A child reparenting,
+    /// supertype-edge, or visibility mutation under a visited parent bumps
+    /// its version, so a match proves the memo still reflects the symbol
+    /// table. The walk's own lazy drains and metadata loads all complete
+    /// inside the walk, before the snapshot is taken; a walk whose own
+    /// loads still move a visited parent's version is never stored.
+    private struct DeferredResult {
+        /// Post-walk versions of the visited parents, in walk order.
+        let dependencies: [(parent: SymbolID, version: Int)]
+        let candidates: [SymbolID]
+    }
+
+    /// `name` → memoized deferred candidates. Guards with
+    /// `deferredCacheLock`, mirroring `PackageMembersScope`: a scope chain
+    /// can be traversed concurrently when parallel workers share a table.
+    private var deferredResults: [InternedString: DeferredResult] = [:]
+    private let deferredCacheLock = NSLock()
+
     init(parent: Scope?, symbols: SymbolTable, ownerSymbol: SymbolID, thisType: TypeID?) {
         self.ownerSymbol = ownerSymbol
         self.thisType = thisType
@@ -368,16 +388,42 @@ final class ClassMemberScope: BaseScope {
     /// `Contract.Entry` as `Entry`), even when the interface sits behind a
     /// superclass in the chain. Interfaces therefore end the walk instead of
     /// being expanded (KUU-3637, KUU-3636).
+    /// Repeat lookups dominated the type-check hot path: every name
+    /// resolution reaching this scope re-walked the owner's supertype chain
+    /// and sorted each visited parent's whole child set. Memoize the answer
+    /// per name and revalidate the visited parents' dependency versions
+    /// instead (KUU-4574).
     override func deferredCandidates(for name: InternedString) -> [SymbolID] {
         memberLookupSymbols.attribution?.increment(.memberScopeQueries)
         return withAttributionTiming(.deferredScopeCandidates, attribution: memberLookupSymbols.attribution) {
+            deferredCacheLock.lock()
+            let cached = deferredResults[name]
+            deferredCacheLock.unlock()
+            if let cached,
+               memberLookupSymbols.memberScopeDependencyVersionsMatch(cached.dependencies)
+            {
+                return cached.candidates
+            }
+
             var result: [SymbolID] = []
             var seen: Set<SymbolID> = [ownerSymbol]
             var queue = [ownerSymbol]
+            // Version of each visited parent sampled before its scan. The
+            // walk's lazy child drains and supertype materialization can
+            // still mutate an already-scanned parent later in the walk, so
+            // the memo is stored only when every parent's version survives
+            // the whole walk unchanged; a drifting walk simply recomputes on
+            // the next query, exactly as before (KUU-4574).
+            var preScanVersions: [(parent: SymbolID, version: Int)] = []
+            preScanVersions.reserveCapacity(4)
             var index = 0
             while index < queue.count {
                 let current = queue[index]
                 index += 1
+                preScanVersions.append((
+                    parent: current,
+                    version: memberLookupSymbols.memberScopeDependencyVersion(of: current)
+                ))
                 for child in memberLookupSymbols.children(of: current, named: name) {
                     guard let info = memberLookupSymbols.symbol(child) else { continue }
                     // Private members are not inherited: a `private` nested
@@ -400,6 +446,22 @@ final class ClassMemberScope: BaseScope {
                     guard memberLookupSymbols.symbol(superSymbol)?.kind == .class else { continue }
                     queue.append(superSymbol)
                 }
+            }
+
+            // Sample after the walk: the walk's own lazy loads have finished
+            // by now, so the snapshot covers every mutation the result
+            // depends on. Zip with the pre-scan samples in walk order —
+            // `queue` visits each parent exactly once, so both lists align.
+            let postWalkVersions = memberLookupSymbols.memberScopeDependencyVersions(of: queue)
+            let walkWasStable = zip(preScanVersions, postWalkVersions)
+                .allSatisfy { $0.version == $1.version }
+            if walkWasStable {
+                deferredCacheLock.lock()
+                deferredResults[name] = DeferredResult(
+                    dependencies: postWalkVersions,
+                    candidates: result
+                )
+                deferredCacheLock.unlock()
             }
             return result
         }

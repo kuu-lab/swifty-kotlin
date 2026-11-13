@@ -978,33 +978,16 @@ extension TypeSystem {
     }
 
     func isNominalSubtypeSymbol(_ candidate: SymbolID, of base: SymbolID) -> Bool {
-        // A superclass edge may name an actual class while the use site names
-        // its linked expect class.
-        if candidate == base || areLinkedExpectActualClassSymbols(candidate, base) {
+        let closure = nominalSupertypeClosure(for: candidate)
+        if closure.symbols.contains(base) || closure.linkedTargets.contains(base) {
             return true
         }
-        var queue = directNominalSupertypes(for: candidate)
-        var visited: Set<SymbolID> = [candidate]
-        var head = 0
-        while head < queue.count {
-            let current = queue[head]
-            head += 1
-            if current == base || areLinkedExpectActualClassSymbols(current, base) {
-                return true
-            }
-            if visited.insert(current).inserted {
-                queue.append(contentsOf: directNominalSupertypes(for: current))
-            }
-        }
-        return false
+        return !closure.symbols.isDisjoint(with: nominalForwardLinks(for: base))
     }
 
     private func areLinkedExpectActualClassSymbols(_ lhs: SymbolID, _ rhs: SymbolID) -> Bool {
-        guard let symbolTable else { return false }
-        return symbolTable.actualSymbol(for: lhs) == rhs
-            || symbolTable.actualSymbol(for: rhs) == lhs
-            || actualTypeAliasTargetNominalSymbol(for: lhs, symbols: symbolTable) == rhs
-            || actualTypeAliasTargetNominalSymbol(for: rhs, symbols: symbolTable) == lhs
+        nominalForwardLinks(for: lhs).contains(rhs)
+            || nominalForwardLinks(for: rhs).contains(lhs)
     }
 
     func actualTypeAliasTargetNominalSymbol(

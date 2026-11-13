@@ -237,7 +237,8 @@ final class TypeCheckDriver {
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
         expectedType: TypeID? = nil,
-        isStatementContext: Bool = false
+        isStatementContext: Bool = false,
+        inferLambdaResultType: Bool = false
     ) -> TypeID {
         sema.types.attribution?.increment(.exprInferences)
         if let subjectType = ctx.whenSubjectTypes[id] {
@@ -252,7 +253,10 @@ final class TypeCheckDriver {
         // subtree only; the copied context keeps siblings unaffected.
         expressionContext = helpers.expressionOptInContext(id, ctx: expressionContext)
         let ctx = expressionContext.syncingImplicitReceiver(from: locals)
-        let type = exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
+        let type = exprChecker.inferExpr(
+            id, ctx: ctx, locals: &locals, expectedType: expectedType,
+            isStatementContext: isStatementContext, inferLambdaResultType: inferLambdaResultType
+        )
         if let expectedType, sema.bindings.hasSourceDeclaredExpectedType(id) {
             recordGenericCallConsumer(id, type: expectedType)
         }
@@ -889,7 +893,8 @@ final class TypeCheckDriver {
         } else if !suppressPlatformWarning,
                   let warningRange = range,
                   sema.types.nullability(of: left) == .platformType,
-                  sema.types.nullability(of: right) == .nonNull
+                  sema.types.nullability(of: right) == .nonNull,
+                  !isCompilerOwnedSourceRange(warningRange)
         {
             diagnostics.warning(
                 "KSWIFTK-SEMA-PLATFORM",
@@ -898,6 +903,15 @@ final class TypeCheckDriver {
                 range: warningRange
             )
         }
+    }
+
+    /// The platform-type lint targets user code. Bundled and residual stdlib
+    /// sources are compiler-owned, so platform flows inside them (e.g. the
+    /// flexible `java.util.concurrent.atomic.AtomicReference<T>` type
+    /// parameter flowing through Kotlin extension loops) are unactionable
+    /// noise and must not leak into user-facing diagnostics.
+    private func isCompilerOwnedSourceRange(_ range: SourceRange) -> Bool {
+        sourceManager?.origin(of: range.start.file)?.isBundledStdlib == true
     }
 
     private func withExpectedTypeOrigin(

@@ -76,7 +76,7 @@ package enum JVMStdlibCatalog {
         for declaration in try manifest().declarations {
             if ctx.options.stdlibOnly && declaration.excludeFromStdlibBuild { continue }
             if !ctx.options.stdlibOnly && declaration.onlyForStdlibBuild == true { continue }
-            if !ctx.options.stdlibOnly, declaration.path == "declarations/KotlinIoPath.kt",
+            if !ctx.options.stdlibOnly, Self.isKotlinPathDeclaration(declaration.path),
                !userSourcesUseKotlinPath(in: ctx) {
                 continue
             }
@@ -100,5 +100,11 @@ package enum JVMStdlibCatalog {
             if JVMJDKClasspath.usesKotlinPath(in: source) { return true }
         }
         return false
+    }
+
+    private static func isKotlinPathDeclaration(_ path: String) -> Bool {
+        path.hasPrefix("kotlin/io/path/")
+            || path == "declarations/KotlinIoPath.kt"
+            || path == "declarations/PathPredicates.kt"
     }
 }

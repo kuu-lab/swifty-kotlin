@@ -51,11 +51,16 @@ private struct JVMSourceGrammar {
         guard kind == .eof || kind == .symbol(.rBrace) || newlineBeforeCurrent() else { throw Unsupported() }
     }
     mutating func type(nullable: Bool = true, receiverSuffix: Bool = true) throws {
-        while kind == .symbol(.at) { try annotation() }
+        while kind == .symbol(.at) { try annotation(typeContext: true) }
         _ = take(.keyword(.suspend))
         if take(.symbol(.lParen)) {
             if !take(.symbol(.rParen)) {
-                repeat { try type() } while take(.symbol(.comma))
+                repeat {
+                    if kind.isLabelName, tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.colon) {
+                        index += 2
+                    }
+                    try type()
+                } while take(.symbol(.comma)) && kind != .symbol(.rParen)
                 try require(.symbol(.rParen))
             }
             if take(.symbol(.arrow)) { try type() }
@@ -68,7 +73,7 @@ private struct JVMSourceGrammar {
         if take(.symbol(.lessThan)) {
             repeat {
                 if !take(.symbol(.star)) {
-                    while kind == .symbol(.at) { try annotation() }
+                    while kind == .symbol(.at) { try annotation(typeContext: true) }
                     _ = take(.keyword(.in)) || take(.softKeyword(.out))
                     try type()
                 }
@@ -84,7 +89,18 @@ private struct JVMSourceGrammar {
         if nullable { _ = take(.symbol(.question)) }
         if receiverSuffix, take(.symbol(.dot)) { try type() }
     }
-    mutating func annotation() throws {
+    mutating func annotation(typeContext: Bool = false) throws {
+        if typeContext {
+            guard let parsed = AnnotationParsingSupport.parseAnnotation(
+                from: tokens,
+                start: index,
+                interner: context.interner,
+                allowUseSiteTarget: false,
+                typeContext: true
+            ), parsed.invalidUseSiteTargetRange == nil else { throw Unsupported() }
+            index = parsed.nextIndex
+            return
+        }
         try require(.symbol(.at)); try name()
         if take(.symbol(.colon)) { try name() }
         while take(.symbol(.dot)) { try name() }
@@ -223,6 +239,7 @@ private struct JVMSourceGrammar {
             while kind == .symbol(.at) { try annotation(); modifiers() }
         }
         let isEnum = tokens[declarationStart..<index].contains { $0.kind == .keyword(.enum) }
+        let isCompanion = tokens[declarationStart..<index].contains { $0.kind == .keyword(.companion) }
         if take(.keyword(.typealias)) {
             try name(); try typeParameters(); try require(.symbol(.assign)); try type(); return
         }
@@ -244,7 +261,8 @@ private struct JVMSourceGrammar {
             let isInterface = take(.keyword(.interface))
             let isObject = take(.keyword(.object))
             if !isInterface && !isObject { try require(.keyword(.class)) }
-            if !isObject || kind != .symbol(.lBrace) && kind != .symbol(.colon) { try name() }
+            let hasObjectName = isCompanion ? kind.isLabelName : kind != .symbol(.lBrace) && kind != .symbol(.colon)
+            if !isObject || hasObjectName { try name() }
             try typeParameters()
             if !isInterface && !isObject {
                 let constructorStart = index
@@ -424,7 +442,8 @@ private struct JVMSourceGrammar {
     }
     mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
         try primary()
-        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() || kind == .symbol(.questionColon) {
+        while let level = precedence(), level >= minimum,
+              allowNewlines || kind == .symbol(.questionColon) || !newlineBeforeCurrent() {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {

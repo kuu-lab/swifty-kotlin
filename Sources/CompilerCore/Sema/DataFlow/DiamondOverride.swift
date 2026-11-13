@@ -41,14 +41,15 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         bindings: BindingTable,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        importedFiles: Set<FileID> = []
     ) {
         let declBySymbol = Dictionary(
             bindings.declSymbols.map { ($0.value, $0.key) },
             uniquingKeysWith: { first, _ in first }
         )
         var visited = Set<DeclID>()
-        for file in ast.sortedFiles {
+        for file in ast.sortedFiles where !importedFiles.contains(file.fileID) {
             for declID in file.topLevelDecls {
                 validateDiamondOverridesForDecl(
                     declID: declID,

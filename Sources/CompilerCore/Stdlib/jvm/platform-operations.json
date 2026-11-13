@@ -1239,6 +1239,13 @@
     "kind": "constructor"
   },
   {
+    "symbol": "__jvmNewSetCapacity",
+    "owner": "java/util/LinkedHashSet",
+    "name": "<init>",
+    "descriptor": "(I)V",
+    "kind": "constructor"
+  },
+  {
     "symbol": "__jvmNewMapCapacity",
     "owner": "java/util/LinkedHashMap",
     "name": "<init>",

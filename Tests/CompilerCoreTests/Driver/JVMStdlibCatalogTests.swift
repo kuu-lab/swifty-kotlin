@@ -23,6 +23,11 @@ struct JVMStdlibCatalogTests {
             #expect(paths.contains("<kswiftk-jvm>/stdlib-bridges.kt") == stdlib)
             #expect(paths.contains("<kswiftk-jvm>/console.kt") == !stdlib)
             #expect(paths.contains("<kswiftk-jvm>/unit.kt") == !stdlib)
+            if !stdlib {
+                #expect(!paths.contains("<kswiftk-jvm>/path-functions.kt"))
+                #expect(!paths.contains("<kswiftk-jvm>/kotlin-io-path.kt"))
+                #expect(!paths.contains("<kswiftk-jvm>/path-predicates.kt"))
+            }
             #expect(paths.contains { $0.hasSuffix("/Stdlib/kotlin/Unit.kt") } == stdlib)
         }
     }

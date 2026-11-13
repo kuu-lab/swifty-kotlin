@@ -355,6 +355,22 @@ extension CallTypeChecker {
         } else {
             resolvedReceiverType = nil
         }
+        // Kotlin resolves members before extensions at each implicit-receiver
+        // level: a same-named member on the bound receiver — or on any nearer
+        // tower entry — shadows the scope extension, so ordinary member
+        // resolution must see the call instead of this builder session
+        // (KUU-12951: `Pipeline<*, TContext>.intercept` delegating to the
+        // member `Pipeline.intercept` with an untyped lambda argument).
+        if resolvedReceiverType != nil {
+            for entry in ctx.implicitReceiverMemberLookupEntries() {
+                let shadowingMembers = driver.helpers.collectMemberFunctionCandidates(
+                    named: calleeName, receiverType: entry.type,
+                    sema: ctx.sema, interner: ctx.interner
+                )
+                if !shadowingMembers.isEmpty { return nil }
+                if entry.type == resolvedReceiverType { break }
+            }
+        }
         guard (signature.receiverType == nil) == (resolvedReceiverType == nil),
               let mapping = ctx.resolver.buildParameterMapping(
                   signature: signature,

@@ -315,6 +315,13 @@ public final class SymbolTable {
     private var typeAliasTypeParameters: [SymbolID: [SymbolID]] = [:]
     private var childrenByParent: [SymbolID: Set<SymbolID>] = [:]
     private var parentSymbols: [SymbolID: SymbolID] = [:]
+    /// Per-parent mutation counter for `ClassMemberScope` candidate memos
+    /// (KUU-4574): bumped when the parent's child set changes
+    /// (`setParentSymbol`), its supertype edges change (`setDirectSupertypes`),
+    /// or a child's visibility changes (`setVisibility`). Child names and
+    /// kinds are immutable after `define`, so these three inputs cover every
+    /// read a member-scope walk performs.
+    private var memberScopeDependencyVersionByParent: [SymbolID: Int] = [:]
     private var backingFieldSymbols: [SymbolID: SymbolID] = [:]
     private var delegateStorageSymbols: [SymbolID: SymbolID] = [:]
     private var delegatePropertiesByStorageSymbol: [SymbolID: SymbolID] = [:]
@@ -362,6 +369,9 @@ public final class SymbolTable {
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
     private var delegateHasProvideDelegate: Set<SymbolID> = []
     private var expectActualLinks: [SymbolID: SymbolID] = [:]
+    /// Bumped when expect/actual links or typealias targets change; TypeSystem
+    /// validates its nominal subtype caches against this version.
+    private var nominalLinkMutationVersionStorage: UInt64 = 0
     /// Actual functions inherit call-site defaults from their paired expect
     /// declaration, whose source AST owns the expressions and default stub.
     private var expectActualDefaultArgumentOwners: [SymbolID: SymbolID] = [:]
@@ -498,6 +508,7 @@ public final class SymbolTable {
         worker.typeAliasUnderlyingTypes = typeAliasUnderlyingTypes
         worker.typeAliasTypeParameters = typeAliasTypeParameters
         worker.childrenByParent = childrenByParent
+        worker.memberScopeDependencyVersionByParent = memberScopeDependencyVersionByParent
         worker.parentSymbols = parentSymbols
         worker.backingFieldSymbols = backingFieldSymbols
         worker.delegateStorageSymbols = delegateStorageSymbols
@@ -534,6 +545,7 @@ public final class SymbolTable {
         worker.constValueExprKinds = constValueExprKinds
         worker.delegateHasProvideDelegate = delegateHasProvideDelegate
         worker.expectActualLinks = expectActualLinks
+        worker.nominalLinkMutationVersionStorage = nominalLinkMutationVersionStorage
         worker.expectActualDefaultArgumentOwners = expectActualDefaultArgumentOwners
         worker.contractNonNullEffects = contractNonNullEffects
         worker.contractImplicationEffects = contractImplicationEffects
@@ -1085,6 +1097,11 @@ public final class SymbolTable {
             return
         }
         symbolsStorage[index].visibility = visibility
+        // Member-scope walks filter inherited candidates on visibility, so
+        // the change must invalidate memos of the child's parent (KUU-4574).
+        if let parent = parentSymbols[symbol] {
+            bumpMemberScopeDependencyVersion(for: parent)
+        }
         bumpBindingVersions(startingAt: symbol)
     }
 
@@ -1167,6 +1184,48 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         for entry in expected where (fqNameListVersions[entry.fqName] ?? 0) != entry.version {
+            return false
+        }
+        return true
+    }
+
+    /// Bumps the member-scope dependency version of one parent. Callers hold
+    /// `lock` (or run in the single-threaded phase `setDirectSupertypes`
+    /// already assumes).
+    private func bumpMemberScopeDependencyVersion(for symbol: SymbolID) {
+        memberScopeDependencyVersionByParent[symbol, default: 0] += 1
+    }
+
+    /// Live member-scope dependency version of one parent.
+    func memberScopeDependencyVersion(of symbol: SymbolID) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return memberScopeDependencyVersionByParent[symbol] ?? 0
+    }
+
+    /// Post-walk snapshot of every visited parent's dependency version in one
+    /// critical section. `ClassMemberScope` stores it next to the walk's
+    /// result and revalidates with `memberScopeDependencyVersionsMatch`
+    /// (KUU-4574).
+    func memberScopeDependencyVersions(
+        of parents: [SymbolID]
+    ) -> [(parent: SymbolID, version: Int)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return parents.map { (parent: $0, version: memberScopeDependencyVersionByParent[$0] ?? 0) }
+    }
+
+    /// Whether every `(parent, version)` pair still matches the live
+    /// counters — one critical section for a whole memoized member-scope
+    /// walk. Any child, supertype, or visibility mutation under a listed
+    /// parent bumps its version and fails the check (KUU-4574).
+    func memberScopeDependencyVersionsMatch<S: Sequence>(
+        _ expected: S
+    ) -> Bool where S.Element == (parent: SymbolID, version: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        for entry in expected
+        where (memberScopeDependencyVersionByParent[entry.parent] ?? 0) != entry.version {
             return false
         }
         return true
@@ -1652,6 +1711,7 @@ public final class SymbolTable {
                 directSubtypesIndex[supertype, default: []].append(symbol)
             }
         }
+        bumpMemberScopeDependencyVersion(for: symbol)
         bumpBindingVersions(startingAt: symbol)
     }
 
@@ -1866,6 +1926,7 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         typeAliasUnderlyingTypes[symbol] = type
+        nominalLinkMutationVersionStorage &+= 1
     }
 
     public func typeAliasUnderlyingType(for symbol: SymbolID) -> TypeID? {
@@ -1893,9 +1954,11 @@ public final class SymbolTable {
         defer { lock.unlock() }
         if let previous = parentSymbols[child], previous != parent {
             childrenByParent[previous]?.remove(child)
+            bumpMemberScopeDependencyVersion(for: previous)
         }
         parentSymbols[child] = parent
         childrenByParent[parent, default: []].insert(child)
+        bumpMemberScopeDependencyVersion(for: parent)
         // The child's ancestor chain changed; descendants' candidate memos
         // validated against their own FQ names must not observe the old chain.
         bumpBindingVersions(startingAt: child)
@@ -2346,6 +2409,7 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         expectActualLinks[expect] = actual
+        nominalLinkMutationVersionStorage &+= 1
         if functionSignatures[expect]?.valueParameterHasDefaultValues.contains(true) == true {
             expectActualDefaultArgumentOwners[actual] = expect
         }
@@ -2355,6 +2419,12 @@ public final class SymbolTable {
         lock.lock()
         defer { lock.unlock() }
         return expectActualLinks[expect]
+    }
+
+    var nominalLinkMutationVersion: UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return nominalLinkMutationVersionStorage
     }
 
     public func expectActualDefaultArgumentOwner(for actual: SymbolID) -> SymbolID? {
