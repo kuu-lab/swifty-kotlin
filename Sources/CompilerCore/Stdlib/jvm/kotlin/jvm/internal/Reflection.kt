@@ -8,6 +8,15 @@ fun <T> getOrCreateKotlinClass(type: java.lang.Class<T>): kotlin.reflect.KClass<
 
 fun getOrCreateKotlinClasses(types: Array<java.lang.Class<*>>): Array<kotlin.reflect.KClass<*>> = Array<kotlin.reflect.KClass<*>>(types.size) { getOrCreateKotlinClass(types[it]) }
 
+fun getOrCreateKotlinPackage(type: java.lang.Class<*>, moduleName: String): kotlin.reflect.KDeclarationContainer =
+    getOrCreateKotlinClass(type)
+
+fun function(reference: FunctionReference): kotlin.reflect.KFunction<Any?> = reference
+
+fun property0(reference: PropertyReference0): kotlin.reflect.KProperty0<Any?> = reference
+
+fun mutableProperty0(reference: MutablePropertyReference0): kotlin.reflect.KMutableProperty0<Any?> = reference
+
 fun property1(reference: PropertyReference1): kotlin.reflect.KProperty1<Any?, Any?> = reference
 
 fun mutableProperty1(reference: MutablePropertyReference1): kotlin.reflect.KMutableProperty1<Any?, Any?> = reference

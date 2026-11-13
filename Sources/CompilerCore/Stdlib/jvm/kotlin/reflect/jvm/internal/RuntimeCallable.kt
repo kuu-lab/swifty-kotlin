@@ -89,9 +89,9 @@ internal fun boxResult(value: Any?, metadata: RuntimeMetadata, type: Proto): Any
     return value
 }
 open class RuntimeCallable(
-    protected val ownerClass: Any,
+    protected open val ownerClass: Any,
     private val displayName: String,
-    protected val signatureString: String,
+    protected open val signatureString: String,
     protected val boundReceiver: Any?,
     protected val bound: Boolean
 ): KCallable<Any?> {
