@@ -806,6 +806,7 @@ struct JVMClassReader {
            hasReadOnlyMapSupertype || isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
                $0.name.hasPrefix("get") && ($0.name.contains("-")
                    || flags & 0x0200 != 0 && $0.isAbstract && $0.result.referenceName == "kotlinx/coroutines/flow/StateFlow")
+                   || !$0.isStatic && $0.composePropertyABI(hasReceiver: false)
                    || $0.isFinal && !$0.isStatic && $0.parameters.isEmpty
                        && ($0.name.hasPrefix("get") || $0.name.hasPrefix("is"))
            }),
@@ -823,9 +824,11 @@ struct JVMClassReader {
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
                                   && getter.result.referenceName == "kotlinx/coroutines/flow/StateFlow"
                                   && sourceType.hasPrefix("kotlinx.coroutines.flow.StateFlow<")
+                              || !getter.isStatic && property.isSourceVisible && !property.isVar
+                                  && getter.composePropertyABI(hasReceiver: false)
                               || getter.isFinal && !property.isVar
                                   && (sourceType.contains("<") || getter.name == property.name)),
-                          !getter.isStatic && getter.parameters.isEmpty
+                          !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
                     info.kotlinMemberProperties[property.name] = (getter, sourceType)
                 }

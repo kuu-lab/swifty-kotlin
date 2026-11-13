@@ -350,7 +350,15 @@ extension JVMFunctionBuilder {
         var getter = property.getter
         if special { getter = try superMethod(getter, receiver: superReceiver) }
         let result = try value(getter.result)
-        let arguments = try getter.parameters.first.map { [try convert(receiver, to: $0)] } ?? []
+        let arguments: [JVMValue]
+        if !getter.isStatic, getter.composePropertyABI(hasReceiver: false) {
+            guard let composer = activeComposer else {
+                throw fail("JVM @Composable property requires an active Composer.")
+            }
+            arguments = [composer, try constant(.int(0), .int)]
+        } else {
+            arguments = try getter.parameters.first.map { [try convert(receiver, to: $0)] } ?? []
+        }
         let dispatch = try propertyDispatch(property, receiver: receiver, at: id)
         instructions.append(.foreignCall(getter, receiver: dispatch, arguments: arguments, result: result))
         if getter.result.referenceName == "java/lang/Class", case .named("kotlin/reflect/KClass", _, _)? = property.kotlinType {
