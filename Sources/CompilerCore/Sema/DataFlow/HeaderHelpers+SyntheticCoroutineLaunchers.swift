@@ -257,6 +257,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        guard !context.bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("withContext"), arity: 2)
+        else { return }
         // withContext accepts any CoroutineContext (e.g. NonCancellable, not just a
         // dispatcher), matching kotlinx.coroutines' actual signature. `ensureInterfaceSymbol`
         // is idempotent, so calling it here ahead of the "STDLIB-CORO-077" block below (which
@@ -331,6 +333,8 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlinx/coroutines/flow/Builders.kt), composed from the
         // retained `flow { }` (kk_flow_create) + `emit` (kk_flow_emit) core.
 
+        guard !context.bundledIndex.contains(ownerFQName: coroutinesPkg, name: interner.intern("withContext"), arity: 2)
+        else { return }
         let withContextFunctionFQName = coroutinesPkg + [interner.intern("withContext")]
         let withContextTypeParameterSymbol = ensureSyntheticTypeParameterSymbol(
             named: "T",
