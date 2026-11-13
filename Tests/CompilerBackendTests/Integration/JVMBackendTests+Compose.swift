@@ -170,7 +170,7 @@ extension JVMBackendTests {
         }
     }
 
-    private func composeJVMFixture(_ root: URL, stdlib: URL? = nil) throws -> URL {
+    func composeJVMFixture(_ root: URL, stdlib: URL? = nil) throws -> URL {
         var sources = [
             "Composable.java": """
                 package androidx.compose.runtime;
