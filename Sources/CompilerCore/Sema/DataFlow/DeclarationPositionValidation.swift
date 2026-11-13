@@ -376,7 +376,7 @@ extension DataFlowSemaPhase {
             let segments = symbol.fqName.map { interner.resolve($0) }
             // `KClass` is an interface in the bundled stdlib, so match it by
             // fqName regardless of the nominal kind.
-            if segments == ["kotlin", "reflect", "KClass"] {
+            if symbol.fqName == KnownCompilerNames(interner: interner).kotlinReflectKClassFQName {
                 return true
             }
             switch symbol.kind {

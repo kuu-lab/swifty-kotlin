@@ -16,20 +16,21 @@ extension JVMFunctionBuilder {
         if let scalar = try scalarConstant(id) { return scalar }
         guard let symbol = program.sema.bindings.identifierSymbol(for: id) else { return nil }
         if let entry = program.sema.symbols.symbol(symbol) {
-            let path = entry.fqName.map(context.interner.resolve)
+            let fqName = entry.fqName
+            let knownNames = KnownCompilerNames(interner: context.interner)
             let field: JVMField?
-            if path == ["kotlin", "text", "Regex"] || path == ["kotlin", "text", "Regex", "Companion"] {
+            if fqName == knownNames.kotlinRegexFQName || fqName == knownNames.kotlinTextRegexCompanionFQName {
                 field = JVMField(owner: "kotlin/text/Regex", name: "Companion", type: .reference("kotlin/text/Regex$Companion", nullable: false), access: 0x19)
-            } else if path == ["kotlin", "coroutines", "ContinuationInterceptor"] || path == ["kotlin", "coroutines", "ContinuationInterceptor", "Key"] {
+            } else if fqName == knownNames.kotlinCoroutinesContinuationInterceptorFQName || fqName == knownNames.kotlinCoroutinesContinuationInterceptorKeyFQName {
                 field = JVMField(owner: "kotlin/coroutines/ContinuationInterceptor", name: "Key", type: .reference("kotlin/coroutines/ContinuationInterceptor$Key", nullable: false), access: 0x19)
-            } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "text", "RegexOption"] {
-                field = JVMField(owner: "kotlin/text/RegexOption", name: path[3], type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
-            } else if path.count == 4 && Array(path.prefix(3)) == ["kotlin", "time", "DurationUnit"] {
-                field = JVMField(owner: "kotlin/time/DurationUnit", name: path[3], type: .reference("kotlin/time/DurationUnit", nullable: false), access: 0x4019)
+            } else if fqName.count == 4 && fqName.starts(with: knownNames.kotlinTextRegexOptionFQName) {
+                field = JVMField(owner: "kotlin/text/RegexOption", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/text/RegexOption", nullable: false), access: 0x4019)
+            } else if fqName.count == 4 && fqName.starts(with: knownNames.kotlinTimeDurationUnitFQName) {
+                field = JVMField(owner: "kotlin/time/DurationUnit", name: context.interner.resolve(fqName[3]), type: .reference("kotlin/time/DurationUnit", nullable: false), access: 0x4019)
             } else { field = nil }
             if let field { let result = try value(field.type); instructions.append(.getStatic(field, result)); return result }
         }
-        if program.sema.symbols.symbol(symbol)?.fqName.map(context.interner.resolve) == ["kotlin", "properties", "Delegates"] {
+        if program.sema.symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: context.interner).kotlinPropertiesDelegatesFQName {
             let field = JVMField(owner: "kotlin/properties/Delegates", name: "INSTANCE", type: .reference("kotlin/properties/Delegates", nullable: false), access: 0x19)
             let result = try value(field.type); instructions.append(.getStatic(field, result)); return result
         }

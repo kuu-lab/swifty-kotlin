@@ -363,7 +363,7 @@ extension DataFlowSemaPhase {
         ) else {
             return false
         }
-        return symbols.symbol(symbol)?.fqName.map(interner.resolve).joined(separator: ".") == "kotlin.js.JsStatic"
+        return symbols.symbol(symbol)?.fqName == KnownCompilerNames(interner: interner).kotlinJsJsStaticFQName
     }
 
     private func validateJsStaticAnnotationArguments(
