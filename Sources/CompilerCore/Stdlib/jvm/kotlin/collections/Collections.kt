@@ -631,3 +631,19 @@ public fun <T> Iterable<T>.indexOf(element: T): Int {
     }
     return -1
 }
+
+public fun <T : Comparable<T>> List<T?>.binarySearch(element: T?, fromIndex: Int = 0, toIndex: Int = size): Int {
+    if (fromIndex > toIndex) throw IllegalArgumentException("fromIndex ($fromIndex) is greater than toIndex ($toIndex).")
+    if (fromIndex < 0) throw IndexOutOfBoundsException("fromIndex ($fromIndex) is less than zero.")
+    if (toIndex > size) throw IndexOutOfBoundsException("toIndex ($toIndex) is greater than size ($size).")
+    var low = fromIndex
+    var high = toIndex - 1
+    while (low <= high) {
+        val middle = (low + high) ushr 1
+        val order = compareValues(this[middle], element)
+        if (order < 0) low = middle + 1
+        else if (order > 0) high = middle - 1
+        else return middle
+    }
+    return -low - 1
+}
