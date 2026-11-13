@@ -49,7 +49,7 @@ extension JVMFunctionBuilder {
     }
     func memberDispatchOwner(_ id: ExprID) -> String? {
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
-           let method = program.methods[symbol] ?? context.jvmImports?.methods[symbol] ?? program.textLibraryMethods[symbol]?.method {
+           let method = program.methods[symbol] ?? context.jvmImports?.method(for: symbol) ?? program.textLibraryMethods[symbol]?.method {
             return method.owner
         }
         return propertyBinding(id)?.getter.owner
@@ -469,11 +469,11 @@ extension JVMProgramBuilder {
         let delegate: JVMForeignMethod
         if plan.isEnum && primary {
             delegate = JVMForeignMethod(owner: "java/lang/Enum", name: "<init>", descriptor: "(Ljava/lang/String;I)V", parameters: [.string, .int], result: .reference("java/lang/Enum", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
-        } else if plan.isJvmRecord, let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target), method.owner == plan.name {
+        } else if plan.isJvmRecord, let target, let method = methods[target] ?? context.jvmImports?.method(for: target) ?? builtinMethod(target), method.owner == plan.name {
             delegate = method
         } else if plan.isJvmRecord {
             delegate = JVMForeignMethod(owner: "java/lang/Record", name: "<init>", descriptor: "()V", parameters: [], result: .reference("java/lang/Record", nullable: false), isStatic: false, isInterface: false, isAbstract: false)
-        } else if let target, let method = methods[target] ?? context.jvmImports?.methods[target] ?? builtinMethod(target) { delegate = method }
+        } else if let target, let method = methods[target] ?? context.jvmImports?.method(for: target) ?? builtinMethod(target) { delegate = method }
         else if arguments.isEmpty, let target, sema.symbols.symbol(target)?.flags.contains(.synthetic) == true,
                 let parent = sema.symbols.parentSymbol(for: target), let base = classes[parent], base.name == plan.superclass,
                 let emitted = base.constructors.compactMap({ methods[$0.0] }).first(where: { $0.parameters.isEmpty }) {
@@ -626,7 +626,7 @@ extension JVMProgramBuilder {
                 for child in sema.symbols.children(of: symbol) {
                     guard let signature = sema.symbols.functionSignature(for: child) else { continue }
                     var method = methods[child] ?? collectionInterfaceMethods[child]
-                        ?? context.jvmImports?.methods[child] ?? textLibraryMethods[child]?.method
+                        ?? context.jvmImports?.method(for: child) ?? textLibraryMethods[child]?.method
                     if method == nil, let sourceName = try? className(symbol),
                        let childSymbol = sema.symbols.symbol(child) {
                         let owner = JVMClasspathIndex.builtinName(sourceName) ?? sourceName

@@ -41,7 +41,7 @@ extension JVMFunctionBuilder {
         if function.type.referenceName == type.referenceName { return function }
         guard case let .classType(t) = program.sema.types.kind(of: target),
               let methodID = TypeCheckHelpers().effectiveSamAbstractMethod(for: t.classSymbol, symbols: program.sema.symbols, types: program.sema.types),
-              let method = program.methods[methodID] ?? context.jvmImports?.methods[methodID],
+              let method = program.methods[methodID] ?? context.jvmImports?.method(for: methodID),
               !method.isStatic, !method.isConstructor else { throw fail("JVM SAM conversion requires one supported abstract method.", id) }
         let name = (owner?.name ?? program.facadeName) + "$SAM" + String(program.nextClosure)
         program.nextClosure += 1

@@ -34,7 +34,7 @@ extension JVMClasspathIndex {
                 symbols: symbols,
                 interner: interner
             )
-            if symbol != .invalid { methods[symbol] = method }
+            if symbol != .invalid { setMethod(method, for: symbol) }
         }
     }
 }

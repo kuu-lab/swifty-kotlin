@@ -261,6 +261,48 @@ extension DataFlowSemaPhase {
         symbols.setSupertypeTypeArgs([.out(typeParamType)], for: abstractCollectionSymbol, supertype: collectionInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: abstractCollectionSymbol, supertype: collectionInterfaceSymbol)
 
+        // The JVM no-stdlib fallback uses this shell instead of the native
+        // AbstractCollection body. Keep the JDK-provided concrete overrides
+        // visible so subclasses are not asked to reimplement them.
+        let collectionType = types.make(.classType(ClassType(
+            classSymbol: collectionInterfaceSymbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticCollectionClassFunctionStub(
+            name: "contains",
+            ownerSymbol: abstractCollectionSymbol,
+            ownerFQName: abstractCollectionFQName,
+            ownerType: abstractCollectionType,
+            typeParameterSymbol: typeParamSymbol,
+            parameterTypes: [typeParamType],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCollectionClassFunctionStub(
+            name: "containsAll",
+            ownerSymbol: abstractCollectionSymbol,
+            ownerFQName: abstractCollectionFQName,
+            ownerType: abstractCollectionType,
+            typeParameterSymbol: typeParamSymbol,
+            parameterTypes: [collectionType],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCollectionClassFunctionStub(
+            name: "isEmpty",
+            ownerSymbol: abstractCollectionSymbol,
+            ownerFQName: abstractCollectionFQName,
+            ownerType: abstractCollectionType,
+            typeParameterSymbol: typeParamSymbol,
+            parameterTypes: [],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+
         let initName = interner.intern("<init>")
         let initFQName = abstractCollectionFQName + [initName]
         if symbols.lookup(fqName: initFQName) == nil {
@@ -289,6 +331,55 @@ extension DataFlowSemaPhase {
         }
 
         return abstractCollectionSymbol
+    }
+
+    /// Add a concrete signature-only override for a skeletal collection base.
+    /// Bundled declarations can adopt these symbols; the JVM fallback relies on
+    /// platform implementations. These shells never emit method bodies.
+    func registerSyntheticCollectionClassFunctionStub(
+        name: String,
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        ownerType: TypeID,
+        typeParameterSymbol: SymbolID,
+        parameterTypes: [TypeID],
+        returnType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let memberName = interner.intern(name)
+        let memberFQName = ownerFQName + [memberName]
+        let alreadyDeclared = symbols.lookupAll(fqName: memberFQName).contains { memberID in
+            guard let member = symbols.symbol(memberID),
+                  member.kind == .function,
+                  symbols.parentSymbol(for: memberID) == ownerSymbol,
+                  let signature = symbols.functionSignature(for: memberID)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+        }
+        guard !alreadyDeclared else { return }
+
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .openType, .overrideMember]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                typeParameterSymbols: [typeParameterSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
     }
 
     func registerSyntheticMutableCollectionStub(

@@ -114,7 +114,7 @@ extension JVMProgramBuilder {
                 isInterface: false,
                 isAbstract: false
             )
-        } else if let factorySymbol, let imported = context.jvmImports?.methods[factorySymbol] ?? methods[factorySymbol] {
+        } else if let factorySymbol, let imported = context.jvmImports?.method(for: factorySymbol) ?? methods[factorySymbol] {
             factory = imported
         } else {
             let enumArray = JVMValueType.reference("[Ljava/lang/Enum;", nullable: false)

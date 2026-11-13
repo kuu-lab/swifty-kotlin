@@ -5,8 +5,12 @@ import Foundation
 final class JVMClasspathIndex {
     var classes: [String: JVMClassInfo] = [:]
     var sourceClasses: [FileID: JVMClassInfo] = [:]
-    var methods: [SymbolID: JVMForeignMethod] = [:]
-    var extensionSymbols: Set<SymbolID> = []
+    private(set) var methods: [SymbolID: JVMForeignMethod] = [:]
+    private var extensionSymbols: Set<SymbolID> = []
+    private weak var boundSymbols: SymbolTable?
+    private var methodsByOwnerAndName: [String: [String: [JVMForeignMethod]]] = [:]
+    private(set) var classpathStubFiles: Set<FileID> = []
+
     private(set) var fallbackClassFiles: [(String, Data)] = []
     /// Classes kept indexed for signature mapping and d8 input while
     /// `inject(into:)` emits Kotlin stubs only for the subset reachable from
@@ -25,6 +29,21 @@ final class JVMClasspathIndex {
 
     private static let defaultAutomaticLazyClasspathMemberLimit = 20_000
 
+    func method(for symbol: SymbolID) -> JVMForeignMethod? {
+        if let method = methods[symbol] { return method }
+        _ = boundSymbols?.functionSignature(for: symbol)
+        return methods[symbol]
+    }
+
+    func setMethod(_ method: JVMForeignMethod, for symbol: SymbolID) {
+        methods[symbol] = method
+    }
+
+    func isExtension(_ symbol: SymbolID) -> Bool {
+        _ = method(for: symbol)
+        return extensionSymbols.contains(symbol)
+    }
+
     static func load(
         _ paths: [String], lazilyInjecting lazyPaths: Set<String> = [],
         platformClassFiles: [JVMJDKClasspath.ClassFile] = [],
@@ -37,9 +56,10 @@ final class JVMClasspathIndex {
         result.requiredLazyClassNames = requiredLazyClassNames
         let descriptors = JVMDescriptorCache()
         var seen: Set<String> = []
-        func insert(_ info: JVMClassInfo) {
+        func insert(_ info: JVMClassInfo, isLazy: Bool = false) {
             guard seen.insert(info.name).inserted else { return }
             result.hierarchyClasses[info.name] = info
+            if isLazy { result.lazyClassNames.insert(info.name) }
         }
         for classFile in platformClassFiles {
             insert(try Self.readClass(Array(classFile.contents), path: classFile.path, descriptorCache: descriptors))
@@ -47,14 +67,13 @@ final class JVMClasspathIndex {
         result.lazyClassNames.formUnion(result.hierarchyClasses.keys)
         for path in paths {
             let isLazy = lazyPaths.contains(URL(fileURLWithPath: path).standardizedFileURL.path)
-            let priorKeys = isLazy ? Set(result.hierarchyClasses.keys) : []
             var directory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: path, isDirectory: &directory) else {
                 throw JVMFrontendError(message: "JVM classpath entry does not exist: \(path)")
             }
             if directory.boolValue {
                 try Self.forEachClassFile(inDirectory: URL(fileURLWithPath: path, isDirectory: true)) { file, relative in
-                    insert(try Self.readClass(Array(Data(contentsOf: file)), path: relative, descriptorCache: descriptors))
+                    insert(try Self.readClass(Array(Data(contentsOf: file)), path: relative, descriptorCache: descriptors), isLazy: isLazy)
                 }
             } else {
                 let archive = try ZipArchive(data: Data(contentsOf: URL(fileURLWithPath: path)))
@@ -74,18 +93,13 @@ final class JVMClasspathIndex {
                         }
                     }
                     for batch in batches {
-                        for info in batch { insert(info) }
+                        for info in batch { insert(info, isLazy: isLazy) }
                     }
                 } else {
                     for entry in entries {
-                        insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptors))
+                        insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptors), isLazy: isLazy)
                     }
                 }
-            }
-            if isLazy {
-                result.lazyClassNames.formUnion(
-                    result.hierarchyClasses.keys.filter { !priorKeys.contains($0) }
-                )
             }
         }
         // Preserve an explicitly supplied resource class, including when its
@@ -1290,14 +1304,12 @@ final class JVMClasspathIndex {
         var facadesByCallable: [String: [String]] = [:]
         var lazyCallablesByPackage: [String: [(short: String, name: String)]] = [:]
         for name in lazyClassNames {
-            let normalized = name.split(separator: "/")
-                .map(String.init).joined(separator: ".")
-                .replacingOccurrences(of: "$", with: ".")
-            normalizedToBinary[normalized, default: []].append(name)
             let parts = name.split(separator: "/").map(String.init)
+            let normalized = parts.joined(separator: ".").replacingOccurrences(of: "$", with: ".")
+            normalizedToBinary[normalized, default: []].append(name)
             guard parts.count >= 2 else { continue }
             let package = parts.dropLast().joined(separator: ".")
-            let short = parts.last!.split(separator: "$").last.map(String.init) ?? parts.last!
+            let short = parts.last!
             if !name.contains("$") {
                 lazyTopLevelByPackage[package, default: []].append((short, name))
             }
@@ -1575,98 +1587,124 @@ final class JVMClasspathIndex {
         overrideSignaturesByOwner[owner.name] = signatures
         return signatures.contains(signature)
     }
-    /// Converts foreign reference signatures to Kotlin platform types after
-    /// header collection and before any user body is checked.
-    func bind(in ctx: CompilationContext, sema: SemaModule) throws {
+
+    private func bindMethod(_ symbol: SemanticSymbol, in ctx: CompilationContext, sema: SemaModule) throws {
         func platform(_ type: TypeID) -> TypeID {
             switch sema.types.kind(of: type) {
             case .classType, .stringStruct, .any, .typeParam: return sema.types.withNullability(.platformType, for: type)
             default: return type
             }
         }
-        var methodsByOwnerAndName: [String: [String: [JVMForeignMethod]]] = [:]
-        for symbol in sema.symbols.allSymbols() {
-            guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
-                  let signature = sema.symbols.functionSignature(for: symbol.id) else { continue }
-            let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
-            let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol)
-            let sourceClass = sourceClasses[site.start.file]
-            let topLevel = sourceClass.flatMap { _ in topLevelFunction(at: site, in: ctx) }
-            let isTopLevel = topLevel != nil || parent?.kind == .package
-            // Nested stubs share the outer class's file, so sourceClasses
-            // alone cannot identify the declaring classfile. Walk the
-            // nominal parent chain to the nearest class that has one
-            // (a synthesized Companion object resolves to its outer class).
-            // Top-level extensions may have their receiver as semantic parent.
-            var owner = isTopLevel ? nil : sema.symbols.parentSymbol(for: symbol.id)
-            var info: JVMClassInfo?
-            while let candidate = owner, let candidateSymbol = sema.symbols.symbol(candidate),
-                  [.class, .interface, .object, .enumClass, .annotationClass].contains(candidateSymbol.kind) {
-                if let found = classes[Self.binaryName(candidate, sema: sema, ctx: ctx)] { info = found; break }
-                owner = sema.symbols.parentSymbol(for: candidate)
-            }
-            guard let info = info ?? sourceClass else { continue }
-            let isExtension = topLevel?.receiverType != nil
-            if isExtension { extensionSymbols.insert(symbol.id) }
-            let receiverTypes = isExtension ? signature.receiverType.map { [$0] } ?? [] : []
-            let descriptorTypes = try (receiverTypes + signature.parameterTypes).enumerated().map { index, type -> JVMValueType in
-                let mapped = try Self.type(type, sema: sema, ctx: ctx)
-                let valueIndex = index - receiverTypes.count
-                guard valueIndex >= 0,
-                      signature.valueParameterIsVararg.indices.contains(valueIndex),
-                      signature.valueParameterIsVararg[valueIndex]
-                else { return mapped }
-                let component: JVMValueType
-                if case .typeParam = sema.types.kind(of: type) { component = Self.boxed(mapped) }
-                else { component = mapped }
-                return .reference("[" + component.descriptor, nullable: false)
-            }
-            let parameters = descriptorTypes.map(\.descriptor).joined()
-            let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
-            let descriptor = "(" + parameters + continuation + ")"
-            let staticMember = isTopLevel || isExtension || (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false)
-            let candidates: [JVMForeignMethod]
-            if let indexed = methodsByOwnerAndName[info.name] {
-                candidates = indexed[name] ?? []
-            } else if info.methods.count >= 24 {
-                let indexed = Dictionary(grouping: info.methods, by: \.sourceName)
-                methodsByOwnerAndName[info.name] = indexed
-                candidates = indexed[name] ?? []
+        guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
+              let signature = sema.symbols.functionSignatureIfKnown(for: symbol.id) else { return }
+        let name = symbol.kind == .constructor ? "<init>" : ctx.interner.resolve(symbol.name)
+        let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol)
+        let sourceClass = sourceClasses[site.start.file]
+        let topLevel = sourceClass.flatMap { _ in topLevelFunction(at: site, in: ctx) }
+        let isTopLevel = topLevel != nil || parent?.kind == .package
+        // Nested stubs share the outer class's file, so sourceClasses
+        // alone cannot identify the declaring classfile. Walk the
+        // nominal parent chain to the nearest class that has one
+        // (a synthesized Companion object resolves to its outer class).
+        // Top-level extensions may have their receiver as semantic parent.
+        var owner = isTopLevel ? nil : sema.symbols.parentSymbol(for: symbol.id)
+        var info: JVMClassInfo?
+        while let candidate = owner, let candidateSymbol = sema.symbols.symbol(candidate),
+              [.class, .interface, .object, .enumClass, .annotationClass].contains(candidateSymbol.kind) {
+            if let found = classes[Self.binaryName(candidate, sema: sema, ctx: ctx)] { info = found; break }
+            owner = sema.symbols.parentSymbol(for: candidate)
+        }
+        guard let info = info ?? sourceClass else { return }
+        let isExtension = topLevel?.receiverType != nil
+        if isExtension { extensionSymbols.insert(symbol.id) }
+        let receiverTypes = isExtension ? signature.receiverType.map { [$0] } ?? [] : []
+        let descriptorTypes = try (receiverTypes + signature.parameterTypes).enumerated().map { index, type -> JVMValueType in
+            let mapped = try Self.type(type, sema: sema, ctx: ctx)
+            let valueIndex = index - receiverTypes.count
+            guard valueIndex >= 0,
+                  signature.valueParameterIsVararg.indices.contains(valueIndex),
+                  signature.valueParameterIsVararg[valueIndex]
+            else { return mapped }
+            let component: JVMValueType
+            if case .typeParam = sema.types.kind(of: type) { component = Self.boxed(mapped) }
+            else { component = mapped }
+            return .reference("[" + component.descriptor, nullable: false)
+        }
+        let parameters = descriptorTypes.map(\.descriptor).joined()
+        let continuation = signature.isSuspend ? "Lkotlin/coroutines/Continuation;" : ""
+        let descriptor = "(" + parameters + continuation + ")"
+        let staticMember = isTopLevel || isExtension || (parent.map { ctx.interner.resolve($0.name) == "Companion" } ?? false)
+        let candidates: [JVMForeignMethod]
+        if let indexed = methodsByOwnerAndName[info.name] {
+            candidates = indexed[name] ?? []
+        } else if info.methods.count >= 24 {
+            let indexed = Dictionary(grouping: info.methods, by: \.sourceName)
+            methodsByOwnerAndName[info.name] = indexed
+            candidates = indexed[name] ?? []
+        } else {
+            candidates = info.methods
+        }
+        guard let method = candidates.first(where: {
+            $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
+                && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
+        }) else { return }
+        if let suspend = method.kotlinSuspendFunction {
+            // The call IR holds the logical signature. Coroutine lowering
+            // restores the classfile ABI and supplies its own continuation.
+            methods[symbol.id] = JVMForeignMethod(
+                owner: method.owner, name: method.name, descriptor: "(" + parameters + ")" + suspend.result.descriptor,
+                parameters: method.sourceParameters, result: suspend.result,
+                isStatic: method.isStatic, isInterface: method.isInterface, isAbstract: method.isAbstract,
+                isFinal: method.isFinal, isSuspend: true, isProtected: method.isProtected
+            )
+            return
+        }
+        methods[symbol.id] = method
+        let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
+        sema.symbols.setFunctionSignature(FunctionSignature(
+            receiverType: signature.receiverType.map(platform),
+            contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
+            contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
+            returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
+            valueParameterSymbols: signature.valueParameterSymbols,
+            valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
+            valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+            valueParameterIsVararg: signature.valueParameterIsVararg,
+            valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+            hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
+            hasStableParameterNames: signature.hasStableParameterNames,
+            typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
+            typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
+        ), for: symbol.id)
+    }
+
+    /// Foreign stubs enter the normal lookup tables with their source headers.
+    /// Resolve their classfile descriptors and platform types when a signature
+    /// is requested, including requests made by override checking or codegen.
+    func bind(in ctx: CompilationContext, sema: SemaModule) throws {
+        boundSymbols = sema.symbols
+        let allSymbols = sema.symbols.allSymbols()
+        let foreignFiles = Set(sourceClasses.keys.filter {
+            ctx.sourceManager.path(of: $0).hasPrefix("<kswiftk-jvm-import>/")
+        })
+        classpathStubFiles = foreignFiles
+        var deferred: Set<SymbolID> = []
+        for symbol in allSymbols where symbol.kind == .function || symbol.kind == .constructor {
+            if let site = symbol.declSite, foreignFiles.contains(site.start.file) {
+                deferred.insert(symbol.id)
             } else {
-                candidates = info.methods
+                try bindMethod(symbol, in: ctx, sema: sema)
             }
-            guard let method = candidates.first(where: {
-                $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
-                    && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
-            }) else { continue }
-            if let suspend = method.kotlinSuspendFunction {
-                // The call IR holds the logical signature. Coroutine lowering
-                // restores the classfile ABI and supplies its own continuation.
-                methods[symbol.id] = JVMForeignMethod(
-                    owner: method.owner, name: method.name, descriptor: "(" + parameters + ")" + suspend.result.descriptor,
-                    parameters: method.sourceParameters, result: suspend.result,
-                    isStatic: method.isStatic, isInterface: method.isInterface, isAbstract: method.isAbstract,
-                    isFinal: method.isFinal, isSuspend: true, isProtected: method.isProtected
+        }
+        sema.symbols.deferFunctionSignatures(deferred) { [weak self, weak ctx, weak sema] id in
+            guard let self, let ctx, let sema, let symbol = sema.symbols.symbol(id) else { return }
+            do {
+                try self.bindMethod(symbol, in: ctx, sema: sema)
+            } catch {
+                ctx.diagnostics.error(
+                    "KSWIFTK-JVM-0003", "Cannot bind JVM classpath: \(error)", range: symbol.declSite
                 )
-                continue
             }
-            methods[symbol.id] = method
-            let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
-            sema.symbols.setFunctionSignature(FunctionSignature(
-                receiverType: signature.receiverType.map(platform),
-                contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
-                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
-                returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
-                valueParameterSymbols: signature.valueParameterSymbols,
-                valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
-                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-                valueParameterIsVararg: signature.valueParameterIsVararg,
-                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
-                hasExplicitInlineParameterMetadata: signature.hasExplicitInlineParameterMetadata,
-                hasStableParameterNames: signature.hasStableParameterNames,
-                typeParameterSymbols: signature.typeParameterSymbols, reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
-                typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList, classTypeParameterCount: signature.classTypeParameterCount
-            ), for: symbol.id)
         }
         for symbol in sema.symbols.allSymbols() where symbol.kind == .function {
             guard let parent = sema.symbols.parentSymbol(for: symbol.id).flatMap(sema.symbols.symbol),

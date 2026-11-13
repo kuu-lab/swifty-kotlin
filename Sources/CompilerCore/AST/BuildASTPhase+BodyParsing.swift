@@ -93,7 +93,7 @@ extension BuildASTPhase {
         return result
     }
 
-    private func collectBlockStatementGroups(
+    func collectBlockStatementGroups(
         from blockNodeID: NodeID,
         in arena: SyntaxArena,
         excludingNodeIDs: Set<NodeID> = []

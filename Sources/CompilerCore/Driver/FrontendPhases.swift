@@ -354,6 +354,7 @@ public final class BuildASTPhase: CompilerPhase {
         let annotations: [AnnotationNode]
         let range: SourceRange?
         let allDecls: [DeclID]
+        let deferredJVMInlineBodies: [DeclID: JVMInlineBodySyntax]
     }
 
     /// Cleared between files because different `SyntaxArena`s reuse the same
@@ -405,7 +406,8 @@ public final class BuildASTPhase: CompilerPhase {
             let phase = BuildASTPhase(diagnostics: ctx.diagnostics)
             let file = phase.buildFileAST(
                 fileID: fileID, cst: cst, root: root,
-                interner: localInterner, arena: localArena
+                interner: localInterner, arena: localArena,
+                defersJVMInlineBodies: !ctx.options.stdlibOnly && ctx.jvmStdlibDeclarationFiles.contains(fileID)
             )
             results.store(WorkerASTResult(
                 file: file,
@@ -449,8 +451,14 @@ public final class BuildASTPhase: CompilerPhase {
                 scriptBody: file.scriptBody.map { remapper.remap($0) },
                 annotations: file.annotations.map { remapper.remap($0) },
                 range: file.range,
-                allDecls: file.allDecls.map { remapper.remap($0) }
+                allDecls: file.allDecls.map { remapper.remap($0) },
+                deferredJVMInlineBodies: Dictionary(uniqueKeysWithValues: file.deferredJVMInlineBodies.map {
+                    (remapper.remap($0.key), $0.value)
+                })
             )
+        }
+        for file in orderedResults {
+            ctx.deferredJVMInlineBodies.merge(file.deferredJVMInlineBodies) { first, _ in first }
         }
         let merged = mergePerFileASTResults(orderedResults)
         finalizeAST(
@@ -480,7 +488,8 @@ public final class BuildASTPhase: CompilerPhase {
         cst: SyntaxArena,
         root: NodeID,
         interner: StringInterner,
-        arena: ASTArena
+        arena: ASTArena,
+        defersJVMInlineBodies: Bool = false
     ) -> PerFileASTResult {
         let isScript = cst.node(root).kind == .script
         let fileRawID = fileID.rawValue
@@ -494,6 +503,7 @@ public final class BuildASTPhase: CompilerPhase {
         // as shadowing local decls inside the synthesized `main()` body.
         var materializedDeclNodeIDs: Set<NodeID> = []
         var pendingContextReceivers: [ContextReceiverDecl] = []
+        var deferredJVMInlineBodies: [DeclID: JVMInlineBodySyntax] = [:]
         let rootNode = cst.node(root)
         let fileAnnotations = declarationAnnotations(from: root, in: cst, interner: interner)
             .filter { $0.useSiteTarget == "file" }
@@ -537,11 +547,17 @@ public final class BuildASTPhase: CompilerPhase {
                 materializedDeclNodeIDs.insert(nodeID)
 
             case .funDecl:
-                let decl = Decl.funDecl(makeFunDecl(
+                let function = makeFunDecl(
                     from: nodeID, in: cst, interner: interner, astArena: arena,
-                    prefixedContextReceivers: prefixedContextReceivers
-                ))
-                appendDecl(decl, to: arena, declarations: &declarations, fileDecls: &topLevelDecls)
+                    prefixedContextReceivers: prefixedContextReceivers,
+                    deferredBody: defersJVMInlineBodies ? { header in
+                        self.deferredJVMInlineBody(for: header, from: nodeID, in: cst, interner: interner)
+                    } : nil
+                )
+                let declID = arena.appendDecl(.funDecl(function.declaration))
+                declarations.append(declID)
+                topLevelDecls.append(declID)
+                deferredJVMInlineBodies[declID] = function.deferredBody
                 materializedDeclNodeIDs.insert(nodeID)
 
             case .propertyDecl where !isScript:
@@ -619,7 +635,8 @@ public final class BuildASTPhase: CompilerPhase {
             scriptBody: scriptBody,
             annotations: fileAnnotations,
             range: rootNode.range,
-            allDecls: declarations
+            allDecls: declarations,
+            deferredJVMInlineBodies: deferredJVMInlineBodies
         )
     }
 

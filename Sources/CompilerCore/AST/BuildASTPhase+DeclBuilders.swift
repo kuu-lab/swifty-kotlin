@@ -302,6 +302,22 @@ extension BuildASTPhase {
         prefixedAnnotations: [AnnotationNode] = [],
         prefixedContextReceivers: [ContextReceiverDecl] = []
     ) -> FunDecl {
+        makeFunDecl(
+            from: nodeID, in: arena, interner: interner, astArena: astArena,
+            prefixedAnnotations: prefixedAnnotations, prefixedContextReceivers: prefixedContextReceivers,
+            deferredBody: nil
+        ).declaration
+    }
+
+    func makeFunDecl(
+        from nodeID: NodeID,
+        in arena: SyntaxArena,
+        interner: StringInterner,
+        astArena: ASTArena,
+        prefixedAnnotations: [AnnotationNode] = [],
+        prefixedContextReceivers: [ContextReceiverDecl] = [],
+        deferredBody: ((FunDecl) -> JVMInlineBodySyntax?)?
+    ) -> (declaration: FunDecl, deferredBody: JVMInlineBodySyntax?) {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let isSuspend = modifiers.contains(.suspend)
@@ -323,7 +339,9 @@ extension BuildASTPhase {
         // overwrite a member function's class `this` with the context type.
         let receiverType = explicitReceiverType
         let returnType = declarationReturnType(from: nodeID, in: arena, interner: interner, astArena: astArena)
-        let body = declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
+        let body = deferredBody == nil
+            ? declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
+            : nil
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let whereClauseInfo = declarationWhereClauseInfo(
             from: nodeID,
@@ -336,7 +354,7 @@ extension BuildASTPhase {
         let receiverAnnotations = declarationReceiverAnnotations(
             from: nodeID, in: arena, interner: interner
         )
-        return FunDecl(
+        let header = FunDecl(
             range: node.range,
             name: functionName,
             modifiers: modifiers,
@@ -347,7 +365,6 @@ extension BuildASTPhase {
             contextReceivers: contextReceivers,
             valueParams: valueParams,
             returnType: returnType,
-            body: body,
             isSuspend: isSuspend,
             isInline: isInline,
             isTailrec: isTailrec,
@@ -356,6 +373,11 @@ extension BuildASTPhase {
             ),
             declarationKeywordRange: declarationKindKeywordRange(from: nodeID, in: arena)
         )
+        if let deferred = deferredBody?(header) {
+            return (header.replacingBody(.block([], arena.node(deferred.block).range)), deferred)
+        }
+        let eagerBody = body ?? declarationBody(from: nodeID, in: arena, interner: interner, astArena: astArena)
+        return (header.replacingBody(eagerBody), nil)
     }
 
     func makePropertyDecl(
