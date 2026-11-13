@@ -1583,7 +1583,7 @@ final class JVMClasspathIndex {
                     && propertyShape($0)?.name == field.name && overridesParent($0, in: info, visited: [])
             }
             source += (overrides ? "override " : "") + (field.isFinal ? "val" : "var")
-                + " `\(field.name)`: \(kotlinType(type)) get() = null!!" + setter + "\n"
+                + " `\(field.name)`: \(javaInstanceFieldSourceType(field, in: info, erased: type)) get() = null!!" + setter + "\n"
         }
         // Concrete classes must implement every abstract property the
         // transitive interfaces declare; classfiles occasionally omit the
@@ -2000,6 +2000,13 @@ final class JVMClasspathIndex {
                 if let type = runtimeStaticFieldType(field, in: info)
                     ?? (info.isRuntimeInstanceField(field) ? try? JVMDescriptor.parse("()" + field.descriptor).1 : nil) {
                     for ref in signatureNames(type) { markNeeded(ref) }
+                    if let signature = field.genericSignature {
+                        var accessor = JVMForeignMethod(owner: info.name, name: field.name, descriptor: "()" + field.descriptor,
+                                                        parameters: [], result: type, isStatic: field.isStatic,
+                                                        isInterface: info.isInterface, isAbstract: false)
+                        accessor.genericSignature = "()" + signature
+                        for name in javaGenericTypes(accessor)?.referencedClasses ?? [] { markNeeded(name) }
+                    }
                 }
             }
             func markSourceTypes(_ types: [String]) {
