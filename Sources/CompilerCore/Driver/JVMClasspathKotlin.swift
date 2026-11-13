@@ -82,7 +82,7 @@ extension JVMClasspathIndex {
             return []
         case .flexible(let type, _):
             return kotlinReferences(type)
-        case .function(let parameters, let result, let receiver, _, _):
+        case .function(let parameters, let result, let receiver, _, _, _):
             return (parameters + [result] + [receiver].compactMap { $0 }).flatMap(kotlinReferences)
         }
     }
@@ -132,7 +132,7 @@ extension JVMClasspathIndex {
             return "`\(parameter)`" + (nullable ? "?" : "")
         case .flexible(let lower, _):
             return kotlinSourceType(lower, parameters: parameters)
-        case .function(let inputs, let result, let receiver, let nullable, let suspend):
+        case .function(let inputs, let result, let receiver, let nullable, let suspend, _):
             let inputs = inputs.map { kotlinSourceType($0, parameters: parameters) }.joined(separator: ", ")
             let receiver = receiver.map { kotlinSourceType($0, parameters: parameters) + "." } ?? ""
             let result = kotlinSourceType(result, parameters: parameters)
@@ -165,7 +165,7 @@ extension JVMClasspathIndex {
             return kotlinErasure(bound, parameters: parameters, boxed: true)
         case .flexible(let lower, _):
             return kotlinErasure(lower, parameters: parameters, boxed: boxed)
-        case .function(let inputs, _, let receiver, _, let suspend):
+        case .function(let inputs, _, let receiver, _, let suspend, _):
             let arity = inputs.count + (receiver == nil ? 0 : 1) + (suspend ? 1 : 0)
             return "Lkotlin/jvm/functions/Function\(arity);"
         }
