@@ -548,7 +548,7 @@ final class JVMClasspathIndex {
             || name == "kotlin/coroutines/Continuation" || classes[name] != nil
     }
 
-    private func exposeSuspendType(_ type: JVMValueType) -> Bool {
+    func exposeSuspendType(_ type: JVMValueType) -> Bool {
         guard let name = type.referenceName else { return true }
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
@@ -2137,6 +2137,7 @@ final class JVMClasspathIndex {
                 markSourceTypes(constructor.parameters.map(\.sourceType))
             }
             for method in info.methods where isExposed(method) {
+                if let types = javaGenericTypes(method) { for name in types.referencedClasses { markNeeded(name) } }
                 for type in method.sourceParameters + [method.sourceResult] {
                     for ref in signatureNames(type)
                     where lazyClassNames.contains(ref) && isInjected(ref) {
@@ -2230,9 +2231,11 @@ final class JVMClasspathIndex {
         if asExtension, let type = method.sourceParameters.first {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
+        let javaTypes = javaGenericTypes(method)
         let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
             ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
+            ?? javaTypes?.result
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
             let resultType = kotlinType(method.result)
@@ -2240,7 +2243,7 @@ final class JVMClasspathIndex {
             return "<`\(parameter.name)`: \(bound)> "
         } ?? ""
         let modifier = suspend == nil ? "" : "suspend "
-        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension) + "): " + result
+        return modifier + "fun " + generic + "\(receiver)`\(method.sourceName)`(" + parameters(method, droppingReceiver: asExtension, javaTypes: javaTypes?.parameters) + "): " + result
     }
 
     private func kotlinFunctionDeclaration(_ function: JVMKotlinFunction, asFacadeMember: Bool, acceptsDefaults: Bool) -> String {
@@ -2296,7 +2299,7 @@ final class JVMClasspathIndex {
             + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
     }
 
-    private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false) -> String {
+    private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false, javaTypes: [String]? = nil) -> String {
         let suspend = method.kotlinSuspendFunction
         let types = method.sourceParameters.dropFirst(droppingReceiver ? 1 : 0)
         let receiverInParameters = suspend?.receiverIsNullable != nil && !droppingReceiver
@@ -2329,7 +2332,7 @@ final class JVMClasspathIndex {
                let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 {
                 parameterType = kotlinType(element)
             } else {
-                parameterType = kotlinType(parameter)
+                parameterType = javaTypes?[index + (droppingReceiver ? 1 : 0)] ?? kotlinType(parameter)
             }
             return (isVararg ? "vararg " : "") + name + ": "
                 + (suspendSourceType ?? (parameterType + (nullable ? "?" : "")))
