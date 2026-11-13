@@ -74,7 +74,7 @@ extension JVMProgramBuilder {
     func memberFinal(_ modifiers: Modifiers) -> Bool {
         !modifiers.contains(.abstract) && (modifiers.contains(.final) || modifiers.intersection([.open, .override]).isEmpty)
     }
-    func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool) throws -> JVMFunctionReference {
+    func functionReference(_ function: FunDecl, symbol: SymbolID, member: Bool, allowComposable: Bool = false) throws -> JVMFunctionReference {
         let allowed: Modifiers = member ? [.public, .private, .internal, .protected, .open, .final, .abstract, .override, .inline, .tailrec, .suspend, .operator, .infix] : [.public, .private, .internal, .inline, .tailrec, .suspend, .operator, .infix]
         guard function.modifiers.subtracting(allowed).isEmpty,
               let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Unsupported JVM M5 function declaration.", range: function.range) }
@@ -106,6 +106,21 @@ extension JVMProgramBuilder {
         let mappedResult = try functionReturnType(signature.returnType)
         let result = nominalRangeResultType(for: symbol, mapped: mappedResult) ?? mappedResult
         let unsigned = parameters.contains { $0.unsignedName != nil }
+        if sema.composableFunctions.contains(symbol) {
+            guard context.jvmImports?.hasComposeRuntime == true else {
+                throw JVMFrontendError(message: "JVM @Composable requires a compatible AndroidX Compose Runtime on the classpath.", range: function.range)
+            }
+            guard allowComposable, function.receiverType == nil, !function.isSuspend, !function.isInline, !function.isTailrec,
+                  signature.contextReceiverTypes.isEmpty, signature.contextParameterTypes.isEmpty,
+                  parameters.count <= 10, !unsigned,
+                  !function.valueParams.contains(where: { $0.hasDefaultValue || $0.isVararg }),
+                  !signature.valueParameterSymbols.contains(where: sema.composableFunctionParameters.contains)
+            else {
+                throw JVMFrontendError(message: "JVM @Composable supports ordinary top-level functions with at most ten parameters and without default arguments or composable function parameters.", range: function.range)
+            }
+            parameters += JVMCompose.suffix
+            jvmComposableFunctions.insert(symbol)
+        }
         var internalName = unsigned ? name + "$unsigned$" + JVMNameHash.suffix(parameters.map { ($0.unsignedName ?? "_") + ($0.isNullable ? "?" : "") }.joined()) : name
         if let annotation = sema.symbols.annotations(for: symbol).first(where: {
             $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
@@ -231,7 +246,11 @@ extension JVMProgramBuilder {
                   (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
                   p.explicitBackingField == nil,
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
-                  p.getter?.isInline != true, p.setter?.isInline != true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+                  p.getter?.isInline != true, p.setter?.isInline != true,
+                  p.getter?.annotations.isEmpty ?? true, p.setter?.annotations.isEmpty ?? true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
+            guard !sema.composableFunctions.contains(symbol) else {
+                throw JVMFrontendError(message: "JVM @Composable property accessors are unsupported.", range: p.range)
+            }
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }
             let name = context.interner.resolve(p.name)
             let mappedPropertyType = plan.isAnnotation ? try annotationElementType(self.type(propertyType)) : try self.type(propertyType)

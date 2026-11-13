@@ -3,6 +3,7 @@ import Foundation
 /// Classpath lookup follows the caller's entry order. ZIP decoding is shared
 /// with KLIB, including bounded entry reads and CRC validation.
 final class JVMClasspathIndex {
+    static let composeIntrinsicPath = "<kswiftk-jvm-import>/compose-intrinsics.kt"
     var classes: [String: JVMClassInfo] = [:]
     var sourceClasses: [FileID: JVMClassInfo] = [:]
     private(set) var methods: [SymbolID: JVMForeignMethod] = [:]
@@ -28,6 +29,15 @@ final class JVMClasspathIndex {
     /// Covered names for the `inject(into:)` run in progress; supertypes that
     /// resolve to bundled/synthetic Kotlin declarations rather than stubs.
     private var activeCoveredNames: Set<String> = []
+    private(set) var hasComposeRuntime = false
+
+    private func detectsComposeRuntime() -> Bool {
+        guard let composer = classes[JVMCompose.composer], composer.isInterface,
+              classes[ComposePlugin.composableFQName.replacingOccurrences(of: ".", with: "/")]?.isAnnotation == true
+        else { return false }
+        return composer.methods.contains { $0.name == JVMCompose.begin && $0.descriptor == "(I)V" && !$0.isStatic }
+            && composer.methods.contains { $0.name == JVMCompose.end && $0.descriptor == "()V" && !$0.isStatic }
+    }
 
     private static let defaultAutomaticLazyClasspathMemberLimit = 20_000
 
@@ -101,6 +111,10 @@ final class JVMClasspathIndex {
         result.indexInnerClasses()
         for info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
             result.classes[info.name] = info
+        }
+        result.hasComposeRuntime = result.detectsComposeRuntime()
+        if result.hasComposeRuntime {
+            result.lazyClassNames.formUnion(result.classes.keys.filter { $0.hasPrefix("androidx/compose/") })
         }
         let eagerClasspathMemberCount = result.classes.values.reduce(0) { count, info in
             result.lazyClassNames.contains(info.name) ? count : count + 1 + info.methods.count + info.fields.count
@@ -818,7 +832,8 @@ final class JVMClasspathIndex {
             // types. Importing the same erased class again would shadow them.
             if isCovered(info.name, covered: covered) { continue }
             let isLazy = lazyClassNames.contains(info.name)
-            if isLazy, neededLazy?.contains(info.name) != true { continue }
+            let isComposer = hasComposeRuntime && info.name == JVMCompose.composer
+            if isLazy, !isComposer, neededLazy?.contains(info.name) != true { continue }
             let parts = info.name.split(separator: "/").map(String.init)
             guard let short = parts.last else { throw JVMClassReader.Invalid() }
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
@@ -826,7 +841,17 @@ final class JVMClasspathIndex {
             let own = info.methods.filter(isExposed)
             let statics = own.filter(\.isStatic)
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
-            if isFileFacade {
+            if info.isAnnotation && own.allSatisfy(\.isStatic) {
+                source += "annotation class `\(short)`\n"
+            } else if isComposer {
+                // The lowering uses the two group operations directly. Keep
+                // Composer's implementation types out of the source closure.
+                source += "interface `\(short)` {\n"
+                for method in info.methods where [JVMCompose.begin, JVMCompose.end].contains(method.name) {
+                    source += functionDeclaration(method) + "\n"
+                }
+                source += "}\n"
+            } else if isFileFacade {
                 // The facade class itself stays importable: `import api.HelloKt`
                 // resolves the nominal and `HelloKt.member(...)` reaches its
                 // statics through the companion, matching Kotlin/JVM.
@@ -907,6 +932,17 @@ final class JVMClasspathIndex {
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
             declarationFiles.insert(file)
+        }
+        if hasComposeRuntime,
+           classes["androidx/compose/runtime/ComposablesKt"]?.methods.contains(where: {
+               $0.name == "getCurrentComposer" && $0.isStatic
+                   && $0.descriptor == "(L\(JVMCompose.composer);I)L\(JVMCompose.composer);"
+           }) == true {
+            let source = """
+                package androidx.compose.runtime
+                val currentComposer: Composer get() = null!!
+                """
+            _ = ctx.sourceManager.addFile(path: Self.composeIntrinsicPath, contents: Data(source.utf8), origin: .residualStdlib)
         }
     }
 
@@ -1482,6 +1518,7 @@ final class JVMClasspathIndex {
         var edgeProcessed = Set<String>()
         func processEdges(_ name: String) {
             guard edgeProcessed.insert(name).inserted, let info = classes[name] else { return }
+            if info.isAnnotation && info.methods.allSatisfy(\.isStatic) || hasComposeRuntime && name == JVMCompose.composer { return }
             for parent in [info.superclass].compactMap({ $0 }) + info.interfaces {
                 // Covered supertypes render as Kotlin/platform names and need
                 // no stub; every other lazy supertype joins the closure.

@@ -165,9 +165,10 @@ extension JVMFunctionBuilder {
             prefix.append(value)
         }
         let allTypes = reference?.parameters ?? method!.parameters
+        let isComposable = program.jvmComposableFunctions.contains(symbol)
+        let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
-        let types = Array(allTypes.dropFirst(prefix.count))
         guard types.count >= contextParameterTypes.count else { throw fail("JVM context parameter signature mismatch.", id) }
         let valueTypes = Array(types.dropFirst(contextParameterTypes.count))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
@@ -224,7 +225,10 @@ extension JVMFunctionBuilder {
         } else if var method {
             if let receiver, isSuper(receiver) { method = try superMethod(method, receiver: receiver) }
             instructions.append(.foreignCall(method, receiver: object ?? dispatch, arguments: values, result: result))
-        } else if let reference { instructions.append(.call(reference, values, result)) }
+        } else if let reference {
+            if isComposable { try composableCall(reference, symbol: symbol, arguments: values, result: result, at: id) }
+            else { instructions.append(.call(reference, values, result)) }
+        }
         return JVMIntrinsicResult(value: object ?? result)
     }
 }
