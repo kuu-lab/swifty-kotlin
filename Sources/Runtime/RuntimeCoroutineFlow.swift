@@ -119,7 +119,7 @@ private func runtimeFlowFinishChannelProducer(
     if cancelledByCollector {
         // Wake blocked sends before joining; plain close would synthesize a
         // ClosedSendChannelException during successful take/takeWhile cleanup.
-        _ = kk_channel_cancel(channelHandle)
+        _ = __kk_channel_cancel_with_cause(channelHandle, 0)
         scope.cancel(message: "Flow collection finished", cause: 0)
     }
     _ = job.join()

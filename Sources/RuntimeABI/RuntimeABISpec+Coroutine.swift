@@ -169,7 +169,6 @@ public extension RuntimeABISpec {
         abi.nt("__kk_select_poll_receive", "handle clause"),
         abi.nt("__kk_select_poll_send", "handle clause value"),
         abi.nt("__kk_select_poll_lock", "handle clause owner"),
-        abi.nt("kk_channel_try_send", "handle value"),
         // KUU-1404: receive on a drained-closed/cancelled channel reports its
         // terminal status through outThrown (ClosedReceiveChannelException /
         // CancellationException) instead of returning a default payload.
@@ -185,14 +184,12 @@ public extension RuntimeABISpec {
             // Int-returning residual; it does not use the outThrown ABI path.
             isThrowing: false
         ),
-        // KUU-1404: Channel.cancel() residual bridge; plain Int (0/1) flag
-        // like kk_channel_close.
-        abi.nt("kk_channel_cancel", "handle"),
         abi.th("kk_channel_is_closed_token", "status"),
         abi.nt("__kk_channel_create_with_policy", "capacity onBufferOverflow"),
         abi.nt("__kk_channel_invoke_on_close", "handle handlerFnPtr handlerClosureRaw"),
-        // `kk_channel_try_send` keeps its bare-status contract; the `__kk_`
-        // variants return a `RuntimeChannelResultBox` handle.
+        // `__kk_channel_try_send` returns a `RuntimeChannelResultBox` handle;
+        // the bare-status Swift helper `kk_channel_try_send` is test-only and
+        // no longer part of the C ABI.
         abi.nt("__kk_channel_try_receive", "handle"),
         abi.nt("__kk_channel_try_send", "handle value"),
         abi.nt("__kk_channel_receive_catching", "handle continuation"),
