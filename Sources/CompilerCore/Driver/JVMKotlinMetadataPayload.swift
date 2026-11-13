@@ -575,7 +575,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false, defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = []) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false, defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = [], ownerIsInterface: Bool = false) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -640,7 +640,7 @@ struct JVMKotlinMetadataPayload {
                 && parameterMessages.contains { ($0.int32(1) ?? 0) & 2 != 0 }
             let isGenericFinalGetter = isFileFacade != true && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
-            let hasStableMemberParameters = isFileFacade != true && (isFinal || metroFactory)
+            let hasStableMemberParameters = isFileFacade != true && (isFinal || metroFactory || ownerIsInterface)
                 && receiver == nil && contextParameters.isEmpty
                 && !parameterMessages.isEmpty && flags & (1 << 15) == 0
                 && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
