@@ -789,10 +789,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             do { try ctx.jvmImports?.bind(in: ctx, sema: sema) }
             catch { ctx.diagnostics.error("KSWIFTK-JVM-0003", "Cannot bind JVM classpath: \(error)", range: nil) }
         }
+        let precompiledFiles = Set(ctx.jvmImports?.sourceClasses.keys.map { $0 } ?? [])
         withSubPhaseTiming("validateAbstractOverrides", timer: ctx.phaseTimer) {
             validateAbstractOverrides(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
-                diagnostics: ctx.diagnostics, interner: ctx.interner
+                diagnostics: ctx.diagnostics, interner: ctx.interner, precompiledFiles: precompiledFiles
             )
         }
         withSubPhaseTiming("validateDiamondOverrides", timer: ctx.phaseTimer) {
@@ -805,7 +806,7 @@ final class DataFlowSemaPhase: CompilerPhase {
             validateOpenFinalOverride(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner,
-                compilationModuleName: ctx.options.moduleName
+                compilationModuleName: ctx.options.moduleName, precompiledFiles: precompiledFiles
             )
         }
         withSubPhaseTiming("validateExpectActualMatching", timer: ctx.phaseTimer) {

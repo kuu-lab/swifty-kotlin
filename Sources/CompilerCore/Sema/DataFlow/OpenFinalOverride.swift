@@ -40,7 +40,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
-        compilationModuleName: String
+        compilationModuleName: String,
+        precompiledFiles: Set<FileID> = []
     ) {
         let ctx = OpenFinalOverrideContext(
             ast: ast,
@@ -55,7 +56,7 @@ extension DataFlowSemaPhase {
                 uniquingKeysWith: { first, _ in first }
             )
         )
-        for file in ast.sortedFiles {
+        for file in ast.sortedFiles where !precompiledFiles.contains(file.fileID) {
             for declID in file.topLevelDecls {
                 validateOFODecl(declID, ctx: ctx)
             }
