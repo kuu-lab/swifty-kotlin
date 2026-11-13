@@ -1137,6 +1137,18 @@ final class JVMClasspathIndex {
     private func memberDeclarations(info: JVMClassInfo, members: [JVMForeignMethod], allowsCompanion: Bool = true) -> String {
         let own = members.filter { $0.kotlinSuspendFunction?.receiverIsNullable == nil && isExposed($0) }
         let statics = own.filter { $0.isStatic && $0.kotlinFunction?.valueOperatorParameterDescriptors == nil }
+        let companion = allowsCompanion ? kotlinCompanion(of: info) : nil
+        func isDefaultOverload(_ method: JVMForeignMethod, in owner: JVMClassInfo) -> Bool {
+            // Kotlin sees only the declaration in metadata. The shorter
+            // @JvmOverloads entry is for Java callers and has no named slots.
+            guard method.kotlinFunction == nil,
+                  method.annotations.contains(where: { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }) else { return false }
+            return owner.methods.contains {
+                $0.name == method.name && $0.parameters.count > method.parameters.count
+                    && $0.result.descriptor == method.result.descriptor
+                    && defaultArgumentMethod(for: $0, in: owner) != nil
+            }
+        }
         // Covered Java supertypes render as Kotlin mapped types whose
         // member names differ from the erased classfile signatures; bridge
         // the differences explicitly (see kotlinSupertypeName).
@@ -1366,7 +1378,10 @@ final class JVMClasspathIndex {
             // Parents may still have erased classpath signatures.
             let usesErasedOverride = overrides
                 && (method.kotlinFunction?.isGenericFinalGetter == true || method.kotlinFunction?.hasStableFinalParameters == true)
-            source += functionDeclaration(method, usesKotlinMetadata: !usesErasedOverride)
+            source += functionDeclaration(
+                method, acceptsDefaults: !usesErasedOverride && defaultArgumentMethod(for: method, in: info) != nil,
+                usesKotlinMetadata: !usesErasedOverride
+            )
             if info.isInterface, !method.isAbstract {
                 source += method.sourceResult == .unit ? " {}" : " = null!!"
                 // A default method with a primitive result still has a
@@ -1506,7 +1521,6 @@ final class JVMClasspathIndex {
             let setter = field.isFinal ? "" : " set(value) {}"
             return "\(keyword) `\(field.name)`: \(kotlinType(type)) get() = null!!\(setter)\n"
         }
-        let companion = allowsCompanion ? kotlinCompanion(of: info) : nil
         if allowsCompanion, companion != nil || !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
             if let companion {
@@ -1524,6 +1538,9 @@ final class JVMClasspathIndex {
                 source += "val `\(name)`: \(type) get() = null!!\n"
             }
             for method in statics {
+                if let companion, let instance = companion.methods.first(where: {
+                    !$0.isStatic && $0.name == method.name && $0.descriptor == method.descriptor
+                }), isDefaultOverload(instance, in: companion) { continue }
                 // @JvmStatic bridges do not carry the Kotlin companion's metadata.
                 let declaration = companion.flatMap { companion in
                     companion.methods.first {
@@ -1531,7 +1548,9 @@ final class JVMClasspathIndex {
                             && $0.kotlinFunction != nil && !overridesParent($0, in: companion, visited: [])
                     }
                 } ?? method
-                source += "external " + functionDeclaration(declaration) + "\n"
+                let defaults = companion.flatMap { defaultArgumentMethod(for: declaration, in: $0) }
+                    ?? defaultArgumentMethod(for: method, in: info)
+                source += "external " + functionDeclaration(declaration, acceptsDefaults: defaults != nil) + "\n"
             }
             if let companion {
                 for (name, property) in companion.kotlinMemberProperties.sorted(by: { $0.key < $1.key })
@@ -1539,6 +1558,7 @@ final class JVMClasspathIndex {
                     source += "val `\(name)`: \(property.sourceType) get() = null!!\n"
                 }
                 for method in companion.methods where !method.isStatic && !method.isConstructor && isExposed(method) {
+                    if isDefaultOverload(method, in: companion) { continue }
                     if statics.contains(where: { $0.name == method.name && $0.descriptor == method.descriptor })
                         && !overridesParent(method, in: companion, visited: []) { continue }
                     if companion.kotlinMemberProperties.values.contains(where: {
@@ -1548,7 +1568,9 @@ final class JVMClasspathIndex {
                         || ["toString()Ljava/lang/String;", "hashCode()I", "equals(Ljava/lang/Object;)Z"].contains(method.name + method.descriptor) {
                         source += "override "
                     }
-                    source += "external " + functionDeclaration(method) + "\n"
+                    source += "external " + functionDeclaration(
+                        method, acceptsDefaults: defaultArgumentMethod(for: method, in: companion) != nil
+                    ) + "\n"
                 }
             }
             source += "}\n"
@@ -1904,13 +1926,15 @@ final class JVMClasspathIndex {
     }
 
     private func defaultArgumentMethod(for method: JVMForeignMethod, in info: JVMClassInfo) -> JVMForeignMethod? {
-        guard method.isStatic, let function = method.kotlinFunction, !function.isSuspend,
+        guard let function = method.kotlinFunction, !function.isSuspend,
               function.contextParameters.isEmpty,
               function.parameters.contains(where: \.hasDefaultValue),
               method.parameters.count == function.parameters.count + function.leadingParameterCount
         else { return nil }
         let masks = String(repeating: "I", count: (function.parameters.count + 31) / 32)
-        let descriptor = "(" + method.parameters.map(\.descriptor).joined() + masks + "Ljava/lang/Object;)" + method.result.descriptor
+        let dispatch = method.isStatic ? "" : "L\(info.name);"
+        let descriptor = "(" + dispatch + method.parameters.map(\.descriptor).joined() + masks
+            + "Ljava/lang/Object;)" + method.result.descriptor
         return info.defaultArgumentMethods.first {
             $0.isStatic && $0.name == method.name + "$default" && $0.descriptor == descriptor
         }
@@ -2233,6 +2257,17 @@ final class JVMClasspathIndex {
                 continue
             }
             methods[symbol.id] = method
+            if signature.valueParameterHasDefaultValues.contains(true) {
+                let owner = classes[method.owner] ?? info
+                let companion = isStaticCompanion && method.isStatic ? kotlinCompanion(of: info) : nil
+                let companionMethod = companion?.methods.first {
+                    !$0.isStatic && $0.name == method.name && $0.descriptor == method.descriptor
+                }
+                importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: owner)
+                    ?? companion.flatMap { owner in
+                        companionMethod.flatMap { defaultArgumentMethod(for: $0, in: owner) }
+                    }
+            }
             // Kotlin metadata already provides source nullability.
             if method.kotlinFunction != nil { continue }
             // Keep the authored Kotlin types on the declaration of this JVM

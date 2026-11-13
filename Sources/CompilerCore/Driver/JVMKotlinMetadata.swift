@@ -525,7 +525,7 @@ struct JVMKotlinMetadata {
     /// Recover function types and top-level extension receivers from Kotlin metadata.
     func functions(
         byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false,
-        functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false
+        functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [], metroFactory: Bool = false
     ) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -588,6 +588,8 @@ struct JVMKotlinMetadata {
             }
             guard contextParameters.count == contextMessages.count else { continue }
             let parameterMessages = try function.messages(6)
+            let hasMemberDefaults = !isFileFacade && defaultMethodNames.contains(jvmName ?? name)
+                && parameterMessages.contains { ($0.int32(1) ?? 0) & 2 != 0 }
             let isGenericFinalGetter = !isFileFacade && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
             let hasStableMemberParameters = !isFileFacade && (isFinal || metroFactory)
@@ -636,7 +638,7 @@ struct JVMKotlinMetadata {
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
                 })
             guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList
-                || isGenericFinalGetter || isMangledMember || hasStableParameters else { continue }
+                || isGenericFinalGetter || isMangledMember || hasStableParameters || hasMemberDefaults else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
             if isValueOperator || isMangledMember {
