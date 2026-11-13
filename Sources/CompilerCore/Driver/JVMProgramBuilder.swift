@@ -428,7 +428,7 @@ final class JVMFunctionBuilder {
     func requireValue(_ id: ExprID) throws -> JVMValue {
         let result = try expression(id)
         if terminated { throw JVMTerminatedExpression() }
-        if result == nil, program.sema.bindings.exprType(for: id) == program.sema.types.unitType {
+        if result == nil, try program.expressionType(id) == .unit {
             program.functionArities.insert(0)
             let unit: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(unit)
             instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), result))
