@@ -1248,6 +1248,25 @@ extension DataFlowSemaPhase {
         )
     }
 
+    func registerJVMFileMembers(symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
+        let fileName = ["java", "io", "File"].map(interner.intern)
+        guard let owner = symbols.lookupNominal(fqName: fileName), let fileType = symbols.propertyType(for: owner) else { return }
+        registerFileConstructor(
+            ownerSymbol: owner, ownerType: fileType,
+            parameters: [("parent", types.makeNullable(fileType)), ("child", types.stringType)],
+            externalLinkName: "java/io/File.<init>", symbols: symbols, interner: interner
+        )
+        registerFileMemberProperty(
+            named: "absolutePath", externalLinkName: "java/io/File.getAbsolutePath",
+            ownerSymbol: owner, returnType: types.stringType, symbols: symbols, interner: interner
+        )
+        registerFileMemberFunction(
+            named: "mkdirs", externalLinkName: "java/io/File.mkdirs",
+            ownerSymbol: owner, ownerType: fileType, parameters: [], returnType: types.booleanType,
+            symbols: symbols, interner: interner
+        )
+    }
+
     /// Registers a top-level extension function in a Kotlin package
     /// (e.g. `kotlin.io`) whose receiver is a class symbol such as
     /// `java.io.OutputStream`.  Used for stdlib extensions like
