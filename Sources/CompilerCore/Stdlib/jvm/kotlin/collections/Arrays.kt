@@ -287,6 +287,7 @@ public fun ShortArray.joinToString(separator: CharSequence = ", ", prefix: CharS
 
 public fun <T> Array<out T>.asList(): List<T> = __jvmArrayList(this)
 fun <T> Array<out T>.toList(): List<T> = this.asSequence().toList()
+fun <T> Array<out T>.distinct(): List<T> = this.toMutableSet().toList()
 fun <T> Array<out T>.toMutableList(): MutableList<T> = this.asSequence().toMutableList()
 fun <T> Array<out T>.toSet(): Set<T> = this.asSequence().toSet()
 fun <T> Array<out T>.toMutableSet(): MutableSet<T> = this.asSequence().toMutableSet()

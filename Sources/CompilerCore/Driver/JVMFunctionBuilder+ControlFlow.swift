@@ -189,6 +189,16 @@ extension JVMFunctionBuilder {
             return try concatenate(left, right)
         }
         let right = try requireValue(rhs)
+        if op == .add, (try? program.expressionType(id).referenceName) == "kotlin/coroutines/CoroutineContext",
+           let contextSymbol = program.sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map(context.interner.intern)),
+           let leftType = program.sema.bindings.exprType(for: lhs),
+           let rightType = program.sema.bindings.exprType(for: rhs),
+           program.sema.types.isSubtype(leftType, program.sema.types.make(.classType(ClassType(classSymbol: contextSymbol)))),
+           program.sema.types.isSubtype(rightType, program.sema.types.make(.classType(ClassType(classSymbol: contextSymbol)))) {
+            let contextType = JVMValueType.reference("kotlin/coroutines/CoroutineContext", nullable: false)
+            return try jdkCall("kotlin/coroutines/CoroutineContext", "plus", [contextType], contextType,
+                               receiver: convert(left, to: contextType), arguments: [right], interface: true)
+        }
         if ordering, left.type.isText, right.type.isText {
             let compared = try jdkCall("java/lang/String", "compareTo", [.string], .int, receiver: convert(left, to: .string), arguments: [right])!
             let result = try value(.boolean); instructions.append(.binary(op, compared, try constant(.int(0), .int), result)); return result
@@ -256,6 +266,9 @@ extension JVMFunctionBuilder {
             let any: JVMValueType = .reference("java/lang/Object", nullable: true)
             let a = try convert(left, to: any), b = try convert(right, to: any), result = try value(.boolean)
             instructions.append(.binary(op, a, b, result)); return result
+        }
+        guard left.type.numericCarrier != nil, right.type.numericCarrier != nil else {
+            throw fail("JVM arithmetic/comparison requires numeric operands (\(left.type.descriptor), \(right.type.descriptor)).", id)
         }
         let promoted = try numericType(left.type, right.type)
         // Arithmetic uses operand width before a contextual result widening.
