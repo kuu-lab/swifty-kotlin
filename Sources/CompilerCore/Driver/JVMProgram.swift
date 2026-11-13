@@ -316,6 +316,7 @@ public struct JVMProperty {
     public var isGetterInline: Bool = false
     public var isSetterInline: Bool = false
     var accessesForeignField = false
+    var usesPrivateBackingField = false
 }
 
 public struct JVMRecordComponent {
