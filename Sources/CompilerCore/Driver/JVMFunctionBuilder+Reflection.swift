@@ -51,6 +51,7 @@ extension JVMFunctionBuilder {
             return try jdkCall("kotlin/jvm/internal/Reflection", "getOrCreateKotlinClass", [klass.type], .reference("kotlin/reflect/KClass", nullable: false), arguments: [klass])!
         }
         guard let symbol = program.sema.bindings.callableReferenceBinding(for: id)?.chosenCallee ?? program.sema.bindings.identifierSymbol(for: id) else { throw fail("Missing JVM callable reference binding.", id) }
+        guard !program.sema.composableFunctions.contains(symbol) else { throw fail("JVM @Composable callable references are unsupported.", id) }
         if let local = program.localFunctions[symbol] {
             return try localFunctionReference(id, symbol: symbol, receiver: receiver, plan: local)
         }

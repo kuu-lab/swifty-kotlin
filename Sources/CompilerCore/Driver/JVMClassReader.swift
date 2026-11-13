@@ -17,6 +17,7 @@ struct JVMClassInfo {
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var isInterface: Bool { flags & 0x0200 != 0 }
+    var isAnnotation: Bool { flags & 0x2000 != 0 }
 }
 
 struct JVMInnerClassInfo {
