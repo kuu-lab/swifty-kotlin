@@ -773,9 +773,12 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner
             )
         }
+        let precompiledFiles = Set(ctx.jvmImports?.sourceClasses.keys.map { $0 } ?? [])
+        sema.jvmClasspathStubFiles = precompiledFiles
         withSubPhaseTiming("validateTypeParameterUpperBounds", timer: ctx.phaseTimer) {
             validateTypeParameterUpperBounds(
-                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
+                symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics,
+                precompiledFiles: precompiledFiles
             )
         }
         withSubPhaseTiming("validateTypeAliasCycles", timer: ctx.phaseTimer) {
