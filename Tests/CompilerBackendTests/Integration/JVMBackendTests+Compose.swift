@@ -57,16 +57,66 @@ extension JVMBackendTests {
     }
 
     @Test
-    func jvmComposableRejectsUnsupportedDefaults() throws {
+    func jvmComposableDefaultArgumentsUseTheActiveComposerAndMask() throws {
+        let stdlib = try ownStdlibLibrary()
         try withWorkspace { root in
             let dependencies = try composeJVMFixture(root)
             let source = """
                 import androidx.compose.runtime.Composable
-                @Composable fun Screen(value: Int = 1) {}
+
+                @Composable private fun title(): String {
+                    println("default")
+                    return "session"
+                }
+
+                @Composable fun Screen(name: String = title(), count: Int = name.length) {
+                    println(name + count)
+                }
+
+                @Composable fun Root() {
+                    Screen(count = 2)
+                    Screen(name = "explicit")
+                    Screen("full", 3)
+                }
                 """
-            let result = try m22Build(root: root, sources: [("Screen.kt", source)], name: "app.jar", classpath: [dependencies.path])
-            #expect(result.1 == 1)
-            #expect(result.2.contains { $0.message.contains("without default arguments") })
+            let classpath = [dependencies.path, stdlib.path]
+            let (app, exit, diagnostics) = try m22Build(
+                root: root, sources: [("Screen.kt", source)], name: "app.jar", classpath: classpath
+            )
+            try #require(exit == 0, "\(diagnostics.map(\.message))")
+            let appClasspath = ([app.path] + classpath).joined(separator: ":")
+            let bytecode = try javap(["-p", "-s", "-classpath", appClasspath, "ScreenKt"])
+            #expect(bytecode.stdout.contains("(Ljava/lang/String;ILandroidx/compose/runtime/Composer;II)V"))
+            #expect(!bytecode.stdout.contains("Screen$default"))
+
+            let driver = """
+                import fixture.Bridge;
+                public final class Driver {
+                    public static void main(String[] args) {
+                        ScreenKt.Root(Bridge.COMPOSER, 0);
+                        Bridge.checkClosed(9);
+                        ScreenKt.Screen(null, 0, Bridge.COMPOSER, 0, 3);
+                        Bridge.checkClosed(3);
+                    }
+                }
+                """
+            try driver.write(to: root.appendingPathComponent("Driver.java"), atomically: true, encoding: .utf8)
+            _ = try jvmTool("javac", ["-cp", appClasspath, "-d", "driver", "Driver.java"], root: root)
+            let run = try java([
+                "-Xverify:all", "-cp", appClasspath + ":" + root.appendingPathComponent("driver").path, "Driver"
+            ])
+            #expect(run.exitCode == 0, "\(run.stderr)")
+            #expect(run.stdout == "default\nsession2\nexplicit8\nfull3\ndefault\nsession7\n")
+
+            let (_, rejected, errors) = try m22Build(
+                root: root, sources: [("Bad.kt", """
+                    import androidx.compose.runtime.Composable
+                    @Composable fun value(): Int = 1
+                    fun bad(input: Int = value()) {}
+                    """)], name: "bad.jar", classpath: classpath
+            )
+            #expect(rejected != 0)
+            #expect(errors.contains { $0.code == "KSWIFTK-SEMA-0493" })
         }
     }
 
@@ -205,7 +255,7 @@ extension JVMBackendTests {
                 public class Bridge {
                     private static int depth;
                     private static int groups;
-                    public static int[] keys = new int[3];
+                    public static int[] keys = new int[8];
                     public static final Composer COMPOSER = new Composer() {
                         public void startReplaceableGroup(int key) { keys[depth++] = key; groups++; }
                         public void endReplaceableGroup() { depth--; }
