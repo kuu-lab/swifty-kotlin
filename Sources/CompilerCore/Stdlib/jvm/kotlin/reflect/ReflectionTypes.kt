@@ -41,10 +41,13 @@ interface KMutableProperty0<V>: KProperty0<V>, KMutableProperty<V> {
 }
 interface KMutableProperty1<T, V>: KProperty1<T, V>, KMutableProperty<V> { fun set(receiver: T, value: V) }
 interface KClassifier
-interface KClass<T>: KAnnotatedElement, KClassifier {
+interface KDeclarationContainer {
+    val members: Collection<KCallable<*>>
+}
+
+interface KClass<T>: KAnnotatedElement, KClassifier, KDeclarationContainer {
     val simpleName: String?
     val qualifiedName: String?
-    val members: Collection<KCallable<*>>
     val constructors: Collection<KFunction<T>>
     val nestedClasses: Collection<KClass<*>>
     val objectInstance: T?
@@ -69,9 +72,9 @@ data class KTypeProjection(val variance: KVariance?, val type: KType?) {
 
     companion object {
         @JvmField val STAR: KTypeProjection = KTypeProjection(null, null)
-        fun invariant(type: KType): KTypeProjection = KTypeProjection(KVariance.INVARIANT, type)
-        fun contravariant(type: KType): KTypeProjection = KTypeProjection(KVariance.IN, type)
-        fun covariant(type: KType): KTypeProjection = KTypeProjection(KVariance.OUT, type)
+        @JvmStatic fun invariant(type: KType): KTypeProjection = KTypeProjection(KVariance.INVARIANT, type)
+        @JvmStatic fun contravariant(type: KType): KTypeProjection = KTypeProjection(KVariance.IN, type)
+        @JvmStatic fun covariant(type: KType): KTypeProjection = KTypeProjection(KVariance.OUT, type)
     }
 }
 

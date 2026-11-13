@@ -35,12 +35,29 @@ internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, priva
         return result
     }
 }
-internal class RuntimeClassType(private val owner: Any): KType {
+internal class RuntimeClassType(
+    private val owner: Any,
+    override val isMarkedNullable: Boolean = false,
+    override val arguments: List<KTypeProjection> = emptyList()
+): KType {
     override val annotations: List<Annotation> get() = emptyList()
-    override val isMarkedNullable: Boolean get() = false
-    override val arguments: List<KTypeProjection> get() = emptyList()
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
-    override fun toString(): String = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
+    override fun equals(other: Any?): Boolean =
+        other is RuntimeClassType && classifier == other.classifier &&
+            isMarkedNullable == other.isMarkedNullable && arguments == other.arguments
+    override fun hashCode(): Int = (classifier.hashCode() * 31 + arguments.hashCode()) * 31 + isMarkedNullable.hashCode()
+    override fun toString(): String {
+        val name = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
+        val projections = if (arguments.isEmpty()) "" else arguments.joinToString(", ", "<", ">") { projection ->
+            when (projection.variance) {
+                null -> "*"
+                KVariance.IN -> "in " + projection.type
+                KVariance.OUT -> "out " + projection.type
+                KVariance.INVARIANT -> projection.type.toString()
+            }
+        }
+        return name + projections + if (isMarkedNullable) "?" else ""
+    }
 }
 internal class RuntimeParameter(private val key: RuntimeCallable, override val index: Int, override val name: String?, override val isOptional: Boolean, override val annotations: List<Annotation>): KParameter {
     override fun equals(other: Any?): Boolean = other is RuntimeParameter && key == other.key && index == other.index

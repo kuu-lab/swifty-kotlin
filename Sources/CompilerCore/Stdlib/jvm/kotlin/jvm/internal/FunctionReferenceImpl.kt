@@ -1,6 +1,9 @@
 package kotlin.jvm.internal
+import kotlin.reflect.KDeclarationContainer
 import kotlin.reflect.jvm.internal.RuntimeFunction
 open class FunctionReferenceImpl protected constructor(override val arity: Int, receiver: Any?, owner: java.lang.Class<*>, name: String, signature: String, flags: Int, bound: Boolean): RuntimeFunction(owner, name, signature, receiver, bound), FunctionBase<Any?> {
+    constructor(arity: Int, owner: KDeclarationContainer, name: String, signature: String) :
+        this(arity, null, (owner as ClassReference<*>).jClass, name, signature, 0, false)
     constructor(arity: Int, owner: java.lang.Class<*>, name: String, signature: String, flags: Int): this(arity, null, owner, name, signature, flags, false)
     constructor(arity: Int, receiver: Any?, owner: java.lang.Class<*>, name: String, signature: String, flags: Int): this(arity, receiver, owner, name, signature, flags, true)
 }
