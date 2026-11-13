@@ -616,12 +616,16 @@ struct JVMClassReader {
         let isMetroFactory = classAttributes.annotations.contains { $0.descriptor == JVMMetro.factory }
         let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
         let defaultMethodNames = Set(defaultArgumentMethods.map { String($0.name.dropLast("$default".count)) })
+        let composableMemberNames = Set(methods.lazy.filter {
+            !$0.isStatic && $0.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
+        }.map(\.name))
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || isMetroFactory || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let functions = try? metadata.functions(
                byteLimit: bytes.count, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype,
-               functionTypeMemberNames: functionTypeMemberNames, defaultMethodNames: defaultMethodNames, metroFactory: isMetroFactory
+               functionTypeMemberNames: functionTypeMemberNames, defaultMethodNames: defaultMethodNames,
+               composableMemberNames: composableMemberNames, metroFactory: isMetroFactory
            ) {
             for index in methods.indices {
                 let method = methods[index]
@@ -640,6 +644,7 @@ struct JVMClassReader {
                           }
                           return !candidate.isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
+                                  || method.composeABI(for: candidate) != nil
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (defaultMethodNames.contains(method.name)
                                           && candidate.parameters.contains(where: \.hasDefaultValue)

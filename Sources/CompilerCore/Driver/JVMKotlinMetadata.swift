@@ -531,7 +531,8 @@ struct JVMKotlinMetadata {
     /// Recover function types and top-level extension receivers from Kotlin metadata.
     func functions(
         byteLimit: Int, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false,
-        functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [], metroFactory: Bool = false
+        functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = [],
+        composableMemberNames: Set<String> = [], metroFactory: Bool = false
     ) throws -> [JVMKotlinFunction] {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
@@ -643,7 +644,7 @@ struct JVMKotlinMetadata {
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
                 })
-            guard valid, hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList
+            guard valid, composableMemberNames.contains(jvmName ?? name) || hasFunctionTypes || isFileFacade || receiver != nil || isInfix || isValueOperator || isSubList
                 || isGenericFinalGetter || isMangledMember || hasStableParameters || hasMemberDefaults else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
