@@ -213,37 +213,32 @@ func registerMutableListIteratorItable(raw: Int) {
 }
 
 private let runtimeListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
-    outThrown?.pointee = 0
-    return runtimeListIteratorSet(raw, elem, outThrown)
+    runtimeThrowingBridge(outThrown) { runtimeListIteratorSet(raw, elem, outThrown) }
 }
 
 private let runtimeListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, elem, outThrown in
-    outThrown?.pointee = 0
-    return runtimeListIteratorAdd(raw, elem, outThrown)
+    runtimeThrowingBridge(outThrown) { runtimeListIteratorAdd(raw, elem, outThrown) }
 }
 
 private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_list_iterator_hasPrevious(raw)
+    runtimeThrowingBridge(outThrown) { kk_list_iterator_hasPrevious(raw) }
 }
 
 private let runtimeListIteratorPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: raw), listIteratorCanGoBack(iter) else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let iter = runtimeListIteratorBox(from: raw), listIteratorCanGoBack(iter) else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return kk_list_iterator_previous(raw)
     }
-    return kk_list_iterator_previous(raw)
 }
 
 private let runtimeListIteratorNextIndexThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_list_iterator_nextIndex(raw)
+    runtimeThrowingBridge(outThrown) { kk_list_iterator_nextIndex(raw) }
 }
 
 private let runtimeListIteratorPreviousIndexThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_list_iterator_previousIndex(raw)
+    runtimeThrowingBridge(outThrown) { kk_list_iterator_previousIndex(raw) }
 }
 
 private func registerMutableIteratorItable(
@@ -275,8 +270,7 @@ private func registerSequenceItable(raw: Int, ifaceSlot: Int = 1) {
 }
 
 private let runtimeIterableIteratorThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterableRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_list_iterator(iterableRaw)
+    runtimeThrowingBridge(outThrown) { kk_list_iterator(iterableRaw) }
 }
 
 private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
@@ -372,8 +366,7 @@ private func registerRuntimeSetMemberItables(raw: Int) {
 // itable dispatch and need the box to advertise those methods.
 
 let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_list_iterator_hasNext(iterRaw)
+    runtimeThrowingBridge(outThrown) { kk_list_iterator_hasNext(iterRaw) }
 }
 
 let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -381,8 +374,7 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
 }
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return runtimeListIteratorRemove(iterRaw, outThrown)
+    runtimeThrowingBridge(outThrown) { runtimeListIteratorRemove(iterRaw, outThrown) }
 }
 
 private func registerRuntimeListIteratorItables(raw: Int, box: RuntimeListIteratorBox) {
@@ -400,8 +392,7 @@ private func registerRuntimeListIteratorItables(raw: Int, box: RuntimeListIterat
 }
 
 private let runtimeRangeIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_range_hasNext(iterRaw)
+    runtimeThrowingBridge(outThrown) { kk_range_hasNext(iterRaw) }
 }
 
 private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -409,8 +400,7 @@ private let runtimeRangeIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoi
 }
 
 private let runtimeMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_map_iterator_hasNext(iterRaw)
+    runtimeThrowingBridge(outThrown) { kk_map_iterator_hasNext(iterRaw) }
 }
 
 private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -418,8 +408,7 @@ private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoint
 }
 
 private let runtimeMutableMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_mutable_map_iterator_hasNext(iterRaw)
+    runtimeThrowingBridge(outThrown) { kk_mutable_map_iterator_hasNext(iterRaw) }
 }
 
 private let runtimeMutableMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
@@ -431,8 +420,7 @@ private let runtimeMutableMapIteratorRemoveThunk: @convention(c) (Int, UnsafeMut
 }
 
 private let runtimeIndexingIterableIteratorThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_indexing_iterable_iterator(raw)
+    runtimeThrowingBridge(outThrown) { kk_indexing_iterable_iterator(raw) }
 }
 
 private let runtimeSequenceIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
