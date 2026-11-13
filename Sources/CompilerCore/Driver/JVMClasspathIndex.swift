@@ -1704,6 +1704,7 @@ final class JVMClasspathIndex {
         return source
     }
 
+
     // MARK: - Lazy classpath injection
 
     /// Packages Kotlin auto-imports on the JVM. Lazy classpath entries can
