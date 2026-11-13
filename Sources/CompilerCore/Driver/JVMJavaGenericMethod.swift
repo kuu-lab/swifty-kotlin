@@ -11,6 +11,16 @@ extension JVMClasspathIndex {
         return (base + types.result[arguments...], types.referencedClasses)
     }
 
+    func javaInstanceFieldSourceType(_ field: JVMForeignField, in owner: JVMClassInfo, erased: JVMValueType) -> String {
+        if let signature = field.genericSignature {
+            var accessor = JVMForeignMethod(owner: owner.name, name: field.name, descriptor: "()" + field.descriptor,
+                                            parameters: [], result: erased, isStatic: false, isInterface: owner.isInterface, isAbstract: false)
+            accessor.genericSignature = "()" + signature
+            if let source = javaGenericTypes(accessor)?.result { return source }
+        }
+        return kotlinType(erased)
+    }
+
     func javaTypeParameterBounds(_ info: JVMClassInfo) -> (bounds: [String], referencedClasses: Set<String>) {
         var bounds: [String] = []
         var references: Set<String> = []
@@ -56,11 +66,21 @@ extension JVMClasspathIndex {
                 hasGenericType = true
                 return "`\(name)`"
             }
+            if first == "[" {
+                let component = carrier.flatMap { type -> JVMValueType? in
+                    guard type.descriptor.hasPrefix("[") else { return nil }
+                    return try? JVMDescriptor.parse("()" + type.descriptor.dropFirst()).1
+                }
+                if let component, component.referenceName == nil, let carrier {
+                    guard let marker = remaining.first, marker == component.descriptor.first else { return nil }
+                    remaining.removeFirst()
+                    return kotlinType(carrier)
+                }
+                guard let element = parseType(component, depth: depth + 1) else { return nil }
+                return "kotlin.Array<" + element + ">"
+            }
             if first != "L" {
                 guard let carrier, first == carrier.descriptor.first else { return nil }
-                let suffix = carrier.descriptor.dropFirst()
-                guard remaining.hasPrefix(suffix) else { return nil }
-                remaining = remaining.dropFirst(suffix.count)
                 return kotlinType(carrier)
             }
             let name = String(remaining.prefix { $0 != "<" && $0 != ";" })
