@@ -562,6 +562,12 @@ struct JVMKotlinMetadataPayload {
                     return .reference("[" + element.descriptor, nullable: nullable)
                 }
             }
+            if let arity = functionArity(name) {
+                let suspend = name.hasPrefix("kotlin/SuspendFunction")
+                let physicalArity = arity + (suspend ? 1 : 0)
+                let interfaceArity = physicalArity > 22 ? "N" : String(physicalArity)
+                return .reference("kotlin/jvm/functions/Function" + interfaceArity, nullable: nullable)
+            }
             let binaryName = name.replacingOccurrences(of: ".", with: "$")
             let carrier = JVMClasspathIndex.builtinName(binaryName) ?? binaryName
             guard (try? JVMDescriptor.parse("()L" + carrier + ";")) != nil else { return nil }
@@ -694,7 +700,7 @@ struct JVMKotlinMetadataPayload {
                 guard descriptors.count == parameters.count else { continue }
                 logicalParameterDescriptors = descriptors
             }
-            if !hasFunctionTypes, descriptor == nil {
+            if descriptor == nil, !isSuspend {
                 // The signature extension can omit descriptors that the JVM
                 // backend derives from Kotlin types. Recover them so overloads
                 // with the same arity are matched by their actual carriers.
