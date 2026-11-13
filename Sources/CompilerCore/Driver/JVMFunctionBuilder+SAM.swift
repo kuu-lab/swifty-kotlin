@@ -20,9 +20,7 @@ extension JVMFunctionBuilder {
             instructions.append(.throwValue(unreachable)); terminated = true
             return nil
         }
-        if result == nil, !discarded, !terminated,
-           let logicalType = program.sema.bindings.exprType(for: id),
-           case .unit = program.sema.types.kind(of: logicalType) {
+        if result == nil, !discarded, !terminated, (try? program.expressionType(id)) == .unit {
             // A void-producing Unit expression still has a value when its
             // surrounding expression expects an object, such as a lambda result.
             program.functionArities.insert(0)
