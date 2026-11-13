@@ -1,7 +1,7 @@
 extension JVMForeignMethod {
     func composePropertyABI(hasReceiver: Bool) -> Bool {
         let receiverCount = hasReceiver ? 1 : 0
-        return isStatic && parameters.count == receiverCount + 2
+        return parameters.count == receiverCount + 2
             && parameters[receiverCount].referenceName == JVMCompose.composer
             && parameters.last == .int
             && annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
