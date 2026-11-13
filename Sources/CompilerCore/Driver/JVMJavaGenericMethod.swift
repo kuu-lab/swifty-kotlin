@@ -1,14 +1,32 @@
 extension JVMClasspathIndex {
     /// Recover Java source types for simple parameterized signatures. The
     /// classfile descriptor remains the source of truth for invocation.
-    func javaGenericTypes(_ method: JVMForeignMethod) -> (parameters: [String], result: String, referencedClasses: Set<String>)? {
+    func javaGenericTypes(_ method: JVMForeignMethod) -> (parameters: [String], result: String, typeParameters: [String], referencedClasses: Set<String>)? {
         guard let owner = classes[method.owner], owner.isKotlinFileFacade == nil,
-              let signature = method.genericSignature, signature.first == "(",
+              let signature = method.genericSignature,
               method.genericResultParameter == nil, !method.isConstructor
         else { return nil }
 
         let canUseGenericMembers = !method.owner.hasPrefix("java/") && !method.owner.hasPrefix("javax/")
-        var remaining = signature.dropFirst()
+        var remaining = signature[...]
+        var methodTypeParameters: [String] = []
+        if remaining.first == "<", canUseGenericMembers {
+            remaining.removeFirst()
+            while let colon = remaining.firstIndex(of: ":"), remaining.first != ">" {
+                let name = String(remaining[..<colon])
+                guard JVMProgramBuilder.isIdentifier(name), !methodTypeParameters.contains(name),
+                      methodTypeParameters.count < 16 else { return nil }
+                remaining = remaining[remaining.index(after: colon)...]
+                let objectBound = "Ljava/lang/Object;"
+                guard remaining.hasPrefix(objectBound) else { return nil }
+                remaining = remaining.dropFirst(objectBound.count)
+                methodTypeParameters.append(name)
+            }
+            guard remaining.first == ">", !methodTypeParameters.isEmpty else { return nil }
+            remaining.removeFirst()
+        }
+        guard remaining.first == "(" else { return nil }
+        remaining.removeFirst()
         var hasGenericType = false
         var referencedClasses: Set<String> = []
 
@@ -18,7 +36,8 @@ extension JVMClasspathIndex {
             if first == "T" {
                 guard let end = remaining.firstIndex(of: ";") else { return nil }
                 let name = String(remaining[..<end])
-                guard canUseGenericMembers, owner.classTypeParameterNames.contains(name), !method.isStatic else { return nil }
+                guard canUseGenericMembers, methodTypeParameters.contains(name)
+                    || owner.classTypeParameterNames.contains(name) && !method.isStatic else { return nil }
                 remaining = remaining[remaining.index(after: end)...]
                 hasGenericType = true
                 return "`\(name)`"
@@ -38,7 +57,9 @@ extension JVMClasspathIndex {
             referencedClasses.insert(name)
             var source = kotlinType(type)
             if remaining.first == "<" {
-                guard name == "java/util/List" && depth == 0 || canUseGenericMembers && !source.contains("<") else { return nil }
+                let mappedCollections = ["java/util/List", "java/util/Set", "java/util/Map"]
+                guard depth == 0 && mappedCollections.contains(name) || canUseGenericMembers && !source.contains("<")
+                else { return nil }
                 source = String(source.prefix { $0 != "<" })
                 remaining.removeFirst()
                 var arguments: [String] = []
@@ -72,6 +93,6 @@ extension JVMClasspathIndex {
         remaining.removeFirst()
         guard let result = parseType(method.result), hasGenericType,
               remaining.isEmpty || remaining.first == "^" else { return nil }
-        return (parameters, result, referencedClasses)
+        return (parameters, result, methodTypeParameters, referencedClasses)
     }
 }
