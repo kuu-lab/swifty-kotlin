@@ -688,6 +688,12 @@ final class JVMClasspathIndex {
         }
     }
 
+    func javaAnnotationVarargElement(_ type: JVMValueType, name: String, in info: JVMClassInfo) -> JVMValueType? {
+        guard info.isKotlinFileFacade == nil, name == "value", let descriptor = type.referenceName,
+              descriptor.hasPrefix("[") else { return nil }
+        return try? JVMDescriptor.parse("()" + descriptor.dropFirst()).1
+    }
+
     private func annotationElementKotlinType(_ type: JVMValueType) -> String? {
         switch type {
         case .unit:
@@ -719,9 +725,10 @@ final class JVMClasspathIndex {
             lines.append("@kotlin.annotation.Target(" + targets.map { "kotlin.annotation.AnnotationTarget." + $0 }.joined(separator: ", ") + ")")
         }
         let parameters = annotationElements(of: info).enumerated().compactMap { index, element -> String? in
-            guard let type = annotationElementKotlinType(element.type) else { return nil }
+            let vararg = javaAnnotationVarargElement(element.type, name: element.name, in: info)
+            guard let type = annotationElementKotlinType(vararg ?? element.type) else { return nil }
             let name = JVMProgramBuilder.isIdentifier(element.name) ? "`\(element.name)`" : "p\(index)"
-            var parameter = "val \(name): \(type)"
+            var parameter = (vararg == nil ? "" : "vararg ") + "val \(name): \(type)"
             if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
                 parameter += " = \(rendered)"
             }
