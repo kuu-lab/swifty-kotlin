@@ -2323,6 +2323,17 @@ final class JVMClasspathIndex {
         }
         if !staticMember, !signature.isSuspend {
             let logicalParameters = descriptorTypes.map(\.descriptor)
+            if isExtension, let receiver = descriptorTypes.first {
+                let extensions = info.methods.filter { method in
+                    !method.isStatic && method.sourceName == name
+                        && method.kotlinFunction?.mangledExtensionReceiverDescriptor == receiver.descriptor
+                        && method.parameters.dropFirst().map(\.descriptor) == Array(logicalParameters.dropFirst())
+                }
+                if extensions.count == 1 {
+                    methods[symbol.id] = extensions[0]
+                    return
+                }
+            }
             let mangledMembers = info.methods.filter {
                 $0.sourceName == name && $0.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
             }
