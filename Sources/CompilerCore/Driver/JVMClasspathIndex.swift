@@ -1086,7 +1086,7 @@ final class JVMClasspathIndex {
             }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
             if info.isAnnotation && own.allSatisfy(\.isStatic) {
-                source += "annotation class `\(short)`\n"
+                source += annotationClassDeclaration(info, short: short)
             } else if info.flags & 0x4000 != 0 {
                 source += enumDeclaration(info, name: short)
             } else if isComposer {
