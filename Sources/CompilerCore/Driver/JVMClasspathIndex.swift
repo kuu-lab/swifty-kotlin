@@ -2704,6 +2704,9 @@ final class JVMClasspathIndex {
             importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: owner)
                 ?? companion.flatMap { c in companionMethod.flatMap { m in defaultArgumentMethod(for: m, in: c) } }
         }
+        if info.isKotlinFileFacade == nil, method.kotlinFunction == nil {
+            sema.symbols.markJVMJavaMethod(symbol.id)
+        }
         // Keep the authored Kotlin types on the declaration of this JVM
         // stdlib base so imported methods can satisfy Kotlin List members.
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {
