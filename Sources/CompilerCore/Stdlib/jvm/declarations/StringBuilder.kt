@@ -1,5 +1,5 @@
 package kotlin.text
-class StringBuilder: CharSequence {
+class StringBuilder: CharSequence, Appendable {
     constructor()
     constructor(capacity: Int)
     constructor(content: String)
@@ -11,7 +11,7 @@ class StringBuilder: CharSequence {
     fun setCharAt(index: Int, value: Char) {}
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = null!!
     override fun toString(): String = null!!
-    fun append(value: CharSequence?, startIndex: Int, endIndex: Int): StringBuilder = this
+    override fun append(value: CharSequence?, startIndex: Int, endIndex: Int): StringBuilder = this
     fun append(value: CharArray, offset: Int, len: Int): StringBuilder = this
     fun appendCodePoint(codePoint: Int): StringBuilder = this
     fun codePointAt(index: Int): Int = 0
@@ -46,13 +46,13 @@ fun insert(index: Int, value: Any?): StringBuilder = this
 fun append(value: String?): StringBuilder = this
 fun appendLine(value: String?): StringBuilder = this
 fun insert(index: Int, value: String?): StringBuilder = this
-fun append(value: CharSequence?): StringBuilder = this
+override fun append(value: CharSequence?): StringBuilder = this
 fun appendLine(value: CharSequence?): StringBuilder = this
 fun insert(index: Int, value: CharSequence?): StringBuilder = this
 fun append(value: CharArray?): StringBuilder = this
 fun appendLine(value: CharArray?): StringBuilder = this
 fun insert(index: Int, value: CharArray?): StringBuilder = this
-fun append(value: Char): StringBuilder = this
+override fun append(value: Char): StringBuilder = this
 fun appendLine(value: Char): StringBuilder = this
 fun insert(index: Int, value: Char): StringBuilder = this
 fun append(value: Boolean): StringBuilder = this
@@ -74,6 +74,6 @@ fun insert(index: Int, value: Double): StringBuilder = this
 
 interface Appendable {
     fun append(value: Char): Appendable
-    fun append(value: CharSequence): Appendable
-    fun append(value: CharSequence, startIndex: Int, endIndex: Int): Appendable
+    fun append(value: CharSequence?): Appendable
+    fun append(value: CharSequence?, startIndex: Int, endIndex: Int): Appendable
 }

@@ -276,6 +276,7 @@ extension ControlFlowTypeChecker {
             // uniquely identifies a condition value (e.g. "int:42", "bool:true",
             // "name:Red", "null", "is:TypeName").
             var allSeenConditionKeys: Set<String> = []
+            var nextBranchFlowState = ctx.flowState.includingMembers(from: locals)
 
             func isNullCondition(_ conditionID: ExprID) -> Bool {
                 guard let conditionExpr = ast.arena.expr(conditionID),
@@ -400,13 +401,19 @@ extension ControlFlowTypeChecker {
                 // cannot leak to the enclosing conditional path.
                 branchCtx.isConditionallyEvaluated = false
                 var trueFlowStates: [DataFlowState] = []
-                var cumulativeFalseState = ctx.flowState.includingMembers(from: locals)
+                var cumulativeFalseState = nextBranchFlowState
                 var branchConditionKeys: Set<String> = []
 
                 for cond in branch.conditions {
                     var conditionCtx = ctx.copying(flowState: cumulativeFalseState)
                     conditionCtx.isConditionallyEvaluated = false
                     conditionCtx.whenConditionSubject = subjectID
+                    if let binding = subjectLocalBinding, binding.isStable,
+                       let narrowed = ctx.dataFlow.resolvedTypeFromFlowState(cumulativeFalseState, reference: binding.symbol, types: sema.types) {
+                        // Conditions share the original subject ExprID. Keep
+                        // the refinement local to the condition.
+                        conditionCtx.whenSubjectTypes[subjectID] = narrowed
+                    }
                     let condType = driver.inferExpr(cond, ctx: conditionCtx, locals: &branchLocals)
                     let isTypeOrMembershipCondition: Bool = switch ast.arena.expr(cond) {
                     case .isCheck, .inExpr, .notInExpr:
@@ -493,6 +500,8 @@ extension ControlFlowTypeChecker {
                     }
                 }
 
+                if branch.guard_ == nil { nextBranchFlowState = cumulativeFalseState }
+
                 if let subjectLocalBinding, subjectLocalBinding.isStable {
                     if let firstTrueState = trueFlowStates.first {
                         var branchFlowState = firstTrueState
@@ -503,7 +512,8 @@ extension ControlFlowTypeChecker {
                         if hasExplicitNullBranch, !isNullBranch,
                            ctx.dataFlow.resolvedTypeFromFlowState(
                                branchFlowState,
-                               reference: subjectLocalBinding.symbol
+                               reference: subjectLocalBinding.symbol,
+                               types: sema.types
                            ) == nil
                         {
                             branchFlowState = ctx.dataFlow.whenNonNullBranchState(
@@ -524,7 +534,8 @@ extension ControlFlowTypeChecker {
                         if subjectLocalBinding.symbol.properties.isEmpty,
                            let narrowedType = ctx.dataFlow.resolvedTypeFromFlowState(
                             branchFlowState,
-                            reference: subjectLocalBinding.symbol
+                               reference: subjectLocalBinding.symbol,
+                               types: sema.types
                         ) {
                             branchLocals[subjectLocalBinding.name] = (
                                 narrowedType,

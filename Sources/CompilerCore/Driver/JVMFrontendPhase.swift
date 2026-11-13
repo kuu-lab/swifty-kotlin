@@ -26,6 +26,9 @@ final class JVMPreparationPhase: CompilerPhase {
             var lazyPaths: Set<String> = []
             var jdkClasspath: JVMJDKClasspath?
             if !o.stdlibOnly && (o.emit == .jvmClass || o.emit == .jvmJar) {
+                lazyPaths.formUnion(o.jvmClasspath.map {
+                    URL(fileURLWithPath: $0).standardizedFileURL.path
+                })
                 jdkClasspath = try JVMJDKClasspath.prepare(for: ctx)
             }
             if o.emit == .apk, o.android.resourcePath != nil {

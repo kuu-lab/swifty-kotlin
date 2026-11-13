@@ -4,6 +4,8 @@ import kotlin.OverloadResolutionByLambdaReturnType
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.jvm.JvmName
 
+fun CharSequence.splitToSequence(vararg delimiters: String, ignoreCase: Boolean = null!!, limit: Int = null!!): kotlin.sequences.Sequence<String> = null!!
+
 fun String.format(vararg args: Any?): String = null!!
 fun String.format(locale: java.util.Locale?, vararg args: Any?): String = null!!
 

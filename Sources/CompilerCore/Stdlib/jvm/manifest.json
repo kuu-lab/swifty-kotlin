@@ -54,6 +54,18 @@
       "runtimeFacade": "kotlin/StandardKt"
     },
     {
+      "path": "kotlin/system/Process.kt",
+      "virtualPath": "<kswiftk-jvm>/exit-process.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/system/ProcessKt"
+    },
+    {
+      "path": "kotlin/text/Appendable.kt",
+      "virtualPath": "<kswiftk-jvm>/appendable-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/text/StringsKt"
+    },
+    {
       "path": "kotlin/Preconditions.kt",
       "virtualPath": "<kswiftk-jvm>/preconditions.kt",
       "excludeFromStdlibBuild": true,
@@ -198,9 +210,22 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "kotlin/io/path/PathFunctions.kt",
+      "virtualPath": "<kswiftk-jvm>/path-functions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/io/path/PathsKt"
+    },
+    {
       "path": "declarations/KotlinIoPath.kt",
       "virtualPath": "<kswiftk-jvm>/kotlin-io-path.kt",
-      "excludeFromStdlibBuild": true
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "java/nio/file/Paths"
+    },
+    {
+      "path": "declarations/PathPredicates.kt",
+      "virtualPath": "<kswiftk-jvm>/path-predicates.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "java/nio/file/Files"
     },
     {
       "path": "declarations/Files.kt",
@@ -566,6 +591,12 @@
     {
       "path": "kotlin/collections/CollectionAssignments.kt",
       "virtualPath": "<kswiftk-jvm>/collection-assignments.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/CollectionsKt"
+    },
+    {
+      "path": "kotlin/collections/CollectionNullability.kt",
+      "virtualPath": "<kswiftk-jvm>/collection-nullability.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/collections/CollectionsKt"
     },

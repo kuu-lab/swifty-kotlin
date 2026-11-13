@@ -783,20 +783,23 @@ final class DataFlowSemaPhase: CompilerPhase {
         withSubPhaseTiming("validateAbstractOverrides", timer: ctx.phaseTimer) {
             validateAbstractOverrides(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
-                diagnostics: ctx.diagnostics, interner: ctx.interner
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateDiamondOverrides", timer: ctx.phaseTimer) {
             validateDiamondOverrides(
                 ast: ast, symbols: symbols, bindings: bindings,
-                diagnostics: ctx.diagnostics, interner: ctx.interner
+                diagnostics: ctx.diagnostics, interner: ctx.interner,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateOpenFinalOverride", timer: ctx.phaseTimer) {
             validateOpenFinalOverride(
                 ast: ast, symbols: symbols, bindings: bindings, types: types,
                 diagnostics: ctx.diagnostics, interner: ctx.interner,
-                compilationModuleName: ctx.options.moduleName
+                compilationModuleName: ctx.options.moduleName,
+                importedFiles: ctx.jvmImports?.declarationFiles ?? []
             )
         }
         withSubPhaseTiming("validateExpectActualMatching", timer: ctx.phaseTimer) {

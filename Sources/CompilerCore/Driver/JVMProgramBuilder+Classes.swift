@@ -228,7 +228,8 @@ extension JVMProgramBuilder {
     func prepareProperties(_ plan: JVMClassPlan, ids propertyIDs: [DeclID]) throws {
         for id in propertyIDs {
             guard case let .propertyDecl(p) = ast.arena.decl(id), let symbol = sema.bindings.declSymbol(for: id), let propertyType = sema.symbols.propertyType(for: symbol),
-                  (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), (p.receiverType == nil || plan.isFacade), p.contextReceivers.isEmpty,
+                  (p.typeParams.isEmpty || plan.isFacade && p.receiverType != nil), p.contextReceivers.isEmpty,
+                  p.explicitBackingField == nil,
                   p.modifiers.subtracting([.public, .private, .protected, .internal, .open, .final, .abstract, .override, .lateinit, .const, .inline]).isEmpty,
                   p.getter?.isInline != true, p.setter?.isInline != true else { throw JVMFrontendError(message: "Unsupported JVM property declaration.") }
             guard !plan.isInterface || (!p.modifiers.contains(.private) && p.getter?.visibility != .private && p.setter?.visibility != .private) else { throw JVMFrontendError(message: "JVM M5 does not support private interface accessors.", range: p.range) }

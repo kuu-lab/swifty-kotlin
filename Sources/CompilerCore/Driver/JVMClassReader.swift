@@ -129,14 +129,14 @@ struct JVMClassReader {
     }
     private mutating func classAttributes(hasKotlinMetadata: Bool, parseAnnotations: Bool) throws -> (
         signature: String?, innerClasses: [JVMInnerClassInfo], hasInnerClassesAttribute: Bool,
-        hasEnclosingMethod: Bool, kotlinMetadata: JVMKotlinMetadata?, annotations: [JVMAnnotation]
+        hasEnclosingMethod: Bool, kotlinMetadata: JVMKotlinMetadataPayload?, annotations: [JVMAnnotation]
     ) {
         let count = try u2()
         var signature: String?
         var innerClasses: [JVMInnerClassInfo] = []
         var hasInnerClassesAttribute = false
         var hasEnclosingMethod = false
-        var kotlinMetadata: JVMKotlinMetadata?
+        var kotlinMetadata: JVMKotlinMetadataPayload?
         var annotations: [JVMAnnotation] = []
         for _ in 0..<count {
             let attributeName = try text(Int(u2()))
@@ -174,9 +174,10 @@ struct JVMClassReader {
                     var annotationReader = JVMClassReader(bytes: Array(bytes[offset..<end]), strings: strings, constants: constants)
                     kotlinMetadata = try? annotationReader.readKotlinMetadata()
                 }
-                if parseAnnotations {
+                if parseAnnotations || hasKotlinMetadata {
                     var annotationReader = JVMClassReader(bytes: Array(bytes[offset..<end]), strings: strings, constants: constants)
-                    annotations += (try? annotationReader.readAnnotations(visible: visible)) ?? []
+                    let parsed = (try? annotationReader.readAnnotations(visible: visible)) ?? []
+                    annotations += parseAnnotations ? parsed : parsed.filter { $0.descriptor == "Lkotlin/Metadata;" }
                 }
                 offset = end
             default:
@@ -187,7 +188,7 @@ struct JVMClassReader {
         return (signature, innerClasses, hasInnerClassesAttribute, hasEnclosingMethod, kotlinMetadata, annotations)
     }
 
-    private mutating func readKotlinMetadata() throws -> JVMKotlinMetadata? {
+    private mutating func readKotlinMetadata() throws -> JVMKotlinMetadataPayload? {
         let count = try u2()
         for _ in 0..<count {
             let descriptor = try text(Int(u2()))
@@ -199,7 +200,7 @@ struct JVMClassReader {
                 }
                 continue
             }
-            var metadata = JVMKotlinMetadata()
+            var metadata = JVMKotlinMetadataPayload()
             for _ in 0..<elementCount {
                 let name = try text(Int(u2()))
                 let tag = try u1()
@@ -502,7 +503,7 @@ struct JVMClassReader {
         }
         let classAttributes = try classAttributes(hasKotlinMetadata: hasKotlinMetadata, parseAnnotations: flags & 0x2000 != 0)
         guard offset == bytes.count else { throw Invalid() }
-        var functionTable: JVMKotlinMetadata.FunctionTable?
+        var functionTable: JVMKotlinMetadataPayload.FunctionTable?
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let table = try? metadata.functionTable(byteLimit: bytes.count) {

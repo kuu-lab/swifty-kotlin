@@ -123,7 +123,9 @@ extension JVMFunctionBuilder {
                 values.append(try textVararg(varargValues, element: varargElement!))
             } else if let value = supplied[i] { values.append(value) }
             else {
-                guard declarations?.indices.contains(i) == true, declarations![i].hasDefaultValue else { throw fail("Missing JVM argument without a default.", id) }
+                let hasDefault = declarations.flatMap { $0.indices.contains(i) ? $0[i].hasDefaultValue : nil }
+                    ?? (signature.map { $0.valueParameterHasDefaultValues.indices.contains(i) && $0.valueParameterHasDefaultValues[i] } ?? false)
+                guard hasDefault else { throw fail("Missing JVM argument without a default.", id) }
                 masks[i / 32] |= UInt32(1) << UInt32(i % 32)
                 values.append(try zero(type))
             }

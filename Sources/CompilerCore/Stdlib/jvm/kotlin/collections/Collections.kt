@@ -30,6 +30,11 @@ public fun Collection<*>.indices(): IntRange = 0..this.size - 1
 public fun <T> List<T>.indices(): IntRange = 0..this.size - 1
 public fun <T> List<T>.lastIndex(): Int = this.size - 1
 
+public fun <T> List<T>.slice(indices: IntRange): List<T> {
+    if (indices.isEmpty()) return emptyList()
+    return subList(indices.first, indices.last + 1).toList()
+}
+
 public operator fun <T> List<T>.component1(): T = this[0]
 public operator fun <T> List<T>.component2(): T = this[1]
 public operator fun <T> List<T>.component3(): T = this[2]

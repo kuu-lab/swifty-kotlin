@@ -424,7 +424,8 @@ private struct JVMSourceGrammar {
     }
     mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
         try primary()
-        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() || kind == .symbol(.questionColon) {
+        while let level = precedence(), level >= minimum,
+              allowNewlines || kind == .symbol(.questionColon) || !newlineBeforeCurrent() {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {

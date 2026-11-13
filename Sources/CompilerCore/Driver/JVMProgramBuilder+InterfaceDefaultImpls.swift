@@ -324,7 +324,15 @@ extension JVMProgramBuilder {
         for symbol in mostSpecific {
             let candidates: [(method: JVMForeignMethod, owner: String, source: Bool)]
             if let interface = classes[symbol] {
-                candidates = effectiveInterfaceMethods(interface).values.filter { !$0.isAbstract }.map { (method: $0, owner: interface.name, source: true) }
+                let sourceMethods = effectiveInterfaceMethods(interface)
+                let sourceOverrides = Set(declaredInterfaceMethods(interface).map(jvmMemberKey))
+                let inheritedForeign = sema.symbols.directSupertypes(for: symbol)
+                    .filter { classes[$0] == nil && sema.symbols.symbol($0)?.kind == .interface }
+                    .flatMap { foreignInterfaceDefaultMethods(for: $0).map { (key: $0.key, value: $0.value) } }
+                    .filter { !sourceOverrides.contains($0.key) }
+                    .map { (method: $0.value.method, owner: $0.value.owner, source: false) }
+                candidates = sourceMethods.values.filter { !$0.isAbstract }.map { (method: $0, owner: interface.name, source: true) }
+                    + inheritedForeign
             } else {
                 candidates = foreignInterfaceDefaultMethods(for: symbol).values.map { (method: $0.method, owner: $0.owner, source: false) }
             }
@@ -342,23 +350,16 @@ extension JVMProgramBuilder {
         return selected.keys.sorted().compactMap { key in
             guard !blocked.contains(key), let candidate = selected[key] else { return nil }
             let target: JVMForeignMethod
-            if candidate.source {
-                target = interfaceDefaultDispatchMethod(candidate.method, owner: candidate.owner, special: true)
+            let interfaceType = JVMValueType.reference(candidate.owner, nullable: false)
+            let parameters = [interfaceType] + candidate.method.parameters
+            let defaultDescriptor = "(" + parameters.map(\.descriptor).joined() + ")" + candidate.method.result.descriptor
+            if !candidate.source,
+               let legacyDefault = context.jvmImports?.classes[candidate.owner + "$DefaultImpls"]?.methods.first(where: {
+                $0.isStatic && $0.name == candidate.method.name && $0.descriptor == defaultDescriptor
+            }) {
+                target = legacyDefault
             } else {
-                let interfaceType = JVMValueType.reference(candidate.owner, nullable: false)
-                let parameters = [interfaceType] + candidate.method.parameters
-                var defaultImplsMethod = JVMForeignMethod(
-                    owner: candidate.owner + "$DefaultImpls",
-                    name: candidate.method.name,
-                    descriptor: "(" + parameters.map(\.descriptor).joined() + ")" + candidate.method.result.descriptor,
-                    parameters: parameters,
-                    result: candidate.method.result,
-                    isStatic: true,
-                    isInterface: false,
-                    isAbstract: false
-                )
-                defaultImplsMethod.isSuspend = candidate.method.isSuspend
-                target = defaultImplsMethod
+                target = interfaceDefaultDispatchMethod(candidate.method, owner: candidate.owner, special: true)
             }
             var function = forwarder(
                 owner: plan.name,

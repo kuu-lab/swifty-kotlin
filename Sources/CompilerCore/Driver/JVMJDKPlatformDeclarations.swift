@@ -164,15 +164,19 @@ extension JVMClasspathIndex {
             package java.lang
             class System private constructor() {
                 companion object {
-                    external fun getProperty(propertyName: String): String?
-                    external fun getProperty(propertyName: String, defaultValue: String): String
+                    val out: java.io.PrintStream get() = null!!
+                    val err: java.io.PrintStream get() = null!!
+                    external fun getProperty(propertyName: kotlin.String): kotlin.String?
+                    external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
+                    external fun exit(status: Int): Unit
                 }
             }
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
+                method("java/lang/System", "exit", [.int], .unit, staticMember: true),
             ]),
             ("java/lang/StackTraceElement", """
             package java.lang
@@ -407,24 +411,39 @@ extension JVMClasspathIndex {
             }
             """, 0x0401, "java/lang/Object", [method("java/nio/charset/Charset", "name", [], .string), method("java/nio/charset/Charset", "forName", [.string], .reference("java/nio/charset/Charset", nullable: false), staticMember: true)]),
         ]
+        let appendableName = "java/lang/Appendable"
+        let appendable: JVMValueType = .reference(appendableName, nullable: false)
+        let characters: JVMValueType = .reference("java/lang/CharSequence", nullable: true)
+        let appendParameters: [[JVMValueType]] = [[.char], [characters], [characters, .int, .int]]
+        classes[appendableName] = JVMClassInfo(name: appendableName, flags: 0x0601, superclass: nil, interfaces: [],
+            methods: appendParameters.map { method(appendableName, "append", $0, appendable, interface: true) })
+        let printStreamName = "java/io/PrintStream"
+        if classes[printStreamName] == nil {
+            let type: JVMValueType = .reference(printStreamName, nullable: false)
+            let info = JVMClassInfo(name: printStreamName, flags: 1, superclass: "java/lang/Object", interfaces: [appendableName],
+                methods: appendParameters.map { method(printStreamName, "append", $0, type) })
+            let source = """
+            package java.io
+            open class PrintStream protected constructor() : kotlin.text.Appendable {
+                override external fun append(value: Char): PrintStream
+                override external fun append(value: CharSequence?): PrintStream
+                override external fun append(value: CharSequence?, startIndex: Int, endIndex: Int): PrintStream
+            }
+            """
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/io/PrintStream.kt", contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[printStreamName] = info
+        }
         for (name, source, flags, superclass, methods) in declarations {
-            let info = JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: [], methods: methods)
+            var info = JVMClassInfo(name: name, flags: flags, superclass: superclass, interfaces: [], methods: methods)
+            if name == "java/lang/System" {
+                info.fields = ["out", "err"].map { JVMForeignField(name: $0, descriptor: "Ljava/io/PrintStream;", access: 0x19) }
+            }
             let path = "<kswiftk-jvm>/platform/" + name + ".kt"
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
             sourceClasses[file] = info
             classes[name] = info
         }
-        // `kotlin.io.path.Path` is a typealias over this JDK interface. Keep a
-        // memberless fallback only when the classpath did not supply the real
-        // interface; classpath classes keep their full member surface.
-        if classes["java/nio/file/Path"] == nil {
-            let info = JVMClassInfo(name: "java/nio/file/Path", flags: 0x0601, superclass: nil, interfaces: [], methods: [])
-            let path = "<kswiftk-jvm>/platform/java/nio/file/Path.kt"
-            let file = ctx.sourceManager.addFile(path: path, contents: Data("package java.nio.file\ninterface Path {}\n".utf8), origin: .residualStdlib)
-            sourceClasses[file] = info
-            classes[info.name] = info
-        }
-
         // The generic Kotlin declaration provides the Java collection shape;
         // associate its implicit constructor with the real JDK owner so a
         // fully qualified `java.util.ArrayList()` call is emitted as `new`.

@@ -528,13 +528,16 @@ final class JVMFunctionBuilder {
     func requireValue(_ id: ExprID) throws -> JVMValue {
         let result = try expression(id)
         if terminated { throw JVMTerminatedExpression() }
-        if result == nil, program.sema.bindings.exprType(for: id) == program.sema.types.unitType {
+        if result == nil,
+           program.sema.bindings.exprType(for: id) == program.sema.types.unitType || (try? program.expressionType(id)) == .unit {
             program.functionArities.insert(0)
             let unit: JVMValueType = .reference("kotlin/Unit", nullable: false), result = try value(unit)
             instructions.append(.getStatic(JVMField(owner: "kotlin/Unit", name: "INSTANCE", type: unit, access: 0x19), result))
             return result
         }
-        guard let result else { throw fail("JVM value expression does not produce a supported value.", id) }
+        guard let result else {
+            throw fail("JVM value expression does not produce a supported value.", id)
+        }
         return result
     }
     func localStorageType(_ semantic: TypeID) throws -> JVMValueType {
@@ -756,7 +759,7 @@ final class JVMFunctionBuilder {
             if let result = try implicitReceiverProperty(id, name: name) { return result }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 if let literal = property.field?.constantValue { return try constant(literal, property.type) }
-                return try convert(readProperty(property, receiver: instance(id), special: false), to: program.expressionType(id))
+                return try convert(readProperty(property, receiver: implicitPropertyReceiver(property, at: id), at: id, special: false), to: program.expressionType(id))
             }
             if !scopes.contains(where: { $0[name] != nil }), let result = try textLibraryProperty(id) { return result }
             // Snapshot reads before evaluating later operands/arguments, which
@@ -824,7 +827,7 @@ final class JVMFunctionBuilder {
             }
             if !scopes.contains(where: { $0[name] != nil }), let property = propertyBinding(id) {
                 let object = try instance(id), result = try requireValue(rhs)
-                try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject)
+                try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject)
                 return nil
             }
             let local = try lookup(name)
@@ -945,7 +948,7 @@ final class JVMFunctionBuilder {
                 ? constant(.null, .reference("java/lang/Object", nullable: true))
                 : requireValue(receiver)
             let result = try requireValue(rhs)
-            try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
+            try writeProperty(property, receiver: object, value: result, at: id, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }

@@ -34,7 +34,7 @@ struct JVMKotlinFunction {
 
 /// Reads the class and file-facade subset of Kotlin's JVM metadata. Field
 /// numbers follow metadata.proto and jvm_metadata.proto.
-struct JVMKotlinMetadata {
+struct JVMKotlinMetadataPayload {
     var kind: Int32 = 1
     var version: [Int32] = []
     var data1: [String] = []

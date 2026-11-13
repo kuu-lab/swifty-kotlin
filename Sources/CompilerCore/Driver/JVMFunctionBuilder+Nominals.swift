@@ -12,6 +12,24 @@ extension JVMFunctionBuilder {
         instructions.append(.getStatic(JVMField(owner: owner, name: field.name, type: type, access: field.access), result))
         return result
     }
+    func importedSingleton(_ name: String) throws -> JVMValue? {
+        guard let imports = context.jvmImports, let info = imports.classes[name] else { return nil }
+        let descriptor = "L\(name);"
+        let fieldOwner: JVMClassInfo
+        let fieldName: String
+        if let marker = name.lastIndex(of: "$"), let outer = imports.classes[String(name[..<marker])],
+           imports.kotlinMetadata(info)?.isCompanion == true || name.hasSuffix("$Companion") {
+            fieldOwner = outer
+            fieldName = String(name[name.index(after: marker)...])
+        } else {
+            fieldOwner = info
+            fieldName = "INSTANCE"
+        }
+        guard let field = fieldOwner.fields.first(where: { $0.name == fieldName && $0.isPublic && $0.isStatic && $0.descriptor == descriptor }) else { return nil }
+        let type = JVMValueType.reference(name, nullable: false), result = try value(type)
+        instructions.append(.getStatic(JVMField(owner: fieldOwner.name, name: field.name, type: type, access: field.access), result))
+        return result
+    }
     func nominalValue(_ id: ExprID) throws -> JVMValue? {
         if let scalar = try scalarConstant(id) { return scalar }
         guard let symbol = program.sema.bindings.identifierSymbol(for: id) else { return nil }

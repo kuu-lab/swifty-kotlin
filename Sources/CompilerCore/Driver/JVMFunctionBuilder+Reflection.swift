@@ -12,6 +12,10 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
+    func runtimeClass(of source: JVMValue) throws -> JVMValue {
+        let receiver = try convert(source, to: .reference("java/lang/Object", nullable: false))
+        return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver)!
+    }
     func javaClass(_ type: JVMValueType) throws -> JVMValue {
         let result = try value(.reference("java/lang/Class", nullable: false))
         let wrappers: [JVMValueType: String] = [.byte: "Byte", .short: "Short", .char: "Character", .int: "Integer", .long: "Long", .float: "Float", .double: "Double", .boolean: "Boolean", .unit: "Void"]
