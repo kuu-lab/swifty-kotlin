@@ -30,7 +30,8 @@ extension JVMProgramBuilder {
         var bindings: [JVMMetroBindingKey: [JVMMetroBinding]] = [:]
         for info in all where !replaced.contains(info.name) {
             let applicable = contributions(info)
-            if applicable.contains(where: { $0.descriptor == JVMMetro.contributesTo }) {
+            if applicable.contains(where: { $0.descriptor == JVMMetro.contributesTo })
+                && info.annotations.metro(JVMMetro.extensionFactory).isEmpty {
                 try addMetroProviders(from: info, to: &bindings)
             }
             let aliases = applicable.filter { $0.descriptor == JVMMetro.contributesBinding }
@@ -87,7 +88,7 @@ extension JVMProgramBuilder {
         bindings[key] = candidates
     }
 
-    private func addMetroProviders(from info: JVMClassInfo, to bindings: inout [JVMMetroBindingKey: [JVMMetroBinding]]) throws {
+    func addMetroProviders(from info: JVMClassInfo, to bindings: inout [JVMMetroBindingKey: [JVMMetroBinding]]) throws {
         for method in info.methods + info.metroAccessors where method.annotations.metro(JVMMetro.provides).count == 1 {
             guard !method.isConstructor, !method.isAbstract, !method.isSuspend, method.result != .unit else { continue }
             let key = try metroBindingKey(method.metroTypes.result, annotations: method.annotations)

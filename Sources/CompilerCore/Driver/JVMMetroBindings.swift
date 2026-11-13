@@ -85,6 +85,9 @@ struct JVMMetroBinding {
         case provider(JVMForeignMethod, receiver: String?, [JVMMetroBindingKey])
         case alias(JVMMetroBindingKey)
         case set([JVMMetroBindingKey])
+        case graph
+        case parent(JVMField, JVMForeignMethod)
+        case extensionGraph(String)
     }
 
     let recipe: Recipe
