@@ -70,9 +70,31 @@ internal open class RepositoryBuilderCollection<E>(protected val state: Reposito
     override fun removeAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRemoveAll(source, elements); if (changed) state.modification++; return changed }
     override fun retainAll(elements: Collection<E>): Boolean { state.checkMutable(); val changed = __jvmCollectionRetainAll(source, elements); if (changed) state.modification++; return changed }
 }
-internal class RepositoryBuilderSet<E>(state: RepositoryBuilderState, source: Collection<E>, entries: Boolean = false): RepositoryBuilderCollection<E>(state, source, entries), MutableSet<E>, KMutableSet {
+internal open class RepositoryBuilderSet<E>(state: RepositoryBuilderState, source: Collection<E>, entries: Boolean = false): RepositoryBuilderCollection<E>(state, source, entries), MutableSet<E>, KMutableSet {
     override fun equals(other: Any?): Boolean = source == other
     override fun hashCode(): Int = source.hashCode()
+}
+internal class RepositorySetBuilder<E>(state: RepositoryBuilderState, private val elements: MutableSet<E>): RepositoryBuilderSet<E>(state, elements) {
+    constructor(capacity: Int): this(RepositoryBuilderState(), __jvmNewSetCapacity<E>(capacity))
+
+    override fun add(element: E): Boolean {
+        state.checkMutable()
+        val changed = elements.add(element)
+        if (changed) state.modification++
+        return changed
+    }
+
+    override fun addAll(elements: Collection<E>): Boolean {
+        state.checkMutable()
+        val changed = __jvmCollectionAddAll(this.elements, elements)
+        if (changed) state.modification++
+        return changed
+    }
+
+    fun freeze() {
+        state.checkMutable()
+        state.frozen = true
+    }
 }
 internal class RepositoryBuilderEntry<K, V>(private val state: RepositoryBuilderState, private val source: java.util.MapEntry<K, V>): java.util.MapEntry<K, V> {
     private val expectedModification = state.modification
