@@ -582,6 +582,18 @@ public fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequenc
     for (element in elements) if (this.add(element)) changed = true
     return changed
 }
+public fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean {
+    val iterator = iterator()
+    var changed = false
+    while (iterator.hasNext()) {
+        if (predicate(iterator.next())) {
+            iterator.remove()
+            changed = true
+        }
+    }
+    return changed
+}
+
 public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean {
     val removed = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
     return __jvmRemoveAllCollection(this, removed)
