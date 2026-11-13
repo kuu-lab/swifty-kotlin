@@ -228,7 +228,10 @@ struct JVMKotlinMetadataPayload {
 
     func suspendFunctions(in table: FunctionTable) throws -> [String: JVMKotlinSuspendFunction] {
         let names = table.names
-        let classTypes = table.types
+        var classTypes = table.types
+        if isFileFacade != true {
+            classTypes.parameterNames = table.ownerTypeParameters
+        }
         var result: [String: JVMKotlinSuspendFunction] = [:]
         for function in table.functions {
             guard (function.int32(9) ?? 0) & (1 << 13) != 0,
@@ -237,7 +240,8 @@ struct JVMKotlinMetadataPayload {
                   let descriptor = try names.resolve(signature.int32(2)) else { continue }
             let jvmName = try names.resolve(signature.int32(1)) ?? name
             let carriers = (try? JVMDescriptor.parse(descriptor).0) ?? []
-            let types = try function.message(30).map(TypeTable.init) ?? classTypes
+            var types = try function.message(30).map(TypeTable.init) ?? classTypes
+            types.parameterNames = classTypes.parameterNames
             guard let returnType = try types.resolve(function, inline: 3, indexed: 7) else { continue }
             let carrier: JVMValueType
             if let concrete = try Self.resultType(returnType, types: types, names: names) {
@@ -263,7 +267,7 @@ struct JVMKotlinMetadataPayload {
                     } else {
                         differsFromCarrier = false
                     }
-                    return type.type.has(2) || differsFromCarrier
+                    return type.type.has(2) || type.type.has(7) || type.type.has(9) || differsFromCarrier
                         ? try Self.sourceType(type, types: types, names: names) : nil
                 }
                 return JVMKotlinSuspendFunction.Parameter(
@@ -687,7 +691,9 @@ struct JVMKotlinMetadataPayload {
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
                 }
-            guard valid, composableMemberNames.contains(jvmName ?? name) || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isSubList
+            guard valid, composableMemberNames.contains(jvmName ?? name)
+                || functionTypeMemberNames.contains(jvmName ?? name) && resultType.hasPrefix("kotlinx.coroutines.flow.Flow<")
+                || hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isOperator || isValueOperator || isSubList
                 || isGenericFinalGetter || isMangledMember || hasStableScalarParameters || hasMemberDefaults else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
