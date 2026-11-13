@@ -195,11 +195,12 @@ public func kk_suspend_coroutine_orreturn(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let state = runtimeContinuationState(from: continuation)
-    state?.beginOrReturnBlock()
-    defer { state?.endOrReturnBlock() }
-    return kk_function_invoke(blockRaw, continuation, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        let state = runtimeContinuationState(from: continuation)
+        state?.beginOrReturnBlock()
+        defer { state?.endOrReturnBlock() }
+        return kk_function_invoke(blockRaw, continuation, outThrown)
+    }
 }
 
 /// Source suspend wrappers relay to an active caller instead of nesting a
@@ -213,9 +214,10 @@ public func kk_coroutine_call_suspend_wrapper(
     guard let caller = RuntimeContinuationState.current else {
         return kk_kxmini_run_blocking_with_cont(entryPointRaw, continuation, outThrown)
     }
-    outThrown?.pointee = 0
-    let callerRaw = Int(bitPattern: Unmanaged.passUnretained(caller).toOpaque())
-    return kk_coroutine_call_direct_suspend(entryPointRaw, continuation, callerRaw)
+    return runtimeThrowingBridge(outThrown) {
+        let callerRaw = Int(bitPattern: Unmanaged.passUnretained(caller).toOpaque())
+        return kk_coroutine_call_direct_suspend(entryPointRaw, continuation, callerRaw)
+    }
 }
 
 @_cdecl("kk_create_coroutine_unintercepted")
@@ -684,38 +686,39 @@ public func __kk_coroutine_continuation_context(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    // Continuation has one function slot (resumeWith), followed by context's getter.
-    let sourceGetter = kk_itable_lookup_dynamic(
-        continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 1
-    )
-    if sourceGetter != 0 {
-        let getter = unsafeBitCast(sourceGetter, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-        var thrown = 0
-        let result = getter(continuation, &thrown)
-        if let outThrown {
-            outThrown.pointee = thrown
-        } else if thrown != 0 {
-            _ = kk_native_processUnhandledException(thrown, nil)
+    return runtimeThrowingBridge(outThrown) {
+        // Continuation has one function slot (resumeWith), followed by context's getter.
+        let sourceGetter = kk_itable_lookup_dynamic(
+            continuation, Int(runtimeStableNominalTypeID(fqName: "kotlin.coroutines.Continuation")), 1
+        )
+        if sourceGetter != 0 {
+            let getter = unsafeBitCast(sourceGetter, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            let result = getter(continuation, &thrown)
+            if let outThrown {
+                outThrown.pointee = thrown
+            } else if thrown != 0 {
+                _ = kk_native_processUnhandledException(thrown, nil)
+            }
+            return result
         }
-        return result
+        guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
+        }
+        if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
+            return Int(bitPattern: callbackContinuation.context)
+        }
+        if isRegisteredRuntimeObjectPointer(continuation),
+           let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
+        {
+            return Int(bitPattern: nativeContinuation.context)
+        }
+        guard let state = runtimeContinuationState(from: continuation) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
+        }
+        return state.generatedCoroutineContext(outThrown: outThrown)
+            ?? runtimeRegisterObject(state.makeContinuationContext())
     }
-    guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
-    }
-    if let callbackContinuation = tryCast(continuationPtr, to: RuntimeCallbackContinuation.self) {
-        return Int(bitPattern: callbackContinuation.context)
-    }
-    if isRegisteredRuntimeObjectPointer(continuation),
-       let nativeContinuation = Unmanaged<AnyObject>.fromOpaque(continuationPtr).takeUnretainedValue() as? KKContinuation
-    {
-        return Int(bitPattern: nativeContinuation.context)
-    }
-    guard let state = runtimeContinuationState(from: continuation) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_coroutine_continuation_context received invalid continuation handle")
-    }
-    return state.generatedCoroutineContext(outThrown: outThrown)
-        ?? runtimeRegisterObject(state.makeContinuationContext())
 }
 
 @_cdecl("kk_coroutine_current_context")
