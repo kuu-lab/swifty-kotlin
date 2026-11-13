@@ -1,28 +1,35 @@
 /// Resolves bindings as graph methods. Scoped methods cache their value on
 /// the graph instance under the same monitor, including nullable results.
 final class JVMMetroBindingEmitter {
-    private let program: JVMProgramBuilder
-    private let implementation: String
-    private let graph: JVMClassPlan
-    private let range: SourceRange
-    private let scopes: Set<String>
+    let program: JVMProgramBuilder
+    let implementation: String
+    let range: SourceRange
+    let scopes: Set<String>
+    let graphInterface: String
+    private let parent: JVMMetroBindingEmitter?
+    private let parentField: JVMField?
     private var bindings: [JVMMetroBindingKey: [JVMMetroBinding]]
     private var pending: Set<JVMMetroBindingKey> = []
     private var resolved: [JVMMetroBindingKey: JVMForeignMethod] = [:]
     private var nextBindingIndex = 0
     private var modules: [String: String] = [:]
-    private(set) var methods: [JVMFunction] = []
+    var methods: [JVMFunction] = []
     private(set) var fields: [JVMField] = []
-    private(set) var classes: [JVMClass] = []
+    var classes: [JVMClass] = []
+    var extensionInterfaces: [String] = []
+    var extensionFactories: Set<String> = []
 
-    init(program: JVMProgramBuilder, graph: JVMClassPlan, implementation: String, range: SourceRange,
-         scopes: Set<String>, bindings: [JVMMetroBindingKey: [JVMMetroBinding]]) {
+    init(program: JVMProgramBuilder, implementation: String, range: SourceRange,
+         scopes: Set<String>, bindings: [JVMMetroBindingKey: [JVMMetroBinding]],
+         parent: JVMMetroBindingEmitter? = nil, parentField: JVMField? = nil, graphInterface: String) {
         self.program = program
-        self.graph = graph
         self.implementation = implementation
         self.range = range
         self.scopes = scopes
         self.bindings = bindings
+        self.parent = parent
+        self.parentField = parentField
+        self.graphInterface = graphInterface
     }
 
     func entry(_ method: JVMForeignMethod, key: JVMMetroBindingKey) throws -> JVMFunction {
@@ -42,10 +49,8 @@ final class JVMMetroBindingEmitter {
         let binding: JVMMetroBinding
         if candidates.count == 1, let candidate = candidates.first {
             binding = candidate
-        } else if candidates.isEmpty, key.qualifiers.isEmpty,
-                  key.type.hasPrefix("L"), key.type.hasSuffix(";"), !key.type.contains("<"),
-                  let constructor = try program.metroConstructorBinding(String(key.type.dropFirst().dropLast())) {
-            binding = constructor
+        } else if candidates.isEmpty {
+            binding = try implicitBinding(key)
         } else {
             throw fail(candidates.isEmpty ? "cannot resolve binding for \(key)" : "has multiple bindings for \(key)")
         }
@@ -84,6 +89,30 @@ final class JVMMetroBindingEmitter {
         return method
     }
 
+    private func implicitBinding(_ key: JVMMetroBindingKey) throws -> JVMMetroBinding {
+        if key == JVMMetroBindingKey("L" + graphInterface + ";") {
+            return JVMMetroBinding(recipe: .graph, type: .reference(graphInterface, nullable: false), scope: nil)
+        }
+        if let extensionBinding = try extensionBinding(key) { return extensionBinding }
+        let constructor: JVMMetroBinding? = if key.qualifiers.isEmpty,
+            key.type.hasPrefix("L"), key.type.hasSuffix(";"), !key.type.contains("<") {
+            try program.metroConstructorBinding(String(key.type.dropFirst().dropLast()))
+        } else { nil }
+        if let constructor, constructor.scope.map(scopes.contains) ?? (parent?.hasExplicitBinding(key) != true) {
+            return constructor
+        }
+        if let parent, let parentField {
+            let method = try parent.resolve(key)
+            return JVMMetroBinding(recipe: .parent(parentField, method), type: method.result, scope: nil)
+        }
+        if let constructor { return constructor }
+        throw fail("cannot resolve binding for \(key)")
+    }
+
+    private func hasExplicitBinding(_ key: JVMMetroBindingKey) -> Bool {
+        bindings[key] != nil || parent?.hasExplicitBinding(key) == true
+    }
+
     private func emit(_ recipe: JVMMetroBinding.Recipe, receiver: JVMValue, using builder: JVMFunctionBuilder) throws -> JVMValue {
         func dependency(_ key: JVMMetroBindingKey) throws -> JVMValue {
             try invoke(resolve(key), on: receiver, using: builder)
@@ -95,13 +124,21 @@ final class JVMMetroBindingEmitter {
             return value
         case let .alias(key):
             return try dependency(key)
+        case .graph:
+            return receiver
+        case let .parent(field, method):
+            let parent = try builder.value(field.type)
+            builder.instructions.append(.getField(field, receiver, parent))
+            return try invoke(method, on: parent, using: builder)
+        case let .extensionGraph(name):
+            return try builder.constructJDK(name, parameters: [receiver.type], arguments: [receiver])
         case let .constructor(method, dependencies):
             let args = try zip(dependencies, method.parameters).map { key, type in try builder.convert(dependency(key), to: type) }
             let value = try builder.value(method.result)
             builder.instructions += [.allocate(method.owner, value), .foreignCall(method, receiver: value, arguments: args, result: nil)]
             return value
         case let .provider(method, owner, dependencies):
-            let instance = try owner.map { try module($0, using: builder) }
+            let instance = try owner.map { $0 == graphInterface ? receiver : try module($0, using: builder) }
             let values = try dependencies.map(dependency)
             let inputs = method.isStatic ? (instance.map { [$0] } ?? []) + values : values
             let arguments = try zip(inputs, method.parameters).map { try builder.convert($0, to: $1) }
@@ -146,7 +183,7 @@ final class JVMMetroBindingEmitter {
         return try builder.constructJDK(name)
     }
 
-    private func makeBuilder(_ name: String, result: JVMValueType) throws -> JVMFunctionBuilder {
+    func makeBuilder(_ name: String, result: JVMValueType) throws -> JVMFunctionBuilder {
         let declaration = FunDecl(range: range, name: program.context.interner.intern(name), modifiers: [], valueParams: [], body: .unit)
         return JVMFunctionBuilder(program: program, declaration: declaration,
                                   reference: JVMFunctionReference(name: name, parameters: [], result: result))
@@ -167,6 +204,6 @@ final class JVMMetroBindingEmitter {
     }
 
     private func fail(_ message: String) -> JVMFrontendError {
-        JVMFrontendError(message: "Metro graph \(graph.name) \(message).", range: range)
+        JVMFrontendError(message: "Metro graph \(graphInterface) \(message).", range: range)
     }
 }
