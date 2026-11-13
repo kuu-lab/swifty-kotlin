@@ -882,395 +882,423 @@ public func __kk_foundation_locale_with_identifier(_ identifier: Int, _ outThrow
 
 @_cdecl("__kk_foundation_defaults_standard")
 public func __kk_foundation_defaults_standard(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(UserDefaults.standard)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(UserDefaults.standard)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_defaults_create_suite")
 public func __kk_foundation_defaults_create_suite(_ suiteName: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let suiteName = runtimeStringFromRaw(suiteName),
-          let defaults = UserDefaults(suiteName: suiteName) else {
-        return foundationFailure("Cannot create NSUserDefaults suite", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let suiteName = runtimeStringFromRaw(suiteName),
+              let defaults = UserDefaults(suiteName: suiteName) else {
+            try throwFoundationFailure("Cannot create NSUserDefaults suite")
+        }
+        return runtimeForeignResourceCreate(defaults)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(defaults)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_object_for_key")
 public func __kk_foundation_defaults_object_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return runtimeFoundationPlistToKotlin(defaults.object(forKey: key))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeFoundationPlistToKotlin(defaults.object(forKey: key))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_string_for_key")
 public func __kk_foundation_defaults_string_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return defaults.string(forKey: key).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return defaults.string(forKey: key).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_bool_for_key")
 public func __kk_foundation_defaults_bool_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return defaults.bool(forKey: key) ? 1 : 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return defaults.bool(forKey: key) ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_integer_for_key")
 public func __kk_foundation_defaults_integer_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return defaults.integer(forKey: key)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return defaults.integer(forKey: key)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_double_for_key")
 public func __kk_foundation_defaults_double_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return kk_double_to_bits(defaults.double(forKey: key))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return kk_double_to_bits(defaults.double(forKey: key))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_float_for_key")
 public func __kk_foundation_defaults_float_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return kk_float_to_bits(defaults.float(forKey: key))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return kk_float_to_bits(defaults.float(forKey: key))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_set_object")
 public func __kk_foundation_defaults_set_object(_ handle: Int, _ value: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        guard let converted = runtimeFoundationKotlinToPlist(value) else {
+            try throwFoundationFailure("NSUserDefaults value is not a property-list object")
+        }
+        if let plist = converted {
+            defaults.set(plist, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    guard let converted = runtimeFoundationKotlinToPlist(value) else {
-        return foundationFailure("NSUserDefaults value is not a property-list object", outThrown)
-    }
-    if let plist = converted {
-        defaults.set(plist, forKey: key)
-    } else {
-        defaults.removeObject(forKey: key)
-    }
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_set_bool")
 public func __kk_foundation_defaults_set_bool(_ handle: Int, _ value: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        defaults.set(value != 0, forKey: key)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.set(value != 0, forKey: key)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_set_integer")
 public func __kk_foundation_defaults_set_integer(_ handle: Int, _ value: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        defaults.set(value, forKey: key)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.set(value, forKey: key)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_set_double")
 public func __kk_foundation_defaults_set_double(_ handle: Int, _ value: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        defaults.set(kk_bits_to_double(value), forKey: key)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.set(kk_bits_to_double(value), forKey: key)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_set_float")
 public func __kk_foundation_defaults_set_float(_ handle: Int, _ value: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        defaults.set(kk_bits_to_float(value), forKey: key)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.set(kk_bits_to_float(value), forKey: key)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_remove_object_for_key")
 public func __kk_foundation_defaults_remove_object_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        defaults.removeObject(forKey: key)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.removeObject(forKey: key)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_synchronize")
 public func __kk_foundation_defaults_synchronize(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle) else {
-        return foundationFailure("Invalid NSUserDefaults", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle) else {
+            try throwFoundationFailure("Invalid NSUserDefaults")
+        }
+        return defaults.synchronize() ? 1 : 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return defaults.synchronize() ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_dictionary_representation")
 public func __kk_foundation_defaults_dictionary_representation(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle) else {
-        return foundationFailure("Invalid NSUserDefaults", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle) else {
+            try throwFoundationFailure("Invalid NSUserDefaults")
+        }
+        return runtimeFoundationMapRaw(defaults.dictionaryRepresentation())
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeFoundationMapRaw(defaults.dictionaryRepresentation())
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_persistent_domain_for_name")
 public func __kk_foundation_defaults_persistent_domain_for_name(_ handle: Int, _ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let name = runtimeStringFromRaw(name) else {
-        return foundationFailure("Invalid NSUserDefaults/domain", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let name = runtimeStringFromRaw(name) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/domain")
+        }
+        return runtimeFoundationMapRaw(defaults.persistentDomain(forName: name))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeFoundationMapRaw(defaults.persistentDomain(forName: name))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_set_persistent_domain")
 public func __kk_foundation_defaults_set_persistent_domain(_ handle: Int, _ domain: Int, _ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let name = runtimeStringFromRaw(name),
-          let dictionary = runtimeFoundationKotlinMapToPlist(domain) else {
-        return foundationFailure("Invalid NSUserDefaults persistent domain", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let name = runtimeStringFromRaw(name),
+              let dictionary = runtimeFoundationKotlinMapToPlist(domain) else {
+            try throwFoundationFailure("Invalid NSUserDefaults persistent domain")
+        }
+        defaults.setPersistentDomain(dictionary, forName: name)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.setPersistentDomain(dictionary, forName: name)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_remove_persistent_domain_for_name")
 public func __kk_foundation_defaults_remove_persistent_domain_for_name(_ handle: Int, _ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let name = runtimeStringFromRaw(name) else {
-        return foundationFailure("Invalid NSUserDefaults/domain", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let name = runtimeStringFromRaw(name) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/domain")
+        }
+        defaults.removePersistentDomain(forName: name)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.removePersistentDomain(forName: name)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_register_defaults")
 public func __kk_foundation_defaults_register_defaults(_ handle: Int, _ domain: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let dictionary = runtimeFoundationKotlinMapToPlist(domain) else {
-        return foundationFailure("Invalid NSUserDefaults registration dictionary", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let dictionary = runtimeFoundationKotlinMapToPlist(domain) else {
+            try throwFoundationFailure("Invalid NSUserDefaults registration dictionary")
+        }
+        defaults.register(defaults: dictionary)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    defaults.register(defaults: dictionary)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_volatile_domain_names")
 public func __kk_foundation_defaults_volatile_domain_names(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard runtimeFoundationUserDefaults(handle) != nil else {
-        return foundationFailure("Invalid NSUserDefaults", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard runtimeFoundationUserDefaults(handle) != nil else {
+            try throwFoundationFailure("Invalid NSUserDefaults")
+        }
+        // volatileDomainNames/persistentDomainNames are API_DEPRECATED and
+        // unavailable to Swift on modern macOS; there is no supported way to
+        // enumerate domains, so report an empty list like an empty suite.
+        return runtimeMakeListRaw([])
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    // volatileDomainNames/persistentDomainNames are API_DEPRECATED and
-    // unavailable to Swift on modern macOS; there is no supported way to
-    // enumerate domains, so report an empty list like an empty suite.
-    return runtimeMakeListRaw([])
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_persistent_domain_names")
 public func __kk_foundation_defaults_persistent_domain_names(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard runtimeFoundationUserDefaults(handle) != nil else {
-        return foundationFailure("Invalid NSUserDefaults", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard runtimeFoundationUserDefaults(handle) != nil else {
+            try throwFoundationFailure("Invalid NSUserDefaults")
+        }
+        return runtimeMakeListRaw([])
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeListRaw([])
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_defaults_object_is_forced_for_key")
 public func __kk_foundation_defaults_object_is_forced_for_key(_ handle: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let defaults = runtimeFoundationUserDefaults(handle),
-          let key = runtimeStringFromRaw(key) else {
-        return foundationFailure("Invalid NSUserDefaults/key", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let defaults = runtimeFoundationUserDefaults(handle),
+              let key = runtimeStringFromRaw(key) else {
+            try throwFoundationFailure("Invalid NSUserDefaults/key")
+        }
+        return defaults.objectIsForced(forKey: key) ? 1 : 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return defaults.objectIsForced(forKey: key) ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 // MARK: - NSUUID
 
 @_cdecl("__kk_foundation_uuid_create")
 public func __kk_foundation_uuid_create(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSUUID())
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSUUID())
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_uuid_string")
 public func __kk_foundation_uuid_string(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let uuid = runtimeFoundationUUID(handle) else {
-        return foundationFailure("Invalid NSUUID", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let uuid = runtimeFoundationUUID(handle) else {
+            try throwFoundationFailure("Invalid NSUUID")
+        }
+        return runtimeMakeStringRaw(uuid.uuidString)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeStringRaw(uuid.uuidString)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 // MARK: - NSThread conveniences
 
 @_cdecl("__kk_foundation_thread_callstack")
 public func __kk_foundation_thread_callstack(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeFoundationStringListRaw(Thread.callStackSymbols)
-    #else
-    return runtimeMakeListRaw([])
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeFoundationStringListRaw(Thread.callStackSymbols)
+        #else
+        return runtimeMakeListRaw([])
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_thread_is_main")
 public func __kk_foundation_thread_is_main(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return Thread.isMainThread ? 1 : 0
-    #else
-    return Thread.isMainThread ? 1 : 0
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return Thread.isMainThread ? 1 : 0
+        #else
+        return Thread.isMainThread ? 1 : 0
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_thread_sleep")
 public func __kk_foundation_thread_sleep(_ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    Thread.sleep(forTimeInterval: kk_bits_to_double(seconds))
-    return 0
-    #else
-    Thread.sleep(forTimeInterval: kk_bits_to_double(seconds))
-    return 0
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        Thread.sleep(forTimeInterval: kk_bits_to_double(seconds))
+        return 0
+        #else
+        Thread.sleep(forTimeInterval: kk_bits_to_double(seconds))
+        return 0
+        #endif
+    }
 }
 
 // MARK: - NSLog
@@ -1414,54 +1442,56 @@ private func runtimeFoundationNSLogRenderSpec(
 
 @_cdecl("__kk_foundation_nslog")
 public func __kk_foundation_nslog(_ format: Int, _ arguments: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let format = runtimeStringFromRaw(format) else {
-        return foundationFailure("Invalid NSLog format", outThrown)
-    }
-    let argumentRaws = runtimeArrayBox(from: arguments)?.elements ?? []
-    var output = ""
-    output.reserveCapacity(format.utf8.count + 32)
-    var index = format.startIndex
-    var nextArgument = 0
-    while index < format.endIndex {
-        if format[index] != "%" {
-            output.append(format[index])
-            index = format.index(after: index)
-            continue
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let format = runtimeStringFromRaw(format) else {
+            try throwFoundationFailure("Invalid NSLog format")
         }
-        guard let next = runtimeFoundationNSLogRenderSpec(
-            format, from: index, arguments: argumentRaws, nextArgument: &nextArgument, output: &output
-        ) else {
-            // Truncated spec at end of format: emit the '%' literally.
-            output.append("%")
-            index = format.index(after: index)
-            continue
+        let argumentRaws = runtimeArrayBox(from: arguments)?.elements ?? []
+        var output = ""
+        output.reserveCapacity(format.utf8.count + 32)
+        var index = format.startIndex
+        var nextArgument = 0
+        while index < format.endIndex {
+            if format[index] != "%" {
+                output.append(format[index])
+                index = format.index(after: index)
+                continue
+            }
+            guard let next = runtimeFoundationNSLogRenderSpec(
+                format, from: index, arguments: argumentRaws, nextArgument: &nextArgument, output: &output
+            ) else {
+                // Truncated spec at end of format: emit the '%' literally.
+                output.append("%")
+                index = format.index(after: index)
+                continue
+            }
+            index = next
         }
-        index = next
+        // NSLog prepends timestamp/pid like the real SDK; %@ keeps the expanded
+        // text opaque so embedded '%' characters are never reinterpreted.
+        NSLog("%@", output as NSString)
+        return 0
+        #else
+        return 0
+        #endif
     }
-    // NSLog prepends timestamp/pid like the real SDK; %@ keeps the expanded
-    // text opaque so embedded '%' characters are never reinterpreted.
-    NSLog("%@", output as NSString)
-    return 0
-    #else
-    return 0
-    #endif
 }
 
 // MARK: - NSObject description / foreign-token probe
 
 @_cdecl("__kk_foundation_object_description")
 public func __kk_foundation_object_description(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let object = runtimeForeignResource(handle, as: NSObject.self) else {
-        return foundationFailure("Invalid NSObject handle", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let object = runtimeForeignResource(handle, as: NSObject.self) else {
+            try throwFoundationFailure("Invalid NSObject handle")
+        }
+        return runtimeMakeStringRaw(object.description)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeStringRaw(object.description)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// Probes whether an `Any?` value is a tagged foreign-resource token and, if
@@ -1469,18 +1499,19 @@ public func __kk_foundation_object_description(_ handle: Int, _ outThrown: Unsaf
 /// other value (genuine Longs, strings, collections, null).
 @_cdecl("__kk_foundation_object_probe")
 public func __kk_foundation_object_probe(_ raw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard raw != runtimeNullSentinelInt,
-          let pointer = UnsafeMutableRawPointer(bitPattern: raw),
-          runtimeIsObjectPointer(pointer),
-          let box = tryCast(pointer, to: RuntimeLongBox.self),
-          let token = runtimeFoundationUntagToken(box.value),
-          runtimeForeignResource(token, as: NSObject.self) != nil else {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        #if canImport(Darwin)
+        guard raw != runtimeNullSentinelInt,
+              let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+              runtimeIsObjectPointer(pointer),
+              let box = tryCast(pointer, to: RuntimeLongBox.self),
+              let token = runtimeFoundationUntagToken(box.value),
+              runtimeForeignResource(token, as: NSObject.self) != nil else {
+            return -1
+        }
+        return token
+        #else
         return -1
+        #endif
     }
-    return token
-    #else
-    return -1
-    #endif
 }
