@@ -201,7 +201,7 @@ extension JVMBackendTests {
     func m22InvalidSecondarySourcesPreserveOutput(mode: EmitMode) throws {
         try withWorkspace { root in
             for (index, sources) in [
-                [("Main.kt", "fun main() {}"), ("Other.kt", "fun bad() { synchronized(Any()) {} }")],
+                [("Main.kt", "fun main() {}"), ("Other.kt", "fun bad() { undefinedCall() }")],
                 [("a/Shared.kt", "fun a() = 1"), ("b/Shared.kt", "fun b() = 2")],
                 [("Main.kt", "fun main() {}"), ("Other.kt", "package other\nfun main() {}")],
             ].enumerated() {
