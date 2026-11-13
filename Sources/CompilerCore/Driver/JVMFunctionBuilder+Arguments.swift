@@ -263,6 +263,18 @@ extension JVMFunctionBuilder {
         } else if usesDefaults {
             if let importedDefault {
                 values += try maskArguments(ordered.masks, constructor: false)
+                if let dispatch {
+                    values.insert(try convert(dispatch, to: importedDefault.parameters[0]), at: 0)
+                } else if values.count < importedDefault.parameters.count {
+                    // A @JvmStatic forwarder can use the companion's default helper.
+                    let symbols = program.sema.symbols
+                    guard let companion = symbols.parentSymbol(for: symbol),
+                          let owner = symbols.parentSymbol(for: companion),
+                          let receiver = try importedCompanionValue(for: owner) else {
+                        throw fail("Missing JVM companion receiver for default arguments.", id)
+                    }
+                    values.insert(receiver, at: 0)
+                }
                 instructions.append(.foreignCall(importedDefault, receiver: nil, arguments: values, result: result))
             } else if constructor {
                 values += try maskArguments(ordered.masks, constructor: true)

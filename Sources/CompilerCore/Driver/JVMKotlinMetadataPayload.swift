@@ -572,7 +572,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = []) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], defaultMethodNames: Set<String> = []) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -633,6 +633,8 @@ struct JVMKotlinMetadataPayload {
             }
             guard contextParameters.count == contextMessages.count else { continue }
             let parameterMessages = try function.messages(6)
+            let hasMemberDefaults = isFileFacade != true && defaultMethodNames.contains(jvmName ?? name)
+                && parameterMessages.contains { ($0.int32(1) ?? 0) & 2 != 0 }
             let isGenericFinalGetter = isFileFacade != true && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
             let hasStableFinalParameters = isFileFacade != true && isFinal && receiver == nil && contextParameters.isEmpty
@@ -680,7 +682,7 @@ struct JVMKotlinMetadataPayload {
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
                 }
             guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator || isSubList
-                || isGenericFinalGetter || isMangledMember || hasStableScalarParameters else { continue }
+                || isGenericFinalGetter || isMangledMember || hasStableScalarParameters || hasMemberDefaults else { continue }
             let isSuspend = flags & (1 << 13) != 0
             var logicalParameterDescriptors: [String]?
             if isValueOperator || isMangledMember {
