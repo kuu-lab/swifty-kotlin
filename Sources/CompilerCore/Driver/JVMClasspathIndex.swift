@@ -26,6 +26,7 @@ final class JVMClasspathIndex {
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var glanceActivityFile: FileID?
     var oneTimeWorkRequestBuilderFile: FileID?
+    var contextServiceFile: FileID?
     var composeContentSymbols: Set<SymbolID> = []
 
     private(set) var fallbackClassFiles: [(String, Data)] = []
@@ -528,7 +529,7 @@ final class JVMClasspathIndex {
     }
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
-        if method.isReifiedGlanceAction || method.isReifiedWorkBuilder { return false }
+        if method.isReifiedGlanceAction || method.isReifiedWorkBuilder || JVMAndroidXContextService.isEntry(method) { return false }
         let exposedName = method.sourceName
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
@@ -1083,6 +1084,7 @@ final class JVMClasspathIndex {
         injectComposeUIContracts(into: ctx)
         injectGlanceActivityAction(into: ctx)
         injectOneTimeWorkRequestBuilder(into: ctx)
+        injectContextService(into: ctx)
         let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
             entry.method.owner + "." + entry.method.name + entry.method.descriptor
         })
