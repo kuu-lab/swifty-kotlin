@@ -256,6 +256,8 @@ public struct CompilerOptions: Equatable {
         frontendFlags.contains("run")
     }
 
+    public static let legacyNonExhaustiveWhenFlag = "legacy-non-exhaustive-when"
+
     public var nameBasedDestructuringMode: NameBasedDestructuringMode {
         frontendFlags.contains("name-based-destructuring=complete")
             || frontendFlags.contains("-Xname-based-destructuring=complete")
