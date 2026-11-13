@@ -2456,6 +2456,7 @@ final class JVMClasspathIndex {
             }
             // Kotlin metadata already provides source nullability.
             if method.kotlinFunction != nil { continue }
+            if info.isKotlinFileFacade == nil { sema.symbols.markJVMJavaMethod(symbol.id) }
             // Keep the authored Kotlin types on the declaration of this JVM
             // stdlib base so imported methods can satisfy Kotlin List members.
             if ctx.sourceManager.path(of: site.start.file) == "<kswiftk-jvm>/abstractList.kt" { continue }
