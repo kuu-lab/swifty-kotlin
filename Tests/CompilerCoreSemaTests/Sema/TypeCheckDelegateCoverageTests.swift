@@ -192,10 +192,12 @@ struct TypeCheckDelegateCoverageTests {
         var locals: LocalBindings = [:]
         let range = makeRange()
 
+        // The raw-array fallback is reserved for bundled kotlin.<Name> arrays;
+        // a source-level `IntArray` is an ordinary class (KUU-3615).
         let intArraySymbol = fixture.symbols.define(
             kind: .class,
             name: fixture.interner.intern("IntArray"),
-            fqName: [fixture.interner.intern("IntArray")],
+            fqName: [fixture.interner.intern("kotlin"), fixture.interner.intern("IntArray")],
             declSite: nil,
             visibility: .public
         )
