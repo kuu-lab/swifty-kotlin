@@ -44,8 +44,12 @@ struct JVMCompose {
 
 extension JVMFunctionBuilder {
     func composeContent(_ id: ExprID) throws -> JVMValue {
+        if let symbol = program.sema.bindings.identifierSymbol(for: id),
+           program.sema.composableFunctionParameters.contains(symbol) {
+            return try requireValue(id)
+        }
         guard case .lambdaLiteral = arena.expr(id) else {
-            throw fail("JVM Compose content requires a composable lambda literal.", id)
+            throw fail("JVM Compose content requires a composable lambda literal or parameter.", id)
         }
         let body = try closure(id, composable: true)
         let key = try constant(.int(composeCallKey(at: id)), .int)

@@ -63,7 +63,8 @@ extension JVMFunctionBuilder {
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
             let evaluated: JVMValue?
-            if composableParameters.contains(index) {
+            if composableParameters.contains(index) || program.sema.composableLambdaExprs.contains(arg.expr)
+                && program.sema.bindings.identifierSymbol(for: arg.expr) == nil {
                 evaluated = try composeContent(arg.expr)
             } else if let composer = activeComposer, let importedFunction, importedFunction.hasInlineContextCallback,
                       importedFunction.parameters.indices.contains(index),
@@ -197,8 +198,15 @@ extension JVMFunctionBuilder {
         // Constructor arguments can suspend, so allocate only after every
         // argument has completed. An uninitialized reference cannot cross a
         // continuation boundary on the JVM.
+        var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
+        if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
+            for (index, parameter) in signature.valueParameterSymbols.enumerated()
+                where program.sema.composableFunctionParameters.contains(parameter) {
+                composableParameters.insert(index)
+            }
+        }
         let ordered = try arguments(args, binding: binding, parameters: types, declarations: defaultParameters, id: id,
-                                    composableParameters: context.jvmImports?.importedComposableParameters[symbol] ?? [],
+                                    composableParameters: composableParameters,
                                     importedDefaults: importedDefaults)
         var values = try zip(prefix, allTypes).map { try convert($0.0, to: $0.1) } + ordered.values
         let usesDefaults = ordered.masks.contains { $0 != 0 }
