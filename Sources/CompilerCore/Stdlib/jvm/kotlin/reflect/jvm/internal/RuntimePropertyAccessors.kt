@@ -3,7 +3,7 @@ package kotlin.reflect.jvm.internal
 import kotlin.reflect.*
 import kotlin.jvm.internal.*
 
-internal class RuntimePropertyGetter(private val owner: RuntimeProperty): KProperty.Getter<Any?> {
+internal open class RuntimePropertyGetter(protected val owner: RuntimeProperty): KProperty.Getter<Any?> {
     override val property: KProperty<Any?> get() = owner
     override val name: String get() = "<get-" + owner.name + ">"
     override val parameters: List<KParameter> get() = owner.parameters
@@ -17,6 +17,10 @@ internal class RuntimePropertyGetter(private val owner: RuntimeProperty): KPrope
     override val isExternal: Boolean get() = false
     override fun call(vararg args: Any?): Any? = owner.callArray(args)
     override fun callBy(args: Map<KParameter, Any?>): Any? = owner.callBy(args)
+}
+
+internal class RuntimeProperty2Getter(owner: RuntimeProperty): RuntimePropertyGetter(owner), KProperty2.Getter<Any?, Any?, Any?> {
+    override fun invoke(receiver1: Any?, receiver2: Any?): Any? = owner.readTwo(receiver1, receiver2)
 }
 
 internal class RuntimeProperty0Getter(private val owner: RuntimeProperty): KProperty0.Getter<Any?> {
