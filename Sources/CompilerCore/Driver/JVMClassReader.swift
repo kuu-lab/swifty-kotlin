@@ -482,7 +482,7 @@ struct JVMClassReader {
                 if string == "Lkotlin/jvm/JvmOverloads;" { hasJvmOverloads = true }
                 if string == "Landroidx/compose/runtime/Composable;" { hasComposableAnnotation = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
-                   JVMMetro.annotationDescriptors.contains(string) {
+                   (string == JVMMetro.invoke || JVMMetro.annotationDescriptors.contains(string)) {
                     hasMetroAnnotation = true
                 }
             case 7: classes[index] = Int(try u2())
