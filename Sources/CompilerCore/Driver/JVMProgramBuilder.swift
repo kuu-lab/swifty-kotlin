@@ -793,7 +793,11 @@ final class JVMFunctionBuilder {
             if !scopes.contains(where: { $0[name] != nil }), let result = try textLibraryProperty(id) { return result }
             // Snapshot reads before evaluating later operands/arguments, which
             // may mutate the same source variable (for example f(x, x++)).
-            let local = try readLocal(lookup(name))
+            let binding = try lookup(name)
+            let local = try readLocal(binding)
+            if let symbol = binding.symbol, program.sema.composableFunctionParameters.contains(symbol) {
+                return local
+            }
             let type = try program.expressionType(id)
             return type == .unit ? local : try convert(local, to: type)
         case .localFunDecl:

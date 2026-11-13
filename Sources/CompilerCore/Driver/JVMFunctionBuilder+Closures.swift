@@ -60,6 +60,20 @@ extension JVMFunctionBuilder {
         var args: [JVMValue] = []
         for arg in arguments { args.append(try convert(arg, to: object)) }
         let result = try resultType ?? program.type(signature.returnType)
+        if let id, let callable = program.sema.bindings.callableValueCallBinding(for: id),
+           case let .localValue(symbol) = callable.target,
+           program.sema.composableFunctionParameters.contains(symbol) {
+            guard let composer = activeComposer else { throw fail("JVM Compose callback requires an active Composer.", id) }
+            let changed = try constant(.int(0), .int)
+            args.append(try convert(composer, to: object))
+            args.append(try convert(changed, to: object))
+            program.functionArities.insert(args.count)
+            let returned = try jdkCall("kotlin/jvm/functions/Function" + String(args.count), "invoke",
+                                       Array(repeating: object, count: args.count), object,
+                                       receiver: function, arguments: args, interface: true,
+                                       resolved: result == .unit ? object : result)
+            return result == .unit ? nil : returned
+        }
         if signature.isSuspend {
             var method = JVMForeignMethod(owner: "kotlin/jvm/functions/Function" + String(parameters.count + 1), name: "invoke", descriptor: "(" + Array(repeating: object.descriptor, count: parameters.count).joined() + ")" + object.descriptor, parameters: Array(repeating: object, count: parameters.count), result: object, isStatic: false, isInterface: true, isAbstract: true)
             method.isSuspend = true
@@ -134,7 +148,7 @@ extension JVMFunctionBuilder {
             let object = try requireValue(receiver), function = try readLocal(local)
             var values = [object]
             for arg in args { values.append(try requireValue(arg.expr)) }
-            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id)))
+            return JVMIntrinsicResult(value: try invoke(function, signature: signature, arguments: values, resultType: program.expressionType(id), at: id))
         }
         guard let binding = program.sema.bindings.callBinding(for: id), let signature = program.sema.symbols.functionSignature(for: binding.chosenCallee), signature.receiverType != nil, program.extensionSymbols.contains(binding.chosenCallee) else { return nil }
         if let reference = program.references[binding.chosenCallee] {

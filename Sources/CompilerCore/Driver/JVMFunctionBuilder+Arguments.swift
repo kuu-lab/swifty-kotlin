@@ -89,7 +89,8 @@ extension JVMFunctionBuilder {
             guard parameters.indices.contains(index), index == varargIndex || supplied[index] == nil else { throw fail("Invalid JVM argument mapping.", id) }
             if index != varargIndex { positionalCursor = max(positionalCursor, index + 1) }
             let evaluated: JVMValue?
-            if composableParameters.contains(index) {
+            if composableParameters.contains(index) || program.sema.composableLambdaExprs.contains(arg.expr)
+                && program.sema.bindings.identifierSymbol(for: arg.expr) == nil {
                 evaluated = try composeContent(arg.expr)
             } else if let composer = activeComposer, let importedFunction, importedFunction.hasInlineContextCallback,
                       importedFunction.parameters.indices.contains(index),
@@ -225,6 +226,13 @@ extension JVMFunctionBuilder {
         let importedDefaults = importedDefault != nil || importedConstructor?.defaults != nil || importedConstructorDefault != nil
             ? program.sema.symbols.functionSignature(for: symbol)?.valueParameterHasDefaultValues : nil
         let object = constructor ? try value(method!.result) : nil
+        var composableParameters = context.jvmImports?.importedComposableParameters[symbol] ?? []
+        if isComposable, let signature = program.sema.symbols.functionSignature(for: symbol) {
+            for (index, parameter) in signature.valueParameterSymbols.enumerated()
+                where program.sema.composableFunctionParameters.contains(parameter) {
+                composableParameters.insert(index)
+            }
+        }
         let ordered = try arguments(
             args,
             binding: binding,
@@ -232,7 +240,7 @@ extension JVMFunctionBuilder {
             declarations: defaultParameters,
             contextParameterTypes: contextParameterTypes,
             id: id,
-            composableParameters: context.jvmImports?.importedComposableParameters[symbol] ?? [],
+            composableParameters: composableParameters,
             importedDefaults: importedDefaults
         )
         for contextIndex in contextParameterTypes.indices {
