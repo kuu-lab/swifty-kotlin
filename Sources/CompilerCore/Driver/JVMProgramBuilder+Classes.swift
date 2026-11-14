@@ -204,8 +204,9 @@ extension JVMProgramBuilder {
                 let methodName = numberSubclass && ref.parameters.isEmpty
                     ? numberMethodNames[sourceName] ?? ref.name
                     : ref.name
-                var method = JVMForeignMethod(owner: plan.name, name: methodName, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
-                method.isSpecial = f.modifiers.contains(.private)
+                let staticMethod = plan.isObject && plan.companionOwner == nil && isJvmStatic(symbol)
+                var method = JVMForeignMethod(owner: plan.name, name: methodName, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: staticMethod, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
+                method.isSpecial = !method.isStatic && f.modifiers.contains(.private)
                 method.isSuspend = f.isSuspend
                 methods[symbol] = method; plan.methods.append((f, method))
                 plan.methodSymbols[method.name + method.descriptor] = symbol
@@ -349,7 +350,13 @@ extension JVMProgramBuilder {
                 guard let symbol = plan.methodSymbols[method.name + method.descriptor], let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Missing JVM member signature.") }
                 builder.functionSymbol = symbol
                 builder.semanticSignature = signature
-                let function = try annotated(describe(builder.build(), signature: signature, parameters: declaration.typeParams), symbol: symbol)
+                builder.isStaticBody = method.isStatic
+                var body = try describe(builder.build(), signature: signature, parameters: declaration.typeParams)
+                if method.isStatic {
+                    body.access = access(declaration.modifiers, final: true) | 0x0008
+                    body.isSynthetic = false
+                }
+                let function = try annotated(body, symbol: symbol)
                 functions.append(function)
                 functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
@@ -372,6 +379,7 @@ extension JVMProgramBuilder {
             }
             functions += try delegationMethods(plan)
             functions += try nominalMethods(plan, existing: functions)
+            functions += try jvmStaticMethods(plan)
             var defaultImpls: JVMClass?
             if plan.isInterface {
                 let defaults = effectiveInterfaceMethods(plan).values.filter { !$0.isAbstract }.sorted { jvmMemberKey($0) < jvmMemberKey($1) }

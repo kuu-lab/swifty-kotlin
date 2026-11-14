@@ -60,7 +60,9 @@ extension JVMProgramBuilder {
         b.isStaticBody = true; b.functionSymbol = symbol
         let values = try physical.parameters.map { try b.value($0) }
         var index = 0
-        if plan != nil { b.thisValue = values[index]; index += 1; try b.prepareEnclosingInstances() }
+        // @JvmStatic members have no dispatch slot in their $default signature;
+        // consuming values[0] as `this` would shift every argument and mask.
+        if plan != nil, methods[symbol]?.isStatic != true { b.thisValue = values[index]; index += 1; try b.prepareEnclosingInstances() }
         if declaration.receiverType != nil { b.extensionValue = values[index]; index += 1 }
         if let receiver = b.extensionValue ?? b.thisValue { b.contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)] = receiver }
         let inputs = Array(values[index..<(index + declaration.valueParams.count)])
