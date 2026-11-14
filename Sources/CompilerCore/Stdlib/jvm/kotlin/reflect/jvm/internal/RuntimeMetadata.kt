@@ -223,6 +223,16 @@ internal fun executableDescriptor(method: Any, constructor: Boolean = false): St
     for (parameter in __jvmExecutableParams(method)) descriptor += classDescriptor(parameter)
     return descriptor + ")" + if (constructor) "V" else classDescriptor(__jvmMethodReturn(method))
 }
+internal fun hasMethod(owner: Any, signature: String): Boolean {
+    var current: Any? = owner
+    while (current != null) {
+        for (method in __jvmDeclaredMethods(current!!)) {
+            if (__jvmMethodName(method) + executableDescriptor(method) == signature) return true
+        }
+        current = __jvmClassSuperclass(current!!)
+    }
+    return false
+}
 internal fun findMethod(owner: Any, signature: String): Any {
     var current: Any? = owner
     while (current != null) {
