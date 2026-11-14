@@ -594,7 +594,7 @@ struct JVMClassReader {
         }
         if let metadata = classAttributes.kotlinMetadata,
            (metadata.isFileFacade == true || hasValueAdapters
-               || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
+               || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
            let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype) {
             for index in methods.indices {
@@ -610,7 +610,8 @@ struct JVMClassReader {
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
-                                          && candidate.name == "subList") && candidate.descriptor != nil))
+                                          && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter)
+                                          && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
                               && (candidate.parameters.count + candidate.leadingParameterCount
