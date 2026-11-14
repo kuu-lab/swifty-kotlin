@@ -79,7 +79,7 @@ extension DataFlowSemaPhase {
                 ownerType: continuationType,
                 name: "context",
                 propertyType: kotlinCoroutineContextType,
-                externalLinkName: "kk_coroutine_continuation_context",
+                externalLinkName: "__kk_coroutine_continuation_context",
                 symbols: symbols,
                 interner: interner
             )
@@ -116,7 +116,7 @@ extension DataFlowSemaPhase {
                 named: "resume",
                 packageFQName: kotlinCoroutinesPkg,
                 receiverType: continuationType,
-                externalLinkName: "kk_coroutine_continuation_resume",
+                externalLinkName: "__kk_coroutine_continuation_resume",
                 returnType: types.unitType,
                 parameters: [(
                     name: "value",
@@ -136,7 +136,7 @@ extension DataFlowSemaPhase {
                 named: "resumeWithException",
                 packageFQName: kotlinCoroutinesPkg,
                 receiverType: continuationType,
-                externalLinkName: "kk_coroutine_continuation_resume_with_exception",
+                externalLinkName: "__kk_coroutine_continuation_resume_with_exception",
                 returnType: types.unitType,
                 parameters: [(
                     name: "exception",
@@ -160,7 +160,7 @@ extension DataFlowSemaPhase {
         ) {
             let continuationMembers = coroutineMemberRows(of: continuationSymbol, type: continuationType, symbols: symbols, interner: interner)
             continuationMembers.fn(
-                "resumeWith", "kk_coroutine_continuation_resume_with", [(name: "result", type: resultOfContinuationTType)],
+                "resumeWith", "__kk_coroutine_continuation_resume_with", [(name: "result", type: resultOfContinuationTType)],
                 ret: types.unitType, typeParameterSymbols: [continuationTypeParameterSymbol], classTypeParameterCount: 1
             )
         }

@@ -953,11 +953,11 @@ extension CallTypeChecker {
         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedArgType)
 
         let expectedExternalLinkName = if calleeName == knownNames.resume {
-            "kk_coroutine_continuation_resume"
+            "__kk_coroutine_continuation_resume"
         } else if calleeName == knownNames.resumeWith {
-            "kk_coroutine_continuation_resume_with"
+            "__kk_coroutine_continuation_resume_with"
         } else {
-            "kk_coroutine_continuation_resume_with_exception"
+            "__kk_coroutine_continuation_resume_with_exception"
         }
         let functionSymbol = ctx.sema.symbols.lookupByShortName(calleeName).first(where: { candidate in
             guard let symbol = ctx.sema.symbols.symbol(candidate),
