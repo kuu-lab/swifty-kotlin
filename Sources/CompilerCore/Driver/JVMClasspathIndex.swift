@@ -145,6 +145,7 @@ final class JVMClasspathIndex {
         for var info in result.hierarchyClasses.values where result.isImportableClassifier(info.name, visited: []) {
             if !sourcePackages.contains(binaryPackage(info.name)) {
                 info.methods.removeAll(where: \.isPackagePrivate)
+                info.fields.removeAll(where: \.isPackagePrivate)
             }
             result.classes[info.name] = info
         }
@@ -449,7 +450,7 @@ final class JVMClasspathIndex {
                 }
                 guard let base = hierarchyClasses[name] else { return }
                 bridges += base.bridgeMethods
-                for method in base.methods where !method.isStatic && !method.isConstructor {
+                for method in base.methods where !method.isStatic && !method.isConstructor && !method.isPackagePrivate {
                     let signature = key(method)
                     if !methodKeys.contains(signature),
                        interfaceMethods[signature].map({ interfaceInherits(method.owner, $0.owner) }) ?? true {
@@ -479,7 +480,9 @@ final class JVMClasspathIndex {
                     hiddenSegment = false
                 }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment)
-                    && (visible || !method.isProtected) {
+                    && (visible || !method.isProtected)
+                    && (!method.isPackagePrivate || Self.binaryPackage(method.owner) == Self.binaryPackage(info.name)
+                        && sourcePackages.contains(Self.binaryPackage(method.owner))) {
                     if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
                         // when its implementation is inherited from a hidden base.
@@ -2872,16 +2875,20 @@ final class JVMClasspathIndex {
             let name = ctx.interner.resolve(symbol.name)
             let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
             let getterName = name.hasPrefix("is") && name.dropFirst(2).first?.isUppercase == true ? name : "get" + capital
-            let isBean = info.methods.contains {
+            let getters = info.methods.filter {
                 !$0.isStatic && $0.parameters.isEmpty
                     && ($0.name == getterName || Self.javaGetterPropertyName($0.name) == name)
             }
-            let isField = info.fields.contains { $0.name == name && info.isRuntimeInstanceField($0) }
+            let field = info.fields.first { $0.name == name && info.isRuntimeInstanceField($0) }
+            let isBean = !getters.isEmpty
+            let isField = field != nil
+            let isPackagePrivate = field?.isPackagePrivate ?? (isBean && getters.allSatisfy(\.isPackagePrivate))
+            if isPackagePrivate, let file = ctx.ast?.file(for: site.start.file) {
+                sema.symbols.setJVMPackageAccess(file.packageFQName, for: symbol.id)
+            }
             guard isBean || isField else { continue }
-            let boxedPrimitive = info.methods.contains {
-                !$0.isStatic && $0.parameters.isEmpty
-                    && ($0.name == getterName || Self.javaGetterPropertyName($0.name) == name)
-                    && $0.result.referenceName.map(Self.boxedJavaPrimitives.contains) == true
+            let boxedPrimitive = getters.contains {
+                $0.result.referenceName.map(Self.boxedJavaPrimitives.contains) == true
             }
             let propertyType = boxedPrimitive ? sema.types.withNullability(.platformType, for: type)
                 : platform(type, includingArrayElements: true)
