@@ -137,18 +137,20 @@ public func kk_sequence_onEach(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let seq = runtimeSequenceBox(from: seqRaw) else {
-        let sourceElements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        let newSeq = RuntimeSequenceBox(steps: [
-            .source(elements: sourceElements),
-            .onEachStep(fnPtr: fnPtr, closureRaw: closureRaw),
-        ])
+    return runtimeThrowingBridge(outThrown) {
+        guard let seq = runtimeSequenceBox(from: seqRaw) else {
+            let sourceElements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+            let newSeq = RuntimeSequenceBox(steps: [
+                .source(elements: sourceElements),
+                .onEachStep(fnPtr: fnPtr, closureRaw: closureRaw),
+            ])
+            return registerRuntimeObject(newSeq)
+        }
+        var newSteps = seq.steps
+        newSteps.append(.onEachStep(fnPtr: fnPtr, closureRaw: closureRaw))
+        let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
         return registerRuntimeObject(newSeq)
     }
-    var newSteps = seq.steps
-    newSteps.append(.onEachStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
-    return registerRuntimeObject(newSeq)
 }
 
 
@@ -178,39 +180,41 @@ public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_toMap")
 public func kk_sequence_toMap(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let collected = runtimeSequenceSourceElementsOrThrow(
-        from: seqRaw,
-        caller: #function,
-        outThrown: outThrown
-    ) else {
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        guard let collected = runtimeSequenceSourceElementsOrThrow(
+            from: seqRaw,
+            caller: #function,
+            outThrown: outThrown
+        ) else {
+            return runtimeNullSentinelInt
+        }
+        var keys: [Int] = []
+        var values: [Int] = []
+        // Dictionary mapping key index in `keys` for O(1) duplicate-key lookup.
+        // Uses RuntimeElementKey to respect runtimeValuesEqual semantics (e.g. String content equality).
+        var keyIndexByRuntimeKey: [RuntimeElementKey: Int] = [:]
+        for element in collected {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: element) else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_toMap element is not a valid Pair handle")
+            }
+            let isObjectPointer = runtimeStorage.withGCLock { state in
+                state.objectPointers.contains(UInt(bitPattern: pointer))
+            }
+            guard isObjectPointer, let pair = tryCast(pointer, to: RuntimePairBox.self) else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_toMap element is not a valid Pair handle")
+            }
+            let runtimeKey = RuntimeElementKey(value: pair.first)
+            if let idx = keyIndexByRuntimeKey[runtimeKey] {
+                values[idx] = pair.second
+            } else {
+                let newIndex = keys.count
+                keyIndexByRuntimeKey[runtimeKey] = newIndex
+                keys.append(pair.first)
+                values.append(pair.second)
+            }
+        }
+        return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
     }
-    var keys: [Int] = []
-    var values: [Int] = []
-    // Dictionary mapping key index in `keys` for O(1) duplicate-key lookup.
-    // Uses RuntimeElementKey to respect runtimeValuesEqual semantics (e.g. String content equality).
-    var keyIndexByRuntimeKey: [RuntimeElementKey: Int] = [:]
-    for element in collected {
-        guard let pointer = UnsafeMutableRawPointer(bitPattern: element) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_toMap element is not a valid Pair handle")
-        }
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: pointer))
-        }
-        guard isObjectPointer, let pair = tryCast(pointer, to: RuntimePairBox.self) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_toMap element is not a valid Pair handle")
-        }
-        let runtimeKey = RuntimeElementKey(value: pair.first)
-        if let idx = keyIndexByRuntimeKey[runtimeKey] {
-            values[idx] = pair.second
-        } else {
-            let newIndex = keys.count
-            keyIndexByRuntimeKey[runtimeKey] = newIndex
-            keys.append(pair.first)
-            values.append(pair.second)
-        }
-    }
-    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
 }
 
 @_cdecl("kk_sequence_maxOrNull")
@@ -242,11 +246,13 @@ public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_max")
 public func kk_sequence_max(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let result = kk_sequence_maxOrNull(seqRaw)
-    guard result != runtimeNullSentinelInt else {
-        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement), outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        let result = kk_sequence_maxOrNull(seqRaw)
+        guard result != runtimeNullSentinelInt else {
+            return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement), outThrown)
+        }
+        return result
     }
-    return result
 }
 
 @_cdecl("kk_sequence_minOrNull")
@@ -278,24 +284,26 @@ public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_min")
 public func kk_sequence_min(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var best: Int?
-    runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        if let current = best {
-            if runtimeCompareValues(elem, current) < 0 {
+    return runtimeThrowingBridge(outThrown) {
+        var best: Int?
+        runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+            if let current = best {
+                if runtimeCompareValues(elem, current) < 0 {
+                    best = elem
+                }
+            } else {
                 best = elem
             }
-        } else {
-            best = elem
+            return true
         }
-        return true
+        if (outThrown?.pointee ?? 0) != 0 {
+            return runtimeExceptionCaughtSentinel
+        }
+        guard let best else {
+            return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement), outThrown)
+        }
+        return best
     }
-    if (outThrown?.pointee ?? 0) != 0 {
-        return runtimeExceptionCaughtSentinel
-    }
-    guard let best else {
-        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement), outThrown)
-    }
-    return best
 }
 
 @_cdecl("kk_sequence_flatten")

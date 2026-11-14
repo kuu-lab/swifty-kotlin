@@ -1754,34 +1754,37 @@ private func evaluateSequenceValues(
 /// `hasNext()` / `next()` through normal interface dispatch.
 @_cdecl("kk_sequence_box_iterator")
 public func kk_sequence_box_iterator(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let seq = runtimeSequenceBox(from: seqRaw) else {
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let seq = runtimeSequenceBox(from: seqRaw) else {
+            return 0
+        }
+        guard runtimeSequenceBeginTraversal(seq, outThrown: outThrown) else {
+            return 0
+        }
+        let iteratorSource = seq.constrainOnceState == nil ? seq : RuntimeSequenceBox(steps: seq.steps)
+        let iterator = RuntimeSequenceIteratorBox(seq: iteratorSource)
+        return registerRuntimeObject(iterator)
     }
-    guard runtimeSequenceBeginTraversal(seq, outThrown: outThrown) else {
-        return 0
-    }
-    let iteratorSource = seq.constrainOnceState == nil ? seq : RuntimeSequenceBox(steps: seq.steps)
-    let iterator = RuntimeSequenceIteratorBox(seq: iteratorSource)
-    return registerRuntimeObject(iterator)
 }
 
 @_cdecl("kk_sequence_iterator_hasNext")
 public func kk_sequence_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
+            return 0
+        }
+        return iter.hasNext(outThrown: outThrown) ? 1 : 0
     }
-    return iter.hasNext(outThrown: outThrown) ? 1 : 0
 }
 
 @_cdecl("kk_sequence_iterator_next")
 public func kk_sequence_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let iter = runtimeSequenceIteratorBox(from: iterRaw) else {
+            return 0
+        }
+        return iter.next(outThrown: outThrown)
     }
-    return iter.next(outThrown: outThrown)
 }
 
 func registerRuntimeSequenceItable(raw: Int) {
