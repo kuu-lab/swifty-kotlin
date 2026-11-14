@@ -63,6 +63,10 @@ public class ByteBuffer private constructor(
     public val isReadOnly: Boolean get() = isReadOnly()
     @get:kotlin.jvm.JvmName("isDirect")
     public val isDirect: Boolean get() = isDirect()
+    // Kotlin synthetic-property spelling of getInt() for Java interop parity.
+    // The JvmName keeps the property getter clear of the getInt() overloads.
+    @get:kotlin.jvm.JvmName("intProperty")
+    public val int: Int get() = getInt()
     public override fun hasArray(): Boolean = !readOnly && !direct
     public override fun array(): ByteArray {
         if (direct) throw UnsupportedOperationException()

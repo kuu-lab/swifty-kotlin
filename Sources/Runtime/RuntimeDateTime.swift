@@ -320,7 +320,7 @@ public func __kk_time_zone_get_display_name(
 public func __kk_calendar_create(_ timeZoneRaw: Int) -> Int {
     let timeZoneBox = requiredRuntimeTimeZone(timeZoneRaw, symbol: "__kk_calendar_create")
     var calendar = Foundation.Calendar(identifier: .gregorian)
-    calendar.locale = Locale.current
+    calendar.locale = runtimeDefaultFoundationLocale()
     calendar.timeZone = timeZoneBox.timeZone
     let box = RuntimeCalendarBox(calendar: calendar, timeZoneIdentifier: timeZoneBox.identifier)
     runtimeCalendarMaterializeWeekFields(box)
@@ -344,7 +344,7 @@ public func __kk_calendar_create_fields(
 ) -> Int {
     let timeZoneBox = requiredRuntimeTimeZone(timeZoneRaw, symbol: "__kk_calendar_create_fields")
     var calendar = Foundation.Calendar(identifier: .gregorian)
-    calendar.locale = Locale.current
+    calendar.locale = runtimeDefaultFoundationLocale()
     calendar.timeZone = timeZoneBox.timeZone
     var components = DateComponents()
     components.calendar = calendar

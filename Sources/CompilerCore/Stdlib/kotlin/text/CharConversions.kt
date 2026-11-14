@@ -13,10 +13,6 @@ internal external fun __charUppercaseString(code: Int): String
 @KsSymbolName("__kk_char_lowercase_string")
 internal external fun __charLowercaseString(code: Int): String
 
-/// Full Unicode titlecase mapping.
-@KsSymbolName("__kk_char_titlecase_string")
-internal external fun __charTitlecaseString(code: Int): String
-
 /// Simple (one-to-one) uppercase mapping; returns -1 for surrogate code units.
 @KsSymbolName("__kk_char_uppercase_code")
 internal external fun __charUppercaseCode(code: Int): Int
@@ -55,7 +51,20 @@ public fun Char.uppercase(): String = __charUppercaseString(this.code)
 
 public fun Char.lowercase(): String = __charLowercaseString(this.code)
 
-public fun Char.titlecase(): String = __charTitlecaseString(this.code)
+// Mirrors kotlin-stdlib's titlecaseImpl(): the full titlecase mapping is
+// derived from the full uppercase mapping (e.g. U+1F88 -> "Ἀι"), falling back
+// to the simple titlecase char when the uppercase mapping is one char long.
+public fun Char.titlecase(): String {
+    val upper = uppercase()
+    if (upper.length > 1) {
+        return if (this == 'ŉ') {
+            upper
+        } else {
+            upper.substring(0, 1) + upper.substring(1).lowercase()
+        }
+    }
+    return titlecaseChar().toString()
+}
 
 public fun Char.uppercase(locale: java.util.Locale): String = __charUppercaseLocale(this.code, locale)
 
