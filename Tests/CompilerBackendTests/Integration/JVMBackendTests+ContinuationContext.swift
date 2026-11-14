@@ -55,5 +55,50 @@ extension JVMBackendTests {
             #expect(result.stdout == expected.stdout)
         }
     }
+
+    /// Kotlin repro of the runtime bug: a real suspend function's generated
+    /// ContinuationImpl must capture the completion's context at
+    /// construction. Reading `continuation.context` after the completion
+    /// stops serving `context` (post-installation re-entry) must not throw.
+    @Test
+    func kotlinSuspendContinuationCapturesContextAtConstruction() throws {
+        let library = try ownStdlibLibrary()
+        try withWorkspace { root in
+            try """
+            import kotlin.coroutines.*
+
+            class Completion : Continuation<Any?> {
+                var installed = false
+                var reads = 0
+                override val context: CoroutineContext
+                    get() {
+                        if (installed) throw AssertionError("context read after install")
+                        reads++
+                        return EmptyCoroutineContext
+                    }
+                override fun resumeWith(result: Result<Any?>) {}
+            }
+
+            fun main() {
+                val block: suspend () -> Int = { 1 }
+                val completion = Completion()
+                val frame = block.createCoroutine(completion)
+                completion.installed = true
+                println(frame.context === EmptyCoroutineContext)
+                println(frame.context === EmptyCoroutineContext)
+                println(completion.reads)
+            }
+            """.write(to: root.appendingPathComponent("Probe.kt"), atomically: true, encoding: .utf8)
+            let official = try m11Runtime()
+            let app = root.appendingPathComponent("probe.jar")
+            let compiled = try jvmTool("kotlinc", ["Probe.kt", "-d", app.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+            let expected = try java(["-Xverify:all", "-cp", app.path + ":" + official, "ProbeKt"])
+            let result = try java(["-Xverify:all", "-cp", app.path + ":" + library.path, "ProbeKt"])
+            #expect(result.exitCode == 0, "\(result.stderr)")
+            #expect(result.stdout == expected.stdout)
+            #expect(result.stdout.contains("true"))
+        }
+    }
 }
 #endif
