@@ -65,7 +65,15 @@ extension JVMFunctionBuilder {
                         // declared as a reference type. Otherwise every read of
                         // the inlined parameter re-boxes, so e.g. synchronized's
                         // lock would monitor-enter/-exit different objects.
-                        let declared = try program.type(signature.parameterTypes[i])
+                        // Resolve declared types against THIS call's type
+                        // arguments: program.inlineTypeArguments still holds the
+                        // enclosing inline frame's mapping here.
+                        var innerMapping: [SymbolID: TypeID] = [:]
+                        let symbols = signature.typeParameterSymbols
+                        let arguments = binding.substitutedTypeArguments
+                        let selected = symbols.count == arguments.count ? symbols : Array(symbols.suffix(arguments.count))
+                        for (symbol, type) in zip(selected, arguments) { innerMapping[symbol] = program.specialized(type) }
+                        let declared = try program.type(program.specialized(signature.parameterTypes[i], mapping: innerMapping))
                         if case .reference = declared, snapshot.type.referenceName == nil {
                             snapshot = try convert(snapshot, to: declared)
                             local = Local(value: snapshot, mutable: false, functionType: local.functionType, symbol: local.symbol)
