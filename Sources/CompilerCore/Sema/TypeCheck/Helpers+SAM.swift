@@ -213,13 +213,14 @@ extension TypeCheckHelpers {
                 }
             }
         }
+        let isJavaMethod = sema.symbols.isJVMJavaMethod(method)
         let substitute = { (type: TypeID) -> TypeID in
             let substituted = sema.types.substituteTypeParameters(
                 in: type,
                 substitution: substitution,
                 typeVarBySymbol: typeVarBySymbol
             )
-            if sema.types.nullability(of: substituted) == .platformType {
+            if !isJavaMethod, sema.types.nullability(of: substituted) == .platformType {
                 return sema.types.makeNonNullable(substituted)
             }
             return substituted
