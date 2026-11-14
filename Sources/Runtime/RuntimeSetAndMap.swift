@@ -73,15 +73,15 @@ public func kk_hash_set_new_checked(
 ) -> Int {
     // The compiler's runtime ABI transports Float arguments as raw Int words.
     let loadFactor = Float(bitPattern: UInt32(truncatingIfNeeded: loadFactorBits))
-    guard capacity >= 0 else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(capacity)"))
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard capacity >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(capacity)"))
+        }
+        guard loadFactor > 0, !loadFactor.isNaN else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Illegal Load: \(loadFactor)"))
+        }
+        return kk_hash_set_of(0, 0)
     }
-    guard loadFactor > 0, !loadFactor.isNaN else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Load: \(loadFactor)"))
-        return 0
-    }
-    return kk_hash_set_of(0, 0)
 }
 
 /// BUG-254: storage for the mutable set factories (`mutableSetOf`,
@@ -324,22 +324,22 @@ public func kk_mutable_set_add(
     _ elem: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw) else {
-        if let sourceResult = runtimeSourceMutableSetAdd(setRaw, elem, outThrown: outThrown) {
-            return sourceResult
+    runtimeThrowingBridge(outThrown) {
+        guard let set = runtimeSetBox(from: setRaw) else {
+            if let sourceResult = runtimeSourceMutableSetAdd(setRaw, elem, outThrown: outThrown) {
+                return sourceResult
+            }
+            return 0
         }
-        return 0
+        if runtimeThrowIfReadOnlySet(set, outThrown) {
+            return 0
+        }
+        let value = runtimeValueFromCollectionABI(elem)
+        guard set.acceptsInsertion(rawValue: value.legacyRawValue) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Element outside range view"))
+        }
+        return set.insert(value: value) ? 1 : 0
     }
-    if runtimeThrowIfReadOnlySet(set, outThrown) {
-        return 0
-    }
-    let value = runtimeValueFromCollectionABI(elem)
-    guard set.acceptsInsertion(rawValue: value.legacyRawValue) else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Element outside range view"))
-        return 0
-    }
-    return set.insert(value: value) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_remove")
@@ -348,24 +348,25 @@ public func kk_mutable_set_remove(
     _ elem: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw) else {
-        if let sourceResult = runtimeSourceInterfaceCall1(
-            setRaw,
-            elem,
-            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
-            methodSlot: 1,
-            context: "MutableSet.remove dispatch",
-            outThrown: outThrown
-        ) {
-            return sourceResult
+    runtimeThrowingBridge(outThrown) {
+        guard let set = runtimeSetBox(from: setRaw) else {
+            if let sourceResult = runtimeSourceInterfaceCall1(
+                setRaw,
+                elem,
+                interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+                methodSlot: 1,
+                context: "MutableSet.remove dispatch",
+                outThrown: outThrown
+            ) {
+                return sourceResult
+            }
+            return 0
         }
-        return 0
+        if runtimeThrowIfReadOnlySet(set, outThrown) {
+            return 0
+        }
+        return set.remove(rawValue: elem) ? 1 : 0
     }
-    if runtimeThrowIfReadOnlySet(set, outThrown) {
-        return 0
-    }
-    return set.remove(rawValue: elem) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_clear")
@@ -373,24 +374,25 @@ public func kk_mutable_set_clear(
     _ setRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw) else {
-        if let sourceResult = runtimeSourceInterfaceCall0(
-            setRaw,
-            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
-            methodSlot: 2,
-            context: "MutableSet.clear dispatch",
-            outThrown: outThrown
-        ) {
-            return sourceResult
+    runtimeThrowingBridge(outThrown) {
+        guard let set = runtimeSetBox(from: setRaw) else {
+            if let sourceResult = runtimeSourceInterfaceCall0(
+                setRaw,
+                interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+                methodSlot: 2,
+                context: "MutableSet.clear dispatch",
+                outThrown: outThrown
+            ) {
+                return sourceResult
+            }
+            return 0
         }
+        if runtimeThrowIfReadOnlySet(set, outThrown) {
+            return 0
+        }
+        _ = set.removeAll(keepingCapacity: false)
         return 0
     }
-    if runtimeThrowIfReadOnlySet(set, outThrown) {
-        return 0
-    }
-    _ = set.removeAll(keepingCapacity: false)
-    return 0
 }
 
 @_cdecl("__kk_mutable_set_addAll")
@@ -414,31 +416,32 @@ public func kk_mutable_set_removeAll(
     _ collectionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw) else {
-        if let result = runtimeSourceInterfaceCall1(
-            setRaw, collectionRaw,
-            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
-            methodSlot: 4,
-            context: "MutableSet.removeAll dispatch",
-            outThrown: outThrown
-        ) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let set = runtimeSetBox(from: setRaw) else {
+            if let result = runtimeSourceInterfaceCall1(
+                setRaw, collectionRaw,
+                interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+                methodSlot: 4,
+                context: "MutableSet.removeAll dispatch",
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            return 0
         }
-        return 0
+        if runtimeThrowIfReadOnlySet(set, outThrown) {
+            return 0
+        }
+        guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
+            return 0
+        }
+        let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
+        let originalCount = set.count
+        _ = set.removeAll { elem in
+            contains(elem.legacyRawValue)
+        }
+        return set.count != originalCount ? 1 : 0
     }
-    if runtimeThrowIfReadOnlySet(set, outThrown) {
-        return 0
-    }
-    guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
-        return 0
-    }
-    let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
-    let originalCount = set.count
-    _ = set.removeAll { elem in
-        contains(elem.legacyRawValue)
-    }
-    return set.count != originalCount ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_retainAll")
@@ -447,31 +450,32 @@ public func kk_mutable_set_retainAll(
     _ collectionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let set = runtimeSetBox(from: setRaw) else {
-        if let result = runtimeSourceInterfaceCall1(
-            setRaw, collectionRaw,
-            interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
-            methodSlot: 5,
-            context: "MutableSet.retainAll dispatch",
-            outThrown: outThrown
-        ) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let set = runtimeSetBox(from: setRaw) else {
+            if let result = runtimeSourceInterfaceCall1(
+                setRaw, collectionRaw,
+                interfaceTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet"),
+                methodSlot: 5,
+                context: "MutableSet.retainAll dispatch",
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            return 0
         }
-        return 0
+        if runtimeThrowIfReadOnlySet(set, outThrown) {
+            return 0
+        }
+        guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
+            return 0
+        }
+        let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
+        let originalCount = set.count
+        _ = set.removeAll { elem in
+            !contains(elem.legacyRawValue)
+        }
+        return set.count != originalCount ? 1 : 0
     }
-    if runtimeThrowIfReadOnlySet(set, outThrown) {
-        return 0
-    }
-    guard let collectionValues = runtimeCollectionValues(from: collectionRaw) else {
-        return 0
-    }
-    let contains = runtimeCollectionMembership(collectionRaw, values: collectionValues)
-    let originalCount = set.count
-    _ = set.removeAll { elem in
-        !contains(elem.legacyRawValue)
-    }
-    return set.count != originalCount ? 1 : 0
 }
 
 
@@ -633,8 +637,10 @@ public func kk_mutable_map_put(
     _ value: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeMutableMapPut(mapRaw: mapRaw, key: key, value: value,
-                         countAsAccess: true, outThrown: outThrown)
+    runtimeThrowingBridge(outThrown) {
+        runtimeMutableMapPut(mapRaw: mapRaw, key: key, value: value,
+                             countAsAccess: true, outThrown: outThrown)
+    }
 }
 
 /// Shared put body. `MutableEntry.setValue` passes `countAsAccess: false`:
@@ -673,15 +679,16 @@ public func kk_mutable_map_remove(
     _ key: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeSourceMutableMapRemove(mapRaw, key: key, outThrown: outThrown)
-            ?? runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown) {
+        guard let map = runtimeMapBox(from: mapRaw) else {
+            return runtimeSourceMutableMapRemove(mapRaw, key: key, outThrown: outThrown)
+                ?? runtimeNullSentinelInt
+        }
+        if runtimeThrowIfReadOnlyMap(map, outThrown) {
+            return runtimeNullSentinelInt
+        }
+        return map.remove(key: key) ?? runtimeNullSentinelInt
     }
-    if runtimeThrowIfReadOnlyMap(map, outThrown) {
-        return runtimeNullSentinelInt
-    }
-    return map.remove(key: key) ?? runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_mutable_map_clear")
@@ -689,15 +696,16 @@ public func kk_mutable_map_clear(
     _ mapRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeSourceMutableMapClear(mapRaw, outThrown: outThrown) ?? 0
-    }
-    if runtimeThrowIfReadOnlyMap(map, outThrown) {
+    runtimeThrowingBridge(outThrown) {
+        guard let map = runtimeMapBox(from: mapRaw) else {
+            return runtimeSourceMutableMapClear(mapRaw, outThrown: outThrown) ?? 0
+        }
+        if runtimeThrowIfReadOnlyMap(map, outThrown) {
+            return 0
+        }
+        map.removeAll()
         return 0
     }
-    map.removeAll()
-    return 0
 }
 
 @_cdecl("__kk_mutable_map_putAll")
@@ -706,28 +714,28 @@ public func kk_mutable_map_putAll(
     _ otherMapRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw) else {
-        return runtimeSourceMutableMapPutAll(mapRaw, otherMapRaw: otherMapRaw, outThrown: outThrown) ?? 0
-    }
-    if runtimeThrowIfReadOnlyMap(map, outThrown) {
+    runtimeThrowingBridge(outThrown) {
+        guard let map = runtimeMapBox(from: mapRaw) else {
+            return runtimeSourceMutableMapPutAll(mapRaw, otherMapRaw: otherMapRaw, outThrown: outThrown) ?? 0
+        }
+        if runtimeThrowIfReadOnlyMap(map, outThrown) {
+            return 0
+        }
+        guard let other = runtimeMapBox(from: otherMapRaw) else {
+            runtimeCopySourceMapEntries(map, from: otherMapRaw, outThrown: outThrown)
+            return 0
+        }
+        let otherKeys = other.keyValues
+        let otherValues = other.entryValues
+        for key in otherKeys where !map.acceptsInsertion(rawKey: key.legacyRawValue) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
+        }
+        for (idx, key) in otherKeys.enumerated() {
+            guard idx < otherValues.count else { break }
+            _ = map.put(key: key, value: otherValues[idx])
+        }
         return 0
     }
-    guard let other = runtimeMapBox(from: otherMapRaw) else {
-        runtimeCopySourceMapEntries(map, from: otherMapRaw, outThrown: outThrown)
-        return 0
-    }
-    let otherKeys = other.keyValues
-    let otherValues = other.entryValues
-    for key in otherKeys where !map.acceptsInsertion(rawKey: key.legacyRawValue) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Key outside range view"))
-        return 0
-    }
-    for (idx, key) in otherKeys.enumerated() {
-        guard idx < otherValues.count else { break }
-        _ = map.put(key: key, value: otherValues[idx])
-    }
-    return 0
 }
 
 private func runtimeCopySourceMapEntries(
@@ -875,13 +883,14 @@ private func runtimeMapDefaultValue(_ map: RuntimeMapBox, key: Int, outThrown: U
 /// lookup miss (KSP-431).
 @_cdecl("__kk_map_implicit_default")
 public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let map = runtimeMapBox(from: mapRaw),
-          let defaultValue = runtimeMapDefaultValue(map, key: key, outThrown: outThrown)
-    else {
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown) {
+        guard let map = runtimeMapBox(from: mapRaw),
+              let defaultValue = runtimeMapDefaultValue(map, key: key, outThrown: outThrown)
+        else {
+            return runtimeNullSentinelInt
+        }
+        return defaultValue
     }
-    return defaultValue
 }
 
 @_cdecl("__kk_map_has_default")
@@ -1041,19 +1050,22 @@ public func kk_map_iterator_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeMapIteratorBox(from: iterRaw),
-          iter.index < iter.keys.count
-    else {
-        return runtimeThrowIteratorExhausted(outThrown)
+    // Exhaustion returns 0 while concurrent modification returns
+    // runtimeExceptionCaughtSentinel, so the error writes stay manual.
+    runtimeThrowingBridge(outThrown) {
+        guard let iter = runtimeMapIteratorBox(from: iterRaw),
+              iter.index < iter.keys.count
+        else {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
+        guard iter.isInSyncWithBackingMap() else {
+            runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+            return runtimeExceptionCaughtSentinel
+        }
+        let key = iter.keys[iter.index]
+        iter.index += 1
+        return key
     }
-    guard iter.isInSyncWithBackingMap() else {
-        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    let key = iter.keys[iter.index]
-    iter.index += 1
-    return key
 }
 
 @_cdecl("__kk_mutable_map_iterator")
@@ -1077,37 +1089,40 @@ public func kk_mutable_map_iterator_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
-          iter.index < iter.keys.count
-    else {
-        return runtimeThrowIteratorExhausted(outThrown)
-    }
-    guard iter.isInSyncWithBackingMap() else {
-        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    let key = iter.keys[iter.index]
-    iter.index += 1
-    iter.lastKey = key
-    guard let map = runtimeMapBox(from: iter.mapRaw),
-          let storageIndex = map.index(ofRawKey: key),
-          let value = map.runtimeValue(at: storageIndex)
-    else {
+    // Exhaustion returns 0 while concurrent modification returns
+    // runtimeExceptionCaughtSentinel, so the error writes stay manual.
+    runtimeThrowingBridge(outThrown) {
+        guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
+              iter.index < iter.keys.count
+        else {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
+        guard iter.isInSyncWithBackingMap() else {
+            runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+            return runtimeExceptionCaughtSentinel
+        }
+        let key = iter.keys[iter.index]
+        iter.index += 1
+        iter.lastKey = key
+        guard let map = runtimeMapBox(from: iter.mapRaw),
+              let storageIndex = map.index(ofRawKey: key),
+              let value = map.runtimeValue(at: storageIndex)
+        else {
+            return runtimeMutableMapEntryNew(
+                mapRaw: iter.mapRaw,
+                key: RuntimeValue(raw: key),
+                value: RuntimeValue(raw: kk_map_get(iter.mapRaw, key))
+            )
+        }
         return runtimeMutableMapEntryNew(
             mapRaw: iter.mapRaw,
-            key: RuntimeValue(raw: key),
-            value: RuntimeValue(raw: kk_map_get(iter.mapRaw, key))
+            // `keyValues` is the view's projected order, while `storageIndex`
+            // may refer to the backing map's storage position. The iterator
+            // snapshot preserves the corresponding view index.
+            key: iter.keyValues[iter.index - 1],
+            value: value
         )
     }
-    return runtimeMutableMapEntryNew(
-        mapRaw: iter.mapRaw,
-        // `keyValues` is the view's projected order, while `storageIndex`
-        // may refer to the backing map's storage position. The iterator
-        // snapshot preserves the corresponding view index.
-        key: iter.keyValues[iter.index - 1],
-        value: value
-    )
 }
 
 @_cdecl("__kk_mutable_map_iterator_remove")
@@ -1115,23 +1130,26 @@ public func kk_mutable_map_iterator_remove(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
-          let key = iter.lastKey
-    else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
-        return runtimeExceptionCaughtSentinel
+    // Reads `outThrown` mid-function after the nested remove call, so the
+    // error writes stay manual inside the bridge closure.
+    runtimeThrowingBridge(outThrown) {
+        guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
+              let key = iter.lastKey
+        else {
+            runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
+            return runtimeExceptionCaughtSentinel
+        }
+        _ = kk_mutable_map_remove(iter.mapRaw, key, outThrown)
+        if outThrown?.pointee != 0 {
+            return runtimeExceptionCaughtSentinel
+        }
+        iter.lastKey = nil
+        // The removal above just bumped the backing map's modCount through this
+        // same iterator — resync so the next `next()` call does not see this
+        // iterator's own change as a concurrent modification.
+        iter.expectedModCount = runtimeMapBox(from: iter.mapRaw)?.modCount ?? iter.expectedModCount
+        return 0
     }
-    _ = kk_mutable_map_remove(iter.mapRaw, key, outThrown)
-    if outThrown?.pointee != 0 {
-        return runtimeExceptionCaughtSentinel
-    }
-    iter.lastKey = nil
-    // The removal above just bumped the backing map's modCount through this
-    // same iterator — resync so the next `next()` call does not see this
-    // iterator's own change as a concurrent modification.
-    iter.expectedModCount = runtimeMapBox(from: iter.mapRaw)?.modCount ?? iter.expectedModCount
-    return 0
 }
 
 @_cdecl("__kk_mutable_map_entry_setValue")
@@ -1140,20 +1158,21 @@ public func kk_mutable_map_entry_setValue(
     _ value: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: entryRaw),
-          let pairBox = tryCast(pointer, to: RuntimePairBox.self),
-          pairBox.mutableMapRaw != 0
-    else {
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown) {
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: entryRaw),
+              let pairBox = tryCast(pointer, to: RuntimePairBox.self),
+              pairBox.mutableMapRaw != 0
+        else {
+            return runtimeNullSentinelInt
+        }
+        var thrown = 0
+        let previous = runtimeMutableMapPut(mapRaw: pairBox.mutableMapRaw, key: pairBox.mutableMapKey,
+                                            value: value, countAsAccess: false, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        pairBox.setSecondValue(runtimeValueFromCollectionABI(value), returning: previous)
+        return previous
     }
-    var thrown = 0
-    let previous = runtimeMutableMapPut(mapRaw: pairBox.mutableMapRaw, key: pairBox.mutableMapKey,
-                                        value: value, countAsAccess: false, outThrown: &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return runtimeNullSentinelInt
-    }
-    pairBox.setSecondValue(runtimeValueFromCollectionABI(value), returning: previous)
-    return previous
 }
