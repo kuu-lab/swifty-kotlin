@@ -2570,6 +2570,20 @@ final class JVMClasspathIndex {
                     continue
                 }
             }
+            if !staticMember, !signature.isSuspend, hasComposableLambdaFactory {
+                let names = signature.valueParameterSymbols.map { sema.symbols.symbol($0).map { ctx.interner.resolve($0.name) } }
+                let members = info.methods.filter {
+                    $0.sourceName == name && $0.matchesComposeCallbackMember(
+                        parameters: descriptorTypes, names: names
+                    )
+                }
+                if members.count == 1, let method = members.first, let function = method.kotlinFunction {
+                    methods[symbol.id] = method
+                    importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: info)
+                    importedComposableParameters[symbol.id] = function.composableParameters
+                    continue
+                }
+            }
             let method = info.methods.first(where: {
                 $0.kotlinFunction?.mangledMemberParameterDescriptors == nil
                     && $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend

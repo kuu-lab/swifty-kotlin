@@ -27,6 +27,26 @@ extension JVMForeignMethod {
     var kotlinComposeABI: (changes: Int, defaults: Int)? {
         kotlinFunction.flatMap { composeABI(for: $0) }
     }
+
+    /// An ordinary member can accept a composable lambda. Compose adds its
+    /// Composer and change mask to the callback, leaving the member's arity intact.
+    func matchesComposeCallbackMember(parameters logical: [JVMValueType], names: [String?]) -> Bool {
+        guard !isStatic, kotlinComposeABI == nil, let function = kotlinFunction,
+              !function.isSuspend, function.parameters.map(\.name) == names,
+              parameters.count == logical.count else { return false }
+        let callbacks = function.composableParameters
+        guard !callbacks.isEmpty else { return false }
+        let functionPrefix = "kotlin/jvm/functions/Function"
+        return zip(parameters, logical).enumerated().allSatisfy { index, pair in
+            let (physical, source) = pair
+            guard callbacks.contains(index - function.leadingParameterCount) else {
+                return physical.descriptor == source.descriptor
+            }
+            guard let carrier = source.referenceName, carrier.hasPrefix(functionPrefix),
+                  let arity = Int(carrier.dropFirst(functionPrefix.count)) else { return false }
+            return physical.referenceName == functionPrefix + String(arity + 2)
+        }
+    }
 }
 
 extension JVMFunctionBuilder {
