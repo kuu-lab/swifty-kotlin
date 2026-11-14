@@ -37,8 +37,11 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
             val fieldName = if (signature.has(1)) metadata.string(signature.number(1)) else name
             for (field in __jvmDeclaredFields(ownerClass)) {
                 if (__jvmFieldName(field) == fieldName) {
+                    val isStatic = (__jvmFieldModifiers(field) and 8) != 0
+                    val arity = if (isStatic || bound) 0 else 1
+                    if (args.size != arity) throw IllegalArgumentException("Callable expects $arity arguments, but ${args.size} were provided.")
                     __jvmSetAccessible(field, true)
-                    val receiver = if ((__jvmFieldModifiers(field) and 8) == 0) boundReceiver else null
+                    val receiver = if (isStatic) null else if (bound) boundReceiver else args[0]
                     return boxResult(__jvmFieldGet(field, receiver), metadata, resultType())
                 }
             }
