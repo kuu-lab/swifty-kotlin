@@ -225,6 +225,9 @@ public extension RuntimeABISpec {
         ], isThrowing: false),
         abiParitySpec("__kk_channel_cancel", parameters: [
             p("handle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("__kk_channel_cancel_with_cause", parameters: [
+            p("handle", .intptr),
             p("cause", .intptr),
         ], isThrowing: false),
         abiParitySpec("__kk_channel_result_cause", parameters: [

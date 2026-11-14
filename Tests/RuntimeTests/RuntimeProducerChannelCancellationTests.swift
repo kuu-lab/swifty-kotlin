@@ -49,7 +49,7 @@ struct RuntimeProducerChannelCancellationTests {
             ? runtimeAllocateCancellationException(message: "stop producer")
             : runtimeNullSentinelInt
 
-        #expect(__kk_channel_cancel(Int(bitPattern: pointer), cause) == 1)
+        #expect(__kk_channel_cancel_with_cause(Int(bitPattern: pointer), cause) == 1)
         #expect(job.cancellationSnapshot())
         #expect(scope.isCancelled)
         if explicitCause { #expect(job.cancellationCauseSnapshot() == cause) }
@@ -74,7 +74,7 @@ struct RuntimeProducerChannelCancellationTests {
             ? runtimeAllocateCancellationException(message: "stop producer")
             : runtimeNullSentinelInt
 
-        #expect(__kk_channel_cancel(Int(bitPattern: pointer), cause) == 0)
+        #expect(__kk_channel_cancel_with_cause(Int(bitPattern: pointer), cause) == 0)
         #expect(job.cancellationSnapshot())
         #expect(scope.isCancelled)
         if explicitCause { #expect(job.cancellationCauseSnapshot() == cause) }
