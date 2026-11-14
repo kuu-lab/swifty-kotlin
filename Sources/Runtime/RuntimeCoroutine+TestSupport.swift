@@ -416,134 +416,134 @@ public func kk_test_run_blocking(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard entryPointRaw != 0 else {
-        outThrown?.pointee = 0
-        return 0
-    }
-    let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
-    guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
-    }
-    _ = scope.schedulerForTest()
-    // KUU-2688: the TestScope's own Job is the element `coroutineContext.job`
-    // resolves to inside the body and the handle the watchdog cancels. A Job
-    // element the context carried was adopted as `scope.job` — upstream it
-    // becomes the scope job's parent, so re-seat it that way rather than
-    // letting a timeout cancel a caller-supplied Job directly.
-    let contextJob = scope.job
-    let scopeJob = scope.installJob(defaultCancellationMessage: "TestScope was cancelled")
-    contextJob?.registerChild(runtimeRegisterObject(scopeJob))
-
-    let (timeoutMillis, timeoutText) = runtimeRunTestTimeoutBudget(timeoutRaw)
-    let watchdog = RuntimeTestRunTimeout()
-    if let timeoutMillis {
-        watchdog.arm(millis: timeoutMillis, scope: scope)
-    }
-    defer { watchdog.disarm() }
-
-    // Children launched inside the test body discover the test scope as
-    // their parent (upstream runTest semantics), so install it as ambient
-    // for the duration of the blocking run. An event loop is installed the
-    // same way: children queue on it (the thunk's nested blocking run
-    // reuses the current loop), and `waitForChildren`'s joins keep
-    // draining it until they complete.
-    let previousScope = RuntimeCoroutineScope.current
-    RuntimeCoroutineScope.current = scope
-    defer { RuntimeCoroutineScope.current = previousScope }
-    let previousLoop = RuntimeEventLoop.current
-    let loop = previousLoop ?? RuntimeEventLoop()
-    RuntimeEventLoop.current = loop
-    scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
-    scope.testSchedulerIfPresent()?.setAutoPump(true)
-    defer {
-        scope.testSchedulerIfPresent()?.setAutoPump(false)
-        RuntimeEventLoop.current = previousLoop
-    }
-
-    var thrown = 0
-    let result: Int
-    if let box = runtimeFunctionValueBox(from: entryPointRaw), box.suspendEntryPoint != 0 {
-        // A boxed suspend function value (`kk_suspend_function_create`)
-        // carries its own suspend entry point and env: invoke it through the
-        // suspend-value ABI so the env reaches the adapter's leading closure
-        // parameter and the minted TestScope lands as the trailing receiver.
-        // The positional launcher-thunk convention below only fits raw
-        // (fnPtr, closure) pairs.
-        result = runtimeInvokeSuspendFunction(
-            entryPointRaw,
-            arguments: [scopeHandle],
-            continuation: 0,
-            outThrown: &thrown
-        )
-    } else {
-        // Expand the env slot into the thunk's positional captures, the same
-        // packed-shape expansion `__kk_produce_launch` performs: 0 → none, a
-        // packed env object (kk_object_new(2+N, classID: 0), captures at
-        // slots 2..) → N captures, anything else → a single raw capture.
-        let captures: [Int]
-        if closureRaw == 0 {
-            captures = []
-        } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
-                  envBox.classID == 0,
-                  envBox.elements.count > 2
-        {
-            captures = Array(envBox.elements.dropFirst(2))
-        } else {
-            captures = [closureRaw]
+    return runtimeThrowingBridge(outThrown) {
+        guard entryPointRaw != 0 else {
+            return 0
         }
-        result = runtimeInvokeSuspendLauncherThunk(
-            entryPointRaw: entryPointRaw,
-            receiver: scopeHandle,
-            captures: captures,
-            outThrown: &thrown
-        )
+        let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+        guard let scope = runtimeCoroutineScope(from: scopeHandle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_run_blocking failed to create test scope")
+        }
+        _ = scope.schedulerForTest()
+        // KUU-2688: the TestScope's own Job is the element `coroutineContext.job`
+        // resolves to inside the body and the handle the watchdog cancels. A Job
+        // element the context carried was adopted as `scope.job` — upstream it
+        // becomes the scope job's parent, so re-seat it that way rather than
+        // letting a timeout cancel a caller-supplied Job directly.
+        let contextJob = scope.job
+        let scopeJob = scope.installJob(defaultCancellationMessage: "TestScope was cancelled")
+        contextJob?.registerChild(runtimeRegisterObject(scopeJob))
+
+        let (timeoutMillis, timeoutText) = runtimeRunTestTimeoutBudget(timeoutRaw)
+        let watchdog = RuntimeTestRunTimeout()
+        if let timeoutMillis {
+            watchdog.arm(millis: timeoutMillis, scope: scope)
+        }
+        defer { watchdog.disarm() }
+
+        // Children launched inside the test body discover the test scope as
+        // their parent (upstream runTest semantics), so install it as ambient
+        // for the duration of the blocking run. An event loop is installed the
+        // same way: children queue on it (the thunk's nested blocking run
+        // reuses the current loop), and `waitForChildren`'s joins keep
+        // draining it until they complete.
+        let previousScope = RuntimeCoroutineScope.current
+        RuntimeCoroutineScope.current = scope
+        defer { RuntimeCoroutineScope.current = previousScope }
+        let previousLoop = RuntimeEventLoop.current
+        let loop = previousLoop ?? RuntimeEventLoop()
+        RuntimeEventLoop.current = loop
+        scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
+        scope.testSchedulerIfPresent()?.setAutoPump(true)
+        defer {
+            scope.testSchedulerIfPresent()?.setAutoPump(false)
+            RuntimeEventLoop.current = previousLoop
+        }
+
+        var thrown = 0
+        let result: Int
+        if let box = runtimeFunctionValueBox(from: entryPointRaw), box.suspendEntryPoint != 0 {
+            // A boxed suspend function value (`kk_suspend_function_create`)
+            // carries its own suspend entry point and env: invoke it through the
+            // suspend-value ABI so the env reaches the adapter's leading closure
+            // parameter and the minted TestScope lands as the trailing receiver.
+            // The positional launcher-thunk convention below only fits raw
+            // (fnPtr, closure) pairs.
+            result = runtimeInvokeSuspendFunction(
+                entryPointRaw,
+                arguments: [scopeHandle],
+                continuation: 0,
+                outThrown: &thrown
+            )
+        } else {
+            // Expand the env slot into the thunk's positional captures, the same
+            // packed-shape expansion `__kk_produce_launch` performs: 0 → none, a
+            // packed env object (kk_object_new(2+N, classID: 0), captures at
+            // slots 2..) → N captures, anything else → a single raw capture.
+            let captures: [Int]
+            if closureRaw == 0 {
+                captures = []
+            } else if let envBox = resolveRuntimeHandle(closureRaw, as: RuntimeObjectBox.self),
+                      envBox.classID == 0,
+                      envBox.elements.count > 2
+            {
+                captures = Array(envBox.elements.dropFirst(2))
+            } else {
+                captures = [closureRaw]
+            }
+            result = runtimeInvokeSuspendLauncherThunk(
+                entryPointRaw: entryPointRaw,
+                receiver: scopeHandle,
+                captures: captures,
+                outThrown: &thrown
+            )
+        }
+        watchdog.markBodyFinished()
+        var suppressed: [Int] = []
+        // Upstream suppresses the body's completion exception only when it is
+        // not the CancellationException the timeout itself installed; a body
+        // unwinding with exactly that exception adds nothing.
+        if thrown != 0, thrown != scope.cancellationCause {
+            suppressed.append(thrown)
+        }
+        if thrown != 0 {
+            // runTest semantics: a body failure cancels the scope's children.
+            scope.cancel()
+        }
+        // Children launched inside the body parent to the test scope — join
+        // them the way a blocking runBlocking scope would. First advance the
+        // test scheduler so delayed children can complete without wall-clock
+        // waits, then surface the first child failure to the runTest caller.
+        if thrown == 0 {
+            scope.testSchedulerIfPresent()?.advanceUntilIdle()
+        }
+        let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+        if childThrown != 0 {
+            suppressed.append(childThrown)
+        }
+        if watchdog.fired {
+            // Timeout precedence: the UncompletedCoroutinesError replaces the
+            // body's own outcome; whatever the body/children completed with
+            // becomes a suppressed exception on it.
+            outThrown?.pointee = runtimeRunTestTimeoutError(
+                watchdog: watchdog, timeoutText: timeoutText, suppressed: suppressed
+            )
+            _ = scopeJob.complete(with: 0)
+            return 0
+        }
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            _ = scopeJob.completeExceptionally(with: thrown)
+            return 0
+        }
+        if childThrown != 0 {
+            outThrown?.pointee = childThrown
+            _ = scopeJob.completeExceptionally(with: childThrown)
+            return 0
+        }
+        _ = scopeJob.complete(with: result)
+        return result
     }
-    watchdog.markBodyFinished()
-    var suppressed: [Int] = []
-    // Upstream suppresses the body's completion exception only when it is
-    // not the CancellationException the timeout itself installed; a body
-    // unwinding with exactly that exception adds nothing.
-    if thrown != 0, thrown != scope.cancellationCause {
-        suppressed.append(thrown)
-    }
-    if thrown != 0 {
-        // runTest semantics: a body failure cancels the scope's children.
-        scope.cancel()
-    }
-    // Children launched inside the body parent to the test scope — join
-    // them the way a blocking runBlocking scope would. First advance the
-    // test scheduler so delayed children can complete without wall-clock
-    // waits, then surface the first child failure to the runTest caller.
-    if thrown == 0 {
-        scope.testSchedulerIfPresent()?.advanceUntilIdle()
-    }
-    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
-    if childThrown != 0 {
-        suppressed.append(childThrown)
-    }
-    if watchdog.fired {
-        // Timeout precedence: the UncompletedCoroutinesError replaces the
-        // body's own outcome; whatever the body/children completed with
-        // becomes a suppressed exception on it.
-        outThrown?.pointee = runtimeRunTestTimeoutError(
-            watchdog: watchdog, timeoutText: timeoutText, suppressed: suppressed
-        )
-        _ = scopeJob.complete(with: 0)
-        return 0
-    }
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        _ = scopeJob.completeExceptionally(with: thrown)
-        return 0
-    }
-    if childThrown != 0 {
-        outThrown?.pointee = childThrown
-        _ = scopeJob.completeExceptionally(with: childThrown)
-        return 0
-    }
-    outThrown?.pointee = 0
-    _ = scopeJob.complete(with: result)
-    return result
 }
 
 /// Literal-lambda counterpart to `kk_test_run_blocking`: the call-site
@@ -563,90 +563,91 @@ public func kk_test_run_blocking_with_cont(
     _ scopeSlotRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
-    guard let scope = runtimeCoroutineScope(from: scopeHandle),
-          let contState = runtimeContinuationState(from: continuation),
-          scopeSlotRaw >= 0
-    else {
-        outThrown?.pointee = 0
-        return 0
-    }
-    _ = scope.schedulerForTest()
-    contState.setLauncherArg(Int64(scopeSlotRaw), value: Int64(scopeHandle))
-    contState.scope = scope
-    // Binding the body to the test scope's Job is what lets the watchdog's
-    // cancel wake a suspended body: the suspend-entry loop registers its
-    // cancellation handler on `jobHandle`, so `scope.cancel()` signalling
-    // the job resumes the body with a CancellationException. A context Job
-    // element becomes the scope job's parent, matching upstream TestScope.
-    let contextJob = scope.job
-    let scopeJob = scope.installJob(defaultCancellationMessage: "TestScope was cancelled")
-    contextJob?.registerChild(runtimeRegisterObject(scopeJob))
-    contState.jobHandle = scopeJob
+    return runtimeThrowingBridge(outThrown) {
+        let scopeHandle = kk_coroutine_scope_new_with_context(contextRaw)
+        guard let scope = runtimeCoroutineScope(from: scopeHandle),
+              let contState = runtimeContinuationState(from: continuation),
+              scopeSlotRaw >= 0
+        else {
+            return 0
+        }
+        _ = scope.schedulerForTest()
+        contState.setLauncherArg(Int64(scopeSlotRaw), value: Int64(scopeHandle))
+        contState.scope = scope
+        // Binding the body to the test scope's Job is what lets the watchdog's
+        // cancel wake a suspended body: the suspend-entry loop registers its
+        // cancellation handler on `jobHandle`, so `scope.cancel()` signalling
+        // the job resumes the body with a CancellationException. A context Job
+        // element becomes the scope job's parent, matching upstream TestScope.
+        let contextJob = scope.job
+        let scopeJob = scope.installJob(defaultCancellationMessage: "TestScope was cancelled")
+        contextJob?.registerChild(runtimeRegisterObject(scopeJob))
+        contState.jobHandle = scopeJob
 
-    let (timeoutMillis, timeoutText) = runtimeRunTestTimeoutBudget(timeoutRaw)
-    let watchdog = RuntimeTestRunTimeout()
-    if let timeoutMillis {
-        watchdog.arm(millis: timeoutMillis, scope: scope)
-    }
-    defer { watchdog.disarm() }
+        let (timeoutMillis, timeoutText) = runtimeRunTestTimeoutBudget(timeoutRaw)
+        let watchdog = RuntimeTestRunTimeout()
+        if let timeoutMillis {
+            watchdog.arm(millis: timeoutMillis, scope: scope)
+        }
+        defer { watchdog.disarm() }
 
-    let previousScope = RuntimeCoroutineScope.current
-    RuntimeCoroutineScope.current = scope
-    defer { RuntimeCoroutineScope.current = previousScope }
-    // Install the event loop the nested blocking run will reuse; it stays
-    // current after that run returns so `waitForChildren`'s joins can keep
-    // draining children that are still queued on it.
-    let previousLoop = RuntimeEventLoop.current
-    let loop = previousLoop ?? RuntimeEventLoop()
-    RuntimeEventLoop.current = loop
-    scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
-    scope.testSchedulerIfPresent()?.setAutoPump(true)
-    defer {
-        scope.testSchedulerIfPresent()?.setAutoPump(false)
-        RuntimeEventLoop.current = previousLoop
-    }
+        let previousScope = RuntimeCoroutineScope.current
+        RuntimeCoroutineScope.current = scope
+        defer { RuntimeCoroutineScope.current = previousScope }
+        // Install the event loop the nested blocking run will reuse; it stays
+        // current after that run returns so `waitForChildren`'s joins can keep
+        // draining children that are still queued on it.
+        let previousLoop = RuntimeEventLoop.current
+        let loop = previousLoop ?? RuntimeEventLoop()
+        RuntimeEventLoop.current = loop
+        scope.testSchedulerIfPresent()?.bind(eventLoop: loop)
+        scope.testSchedulerIfPresent()?.setAutoPump(true)
+        defer {
+            scope.testSchedulerIfPresent()?.setAutoPump(false)
+            RuntimeEventLoop.current = previousLoop
+        }
 
-    let result = runtimeRunBlockingOnEventLoop(
-        entryPointRaw: entryPointRaw,
-        continuation: continuation,
-        outThrown: outThrown
-    )
-    watchdog.markBodyFinished()
-    // `contState.scope` being preset means the event-loop run treats the
-    // scope as borrowed and skips its own waitForChildren — so join the
-    // test scope's children here instead. runTest semantics: a body
-    // failure cancels the children; a child failure surfaces to the caller.
-    let bodyThrown = outThrown?.pointee ?? 0
-    var suppressed: [Int] = []
-    if bodyThrown != 0, bodyThrown != scope.cancellationCause {
-        suppressed.append(bodyThrown)
-    }
-    if bodyThrown != 0 {
-        scope.cancel()
-    } else {
-        scope.testSchedulerIfPresent()?.advanceUntilIdle()
-    }
-    let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
-    if childThrown != 0 {
-        suppressed.append(childThrown)
-    }
-    if watchdog.fired {
-        outThrown?.pointee = runtimeRunTestTimeoutError(
-            watchdog: watchdog, timeoutText: timeoutText, suppressed: suppressed
+        let result = runtimeRunBlockingOnEventLoop(
+            entryPointRaw: entryPointRaw,
+            continuation: continuation,
+            outThrown: outThrown
         )
-        _ = scopeJob.complete(with: 0)
-        return 0
+        watchdog.markBodyFinished()
+        // `contState.scope` being preset means the event-loop run treats the
+        // scope as borrowed and skips its own waitForChildren — so join the
+        // test scope's children here instead. runTest semantics: a body
+        // failure cancels the children; a child failure surfaces to the caller.
+        let bodyThrown = outThrown?.pointee ?? 0
+        var suppressed: [Int] = []
+        if bodyThrown != 0, bodyThrown != scope.cancellationCause {
+            suppressed.append(bodyThrown)
+        }
+        if bodyThrown != 0 {
+            scope.cancel()
+        } else {
+            scope.testSchedulerIfPresent()?.advanceUntilIdle()
+        }
+        let childThrown = scope.waitForChildren(releaseOriginalHandles: false)
+        if childThrown != 0 {
+            suppressed.append(childThrown)
+        }
+        if watchdog.fired {
+            outThrown?.pointee = runtimeRunTestTimeoutError(
+                watchdog: watchdog, timeoutText: timeoutText, suppressed: suppressed
+            )
+            _ = scopeJob.complete(with: 0)
+            return 0
+        }
+        if bodyThrown == 0, childThrown != 0 {
+            outThrown?.pointee = childThrown
+            _ = scopeJob.completeExceptionally(with: childThrown)
+            return 0
+        }
+        if bodyThrown != 0 {
+            _ = scopeJob.completeExceptionally(with: bodyThrown)
+        } else {
+            _ = scopeJob.complete(with: result)
+        }
+        return result
     }
-    if bodyThrown == 0, childThrown != 0 {
-        outThrown?.pointee = childThrown
-        _ = scopeJob.completeExceptionally(with: childThrown)
-        return 0
-    }
-    if bodyThrown != 0 {
-        _ = scopeJob.completeExceptionally(with: bodyThrown)
-    } else {
-        _ = scopeJob.complete(with: result)
-    }
-    return result
 }
