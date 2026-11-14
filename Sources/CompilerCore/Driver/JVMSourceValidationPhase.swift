@@ -540,7 +540,10 @@ private struct JVMSourceGrammar {
                     } while take(.symbol(.comma))
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
-                try require(.symbol(.arrow)); try body(allowNewlines: allowNewlines); try separator(); semicolons()
+                // A when-branch body ends at the newline: the next line begins
+                // another branch's conditions, so newline mode is not inherited
+                // here even inside parentheses.
+                try require(.symbol(.arrow)); try body(); try separator(); semicolons()
             }
         } else if take(.keyword(.if)) {
             try condition(); try body(allowNewlines: allowNewlines)
