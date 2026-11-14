@@ -755,8 +755,9 @@ final class JVMClasspathIndex {
             var parameter = (element.isVararg ? "vararg val " : "val ") + name + ": " + type
             // Vararg defaults remain array literals in bytecode metadata; the
             // frontend consumes them directly, while source varargs may omit them.
-            if !element.isVararg, let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
-                parameter += " = \(rendered)"
+            // Omitting an annotation vararg already supplies an empty array.
+            if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type),
+               !element.isVararg || rendered != "[]" {                parameter += " = \(rendered)"
             }
             return parameter
         }.joined(separator: ", ")
