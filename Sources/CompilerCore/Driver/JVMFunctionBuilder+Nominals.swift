@@ -141,7 +141,10 @@ extension JVMFunctionBuilder {
            let symbol = program.sema.symbols.symbol(target), symbol.flags.contains(.synthetic),
            context.interner.resolve(symbol.name) == "values" {
             let parent = program.sema.symbols.parentSymbol(for: target)
-            let owner = parent.flatMap { program.classes[$0] } ?? self.owner
+            // A resolved parent that is not in program.classes is an imported
+            // enum — falling back to self.owner would emit the current class's
+            // values(). Only fall back when there is no resolved parent at all.
+            let owner = parent.flatMap { program.classes[$0] } ?? (parent == nil ? self.owner : nil)
             if let owner, let plan = owner.companionOwner.flatMap({ program.classes[$0] }) ?? (owner.isEnum ? owner : nil),
                plan.isEnum {
                 return JVMIntrinsicResult(value: try jdkCall(plan.name, "values", [], program.enumValuesField(plan).type))
