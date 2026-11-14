@@ -153,10 +153,8 @@ private func runtimeDeprecatedTempSuffix(_ raw: Int, default defaultValue: Strin
 private func runtimeCreateDeprecatedTempFile(
     prefixRaw: Int,
     suffixRaw: Int,
-    directoryRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+    directoryRaw: Int
+) throws -> Int {
     let prefix = runtimeDeprecatedTempPrefix(prefixRaw)
     let suffix = runtimeDeprecatedTempSuffix(suffixRaw, default: ".tmp")
     let rootDirectory = runtimeDeprecatedTempRootDirectory(directoryRaw: directoryRaw)
@@ -164,10 +162,10 @@ private func runtimeCreateDeprecatedTempFile(
     let fullPath = (rootDirectory as NSString).appendingPathComponent(fileName)
     let created = FileManager.default.createFile(atPath: fullPath, contents: nil)
     if !created {
-        outThrown?.pointee = runtimeAllocateFileSystemException(
+        throw RuntimeThrownHandle(runtimeAllocateFileSystemException(
             file: fullPath,
             reason: "Failed to create the temporary file."
-        )
+        ))
     }
     return registerRuntimeObject(RuntimeFileBox(fullPath))
 }
@@ -175,10 +173,8 @@ private func runtimeCreateDeprecatedTempFile(
 private func runtimeCreateDeprecatedTempDirectory(
     prefixRaw: Int,
     suffixRaw: Int,
-    directoryRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
+    directoryRaw: Int
+) throws -> Int {
     let prefix = runtimeDeprecatedTempPrefix(prefixRaw)
     let suffix = runtimeDeprecatedTempSuffix(suffixRaw, default: ".tmp")
     let rootDirectory = runtimeDeprecatedTempRootDirectory(directoryRaw: directoryRaw)
@@ -187,92 +183,100 @@ private func runtimeCreateDeprecatedTempDirectory(
     do {
         _ = try FileManager.default.createDirectory(atPath: fullPath, withIntermediateDirectories: true)
     } catch {
-        outThrown?.pointee = runtimeAllocateFileSystemException(
+        throw RuntimeThrownHandle(runtimeAllocateFileSystemException(
             file: fullPath,
             reason: error.localizedDescription
-        )
+        ))
     }
     return registerRuntimeObject(RuntimeFileBox(fullPath))
 }
 
 @_cdecl("__kk_io_createTempDir_default")
 public func __kk_io_createTempDir_default(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempDirectory(
-        prefixRaw: runtimeNullSentinelInt,
-        suffixRaw: runtimeNullSentinelInt,
-        directoryRaw: runtimeNullSentinelInt,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempDirectory(
+            prefixRaw: runtimeNullSentinelInt,
+            suffixRaw: runtimeNullSentinelInt,
+            directoryRaw: runtimeNullSentinelInt
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempDir_prefix")
 public func __kk_io_createTempDir_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempDirectory(
-        prefixRaw: prefixRaw,
-        suffixRaw: runtimeNullSentinelInt,
-        directoryRaw: runtimeNullSentinelInt,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempDirectory(
+            prefixRaw: prefixRaw,
+            suffixRaw: runtimeNullSentinelInt,
+            directoryRaw: runtimeNullSentinelInt
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempDir_prefix_suffix")
 public func __kk_io_createTempDir_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempDirectory(
-        prefixRaw: prefixRaw,
-        suffixRaw: suffixRaw,
-        directoryRaw: runtimeNullSentinelInt,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempDirectory(
+            prefixRaw: prefixRaw,
+            suffixRaw: suffixRaw,
+            directoryRaw: runtimeNullSentinelInt
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempDir")
 public func __kk_io_createTempDir(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempDirectory(
-        prefixRaw: prefixRaw,
-        suffixRaw: suffixRaw,
-        directoryRaw: directoryRaw,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempDirectory(
+            prefixRaw: prefixRaw,
+            suffixRaw: suffixRaw,
+            directoryRaw: directoryRaw
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempFile_default")
 public func __kk_io_createTempFile_default(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempFile(
-        prefixRaw: runtimeNullSentinelInt,
-        suffixRaw: runtimeNullSentinelInt,
-        directoryRaw: runtimeNullSentinelInt,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempFile(
+            prefixRaw: runtimeNullSentinelInt,
+            suffixRaw: runtimeNullSentinelInt,
+            directoryRaw: runtimeNullSentinelInt
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempFile_prefix")
 public func __kk_io_createTempFile_prefix(_ prefixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempFile(
-        prefixRaw: prefixRaw,
-        suffixRaw: runtimeNullSentinelInt,
-        directoryRaw: runtimeNullSentinelInt,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempFile(
+            prefixRaw: prefixRaw,
+            suffixRaw: runtimeNullSentinelInt,
+            directoryRaw: runtimeNullSentinelInt
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempFile_prefix_suffix")
 public func __kk_io_createTempFile_prefix_suffix(_ prefixRaw: Int, _ suffixRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempFile(
-        prefixRaw: prefixRaw,
-        suffixRaw: suffixRaw,
-        directoryRaw: runtimeNullSentinelInt,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempFile(
+            prefixRaw: prefixRaw,
+            suffixRaw: suffixRaw,
+            directoryRaw: runtimeNullSentinelInt
+        )
+    }
 }
 
 @_cdecl("__kk_io_createTempFile")
 public func __kk_io_createTempFile(_ prefixRaw: Int, _ suffixRaw: Int, _ directoryRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    runtimeCreateDeprecatedTempFile(
-        prefixRaw: prefixRaw,
-        suffixRaw: suffixRaw,
-        directoryRaw: directoryRaw,
-        outThrown: outThrown
-    )
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        try runtimeCreateDeprecatedTempFile(
+            prefixRaw: prefixRaw,
+            suffixRaw: suffixRaw,
+            directoryRaw: directoryRaw
+        )
+    }
 }
 
 
@@ -308,19 +312,19 @@ public func __kk_file_readText(
     _ charsetTag: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let file = runtimeFileBox(from: fileRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readText received invalid File handle")
-    }
-    do {
-        let content = try String(contentsOfFile: file.path, encoding: outputStreamEncoding(for: charsetTag))
-        return runtimeMakeUTF8StringRaw(content)
-    } catch {
-        outThrown?.pointee = runtimeAllocateFileSystemException(
-            file: file.path,
-            reason: error.localizedDescription
-        )
-        return runtimeMakeUTF8StringRaw("")
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeMakeUTF8StringRaw("")) {
+        guard let file = runtimeFileBox(from: fileRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_file_readText received invalid File handle")
+        }
+        do {
+            let content = try String(contentsOfFile: file.path, encoding: outputStreamEncoding(for: charsetTag))
+            return runtimeMakeUTF8StringRaw(content)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateFileSystemException(
+                file: file.path,
+                reason: error.localizedDescription
+            ))
+        }
     }
 }
 
@@ -377,27 +381,28 @@ public func __kk_resource_exists(_ nameRaw: Int) -> Int {
 
 @_cdecl("__kk_readResourceAsText")
 public func __kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
-          let name = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
-    }
-    guard let opened = openResourceFileDescriptor(named: name) else {
-        outThrown?.pointee = runtimeAllocateIOException(message: "Resource not found: \(name)")
-        return runtimeMakeUTF8StringRaw("")
-    }
-    defer { close(opened.descriptor) }
-    do {
-        guard let data = readResourceData(from: opened.descriptor),
-              let text = String(data: data, encoding: .utf8)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeMakeUTF8StringRaw("")) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: nameRaw),
+              let name = extractString(from: ptr).map(KotlinStringSurrogateEncoding.unicodeString)
         else {
-            throw CocoaError(.fileReadInapplicableStringEncoding)
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_readResourceAsText received invalid name")
         }
-        return runtimeMakeUTF8StringRaw(text)
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-        return runtimeMakeUTF8StringRaw("")
+        guard let opened = openResourceFileDescriptor(named: name) else {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: "Resource not found: \(name)"))
+        }
+        defer { close(opened.descriptor) }
+        do {
+            guard let data = readResourceData(from: opened.descriptor),
+                  let text = String(data: data, encoding: .utf8)
+            else {
+                throw CocoaError(.fileReadInapplicableStringEncoding)
+            }
+            return runtimeMakeUTF8StringRaw(text)
+        } catch let failure as RuntimeThrownHandle {
+            throw failure
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
     }
 }
 
@@ -601,28 +606,28 @@ public func __kk_buffered_reader_iterator(_ readerRaw: Int) -> Int {
 // materialises.
 @_cdecl("__kk_buffered_reader_useLines")
 public func __kk_buffered_reader_useLines(_ readerRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_useLines received invalid BufferedReader handle")
+    runtimeThrowingBridge(outThrown) {
+        guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_useLines received invalid BufferedReader handle")
+        }
+        let linesSequence = RuntimeSequenceBox(
+            steps: [
+                .pullSource {
+                    reader.readLine().map(runtimeMakeUTF8StringRaw)
+                },
+            ],
+            constrainOnceState: RuntimeSequenceConstrainOnceState()
+        )
+        let linesSequenceRaw = registerRuntimeObject(linesSequence)
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: linesSequenceRaw, outThrown: &thrown)
+        // Always close the reader to honour the `use { }` contract even on lambda throw.
+        reader.close()
+        if thrown != 0 {
+            throw RuntimeThrownHandle(thrown)
+        }
+        return result
     }
-    let linesSequence = RuntimeSequenceBox(
-        steps: [
-            .pullSource {
-                reader.readLine().map(runtimeMakeUTF8StringRaw)
-            },
-        ],
-        constrainOnceState: RuntimeSequenceConstrainOnceState()
-    )
-    let linesSequenceRaw = registerRuntimeObject(linesSequence)
-    var thrown = 0
-    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: linesSequenceRaw, outThrown: &thrown)
-    // Always close the reader to honour the `use { }` contract even on lambda throw.
-    reader.close()
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
-    }
-    return result
 }
 
 // Iteration stops early when the action throws (the thrown value is propagated
@@ -636,24 +641,24 @@ public func __kk_buffered_reader_forEachLine(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
-        fatalError(
-            "KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_forEachLine received invalid BufferedReader handle"
-        )
-    }
-    // Stream one line at a time: `forEachLine` exists to bound memory while
-    // walking large files, so the reader is never drained into a [String].
-    while let line = reader.readLine() {
-        let lineRaw = runtimeMakeUTF8StringRaw(line)
-        var thrown = 0
-        _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: lineRaw, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+            fatalError(
+                "KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_reader_forEachLine received invalid BufferedReader handle"
+            )
         }
+        // Stream one line at a time: `forEachLine` exists to bound memory while
+        // walking large files, so the reader is never drained into a [String].
+        while let line = reader.readLine() {
+            let lineRaw = runtimeMakeUTF8StringRaw(line)
+            var thrown = 0
+            _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: lineRaw, outThrown: &thrown)
+            if thrown != 0 {
+                throw RuntimeThrownHandle(thrown)
+            }
+        }
+        return 0
     }
-    return 0
 }
 
 // In KSwiftK every concrete `Reader` instance is currently a `BufferedReader`
@@ -686,50 +691,49 @@ public func __kk_reader_read_range(
     _ lengthRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let source = runtimeReaderCharSource(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_read_range received invalid Reader handle")
-    }
-    guard let array = runtimeArrayBox(from: bufferRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected CharArray buffer")
-        return -1
-    }
-    let offset = offsetRaw
-    let length = lengthRaw
-    guard offset >= 0, length >= 0, offset <= array.count - length else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "offset=\(offset) length=\(length) size=\(array.count)"
-        )
-        return -1
-    }
-    if length == 0 { return 0 }
-    // Kotlin-source readers (StringReader, user `Reader` subclasses) dispatch
-    // their own 3-arg implementation straight into the caller's buffer —
-    // staging through this transient charSource would buffer up to 4096
-    // units per refill and silently drop everything past `length` on the
-    // next call (KUU-4044).
-    if let kotlinSource = source as? RuntimeKotlinReaderCharSource {
-        return kotlinSource.readRangeInto(
-            bufferRaw: bufferRaw,
-            offset: offset,
-            length: length,
-            outThrown: outThrown
-        )
-    }
-    var copied = 0
-    while copied < length {
-        let value = source.read()
-        if value < 0 { break }
-        array[offset + copied] = value
-        copied += 1
-    }
-    if copied == 0 {
-        if let kotlinSource = source as? RuntimeKotlinReaderCharSource, kotlinSource.thrown != 0 {
-            outThrown?.pointee = kotlinSource.thrown
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        guard let source = runtimeReaderCharSource(from: readerRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_read_range received invalid Reader handle")
         }
-        return -1
+        guard let array = runtimeArrayBox(from: bufferRaw) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected CharArray buffer"))
+        }
+        let offset = offsetRaw
+        let length = lengthRaw
+        guard offset >= 0, length >= 0, offset <= array.count - length else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "offset=\(offset) length=\(length) size=\(array.count)"
+            ))
+        }
+        if length == 0 { return 0 }
+        // Kotlin-source readers (StringReader, user `Reader` subclasses) dispatch
+        // their own 3-arg implementation straight into the caller's buffer —
+        // staging through this transient charSource would buffer up to 4096
+        // units per refill and silently drop everything past `length` on the
+        // next call (KUU-4044).
+        if let kotlinSource = source as? RuntimeKotlinReaderCharSource {
+            return kotlinSource.readRangeInto(
+                bufferRaw: bufferRaw,
+                offset: offset,
+                length: length,
+                outThrown: outThrown
+            )
+        }
+        var copied = 0
+        while copied < length {
+            let value = source.read()
+            if value < 0 { break }
+            array[offset + copied] = value
+            copied += 1
+        }
+        if copied == 0 {
+            if let kotlinSource = source as? RuntimeKotlinReaderCharSource, kotlinSource.thrown != 0 {
+                throw RuntimeThrownHandle(kotlinSource.thrown)
+            }
+            return -1
+        }
+        return copied
     }
-    return copied
 }
 
 /// `java.io.Reader.read(CharArray)` (KUU-4044) — the JVM concrete overload
@@ -743,12 +747,12 @@ public func __kk_reader_read(
     _ bufferRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let array = runtimeArrayBox(from: bufferRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected CharArray buffer")
-        return -1
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        guard let array = runtimeArrayBox(from: bufferRaw) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected CharArray buffer"))
+        }
+        return __kk_reader_read_range(readerRaw, bufferRaw, 0, array.count, outThrown)
     }
-    return __kk_reader_read_range(readerRaw, bufferRaw, 0, array.count, outThrown)
 }
 
 //
@@ -758,16 +762,17 @@ public func __kk_reader_read(
 public func __kk_input_stream_bufferedReader(
     _ streamRaw: Int, _ charsetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let bytes = __kk_input_stream_readAllBytes(streamRaw, outThrown)
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    let text = __kk_bytearray_decodeToString_charset(bytes, charsetRaw)
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: text),
-          let decoded = extractString(from: pointer) else { return 0 }
-    let utf8 = Data(KotlinStringSurrogateEncoding.unicodeString(decoded).utf8)
-    let readerRaw = registerRuntimeObject(RuntimeBufferedReaderBox(data: utf8))
-    runtimeRegisterJavaReader(readerRaw, fqName: "java.io.BufferedReader", parentFQName: "java.io.Reader")
-    return readerRaw
+    runtimeThrowingBridge(outThrown) {
+        let bytes = __kk_input_stream_readAllBytes(streamRaw, outThrown)
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        let text = __kk_bytearray_decodeToString_charset(bytes, charsetRaw)
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: text),
+              let decoded = extractString(from: pointer) else { return 0 }
+        let utf8 = Data(KotlinStringSurrogateEncoding.unicodeString(decoded).utf8)
+        let readerRaw = registerRuntimeObject(RuntimeBufferedReaderBox(data: utf8))
+        runtimeRegisterJavaReader(readerRaw, fqName: "java.io.BufferedReader", parentFQName: "java.io.Reader")
+        return readerRaw
+    }
 }
 
 
@@ -803,12 +808,12 @@ public func __kk_string_writer_new_default() -> Int {
 
 @_cdecl("__kk_string_writer_new")
 public func __kk_string_writer_new(_ initialSize: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard initialSize >= 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "negative initial size")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard initialSize >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "negative initial size"))
+        }
+        return runtimeStringWriterNew(initialCapacity: initialSize)
     }
-    return runtimeStringWriterNew(initialCapacity: initialSize)
 }
 
 @_cdecl("__kk_string_writer_to_string")
@@ -829,65 +834,68 @@ public func __kk_string_writer_get_buffer(_ writerRaw: Int) -> Int {
 
 @_cdecl("__kk_buffered_writer_write")
 public func __kk_buffered_writer_write(_ writerRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let writer: any RuntimeJavaWriter
-    if let bufferedWriter = runtimeBufferedWriterBox(from: writerRaw) {
-        writer = bufferedWriter
-    } else if let stringWriter = runtimeStringWriterBox(from: writerRaw) {
-        writer = stringWriter
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid Writer handle")
+    runtimeThrowingBridge(outThrown) {
+        let writer: any RuntimeJavaWriter
+        if let bufferedWriter = runtimeBufferedWriterBox(from: writerRaw) {
+            writer = bufferedWriter
+        } else if let stringWriter = runtimeStringWriterBox(from: writerRaw) {
+            writer = stringWriter
+        } else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid Writer handle")
+        }
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
+              let text = extractString(from: ptr)
+        else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid text")
+        }
+        do {
+            try writer.write(text)
+        } catch let failure as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(failure.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
+        return 0
     }
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: textRaw),
-          let text = extractString(from: ptr)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_write received invalid text")
-    }
-    do {
-        try writer.write(text)
-    } catch let failure as RuntimeKotlinThrownError {
-        outThrown?.pointee = failure.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-    }
-    return 0
 }
 
 @_cdecl("__kk_buffered_writer_new_line")
 public func __kk_buffered_writer_new_line(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_new_line received invalid BufferedWriter handle")
+    runtimeThrowingBridge(outThrown) {
+        guard let writer = runtimeBufferedWriterBox(from: writerRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_new_line received invalid BufferedWriter handle")
+        }
+        do {
+            try writer.newLine()
+        } catch let failure as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(failure.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
+        return 0
     }
-    do {
-        try writer.newLine()
-    } catch let failure as RuntimeKotlinThrownError {
-        outThrown?.pointee = failure.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-    }
-    return 0
 }
 
 @_cdecl("__kk_buffered_writer_flush")
 public func __kk_buffered_writer_flush(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let writer: any RuntimeJavaWriter
-    if let bufferedWriter = runtimeBufferedWriterBox(from: writerRaw) {
-        writer = bufferedWriter
-    } else if let stringWriter = runtimeStringWriterBox(from: writerRaw) {
-        writer = stringWriter
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_flush received invalid Writer handle")
+    runtimeThrowingBridge(outThrown) {
+        let writer: any RuntimeJavaWriter
+        if let bufferedWriter = runtimeBufferedWriterBox(from: writerRaw) {
+            writer = bufferedWriter
+        } else if let stringWriter = runtimeStringWriterBox(from: writerRaw) {
+            writer = stringWriter
+        } else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_buffered_writer_flush received invalid Writer handle")
+        }
+        do {
+            try writer.flush()
+        } catch let failure as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(failure.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
+        return 0
     }
-    do {
-        try writer.flush()
-    } catch let failure as RuntimeKotlinThrownError {
-        outThrown?.pointee = failure.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-    }
-    return 0
 }
 
 
@@ -898,42 +906,42 @@ public func __kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMu
 
 @_cdecl("__kk_writer_buffered")
 public func __kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard bufferSizeRaw > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bufferSize must be positive")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard bufferSizeRaw > 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "bufferSize must be positive"))
+        }
+        if runtimeBufferedWriterBox(from: writerRaw) != nil {
+            return writerRaw
+        }
+        guard let writer = runtimeStringWriterBox(from: writerRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_writer_buffered received invalid Writer handle")
+        }
+        return runtimeRegisterJavaWriter(
+            RuntimeBufferedWriterBox(writer: writer, bufferSize: bufferSizeRaw),
+            fqName: "java.io.BufferedWriter",
+            parentFQName: "java.io.Writer"
+        )
     }
-    if runtimeBufferedWriterBox(from: writerRaw) != nil {
-        return writerRaw
-    }
-    guard let writer = runtimeStringWriterBox(from: writerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_writer_buffered received invalid Writer handle")
-    }
-    return runtimeRegisterJavaWriter(
-        RuntimeBufferedWriterBox(writer: writer, bufferSize: bufferSizeRaw),
-        fqName: "java.io.BufferedWriter",
-        parentFQName: "java.io.Writer"
-    )
 }
 
 @_cdecl("__kk_bytearrayinputstream_new")
 public func __kk_bytearrayinputstream_new(_ bufferRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let size = runtimeArrayBox(from: bufferRaw)?.count ?? runtimeListBox(from: bufferRaw)?.count else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let size = runtimeArrayBox(from: bufferRaw)?.count ?? runtimeListBox(from: bufferRaw)?.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer"))
+        }
+        return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: bufferRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
     }
-    return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: bufferRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 @_cdecl("__kk_bytearray_inputStream")
 public func __kk_bytearray_inputStream(_ arrayRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let size = runtimeArrayBox(from: arrayRaw)?.count ?? runtimeListBox(from: arrayRaw)?.count else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let size = runtimeArrayBox(from: arrayRaw)?.count ?? runtimeListBox(from: arrayRaw)?.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle"))
+        }
+        return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
     }
-    return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: 0, length: size), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 @_cdecl("__kk_bytearray_inputStream_range")
@@ -943,20 +951,19 @@ public func __kk_bytearray_inputStream_range(
     _ lengthRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let size = runtimeArrayBox(from: arrayRaw)?.count ?? runtimeListBox(from: arrayRaw)?.count else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle")
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let size = runtimeArrayBox(from: arrayRaw)?.count ?? runtimeListBox(from: arrayRaw)?.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected ByteArray handle"))
+        }
+        let offset = offsetRaw
+        let length = lengthRaw
+        guard offset >= 0, offset <= size, length >= 0, length <= size - offset else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "offset=\(offset) length=\(length) size=\(size)"
+            ))
+        }
+        return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: offset, length: length), fqName: "java.io.ByteArrayInputStream", input: true)
     }
-    let offset = offsetRaw
-    let length = lengthRaw
-    guard offset >= 0, offset <= size, length >= 0, length <= size - offset else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "offset=\(offset) length=\(length) size=\(size)"
-        )
-        return 0
-    }
-    return runtimeRegisterIoStream(RuntimeInputStreamBox(arrayRaw: arrayRaw, offset: offset, length: length), fqName: "java.io.ByteArrayInputStream", input: true)
 }
 
 @_cdecl("__kk_string_byteInputStream_flat")
@@ -977,15 +984,16 @@ private func runtimeStringByteInputStream(_ source: String) -> Int {
 
 @_cdecl("__kk_input_stream_read")
 public func __kk_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if let callback = runtimeKotlinInputStream(from: streamRaw) { return callback.read(outThrown) }
-    if let sequence = runtimeSequenceInputStreamBox(from: streamRaw) { return sequence.readByte(outThrown) }
-    guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read received invalid InputStream handle")
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        if let callback = runtimeKotlinInputStream(from: streamRaw) { return callback.read(outThrown) }
+        if let sequence = runtimeSequenceInputStreamBox(from: streamRaw) { return sequence.readByte(outThrown) }
+        guard let stream = runtimeInputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_read received invalid InputStream handle")
+        }
+        let result = stream.readByte()
+        runtimePropagateInputStreamError(stream, outThrown)
+        return result
     }
-    let result = stream.readByte()
-    runtimePropagateInputStreamError(stream, outThrown)
-    return result
 }
 
 @_cdecl("__kk_input_stream_available")
@@ -998,33 +1006,35 @@ public func __kk_input_stream_available(_ streamRaw: Int) -> Int {
 
 @_cdecl("__kk_input_stream_skip")
 public func __kk_input_stream_skip(_ streamRaw: Int, _ countRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil {
-        var skipped = 0
-        while skipped < max(0, countRaw) {
-            let value = __kk_input_stream_read(streamRaw, outThrown)
-            if let outThrown, outThrown.pointee != 0 { return skipped }
-            if value == -1 { break }
-            skipped += 1
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil {
+            var skipped = 0
+            while skipped < max(0, countRaw) {
+                let value = __kk_input_stream_read(streamRaw, outThrown)
+                if let outThrown, outThrown.pointee != 0 { return skipped }
+                if value == -1 { break }
+                skipped += 1
+            }
+            return skipped
         }
-        return skipped
+        guard let stream = runtimeInputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_skip received invalid InputStream handle")
+        }
+        let result = stream.skip(countRaw)
+        runtimePropagateInputStreamError(stream, outThrown)
+        return result
     }
-    guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_skip received invalid InputStream handle")
-    }
-    let result = stream.skip(countRaw)
-    runtimePropagateInputStreamError(stream, outThrown)
-    return result
 }
 
 @_cdecl("__kk_input_stream_read_bytes")
 public func __kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let count = runtimeArrayBox(from: bytesRaw)?.count ?? runtimeListBox(from: bytesRaw)?.count
-    guard let count else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
-        return -1
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        let count = runtimeArrayBox(from: bytesRaw)?.count ?? runtimeListBox(from: bytesRaw)?.count
+        guard let count else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer"))
+        }
+        return __kk_input_stream_read_range(streamRaw, bytesRaw, 0, count, outThrown)
     }
-    return __kk_input_stream_read_range(streamRaw, bytesRaw, 0, count, outThrown)
 }
 
 // The receiver is not closed — `InputStream.readBytes()` mirrors JVM
@@ -1041,42 +1051,43 @@ private func runtimeMakeIoReadByteArray(_ elements: [Int]) -> Int {
 
 @_cdecl("__kk_input_stream_readAllBytes")
 public func __kk_input_stream_readAllBytes(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if runtimeKotlinInputStream(from: streamRaw) != nil {
-        let array = RuntimeArrayBox(length: 8192)
-        let raw = registerRuntimeObject(array)
-        // The scratch buffer crosses into the Kotlin `(ByteArray, Int, Int)`
-        // read callback, whose entry casts the argument to ByteArray — tag the
-        // nominal type or the cast fails with ClassCastException (KUU-4298).
-        runtimeRegisterArrayType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
-        var result: [Int] = []
-        while true {
-            let count = __kk_input_stream_read_range(streamRaw, raw, 0, array.count, outThrown)
-            if let outThrown, outThrown.pointee != 0 { return 0 }
-            if count == -1 { break }
-            if count == 0 {
-                let byte = __kk_input_stream_read(streamRaw, outThrown)
+    runtimeThrowingBridge(outThrown) {
+        if runtimeKotlinInputStream(from: streamRaw) != nil {
+            let array = RuntimeArrayBox(length: 8192)
+            let raw = registerRuntimeObject(array)
+            // The scratch buffer crosses into the Kotlin `(ByteArray, Int, Int)`
+            // read callback, whose entry casts the argument to ByteArray — tag the
+            // nominal type or the cast fails with ClassCastException (KUU-4298).
+            runtimeRegisterArrayType(rawValue: raw, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
+            var result: [Int] = []
+            while true {
+                let count = __kk_input_stream_read_range(streamRaw, raw, 0, array.count, outThrown)
                 if let outThrown, outThrown.pointee != 0 { return 0 }
-                if byte == -1 { break }
-                result.append(Int(Int8(truncatingIfNeeded: byte)))
-            } else {
-                result.append(contentsOf: array.elements.prefix(count))
+                if count == -1 { break }
+                if count == 0 {
+                    let byte = __kk_input_stream_read(streamRaw, outThrown)
+                    if let outThrown, outThrown.pointee != 0 { return 0 }
+                    if byte == -1 { break }
+                    result.append(Int(Int8(truncatingIfNeeded: byte)))
+                } else {
+                    result.append(contentsOf: array.elements.prefix(count))
+                }
             }
+            return runtimeMakeIoReadByteArray(result)
         }
-        return runtimeMakeIoReadByteArray(result)
+        if let stream = runtimeInputStreamBox(from: streamRaw) {
+            let bytes = stream.readAllBytes()
+            runtimePropagateInputStreamError(stream, outThrown)
+            return runtimeMakeIoReadByteArray(bytes)
+        }
+        if let ptr = UnsafeMutableRawPointer(bitPattern: streamRaw),
+           let sequenceStream = tryCast(ptr, to: RuntimeSequenceInputStreamBox.self)
+        {
+            let bytes = sequenceStream.readAllBytes(outThrown)
+            return runtimeMakeIoReadByteArray(bytes)
+        }
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_readAllBytes received invalid InputStream handle")
     }
-    if let stream = runtimeInputStreamBox(from: streamRaw) {
-        let bytes = stream.readAllBytes()
-        runtimePropagateInputStreamError(stream, outThrown)
-        return runtimeMakeIoReadByteArray(bytes)
-    }
-    if let ptr = UnsafeMutableRawPointer(bitPattern: streamRaw),
-       let sequenceStream = tryCast(ptr, to: RuntimeSequenceInputStreamBox.self)
-    {
-        let bytes = sequenceStream.readAllBytes(outThrown)
-        return runtimeMakeIoReadByteArray(bytes)
-    }
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_readAllBytes received invalid InputStream handle")
 }
 
 @_cdecl("__kk_input_stream_mark")
@@ -1091,18 +1102,18 @@ public func __kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int
 
 @_cdecl("__kk_input_stream_reset")
 public func __kk_input_stream_reset(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil {
-        outThrown?.pointee = runtimeAllocateIOException(message: "mark/reset not supported")
+    runtimeThrowingBridge(outThrown) {
+        if runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: "mark/reset not supported"))
+        }
+        guard let stream = runtimeInputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reset received invalid InputStream handle")
+        }
+        if !stream.reset() {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: "mark/reset not supported"))
+        }
         return 0
     }
-    guard let stream = runtimeInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_reset received invalid InputStream handle")
-    }
-    if !stream.reset() {
-        outThrown?.pointee = runtimeAllocateIOException(message: "mark/reset not supported")
-    }
-    return 0
 }
 
 @_cdecl("__kk_input_stream_mark_supported")
@@ -1131,40 +1142,41 @@ public func __kk_input_stream_copyTo(
     _ bufferSizeRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid InputStream handle")
-    }
-    guard let outputStream = runtimeOutputStreamBox(from: outStreamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid OutputStream handle")
-    }
-    let bufferSize = max(1, kk_unbox_int(bufferSizeRaw))
-    var totalBytesCopied: Int = 0
-    let buffer = RuntimeArrayBox(length: bufferSize)
-    let rawBuffer = registerRuntimeObject(buffer)
-    // The scratch buffer crosses into the Kotlin `(ByteArray, Int, Int)`
-    // read callback (via `__kk_input_stream_read_range` on callback-backed
-    // streams such as `Source.asInputStream()`), whose entry casts the
-    // argument to ByteArray — tag the nominal type or the cast fails with
-    // ClassCastException (KUU-4298).
-    runtimeRegisterArrayType(rawValue: rawBuffer, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
-    while true {
-        let bytesRead = __kk_input_stream_read_range(streamRaw, rawBuffer, 0, bufferSize, outThrown)
-        if let outThrown, outThrown.pointee != 0 { return kk_box_long(totalBytesCopied) }
-        if bytesRead <= 0 { break }
-        let chunk = Array(buffer.elements.prefix(bytesRead))
-        do {
-            try outputStream.writeBytes(chunk)
-        } catch let error as RuntimeKotlinThrownError {
-            outThrown?.pointee = error.thrownRaw
-            return kk_box_long(totalBytesCopied)
-        } catch {
-            outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-            return kk_box_long(totalBytesCopied)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: kk_box_long(0)) {
+        guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil || runtimeSequenceInputStreamBox(from: streamRaw) != nil else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid InputStream handle")
         }
-        totalBytesCopied += bytesRead
+        guard let outputStream = runtimeOutputStreamBox(from: outStreamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_copyTo received invalid OutputStream handle")
+        }
+        let bufferSize = max(1, kk_unbox_int(bufferSizeRaw))
+        var totalBytesCopied: Int = 0
+        let buffer = RuntimeArrayBox(length: bufferSize)
+        let rawBuffer = registerRuntimeObject(buffer)
+        // The scratch buffer crosses into the Kotlin `(ByteArray, Int, Int)`
+        // read callback (via `__kk_input_stream_read_range` on callback-backed
+        // streams such as `Source.asInputStream()`), whose entry casts the
+        // argument to ByteArray — tag the nominal type or the cast fails with
+        // ClassCastException (KUU-4298).
+        runtimeRegisterArrayType(rawValue: rawBuffer, typeID: runtimeStableNominalTypeID(fqName: "kotlin.ByteArray"))
+        while true {
+            let bytesRead = __kk_input_stream_read_range(streamRaw, rawBuffer, 0, bufferSize, outThrown)
+            if let outThrown, outThrown.pointee != 0 { return kk_box_long(totalBytesCopied) }
+            if bytesRead <= 0 { break }
+            let chunk = Array(buffer.elements.prefix(bytesRead))
+            do {
+                try outputStream.writeBytes(chunk)
+            } catch let error as RuntimeKotlinThrownError {
+                outThrown?.pointee = error.thrownRaw
+                return kk_box_long(totalBytesCopied)
+            } catch {
+                outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
+                return kk_box_long(totalBytesCopied)
+            }
+            totalBytesCopied += bytesRead
+        }
+        return kk_box_long(totalBytesCopied)
     }
-    return kk_box_long(totalBytesCopied)
 }
 
 // Since the byte-level reading methods provided by RuntimeInputStreamBox
@@ -1177,31 +1189,32 @@ public func __kk_input_stream_copyTo(
 //     the in-memory byte sequence
 @_cdecl("__kk_input_stream_buffered_default")
 public func __kk_input_stream_buffered_default(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered_default received invalid InputStream handle")
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered_default received invalid InputStream handle")
+        }
+        // The underlying RuntimeInputStreamBox already buffers via Data, so we
+        // can hand out the same handle re-typed.  Returning the same raw value
+        // keeps reference counting consistent.
+        return streamRaw
     }
-    // The underlying RuntimeInputStreamBox already buffers via Data, so we
-    // can hand out the same handle re-typed.  Returning the same raw value
-    // keeps reference counting consistent.
-    return streamRaw
 }
 
 @_cdecl("__kk_input_stream_buffered")
 public func __kk_input_stream_buffered(_ streamRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered received invalid InputStream handle")
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeInputStreamBox(from: streamRaw) != nil || runtimeKotlinInputStream(from: streamRaw) != nil else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_input_stream_buffered received invalid InputStream handle")
+        }
+        // Kotlin's reference implementation throws IllegalArgumentException for
+        // non-positive buffer sizes (BufferedInputStream's underlying JVM type
+        // does the same).  Surface that diagnostic via the standard outThrown
+        // channel rather than returning a sentinel.
+        if bufferSizeRaw <= 0 {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Buffer size <= 0"))
+        }
+        return streamRaw
     }
-    // Kotlin's reference implementation throws IllegalArgumentException for
-    // non-positive buffer sizes (BufferedInputStream's underlying JVM type
-    // does the same).  Surface that diagnostic via the standard outThrown
-    // channel rather than returning a sentinel.
-    if bufferSizeRaw <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Buffer size <= 0")
-        return 0
-    }
-    return streamRaw
 }
 
 
@@ -1223,63 +1236,66 @@ public func __kk_sequence_input_stream_new(_ firstRaw: Int, _ secondRaw: Int) ->
 
 @_cdecl("__kk_sequence_input_stream_read")
 public func __kk_sequence_input_stream_read(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_read received invalid SequenceInputStream handle")
+    runtimeThrowingBridge(outThrown, defaultOnFailure: -1) {
+        guard let stream = runtimeSequenceInputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_input_stream_read received invalid SequenceInputStream handle")
+        }
+        return stream.readByte(outThrown)
     }
-    return stream.readByte(outThrown)
 }
 
 @_cdecl("__kk_output_stream_write_byte")
 public func __kk_output_stream_write_byte(_ streamRaw: Int, _ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_byte received invalid OutputStream handle")
+    runtimeThrowingBridge(outThrown) {
+        guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_byte received invalid OutputStream handle")
+        }
+        do {
+            try stream.writeByte(valueRaw)
+        } catch let kotlinThrown as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(kotlinThrown.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
+        return 0
     }
-    do {
-        try stream.writeByte(valueRaw)
-    } catch let kotlinThrown as RuntimeKotlinThrownError {
-        outThrown?.pointee = kotlinThrown.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-    }
-    return 0
 }
 
 @_cdecl("__kk_output_stream_write_bytes")
 public func __kk_output_stream_write_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_bytes received invalid OutputStream handle")
-    }
-    guard let bytes = runtimeByteArrayBytes(from: bytesRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer")
+    runtimeThrowingBridge(outThrown) {
+        guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_write_bytes received invalid OutputStream handle")
+        }
+        guard let bytes = runtimeByteArrayBytes(from: bytesRaw) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "expected ByteArray/List<Int> buffer"))
+        }
+        do {
+            try stream.write(Data(bytes))
+        } catch let kotlinThrown as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(kotlinThrown.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
         return 0
     }
-    do {
-        try stream.write(Data(bytes))
-    } catch let kotlinThrown as RuntimeKotlinThrownError {
-        outThrown?.pointee = kotlinThrown.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-    }
-    return 0
 }
 
 @_cdecl("__kk_output_stream_flush")
 public func __kk_output_stream_flush(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_flush received invalid OutputStream handle")
+    runtimeThrowingBridge(outThrown) {
+        guard let stream = runtimeOutputStreamBox(from: streamRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_output_stream_flush received invalid OutputStream handle")
+        }
+        do {
+            try stream.flush()
+        } catch let kotlinThrown as RuntimeKotlinThrownError {
+            throw RuntimeThrownHandle(kotlinThrown.thrownRaw)
+        } catch {
+            throw RuntimeThrownHandle(runtimeAllocateIOException(message: error.localizedDescription))
+        }
+        return 0
     }
-    do {
-        try stream.flush()
-    } catch let kotlinThrown as RuntimeKotlinThrownError {
-        outThrown?.pointee = kotlinThrown.thrownRaw
-    } catch {
-        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-    }
-    return 0
 }
 
 
@@ -1387,106 +1403,106 @@ public func __kk_reader_copyTo(
     _ bufferSizeRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    runtimeThrowingBridge(outThrown, defaultOnFailure: kk_box_long(0)) {
+        guard let source = runtimeReaderCharSource(from: readerRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Reader handle")
+        }
+        guard let writer = runtimeBufferedWriterBox(from: writerRaw).map({ $0 as any RuntimeJavaWriter })
+            ?? runtimeStringWriterBox(from: writerRaw).map({ $0 as any RuntimeJavaWriter }) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Writer handle")
+        }
 
-    guard let source = runtimeReaderCharSource(from: readerRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Reader handle")
-    }
-    guard let writer = runtimeBufferedWriterBox(from: writerRaw).map({ $0 as any RuntimeJavaWriter })
-        ?? runtimeStringWriterBox(from: writerRaw).map({ $0 as any RuntimeJavaWriter }) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_reader_copyTo received invalid Writer handle")
-    }
+        if bufferSizeRaw <= 0 {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "bufferSize must be positive (was \(bufferSizeRaw))"
+            )
+            return kk_box_long(0)
+        }
 
-    if bufferSizeRaw <= 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "bufferSize must be positive (was \(bufferSizeRaw))"
-        )
-        return kk_box_long(0)
-    }
+        if let kotlinSource = source as? RuntimeKotlinReaderCharSource {
+            // UTF-16-unit path — keeps surrogate pairs together and preserves
+            // the internal lone-surrogate marker encoding a scalar loop would
+            // reject (KUU-4031).
+            var copied: Int = 0
+            var pendingUnits: [UInt16] = []
+            pendingUnits.reserveCapacity(bufferSizeRaw)
 
-    if let kotlinSource = source as? RuntimeKotlinReaderCharSource {
-        // UTF-16-unit path — keeps surrogate pairs together and preserves
-        // the internal lone-surrogate marker encoding a scalar loop would
-        // reject (KUU-4031).
-        var copied: Int = 0
-        var pendingUnits: [UInt16] = []
-        pendingUnits.reserveCapacity(bufferSizeRaw)
+            while true {
+                let unit = kotlinSource.read()
+                if unit < 0 {
+                    break
+                }
+                pendingUnits.append(UInt16(truncatingIfNeeded: unit))
+                copied += 1
 
-        while true {
-            let unit = kotlinSource.read()
-            if unit < 0 {
-                break
+                if pendingUnits.count >= bufferSizeRaw {
+                    do {
+                        try writer.write(runtimeKotlinStringFromUTF16CodeUnits(pendingUnits))
+                    } catch {
+                        outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
+                        return kk_box_long(copied)
+                    }
+                    pendingUnits.removeAll(keepingCapacity: true)
+                }
             }
-            pendingUnits.append(UInt16(truncatingIfNeeded: unit))
-            copied += 1
 
-            if pendingUnits.count >= bufferSizeRaw {
+            if !pendingUnits.isEmpty {
                 do {
                     try writer.write(runtimeKotlinStringFromUTF16CodeUnits(pendingUnits))
                 } catch {
                     outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
                     return kk_box_long(copied)
                 }
-                pendingUnits.removeAll(keepingCapacity: true)
             }
-        }
 
-        if !pendingUnits.isEmpty {
-            do {
-                try writer.write(runtimeKotlinStringFromUTF16CodeUnits(pendingUnits))
-            } catch {
-                outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-                return kk_box_long(copied)
+            if kotlinSource.thrown != 0 {
+                outThrown?.pointee = kotlinSource.thrown
             }
-        }
-
-        if kotlinSource.thrown != 0 {
-            outThrown?.pointee = kotlinSource.thrown
-        }
-        return kk_box_long(copied)
-    }
-
-    var copied: Int = 0
-    var pending = String.UnicodeScalarView()
-    pending.reserveCapacity(bufferSizeRaw)
-
-    while true {
-        let charCode = source.read()
-        if charCode < 0 {
-            break
-        }
-        guard let scalar = Unicode.Scalar(UInt32(charCode)) else {
-            // Invalid scalar — surface as IOException to match JVM-style
-            // surface for malformed character data.
-            outThrown?.pointee = runtimeAllocateIOException(
-                message: "invalid Unicode scalar in Reader stream (code point \(charCode))"
-            )
             return kk_box_long(copied)
         }
-        pending.append(scalar)
-        copied += 1
 
-        if pending.count >= bufferSizeRaw {
+        var copied: Int = 0
+        var pending = String.UnicodeScalarView()
+        pending.reserveCapacity(bufferSizeRaw)
+
+        while true {
+            let charCode = source.read()
+            if charCode < 0 {
+                break
+            }
+            guard let scalar = Unicode.Scalar(UInt32(charCode)) else {
+                // Invalid scalar — surface as IOException to match JVM-style
+                // surface for malformed character data.
+                outThrown?.pointee = runtimeAllocateIOException(
+                    message: "invalid Unicode scalar in Reader stream (code point \(charCode))"
+                )
+                return kk_box_long(copied)
+            }
+            pending.append(scalar)
+            copied += 1
+
+            if pending.count >= bufferSizeRaw {
+                do {
+                    try writer.write(String(pending))
+                } catch {
+                    outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
+                    return kk_box_long(copied)
+                }
+                pending.removeAll(keepingCapacity: true)
+            }
+        }
+
+        if !pending.isEmpty {
             do {
                 try writer.write(String(pending))
             } catch {
                 outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
                 return kk_box_long(copied)
             }
-            pending.removeAll(keepingCapacity: true)
         }
-    }
 
-    if !pending.isEmpty {
-        do {
-            try writer.write(String(pending))
-        } catch {
-            outThrown?.pointee = runtimeAllocateIOException(message: error.localizedDescription)
-            return kk_box_long(copied)
-        }
+        return kk_box_long(copied)
     }
-
-    return kk_box_long(copied)
 }
 
 @_cdecl("__kk_reader_copyTo_default")
