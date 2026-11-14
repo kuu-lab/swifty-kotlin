@@ -3008,7 +3008,8 @@ extension DataFlowSemaPhase {
         ), methodIdentityParameterTypesMatch(
             candidateParameterTypes: childSignature.parameterTypes,
             interfaceParameterTypes: parentSignature.parameterTypes.map(alignParentType),
-            types: types
+            types: types,
+            allowJavaCollectionMutability: symbols.isJVMJavaMethod(parentMember)
         ) else { return false }
 
         guard requireCovariantReturn else { return true }
