@@ -300,7 +300,9 @@ extension JVMProgramBuilder {
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
-            let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
+            // @JvmField inside any object — including a companion — publishes a
+            // static field on that object, matching kotlinc's layout.
+            let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
