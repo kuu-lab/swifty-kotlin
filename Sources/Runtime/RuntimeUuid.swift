@@ -132,7 +132,8 @@ public func __kk_uuid_fromLongs(_ msbRaw: Int, _ lsbRaw: Int) -> Int {
 
 // Copy UUID bits from a java.util.UUID-style value into the Kotlin source Uuid
 // object shape (object header slots plus most/least significant bits).
-func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+@_cdecl("__kk_uuid_toKotlinUuid")
+public func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     guard let box = runtimeUuidBox(from: receiver) else {
         return runtimeUuidObjectRaw(mostSignificantBits: 0, leastSignificantBits: 0)
     }
@@ -140,9 +141,4 @@ func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
         mostSignificantBits: box.mostSignificantBits,
         leastSignificantBits: box.leastSignificantBits
     )
-}
-
-@_cdecl("__kk_uuid_toKotlinUuid")
-public func __kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
-    kk_uuid_toKotlinUuid(receiver)
 }
