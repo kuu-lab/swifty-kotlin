@@ -250,18 +250,21 @@ public func __kk_dispatcher_as_executor(
     _ dispatcherHandle: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let box = RuntimeDispatcherExecutorBox(dispatcherHandle: dispatcherHandle)
-    let raw = registerRuntimeObject(box, typeID: runtimeExecutorTypeID)
-    _ = kk_object_register_itable_iface(raw, Int(runtimeExecutorTypeID), 0)
-    _ = kk_object_register_itable_method(
-        raw,
-        0,
-        0,
-        unsafeBitCast(runtimeDispatcherExecutorExecute, to: Int.self)
-    )
-    _ = kk_object_register_any_to_string(raw, unsafeBitCast(runtimeExecutorToString, to: Int.self))
-    return raw
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            let box = RuntimeDispatcherExecutorBox(dispatcherHandle: dispatcherHandle)
+            let raw = registerRuntimeObject(box, typeID: runtimeExecutorTypeID)
+            _ = kk_object_register_itable_iface(raw, Int(runtimeExecutorTypeID), 0)
+            _ = kk_object_register_itable_method(
+                raw,
+                0,
+                0,
+                unsafeBitCast(runtimeDispatcherExecutorExecute, to: Int.self)
+            )
+            _ = kk_object_register_any_to_string(raw, unsafeBitCast(runtimeExecutorToString, to: Int.self))
+            return raw
+        }
+    }
 }
 
 private let runtimeExecutorToString: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
@@ -474,18 +477,21 @@ public func __kk_dispatcher_default_execute(
     _ runnableRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let runnablePin = RuntimeObjectPin(raw: runnableRaw)
-    runtimeResolveDispatcher(from: RuntimeDispatcherTag.defaultDispatcher).dispatchAsync {
-        defer {
-            runnablePin.release()
-            runtimeReleaseRunnableBoxIfOwned(runnableRaw)
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            let runnablePin = RuntimeObjectPin(raw: runnableRaw)
+            runtimeResolveDispatcher(from: RuntimeDispatcherTag.defaultDispatcher).dispatchAsync {
+                defer {
+                    runnablePin.release()
+                    runtimeReleaseRunnableBoxIfOwned(runnableRaw)
+                }
+                var thrown = 0
+                _ = runtimeInvokeRunnable(runnableRaw, outThrown: &thrown)
+                runtimeReportAsyncThrowable(thrown)
+            }
+            return 0
         }
-        var thrown = 0
-        _ = runtimeInvokeRunnable(runnableRaw, outThrown: &thrown)
-        runtimeReportAsyncThrowable(thrown)
     }
-    return 0
 }
 
 @_cdecl("__kk_coroutine_new_thread_pool_executor")
@@ -495,18 +501,21 @@ public func __kk_coroutine_new_thread_pool_executor(
     _ scheduled: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard nThreads > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Expected at least one thread, but got \(nThreads)"
-        )
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeThrowingBridge(outThrown) {
+            guard nThreads > 0 else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "Expected at least one thread, but got \(nThreads)"
+                )
+                return 0
+            }
+            guard let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Thread pool name is null")
+                return 0
+            }
+            return runtimeRegisterThreadPoolExecutor(
+                RuntimeThreadPoolExecutorBox(threadCount: nThreads, name: name, scheduled: scheduled != 0)
+            )
+        }
     }
-    guard let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Thread pool name is null")
-        return 0
-    }
-    return runtimeRegisterThreadPoolExecutor(
-        RuntimeThreadPoolExecutorBox(threadCount: nThreads, name: name, scheduled: scheduled != 0)
-    )
 }
