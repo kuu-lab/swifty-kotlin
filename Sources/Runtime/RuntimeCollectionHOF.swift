@@ -358,22 +358,22 @@ public func kk_list_bridge_chunked(_ listRaw: Int, _ size: Int, _ outThrown: Uns
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    outThrown?.pointee = 0
-    guard size > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size \(size) must be greater than zero."
-        )
-        return runtimeExceptionCaughtSentinel
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard size > 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "size \(size) must be greater than zero."
+            ))
+        }
+        var chunks: [Int] = []
+        var i = 0
+        while i < elements.count {
+            let end = i + min(size, elements.count - i)
+            let chunk = Array(elements[i ..< end])
+            chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
+            i = end
+        }
+        return registerRuntimeObject(RuntimeListBox(elements: chunks))
     }
-    var chunks: [Int] = []
-    var i = 0
-    while i < elements.count {
-        let end = i + min(size, elements.count - i)
-        let chunk = Array(elements[i ..< end])
-        chunks.append(registerRuntimeObject(RuntimeListBox(elements: chunk)))
-        i = end
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: chunks))
 }
 
 @_cdecl("__kk_list_chunked_transform")
@@ -381,41 +381,41 @@ public func kk_list_bridge_chunked_transform(_ listRaw: Int, _ size: Int, _ fnPt
     guard let elements = runtimeCollectionOrArrayElements(from: listRaw) else {
         invalidContainerPanic(#function, "collection")
     }
-    outThrown?.pointee = 0
-    guard size > 0 else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "size \(size) must be greater than zero."
-        )
-        return runtimeExceptionCaughtSentinel
-    }
-    kk_gc_shadow_push()
-    var returnedResult = 0
-    var returnedThrown = 0
-    defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
-    kk_gc_shadow_set(0, listRaw)
-    kk_gc_shadow_set(1, fnPtr)
-    kk_gc_shadow_set(2, closureRaw)
-    let estimatedChunks = elements.count / size + (elements.count % size == 0 ? 0 : 1)
-    var result: [Int] = []
-    result.reserveCapacity(estimatedChunks)
-    var i = 0
-    while i < elements.count {
-        let end = i + min(size, elements.count - i)
-        let chunk = Array(elements[i ..< end])
-        let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
-        kk_gc_shadow_set(3, chunkList)
-        var thrown = 0
-        let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
-        if thrown != 0 {
-            returnedThrown = thrown
-            return handleCollectionLambdaThrow(thrown, outThrown)
+    return runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard size > 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "size \(size) must be greater than zero."
+            ))
         }
-        kk_gc_shadow_set(4 + result.count, transformed)
-        result.append(transformed)
-        i = end
+        kk_gc_shadow_push()
+        var returnedResult = 0
+        var returnedThrown = 0
+        defer { runtimePopNativeGCShadowFrame(returnedResult, returnedThrown) }
+        kk_gc_shadow_set(0, listRaw)
+        kk_gc_shadow_set(1, fnPtr)
+        kk_gc_shadow_set(2, closureRaw)
+        let estimatedChunks = elements.count / size + (elements.count % size == 0 ? 0 : 1)
+        var result: [Int] = []
+        result.reserveCapacity(estimatedChunks)
+        var i = 0
+        while i < elements.count {
+            let end = i + min(size, elements.count - i)
+            let chunk = Array(elements[i ..< end])
+            let chunkList = registerRuntimeObject(RuntimeListBox(elements: chunk))
+            kk_gc_shadow_set(3, chunkList)
+            var thrown = 0
+            let transformed = runtimeInvokeCollectionLambda1MaybeWrapped(fnPtr: fnPtr, closureRaw: closureRaw, value: chunkList, outThrown: &thrown)
+            if thrown != 0 {
+                returnedThrown = thrown
+                return handleCollectionLambdaThrow(thrown, outThrown)
+            }
+            kk_gc_shadow_set(4 + result.count, transformed)
+            result.append(transformed)
+            i = end
+        }
+        returnedResult = registerRuntimeObject(RuntimeListBox(elements: result))
+        return returnedResult
     }
-    returnedResult = registerRuntimeObject(RuntimeListBox(elements: result))
-    return returnedResult
 }
 
 private func validateListWindowedArguments(
@@ -586,17 +586,18 @@ public func kk_indexing_iterable_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: iterRaw),
-          let iter = tryCast(ptr, to: RuntimeIndexingIteratorBox.self),
-          iter.index < iter.values.count
-    else {
-        return runtimeThrowIteratorExhausted(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: iterRaw),
+              let iter = tryCast(ptr, to: RuntimeIndexingIteratorBox.self),
+              iter.index < iter.values.count
+        else {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
+        let idx = iter.index
+        let elem = iter.values[idx]
+        iter.index += 1
+        return runtimeIndexedValueNew(index: idx, value: elem)
     }
-    let idx = iter.index
-    let elem = iter.values[idx]
-    iter.index += 1
-    return runtimeIndexedValueNew(index: idx, value: elem)
 }
 
 
@@ -611,14 +612,15 @@ public func kk_indexing_iterable_next(
 
 @_cdecl("kk_list_random")
 public func kk_list_random(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let elements = runtimeCollectionElements(from: listRaw) else {
-        invalidContainerPanic(#function, "collection")
+    return runtimeThrowingBridge(outThrown) {
+        guard let elements = runtimeCollectionElements(from: listRaw) else {
+            invalidContainerPanic(#function, "collection")
+        }
+        guard !elements.isEmpty else {
+            return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
+        }
+        return elements.randomElement()!
     }
-    guard !elements.isEmpty else {
-        return handleCollectionLambdaThrow(runtimeAllocateNoSuchElementException(message: "Collection is empty."), outThrown)
-    }
-    return elements.randomElement()!
 }
 
 @_cdecl("kk_list_randomOrNull")
