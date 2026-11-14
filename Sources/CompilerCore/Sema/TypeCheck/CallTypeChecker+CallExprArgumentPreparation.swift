@@ -544,11 +544,27 @@ extension CallTypeChecker {
             var liftedArgumentIndices: Set<Int> = []
             for candidate in candidates {
                 guard let signature = sema.symbols.functionSignature(for: candidate),
-                      !signature.typeParameterSymbols.isEmpty,
-                      case let .classType(returnClassType) = sema.types.kind(of: signature.returnType)
-                else {
-                    continue
+                      !signature.typeParameterSymbols.isEmpty
+                else { continue }
+                // A direct generic result can give a nested collection
+                // factory its arguments even beside an unrelated overload,
+                // e.g. Java's <T> T spy(T) beside <T> T spy(Class<T>).
+                if sema.symbols.isJVMJavaMethod(candidate),
+                   case let .typeParam(result) = sema.types.kind(of: signature.returnType),
+                   signature.typeParameterSymbols.contains(result.symbol),
+                   let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) {
+                    for index in args.indices where isBareCollectionFactoryCallExpr(args[index].expr, ctx: ctx) {
+                        guard let parameterIndex = mapping[index],
+                              let type = contextualCallArgumentType(args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx),
+                              case let .typeParam(parameter) = sema.types.kind(of: type),
+                              parameter.symbol == result.symbol
+                        else { continue }
+                        substitutedTypesByIndex[index, default: []].insert(expectedType)
+                        liftedArgumentIndices.insert(index)
+                    }
                 }
+                guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType)
+                else { continue }
                 let isListOfFactory = ctx.cachedSymbol(candidate)?.fqName == [
                     knownNames.kotlin, knownNames.collections, interner.intern("listOf"),
                 ]

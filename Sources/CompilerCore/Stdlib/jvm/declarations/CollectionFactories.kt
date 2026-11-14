@@ -1,4 +1,5 @@
 package kotlin.collections
+fun <T> listOf(): List<T> = null!!
 fun <T> listOf(element: T): List<T> = null!!
 fun <T> listOf(vararg elements: T): List<T> = null!!
 fun <T : Any> listOfNotNull(element: T?): List<T> = null!!
