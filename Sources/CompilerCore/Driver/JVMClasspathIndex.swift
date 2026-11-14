@@ -331,25 +331,46 @@ final class JVMClasspathIndex {
             var methodKeys = Set(methods.lazy.map(key))
             var inheritedConstants: [String: JVMForeignField] = [:]
             var ambiguousConstants: Set<String> = []
-            var visitedConstantOwners: Set<String> = []
-            var shadowedFieldNames = Set(info.fields.map(\.name))
-            func inheritInterfaceConstants(_ name: String) {
-                guard visitedConstantOwners.insert(name).inserted, let owner = hierarchyClasses[name],
-                      owner.isInterface, owner.isKotlinFileFacade == nil else { return }
+            // Field declarations on nearer interfaces hide same-named ancestor
+            // constants, even when the nearer declaration is runtime-initialized.
+            // Declarations at the same shallowest depth on distinct interfaces
+            // stay ambiguous, so track the declaring depth instead of a shared
+            // shadow set.
+            var minDeclaredDepth: [String: Int] = Dictionary(
+                uniqueKeysWithValues: info.fields.map { ($0.name, 0) }
+            )
+            var visitDepth: [String: Int] = [:]
+            var queue: [(name: String, depth: Int)] = info.interfaces.map { ($0, 1) }
+            var queueIndex = 0
+            while queueIndex < queue.count {
+                let (name, depth) = queue[queueIndex]
+                queueIndex += 1
+                if let seen = visitDepth[name], seen <= depth { continue }
+                visitDepth[name] = depth
+                guard let owner = hierarchyClasses[name], owner.isInterface,
+                      owner.isKotlinFileFacade == nil else { continue }
+                for field in owner.fields where minDeclaredDepth[field.name] == nil {
+                    minDeclaredDepth[field.name] = depth
+                }
+                for parent in owner.interfaces { queue.append((parent, depth + 1)) }
+            }
+            visitDepth = [:]
+            queue = info.interfaces.map { ($0, 1) }
+            queueIndex = 0
+            while queueIndex < queue.count {
+                let (name, depth) = queue[queueIndex]
+                queueIndex += 1
+                if let seen = visitDepth[name], seen <= depth { continue }
+                visitDepth[name] = depth
+                guard let owner = hierarchyClasses[name], owner.isInterface,
+                      owner.isKotlinFileFacade == nil else { continue }
                 for field in owner.fields where field.isPublic && field.isStatic && field.isFinal
-                    && field.constantValue != nil && !shadowedFieldNames.contains(field.name) {
+                    && field.constantValue != nil && minDeclaredDepth[field.name] == depth {
                     if inheritedConstants.updateValue(field, forKey: field.name) != nil {
                         ambiguousConstants.insert(field.name)
                     }
                 }
-                // A nearer interface's declaration hides same-named ancestor
-                // constants even when it is runtime-initialized, so mark every
-                // declared name before descending into parents.
-                for field in owner.fields { shadowedFieldNames.insert(field.name) }
-                for parent in owner.interfaces { inheritInterfaceConstants(parent) }
-            }
-            if info.isKotlinFileFacade == nil {
-                for parent in info.interfaces { inheritInterfaceConstants(parent) }
+                for parent in owner.interfaces { queue.append((parent, depth + 1)) }
             }
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
