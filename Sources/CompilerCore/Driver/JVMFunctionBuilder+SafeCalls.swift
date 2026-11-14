@@ -4,6 +4,7 @@ extension JVMFunctionBuilder {
         if let symbol = program.sema.bindings.callBinding(for: id)?.chosenCallee,
            let result = try resultCompanionCall(symbol, args: args, id: id) { return result.value }
         if !arena.isExplicitCall(id), let value = try nominalValue(id) { return value }
+        if !arena.isExplicitCall(id), let value = try readCompositionLocal(id, receiver: receiver) { return value }
         if !arena.isExplicitCall(id), context.interner.resolve(name) == "Companion",
            let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver),
            let value = try importedCompanionValue(for: receiverSymbol) { return value }
