@@ -29,7 +29,24 @@ open class RuntimeProperty(owner: Any, name: String, signature: String, receiver
     }
     override fun callArray(args: Array<out Any?>, unwrapException: Boolean): Any? {
         if (signatureString == "<local>") throw UnsupportedOperationException("call/callBy are not supported for this declaration.")
-        if (!isConst) return super.callArray(args, unwrapException)
+        if (!isConst) {
+            // Imported @JvmField members publish a field but no getter method;
+            // read the field directly when the signature names no accessor.
+            if (hasMethod(ownerClass, signatureString)) return super.callArray(args, unwrapException)
+            val signature = propertyNode.child(100).child(1)
+            val fieldName = if (signature.has(1)) metadata.string(signature.number(1)) else name
+            for (field in __jvmDeclaredFields(ownerClass)) {
+                if (__jvmFieldName(field) == fieldName) {
+                    val isStatic = (__jvmFieldModifiers(field) and 8) != 0
+                    val arity = if (isStatic || bound) 0 else 1
+                    if (args.size != arity) throw IllegalArgumentException("Callable expects $arity arguments, but ${args.size} were provided.")
+                    __jvmSetAccessible(field, true)
+                    val receiver = if (isStatic) null else if (bound) boundReceiver else args[0]
+                    return boxResult(__jvmFieldGet(field, receiver), metadata, resultType())
+                }
+            }
+            return super.callArray(args, unwrapException)
+        }
         val outer = classCompanionFieldOwner()
         // Logical instance parameters remain present for static object fields.
         val arity = if (!bound && outer != null) 1 else 0
