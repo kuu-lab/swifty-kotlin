@@ -1,5 +1,18 @@
 package kotlin.ranges
 
+external fun Byte.coerceAtLeast(minimumValue: Byte): Byte
+external fun Byte.coerceAtMost(maximumValue: Byte): Byte
+external fun Short.coerceAtLeast(minimumValue: Short): Short
+external fun Short.coerceAtMost(maximumValue: Short): Short
+external fun Int.coerceAtLeast(minimumValue: Int): Int
+external fun Int.coerceAtMost(maximumValue: Int): Int
+external fun Long.coerceAtLeast(minimumValue: Long): Long
+external fun Long.coerceAtMost(maximumValue: Long): Long
+external fun Float.coerceAtLeast(minimumValue: Float): Float
+external fun Float.coerceAtMost(maximumValue: Float): Float
+external fun Double.coerceAtLeast(minimumValue: Double): Double
+external fun Double.coerceAtMost(maximumValue: Double): Double
+
 external fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long
 external fun Double.coerceIn(minimumValue: Double, maximumValue: Double): Double
 
