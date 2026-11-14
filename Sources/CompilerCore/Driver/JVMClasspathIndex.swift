@@ -435,6 +435,26 @@ final class JVMClasspathIndex {
             guard let info = classes[name] else { continue }
             var methods = info.methods
             var methodKeys = Set(methods.lazy.map(key))
+            var inheritedConstants: [String: JVMForeignField] = [:]
+            var interfaceConstantNames: Set<String> = []
+            var ambiguousConstants: Set<String> = []
+            var visitedConstantOwners: Set<String> = []
+            let declaredFieldNames = Set(info.fields.map(\.name))
+            func inheritInterfaceConstants(_ name: String) {
+                guard visitedConstantOwners.insert(name).inserted, let owner = hierarchyClasses[name],
+                      owner.isInterface, owner.isKotlinFileFacade == nil else { return }
+                for field in owner.fields where field.isPublic && field.isStatic && field.isFinal
+                    && field.constantValue != nil && !declaredFieldNames.contains(field.name) {
+                    if !interfaceConstantNames.insert(field.name).inserted {
+                        ambiguousConstants.insert(field.name)
+                    }
+                    inheritedConstants[field.name] = field
+                }
+                for parent in owner.interfaces { inheritInterfaceConstants(parent) }
+            }
+            if info.isKotlinFileFacade == nil {
+                for parent in info.interfaces { inheritInterfaceConstants(parent) }
+            }
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -524,7 +544,10 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            let fields = info.fields + inheritedConstants.keys.sorted().compactMap { name in
+                ambiguousConstants.contains(name) ? nil : inheritedConstants[name]
+            }
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: fields)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
@@ -2770,9 +2793,9 @@ final class JVMClasspathIndex {
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
-                receiverType: signature.receiverType.map(platform),
+                receiverType: signature.receiverType.map { platform($0) },
                 contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
-                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map { platform($0) },
                 returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
                 valueParameterSymbols: signature.valueParameterSymbols,
                 valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
@@ -2833,7 +2856,8 @@ final class JVMClasspathIndex {
                 deferred.insert(symbol.id)
             } else {
                 try bindMethod(symbol, in: ctx, sema: sema)
-
+            }
+        }
         let array = sema.symbols.lookup(fqName: ["kotlin", "Array"].map(ctx.interner.intern))
         func platform(_ type: TypeID, includingArrayElements: Bool = false) -> TypeID {
             switch sema.types.kind(of: type) {
@@ -2852,8 +2876,6 @@ final class JVMClasspathIndex {
             case .classType, .stringStruct, .any, .typeParam:
                 return sema.types.withNullability(.platformType, for: type)
             default: return type
-            }
-        }
             }
         }
         let collectionsPackage = ["kotlin", "collections"].map(ctx.interner.intern)
