@@ -132,8 +132,9 @@ extension JVMFunctionBuilder {
                 let info = resolvedOwner.info
                 let name = context.interner.resolve(semanticSymbol.name)
                 let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
-                if let getter = info.kotlinMemberProperties[name]?.getter {
-                    return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+                if let property = info.kotlinMemberProperties[name] {
+                    return JVMProperty(name: name, type: type, getter: property.getter,
+                                       setter: property.setter, field: nil, modifiers: [.public])
                 }
                 // `const val` members (e.g. `LinearLayout.VERTICAL`) have no
                 // accessor method; bind them to their compile-time literal.
@@ -178,18 +179,21 @@ extension JVMFunctionBuilder {
                 }
                 // Companion members compile to static methods on the outer
                 // classfile; instance members stay virtual.
-                let imported = info.methods.first(where: {
-                    names.contains($0.name) && !$0.isStatic && !$0.isConstructor && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
-                }) ?? info.methods.first(where: {
-                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty && $0.result.descriptor == type.descriptor
-                })
+                func getterCandidate(_ method: JVMForeignMethod) -> Bool {
+                    (names.contains(method.name) || info.isKotlinFileFacade == nil
+                        && JVMClasspathIndex.javaGetterPropertyName(method.name) == name)
+                        && !method.isConstructor && method.parameters.isEmpty
+                }
+                let imported = info.methods.first {
+                    getterCandidate($0) && !$0.isStatic && $0.result.descriptor == type.descriptor
+                } ?? info.methods.first {
+                    getterCandidate($0) && !$0.isStatic && info.isKotlinFileFacade == nil
+                        && $0.result.descriptor == JVMClasspathIndex.boxed(type).descriptor
+                } ?? info.methods.first {
+                    names.contains($0.name) && $0.isStatic && $0.parameters.isEmpty
+                        && $0.result.descriptor == type.descriptor
+                }
                 if let imported {
-                    var getter = JVMForeignMethod(
-                        owner: imported.owner, name: imported.name, descriptor: imported.descriptor,
-                        parameters: imported.parameters, result: type, isStatic: imported.isStatic,
-                        isInterface: imported.isInterface, isAbstract: imported.isAbstract
-                    )
-                    getter.isFinal = imported.isFinal
                     // `var` properties need their Java setter for writes;
                     // resolve `setX` on the owner or its superclass chain,
                     // falling back to a synthetic signature when the classfile
@@ -199,7 +203,13 @@ extension JVMFunctionBuilder {
                     if isVar {
                         let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
                         let booleanIs = name.hasPrefix("is") && name.count > 2 && name.dropFirst(2).first!.isUppercase
-                        let setterName = booleanIs ? "set" + name.dropFirst(2) : "set" + capital
+                        let setterName = if imported.name.hasPrefix("get") {
+                            "set" + imported.name.dropFirst(3)
+                        } else if booleanIs {
+                            "set" + name.dropFirst(2)
+                        } else {
+                            "set" + capital
+                        }
                         var visited: Set<String> = []
                         var nextName: String? = owner
                         var found: JVMForeignMethod?
@@ -208,7 +218,7 @@ extension JVMFunctionBuilder {
                             found = cinfo.methods.first(where: {
                                 $0.name == setterName && $0.isStatic == imported.isStatic && !$0.isConstructor
                                     && $0.kotlinSuspendFunction == nil
-                                    && $0.parameters.count == 1 && $0.parameters[0].descriptor == type.descriptor
+                                    && $0.parameters.count == 1 && $0.parameters[0].descriptor == imported.result.descriptor
                             }) ?? cinfo.methods.first(where: {
                                 $0.name == setterName && $0.isStatic == imported.isStatic && !$0.isConstructor
                                     && $0.kotlinSuspendFunction == nil
@@ -218,12 +228,7 @@ extension JVMFunctionBuilder {
                             nextName = cinfo.superclass
                         }
                         if let method = found {
-                            setter = JVMForeignMethod(
-                                owner: method.owner, name: method.name, descriptor: method.descriptor,
-                                parameters: method.parameters, result: method.result, isStatic: method.isStatic,
-                                isInterface: method.isInterface, isAbstract: method.isAbstract
-                            )
-                            setter?.isFinal = method.isFinal
+                            setter = method
                         } else {
                             setter = JVMForeignMethod(
                                 owner: info.name, name: setterName,
@@ -232,7 +237,7 @@ extension JVMFunctionBuilder {
                             )
                         }
                     }
-                    return JVMProperty(name: name, type: type, getter: getter, setter: setter, field: nil, modifiers: [.public])
+                    return JVMProperty(name: name, type: type, getter: imported, setter: setter, field: nil, modifiers: [.public])
                 }
             }
         }
@@ -316,7 +321,26 @@ extension JVMFunctionBuilder {
             return
         }
         guard var setter = property.setter else { throw fail("JVM val has no setter.") }
-        if special { setter = try superMethod(setter, receiver: superReceiver) }
+        if special {
+            setter = try superMethod(setter, receiver: superReceiver)
+        } else if setter.isProtected, !setter.isStatic, let receiverName = receiver.type.referenceName,
+                  isMemberReceiver(receiver, owner: setter.owner) {
+            // An inherited bean getter can be declared on a base class with
+            // a protected setter. Use the accessible virtual override on
+            // the receiver's class when it makes that same setter public.
+            var current: String? = receiverName
+            var visited: Set<String> = []
+            while let name = current, name != setter.owner, visited.insert(name).inserted {
+                if let override = context.jvmImports?.classes[name]?.methods.first(where: {
+                    !$0.isStatic && !$0.isProtected && $0.name == setter.name && $0.descriptor == setter.descriptor
+                }) {
+                    setter = override
+                    break
+                }
+                current = context.jvmImports?.classes[name]?.superclass
+                    ?? program.classes.values.first(where: { $0.name == name })?.superclass
+            }
+        }
         var arguments: [JVMValue] = []
         if setter.parameters.count == 2 {
             arguments.append(try convert(receiver, to: setter.parameters[0]))

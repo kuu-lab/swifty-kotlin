@@ -28,7 +28,7 @@ struct JVMClassInfo {
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
-    var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinMemberProperties: [String: (getter: JVMForeignMethod, setter: JVMForeignMethod?, sourceType: String)] = [:]
     var kotlinTopLevelConstants: [String: String] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
@@ -845,11 +845,16 @@ struct JVMClassReader {
                               || flags & 0x0200 != 0 && getter.isAbstract && !property.isVar && property.isSourceVisible
                               || !getter.isStatic && property.isSourceVisible && !property.isVar
                                   && getter.composePropertyABI(hasReceiver: false)
-                              || getter.isFinal && !property.isVar
-                                  && (sourceType.contains("<") || getter.name == property.name)),
+                              || getter.isFinal && property.isSourceVisible
+                                  && (property.isNullable || sourceType.contains("<")
+                                      || !property.isVar && getter.name == property.name)),
                           !getter.isStatic && (getter.parameters.isEmpty || getter.composePropertyABI(hasReceiver: false))
                               || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
-                    info.kotlinMemberProperties[property.name] = (getter, sourceType)
+                    let setter = methods.first {
+                        !$0.isProtected && !$0.isStatic
+                            && $0.name == property.setterName && $0.descriptor == property.setterDescriptor
+                    }
+                    info.kotlinMemberProperties[property.name] = (getter, setter, sourceType)
                 }
             }
         }
