@@ -57,11 +57,16 @@ extension JVMFunctionBuilder {
             }
             return JVMIntrinsicResult(value: try jdkCall("java/nio/file/Paths", "get", [.string, .reference("[Ljava/lang/String;", nullable: false)], .reference("java/nio/file/Path", nullable: false), arguments: [path, strings], resolved: resultType))
         }
+        if ["kotlin/jvm/internal/__jvmMonitorEnter", "kotlin/jvm/internal/__jvmMonitorExit"].contains(fq),
+           args.count == 1,
+           symbol.declSite.map({
+               context.sourceManager.origin(of: $0.start.file)?.isBundledStdlib == true
+           }) == true {
+            instructions.append(.monitor(try requireValue(args[0].expr), enter: name == "__jvmMonitorEnter"))
+            return JVMIntrinsicResult(value: nil)
+        }
         if context.options.stdlibOnly, fq.hasPrefix("kotlin/jvm/internal/__jvm") {
             let values = try args.map { try requireValue($0.expr) }
-            if ["__jvmMonitorEnter", "__jvmMonitorExit"].contains(name), values.count == 1 {
-                instructions.append(.monitor(values[0], enter: name == "__jvmMonitorEnter")); return JVMIntrinsicResult(value: nil)
-            }
             if name == "__jvmEnumEntries", values.count == 1 {
                 let array: JVMValueType = .reference("[Ljava/lang/Enum;", nullable: false)
                 return JVMIntrinsicResult(value: try convert(constructJDK(program.coroutineIntrinsicOwner + "$EnumEntries", parameters: [array], arguments: [convert(values[0], to: array)]), to: resultType))
