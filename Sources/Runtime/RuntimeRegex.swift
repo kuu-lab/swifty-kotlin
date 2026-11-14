@@ -934,14 +934,14 @@ public func kk_regex_create_flat(
 
 
 private func runtimeRegexCreate(pattern: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let regex = try? compileRegexPattern(pattern, options: []) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Illegal pattern: \(pattern)"
-        )
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let regex = try? compileRegexPattern(pattern, options: []) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(
+                message: "Illegal pattern: \(pattern)"
+            ))
+        }
+        return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
     }
-    return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
 }
 
 @_cdecl("__kk_string_matches_regex_flat")
