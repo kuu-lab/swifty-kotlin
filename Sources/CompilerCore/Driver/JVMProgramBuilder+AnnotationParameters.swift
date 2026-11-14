@@ -44,7 +44,15 @@ extension JVMProgramBuilder {
                 }
                 continue
             }
-            if node.name == "Suppress" || node.name == "kotlin.Suppress" { continue }
+            if node.name == "Suppress" || node.name == "kotlin.Suppress" {
+                // A user-defined `demo.Suppress` must keep its arguments, so
+                // only drop the annotation once it resolves to kotlin.Suppress;
+                // an unresolvable Suppress preserves the previous skip.
+                let isKotlinSuppress = annotationOwner(node, symbol: symbol)
+                    .flatMap { sema.symbols.symbol($0) }
+                    .map { $0.fqName.map(context.interner.resolve).joined(separator: ".") == "kotlin.Suppress" } ?? true
+                if isKotlinSuppress { continue }
+            }
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
             // kotlin.internal.* annotations are compile-time-only markers;
             // consumer compiles inject them as residual-stdlib declarations
