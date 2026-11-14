@@ -568,6 +568,7 @@ struct JVMClassReader {
             readOnlyCollectionSupertypes = (try? metadata.readOnlyCollectionSupertypes(byteLimit: bytes.count)) ?? [:]
         }
         let hasReadOnlyListSupertype = readOnlyCollectionSupertypes["java/util/List"] != nil
+        let hasReadOnlyMapSupertype = readOnlyCollectionSupertypes["java/util/Map"] != nil
         if let metadata = classAttributes.kotlinMetadata,
            methods.contains(where: Self.hasSuspendDescriptor),
            let table = try? metadata.functionTable(byteLimit: bytes.count) {
@@ -652,7 +653,7 @@ struct JVMClassReader {
             info.isKotlinObject = (try? metadata.isObject(byteLimit: bytes.count)) == true
         }
         if let metadata = classAttributes.kotlinMetadata,
-           isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
+           hasReadOnlyMapSupertype || isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: {
                $0.name.hasPrefix("get") && $0.name.contains("-")
                    || $0.isFinal && !$0.isStatic && $0.parameters.isEmpty
                        && ($0.name.hasPrefix("get") || $0.name.hasPrefix("is"))
@@ -667,6 +668,7 @@ struct JVMClassReader {
                     info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
                 } else if let sourceType = property.sourceType,
                           (name.hasSuffix("$Companion") || getter.name.contains("-")
+                              || hasReadOnlyMapSupertype && !property.isVar && ["keys", "values", "entries"].contains(property.name)
                               || getter.isFinal && !property.isVar
                                   && (sourceType.contains("<") || getter.name == property.name)),
                           !getter.isStatic && getter.parameters.isEmpty
