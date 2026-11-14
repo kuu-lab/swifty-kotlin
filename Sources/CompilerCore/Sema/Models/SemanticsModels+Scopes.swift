@@ -227,6 +227,7 @@ class ImportScope: BaseScope {}
 class PackageMembersScope: BaseScope {
     private var memberSources: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
     private let symbols: SymbolTable
+    private let sourceCandidates: (InternedString) -> [SymbolID]
 
     /// One memoized `deferredCandidates` answer: the binding-list version of
     /// every source FQ name read while producing it, plus the filtered and
@@ -249,9 +250,11 @@ class PackageMembersScope: BaseScope {
     init(
         parent: Scope?,
         symbols: SymbolTable,
-        packages: [(path: [InternedString], include: (SymbolID) -> Bool)] = []
+        packages: [(path: [InternedString], include: (SymbolID) -> Bool)] = [],
+        sourceCandidates: @escaping (InternedString) -> [SymbolID] = { _ in [] }
     ) {
         self.symbols = symbols
+        self.sourceCandidates = sourceCandidates
         super.init(parent: parent, symbols: symbols)
         memberSources = packages
     }
@@ -291,8 +294,10 @@ class PackageMembersScope: BaseScope {
             deferredCacheLock.unlock()
             var versions: [(fqName: [InternedString], version: Int)] = []
             versions.reserveCapacity(sources.count)
-            var result: [SymbolID] = []
-            var seen: Set<SymbolID> = []
+            // Keep the source declaration order ahead of symbol-table
+            // candidates, as when source members were inserted into the scope.
+            var result = sourceCandidates(name)
+            var seen = Set(result)
             for source in sources {
                 let fqName = source.path + [name]
                 let read = symbols.lookupAllWithVersion(fqName: fqName)
