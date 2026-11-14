@@ -44,6 +44,13 @@ extension CallTypeChecker.MemberCallCollectionFlowContext {
                 locals: &locals,
                 expectedType: destinationExpectedType
             )
+            if destinationType == sema.types.errorType,
+               let partial = checker.partiallyInferredNestedCallType(args[0].expr, ctx: ctx),
+               !partial.unboundTypeVarBySymbol.isEmpty {
+                // Preserve the destination's nominal type while the
+                // transform constrains a type argument the factory lacks.
+                destinationType = partial.type
+            }
             var nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
             let destinationRequiresMutableMap = calleeStr == "associateTo"
                 || calleeStr == "mapKeysTo"
