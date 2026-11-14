@@ -225,6 +225,7 @@ public struct JVMFunction {
     public var jvmName: String? = nil
     public var metadataDescriptor: String? = nil
     public var metadataParameterOffset = 0
+    public var declaredExceptions: [String] = []
     public var annotations: [JVMAnnotation] = []
     public var parameterAnnotations: [[JVMAnnotation]] = []
     public var annotationDefault: JVMAnnotationValue? = nil
