@@ -5,6 +5,7 @@ struct JVMKotlinSuspendFunction {
     struct Parameter {
         let name: String?
         let isNullable: Bool
+        let sourceType: String?
     }
 
     let name: String
@@ -145,9 +146,14 @@ struct JVMKotlinMetadataPayload {
             }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
             let parameters = try function.messages(6).map { parameter in
-                JVMKotlinSuspendFunction.Parameter(
+                let resolved = try types.resolve(parameter, inline: 3, indexed: 5)
+                let sourceType = try resolved.flatMap { type in
+                    type.type.has(2) ? try Self.sourceType(type, types: types, names: names) : nil
+                }
+                return JVMKotlinSuspendFunction.Parameter(
                     name: try names.resolve(parameter.int32(2)),
-                    isNullable: try types.resolve(parameter, inline: 3, indexed: 5)?.nullable ?? false
+                    isNullable: resolved?.nullable ?? false,
+                    sourceType: sourceType
                 )
             }
             let info = JVMKotlinSuspendFunction(
