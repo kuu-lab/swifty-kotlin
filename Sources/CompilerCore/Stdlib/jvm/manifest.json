@@ -9,7 +9,9 @@
     "kotlin/io/encoding/Base64.kt",
     "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
-    "kotlin/time/DurationUnit.kt"
+    "kotlin/time/DurationUnit.kt",
+    "kotlin/time/InstantFormatting.kt",
+    "kotlin/time/InstantParsing.kt"
   ],
   "declarations": [
     {
@@ -36,6 +38,23 @@
       "virtualPath": "<kswiftk-jvm>/duration.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/DurationKt"
+    },
+    {
+      "path": "declarations/Instant.kt",
+      "virtualPath": "<kswiftk-jvm>/instant.kt",
+      "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/InstantConversions.kt",
+      "virtualPath": "<kswiftk-jvm>/instant-conversions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/jdk8/InstantConversionsJDK8Kt",
+      "consumerIdentifiers": ["toJavaInstant", "toKotlinInstant"]
+    },
+    {
+      "path": "declarations/Clock.kt",
+      "virtualPath": "<kswiftk-jvm>/clock.kt",
+      "excludeFromStdlibBuild": true
     },
     {
       "path": "kotlin/Deprecation.kt",
