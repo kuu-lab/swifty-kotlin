@@ -388,12 +388,12 @@ public func kk_array_list_new_checked(
     _ initialCapacity: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard initialCapacity >= 0 else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(initialCapacity)"))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard initialCapacity >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Illegal Capacity: \(initialCapacity)"))
+        }
+        return kk_array_list_of(0, 0)
     }
-    return kk_array_list_of(0, 0)
 }
 
 @_cdecl("__kk_array_list_init")
@@ -440,11 +440,12 @@ public func kk_list_size(_ listRaw: Int) -> Int {
 // emits this check before accessing a potentially invalid list view.
 @_cdecl("__kk_list_check_modification")
 public func kk_list_check_modification(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if let list = runtimeListBox(from: listRaw), !list.isValidView {
-        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+    runtimeThrowingBridge(outThrown) {
+        if let list = runtimeListBox(from: listRaw), !list.isValidView {
+            throw RuntimeThrownHandle(runtimeAllocateConcurrentModificationException(message: nil))
+        }
+        return 0
     }
-    return 0
 }
 
 func runtimeCheckListView(_ list: RuntimeListBox, outThrown: UnsafeMutablePointer<Int>?) -> Bool {
@@ -461,20 +462,19 @@ public func kk_list_get(
     _ index: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let sourceValue = runtimeSourceListGet(listRaw, index, outThrown: outThrown) {
-            return sourceValue
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let sourceValue = runtimeSourceListGet(listRaw, index, outThrown: outThrown) {
+                return sourceValue
+            }
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "List reference is null."))
         }
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
-        return 0
+        guard list.indices.contains(index) else {
+            throw RuntimeThrownHandle(runtimeListGetOutOfBounds(listRaw: listRaw, list: list, index: index))
+        }
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+        return list[index]
     }
-    guard list.indices.contains(index) else {
-        runtimeSetThrown(outThrown, runtimeListGetOutOfBounds(listRaw: listRaw, list: list, index: index))
-        return 0
-    }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
-    return list[index]
 }
 
 /// JVM `List.get` failures depend on the concrete implementation class:
@@ -518,15 +518,15 @@ public func kk_enum_entries_get(
     _ index: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw), list.indices.contains(index) else {
-        let size = runtimeListBox(from: listRaw)?.count ?? 0
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index: \(index), size: \(size)"
-        )
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw), list.indices.contains(index) else {
+            let size = runtimeListBox(from: listRaw)?.count ?? 0
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "Index: \(index), size: \(size)"
+            ))
+        }
+        return list[index]
     }
-    return list[index]
 }
 
 @_cdecl("kk_list_is_empty")
@@ -679,54 +679,54 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
 /// zero-arg `kk_list_iterator` convention above).
 @_cdecl("kk_list_iterator_at")
 public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let result = runtimeSourceListIteratorAt(listRaw, index: index, outThrown: outThrown) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let result = runtimeSourceListIteratorAt(listRaw, index: index, outThrown: outThrown) {
+                return result
+            }
+            let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+            registerListIteratorItable(raw: raw)
+            return raw
         }
-        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+        guard (0...list.count).contains(index) else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "Index: \(index), Size: \(list.count)"
+            ))
+        }
+        // KUU-3962: `emptyList().listIterator(0)` is the shared `EmptyIterator` on
+        // the JVM — a Kotlin-marked object failing `as MutableIterator` /
+        // `as MutableListIterator` with `ClassCastException`. Keeping the mutation
+        // actions unset preserves that cast behavior (see `kk_list_iterator`).
+        let isCanonicalEmptyIterator = listRaw == emptyListSingletonRaw
+        let iter = RuntimeListIteratorBox(
+            values: list.values,
+            removeAction: isCanonicalEmptyIterator ? nil : { removedIndex in
+                guard list.indices.contains(removedIndex) else { return }
+                list.withMutableValues { $0.remove(at: removedIndex) }
+            },
+            setAction: isCanonicalEmptyIterator ? nil : { setIndex, value in
+                guard list.indices.contains(setIndex) else { return }
+                list.setValue(value, at: setIndex)
+            },
+            addAction: isCanonicalEmptyIterator ? nil : { addIndex, value in
+                guard (0...list.count).contains(addIndex) else { return }
+                list.withMutableValues { $0.insert(value, at: addIndex) }
+            },
+            isBackingReadOnly: { list.isEffectivelyReadOnly },
+            currentModCount: { list.modCount },
+            currentValue: { list.value(at: $0) }
+        )
+        iter.index = index
+        (iter.reflectedClassID, iter.reflectedClassName) =
+            runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: true)
+        let raw = registerRuntimeObject(iter)
         registerListIteratorItable(raw: raw)
+        if !isCanonicalEmptyIterator {
+            registerMutableListIteratorItable(raw: raw)
+        }
         return raw
     }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
-    guard (0...list.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index: \(index), Size: \(list.count)"
-        )
-        return 0
-    }
-    // KUU-3962: `emptyList().listIterator(0)` is the shared `EmptyIterator` on
-    // the JVM — a Kotlin-marked object failing `as MutableIterator` /
-    // `as MutableListIterator` with `ClassCastException`. Keeping the mutation
-    // actions unset preserves that cast behavior (see `kk_list_iterator`).
-    let isCanonicalEmptyIterator = listRaw == emptyListSingletonRaw
-    let iter = RuntimeListIteratorBox(
-        values: list.values,
-        removeAction: isCanonicalEmptyIterator ? nil : { removedIndex in
-            guard list.indices.contains(removedIndex) else { return }
-            list.withMutableValues { $0.remove(at: removedIndex) }
-        },
-        setAction: isCanonicalEmptyIterator ? nil : { setIndex, value in
-            guard list.indices.contains(setIndex) else { return }
-            list.setValue(value, at: setIndex)
-        },
-        addAction: isCanonicalEmptyIterator ? nil : { addIndex, value in
-            guard (0...list.count).contains(addIndex) else { return }
-            list.withMutableValues { $0.insert(value, at: addIndex) }
-        },
-        isBackingReadOnly: { list.isEffectivelyReadOnly },
-        currentModCount: { list.modCount },
-        currentValue: { list.value(at: $0) }
-    )
-    iter.index = index
-    (iter.reflectedClassID, iter.reflectedClassName) =
-        runtimeReflectedListIteratorClass(sourceRaw: listRaw, list: list, listIterator: true)
-    let raw = registerRuntimeObject(iter)
-    registerListIteratorItable(raw: raw)
-    if !isCanonicalEmptyIterator {
-        registerMutableListIteratorItable(raw: raw)
-    }
-    return raw
 }
 
 /// ArrayList constructors are lowered to RuntimeListBox values, so ArrayList
@@ -739,69 +739,53 @@ public func kk_list_subList(
     _ toIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let result = runtimeSourceMutableListSubList(
-            listRaw,
-            fromIndex: fromIndex,
-            toIndex: toIndex,
-            outThrown: outThrown
-        ) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let result = runtimeSourceMutableListSubList(
+                listRaw,
+                fromIndex: fromIndex,
+                toIndex: toIndex,
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            if let result = runtimeSourceListSubList(
+                listRaw,
+                fromIndex: fromIndex,
+                toIndex: toIndex,
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "List reference is null."))
         }
-        if let result = runtimeSourceListSubList(
-            listRaw,
-            fromIndex: fromIndex,
-            toIndex: toIndex,
-            outThrown: outThrown
-        ) {
-            return result
-        }
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "List reference is null."))
-        return 0
-    }
-    // `EmptyList.subList` has its own bounds contract: only (0, 0) is legal
-    // and returns the same shared instance; anything else reports both
-    // indices without a size field.
-    if listRaw == emptyListSingletonRaw {
-        if fromIndex == 0 && toIndex == 0 {
-            return emptyListSingletonRaw
-        }
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIndexOutOfBoundsException(
+        // `EmptyList.subList` has its own bounds contract: only (0, 0) is legal
+        // and returns the same shared instance; anything else reports both
+        // indices without a size field.
+        if listRaw == emptyListSingletonRaw {
+            if fromIndex == 0 && toIndex == 0 {
+                return emptyListSingletonRaw
+            }
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
                 message: "fromIndex: \(fromIndex), toIndex: \(toIndex)"
-            )
+            ))
+        }
+        // JDK `AbstractList`/`ArrayList` subList range checks run in this order
+        // and use per-bound messages.
+        guard fromIndex >= 0 else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(message: "fromIndex = \(fromIndex)"))
+        }
+        guard toIndex <= list.count else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(message: "toIndex = \(toIndex)"))
+        }
+        guard fromIndex <= toIndex else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "fromIndex(\(fromIndex)) > toIndex(\(toIndex))"))
+        }
+        return registerRuntimeObject(
+            RuntimeListBox(subListOf: list, fromIndex: fromIndex, toIndex: toIndex),
+            typeID: runtimeSubListTypeID(listRaw)
         )
-        return 0
     }
-    // JDK `AbstractList`/`ArrayList` subList range checks run in this order
-    // and use per-bound messages.
-    guard fromIndex >= 0 else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "fromIndex = \(fromIndex)")
-        )
-        return 0
-    }
-    guard toIndex <= list.count else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "toIndex = \(toIndex)")
-        )
-        return 0
-    }
-    guard fromIndex <= toIndex else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "fromIndex(\(fromIndex)) > toIndex(\(toIndex))")
-        )
-        return 0
-    }
-    return registerRuntimeObject(
-        RuntimeListBox(subListOf: list, fromIndex: fromIndex, toIndex: toIndex),
-        typeID: runtimeSubListTypeID(listRaw)
-    )
 }
 
 @_cdecl("kk_list_iterator_hasNext")
@@ -822,67 +806,69 @@ public func kk_list_iterator_next(
     _ iterRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
-        // BUG-231: see kk_list_iterator_hasNext above.
-        return kk_iterator_next(iterRaw, outThrown)
+    // Failure sentinels differ per path (runtimeExceptionCaughtSentinel for
+    // concurrent modification, 0 for exhaustion), so the error writes stay
+    // manual inside the bridge closure.
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+            // BUG-231: see kk_list_iterator_hasNext above.
+            return kk_iterator_next(iterRaw, outThrown)
+        }
+        guard iter.isInSyncWithBackingCollection() else {
+            runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
+            return runtimeExceptionCaughtSentinel
+        }
+        guard iter.index < iter.values.count else {
+            return runtimeThrowIteratorExhausted(outThrown)
+        }
+        let value = iter.currentValue?(iter.index) ?? iter.values[iter.index]
+        iter.lastReturnedIndex = iter.index
+        iter.index += 1
+        return runtimeCollectionABIValue(value)
     }
-    guard iter.isInSyncWithBackingCollection() else {
-        runtimeSetThrown(outThrown, runtimeAllocateConcurrentModificationException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    guard iter.index < iter.values.count else {
-        return runtimeThrowIteratorExhausted(outThrown)
-    }
-    let value = iter.currentValue?(iter.index) ?? iter.values[iter.index]
-    iter.lastReturnedIndex = iter.index
-    iter.index += 1
-    return runtimeCollectionABIValue(value)
 }
 
 func runtimeListIteratorRemove(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+            return 0
+        }
+        guard iter.isBackingReadOnly?() != true else {
+            throw RuntimeThrownHandle(runtimeAllocateUnsupportedOperationException(message: nil))
+        }
+        guard iter.removeLastReturned() else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalStateException(message: nil))
+        }
         return 0
     }
-    guard iter.isBackingReadOnly?() != true else {
-        runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    guard iter.removeLastReturned() else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    return 0
 }
 
 func runtimeListIteratorSet(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+            return 0
+        }
+        guard iter.isBackingReadOnly?() != true else {
+            throw RuntimeThrownHandle(runtimeAllocateUnsupportedOperationException(message: nil))
+        }
+        guard iter.setLastReturned(runtimeValueFromCollectionABI(elem)) else {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalStateException(message: nil))
+        }
         return 0
     }
-    guard iter.isBackingReadOnly?() != true else {
-        runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    guard iter.setLastReturned(runtimeValueFromCollectionABI(elem)) else {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    return 0
 }
 
 func runtimeListIteratorAdd(_ iterRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeExceptionCaughtSentinel) {
+        guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+            return 0
+        }
+        guard iter.isBackingReadOnly?() != true else {
+            throw RuntimeThrownHandle(runtimeAllocateUnsupportedOperationException(message: nil))
+        }
+        iter.addBeforeNext(runtimeValueFromCollectionABI(elem))
         return 0
     }
-    guard iter.isBackingReadOnly?() != true else {
-        runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
-        return runtimeExceptionCaughtSentinel
-    }
-    iter.addBeforeNext(runtimeValueFromCollectionABI(elem))
-    return 0
 }
 
 /// The invariant maintained by `kk_list_iterator_next` guarantees
@@ -994,21 +980,22 @@ public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int 
 public func kk_mutable_collection_add_throwing(
     _ collectionRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
-    if let list = runtimeListBox(from: collectionRaw) {
-        list.withMutableValues { values in
-            values.append(runtimeValueFromCollectionABI(elem))
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
+        if let list = runtimeListBox(from: collectionRaw) {
+            list.withMutableValues { values in
+                values.append(runtimeValueFromCollectionABI(elem))
+            }
+            return kk_box_bool(1)
         }
-        return kk_box_bool(1)
+        if let set = runtimeSetBox(from: collectionRaw) {
+            return kk_box_bool(set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0)
+        }
+        if let sourceResult = runtimeSourceMutableCollectionAdd(collectionRaw, elem, outThrown: outThrown) {
+            return sourceResult
+        }
+        return kk_box_bool(0)
     }
-    if let set = runtimeSetBox(from: collectionRaw) {
-        return kk_box_bool(set.insert(value: runtimeValueFromCollectionABI(elem)) ? 1 : 0)
-    }
-    if let sourceResult = runtimeSourceMutableCollectionAdd(collectionRaw, elem, outThrown: outThrown) {
-        return sourceResult
-    }
-    return kk_box_bool(0)
 }
 
 public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> Int {
@@ -1019,31 +1006,32 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
 public func kk_mutable_collection_remove_throwing(
     _ collectionRaw: Int, _ elem: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
-    if let list = runtimeListBox(from: collectionRaw) {
-        guard let index = list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, elem) }) else {
-            return kk_box_bool(0)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
+        if let list = runtimeListBox(from: collectionRaw) {
+            guard let index = list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, elem) }) else {
+                return kk_box_bool(0)
+            }
+            if list.isMapValuesView {
+                return kk_box_bool(list.removeMapBackedValue(at: index) ? 1 : 0)
+            }
+            list.withMutableValues { $0.remove(at: index) }
+            return kk_box_bool(1)
         }
-        if list.isMapValuesView {
-            return kk_box_bool(list.removeMapBackedValue(at: index) ? 1 : 0)
+        if let set = runtimeSetBox(from: collectionRaw) {
+            return kk_box_bool(set.remove(rawValue: elem) ? 1 : 0)
         }
-        list.withMutableValues { $0.remove(at: index) }
-        return kk_box_bool(1)
+        if let result = runtimeSourceInterfaceCall1(
+            collectionRaw, elem,
+            interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+            methodSlot: 3,
+            context: "MutableCollection.remove dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        return kk_box_bool(0)
     }
-    if let set = runtimeSetBox(from: collectionRaw) {
-        return kk_box_bool(set.remove(rawValue: elem) ? 1 : 0)
-    }
-    if let result = runtimeSourceInterfaceCall1(
-        collectionRaw, elem,
-        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
-        methodSlot: 3,
-        context: "MutableCollection.remove dispatch",
-        outThrown: outThrown
-    ) {
-        return result
-    }
-    return kk_box_bool(0)
 }
 
 public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
@@ -1054,26 +1042,27 @@ public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
 public func kk_mutable_collection_clear_throwing(
     _ collectionRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
-    if let list = runtimeListBox(from: collectionRaw) {
-        list.values = []
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
+        if let list = runtimeListBox(from: collectionRaw) {
+            list.values = []
+            return 0
+        }
+        if let set = runtimeSetBox(from: collectionRaw) {
+            _ = set.removeAll()
+            return 0
+        }
+        if let result = runtimeSourceInterfaceCall0(
+            collectionRaw,
+            interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+            methodSlot: 2,
+            context: "MutableCollection.clear dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
         return 0
     }
-    if let set = runtimeSetBox(from: collectionRaw) {
-        _ = set.removeAll()
-        return 0
-    }
-    if let result = runtimeSourceInterfaceCall0(
-        collectionRaw,
-        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
-        methodSlot: 2,
-        context: "MutableCollection.clear dispatch",
-        outThrown: outThrown
-    ) {
-        return result
-    }
-    return 0
 }
 
 public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
@@ -1084,24 +1073,25 @@ public func kk_mutable_collection_removeAll(_ collectionRaw: Int, _ elementsRaw:
 public func kk_mutable_collection_removeAll_throwing(
     _ collectionRaw: Int, _ elementsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
-    if runtimeListBox(from: collectionRaw) != nil {
-        return kk_mutable_list_removeAll(collectionRaw, elementsRaw)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
+        if runtimeListBox(from: collectionRaw) != nil {
+            return kk_mutable_list_removeAll(collectionRaw, elementsRaw)
+        }
+        if runtimeSetBox(from: collectionRaw) != nil {
+            return kk_mutable_set_removeAll(collectionRaw, elementsRaw, outThrown)
+        }
+        if let result = runtimeSourceInterfaceCall1(
+            collectionRaw, elementsRaw,
+            interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+            methodSlot: 4,
+            context: "MutableCollection.removeAll dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        return kk_box_bool(0)
     }
-    if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_removeAll(collectionRaw, elementsRaw, outThrown)
-    }
-    if let result = runtimeSourceInterfaceCall1(
-        collectionRaw, elementsRaw,
-        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
-        methodSlot: 4,
-        context: "MutableCollection.removeAll dispatch",
-        outThrown: outThrown
-    ) {
-        return result
-    }
-    return kk_box_bool(0)
 }
 
 public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw: Int) -> Int {
@@ -1112,24 +1102,25 @@ public func kk_mutable_collection_retainAll(_ collectionRaw: Int, _ elementsRaw:
 public func kk_mutable_collection_retainAll_throwing(
     _ collectionRaw: Int, _ elementsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
-    if runtimeListBox(from: collectionRaw) != nil {
-        return kk_mutable_list_retainAll(collectionRaw, elementsRaw)
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
+        if runtimeListBox(from: collectionRaw) != nil {
+            return kk_mutable_list_retainAll(collectionRaw, elementsRaw)
+        }
+        if runtimeSetBox(from: collectionRaw) != nil {
+            return kk_mutable_set_retainAll(collectionRaw, elementsRaw, outThrown)
+        }
+        if let result = runtimeSourceInterfaceCall1(
+            collectionRaw, elementsRaw,
+            interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+            methodSlot: 5,
+            context: "MutableCollection.retainAll dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        return kk_box_bool(0)
     }
-    if runtimeSetBox(from: collectionRaw) != nil {
-        return kk_mutable_set_retainAll(collectionRaw, elementsRaw, outThrown)
-    }
-    if let result = runtimeSourceInterfaceCall1(
-        collectionRaw, elementsRaw,
-        interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
-        methodSlot: 5,
-        context: "MutableCollection.retainAll dispatch",
-        outThrown: outThrown
-    ) {
-        return result
-    }
-    return kk_box_bool(0)
 }
 
 @_cdecl("__kk_mutable_collection_addAll")
@@ -1141,43 +1132,44 @@ public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: In
 public func kk_mutable_collection_addAll_throwing(
     _ collectionRaw: Int, _ elementsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
-    if runtimeListBox(from: collectionRaw) == nil, runtimeSetBox(from: collectionRaw) == nil,
-       let result = runtimeSourceInterfaceCall1(
-           collectionRaw, elementsRaw,
-           interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
-           methodSlot: 1,
-           context: "MutableCollection.addAll dispatch",
-           outThrown: outThrown
-       )
-    {
-        return result
-    }
-    guard let values = runtimeCollectionOrArrayValues(from: elementsRaw) else {
+    runtimeThrowingBridge(outThrown) {
+        guard runtimeCheckMutableCollection(collectionRaw, outThrown) else { return 0 }
+        if runtimeListBox(from: collectionRaw) == nil, runtimeSetBox(from: collectionRaw) == nil,
+           let result = runtimeSourceInterfaceCall1(
+               collectionRaw, elementsRaw,
+               interfaceTypeID: runtimeMutableCollectionInterfaceTypeID,
+               methodSlot: 1,
+               context: "MutableCollection.addAll dispatch",
+               outThrown: outThrown
+           )
+        {
+            return result
+        }
+        guard let values = runtimeCollectionOrArrayValues(from: elementsRaw) else {
+            return kk_box_bool(0)
+        }
+        if let list = runtimeListBox(from: collectionRaw) {
+            if values.isEmpty {
+                return kk_box_bool(0)
+            }
+            list.withMutableValues { $0.append(contentsOf: values) }
+            return kk_box_bool(1)
+        }
+        if let set = runtimeSetBox(from: collectionRaw) {
+            for value in values where !set.acceptsInsertion(rawValue: value.legacyRawValue) {
+                runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Element outside range view"))
+                return kk_box_bool(0)
+            }
+            var modified = false
+            for value in values {
+                if set.insert(value: value) {
+                    modified = true
+                }
+            }
+            return kk_box_bool(modified ? 1 : 0)
+        }
         return kk_box_bool(0)
     }
-    if let list = runtimeListBox(from: collectionRaw) {
-        if values.isEmpty {
-            return kk_box_bool(0)
-        }
-        list.withMutableValues { $0.append(contentsOf: values) }
-        return kk_box_bool(1)
-    }
-    if let set = runtimeSetBox(from: collectionRaw) {
-        for value in values where !set.acceptsInsertion(rawValue: value.legacyRawValue) {
-            runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Element outside range view"))
-            return kk_box_bool(0)
-        }
-        var modified = false
-        for value in values {
-            if set.insert(value: value) {
-                modified = true
-            }
-        }
-        return kk_box_bool(modified ? 1 : 0)
-    }
-    return kk_box_bool(0)
 }
 
 @_cdecl("__kk_collection_toCollection")
@@ -1200,25 +1192,26 @@ public func kk_mutable_list_add(
     _ elem: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let sourceResult = runtimeSourceInterfaceCall1(
-            listRaw, elem,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 2,
-            context: "MutableList.add dispatch",
-            outThrown: outThrown
-        ) {
-            return sourceResult
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let sourceResult = runtimeSourceInterfaceCall1(
+                listRaw, elem,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 2,
+                context: "MutableList.add dispatch",
+                outThrown: outThrown
+            ) {
+                return sourceResult
+            }
+            return kk_box_bool(0)
         }
-        return kk_box_bool(0)
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
+        guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
+        list.withMutableValues { values in
+            values.append(runtimeValueFromCollectionABI(elem))
+        }
+        return kk_box_bool(1)
     }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
-    guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
-    list.withMutableValues { values in
-        values.append(runtimeValueFromCollectionABI(elem))
-    }
-    return kk_box_bool(1)
 }
 
 @_cdecl("__kk_mutable_list_remove")
@@ -1236,11 +1229,12 @@ public func kk_list_index_of(
     _ element: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let list = runtimeListBox(from: listRaw) {
-        return list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+    runtimeThrowingBridge(outThrown) {
+        if let list = runtimeListBox(from: listRaw) {
+            return list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+        }
+        return runtimeSourceListIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
     }
-    return runtimeSourceListIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
 }
 
 @_cdecl("__kk_list_lastIndexOf")
@@ -1249,11 +1243,12 @@ public func kk_list_lastIndexOf(
     _ element: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let list = runtimeListBox(from: listRaw) {
-        return list.values.lastIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+    runtimeThrowingBridge(outThrown) {
+        if let list = runtimeListBox(from: listRaw) {
+            return list.values.lastIndex(where: { list.elementsEqual($0.legacyRawValue, element) }) ?? -1
+        }
+        return runtimeSourceListLastIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
     }
-    return runtimeSourceListLastIndexOf(listRaw, element: element, outThrown: outThrown) ?? -1
 }
 
 @_cdecl("__kk_mutable_list_remove_dispatch")
@@ -1262,28 +1257,29 @@ public func kk_mutable_list_remove_dispatch(
     _ elem: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if runtimeListBox(from: listRaw) == nil,
-       let result = runtimeSourceInterfaceCall1(
-           listRaw, elem,
-           interfaceTypeID: runtimeMutableListInterfaceTypeID,
-           methodSlot: 7,
-           context: "MutableList.remove dispatch",
-           outThrown: outThrown
-       )
-    {
-        return result
+    runtimeThrowingBridge(outThrown) {
+        if runtimeListBox(from: listRaw) == nil,
+           let result = runtimeSourceInterfaceCall1(
+               listRaw, elem,
+               interfaceTypeID: runtimeMutableListInterfaceTypeID,
+               methodSlot: 7,
+               context: "MutableList.remove dispatch",
+               outThrown: outThrown
+           )
+        {
+            return result
+        }
+        guard let list = runtimeListBox(from: listRaw) else {
+            return kk_box_bool(0)
+        }
+        guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
+        guard let index = list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, elem) }) else {
+            return kk_box_bool(0)
+        }
+        list.withMutableValues { $0.remove(at: index) }
+        return kk_box_bool(1)
     }
-    guard let list = runtimeListBox(from: listRaw) else {
-        return kk_box_bool(0)
-    }
-    guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return kk_box_bool(0) }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return kk_box_bool(0) }
-    guard let index = list.values.firstIndex(where: { list.elementsEqual($0.legacyRawValue, elem) }) else {
-        return kk_box_bool(0)
-    }
-    list.withMutableValues { $0.remove(at: index) }
-    return kk_box_bool(1)
 }
 
 @_cdecl("__kk_mutable_list_removeAt")
@@ -1292,42 +1288,45 @@ public func kk_mutable_list_removeAt(
     _ index: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let result = runtimeSourceInterfaceCall1(
-            listRaw, index,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 6,
-            context: "MutableList.removeAt dispatch",
-            outThrown: outThrown
-        ) {
-            return result
+    // Failure returns depend on whether `outThrown` is non-nil, so the error
+    // writes stay manual inside the bridge closure.
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let result = runtimeSourceInterfaceCall1(
+                listRaw, index,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 6,
+                context: "MutableList.removeAt dispatch",
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
+            return outThrown == nil ? runtimeNullSentinelInt : 0
         }
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
-        return outThrown == nil ? runtimeNullSentinelInt : 0
+        guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
+        guard list.indices.contains(index) else {
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.count)")
+            )
+            return outThrown == nil ? runtimeNullSentinelInt : 0
+        }
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+        return list.withMutableValues { $0.remove(at: index).legacyRawValue }
     }
-    guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
-    guard list.indices.contains(index) else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIndexOutOfBoundsException(message: "Index \(index) out of bounds for length \(list.count)")
-        )
-        return outThrown == nil ? runtimeNullSentinelInt : 0
-    }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
-    return list.withMutableValues { $0.remove(at: index).legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeFirst")
 public func kk_mutable_list_removeFirst(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw),
-          list.count > 0
-    else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: nil)
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw),
+              list.count > 0
+        else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return list.withMutableValues { $0.removeFirst().legacyRawValue }
     }
-    return list.withMutableValues { $0.removeFirst().legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeFirstOrNull")
@@ -1342,14 +1341,14 @@ public func kk_mutable_list_removeFirstOrNull(_ listRaw: Int) -> Int {
 
 @_cdecl("__kk_mutable_list_removeLast")
 public func kk_mutable_list_removeLast(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw),
-          list.count > 0
-    else {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: nil)
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw),
+              list.count > 0
+        else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return list.withMutableValues { $0.removeLast().legacyRawValue }
     }
-    return list.withMutableValues { $0.removeLast().legacyRawValue }
 }
 
 @_cdecl("__kk_mutable_list_removeLastOrNull")
@@ -1379,32 +1378,31 @@ public func kk_mutable_list_clear(_ listRaw: Int) -> Int {
 
 @_cdecl("__kk_mutable_list_add_at")
 public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let result = runtimeSourceInterfaceCall2(
-            listRaw, index, element,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 3,
-            context: "MutableList.add(index, element) dispatch",
-            outThrown: outThrown
-        ) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let result = runtimeSourceInterfaceCall2(
+                listRaw, index, element,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 3,
+                context: "MutableList.add(index, element) dispatch",
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "MutableList reference is null."))
         }
-        outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
+        guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
+        guard (0...list.count).contains(index) else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "Index: \(index), Size: \(list.count)"
+            ))
+        }
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+        list.withMutableValues { values in
+            values.insert(runtimeValueFromCollectionABI(element), at: index)
+        }
         return 0
     }
-    guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
-    guard (0...list.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index: \(index), Size: \(list.count)"
-        )
-        return 0
-    }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
-    list.withMutableValues { values in
-        values.insert(runtimeValueFromCollectionABI(element), at: index)
-    }
-    return 0
 }
 
 @_cdecl("__kk_mutable_list_addAll_at")
@@ -1414,68 +1412,66 @@ public func kk_mutable_list_addAll_at(
     _ collectionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let result = runtimeSourceInterfaceCall2(
-            listRaw, index, collectionRaw,
-            interfaceTypeID: runtimeMutableListInterfaceTypeID,
-            methodSlot: 5,
-            context: "MutableList.addAll(index, elements) dispatch",
-            outThrown: outThrown
-        ) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let result = runtimeSourceInterfaceCall2(
+                listRaw, index, collectionRaw,
+                interfaceTypeID: runtimeMutableListInterfaceTypeID,
+                methodSlot: 5,
+                context: "MutableList.addAll(index, elements) dispatch",
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "MutableList reference is null."))
         }
-        outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
-        return 0
+        guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
+        guard (0...list.count).contains(index) else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "MutableList index \(index) out of bounds for length \(list.count)."
+            ))
+        }
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+        if let collection = runtimeListBox(from: collectionRaw),
+           !runtimeCheckListView(collection, outThrown: outThrown)
+        {
+            return 0
+        }
+        guard let newValues = runtimeCollectionOrArrayValues(from: collectionRaw), !newValues.isEmpty else {
+            return kk_box_bool(0)
+        }
+        list.withMutableValues { $0.insert(contentsOf: newValues, at: index) }
+        return kk_box_bool(1)
     }
-    guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
-    guard (0...list.count).contains(index) else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "MutableList index \(index) out of bounds for length \(list.count)."
-        )
-        return 0
-    }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
-    if let collection = runtimeListBox(from: collectionRaw),
-       !runtimeCheckListView(collection, outThrown: outThrown)
-    {
-        return 0
-    }
-    guard let newValues = runtimeCollectionOrArrayValues(from: collectionRaw), !newValues.isEmpty else {
-        return kk_box_bool(0)
-    }
-    list.withMutableValues { $0.insert(contentsOf: newValues, at: index) }
-    return kk_box_bool(1)
 }
 
 @_cdecl("__kk_mutable_list_set")
 public func kk_mutable_list_set(_ listRaw: Int, _ index: Int, _ element: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let list = runtimeListBox(from: listRaw) else {
-        if let result = runtimeSourceMutableListSet(
-            listRaw,
-            index: index,
-            element: element,
-            outThrown: outThrown
-        ) {
-            return result
+    runtimeThrowingBridge(outThrown) {
+        guard let list = runtimeListBox(from: listRaw) else {
+            if let result = runtimeSourceMutableListSet(
+                listRaw,
+                index: index,
+                element: element,
+                outThrown: outThrown
+            ) {
+                return result
+            }
+            throw RuntimeThrownHandle(runtimeAllocateThrowable(message: "MutableList reference is null."))
         }
-        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "MutableList reference is null."))
-        return 0
+        guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
+        guard list.indices.contains(index) else {
+            throw RuntimeThrownHandle(runtimeAllocateIndexOutOfBoundsException(
+                message: "Index \(index) out of bounds for length \(list.count)"
+            ))
+        }
+        guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
+        let values = list.values
+        let old = values[index]
+        let replacement = runtimeValueFromCollectionABI(element)
+        list.setValue(replacement, at: index)
+        return old.legacyRawValue
     }
-    guard !runtimeThrowIfReadOnlyList(list, outThrown) else { return 0 }
-    guard list.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Index \(index) out of bounds for length \(list.count)"
-        )
-        return 0
-    }
-    guard runtimeCheckListView(list, outThrown: outThrown) else { return 0 }
-    let values = list.values
-    let old = values[index]
-    let replacement = runtimeValueFromCollectionABI(element)
-    list.setValue(replacement, at: index)
-    return old.legacyRawValue
 }
 
 
@@ -1653,13 +1649,13 @@ public func kk_iterable_toHashSet(_ iterableRaw: Int) -> Int {
 
 @_cdecl("__kk_iterable_last")
 public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let values = runtimeIterableValues(from: iterableRaw) ?? []
-    guard let last = values.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Collection is empty."))
-        return 0
+    runtimeThrowingBridge(outThrown) {
+        let values = runtimeIterableValues(from: iterableRaw) ?? []
+        guard let last = values.last else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: "Collection is empty."))
+        }
+        return last.legacyRawValue
     }
-    return last.legacyRawValue
 }
 
 @_cdecl("__kk_collection_toMutableList")
