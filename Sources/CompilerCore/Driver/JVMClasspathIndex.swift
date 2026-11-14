@@ -332,16 +332,20 @@ final class JVMClasspathIndex {
             var inheritedConstants: [String: JVMForeignField] = [:]
             var ambiguousConstants: Set<String> = []
             var visitedConstantOwners: Set<String> = []
-            let declaredFieldNames = Set(info.fields.map(\.name))
+            var shadowedFieldNames = Set(info.fields.map(\.name))
             func inheritInterfaceConstants(_ name: String) {
                 guard visitedConstantOwners.insert(name).inserted, let owner = hierarchyClasses[name],
                       owner.isInterface, owner.isKotlinFileFacade == nil else { return }
                 for field in owner.fields where field.isPublic && field.isStatic && field.isFinal
-                    && field.constantValue != nil && !declaredFieldNames.contains(field.name) {
+                    && field.constantValue != nil && !shadowedFieldNames.contains(field.name) {
                     if inheritedConstants.updateValue(field, forKey: field.name) != nil {
                         ambiguousConstants.insert(field.name)
                     }
                 }
+                // A nearer interface's declaration hides same-named ancestor
+                // constants even when it is runtime-initialized, so mark every
+                // declared name before descending into parents.
+                for field in owner.fields { shadowedFieldNames.insert(field.name) }
                 for parent in owner.interfaces { inheritInterfaceConstants(parent) }
             }
             if info.isKotlinFileFacade == nil {
