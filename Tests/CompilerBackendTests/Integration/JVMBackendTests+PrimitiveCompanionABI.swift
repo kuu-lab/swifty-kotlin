@@ -41,5 +41,33 @@ extension JVMBackendTests {
             #expect(run.exitCode == 0)
         }
     }
+
+    @Test
+    func primitiveCompanionsLinkAgainstOwnStdlib() throws {
+        let stdlib = try ownStdlibLibrary()
+        try withWorkspace { root in
+            let source = """
+            fun main() {
+                for (value in listOf(Boolean, Byte, Short, Char, Long, Double)) {
+                    val type = value.javaClass
+                    println(type.simpleName + ":" + (type.getField("INSTANCE").get(null) === value))
+                }
+                println(Byte.javaClass.getField("MIN_VALUE").getByte(null))
+                println(Short.javaClass.getField("MAX_VALUE").getShort(null))
+                println(Char.javaClass.getField("MIN_HIGH_SURROGATE").getChar(null).code)
+                println(Long.javaClass.getField("MIN_VALUE").getLong(null))
+                println(Double.javaClass.getMethod("getMIN_VALUE").invoke(Double))
+            }
+            """
+            try source.write(to: root.appendingPathComponent("PrimitiveProbe.kt"), atomically: true, encoding: .utf8)
+            let app = root.appendingPathComponent("probe.jar")
+            let compiled = try jvmTool("kotlinc", ["PrimitiveProbe.kt", "-d", app.path], root: root)
+            try #require(compiled.exitCode == 0, "\(compiled.stderr)")
+            let args = ["-Xverify:all", "-cp"]
+            let reference = try java(args + [app.path + ":" + (try m11Runtime()), "PrimitiveProbeKt"])
+            let run = try java(args + [app.path + ":" + stdlib.path, "PrimitiveProbeKt"])
+            #expect(run.stdout == reference.stdout)
+        }
+    }
 }
 #endif
