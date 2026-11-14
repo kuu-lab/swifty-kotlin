@@ -44,6 +44,13 @@ public enum SyntheticSymbolScheme {
     /// every other synthetic family so the two bands cannot meet.
     private static let mirrorBandBase: Int32 = 1_000_000_000
 
+    /// Band for receiver parameters derived from overflow-band originals.
+    /// An overflow-band accessor's magnitude (800M-900M) cannot be mirrored
+    /// within `Int32`, so receivers of those accessors occupy the free gap
+    /// between the overflow band and the mirror band. Decoding recovers the
+    /// accessor's own ID, keeping `receiverParameterOwner` intact.
+    private static let accessorReceiverBandBase: Int32 = 900_000_000
+
     /// Largest magnitude a negative original may have before its derived
     /// symbols would overflow `Int32`.
     static let maxMirrorOriginalMagnitude: Int32 = (Int32.max - mirrorBandBase) / kindCount - 1
@@ -82,6 +89,9 @@ public enum SyntheticSymbolScheme {
             return SymbolID(rawValue: -(overflowBandBase + kindCount * (raw - firstBandCapacity) + kind.rawValue))
         }
         let magnitude = Int64(raw).magnitude
+        if kind == .receiver, magnitude >= UInt64(overflowBandBase), magnitude < UInt64(overflowBandLimit) {
+            return SymbolID(rawValue: -(accessorReceiverBandBase + Int32(magnitude) - overflowBandBase))
+        }
         precondition(
             magnitude <= UInt64(maxMirrorOriginalMagnitude),
             "synthetic symbol mirror band exhausted: original \(raw) exceeds \(maxMirrorOriginalMagnitude)"
@@ -91,6 +101,9 @@ public enum SyntheticSymbolScheme {
 
     private static func decode(_ symbol: SymbolID) -> (kind: Kind, original: SymbolID)? {
         let raw = symbol.rawValue
+        if raw <= -accessorReceiverBandBase, raw > -mirrorBandBase {
+            return (.receiver, SymbolID(rawValue: -(overflowBandBase + (-raw - accessorReceiverBandBase))))
+        }
         let bandDescriptor: (base: Int32, sign: Int32, originalOffset: Int32)? = if raw <= -bandBase, raw > -bandLimit {
             (bandBase, 1, 0)
         } else if raw <= -overflowBandBase, raw > -overflowBandLimit {
