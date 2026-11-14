@@ -73,6 +73,8 @@ struct JVMTextOperation {
                 }
             }
         }
+        add("endsWith", [p("suffix", sequence), p("ignoreCase", .boolean, "false")],
+            sourceResult: "Boolean", result: .boolean, receiver: "CharSequence", jvmReceiver: sequence)
         add("startsWith", [p("prefix", .string), p("startIndex", .int), p("ignoreCase", .boolean, "false")], sourceResult: "Boolean", result: .boolean)
         for name in ["indexOf", "lastIndexOf"] {
             for char in [false, true] {
