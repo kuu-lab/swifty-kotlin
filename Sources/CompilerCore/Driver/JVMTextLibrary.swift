@@ -195,6 +195,8 @@ extension JVMProgramBuilder {
                             try method(symbol, owner: owner, name: name + "-impl", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
                         case "compareTo":
                             try method(symbol, owner: owner, name: "compareTo-LRDsOJo", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
+                        case "plus":
+                            try method(symbol, owner: owner, name: "plus-LRDsOJo", declarations: function.valueParams, extensionReceiver: .long, staticMember: true)
                         default:
                             break
                         }

@@ -4,6 +4,26 @@ import Foundation
 import Testing
 
 extension JVMBackendTests {
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func durationAdditionLinksWithoutClasspath(mode: EmitMode) throws {
+        try withWorkspace { root in
+            let result = try compile("""
+            import kotlin.time.DurationUnit
+            import kotlin.time.toDuration
+
+            fun main() {
+                println(1.toDuration(DurationUnit.NANOSECONDS) + 2.toDuration(DurationUnit.NANOSECONDS))
+            }
+            """, root: root, mode: mode)
+            #expect(result.0 == 0, "\(result.1.map(\.message))")
+            let artifact = root.appendingPathComponent(mode == .jvmJar ? "hello.jar" : "classes").path
+            let disassembly = try javap(["-c", "-classpath", artifact, "HelloKt"])
+            // Without the text-library ABI entry the call site is emitted as an
+            // instance `plus(J)J` on a long receiver and fails verification.
+            #expect(disassembly.stdout.contains(#"Method kotlin/time/Duration."plus-LRDsOJo":(JJ)J"#))
+        }
+    }
+
     @Test
     func durationAdditionLinksAgainstOwnStdlibWithMixedScales() throws {
         let own = try ownStdlibLibrary()
