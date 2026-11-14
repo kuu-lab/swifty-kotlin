@@ -259,7 +259,7 @@ struct RuntimeCoroutineAdvancedTests {
         }
 
         DispatchQueue.global().async {
-            kk_coroutine_continuation_resume_with(cont, resultRaw)
+            __kk_coroutine_continuation_resume_with(cont, resultRaw)
         }
 
         #expect(sem.wait(timeout: .now() + 5) == .success)
@@ -294,7 +294,7 @@ struct RuntimeCoroutineAdvancedTests {
         }
 
         DispatchQueue.global().async {
-            kk_coroutine_continuation_resume_with(cont, resultRaw)
+            __kk_coroutine_continuation_resume_with(cont, resultRaw)
         }
 
         #expect(sem.wait(timeout: .now() + 5) == .success)
@@ -693,7 +693,7 @@ struct RuntimeCoroutineAdvancedTests {
         let ptrB = runtimeRegisterAdvStringBox(boxB)
         let nameB = kk_coroutine_name_create(ptrB)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(8818))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(8818))
         let ctxA = kk_context_plus(emptyCtx, nameA)
         let ctxAB = kk_context_plus(ctxA, nameB)
 

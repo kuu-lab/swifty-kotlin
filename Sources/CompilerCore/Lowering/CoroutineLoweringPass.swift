@@ -373,7 +373,7 @@ final class CoroutineLoweringPass: LoweringPass {
         let continuationFactory = ctx.interner.intern("kk_coroutine_continuation_new")
         let runtimeCreateCoroutineUninterceptedCallee = ctx.interner.intern("kk_create_coroutine_unintercepted")
         let runtimeStartCoroutineUninterceptedOrReturnCallee = ctx.interner.intern("kk_start_coroutine_unintercepted_or_return")
-        let runtimeContinuationResumeCallee = ctx.interner.intern("kk_coroutine_continuation_resume")
+        let runtimeContinuationResumeCallee = ctx.interner.intern("__kk_coroutine_continuation_resume")
         let launcherArgSetCallee = ctx.interner.intern("kk_coroutine_launcher_arg_set")
         let coroutineScopeLaunchCallee = ctx.interner.intern("kk_coroutine_scope_launch")
         let kxMiniLauncherWithContCallees: [InternedString: InternedString] = [

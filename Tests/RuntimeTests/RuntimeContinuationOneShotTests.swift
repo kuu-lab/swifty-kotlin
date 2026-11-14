@@ -143,9 +143,9 @@ struct RuntimeContinuationOneShotTests {
         #expect(state.completion == 0, "completion must be reset to 0 on double-resume")
     }
 
-    // MARK: - C-level entry-point guard (kk_coroutine_continuation_resume)
+    // MARK: - C-level entry-point guard (__kk_coroutine_continuation_resume)
 
-    /// Calling `kk_coroutine_continuation_resume` twice must not crash and must
+    /// Calling `__kk_coroutine_continuation_resume` twice must not crash and must
     /// surface the IllegalStateException via `thrownException` on the second call.
     @Test
     func cLevelResumeGuardSurfacesIllegalStateExceptionViaThrownException() throws {
@@ -158,18 +158,18 @@ struct RuntimeContinuationOneShotTests {
         )
 
         // First resume: should succeed silently.
-        kk_coroutine_continuation_resume(continuation, 42)
+        __kk_coroutine_continuation_resume(continuation, 42)
         #expect(state.thrownException == 0, "thrownException must be 0 after first resume")
 
         // Second resume: must deliver ISE via thrownException.
-        kk_coroutine_continuation_resume(continuation, 99)
+        __kk_coroutine_continuation_resume(continuation, 99)
         #expect(
             isIllegalStateException(state.thrownException),
             "thrownException must be IllegalStateException after double-resume via C-level API"
         )
     }
 
-    /// Calling `kk_coroutine_continuation_resume_with_exception` twice must
+    /// Calling `__kk_coroutine_continuation_resume_with_exception` twice must
     /// surface ISE via `thrownException`.
     @Test
     func cLevelResumeWithExceptionGuardSurfacesISE() throws {
@@ -182,11 +182,11 @@ struct RuntimeContinuationOneShotTests {
         )
 
         let ex1 = runtimeAllocateThrowable(message: "first exception")
-        kk_coroutine_continuation_resume_with_exception(continuation, ex1)
+        __kk_coroutine_continuation_resume_with_exception(continuation, ex1)
         #expect(state.thrownException == ex1, "First resume must store the original exception")
 
         let ex2 = runtimeAllocateThrowable(message: "second exception — double resume")
-        kk_coroutine_continuation_resume_with_exception(continuation, ex2)
+        __kk_coroutine_continuation_resume_with_exception(continuation, ex2)
         #expect(
             isIllegalStateException(state.thrownException),
             "thrownException must be replaced with IllegalStateException after double resume-with-exception"
