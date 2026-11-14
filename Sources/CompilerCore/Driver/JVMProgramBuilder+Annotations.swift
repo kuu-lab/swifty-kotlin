@@ -205,11 +205,12 @@ extension JVMProgramBuilder {
         if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "file"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
+            if isThrowsAnnotation(name) { continue }
             if ["kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable"].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
             // WasExperimental stays dropped: it is internal in kotlin-stdlib, so
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
-            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmStatic", "JvmStatic", "kotlin.jvm.JvmSynthetic", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
+            if ["kotlin.Metadata", "kotlin.PublishedApi", "PublishedApi", "kotlin.jvm.JvmInline", "kotlin.jvm.JvmName", "kotlin.jvm.JvmField", "kotlin.jvm.JvmStatic", "JvmStatic", "kotlin.jvm.JvmSynthetic", "kotlin.jvm.JvmOverloads", "JvmOverloads", "kotlin.jvm.JvmSuppressWildcards", "kotlin.Suppress", "Suppress", "kotlin.OptIn", "kotlin.annotation.Retention", "kotlin.annotation.Target", "kotlin.annotation.MustBeDocumented", "kotlin.annotation.Repeatable", "kotlin.jvm.JvmRepeatable", "kotlin.WasExperimental", "WasExperimental"].contains(name) { continue }
             let annotationOwner = sema.symbols.lookup(fqName: name.split(separator: ".").map { context.interner.intern(String($0)) })
             if isPlanlessKotlinInternalAnnotation(name, owner: annotationOwner) { continue }
             if JVMCompose.markers.contains(name), context.jvmImports?.hasComposeRuntime == true,
@@ -302,8 +303,43 @@ extension JVMProgramBuilder {
         }
     }
 
+    private func isThrowsAnnotation(_ name: String) -> Bool {
+        ["Throws", "kotlin.Throws", "kotlin.jvm.Throws"].contains(name)
+    }
+
+    private func declaredExceptions(for symbol: SymbolID) throws -> [String] {
+        guard let annotation = try annotationRecords(for: symbol).first(where: {
+            $0.useSiteTarget == nil && isThrowsAnnotation($0.annotationFQName)
+        }) else { return [] }
+        if let declaration = sourceDeclarations[symbol],
+           let node = declaration.annotations.first(where: { $0.usageID != nil && $0.usageID == annotation.usageID }) {
+            try parseRawAnnotation(node)
+        }
+        let construction = annotationConstruction(annotation)
+        let arguments: [CallArgument]
+        switch construction.flatMap(ast.arena.expr) {
+        case let .call(_, _, args, _), let .memberCall(_, _, _, args, _): arguments = args
+        default: arguments = []
+        }
+        if arguments.isEmpty, !annotation.arguments.isEmpty {
+            throw JVMFrontendError(message: "Cannot resolve JVM @Throws class literals.")
+        }
+        let constants = try arguments.flatMap { argument -> [JVMAnnotationValue] in
+            let value = try annotationConstant(argument.expr)
+            if case let .array(elements) = value { return elements }
+            return [value]
+        }
+        return try constants.map { value in
+            guard case let .classType(descriptor) = value, descriptor.hasPrefix("L"), descriptor.hasSuffix(";") else {
+                throw JVMFrontendError(message: "JVM @Throws requires Throwable class literals.")
+            }
+            return String(descriptor.dropFirst().dropLast())
+        }
+    }
+
     func annotated(_ function: JVMFunction, symbol: SymbolID) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
+        f.declaredExceptions = try declaredExceptions(for: symbol)
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: { $0.annotationFQName == "kotlin.jvm.JvmName" })?.arguments.first {
             let literal = raw.components(separatedBy: "=").last!.trimmingCharacters(in: .whitespacesAndNewlines)

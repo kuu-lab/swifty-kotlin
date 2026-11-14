@@ -94,47 +94,83 @@ extension JVMProgramBuilder {
         case .star: return JVMKotlinTypeArgument(type: nil, variance: 3)
         }
     }
-    func signatureType(_ id: TypeID, boxed: Bool = false, parameterPosition: Bool = false) throws -> String {
+    func signatureType(
+        _ id: TypeID, boxed: Bool = false, parameterPosition: Bool = false,
+        sourceType: TypeRefID? = nil, sourceFile: ASTFile? = nil, suppressWildcards: Bool = false
+    ) throws -> String {
+        var source = sourceType
+        var suppress = suppressWildcards
+        while let ref = source, case let .annotated(base, annotations) = ast.arena.typeRef(ref) {
+            if let value = wildcardSuppression(annotations, in: sourceFile) { suppress = value }
+            source = base
+        }
+        let useWildcards = parameterPosition && !suppress
         switch sema.types.kind(of: id) {
         case let .functionType(f):
             let name = try type(id).referenceName!
             let params = f.contextReceivers + [f.receiver].compactMap { $0 } + f.params
             func argument(_ t: TypeID) throws -> String { if case .unit = sema.types.kind(of: t) { return "Lkotlin/Unit;" }; return try signatureType(t, boxed: true) }
-            return "L" + name + "<" + (try params.map { (parameterPosition ? "-" : "") + (try argument($0)) }).joined() + (f.isSuspend ? "-Lkotlin/coroutines/Continuation<-" + (try argument(f.returnType)) + ">;Ljava/lang/Object;" : (parameterPosition ? "+" : "") + (try argument(f.returnType))) + ">;"
+            return "L" + name + "<" + (try params.map { (useWildcards ? "-" : "") + (try argument($0)) }).joined() + (f.isSuspend ? "-Lkotlin/coroutines/Continuation<-" + (try argument(f.returnType)) + ">;Ljava/lang/Object;" : (useWildcards ? "+" : "") + (try argument(f.returnType))) + ">;"
         case let .kClassType(t): return "Lkotlin/reflect/KClass<" + (try signatureType(t.argument, boxed: true)) + ">;"
         case let .typeParam(t): return "T" + context.interner.resolve(sema.symbols.symbol(t.symbol)!.name) + ";"
         case let .classType(t):
-            let source = try className(t.classSymbol)
-            if source == "kotlin/Result" { return "Ljava/lang/Object;" }
-            if source == "kotlin/Array" {
+            let binaryName = try className(t.classSymbol)
+            let sourceArguments: [TypeArgRef]
+            if let source, case let .named(_, args, _) = ast.arena.typeRef(source), args.count == t.args.count {
+                sourceArguments = args
+            } else {
+                sourceArguments = []
+            }
+
+            func sourceArgument(_ index: Int) -> TypeRefID? {
+                guard sourceArguments.indices.contains(index) else { return nil }
+                switch sourceArguments[index] {
+                case let .invariant(id), let .out(id), let .in(id): return id
+                case .star: return nil
+                }
+            }
+
+            if binaryName == "kotlin/Result" { return "Ljava/lang/Object;" }
+            if binaryName == "kotlin/Array" {
                 guard let arg = t.args.first else { throw JVMFrontendError(message: "JVM Array requires its element type.") }
                 switch arg {
-                case let .invariant(id), let .out(id): return "[" + (try signatureType(id, boxed: true))
+                case let .invariant(id), let .out(id):
+                    return "[" + (try signatureType(id, boxed: true, sourceType: sourceArgument(0),
+                                                    sourceFile: sourceFile, suppressWildcards: suppress))
                 default: return "[Ljava/lang/Object;"
                 }
             }
             let erased = try type(id)
             if erased.referenceName?.hasPrefix("[") == true { return erased.descriptor }
             let variances = sema.types.nominalTypeParameterVariances(for: t.classSymbol)
-            func argument(_ id: TypeID) throws -> String {
-                if source == "kotlin/coroutines/Continuation", case .unit = sema.types.kind(of: id) { return "Lkotlin/Unit;" }
-                return try signatureType(id, boxed: true, parameterPosition: parameterPosition)
+            func argument(_ id: TypeID, source: TypeRefID?) throws -> String {
+                if binaryName == "kotlin/coroutines/Continuation", case .unit = sema.types.kind(of: id) { return "Lkotlin/Unit;" }
+                return try signatureType(id, boxed: true, parameterPosition: parameterPosition,
+                                         sourceType: source, sourceFile: sourceFile, suppressWildcards: suppress)
             }
-            func arguments(_ values: [TypeArg], variances: [TypeVariance]) throws -> String {
+            func arguments(_ values: [TypeArg], variances: [TypeVariance], useSource: Bool = false) throws -> String {
                 try values.enumerated().map { i, arg -> String in
+                    let source = useSource ? sourceArgument(i) : nil
+                    let argumentSuppresses: Bool
+                    if let source, case let .annotated(_, annotations) = ast.arena.typeRef(source) {
+                        argumentSuppresses = wildcardSuppression(annotations, in: sourceFile) ?? suppress
+                    } else {
+                        argumentSuppresses = suppress
+                    }
                     switch arg {
                     case let .invariant(t):
-                        let variance = parameterPosition && variances.indices.contains(i) ? variances[i] : .invariant
-                        return (variance == .out ? "+" : (variance == .in ? "-" : "")) + (try argument(t))
-                    case let .in(t): return "-" + (try argument(t))
-                    case let .out(t): return "+" + (try argument(t))
+                        let variance = parameterPosition && !argumentSuppresses && variances.indices.contains(i)
+                            ? variances[i] : .invariant
+                        return (variance == .out ? "+" : (variance == .in ? "-" : "")) + (try argument(t, source: source))
+                    case let .in(t): return "-" + (try argument(t, source: source))
+                    case let .out(t): return "+" + (try argument(t, source: source))
                     case .star: return "*"
                     }
                 }.joined()
             }
-            let args = try arguments(t.args, variances: variances)
+            let args = try arguments(t.args, variances: variances, useSource: true)
             if !t.enclosingTypeArgs.isEmpty,
-               erased.referenceName == source,
+               erased.referenceName == binaryName,
                sema.symbols.symbol(t.classSymbol)?.flags.contains(.innerClass) == true
             {
                 var owners: [SymbolID] = []
@@ -164,8 +200,8 @@ extension JVMProgramBuilder {
                         if !rendered.isEmpty { result += "<" + rendered + ">" }
                         offset += count
                     }
-                    if validChain, offset == expectedCount, source.hasPrefix(currentName + "$") {
-                        result += "." + String(source.dropFirst(currentName.count + 1))
+                    if validChain, offset == expectedCount, binaryName.hasPrefix(currentName + "$") {
+                        result += "." + String(binaryName.dropFirst(currentName.count + 1))
                         if !args.isEmpty { result += "<" + args + ">" }
                         return result + ";"
                     }
@@ -178,6 +214,21 @@ extension JVMProgramBuilder {
             return (boxed ? JVMClasspathIndex.boxed(t) : t).descriptor
         }
     }
+    private func wildcardSuppression(_ annotations: [AnnotationNode], in file: ASTFile?) -> Bool? {
+        guard let file else { return nil }
+        let expected = ["kotlin", "jvm", "JvmSuppressWildcards"].map(context.interner.intern)
+        for annotation in annotations {
+            guard let symbol = resolveAnnotationSymbol(
+                named: annotation.name, in: file, symbols: sema.symbols, interner: context.interner,
+                types: sema.types, allowGlobalShortNameFallback: false
+            ), sema.symbols.symbol(symbol)?.fqName == expected else { continue }
+            let argument = annotation.arguments.first?.split(separator: "=").last?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return argument != "false"
+        }
+        return nil
+    }
+
     func typeParameters(_ symbols: [SymbolID], declarations: [TypeParamDecl]) throws -> [JVMTypeParameter] {
         // JVMTypeParameter carries no annotation surface, so type-parameter
         // annotations are never emitted. Only compile-time-only
@@ -254,15 +305,29 @@ extension JVMProgramBuilder {
         }
         f.kotlinResult = try kotlinType(signature.returnType)
         if !f.isConstructor && f.reference.parameters.count == signature.parameterTypes.count + 1 { f.kotlinReceiver = try signature.receiverType.map(kotlinType) }
-        f.genericSignature = (f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">") + "(" + (try ((f.kotlinReceiver == nil ? [] : [signature.receiverType].compactMap { $0 }) + signature.parameterTypes).map { try signatureType($0, parameterPosition: true) }).joined() + ")" + (f.isConstructor ? "V" : try signatureType(signature.returnType))
+        let sourceFile = declaration.flatMap { ast.file(for: $0.range.start.file) }
+        let parameterSignatures = try signature.parameterTypes.enumerated().map { index, type in
+            let source = declaration?.valueParams[index].type
+            return try signatureType(type, parameterPosition: true, sourceType: source, sourceFile: sourceFile)
+        }
+        let receiverSignature = try f.kotlinReceiver == nil ? "" : signatureType(
+            signature.receiverType!, parameterPosition: true, sourceType: declaration?.receiverType, sourceFile: sourceFile
+        )
+        let returnSignature = try f.isConstructor ? "V" : signatureType(
+            signature.returnType, sourceType: declaration?.returnType, sourceFile: sourceFile
+        )
+        let typeParameters = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
+        f.genericSignature = typeParameters + "(" + receiverSignature + parameterSignatures.joined() + ")" + returnSignature
         if let symbol = sourceDeclaration?.key, jvmComposableFunctions.contains(symbol),
            let closing = f.genericSignature?.lastIndex(of: ")") {
             let hiddenParameters = f.reference.parameters.dropFirst(signature.parameterTypes.count)
             f.genericSignature?.insert(contentsOf: hiddenParameters.map(\.descriptor).joined(), at: closing)
         }
         if let declaration, declaration.valueParams.contains(where: \.isVararg) {
-            let prefix = f.typeParameters.isEmpty ? "" : "<" + f.typeParameters.map(\.signature).joined() + ">"
-            f.genericSignature = prefix + "(" + (try f.kotlinReceiver == nil ? "" : signatureType(signature.receiverType!, parameterPosition: true)) + (try signature.parameterTypes.enumerated().map { i, parameter in (declaration.valueParams[i].isVararg ? "[" : "") + (try signatureType(parameter, parameterPosition: true)) }).joined() + ")" + (try signatureType(signature.returnType))
+            let varargSignatures = zip(declaration.valueParams, parameterSignatures).map { parameter, signature in
+                (parameter.isVararg ? "[" : "") + signature
+            }
+            f.genericSignature = typeParameters + "(" + receiverSignature + varargSignatures.joined() + ")" + returnSignature
             f.access = (f.access ?? 9) | 0x80
         }
         return f

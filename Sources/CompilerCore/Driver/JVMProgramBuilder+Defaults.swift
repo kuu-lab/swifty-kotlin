@@ -104,17 +104,46 @@ extension JVMProgramBuilder {
         b.instructions += [.foreignCall(target, receiver: b.thisValue, arguments: Array(values.prefix(original.reference.parameters.count)), result: nil), .returnValue(nil)]
         var f = b.finish(constructor: true); f.access = access(declaration.modifiers) | 0x1000; f.checksParameters = false
         var results = [f]
-        // Kotlin supplies a Java-visible no-arg primary constructor only when
-        // all source parameters default and there is no enclosing instance.
-        if primary, !plan.isValue, !plan.isInner, !plan.isEnum, !plan.constructors.contains(where: { !$0.2 && $0.1.valueParams.isEmpty }), !declaration.valueParams.isEmpty, declaration.valueParams.allSatisfy(\.hasDefaultValue) {
-            let n = try nominalBuilder(plan, name: "<init>")
-            var args = try original.reference.parameters.map { try n.zero($0) }
-            var bits = Array(repeating: UInt32.max, count: masks)
-            if declaration.valueParams.count % 32 != 0 { bits[masks - 1] = (UInt32(1) << UInt32(declaration.valueParams.count % 32)) - 1 }
-            args += try n.maskArguments(bits, constructor: true)
-            let target = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: f.reference.descriptor, parameters: params, result: n.thisValue!.type, isStatic: false, isInterface: false, isAbstract: false)
-            n.instructions += [.foreignCall(target, receiver: n.thisValue, arguments: args, result: nil), .returnValue(nil)]
-            var noarg = n.finish(constructor: true); noarg.access = access(declaration.modifiers); noarg.isSynthetic = true; results.append(noarg)
+        // A primary constructor with all defaults also has a no-arg JVM
+        // entry point. Explicit overloads reuse the same mask constructor.
+        let hasJvmOverloads = declaration.annotations.contains {
+            ["JvmOverloads", "kotlin.jvm.JvmOverloads"].contains($0.name)
+        }
+        let defaulted = declaration.valueParams.indices.reversed().filter {
+            declaration.valueParams[$0].hasDefaultValue
+        }
+        let automaticNoArg = primary && !plan.isValue && !plan.isInner && !plan.isEnum
+            && !declaration.valueParams.isEmpty && defaulted.count == declaration.valueParams.count
+            && !plan.constructors.contains(where: { !$0.2 && $0.1.valueParams.isEmpty })
+        let counts = hasJvmOverloads ? Array(1...defaulted.count) : (automaticNoArg ? [defaulted.count] : [])
+        for count in counts {
+            let omitted = Set(defaulted.prefix(count))
+            let included = original.reference.parameters.indices.filter { $0 < hidden || !omitted.contains($0 - hidden) }
+            let overloadParameters = included.map { original.reference.parameters[$0] }
+            let overload = try nominalBuilder(plan, name: "<init>", parameters: overloadParameters)
+            let inputs = Dictionary(uniqueKeysWithValues: zip(included, overload.locals.dropFirst()))
+            var arguments: [JVMValue] = []
+            for (i, parameter) in original.reference.parameters.enumerated() {
+                if let input = inputs[i] { arguments.append(input) }
+                else { arguments.append(try overload.zero(parameter)) }
+            }
+            var bits = Array(repeating: UInt32(0), count: masks)
+            for index in omitted { bits[index / 32] |= UInt32(1) << UInt32(index % 32) }
+            arguments += try overload.maskArguments(bits, constructor: true)
+            let target = JVMForeignMethod(owner: plan.name, name: "<init>", descriptor: f.reference.descriptor,
+                                          parameters: params, result: overload.thisValue!.type,
+                                          isStatic: false, isInterface: false, isAbstract: false)
+            overload.instructions += [
+                .foreignCall(target, receiver: overload.thisValue, arguments: arguments, result: nil),
+                .returnValue(nil)
+            ]
+            var result = overload.finish(constructor: true)
+            result.access = access(declaration.modifiers)
+            result.isSynthetic = !hasJvmOverloads
+            if hasJvmOverloads {
+                result.annotations.append(JVMAnnotation(descriptor: "Lkotlin/jvm/JvmOverloads;", visible: false))
+            }
+            results.append(result)
         }
         return results
     }

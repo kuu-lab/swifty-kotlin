@@ -36,6 +36,7 @@ enum JVMClassFile {
     private static func emitMethod(_ function: JVMFunction, owner: String, javaParameters: Bool, pool: JVMConstantPool) throws -> JVMMethodCode {
         var method = try JVMMethodEmitter(function: function, owner: owner, pool: pool).emit()
         method.annotations = function.annotations; method.parameterAnnotations = function.parameterAnnotations
+        method.declaredExceptions = function.declaredExceptions
         method.isDeprecated = function.isDeprecated
         method.annotationDefault = function.annotationDefault
         // Each descriptor parameter gets one entry, regardless of its local slot width.
@@ -47,6 +48,15 @@ enum JVMClassFile {
     }
     private static func methodAttributes(_ method: JVMMethodCode, pool: JVMConstantPool) throws -> [(UInt16, Data)] {
         var attributes = try JVMAnnotations.methodAttributes(method, pool: pool)
+        if !method.declaredExceptions.isEmpty {
+            guard let count = UInt16(exactly: method.declaredExceptions.count) else {
+                throw JVMEmissionError.limit("JVM Exceptions count exceeds the classfile limit.")
+            }
+            var data = JVMBytes()
+            data.u2(count)
+            for exception in method.declaredExceptions { data.u2(try pool.classInfo(exception)) }
+            attributes.append((try pool.utf8("Exceptions"), data.data))
+        }
         guard !method.javaParameters.isEmpty else { return attributes }
         guard let count = UInt8(exactly: method.javaParameters.count) else {
             throw JVMEmissionError.limit("JVM MethodParameters count exceeds the classfile limit.")

@@ -148,27 +148,21 @@ final class JVMProgramBuilder {
             throw JVMFrontendError(message: "JVM M6 requires ASCII identifiers for the source filename and package.")
         }
         var facade = String(stem.prefix(1)).uppercased() + stem.dropFirst() + "Kt"
-        // Other file annotations have independent Sema effects. Resolve only
-        // possible JvmName spellings here and keep unsupported aliases strict.
-        var jvmNameSpellings: Set<String> = ["kotlin.jvm.JvmName", "JvmName"]
-        for imported in file.imports {
-            let importPath = imported.path.map(context.interner.resolve).joined(separator: ".")
-            if importPath == "kotlin.jvm.JvmName", let name = imported.alias ?? imported.path.last {
-                jvmNameSpellings.insert(context.interner.resolve(name))
-            } else if importPath == "kotlin.jvm", imported.isWildcard {
-                jvmNameSpellings.insert("JvmName")
-            } else if importPath == "kotlin.jvm", let alias = imported.alias {
-                jvmNameSpellings.insert(context.interner.resolve(alias) + ".JvmName")
-            }
-        }
+        let jvmNameFQName = ["kotlin", "jvm", "JvmName"].map(context.interner.intern)
         let jvmNameAnnotations = file.annotations.filter { annotation in
-            jvmNameSpellings.contains(annotation.name)
+            guard let sema = context.sema,
+                  let symbol = resolveAnnotationSymbol(
+                      named: annotation.name, in: file, symbols: sema.symbols, interner: context.interner,
+                      types: sema.types, allowGlobalShortNameFallback: false
+                  )
+            else { return annotation.name == "kotlin.jvm.JvmName" }
+            return sema.symbols.symbol(symbol)?.fqName == jvmNameFQName
         }
         guard jvmNameAnnotations.count <= 1 else {
-            throw JVMFrontendError(message: "JVM supports one fully qualified @file:kotlin.jvm.JvmName annotation.")
+            throw JVMFrontendError(message: "JVM supports one @file:kotlin.jvm.JvmName annotation.")
         }
         if let annotation = jvmNameAnnotations.first {
-            guard annotation.useSiteTarget == "file", annotation.name == "kotlin.jvm.JvmName", annotation.arguments.count == 1,
+            guard annotation.useSiteTarget == "file", annotation.arguments.count == 1,
                   let raw = annotation.arguments.first?.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespacesAndNewlines),
                   let data = ("[" + raw + "]").data(using: .utf8), let names = try? JSONSerialization.jsonObject(with: data) as? [String],
                   names.count == 1, isIdentifier(names[0]) else {
@@ -834,6 +828,12 @@ final class JVMFunctionBuilder {
             instructions.append(.print(argument, newline: name == "println")); return nil
         case let .memberAssign(receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
+            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
+                ? constant(.null, .reference("java/lang/Object", nullable: true))
+                : requireValue(receiver)
+            let result = try requireValue(rhs)
+            try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
+            return nil
         case let .safeMemberAssign(receiver, _, rhs, _):
             guard let property = propertyBinding(id) else {
                 throw fail("Missing JVM safe property assignment binding.", id)
@@ -849,12 +849,6 @@ final class JVMFunctionBuilder {
                 try writeProperty(property, receiver: source, value: result)
             }
             mark(end)
-            return nil
-            let object = try property.getter.isStatic && property.getter.parameters.isEmpty
-                ? constant(.null, .reference("java/lang/Object", nullable: true))
-                : requireValue(receiver)
-            let result = try requireValue(rhs)
-            try writeProperty(property, receiver: object, value: result, initializing: reference.name == "<init>" || initializingObject, special: isSuper(receiver), superReceiver: receiver)
             return nil
         case let .memberCompoundAssign(op, receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }

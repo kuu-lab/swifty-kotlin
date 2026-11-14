@@ -28,7 +28,8 @@ extension JVMProgramBuilder {
             }
         }
         for (node, target) in nodes {
-            if node.name == "Suppress" || node.name == "kotlin.Suppress" { continue }
+            if node.name == "Suppress" || node.name == "kotlin.Suppress"
+                || ["JvmOverloads", "kotlin.jvm.JvmOverloads"].contains(node.name) { continue }
             guard let owner = annotationOwner(node, symbol: symbol), let info = sema.symbols.symbol(owner) else { throw JVMFrontendError(message: "Unresolved JVM parameter annotation: " + node.name) }
             // kotlin.internal.* annotations are compile-time-only markers;
             // consumer compiles inject them as residual-stdlib declarations
@@ -38,15 +39,7 @@ extension JVMProgramBuilder {
             if annotationFqName == "kotlin.OptIn" { continue }
             if isPlanlessKotlinInternalAnnotation(annotationFqName, owner: owner) { continue }
             guard annotationPlan(owner) != nil else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation: " + node.name) }
-            if var tokens = node.constructionTokens, let last = tokens.last {
-                if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
-                    tokens += [Token(kind: .symbol(.lParen), range: last.range), Token(kind: .symbol(.rParen), range: last.range)]
-                }
-                let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena, diagnostics: context.diagnostics)
-                parser.allowAnnotationArrayLiterals = true
-                guard let expression = parser.parse(), let usage = node.usageID else { throw JVMFrontendError(message: "Unsupported JVM parameter annotation arguments.") }
-                rawAnnotationConstructions[usage] = expression
-            }
+            try parseRawAnnotation(node)
             if !records.contains(where: { $0.usageID != nil && $0.usageID == node.usageID }) {
                 records.append(MetadataAnnotationRecord(annotationFQName: info.fqName.map(context.interner.resolve).joined(separator: "."), arguments: node.arguments, useSiteTarget: target, usageID: node.usageID))
             }
@@ -64,8 +57,24 @@ extension JVMProgramBuilder {
         }
         return records
     }
+    func parseRawAnnotation(_ node: AnnotationNode) throws {
+        guard var tokens = node.constructionTokens, let last = tokens.last, let usage = node.usageID,
+              rawAnnotationConstructions[usage] == nil else { return }
+        if !tokens.contains(where: { $0.kind == .symbol(.lParen) }) {
+            tokens += [Token(kind: .symbol(.lParen), range: last.range), Token(kind: .symbol(.rParen), range: last.range)]
+        }
+        let parser = BuildASTPhase.ExpressionParser(tokens: tokens, interner: context.interner, astArena: ast.arena,
+                                                     diagnostics: context.diagnostics)
+        parser.allowAnnotationArrayLiterals = true
+        guard let expression = parser.parse() else {
+            throw JVMFrontendError(message: "Unsupported JVM annotation arguments.")
+        }
+        rawAnnotationConstructions[usage] = expression
+    }
+
     func annotationOwner(_ node: AnnotationNode, symbol: SymbolID) -> SymbolID? {
-        guard let file = ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
+        guard let site = sema.symbols.symbol(symbol)?.declSite,
+              let file = ast.file(for: site.start.file) else { return nil }
         return resolveAnnotationSymbol(named: node.name, in: file, symbols: sema.symbols, interner: context.interner, types: sema.types, enclosingFQName: Array((sema.symbols.symbol(symbol)?.fqName ?? []).dropLast()))
     }
     func annotationTargets(_ owner: SymbolID) -> Set<String> {
@@ -82,13 +91,15 @@ extension JVMProgramBuilder {
             default: return nil
             }
         }
-        guard let parts = path(id), let file = ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
-        var candidates = [file.packageFQName + parts, parts]
-        for prefix in ["kotlin", "kotlin.annotation", "kotlin.reflect"] { candidates.append(prefix.split(separator: ".").map { context.interner.intern(String($0)) } + parts) }
-        for item in file.imports {
-            if item.isWildcard { candidates.append(item.path + parts) }
-            else if (item.alias ?? item.path.last) == parts.first { candidates.append(item.path + parts.dropFirst()) }
+        guard let parts = path(id), let site = ast.arena.exprRange(id),
+              let file = ast.file(for: site.start.file) else { return nil }
+        let explicit = file.imports.compactMap { item -> [InternedString]? in
+            guard !item.isWildcard, (item.alias ?? item.path.last) == parts.first else { return nil }
+            return item.path + parts.dropFirst()
         }
+        var candidates = explicit + [file.packageFQName + parts, parts]
+        candidates += file.imports.filter(\.isWildcard).map { $0.path + parts }
+        candidates += TypeCheckScopeBuilder().makeDefaultImportPackages(interner: context.interner).map { $0 + parts }
         return candidates.lazy.compactMap { self.sema.symbols.lookup(fqName: $0) }.first
     }
 }

@@ -23,7 +23,7 @@ extension JVMBackendTests {
 
         try withWorkspace { root in
             let result = try compile("""
-            @file:kotlin.jvm.JvmName("RenamedFacade")
+            @file:JvmName("RenamedFacade")
             @file:Suppress("UNUSED_VARIABLE")
             fun renamedFacade() { println("renamed facade") }
             """, root: root, mode: .jvmJar)
