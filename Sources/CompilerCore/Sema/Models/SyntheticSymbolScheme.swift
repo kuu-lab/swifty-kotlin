@@ -6,9 +6,12 @@ public enum SyntheticSymbolScheme {
     ///
     ///     rawValue = -(bandBase + kindCount * original + kindIndex)
     ///
-    /// Every value stays in `(-1_000_000, -bandBase]`, clear of real (positive)
-    /// symbols, `.invalid` (-1), and synthetic type-parameter symbols
+    /// The initial band occupies `(-1_000_000, -bandBase]`, clear of real
+    /// symbols, `.invalid` (-1), and low-magnitude synthetic type parameters
     /// (`<= -1_000_000`, see `HeaderHelpers.syntheticTypeParameterBase`).
+    ///
+    /// Large compilations continue in a reserved overflow band. Keeping the
+    /// first band preserves IDs for existing symbols and serialized artifacts.
     ///
     /// Originals are also allowed to be synthetic themselves — a reified type
     /// token is derived from a metadata type-parameter symbol, which is already
@@ -32,7 +35,10 @@ public enum SyntheticSymbolScheme {
 
     /// Largest original symbol the band can encode. Beyond it the derived
     /// symbols would leave the band and alias another synthetic family.
-    static let maxOriginalRawValue: Int32 = (bandLimit - bandBase) / kindCount - 1
+    private static let firstBandCapacity: Int32 = (bandLimit - bandBase) / kindCount
+    private static let overflowBandBase: Int32 = 800_000_000
+    private static let overflowBandLimit: Int32 = 900_000_000
+    static let maxOriginalRawValue: Int32 = firstBandCapacity + (overflowBandLimit - overflowBandBase) / kindCount - 1
 
     /// Band for negative (already synthetic) originals. It starts far below
     /// every other synthetic family so the two bands cannot meet.
@@ -70,7 +76,10 @@ public enum SyntheticSymbolScheme {
                 raw <= maxOriginalRawValue,
                 "synthetic symbol band exhausted: original \(raw) exceeds \(maxOriginalRawValue)"
             )
-            return SymbolID(rawValue: -(bandBase + kindCount * raw + kind.rawValue))
+            if raw < firstBandCapacity {
+                return SymbolID(rawValue: -(bandBase + kindCount * raw + kind.rawValue))
+            }
+            return SymbolID(rawValue: -(overflowBandBase + kindCount * (raw - firstBandCapacity) + kind.rawValue))
         }
         let magnitude = Int64(raw).magnitude
         precondition(
@@ -82,21 +91,23 @@ public enum SyntheticSymbolScheme {
 
     private static func decode(_ symbol: SymbolID) -> (kind: Kind, original: SymbolID)? {
         let raw = symbol.rawValue
-        let bandDescriptor: (base: Int32, sign: Int32)? = if raw <= -bandBase, raw > -bandLimit {
-            (bandBase, 1)
+        let bandDescriptor: (base: Int32, sign: Int32, originalOffset: Int32)? = if raw <= -bandBase, raw > -bandLimit {
+            (bandBase, 1, 0)
+        } else if raw <= -overflowBandBase, raw > -overflowBandLimit {
+            (overflowBandBase, 1, firstBandCapacity)
         } else if raw <= -mirrorBandBase, raw > Int32.min {
-            (mirrorBandBase, -1)
+            (mirrorBandBase, -1, 0)
         } else {
             nil
         }
-        guard let (base, sign) = bandDescriptor else {
+        guard let (base, sign, originalOffset) = bandDescriptor else {
             return nil
         }
         let index = -raw - base
         guard let kind = Kind(rawValue: index % kindCount) else {
             return nil
         }
-        return (kind, SymbolID(rawValue: sign * (index / kindCount)))
+        return (kind, SymbolID(rawValue: sign * (originalOffset + index / kindCount)))
     }
 
     static func defaultStubSymbol(for original: SymbolID) -> SymbolID {
