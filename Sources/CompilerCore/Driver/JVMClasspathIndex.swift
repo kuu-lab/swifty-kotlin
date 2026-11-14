@@ -73,6 +73,7 @@ final class JVMClasspathIndex {
         fallbackClassFiles: [(String, Data)] = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit,
+        archiveJobs: Int = min(4, ProcessInfo.processInfo.activeProcessorCount),
         archiveCache: JVMClasspathArchiveCache? = nil
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -104,12 +105,12 @@ final class JVMClasspathIndex {
                 if let archiveCache {
                     let classes = try archiveCache.load(path: url.standardizedFileURL.path, data: data) {
                         var decoded: [JVMClassInfo] = []
-                        try readArchive(data, descriptorCache: descriptors) { decoded.append($0) }
+                        try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { decoded.append($0) }
                         return decoded
                     }
                     classes.forEach { insert($0, isLazy: isLazy) }
                 } else {
-                    try readArchive(data, descriptorCache: descriptors) { insert($0, isLazy: isLazy) }
+                    try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { insert($0, isLazy: isLazy) }
                 }
             }
         }
@@ -148,13 +149,32 @@ final class JVMClasspathIndex {
     }
 
     private static func readArchive(
-        _ data: Data, descriptorCache: JVMDescriptorCache, _ insert: (JVMClassInfo) -> Void
+        _ data: Data, descriptorCache: JVMDescriptorCache,
+        archiveJobs: Int = 1, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
-        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
-            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
-                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-            insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+        let entries = archive.entries.filter { entry in
+            entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
+        }.sorted { $0.name < $1.name }
+        if archiveJobs > 1 && entries.count >= 128 {
+            let batchSize = 64
+            let batchCount = (entries.count + batchSize - 1) / batchSize
+            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs) { index in
+                let start = index * batchSize
+                let end = min(start + batchSize, entries.count)
+                let batchDescriptors = JVMDescriptorCache()
+                return try entries[start ..< end].map { entry in
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: batchDescriptors)
+                }
+            }
+            for batch in batches {
+                for info in batch { insert(info) }
+            }
+        } else {
+            for entry in entries {
+                insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+            }
         }
     }
 
@@ -173,7 +193,6 @@ final class JVMClasspathIndex {
         }
         return info
     }
-
     static func forEachClassFile(inDirectory directory: URL, _ body: (URL, String) throws -> Void) throws {
         let base = directory.resolvingSymlinksInPath()
         guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else {
