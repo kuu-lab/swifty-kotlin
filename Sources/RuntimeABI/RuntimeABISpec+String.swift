@@ -167,7 +167,6 @@ public extension RuntimeABISpec {
         stringABI.nt("kk_any_member_equals", "lhs rhs"),
         collectionsABI.nt("kk_structural_eq", "lhs rhs"),
         stringABI.nt("__kk_string_split", "strRaw delimRaw"),
-        stringABI.nt("kk_string_split_flat", "data:nullableConstUInt8Pointer length byteCount hash delimiterData:nullableConstUInt8Pointer delimiterLength delimiterByteCount delimiterHash"),
         stringABI.nt("__kk_string_split_limit", "strRaw delimRaw ignoreCaseRaw limitRaw"),
         stringABI.th("__kk_string_toInt", "strRaw outThrown"),
         stringABI.th("__kk_string_toInt_radix", "strRaw radix outThrown"),
