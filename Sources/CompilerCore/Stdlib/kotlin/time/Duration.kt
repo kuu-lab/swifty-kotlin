@@ -115,26 +115,8 @@ private fun durationFormatToDecimals(value: Double, decimals: Int): String {
     return (if (negative) "-" else "") + whole + "." + fraction
 }
 
-public operator fun Duration.plus(other: Duration): Duration {
-    if (isInfinite() || other.isInfinite()) {
-        require(!(isInfinite() && other.isInfinite() && (rawValue < 0L) != (other.rawValue < 0L))) {
-            "Summing infinite durations of different signs yields an undefined result."
-        }
-        return if (isInfinite()) this else other
-    }
-    val value = durationValue(rawValue)
-    val otherValue = durationValue(other.rawValue)
-    if (durationIsMillis(rawValue) == durationIsMillis(other.rawValue)) {
-        val sum = value + otherValue
-        return if (durationIsMillis(rawValue)) durationOfMillis(sum) else durationOfNanos(sum)
-    }
-    val millis = if (durationIsMillis(rawValue)) value else otherValue
-    val nanos = if (durationIsMillis(rawValue)) otherValue else value
-    val sumMillis = millis + nanos / NANOS_PER_MILLISECOND
-    return if (sumMillis >= -MAX_NANOS_IN_MILLIS && sumMillis <= MAX_NANOS_IN_MILLIS) {
-        durationOfNanos(sumMillis * NANOS_PER_MILLISECOND + nanos % NANOS_PER_MILLISECOND)
-    } else durationOfMillis(sumMillis)
-}
+public operator fun Duration.plus(other: Duration): Duration =
+    Duration(addDurationRaw(rawValue, other.rawValue))
 
 public operator fun Duration.minus(other: Duration): Duration =
     this + (-other)
