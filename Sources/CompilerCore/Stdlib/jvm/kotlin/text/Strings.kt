@@ -306,6 +306,17 @@ public fun CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boo
     }
     return -1
 }
+public fun CharSequence.indexOfAny(chars: CharArray, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
+    var index = if (startIndex < 0) 0 else startIndex
+    while (index < length) {
+        val candidate = this[index]
+        for (char in chars) {
+            if (charsEqual(candidate, char, ignoreCase)) return index
+        }
+        index++
+    }
+    return -1
+}
 public fun CharSequence.lastIndexOf(string: String, startIndex: Int = this.length - 1, ignoreCase: Boolean = false): Int {
     if (!ignoreCase && this is String) return __jvmLastIndexOf(this, string, startIndex)
     var i = if (startIndex < this.length) startIndex else this.length - 1
