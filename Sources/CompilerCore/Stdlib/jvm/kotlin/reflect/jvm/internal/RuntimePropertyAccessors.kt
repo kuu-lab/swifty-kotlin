@@ -20,7 +20,11 @@ internal open class RuntimePropertyGetter(protected val owner: RuntimeProperty):
 }
 
 internal class RuntimeProperty2Getter(owner: RuntimeProperty): RuntimePropertyGetter(owner), KProperty2.Getter<Any?, Any?, Any?> {
-    override fun invoke(receiver1: Any?, receiver2: Any?): Any? = owner.readTwo(receiver1, receiver2)
+    // Route through the reference's own `get` so argless `PropertyReference2`
+    // subclasses with a custom `get` work; only fall back to the reflective
+    // read for a non-KProperty2 owner.
+    override fun invoke(receiver1: Any?, receiver2: Any?): Any? =
+        (owner as? KProperty2<Any?, Any?, Any?>)?.get(receiver1, receiver2) ?: owner.readTwo(receiver1, receiver2)
 }
 
 internal class RuntimeProperty0Getter(private val owner: RuntimeProperty): KProperty0.Getter<Any?> {
