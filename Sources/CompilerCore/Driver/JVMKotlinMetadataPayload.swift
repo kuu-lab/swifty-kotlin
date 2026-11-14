@@ -48,6 +48,7 @@ struct JVMKotlinFunction {
     var isOperator = false
     var isInfix = false
     var valueOperatorParameterDescriptors: [String]?
+    var mangledMemberParameterDescriptors: [String]?
     var isGenericFinalGetter = false
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
@@ -562,18 +563,20 @@ struct JVMKotlinMetadataPayload {
             }
             let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
                 && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
+            let isMangledMember = isFileFacade != true && receiver == nil && contextParameters.isEmpty
+                && jvmName?.hasPrefix(name + "-") == true && descriptor != nil && !isValueClass
             guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator || isSubList
-                || isGenericFinalGetter else { continue }
+                || isGenericFinalGetter || isMangledMember else { continue }
             let isSuspend = flags & (1 << 13) != 0
-            var valueOperatorParameterDescriptors: [String]?
-            if isValueOperator {
+            var logicalParameterDescriptors: [String]?
+            if isValueOperator || isMangledMember {
                 let descriptors = try parameterMessages.compactMap { parameter in
                     try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
                         try Self.resultType($0, types: types, names: names)?.descriptor
                     }
                 }
                 guard descriptors.count == parameters.count else { continue }
-                valueOperatorParameterDescriptors = descriptors
+                logicalParameterDescriptors = descriptors
             }
             if !hasFunctionTypes, descriptor == nil {
                 // The signature extension can omit descriptors that the JVM
@@ -606,7 +609,8 @@ struct JVMKotlinMetadataPayload {
                 isInline: flags & (1 << 10) != 0,
                 isOperator: isOperator,
                 isInfix: isInfix,
-                valueOperatorParameterDescriptors: valueOperatorParameterDescriptors,
+                valueOperatorParameterDescriptors: isValueOperator ? logicalParameterDescriptors : nil,
+                mangledMemberParameterDescriptors: isMangledMember ? logicalParameterDescriptors : nil,
                 isGenericFinalGetter: isGenericFinalGetter
             ))
         }

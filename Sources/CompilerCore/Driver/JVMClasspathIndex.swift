@@ -2231,8 +2231,19 @@ final class JVMClasspathIndex {
                 return
             }
         }
+        if !staticMember, !signature.isSuspend {
+            let logicalParameters = descriptorTypes.map(\.descriptor)
+            let mangledMembers = info.methods.filter {
+                $0.sourceName == name && $0.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+            }
+            if mangledMembers.count == 1 {
+                methods[symbol.id] = mangledMembers[0]
+                return
+            }
+        }
         guard let method = candidates.first(where: {
-            $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
+            $0.kotlinFunction?.mangledMemberParameterDescriptors == nil
+                && $0.sourceName == name && ($0.kotlinSuspendFunction != nil) == signature.isSuspend
                 && $0.descriptor.hasPrefix(descriptor) && $0.isStatic == staticMember
         }) else { return }
         if let logical = method.logicalSuspendMethod {
