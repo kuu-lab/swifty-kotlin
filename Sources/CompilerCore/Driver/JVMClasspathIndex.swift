@@ -2404,6 +2404,16 @@ final class JVMClasspathIndex {
                 : platform(type, includingArrayElements: true)
             sema.symbols.setPropertyType(propertyType, for: symbol.id)
             if isBean && !isField { sema.symbols.markJVMJavaBeanProperty(symbol.id) }
+            // A Java Map field can be read as MutableMap and assigned a
+            // read-only Map. Both views erase to java.util.Map.
+            if let field, !field.isFinal, field.descriptor == "Ljava/util/Map;",
+               case let .classType(map) = sema.types.kind(of: propertyType),
+               let readOnly = sema.symbols.lookup(fqName: collectionsPackage + [ctx.interner.intern("Map")]),
+               sema.symbols.jvmMutableCollectionViews[readOnly] == map.classSymbol {
+                sema.symbols.jvmJavaFieldWriteTypes[symbol.id] = sema.types.make(.classType(ClassType(
+                    classSymbol: readOnly, args: map.args, nullability: map.nullability
+                )))
+            }
         }
         for symbol in sema.symbols.allSymbols() {
             guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,

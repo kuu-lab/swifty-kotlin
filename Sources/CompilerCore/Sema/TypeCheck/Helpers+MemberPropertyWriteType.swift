@@ -3,7 +3,7 @@ extension TypeCheckHelpers {
         symbol: SymbolID, receiverType: TypeID, fallback: TypeID, sema: SemaModule
     ) -> TypeID {
         guard let owner = sema.symbols.parentSymbol(for: symbol),
-              let declaredType = sema.symbols.propertyType(for: symbol),
+              let declaredType = sema.symbols.jvmJavaFieldWriteTypes[symbol] ?? sema.symbols.propertyType(for: symbol),
               let receiver = propertyReceiverClassType(receiverType, owner: owner, sema: sema)
         else { return fallback }
         let parameters = sema.types.nominalTypeParameterSymbols(for: receiver.classSymbol)
