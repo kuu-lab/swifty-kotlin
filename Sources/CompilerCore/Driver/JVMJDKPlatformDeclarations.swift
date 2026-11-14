@@ -354,6 +354,8 @@ extension JVMClasspathIndex {
                     val ROOT: Locale get() = null!!
                     val US: Locale get() = null!!
                     val JAPAN: Locale get() = null!!
+                    val JAPANESE: Locale get() = null!!
+                    val ENGLISH: Locale get() = null!!
                     external fun getDefault(): Locale
                     external fun forLanguageTag(languageTag: String): Locale
                 }
@@ -487,7 +489,7 @@ extension JVMClasspathIndex {
                 info.fields = [JVMForeignField(name: "CASE_INSENSITIVE_ORDER", descriptor: "Ljava/util/Comparator;", access: 0x0019)]
             }
             if name == "java/util/Locale" {
-                info.fields = ["ROOT", "US", "JAPAN"].map { JVMForeignField(name: $0, descriptor: "Ljava/util/Locale;", access: 0x0019) }
+                info.fields = ["ROOT", "US", "JAPAN", "JAPANESE", "ENGLISH"].map { JVMForeignField(name: $0, descriptor: "Ljava/util/Locale;", access: 0x0019) }
             }
             let path = "<kswiftk-jvm>/platform/" + name + ".kt"
             let file = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8), origin: .residualStdlib)
