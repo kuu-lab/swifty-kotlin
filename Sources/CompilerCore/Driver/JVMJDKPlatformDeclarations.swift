@@ -322,9 +322,16 @@ extension JVMClasspathIndex {
             ("java/util/Locale", """
             package java.util
             open class Locale {
-                companion object { val ROOT: Locale get() = null!! }
+                val language: String get() = null!!
+                companion object {
+                    val ROOT: Locale get() = null!!
+                    external fun forLanguageTag(languageTag: String): Locale
+                }
             }
-            """, 0x0001, "java/lang/Object", []),
+            """, 0x0001, "java/lang/Object", [
+                method("java/util/Locale", "getLanguage", [], .string),
+                method("java/util/Locale", "forLanguageTag", [.string], .reference("java/util/Locale", nullable: false), staticMember: true),
+            ]),
             ("java/util/TreeMap", """
             package java.util
             open class TreeMap<K, V> : SortedMap<K, V> {
