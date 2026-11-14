@@ -105,12 +105,27 @@ func methodIdentityParameterTypesMatch(
     candidateParameterTypes: [TypeID],
     interfaceParameterTypes: [TypeID],
     types: TypeSystem,
-    allowTypeParameterWildcards: Bool = false
+    allowTypeParameterWildcards: Bool = false,
+    allowJavaCollectionMutability: Bool = false
 ) -> Bool {
     guard candidateParameterTypes.count == interfaceParameterTypes.count else { return false }
-    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy {
-        methodIdentityTypesMatch($0, $1, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
+    return zip(candidateParameterTypes, interfaceParameterTypes).allSatisfy { candidate, inherited in
+        let comparison = allowJavaCollectionMutability
+            ? mappedJavaCollectionParameter(inherited, matching: candidate, types: types)
+            : inherited
+        return methodIdentityTypesMatch(candidate, comparison, types: types, allowTypeParameterWildcards: allowTypeParameterWildcards)
     }
+}
+
+/// Java collection parameters permit either Kotlin view of the same JVM
+/// interface. Compare against the child's view while retaining the arguments.
+private func mappedJavaCollectionParameter(_ inherited: TypeID, matching candidate: TypeID, types: TypeSystem) -> TypeID {
+    guard let symbols = types.symbolTable,
+          case let .classType(parent) = types.kind(of: inherited), parent.nullability == .platformType,
+          case let .classType(child) = types.kind(of: candidate),
+          symbols.jvmMutableCollectionViews[parent.classSymbol] == child.classSymbol
+    else { return inherited }
+    return types.make(.classType(ClassType(classSymbol: child.classSymbol, args: parent.args, nullability: parent.nullability)))
 }
 
 private func methodIdentityNullabilityMatches(_ lhs: Nullability, _ rhs: Nullability) -> Bool {

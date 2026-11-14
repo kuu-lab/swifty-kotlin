@@ -70,6 +70,8 @@ struct JVMKotlinClassProperty {
     let getterDescriptor: String
     let isNullable: Bool
     let isVar: Bool
+    let setterName: String?
+    let setterDescriptor: String?
     let isSourceVisible: Bool
     let sourceType: String?
 }
@@ -271,11 +273,14 @@ struct JVMKotlinMetadata {
                   let getterName = try names.resolve(getter.int32(1)),
                   let descriptor = try names.resolve(getter.int32(2))
             else { return nil }
-            let hasSetter = try signature.message(4) != nil
+            let setter = try signature.message(4)
+            let setterName = try names.resolve(setter?.int32(1))
+            let setterDescriptor = try names.resolve(setter?.int32(2))
             let flags = property.int32(11) ?? 6
             let visibility = (flags >> 1) & 7
             return JVMKotlinClassProperty(name: name, getterName: getterName, getterDescriptor: descriptor,
-                                           isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || hasSetter,
+                                           isNullable: type.nullable, isVar: flags & (1 << 8) != 0 || setter != nil,
+                                           setterName: setterName, setterDescriptor: setterDescriptor,
                                            isSourceVisible: visibility == 2 || visibility == 3,
                                            sourceType: try Self.sourceType(type, types: types, names: names))
         }
@@ -564,7 +569,8 @@ struct JVMKotlinMetadata {
                 types.parameterNames = ownerTypeParameters
             }
             let typeParameterMessages = try function.messages(4)
-            guard typeParameterMessages.isEmpty || isFileFacade else { continue }
+            guard typeParameterMessages.isEmpty || isFileFacade
+                || functionTypeMemberNames.contains(jvmName ?? name) else { continue }
             let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
                 guard parameter.bool(3) != true, let id = parameter.int32(1),
                       let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name)
