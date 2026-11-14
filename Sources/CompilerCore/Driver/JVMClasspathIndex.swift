@@ -1313,7 +1313,8 @@ final class JVMClasspathIndex {
                     let receiver = property.receiver.map { $0 + "." } ?? ""
                     let annotation = getter.composePropertyABI(hasReceiver: property.receiver != nil)
                         ? " @androidx.compose.runtime.Composable" : ""
-                    source += "val \(receiver)`\(property.name)`: \(property.result)\(annotation) get() = null!!\n"
+                    let (generics, whereClause) = kotlinTypeParameterSyntax(property.typeParameters)
+                    source += "val \(generics)\(receiver)`\(property.name)`: \(property.result)\(whereClause)\(annotation) get() = null!!\n"
                 }
             } else {
                 if info.flags & 0x2000 != 0 {
@@ -2243,7 +2244,8 @@ final class JVMClasspathIndex {
                 }
             }
             for (property, _) in info.kotlinTopLevelProperties {
-                markSourceTypes([property.result] + [property.receiver].compactMap { $0 })
+                markSourceTypes([property.result] + [property.receiver].compactMap { $0 }
+                    + property.typeParameters.flatMap(\.bounds))
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
@@ -2399,12 +2401,7 @@ final class JVMClasspathIndex {
                 ? (parameter.isCrossinline ? "crossinline " : parameter.isNoinline ? "noinline " : "") : ""
             return inlineModifier + (parameter.isVararg ? "vararg " : "") + name + ": " + parameter.sourceType + defaultValue
         }
-        let typeNames = function.typeParameters.map { "`\($0.name)`" }
-        let generics = typeNames.isEmpty ? "" : "<" + typeNames.joined(separator: ", ") + "> "
-        let bounds = function.typeParameters.flatMap { parameter in
-            parameter.bounds.map { "`\(parameter.name)`: " + $0 }
-        }
-        let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
+        let (generics, whereClause) = kotlinTypeParameterSyntax(function.typeParameters)
         let inline = function.hasInlineContextCallback && !asFacadeMember ? "inline " : ""
         let operatorModifier = function.isOperator && !asFacadeMember ? "operator " : ""
         let infix = function.isInfix && !asFacadeMember ? "infix " : ""
@@ -2412,25 +2409,16 @@ final class JVMClasspathIndex {
             + parameters.joined(separator: ", ") + "): " + function.result + whereClause
     }
 
-    private func kotlinFunctionDeclaration(_ function: JVMKotlinFunctionInfo, owner: JVMClassInfo) -> String {
-        let typeParameters = (kotlinMetadata(owner)?.typeParameters ?? []) + function.typeParameters
-        let names = Dictionary(typeParameters.map { ($0.id, $0.name) }, uniquingKeysWith: { _, name in name })
-        let type = { (type: JVMKotlinType) in self.kotlinSourceType(type, parameters: names) }
-        let genericParameters = function.typeParameters.map { parameter in
-            let bound = parameter.bounds.first.map { ": " + type($0) } ?? ""
-            return "`\(parameter.name)`" + bound
+    private func kotlinTypeParameterSyntax(
+        _ parameters: [JVMKotlinFunction.TypeParameter]
+    ) -> (generics: String, whereClause: String) {
+        let typeNames = parameters.map { "`\($0.name)`" }
+        let generics = typeNames.isEmpty ? "" : "<" + typeNames.joined(separator: ", ") + "> "
+        let bounds = parameters.flatMap { parameter in
+            parameter.bounds.map { "`\(parameter.name)`: " + $0 }
         }
-        let generics = genericParameters.isEmpty ? "" : "<" + genericParameters.joined(separator: ", ") + "> "
-        let parameters = kotlinParameterDeclarations(function.parameters, typeParameters: names)
-        let receiver: String
-        if let extensionType = function.receiver {
-            receiver = type(extensionType) + "."
-        } else { receiver = "" }
-        let operatorModifier = function.isOperator ? "operator " : ""
-        let infixModifier = function.isInfix ? "infix " : ""
-        let suspendModifier = function.isSuspend ? "suspend " : ""
-        return operatorModifier + infixModifier + suspendModifier
-            + "fun " + generics + receiver + "`\(function.name)`(" + parameters.joined(separator: ", ") + "): " + type(function.result)
+        let whereClause = bounds.isEmpty ? "" : " where " + bounds.joined(separator: ", ")
+        return (generics, whereClause)
     }
 
     private func parameters(_ method: JVMForeignMethod, droppingReceiver: Bool = false, javaTypes: [String]? = nil) -> String {
