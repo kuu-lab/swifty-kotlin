@@ -93,12 +93,13 @@ public func kk_enum_name(_ valueRaw: Int) -> Int {
 
 @_cdecl("kk_enum_valueOf_throw")
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) ?? "null"
-    outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-        message: "No enum constant \(name)"
-    )
-    return 0
+    return runtimeThrowingBridge(outThrown) {
+        let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) ?? "null"
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "No enum constant \(name)"
+        )
+        return 0
+    }
 }
 
 /// Boxes an enum ordinal for storage in an Any-erased `values()`/`entries`

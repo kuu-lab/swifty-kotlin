@@ -50,22 +50,23 @@ public func __kk_kclass_register_object(_ typeToken: Int, _ objectRaw: Int, _ in
 
 @_cdecl("__kk_kclass_object_instance")
 public func __kk_kclass_object_instance(_ kclassRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let box = runtimeKClassBox(from: kclassRaw),
-          let entry = runtimeKClassObjectRegistry.object(token: box.typeToken) else {
-        return runtimeNullSentinelInt
-    }
-    if let pointer = UnsafeRawPointer(bitPattern: entry.initializer) {
-        // Kotlin initializer functions return the raw Unit value and carry an exception channel.
-        let initialize = unsafeBitCast(pointer, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
-        var thrown = 0
-        _ = initialize(&thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = runtimeKClassBox(from: kclassRaw),
+              let entry = runtimeKClassObjectRegistry.object(token: box.typeToken) else {
             return runtimeNullSentinelInt
         }
+        if let pointer = UnsafeRawPointer(bitPattern: entry.initializer) {
+            // Kotlin initializer functions return the raw Unit value and carry an exception channel.
+            let initialize = unsafeBitCast(pointer, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
+            var thrown = 0
+            _ = initialize(&thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return runtimeNullSentinelInt
+            }
+        }
+        return entry.object
     }
-    return entry.object
 }
 
 @_cdecl("__kk_kclass_register_sealed_subclass")
