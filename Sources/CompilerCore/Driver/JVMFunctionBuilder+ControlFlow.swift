@@ -118,8 +118,10 @@ extension JVMFunctionBuilder {
         }
         let left = try requireValue(lhs)
         if op == .elvis {
-            let type = try program.expressionType(id), result = try value(type), fallback = label(), end = label()
-            guard left.type.referenceName != nil else { throw fail("JVM elvis requires a nullable reference or boxed primitive.", id) }
+            let type = try program.expressionType(id)
+            // An unboxed value cannot take the null edge.
+            guard left.type.referenceName != nil else { return try convert(left, to: type) }
+            let result = try value(type), fallback = label(), end = label()
             let null = try constant(.null, .reference("java/lang/Object", nullable: true)), check = try value(.boolean)
             instructions.append(.referenceCompare(.notEqual, left, null, check)); instructions.append(.jumpIfFalse(check, fallback))
             instructions.append(.copy(try convert(left, to: type), result)); jump(end)
@@ -244,8 +246,7 @@ extension JVMFunctionBuilder {
     }
 
     func conditional(_ id: ExprID, _ condition: ExprID, _ thenExpr: ExprID, _ elseExpr: ExprID?, discarded: Bool = false) throws -> JVMValue? {
-        let check = try requireValue(condition)
-        guard check.type == .boolean else { throw fail("JVM if condition must be Boolean.", id) }
+        let check = try convert(requireValue(condition), to: .boolean)
         let type = try program.expressionType(id)
         let result = discarded || type == .unit ? nil : try value(type)
         let alternate = label(), end = label()

@@ -796,10 +796,7 @@ final class JVMFunctionBuilder {
             let type = try program.expressionType(id), operand = try convert(source, to: type)
             let result = try value(type); instructions.append(.unary(op, operand, result)); return result
         case let .call(callee, _, args, _):
-            if program.sema.bindings.callBinding(for: id) == nil, args.count == 1,
-               let target = program.sema.bindings.samInterfaceType(for: args[0].expr), target == program.sema.bindings.exprType(for: id) {
-                return try expression(args[0].expr)
-            }
+            if let argument = samConstructorArgument(args, id: id) { return try expression(argument) }
             if program.sema.bindings.stdlibSpecialCallKinds[id] == .arrayConstructor {
                 return try arrayConstructor(args, id: id)
             }
@@ -837,6 +834,22 @@ final class JVMFunctionBuilder {
             instructions.append(.print(argument, newline: name == "println")); return nil
         case let .memberAssign(receiver, _, rhs, _):
             guard let property = propertyBinding(id) else { throw fail("Missing JVM property assignment binding.", id) }
+        case let .safeMemberAssign(receiver, _, rhs, _):
+            guard let property = propertyBinding(id) else {
+                throw fail("Missing JVM safe property assignment binding.", id)
+            }
+            let source = try requireValue(receiver)
+            let end = label()
+            if source.type.referenceName != nil {
+                let present = try value(.boolean)
+                instructions.append(.referenceCompare(.notEqual, source, try constant(.null, source.type), present))
+                instructions.append(.jumpIfFalse(present, end))
+            }
+            if let result = try expression(rhs), !terminated {
+                try writeProperty(property, receiver: source, value: result)
+            }
+            mark(end)
+            return nil
             let object = try property.getter.isStatic && property.getter.parameters.isEmpty
                 ? constant(.null, .reference("java/lang/Object", nullable: true))
                 : requireValue(receiver)
@@ -956,7 +969,6 @@ final class JVMFunctionBuilder {
                 if !terminated { instructions.append(.returnValue(result)) }
             }
             terminated = true; return nil
-        default: throw fail("Expression is outside the JVM M6 subset.", id)
         }
     }
 }

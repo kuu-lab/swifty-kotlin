@@ -480,6 +480,14 @@ extension JVMProgramBuilder {
         let f = FunDecl(range: declaration.range, name: context.interner.intern("<init>"), modifiers: declaration.modifiers, valueParams: hidden + declaration.valueParams, body: declaration.body)
         let builder = JVMFunctionBuilder(program: self, declaration: f, reference: JVMFunctionReference(name: "<init>", parameters: (plan.isEnum ? [.string, .int] : []) + method.parameters, result: .unit), owner: plan)
         try builder.prepareParameters(); builder.beforeDelegation = true
+        // Constructor slots may begin with enclosing-instance, enum or
+        // captured parameters. Bind the actual source parameters by symbol
+        // so an object initializer captures only the parameters it uses.
+        if let signature = sema.symbols.functionSignature(for: symbol) {
+            for (parameter, parameterSymbol) in zip(declaration.valueParams, signature.valueParameterSymbols) {
+                builder.scopes[0][parameter.name]?.symbol = parameterSymbol
+            }
+        }
         if plan.isInner, let outer = plan.outer { try builder.bindEnclosingInstance(classes[outer]!, value: builder.locals[1]) }
         let object = builder.thisValue!
         let captureInputs = Array(builder.locals.dropFirst().prefix(plan.captures.count))
