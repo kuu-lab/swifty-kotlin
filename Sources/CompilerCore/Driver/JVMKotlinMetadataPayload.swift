@@ -18,6 +18,8 @@ struct JVMKotlinSuspendFunction {
 /// parameters include function types. The physical descriptor stays on
 /// `JVMForeignMethod`; this carries only the declaration shape Sema needs.
 struct JVMKotlinFunction {
+    static let valueOperators: Set<String> = ["plus", "minus", "times", "div", "rem"]
+
     struct TypeParameter {
         let name: String
         let bounds: [String]
@@ -44,6 +46,7 @@ struct JVMKotlinFunction {
     var isInline = false
     var isOperator = false
     var isInfix = false
+    var valueOperatorParameterDescriptors: [String]?
 
     var leadingParameterCount: Int { contextParameters.count + (receiver == nil ? 0 : 1) }
     var composableParameters: Set<Int> {
@@ -321,7 +324,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -330,6 +333,7 @@ struct JVMKotlinMetadataPayload {
             guard let name = try names.resolve(function.int32(2)) else { continue }
             let flags = function.int32(9) ?? 0
             let isInfix = flags & (1 << 9) != 0
+            let isOperator = flags & (1 << 8) != 0
             let signature = try function.message(100)
             let jvmName: String?
             var descriptor: String?
@@ -402,8 +406,20 @@ struct JVMKotlinMetadataPayload {
                     hasDefaultValue: hasDefaultValue, isCrossinline: flags & 4 != 0, isNoinline: flags & 8 != 0))
                 hasFunctionTypes = hasFunctionTypes || type.contains("->")
             }
-            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix else { continue }
+            let isValueOperator = isValueClass && isOperator && receiver == nil && contextParameters.isEmpty
+                && JVMKotlinFunction.valueOperators.contains(name) && descriptor != nil
+            guard valid, hasFunctionTypes || (isFileFacade == true) || receiver != nil || isInfix || isValueOperator else { continue }
             let isSuspend = flags & (1 << 13) != 0
+            var valueOperatorParameterDescriptors: [String]?
+            if isValueOperator {
+                let descriptors = try parameterMessages.compactMap { parameter in
+                    try types.resolve(parameter, inline: 3, indexed: 5).flatMap {
+                        try Self.resultType($0, types: types, names: names)?.descriptor
+                    }
+                }
+                guard descriptors.count == parameters.count else { continue }
+                valueOperatorParameterDescriptors = descriptors
+            }
             if !hasFunctionTypes, descriptor == nil {
                 // The signature extension can omit descriptors that the JVM
                 // backend derives from Kotlin types. Recover them so overloads
@@ -433,8 +449,9 @@ struct JVMKotlinMetadataPayload {
                 receiver: receiverType,
                 isSuspend: isSuspend,
                 isInline: flags & (1 << 10) != 0,
-                isOperator: flags & (1 << 8) != 0,
-                isInfix: isInfix
+                isOperator: isOperator,
+                isInfix: isInfix,
+                valueOperatorParameterDescriptors: valueOperatorParameterDescriptors
             ))
         }
         return result
