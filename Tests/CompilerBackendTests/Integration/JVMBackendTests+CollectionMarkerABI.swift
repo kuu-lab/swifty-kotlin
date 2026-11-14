@@ -28,6 +28,10 @@ extension JVMBackendTests {
                 println(Entry(1, 3).setValue(4))
                 println(Cursor::class.java.interfaces.map { it.name }.sorted().joinToString())
                 println(Entry::class.java.interfaces.map { it.name }.sorted().joinToString())
+                // Marker inheritance: KMutableList/KMutableSet <: KMutableCollection <: KMutableIterable.
+                println(kotlin.jvm.internal.markers.KMutableList::class.java.interfaces.map { it.simpleName }.sorted().joinToString())
+                println(kotlin.jvm.internal.markers.KMutableSet::class.java.interfaces.map { it.simpleName }.sorted().joinToString())
+                println(kotlin.jvm.internal.markers.KMutableCollection::class.java.interfaces.map { it.simpleName }.sorted().joinToString())
             }
             """
             try source.write(to: root.appendingPathComponent("MarkerProbe.kt"), atomically: true, encoding: .utf8)
