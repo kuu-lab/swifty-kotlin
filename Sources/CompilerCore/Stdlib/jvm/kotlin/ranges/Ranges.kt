@@ -70,6 +70,13 @@ public interface ClosedFloatingPointRange<T : Comparable<T>> {
     public fun isEmpty(): Boolean
 }
 
+public fun <T : Comparable<T>> T.coerceIn(range: ClosedFloatingPointRange<T>): T {
+    if (range.isEmpty()) throw IllegalArgumentException("Cannot coerce value to an empty range: $range.")
+    if (range.lessThanOrEquals(this, range.start) && !range.lessThanOrEquals(range.start, this)) return range.start
+    if (range.lessThanOrEquals(range.endInclusive, this) && !range.lessThanOrEquals(this, range.endInclusive)) return range.endInclusive
+    return this
+}
+
 public class ClosedDoubleRange(
     public override val start: Double,
     public override val endInclusive: Double
