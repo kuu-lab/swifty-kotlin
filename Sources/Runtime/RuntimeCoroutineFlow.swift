@@ -2135,39 +2135,40 @@ private let runtimeFlowStopSentinel: Int = __kk_flow_stopped()
 
 @_cdecl("kk_flow_emit")
 public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    if tag == RuntimeFlowTag.emit.rawValue {
-        let context = runtimeFlowCurrentEmitContext()
-        if context?.cancelled == true {
-            outThrown?.pointee = context?.rootedFailure() ?? 0
-            return runtimeFlowStopSentinel
-        }
-        if let context, !context.cancelled {
-            // Element payload: emitted values keep their Any-erased box so
-            // erased consumers observe the declared type (KUU-4133).
-            let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
-            context.emittedValues.append(value)
-            context.emittedEvents.append(RuntimeFlowEvent(value: value, timestamp: timestamp))
-            if let emitHandler = context.emitHandler {
-                let result = emitHandler(value)
-                outThrown?.pointee = context.rootedFailure()
-                return result
+    return runtimeThrowingBridge(outThrown) {
+        if tag == RuntimeFlowTag.emit.rawValue {
+            let context = runtimeFlowCurrentEmitContext()
+            if context?.cancelled == true {
+                outThrown?.pointee = context?.rootedFailure() ?? 0
+                return runtimeFlowStopSentinel
             }
+            if let context, !context.cancelled {
+                // Element payload: emitted values keep their Any-erased box so
+                // erased consumers observe the declared type (KUU-4133).
+                let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
+                context.emittedValues.append(value)
+                context.emittedEvents.append(RuntimeFlowEvent(value: value, timestamp: timestamp))
+                if let emitHandler = context.emitHandler {
+                    let result = emitHandler(value)
+                    outThrown?.pointee = context.rootedFailure()
+                    return result
+                }
+            }
+            return value
         }
-        return value
+        guard let opKind = RuntimeFlowTag(rawValue: tag) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received unknown op tag \(tag)")
+        }
+        guard let flow = runtimeFlowHandle(from: flowHandle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received invalid flow handle")
+        }
+        let derived = RuntimeFlowHandle(
+            source: flow.source,
+            opChain: flow.opChain + [RuntimeFlowOp(kind: opKind, argument: value)],
+            fixedValues: flow.fixedValues
+        )
+        return runtimeRegisterFlowHandle(derived)
     }
-    guard let opKind = RuntimeFlowTag(rawValue: tag) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received unknown op tag \(tag)")
-    }
-    guard let flow = runtimeFlowHandle(from: flowHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received invalid flow handle")
-    }
-    let derived = RuntimeFlowHandle(
-        source: flow.source,
-        opChain: flow.opChain + [RuntimeFlowOp(kind: opKind, argument: value)],
-        fixedValues: flow.fixedValues
-    )
-    return runtimeRegisterFlowHandle(derived)
 }
 
 // (a) RF-DEAD-002: Internal compatibility helpers for the bundled Flow source.
@@ -2189,73 +2190,75 @@ public func __kk_flow_emit_with_timestamp(_ flowHandle: Int, _ value: Int, _ tag
 
 @_cdecl("kk_flow_collect")
 public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    guard let flow = runtimeFlowHandle(from: flowHandle) else {
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        guard let flow = runtimeFlowHandle(from: flowHandle) else {
+            return 0
+        }
 
-    let callerState = RuntimeContinuationState.current
-    let failure = runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation)
-    if outThrown == nil {
-        callerState?.thrownException = failure
+        let callerState = RuntimeContinuationState.current
+        let failure = runtimeFlowCollectLazy(flow, collectorFnPtr: collectorFnPtr, collectorEnvPtr: collectorEnvPtr, continuation: continuation)
+        if outThrown == nil {
+            callerState?.thrownException = failure
+        }
+        outThrown?.pointee = failure
+        return failure
     }
-    outThrown?.pointee = failure
-    return failure
 }
 
 // Runs each `collectLatest` action in its own child Job so a new upstream value
 // can cancel a suspended collector before waiting for the last action at EOF.
 @_cdecl("__kk_flow_collectLatest")
 public func __kk_flow_collectLatest(_ flowHandle: Int, _ collectorFnPtr: Int, _ collectorEnvPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    guard let flow = runtimeFlowHandle(from: flowHandle), collectorFnPtr != 0 else { return 0 }
+    return runtimeThrowingBridge(outThrown) {
+        guard let flow = runtimeFlowHandle(from: flowHandle), collectorFnPtr != 0 else { return 0 }
 
-    let callerState = RuntimeContinuationState.current
-    let previousScope = RuntimeCoroutineScope.current
-    let previousJob = RuntimeJobHandle.current
-    let parentJob = callerState?.jobHandle ?? previousJob ?? previousScope?.job
-    let parentStateScope = callerState?.scope
-    let parentStateJob = callerState?.jobHandle
-    let collectionScope = RuntimeCoroutineScope(
-        context: previousScope?.context ?? callerState?.makeContinuationContext() ?? RuntimeCoroutineContext()
-    )
-    collectionScope.blockingScheduler = previousScope?.blockingScheduler
-    RuntimeJobHandle.current = parentJob
-    let collectionJob = collectionScope.installJob(defaultCancellationMessage: "Flow collection was cancelled")
-    RuntimeCoroutineScope.current = collectionScope
-    RuntimeJobHandle.current = collectionJob
-    callerState?.scope = collectionScope
-    callerState?.jobHandle = collectionJob
-    defer {
-        callerState?.scope = parentStateScope
-        callerState?.jobHandle = parentStateJob
-        RuntimeCoroutineScope.current = previousScope
-        RuntimeJobHandle.current = previousJob
-        parentJob?.detachChild(collectionJob.identityHandle)
-        _ = runtimeReleaseObject(collectionJob.identityHandle)
+        let callerState = RuntimeContinuationState.current
+        let previousScope = RuntimeCoroutineScope.current
+        let previousJob = RuntimeJobHandle.current
+        let parentJob = callerState?.jobHandle ?? previousJob ?? previousScope?.job
+        let parentStateScope = callerState?.scope
+        let parentStateJob = callerState?.jobHandle
+        let collectionScope = RuntimeCoroutineScope(
+            context: previousScope?.context ?? callerState?.makeContinuationContext() ?? RuntimeCoroutineContext()
+        )
+        collectionScope.blockingScheduler = previousScope?.blockingScheduler
+        RuntimeJobHandle.current = parentJob
+        let collectionJob = collectionScope.installJob(defaultCancellationMessage: "Flow collection was cancelled")
+        RuntimeCoroutineScope.current = collectionScope
+        RuntimeJobHandle.current = collectionJob
+        callerState?.scope = collectionScope
+        callerState?.jobHandle = collectionJob
+        defer {
+            callerState?.scope = parentStateScope
+            callerState?.jobHandle = parentStateJob
+            RuntimeCoroutineScope.current = previousScope
+            RuntimeJobHandle.current = previousJob
+            parentJob?.detachChild(collectionJob.identityHandle)
+            _ = runtimeReleaseObject(collectionJob.identityHandle)
+        }
+
+        let latestState = RuntimeFlowLatestCollectState(
+            collectorFnPtr: collectorFnPtr,
+            collectorEnvPtr: collectorEnvPtr,
+            continuation: continuation,
+            collectionScope: collectionScope,
+            collectionJob: collectionJob
+        )
+        let stateHandle = Int(bitPattern: Unmanaged.passUnretained(latestState).toOpaque())
+        let receiverRaw = unsafeBitCast(
+            runtimeFlowLatestCollectorReceiver as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let upstreamFailure = runtimeFlowCollectLazy(
+            flow,
+            collectorFnPtr: receiverRaw,
+            collectorEnvPtr: stateHandle,
+            continuation: 0
+        )
+        let failure = latestState.finish(upstreamFailure: upstreamFailure)
+        outThrown?.pointee = failure
+        return failure
     }
-
-    let latestState = RuntimeFlowLatestCollectState(
-        collectorFnPtr: collectorFnPtr,
-        collectorEnvPtr: collectorEnvPtr,
-        continuation: continuation,
-        collectionScope: collectionScope,
-        collectionJob: collectionJob
-    )
-    let stateHandle = Int(bitPattern: Unmanaged.passUnretained(latestState).toOpaque())
-    let receiverRaw = unsafeBitCast(
-        runtimeFlowLatestCollectorReceiver as @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int,
-        to: Int.self
-    )
-    let upstreamFailure = runtimeFlowCollectLazy(
-        flow,
-        collectorFnPtr: receiverRaw,
-        collectorEnvPtr: stateHandle,
-        continuation: 0
-    )
-    let failure = latestState.finish(upstreamFailure: upstreamFailure)
-    outThrown?.pointee = failure
-    return failure
 }
 
 @_cdecl("__kk_flow_retain")
@@ -2334,22 +2337,24 @@ public func __kk_flow_first(_ flowHandle: Int, _: Int) -> Int {
 
 @_cdecl("__kk_flow_single")
 public func __kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let flow = runtimeFlowHandle(from: flowHandle) else {
-        return 0
-    }
-    let result = runtimeFlowEvaluate(flow: flow)
-    runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
-    guard result.values.count == 1 else {
-        if result.values.isEmpty {
-            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Flow is empty.")
-        } else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Flow has more than one element."
-            )
+    return runtimeThrowingBridge(outThrown) {
+        guard let flow = runtimeFlowHandle(from: flowHandle) else {
+            return 0
         }
-        return 0
+        let result = runtimeFlowEvaluate(flow: flow)
+        runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
+        guard result.values.count == 1 else {
+            if result.values.isEmpty {
+                outThrown?.pointee = runtimeAllocateNoSuchElementException(message: "Flow is empty.")
+            } else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "Flow has more than one element."
+                )
+            }
+            return 0
+        }
+        return result.values[0]
     }
-    return result.values[0]
 }
 
 public func __kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
@@ -2796,12 +2801,13 @@ private func runtimeFlowLatestFlatMapInnerReceiver(
     _ value: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
-    let state = Unmanaged<RuntimeFlowLatestFlatMapState>.fromOpaque(pointer).takeUnretainedValue()
-    // Element payload: preserve Any-erased boxes (KUU-4133).
-    state.append(value)
-    outThrown?.pointee = 0
-    return value
+    return runtimeThrowingBridge(outThrown) {
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: stateHandle) else { return 0 }
+        let state = Unmanaged<RuntimeFlowLatestFlatMapState>.fromOpaque(pointer).takeUnretainedValue()
+        // Element payload: preserve Any-erased boxes (KUU-4133).
+        state.append(value)
+        return value
+    }
 }
 
 private func runtimeFlowLatestFlatMapReceiver(
@@ -2944,8 +2950,9 @@ public func __kk_flow_flat_map_latest_external(
     _ mapperFnPtr: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    return __kk_flow_flat_map_latest(flowHandle, mapperFnPtr, 0)
+    return runtimeThrowingBridge(outThrown) {
+        return __kk_flow_flat_map_latest(flowHandle, mapperFnPtr, 0)
+    }
 }
 
 /// flowArrayHandle: handle to an array of flow handles; count: element count.
