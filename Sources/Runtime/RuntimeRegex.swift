@@ -926,10 +926,12 @@ public func kk_regex_create_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreate(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        outThrown: outThrown
-    )
+    return runtimeThrowingBridge(outThrown) {
+        runtimeRegexCreate(
+            pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+            outThrown: outThrown
+        )
+    }
 }
 
 
@@ -1054,55 +1056,56 @@ public func kk_string_replace_regex(
     _ replacementRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
-    let replacement = regexStringFromRaw(replacementRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeStringRaw(rawStr) }
-    let normalized = regexBox.normalizeIfNeeded(rawStr)
-    let subject = RegexSubject(encoded: normalized)
-    let range = NSRange(location: 0, length: subject.units.count)
-    let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
-    guard let matches else {
-        return runtimeMakeStringRaw(rawStr)
+    return runtimeThrowingBridge(outThrown) {
+        let rawStr = regexStringFromRaw(strRaw) ?? ""
+        let replacement = regexStringFromRaw(replacementRaw) ?? ""
+        guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeStringRaw(rawStr) }
+        let normalized = regexBox.normalizeIfNeeded(rawStr)
+        let subject = RegexSubject(encoded: normalized)
+        let range = NSRange(location: 0, length: subject.units.count)
+        let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
+        guard let matches else {
+            return runtimeMakeStringRaw(rawStr)
+        }
+        if matches.isEmpty {
+            return runtimeMakeStringRaw(normalized)
+        }
+        do {
+            try validateRegexReplacementTemplate(
+                replacement,
+                match: matches[0],
+                namedGroupNames: Set(regexBox.namedGroupNames)
+            )
+        } catch let error as RegexReplacementTemplateError {
+            return propagateRegexReplacementTemplateError(error, outThrown: outThrown)
+        } catch {
+            return propagateRegexReplacementTemplateError(
+                .illegalArgument("Invalid replacement template"),
+                outThrown: outThrown
+            )
+        }
+        var resultUnits: [UInt16] = []
+        resultUnits.reserveCapacity(subject.units.count)
+        var cursor = 0
+        for match in matches {
+            let location = match.range.location
+            let length = match.range.length
+            guard location >= cursor, location >= 0, length >= 0,
+                  location + length <= subject.units.count else { continue }
+            resultUnits.append(contentsOf: subject.units[cursor ..< location])
+            let templateResult = applyRegexReplacementTemplate(
+                regexBox.regex,
+                match: match,
+                in: subject,
+                template: replacement,
+                regexBox: regexBox
+            )
+            resultUnits.append(contentsOf: regexUTF16Units(ofICUString: templateResult))
+            cursor = location + length
+        }
+        resultUnits.append(contentsOf: subject.units[cursor...])
+        return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
     }
-    if matches.isEmpty {
-        return runtimeMakeStringRaw(normalized)
-    }
-    do {
-        try validateRegexReplacementTemplate(
-            replacement,
-            match: matches[0],
-            namedGroupNames: Set(regexBox.namedGroupNames)
-        )
-    } catch let error as RegexReplacementTemplateError {
-        return propagateRegexReplacementTemplateError(error, outThrown: outThrown)
-    } catch {
-        return propagateRegexReplacementTemplateError(
-            .illegalArgument("Invalid replacement template"),
-            outThrown: outThrown
-        )
-    }
-    var resultUnits: [UInt16] = []
-    resultUnits.reserveCapacity(subject.units.count)
-    var cursor = 0
-    for match in matches {
-        let location = match.range.location
-        let length = match.range.length
-        guard location >= cursor, location >= 0, length >= 0,
-              location + length <= subject.units.count else { continue }
-        resultUnits.append(contentsOf: subject.units[cursor ..< location])
-        let templateResult = applyRegexReplacementTemplate(
-            regexBox.regex,
-            match: match,
-            in: subject,
-            template: replacement,
-            regexBox: regexBox
-        )
-        resultUnits.append(contentsOf: regexUTF16Units(ofICUString: templateResult))
-        cursor = location + length
-    }
-    resultUnits.append(contentsOf: subject.units[cursor...])
-    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
 }
 
 @_cdecl("__kk_string_split_regex_flat")
@@ -1155,38 +1158,40 @@ public func kk_regex_replace_lambda(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return strRaw }
-    let normalized = regexBox.normalizeIfNeeded(rawStr)
-    let subject = RegexSubject(encoded: normalized)
-    let range = NSRange(location: 0, length: subject.units.count)
-    let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
-    guard let matches else { return strRaw }
-    if matches.isEmpty { return strRaw }
-    var resultUnits: [UInt16] = []
-    resultUnits.reserveCapacity(subject.units.count)
-    var cursor = 0
-    let utf16Count = subject.units.count
-    for match in matches {
-        let location = match.range.location
-        let length = match.range.length
-        guard location >= cursor, location >= 0, length >= 0,
-              location + length <= subject.units.count else { continue }
-        resultUnits.append(contentsOf: subject.units[cursor ..< location])
-        let matchResult = makeMatchResult(from: match, in: subject, regexBox: regexBox, inputUTF16Count: utf16Count)
-        let matchResultRaw = registerRuntimeMatchResult(matchResult)
-        var thrown = 0
-        let replacementRaw = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: matchResultRaw, outThrown: &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return runtimeMakeUTF8StringRaw("")
+    return runtimeThrowingBridge(outThrown) {
+        let rawStr = regexStringFromRaw(strRaw) ?? ""
+        guard let regexBox = regexBoxFromRaw(regexRaw) else { return strRaw }
+        let normalized = regexBox.normalizeIfNeeded(rawStr)
+        let subject = RegexSubject(encoded: normalized)
+        let range = NSRange(location: 0, length: subject.units.count)
+        let matches = boundedMatches(regexBox.regex, in: subject.icu, options: [], range: range)
+        guard let matches else { return strRaw }
+        if matches.isEmpty { return strRaw }
+        var resultUnits: [UInt16] = []
+        resultUnits.reserveCapacity(subject.units.count)
+        var cursor = 0
+        let utf16Count = subject.units.count
+        for match in matches {
+            let location = match.range.location
+            let length = match.range.length
+            guard location >= cursor, location >= 0, length >= 0,
+                  location + length <= subject.units.count else { continue }
+            resultUnits.append(contentsOf: subject.units[cursor ..< location])
+            let matchResult = makeMatchResult(from: match, in: subject, regexBox: regexBox, inputUTF16Count: utf16Count)
+            let matchResultRaw = registerRuntimeMatchResult(matchResult)
+            var thrown = 0
+            let replacementRaw = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: matchResultRaw, outThrown: &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return runtimeMakeUTF8StringRaw("")
+            }
+            let replacement = regexStringFromRaw(replacementRaw) ?? ""
+            resultUnits.append(contentsOf: runtimeKotlinStringUTF16CodeUnits(replacement))
+            cursor = location + length
         }
-        let replacement = regexStringFromRaw(replacementRaw) ?? ""
-        resultUnits.append(contentsOf: runtimeKotlinStringUTF16CodeUnits(replacement))
-        cursor = location + length
+        resultUnits.append(contentsOf: subject.units[cursor...])
+        return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
     }
-    resultUnits.append(contentsOf: subject.units[cursor...])
-    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
 }
 
 
@@ -1283,11 +1288,13 @@ public func kk_regex_create_with_option_flat(
     _ optionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreateWithOption(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionRaw: optionRaw,
-        outThrown: outThrown
-    )
+    return runtimeThrowingBridge(outThrown) {
+        runtimeRegexCreateWithOption(
+            pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+            optionRaw: optionRaw,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("__kk_string_toRegex_with_option_flat")
@@ -1299,26 +1306,29 @@ public func kk_string_toRegex_with_option_flat(
     _ optionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreateWithOption(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionRaw: optionRaw,
-        outThrown: outThrown
-    )
+    return runtimeThrowingBridge(outThrown) {
+        runtimeRegexCreateWithOption(
+            pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+            optionRaw: optionRaw,
+            outThrown: outThrown
+        )
+    }
 }
 
 private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let ordinal = Int(kk_unbox_int(optionRaw))
-    guard let box = createRegexBox(
-        pattern: pattern,
-        isLiteral: ordinal == kRegexOptionOrdinalLiteral,
-        options: nsRegexOption(fromOrdinal: ordinal),
-        optionOrdinals: [ordinal],
-        outThrown: outThrown
-    ) else {
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let ordinal = Int(kk_unbox_int(optionRaw))
+        guard let box = createRegexBox(
+            pattern: pattern,
+            isLiteral: ordinal == kRegexOptionOrdinalLiteral,
+            options: nsRegexOption(fromOrdinal: ordinal),
+            optionOrdinals: [ordinal],
+            outThrown: outThrown
+        ) else {
+            return 0
+        }
+        return registerRuntimeObject(box)
     }
-    return registerRuntimeObject(box)
 }
 
 
@@ -1332,11 +1342,13 @@ public func kk_regex_create_with_options_flat(
     _ optionsSetRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreateWithOptions(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionsSetRaw: optionsSetRaw,
-        outThrown: outThrown
-    )
+    return runtimeThrowingBridge(outThrown) {
+        runtimeRegexCreateWithOptions(
+            pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+            optionsSetRaw: optionsSetRaw,
+            outThrown: outThrown
+        )
+    }
 }
 
 @_cdecl("__kk_string_toRegex_with_options_flat")
@@ -1348,32 +1360,35 @@ public func kk_string_toRegex_with_options_flat(
     _ optionsSetRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeRegexCreateWithOptions(
-        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
-        optionsSetRaw: optionsSetRaw,
-        outThrown: outThrown
-    )
+    return runtimeThrowingBridge(outThrown) {
+        runtimeRegexCreateWithOptions(
+            pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+            optionsSetRaw: optionsSetRaw,
+            outThrown: outThrown
+        )
+    }
 }
 
 private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    var combined: NSRegularExpression.Options = []
-    var isLiteral = false
-    var storedOrdinals: Set<Int> = []
-    if let setBox = runtimeSetBox(from: optionsSetRaw) {
-        for element in setBox.elements {
-            let ordinal = Int(kk_unbox_int(element))
-            storedOrdinals.insert(ordinal)
-            if ordinal == kRegexOptionOrdinalLiteral { isLiteral = true }
-            combined.insert(nsRegexOption(fromOrdinal: ordinal))
+    return runtimeThrowingBridge(outThrown) {
+        var combined: NSRegularExpression.Options = []
+        var isLiteral = false
+        var storedOrdinals: Set<Int> = []
+        if let setBox = runtimeSetBox(from: optionsSetRaw) {
+            for element in setBox.elements {
+                let ordinal = Int(kk_unbox_int(element))
+                storedOrdinals.insert(ordinal)
+                if ordinal == kRegexOptionOrdinalLiteral { isLiteral = true }
+                combined.insert(nsRegexOption(fromOrdinal: ordinal))
+            }
         }
+        guard let box = createRegexBox(
+            pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals, outThrown: outThrown
+        ) else {
+            return 0
+        }
+        return registerRuntimeObject(box)
     }
-    guard let box = createRegexBox(
-        pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals, outThrown: outThrown
-    ) else {
-        return 0
-    }
-    return registerRuntimeObject(box)
 }
 
 @_cdecl("__kk_regex_containsMatchIn_flat")
@@ -1407,7 +1422,9 @@ public func kk_string_toRegex_flat(
     _ hash: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_regex_create_flat(data, length, byteCount, hash, outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        kk_regex_create_flat(data, length, byteCount, hash, outThrown)
+    }
 }
 
 
@@ -1585,44 +1602,45 @@ public func kk_string_replaceFirst_regex(
     _ replacementRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let rawStr = regexStringFromRaw(strRaw) ?? ""
-    let replacement = regexStringFromRaw(replacementRaw) ?? ""
-    guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeStringRaw(rawStr) }
-    let normalized = regexBox.normalizeIfNeeded(rawStr)
-    let subject = RegexSubject(encoded: normalized)
-    let range = NSRange(location: 0, length: subject.units.count)
-    guard let match = boundedFirstMatch(regexBox.regex, in: subject.icu, options: [], range: range),
-          match.range.location >= 0, match.range.length >= 0,
-          match.range.location + match.range.length <= subject.units.count else {
-        return runtimeMakeStringRaw(normalized)
-    }
-    do {
-        try validateRegexReplacementTemplate(
-            replacement,
+    return runtimeThrowingBridge(outThrown) {
+        let rawStr = regexStringFromRaw(strRaw) ?? ""
+        let replacement = regexStringFromRaw(replacementRaw) ?? ""
+        guard let regexBox = regexBoxFromRaw(regexRaw) else { return runtimeMakeStringRaw(rawStr) }
+        let normalized = regexBox.normalizeIfNeeded(rawStr)
+        let subject = RegexSubject(encoded: normalized)
+        let range = NSRange(location: 0, length: subject.units.count)
+        guard let match = boundedFirstMatch(regexBox.regex, in: subject.icu, options: [], range: range),
+              match.range.location >= 0, match.range.length >= 0,
+              match.range.location + match.range.length <= subject.units.count else {
+            return runtimeMakeStringRaw(normalized)
+        }
+        do {
+            try validateRegexReplacementTemplate(
+                replacement,
+                match: match,
+                namedGroupNames: Set(regexBox.namedGroupNames)
+            )
+        } catch let error as RegexReplacementTemplateError {
+            return propagateRegexReplacementTemplateError(error, outThrown: outThrown)
+        } catch {
+            return propagateRegexReplacementTemplateError(
+                .illegalArgument("Invalid replacement template"),
+                outThrown: outThrown
+            )
+        }
+        let templateResult = applyRegexReplacementTemplate(
+            regexBox.regex,
             match: match,
-            namedGroupNames: Set(regexBox.namedGroupNames)
+            in: subject,
+            template: replacement,
+            regexBox: regexBox
         )
-    } catch let error as RegexReplacementTemplateError {
-        return propagateRegexReplacementTemplateError(error, outThrown: outThrown)
-    } catch {
-        return propagateRegexReplacementTemplateError(
-            .illegalArgument("Invalid replacement template"),
-            outThrown: outThrown
-        )
+        let location = match.range.location
+        let length = match.range.length
+        var resultUnits = subject.units
+        resultUnits.replaceSubrange(location ..< location + length, with: regexUTF16Units(ofICUString: templateResult))
+        return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
     }
-    let templateResult = applyRegexReplacementTemplate(
-        regexBox.regex,
-        match: match,
-        in: subject,
-        template: replacement,
-        regexBox: regexBox
-    )
-    let location = match.range.location
-    let length = match.range.length
-    var resultUnits = subject.units
-    resultUnits.replaceSubrange(location ..< location + length, with: regexUTF16Units(ofICUString: templateResult))
-    return runtimeMakeStringRaw(runtimeKotlinStringFromUTF16CodeUnits(resultUnits))
 }
 
 
