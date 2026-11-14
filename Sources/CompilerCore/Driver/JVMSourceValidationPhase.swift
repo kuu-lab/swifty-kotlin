@@ -346,14 +346,14 @@ private struct JVMSourceGrammar {
             try statement(); try separator(); semicolons()
         }
     }
-    mutating func body() throws {
+    mutating func body(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
-        if kind == .symbol(.lBrace) { try block() } else { try statement() }
+        if kind == .symbol(.lBrace) { try block() } else { try statement(allowNewlines: allowNewlines) }
     }
     mutating func condition() throws {
         try require(.symbol(.lParen)); try expression(allowNewlines: true); try require(.symbol(.rParen))
     }
-    mutating func statement() throws {
+    mutating func statement(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if kind.isLabelName,
            tokens[min(index + 1, tokens.count - 1)].kind == .symbol(.at),
@@ -406,9 +406,9 @@ private struct JVMSourceGrammar {
             if take(.symbol(.at)) { try name() }
             return
         } else {
-            try expression()
+            try expression(allowNewlines: allowNewlines)
             if [.assign, .plusAssign, .minusAssign, .starAssign, .slashAssign, .percentAssign].contains(where: { kind == .symbol($0) }) {
-                index += 1; try expression()
+                index += 1; try expression(allowNewlines: allowNewlines)
             }
         }
     }
@@ -441,9 +441,8 @@ private struct JVMSourceGrammar {
         }
     }
     mutating func expression(_ minimum: Int = 0, allowNewlines: Bool = false) throws {
-        try primary()
-        while let level = precedence(), level >= minimum,
-              allowNewlines || kind == .symbol(.questionColon) || !newlineBeforeCurrent() {
+        try primary(allowNewlines: allowNewlines)
+        while let level = precedence(), level >= minimum, allowNewlines || !newlineBeforeCurrent() || ParserBoundaryPolicy.continuesExpressionBeforeNewline(kind) {
             if take(.keyword(.as)) { _ = take(.symbol(.question)); try type(); continue }
             if take(.keyword(.is)) { try type(); continue }
             if take(.symbol(.bang)) {
@@ -492,7 +491,7 @@ private struct JVMSourceGrammar {
             && tokens[index + 1].kind == .symbol(.at)
             && tokens[index + 2].kind == .symbol(.lBrace)
     }
-    mutating func primary() throws {
+    mutating func primary(allowNewlines: Bool = false) throws {
         while kind == .symbol(.at) { try annotation() }
         if take(.keyword(.return)) {
             if take(.symbol(.at)) { try name() }
@@ -541,19 +540,17 @@ private struct JVMSourceGrammar {
                     } while take(.symbol(.comma))
                     if take(.keyword(.if)) { try expression(allowNewlines: true) }
                 }
+                // A when-branch body ends at the newline: the next line begins
+                // another branch's conditions, so newline mode is not inherited
+                // here even inside parentheses.
                 try require(.symbol(.arrow)); try body(); try separator(); semicolons()
             }
-            return
-        }
-        if take(.keyword(.if)) {
-            try condition(); try body()
-            if take(.keyword(.else)) { try body() }
-            return
-        }
-        if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
-            index += 1; try primary(); return
-        }
-        if take(.symbol(.doubleColon)) { try name()
+        } else if take(.keyword(.if)) {
+            try condition(); try body(allowNewlines: allowNewlines)
+            if take(.keyword(.else)) { try body(allowNewlines: allowNewlines) }
+        } else if [.plus, .minus, .bang, .plusPlus, .minusMinus].contains(where: { kind == .symbol($0) }) {
+            index += 1; try primary(allowNewlines: allowNewlines); return
+        } else if take(.symbol(.doubleColon)) { try name()
         } else if kind == .keyword(.fun) {
             try anonymousFunction()
         } else if kind == .keyword(.object) {
@@ -590,6 +587,9 @@ private struct JVMSourceGrammar {
             try name()
         } }
         while true {
+            if !allowNewlines, newlineBeforeCurrent(),
+               kind == .symbol(.lParen) || kind == .symbol(.lBracket)
+               || kind == .symbol(.plusPlus) || kind == .symbol(.minusMinus) { break }
             if kind == .symbol(.lessThan) {
                 let saved = index
                 do {
