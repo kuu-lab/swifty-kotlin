@@ -45,5 +45,18 @@ interface KClass<T>: KAnnotatedElement, KClassifier {
     val isData: Boolean; val isInner: Boolean; val isCompanion: Boolean; val isFun: Boolean; val isValue: Boolean
     fun isInstance(value: Any?): Boolean
 }
-interface KType: KAnnotatedElement { val classifier: KClassifier?; val isMarkedNullable: Boolean }
+interface KType: KAnnotatedElement {
+    val classifier: KClassifier?
+    val arguments: List<KTypeProjection>
+    val isMarkedNullable: Boolean
+}
+enum class KVariance { INVARIANT, IN, OUT }
+data class KTypeProjection(val variance: KVariance?, val type: KType?) {
+    companion object {
+        val STAR: KTypeProjection get() = null!!
+        fun invariant(type: KType): KTypeProjection = null!!
+        fun contravariant(type: KType): KTypeProjection = null!!
+        fun covariant(type: KType): KTypeProjection = null!!
+    }
+}
 interface KParameter: KAnnotatedElement { val name: String?; val index: Int; val isOptional: Boolean }

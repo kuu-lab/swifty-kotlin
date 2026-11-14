@@ -9,6 +9,23 @@ internal class RuntimeType(private val metadata: RuntimeMetadata, private val ty
         if (!type.has(6)) return null
         return ClassReference(loadMetadataType(metadata.string(type.number(6)), metadata.owner) as java.lang.Class<Any>)
     }
+    override val arguments: List<KTypeProjection>
+        get() {
+            val result = mutableListOf<KTypeProjection>()
+            for (argument in type.children(2)) {
+                // Proto.number defaults to 0 (IN) for absent fields, but an
+                // omitted projection kind means INV in Kotlin metadata.
+                val projection = if (argument.has(1)) argument.number(1) else 2
+                val nested = metadata.type(argument, 2, 3)
+                result.add(when (projection) {
+                    0 -> KTypeProjection.contravariant(RuntimeType(metadata, nested, parameters))
+                    1 -> KTypeProjection.covariant(RuntimeType(metadata, nested, parameters))
+                    3 -> KTypeProjection.STAR
+                    else -> KTypeProjection.invariant(RuntimeType(metadata, nested, parameters))
+                })
+            }
+            return result
+        }
     override fun toString(): String = renderRuntimeType(metadata, type, parameters)
 }
 internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, private val node: Proto): KTypeParameter {
@@ -20,9 +37,20 @@ internal class RuntimeTypeParameter(private val metadata: RuntimeMetadata, priva
         return result
     }
 }
-internal class RuntimeClassType(private val owner: Any): KType {
+internal class RuntimeClassType(private val owner: Any, private val metadata: RuntimeMetadata? = null): KType {
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = false
+    // A constructor's class reference still carries the class's type
+    // parameters, so `Box<T>::class` arguments surface `T` rather than
+    // collapsing to an empty list.
+    override val arguments: List<KTypeProjection> get() {
+        val meta = metadata ?: return emptyList()
+        val result = mutableListOf<KTypeProjection>()
+        for (parameter in meta.root.children(5)) {
+            result.add(KTypeProjection.invariant(RuntimeType(meta, Proto(listOf(56, parameter.number(1))), meta.root.children(5))))
+        }
+        return result
+    }
     override val classifier: KClassifier get() = ClassReference(owner as java.lang.Class<Any>)
     override fun toString(): String = ClassReference(owner as java.lang.Class<Any>).qualifiedName ?: __jvmClassName(owner)
 }
@@ -77,7 +105,7 @@ open class RuntimeCallable(
     }
     override val name: String get() = displayName
     override val isSuspend: Boolean get() = (node.number(9) and 8192) != 0
-    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass) else RuntimeType(metadata, metadata.type(node, 3, 7), node.children(4))
+    override val returnType: KType get() = if (displayName == "<init>") RuntimeClassType(ownerClass, metadata) else RuntimeType(metadata, metadata.type(node, 3, 7), node.children(4))
     override val typeParameters: List<KTypeParameter> get() {
         val result = mutableListOf<KTypeParameter>()
         for (parameter in node.children(4)) result.add(RuntimeTypeParameter(metadata, parameter))
