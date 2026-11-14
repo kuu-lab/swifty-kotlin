@@ -246,24 +246,25 @@ private func runtimeDecodeByteArrayRange(
     outThrown: UnsafeMutablePointer<Int>?,
     caller: String
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let elements = runtimeByteArrayElements(from: arrRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid byte array handle \(arrRaw)")
-    }
-    guard startIndex >= 0, endIndex >= startIndex, endIndex <= elements.count else {
-        return runtimeByteArrayRangeError(
-            startIndex: startIndex,
-            endIndex: endIndex,
-            size: elements.count,
+    return runtimeThrowingBridge(outThrown) {
+        guard let elements = runtimeByteArrayElements(from: arrRaw) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid byte array handle \(arrRaw)")
+        }
+        guard startIndex >= 0, endIndex >= startIndex, endIndex <= elements.count else {
+            return runtimeByteArrayRangeError(
+                startIndex: startIndex,
+                endIndex: endIndex,
+                size: elements.count,
+                outThrown: outThrown
+            )
+        }
+        let bytes = elements[startIndex..<endIndex].map { UInt8(truncatingIfNeeded: $0) }
+        return runtimeDecodeUTF8Bytes(
+            bytes,
+            throwOnInvalidSequence: throwOnInvalidSequence,
             outThrown: outThrown
         )
     }
-    let bytes = elements[startIndex..<endIndex].map { UInt8(truncatingIfNeeded: $0) }
-    return runtimeDecodeUTF8Bytes(
-        bytes,
-        throwOnInvalidSequence: throwOnInvalidSequence,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("__kk_bytearray_decodeToString")
