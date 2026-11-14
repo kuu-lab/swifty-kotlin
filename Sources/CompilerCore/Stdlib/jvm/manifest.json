@@ -696,6 +696,12 @@
       "excludeFromStdlibBuild": true
     },
     {
+      "path": "declarations/MapFilter.kt",
+      "virtualPath": "<kswiftk-jvm>/map-filter.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
+    },
+    {
       "path": "declarations/BuilderContracts.kt",
       "virtualPath": "<kswiftk-jvm>/builder-contracts.kt",
       "excludeFromStdlibBuild": false

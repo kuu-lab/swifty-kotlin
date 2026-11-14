@@ -281,6 +281,17 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try constructJDK("kotlin/Pair", parameters: [object, object], arguments: [left, right]))
         }
         guard var owner = sourceType.referenceName else { return nil }
+        if ["getOrElse", "getOrPut"].contains(member),
+           let semantic = program.sema.bindings.exprType(for: receiverID),
+           let map = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(context.interner.intern)),
+           case let .classType(nominal) = program.sema.types.kind(of: program.sema.types.makeNonNullable(semantic)),
+           program.sema.types.isNominalSubtypeSymbol(nominal.classSymbol, of: map),
+           program.sema.bindings.callBinding(for: id).map({ binding in
+               let name = program.sema.symbols.symbol(binding.chosenCallee)?.fqName.map(context.interner.resolve) ?? []
+               return name.starts(with: ["kotlin", "collections"])
+           }) ?? true {
+            return try collectionDefaultValueMember(receiverID, owner: "java/util/Map", member: member, args: args, id: id)
+        }
         if owner.hasPrefix("["), member == "copyInto" {
             guard let sourceComponent = try? arrayComponent(sourceType), args.count <= 4 else {
                 throw fail("JVM array copyInto requires a compatible array and at most four arguments.", id)
@@ -395,7 +406,8 @@ extension JVMFunctionBuilder {
                 let receiver = try requireValue(receiverID), argument = try requireValue(args[0].expr)
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [object], .boolean, receiver: receiver, arguments: [argument]))
             }
-            if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
+            if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected),
+               selected != "java/lang/Iterable" || member == "iterator" { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             let isIteratorRemove = owner == "java/util/Iterator" && member == "remove"
             // Sema's chosen callee is authoritative for member vs extension:

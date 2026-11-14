@@ -271,3 +271,48 @@ inline fun <T, R> Iterable<T>.zipWithNext(transform: (T, T) -> R): List<R> {
     var previous = iterator.next(); while (iterator.hasNext()) { val current = iterator.next(); result.add(transform(previous, current)); previous = current }; return result
 }
 inline fun <T> Iterable<T>.zipWithNext(): List<Pair<T, T>> = zipWithNext { a, b -> Pair(a, b) }
+
+public inline fun <reified R> Iterable<*>.filterIsInstance(): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        if (element is R) result.add(element)
+    }
+    return result
+}
+
+public inline fun <T> List<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    var index = 0
+    for (element in this) {
+        if (predicate(element)) return index
+        index++
+    }
+    return -1
+}
+
+public inline fun <T> List<T>.indexOfLast(predicate: (T) -> Boolean): Int {
+    val cursor = listIterator(size)
+    while (cursor.hasPrevious()) {
+        val element = cursor.previous()
+        if (predicate(element)) return cursor.nextIndex()
+    }
+    return -1
+}
+
+public inline fun <T> Iterable<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    var index = 0
+    for (element in this) {
+        if (predicate(element)) return index
+        index++
+    }
+    return -1
+}
+
+public inline fun <T> Iterable<T>.indexOfLast(predicate: (T) -> Boolean): Int {
+    var index = 0
+    var result = -1
+    for (element in this) {
+        if (predicate(element)) result = index
+        index++
+    }
+    return result
+}

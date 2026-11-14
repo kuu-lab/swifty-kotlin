@@ -12,6 +12,12 @@ extension JVMFunctionBuilder {
         }
         let property = context.interner.resolve(name)
         switch property {
+        case "javaClass":
+            let symbol = bindings.identifierSymbol(for: id) ?? bindings.callBinding(for: id)?.chosenCallee
+            let declaration = symbol.flatMap { program.sema.symbols.symbol($0) }
+            guard declaration?.fqName.map(context.interner.resolve) == ["kotlin", "jvm", "javaClass"]
+                    || declaration == nil else { return nil }
+            return try runtimeJavaClass(receiver)
         case "length":
             guard receiver.type.isText else { return nil }
             return try textLength(receiver)

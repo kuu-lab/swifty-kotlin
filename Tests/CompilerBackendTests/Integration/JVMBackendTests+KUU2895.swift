@@ -5,6 +5,16 @@ import Testing
 
 extension JVMBackendTests {
     @Test(arguments: [EmitMode.jvmClass, .jvmJar])
+    func javaCharacterUppercaseDispatchesCharAndCodePoint(mode: EmitMode) throws {
+        try assertJVM("""
+        fun main() {
+            println(Character.toUpperCase('é'))
+            println(Character.toUpperCase(0x10428))
+        }
+        """, "É\n66560\n", mode: mode)
+    }
+
+    @Test(arguments: [EmitMode.jvmClass, .jvmJar])
     func javaLangStaticMembersAndQualifiedArrayListConstructor(mode: EmitMode) throws {
         try assertJVM("""
         fun main() {

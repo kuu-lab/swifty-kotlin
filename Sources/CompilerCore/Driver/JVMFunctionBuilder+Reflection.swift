@@ -12,6 +12,11 @@ extension JVMProgramBuilder {
 }
 
 extension JVMFunctionBuilder {
+    func runtimeJavaClass(_ value: JVMValue) throws -> JVMValue? {
+        let receiver = try convert(value, to: .reference("java/lang/Object", nullable: false))
+        return try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver)
+    }
+
     func javaClass(_ type: JVMValueType) throws -> JVMValue {
         let result = try value(.reference("java/lang/Class", nullable: false))
         let wrappers: [JVMValueType: String] = [.byte: "Byte", .short: "Short", .char: "Character", .int: "Integer", .long: "Long", .float: "Float", .double: "Double", .boolean: "Boolean", .unit: "Void"]
@@ -229,8 +234,7 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getJavaClass", [sourceType], .reference("java/lang/Class", nullable: false), arguments: [requireValue(receiverID)]))
         }
         if name == "javaClass", args.isEmpty {
-            let receiver = try convert(requireValue(receiverID), to: .reference("java/lang/Object", nullable: false))
-            return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", "getClass", [], .reference("java/lang/Class", nullable: false), receiver: receiver))
+            return JVMIntrinsicResult(value: try runtimeJavaClass(requireValue(receiverID)))
         }
         if ownerName == "java/lang/Class", name == "kotlin", args.isEmpty { return JVMIntrinsicResult(value: try jdkCall("kotlin/jvm/JvmClassMappingKt", "getKotlinClass", [sourceType], .reference("kotlin/reflect/KClass", nullable: false), arguments: [requireValue(receiverID)])) }
         if isClass && ["memberProperties", "memberFunctions", "createInstance"].contains(name) {
@@ -278,6 +282,11 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try jdkCall(ownerName, name, [object], .boolean, receiver: receiver, arguments: [requireValue(args[0].expr)], interface: isClass))
         }
         if !arena.isExplicitCall(id), args.isEmpty {
+            if ownerName == "java/lang/Class", name == "enumConstants" {
+                let result: JVMValueType = .reference("[Ljava/lang/Object;", nullable: true)
+                return JVMIntrinsicResult(value: try jdkCall(ownerName, "getEnumConstants", [], result,
+                    receiver: receiver, resolved: program.expressionType(id)))
+            }
             if let propertyOwner, name == "getter", ["kotlin/reflect/KProperty0", "kotlin/reflect/KMutableProperty0"].contains(propertyOwner) {
                 let type = JVMValueType.reference("kotlin/reflect/KProperty0", nullable: false)
                 let getter = JVMValueType.reference("kotlin/reflect/KProperty0$Getter", nullable: false)

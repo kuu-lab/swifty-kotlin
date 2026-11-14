@@ -165,8 +165,8 @@ extension JVMClasspathIndex {
             package java.lang
             class System private constructor() {
                 companion object {
-                    external fun getProperty(propertyName: String): String?
-                    external fun getProperty(propertyName: String, defaultValue: String): String
+                    external fun getProperty(propertyName: kotlin.String): kotlin.String?
+                    external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
                     external fun currentTimeMillis(): Long
                     external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
@@ -197,8 +197,8 @@ extension JVMClasspathIndex {
                 companion object {
                     const val MAX_VALUE: Int = 2147483647
                     const val MIN_VALUE: Int = -2147483647 - 1
-                    external fun parseInt(value: String): Int
-                    external fun parseInt(value: String, radix: Int): Int
+                    external fun parseInt(value: kotlin.String): Int
+                    external fun parseInt(value: kotlin.String, radix: Int): Int
                 }
             }
             """, 0x0011, "java/lang/Number", [
@@ -211,11 +211,15 @@ extension JVMClasspathIndex {
                 companion object {
                     external fun isDigit(value: Char): Boolean
                     external fun isDigit(value: Int): Boolean
+                    external fun toUpperCase(value: Char): Char
+                    external fun toUpperCase(value: Int): Int
                 }
             }
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/Character", "isDigit", [.char], .boolean, staticMember: true),
                 method("java/lang/Character", "isDigit", [.int], .boolean, staticMember: true),
+                method("java/lang/Character", "toUpperCase", [.char], .char, staticMember: true),
+                method("java/lang/Character", "toUpperCase", [.int], .int, staticMember: true),
             ]),
             ("java/util/Arrays", arraysSource, 0x0031, "java/lang/Object", arraysMethods),
             ("java/util/function/ToIntFunction", """
@@ -654,7 +658,21 @@ extension JVMClasspathIndex {
                 methods[symbol] = file.methods.first { $0.name == name && $0.descriptor == descriptor }
             }
         }
-        for owner in ["java/io/OutputStream", "java/io/FileOutputStream", "java/io/Closeable", "java/io/InputStream"] {
+        let inputStream = "java/io/InputStream"
+        let inputPath = ["java", "io", "InputStream"].map(ctx.interner.intern)
+        for name in ["available", "read"] {
+            for symbol in sema.symbols.lookupAll(fqName: inputPath + [ctx.interner.intern(name)]) {
+                guard sema.symbols.symbol(symbol)?.declSite == nil,
+                      let signature = sema.symbols.functionSignature(for: symbol) else { continue }
+                let parameters = try signature.parameterTypes.map { try Self.type($0, sema: sema, ctx: ctx) }
+                let descriptor = "(" + parameters.map(\.descriptor).joined() + ")I"
+                guard ["()I", "([B)I", "([BII)I"].contains(descriptor) else { continue }
+                methods[symbol] = JVMForeignMethod(owner: inputStream, name: name, descriptor: descriptor,
+                                                   parameters: parameters, result: .int, isStatic: false,
+                                                   isInterface: false, isAbstract: false)
+            }
+        }
+        for owner in ["java/io/OutputStream", "java/io/FileOutputStream", "java/io/Closeable", inputStream] {
             let names = owner.hasSuffix("OutputStream") ? ["flush", "close"] : ["close"]
             let path = owner.split(separator: "/").map { ctx.interner.intern(String($0)) }
             for name in names {
