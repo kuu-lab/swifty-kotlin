@@ -157,6 +157,10 @@ extension JVMFunctionBuilder {
                     )
                     return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: field, modifiers: [.public])
                 }
+                if let getter = info.kotlinStaticProperties[name]?.getter, getter.result.descriptor == type.descriptor,
+                   sema.symbols.symbol(parent)?.kind == .object {
+                    return JVMProperty(name: name, type: type, getter: getter, setter: nil, field: nil, modifiers: [.public])
+                }
                 let names: [String]
                 if info.flags & 0x2000 != 0 || (owner.hasPrefix("java/util/") && name == "size") {
                     names = [name]
