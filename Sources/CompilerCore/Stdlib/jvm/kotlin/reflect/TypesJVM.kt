@@ -1,11 +1,17 @@
 package kotlin.reflect
 
 import kotlin.jvm.internal.*
+import kotlin.reflect.jvm.internal.*
 
 public val KType.javaType: java.lang.reflect.Type
     get() {
         val klass = classifier
         if (klass is ClassReference<*>) {
+            // Returning the raw class would silently erase `List<String>` to
+            // `List`; callers could not distinguish the type arguments.
+            if (this is RuntimeType && hasTypeArguments) {
+                throw UnsupportedOperationException("Parameterized Java type is not available for $this")
+            }
             // Nullable primitives box on the JVM, so `Int?` maps to
             // java.lang.Integer rather than int.class.
             if (isMarkedNullable && __jvmClassIsPrimitive(klass.jClass)) {
