@@ -1,13 +1,21 @@
 package kotlin.ranges
-class IntRange(first: Int, last: Int): IntProgression(first, last, 1), kotlin.jvm.internal.markers.KMappedMarker {
+class IntRange(first: Int, last: Int): IntProgression(first, last, 1), ClosedRange<Int>, OpenEndRange<Int> {
     override fun iterator(): kotlin.collections.IntIterator = IntRangeIterator(first, last)
 
-    val start: Int get() = first
-    val endInclusive: Int get() = last
+    override val start: Int get() = first
+    override val endInclusive: Int get() = last
+    override val endExclusive: Int
+        get() {
+            if (last == Int.MAX_VALUE) {
+                throw IllegalStateException("Cannot return the exclusive upper bound of a range that includes MAX_VALUE.")
+            }
+            return last + 1
+        }
     @kotlin.jvm.JvmName("getStart") fun boxedStart(): Int? = first
     @kotlin.jvm.JvmName("getEndInclusive") fun boxedEnd(): Int? = last
+    @kotlin.jvm.JvmName("getEndExclusive") fun boxedExclusiveEnd(): Int? = endExclusive
     override fun isEmpty(): Boolean = first > last
-    operator fun contains(value: Int): Boolean = value >= first && value <= last
+    override operator fun contains(value: Int): Boolean = value >= first && value <= last
     override fun equals(other: Any?): Boolean = other is IntRange && (isEmpty() && other.isEmpty() || first == other.first && last == other.last)
     override fun hashCode(): Int = if (isEmpty()) -1 else first * 31 + last
     override fun toString(): String = "$first..$last"
