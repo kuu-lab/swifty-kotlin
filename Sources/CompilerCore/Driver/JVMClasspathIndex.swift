@@ -341,6 +341,7 @@ final class JVMClasspathIndex {
             }
             parents += info.interfaces.filter {
                 classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                    || $0 == "java/util/List"
             }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
             source += " {\n"
@@ -435,6 +436,7 @@ final class JVMClasspathIndex {
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
                 if classes[name] != nil || sourceClassNames.contains(name) || info.kotlinReadOnlyCollectionSupertypes[name] != nil
+                    || name == "java/util/List"
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
                     return
@@ -775,7 +777,7 @@ final class JVMClasspathIndex {
     /// be overridden at all.
     private func supertypeReference(_ name: String, childParams: [String]) -> String? {
         guard let base = kotlinSupertypeName(name) else { return nil }
-        let arity = hierarchyClasses[name]?.classTypeParameterNames.count ?? 0
+        let arity = hierarchyClasses[name]?.classTypeParameterNames.count ?? (name == "java/util/List" ? 1 : 0)
         guard arity > 0 else { return base }
         let args = arity == childParams.count && arity > 0
             ? childParams
@@ -1132,6 +1134,9 @@ final class JVMClasspathIndex {
         // supertypes on the same Kotlin nominal.
         covered.insert("java/lang/CharSequence")
         // The frontend's CoroutineDispatcher contract already models its
+        // Java list subinterfaces (e.g. Android's ObservableList) use the
+        // same List nominal as generic signatures and Kotlin source.
+        covered.insert("java/util/List")
         // CoroutineContext supertypes. An erased stub cannot reconstruct
         // the key passed to AbstractCoroutineContextElement or its generic overrides.
         covered.insert("kotlinx/coroutines/CoroutineDispatcher")
@@ -1307,6 +1312,7 @@ final class JVMClasspathIndex {
                 parents += info.interfaces.filter {
                     classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
+                        || $0 == "java/util/List"
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 source += " {\n"
