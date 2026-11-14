@@ -942,6 +942,13 @@ final class JVMClasspathIndex {
             guard let typeName = annotationDescriptorTypeName(descriptor) else { return nil }
             return typeName + "." + (JVMProgramBuilder.isIdentifier(name) ? name : "`\(name)`")
         case let .classType(descriptor):
+            if descriptor.hasPrefix("L"), descriptor.hasSuffix(";"),
+               let target = hierarchyClasses[String(descriptor.dropFirst().dropLast())],
+               target.flags & 0x0001 == 0 {
+                // Keep the physical default on the original annotation; a
+                // source placeholder cannot reference its inaccessible type.
+                return "null!!"
+            }
             guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
             return typeName + "::class"
         case let .annotation(annotation):
