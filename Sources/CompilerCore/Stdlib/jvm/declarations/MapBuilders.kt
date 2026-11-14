@@ -24,3 +24,5 @@ public inline fun <K, V> buildMap(capacity: Int, builderAction: MutableMap<K, V>
     result.builderAction()
     return build(result)
 }
+
+public fun <K, V> Map<out K, V>.asSequence(): kotlin.sequences.Sequence<Map.Entry<K, V>> = null!!
