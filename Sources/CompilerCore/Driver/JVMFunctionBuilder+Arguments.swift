@@ -164,6 +164,12 @@ extension JVMFunctionBuilder {
             prefix = [try receiverValue ?? receiver.map(requireValue) ?? enclosingInstance(plan.outer!)]
         } else if let method, !method.isStatic && !constructor {
             dispatch = try (receiver != nil || receiverValue != nil) && !extensionCall ? receiverValue ?? requireValue(receiver!) : instance(id)
+        } else if let method, method.isStatic, !constructor, !extensionCall,
+                  receiverValue == nil, let receiver {
+            // A @JvmStatic member invoked through an instance expression owes
+            // the receiver's side effects an evaluation even though nothing is
+            // passed as the dispatch receiver.
+            _ = try requireValue(receiver)
         }
         if let method, context.jvmImports?.composeContentSymbols.contains(symbol) == true {
             guard let dispatch, args.count == 1 else { throw fail("Invalid JVM ComposeView.setContent call.", id) }
