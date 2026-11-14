@@ -562,3 +562,17 @@ public fun <T> MutableCollection<in T>.retainAll(elements: Array<out T>): Boolea
 public fun <T> MutableCollection<in T>.retainAll(elements: kotlin.sequences.Sequence<T>): Boolean {
     return this.retainAll(elements.toList())
 }
+
+public fun <T> List<T>.asReversed(): List<T> = ReversedListView(this)
+
+private class ReversedListView<T>(private val source: List<T>) : AbstractList<T>() {
+    override val size: Int get() = source.size
+
+    override fun get(index: Int): T {
+        val count = size
+        if (index < 0 || index >= count) {
+            throw IndexOutOfBoundsException("Element index $index must be in range [0..${count - 1}].")
+        }
+        return source[count - 1 - index]
+    }
+}
