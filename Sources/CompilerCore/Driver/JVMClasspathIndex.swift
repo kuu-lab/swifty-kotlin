@@ -329,6 +329,57 @@ final class JVMClasspathIndex {
             guard let info = classes[name] else { continue }
             var methods = info.methods
             var methodKeys = Set(methods.lazy.map(key))
+            var inheritedConstants: [String: JVMForeignField] = [:]
+            var ambiguousConstants: Set<String> = []
+            // Field declarations on nearer interfaces hide same-named ancestor
+            // constants, even when the nearer declaration is runtime-initialized.
+            // Declarations at the same shallowest depth on distinct interfaces
+            // stay ambiguous, so track the declaring depth instead of a shared
+            // shadow set.
+            // Same-named fields with different descriptors are legal on the JVM,
+            // so seed the map one entry at a time instead of uniqueKeysWithValues.
+            var minDeclaredDepth: [String: Int] = [:]
+            for field in info.fields where minDeclaredDepth[field.name] == nil {
+                minDeclaredDepth[field.name] = 0
+            }
+            var visitDepth: [String: Int] = [:]
+            var queue: [(name: String, depth: Int)] = info.interfaces.map { ($0, 1) }
+            var queueIndex = 0
+            while queueIndex < queue.count {
+                let (name, depth) = queue[queueIndex]
+                queueIndex += 1
+                if let seen = visitDepth[name], seen <= depth { continue }
+                visitDepth[name] = depth
+                guard let owner = hierarchyClasses[name], owner.isInterface,
+                      owner.isKotlinFileFacade == nil else { continue }
+                for field in owner.fields where minDeclaredDepth[field.name] == nil {
+                    minDeclaredDepth[field.name] = depth
+                }
+                for parent in owner.interfaces { queue.append((parent, depth + 1)) }
+            }
+            visitDepth = [:]
+            queue = info.interfaces.map { ($0, 1) }
+            queueIndex = 0
+            while queueIndex < queue.count {
+                let (name, depth) = queue[queueIndex]
+                queueIndex += 1
+                if let seen = visitDepth[name], seen <= depth { continue }
+                visitDepth[name] = depth
+                guard let owner = hierarchyClasses[name], owner.isInterface,
+                      owner.isKotlinFileFacade == nil else { continue }
+                for field in owner.fields where field.isPublic && field.isStatic && field.isFinal
+                    && minDeclaredDepth[field.name] == depth {
+                    if field.constantValue == nil {
+                        // A runtime-initialized declaration at the shallowest
+                        // depth collides with same-named constants on sibling
+                        // interfaces even though it shadows deeper ancestors.
+                        ambiguousConstants.insert(field.name)
+                    } else if inheritedConstants.updateValue(field, forKey: field.name) != nil {
+                        ambiguousConstants.insert(field.name)
+                    }
+                }
+                for parent in owner.interfaces { queue.append((parent, depth + 1)) }
+            }
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -392,7 +443,11 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            let fields = info.fields + inheritedConstants.keys.sorted().compactMap { name in
+                ambiguousConstants.contains(name) ? nil : inheritedConstants[name]
+            }
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass,
+                                        interfaces: interfaces, methods: methods, fields: fields)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
