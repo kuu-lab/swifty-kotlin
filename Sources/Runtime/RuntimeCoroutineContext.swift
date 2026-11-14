@@ -858,21 +858,22 @@ public func __kk_context_plus_dispatch(
     _ otherRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    // An Element without a plus override inherits this bodyless bridge.
-    // Its itable entry must use native composition rather than re-enter us.
-    let bridge: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = __kk_context_plus_dispatch
-    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 2)
-    if method != unsafeBitCast(bridge, to: Int.self), let result = runtimeSourceInterfaceCall1(
-        contextRaw, otherRaw,
-        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
-        methodSlot: 2,
-        context: "CoroutineContext.plus dispatch",
-        outThrown: outThrown
-    ) {
-        return result
+    return runtimeThrowingBridge(outThrown) {
+        // An Element without a plus override inherits this bodyless bridge.
+        // Its itable entry must use native composition rather than re-enter us.
+        let bridge: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = __kk_context_plus_dispatch
+        let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 2)
+        if method != unsafeBitCast(bridge, to: Int.self), let result = runtimeSourceInterfaceCall1(
+            contextRaw, otherRaw,
+            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+            methodSlot: 2,
+            context: "CoroutineContext.plus dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        return kk_context_plus(contextRaw, otherRaw)
     }
-    return kk_context_plus(contextRaw, otherRaw)
 }
 
 /// The current runtime recognizes the closed set of coroutine element handles
@@ -901,18 +902,19 @@ public func __kk_context_get_dispatch(
     _ keyRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let result = runtimeSourceInterfaceCall1(
-        contextRaw, keyRaw,
-        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
-        methodSlot: 0,
-        context: "CoroutineContext.get dispatch",
-        outThrown: outThrown
-    ) {
-        return result
+    return runtimeThrowingBridge(outThrown) {
+        if let result = runtimeSourceInterfaceCall1(
+            contextRaw, keyRaw,
+            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+            methodSlot: 0,
+            context: "CoroutineContext.get dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        let result = kk_context_get(contextRaw, keyRaw)
+        return result == 0 ? runtimeNullSentinelInt : result
     }
-    let result = kk_context_get(contextRaw, keyRaw)
-    return result == 0 ? runtimeNullSentinelInt : result
 }
 
 let runtimeCoroutineContextFoldBridgePointer: Int = {
@@ -928,41 +930,42 @@ public func kk_context_fold(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    // Source methods receive a Kotlin function value, whereas the bridge ABI
-    // receives the callback entry point and its captured environment separately.
-    // Runtime-backed Job implementations can register this bridge itself in
-    // their context itable. It takes a split callback pair, whereas Kotlin
-    // overrides take one function value; never invoke the bridge through the
-    // source-method ABI or recursively dispatch back into it.
-    let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1)
-    if method != 0, method != runtimeCoroutineContextFoldBridgePointer {
-        let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
-        if let result = runtimeSourceInterfaceCall2(
-            contextRaw, initial, operation,
-            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
-            methodSlot: 1,
-            context: "CoroutineContext.fold dispatch",
-            outThrown: outThrown
-        ) {
-            return result
+    return runtimeThrowingBridge(outThrown) {
+        // Source methods receive a Kotlin function value, whereas the bridge ABI
+        // receives the callback entry point and its captured environment separately.
+        // Runtime-backed Job implementations can register this bridge itself in
+        // their context itable. It takes a split callback pair, whereas Kotlin
+        // overrides take one function value; never invoke the bridge through the
+        // source-method ABI or recursively dispatch back into it.
+        let method = kk_itable_lookup_dynamic(contextRaw, Int(runtimeCoroutineContextInterfaceTypeID), 1)
+        if method != 0, method != runtimeCoroutineContextFoldBridgePointer {
+            let operation = kk_function_create_2(fnPtr, closureRaw, outThrown)
+            if let result = runtimeSourceInterfaceCall2(
+                contextRaw, initial, operation,
+                interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+                methodSlot: 1,
+                context: "CoroutineContext.fold dispatch",
+                outThrown: outThrown
+            ) {
+                return result
+            }
         }
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    let ctx = resolveToCoroutineContext(contextRaw)
-    var acc = initial
-    // KUU-4402: fold order follows the context's recorded element order
-    // (insertion order, interceptor rightmost) like kotlinx's CombinedContext.
-    for pair in ctx.orderedElements {
-        var thrown = 0
-        let result = lambda(closureRaw, acc, pair.element, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return acc
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        let ctx = resolveToCoroutineContext(contextRaw)
+        var acc = initial
+        // KUU-4402: fold order follows the context's recorded element order
+        // (insertion order, interceptor rightmost) like kotlinx's CombinedContext.
+        for pair in ctx.orderedElements {
+            var thrown = 0
+            let result = lambda(closureRaw, acc, pair.element, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return acc
+            }
+            acc = maybeUnbox(result)
         }
-        acc = maybeUnbox(result)
+        return acc
     }
-    return acc
 }
 
 @_cdecl("kk_context_minusKey")
@@ -991,17 +994,18 @@ public func __kk_context_minusKey_dispatch(
     _ keyRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if let result = runtimeSourceInterfaceCall1(
-        contextRaw, keyRaw,
-        interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
-        methodSlot: 3,
-        context: "CoroutineContext.minusKey dispatch",
-        outThrown: outThrown
-    ) {
-        return result
+    return runtimeThrowingBridge(outThrown) {
+        if let result = runtimeSourceInterfaceCall1(
+            contextRaw, keyRaw,
+            interfaceTypeID: runtimeCoroutineContextInterfaceTypeID,
+            methodSlot: 3,
+            context: "CoroutineContext.minusKey dispatch",
+            outThrown: outThrown
+        ) {
+            return result
+        }
+        return kk_context_minusKey(contextRaw, keyRaw)
     }
-    return kk_context_minusKey(contextRaw, keyRaw)
 }
 
 /// Returns a dispatcher tag (or 0 if none).
@@ -1032,26 +1036,27 @@ public func __kk_continuation_intercepted(
     _ interceptorKey: Int = 0,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    if let state = runtimeContinuationState(from: continuationRaw) {
-        return state.intercepted(continuationRaw: continuationRaw, interceptorKey: interceptorKey, outThrown: outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        if let state = runtimeContinuationState(from: continuationRaw) {
+            return state.intercepted(continuationRaw: continuationRaw, interceptorKey: interceptorKey, outThrown: outThrown)
+        }
+        guard continuationRaw != 0,
+              isRegisteredRuntimeObjectPointer(continuationRaw),
+              let ptr = UnsafeMutableRawPointer(bitPattern: continuationRaw)
+        else {
+            return continuationRaw
+        }
+        let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+        guard let continuation = object as? KKContinuation else {
+            return continuationRaw
+        }
+        let intercepted = runtimeInterceptedContinuation(continuation)
+        let interceptedObject = intercepted as AnyObject
+        if interceptedObject === object {
+            return continuationRaw
+        }
+        return runtimeRegisterObject(interceptedObject)
     }
-    guard continuationRaw != 0,
-          isRegisteredRuntimeObjectPointer(continuationRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: continuationRaw)
-    else {
-        return continuationRaw
-    }
-    let object = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
-    guard let continuation = object as? KKContinuation else {
-        return continuationRaw
-    }
-    let intercepted = runtimeInterceptedContinuation(continuation)
-    let interceptedObject = intercepted as AnyObject
-    if interceptedObject === object {
-        return continuationRaw
-    }
-    return runtimeRegisterObject(interceptedObject)
 }
 
 func runtimeContinuationInterceptor(context: Int, key: Int, outThrown: UnsafeMutablePointer<Int>?) -> Int {
@@ -1468,18 +1473,19 @@ public func kk_context_release(_ contextRaw: Int) {
 
 @_cdecl("kk_with_context_full")
 public func kk_with_context_full(_ contextRaw: Int, _ blockFnPtr: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-    outThrown?.pointee = 0
-    let resolvedCtx = resolveToCoroutineContext(contextRaw)
-    let dispatcherTag = resolvedCtx.dispatcher != 0
-        ? resolvedCtx.dispatcher
-        : RuntimeDispatcherTag.defaultDispatcher
+    return runtimeThrowingBridge(outThrown) {
+        let resolvedCtx = resolveToCoroutineContext(contextRaw)
+        let dispatcherTag = resolvedCtx.dispatcher != 0
+            ? resolvedCtx.dispatcher
+            : RuntimeDispatcherTag.defaultDispatcher
 
-    let restoreJobHandle = runtimeInstallWithContextChildContext(
-        overrideContext: resolvedCtx,
-        continuation: continuation
-    )
+        let restoreJobHandle = runtimeInstallWithContextChildContext(
+            overrideContext: resolvedCtx,
+            continuation: continuation
+        )
 
-    return kk_with_context_impl(dispatcherTag, blockFnPtr, continuation, outThrown: outThrown, restoreJobHandle: restoreJobHandle)
+        return kk_with_context_impl(dispatcherTag, blockFnPtr, continuation, outThrown: outThrown, restoreJobHandle: restoreJobHandle)
+    }
 }
 
 /// KUU-1398: kotlinx's `withContext` runs its block under a child context —
@@ -2143,25 +2149,26 @@ public func kk_dispatcher_main() -> Int {
 public func kk_dispatcher_immediate(
     _ dispatcher: Int, _ getterSlot: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    // Bare tags and runtime dispatcher objects resolve through the shared
-    // path: Main answers its dedicated immediate object, everything else self.
-    // A source-defined MainCoroutineDispatcher keeps its Kotlin getter below.
-    if runtimeDispatcherIfSupported(dispatcher) != nil {
-        return kk_dispatcher_immediate_or_self(dispatcher)
-    }
-    let fnPtr = kk_vtable_lookup(dispatcher, getterSlot)
-    let getter = unsafeBitCast(
-        fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
-    )
-    var thrown = 0
-    let result = getter(dispatcher, &thrown)
-    if thrown != 0 {
-        runtimePropagateThrownOrTrap(
-            thrown, outThrown: outThrown, context: "MainCoroutineDispatcher.immediate"
+    return runtimeThrowingBridge(outThrown) {
+        // Bare tags and runtime dispatcher objects resolve through the shared
+        // path: Main answers its dedicated immediate object, everything else self.
+        // A source-defined MainCoroutineDispatcher keeps its Kotlin getter below.
+        if runtimeDispatcherIfSupported(dispatcher) != nil {
+            return kk_dispatcher_immediate_or_self(dispatcher)
+        }
+        let fnPtr = kk_vtable_lookup(dispatcher, getterSlot)
+        let getter = unsafeBitCast(
+            fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
         )
+        var thrown = 0
+        let result = getter(dispatcher, &thrown)
+        if thrown != 0 {
+            runtimePropagateThrownOrTrap(
+                thrown, outThrown: outThrown, context: "MainCoroutineDispatcher.immediate"
+            )
+        }
+        return result
     }
-    return result
 }
 
 /// KUU-2687: upstream `MainCoroutineDispatcher.immediate` resolution for
