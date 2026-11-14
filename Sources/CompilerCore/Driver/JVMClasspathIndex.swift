@@ -1523,12 +1523,20 @@ final class JVMClasspathIndex {
                           && memberKey($0) != memberKey(getter)
                   }) else { continue }
             let erasedType = kotlinType(getter.result)
-            // Keep the erased declaration for mutable or inherited bean properties.
-            let propertyType = !pairedGetters.contains(memberKey(getter))
-                && !overridesParent(getter, in: info, visited: [])
-                && shape.setterName.map({ !ancestorHasSetter($0, type: erasedType) }) != false
-                && requiredProps[propertyName]?.isVar != true
-                ? javaGenericTypes(getter)?.result ?? erasedType : erasedType
+            let genericType = javaGenericTypes(getter)?.result
+            // Matching getter and setter signatures constitute a single
+            // generic property. Keep the erased view if the setter differs.
+            let hasGenericSetter = shape.setterName.map { name in
+                own.contains { method in
+                    matchesSetter(method, name: name, type: erasedType)
+                        && javaGenericTypes(method)?.parameters.first == genericType
+                }
+            } == true
+            let canUseGenericType = !overridesParent(getter, in: info, visited: [])
+                && (hasGenericSetter || !pairedGetters.contains(memberKey(getter))
+                    && shape.setterName.map({ !ancestorHasSetter($0, type: erasedType) }) != false
+                    && requiredProps[propertyName]?.isVar != true)
+            let propertyType = canUseGenericType ? genericType ?? erasedType : erasedType
             if let setterName = shape.setterName,
                inheritsWiderMutableProperty(getter, propertyName: propertyName, setterName: setterName, type: propertyType) {
                 continue
