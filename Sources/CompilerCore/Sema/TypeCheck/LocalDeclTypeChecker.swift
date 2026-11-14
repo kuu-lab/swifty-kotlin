@@ -233,6 +233,9 @@ final class LocalDeclTypeChecker {
             sema.symbols.setAnnotations(localDeclAnnotationRecords, for: localSymbol)
         }
         locals[name] = (localType, localSymbol, isMutable, initializer != nil)
+        if !isMutable, !isDelegated, let initializer {
+            locals.immutableLocalInitializers[localSymbol] = initializer
+        }
         // kotlinc narrows a `when` subject through the initializer only for
         // enum-typed locals declared without a type annotation (`val e = E.A`
         // is exhaustive over `{E.A}` but `val e: E = E.A`, `val b = true` and
