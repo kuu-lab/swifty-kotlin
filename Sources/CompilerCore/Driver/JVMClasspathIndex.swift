@@ -1897,7 +1897,12 @@ final class JVMClasspathIndex {
             importedDefaultMethods[symbol.id] = defaultArgumentMethod(for: method, in: info)
             if hasComposableLambdaFactory {
                 let parameters = function.parameters.indices.filter {
-                    function.parameters[$0].sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+                    let sourceType = function.parameters[$0].sourceType
+                    // Nullable lambdas render as `@Composable (() -> Unit)?` —
+                    // the annotation may be followed by either a space or a
+                    // parenthesized function type.
+                    return sourceType.hasPrefix("@androidx.compose.runtime.Composable ")
+                        || sourceType.hasPrefix("@androidx.compose.runtime.Composable (")
                 }
                 if !parameters.isEmpty { importedComposableParameters[symbol.id] = Set(parameters) }
             }
