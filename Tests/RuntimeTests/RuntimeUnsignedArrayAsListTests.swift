@@ -14,8 +14,10 @@ struct RuntimeUnsignedArrayAsListTests {
         runtimeArrayBox(from: raw)?.elements ?? []
     }
 
-    private func listElements(from raw: Int) -> [Int] {
-        runtimeListBox(from: raw)?.elements ?? []
+    // List elements are boxed generic values; `.elements` exposes their raw ABI
+    // handles, so tests unbox them to compare logical primitive values.
+    private func listElements(from raw: Int, unbox: (Int) -> Int) -> [Int] {
+        (runtimeListBox(from: raw)?.elements ?? []).map(unbox)
     }
 
     @Test func unsignedPrimitiveArraySignedViewsShareBackingStorage() {
@@ -69,47 +71,47 @@ struct RuntimeUnsignedArrayAsListTests {
         let uintRaw = kk_intArray_asUIntArray(intRaw)
         let listRaw = kk_uIntArray_toList(uintRaw)
 
-        #expect(listElements(from: listRaw) == [4_294_967_295, 2_147_483_648, 0, 2_147_483_647])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_int) == [4_294_967_295, 2_147_483_648, 0, 2_147_483_647])
         #expect(arrayElements(from: intRaw) == [-1, -2_147_483_648, 0, 2_147_483_647])
         runtimeArrayBox(from: intRaw)?.elements[0] = 1
-        #expect(listElements(from: listRaw).first == 4_294_967_295)
-        #expect(listElements(from: kk_uIntArray_toList(makeRuntimeArray([]))).isEmpty)
+        #expect(listElements(from: listRaw, unbox: kk_unbox_int).first == 4_294_967_295)
+        #expect(listElements(from: kk_uIntArray_toList(makeRuntimeArray([])), unbox: kk_unbox_int).isEmpty)
     }
 
     @Test func uByteArrayAsListViewReflectsMutations() throws {
         let arrayRaw = makeRuntimeArray([1, 2, 3])
         let listRaw = kk_uByteArray_asList(arrayRaw)
 
-        #expect(listElements(from: listRaw) == [1, 2, 3])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_int) == [1, 2, 3])
 
         let arrayBox = try #require(runtimeArrayBox(from: arrayRaw), "Expected a runtime array box.")
         arrayBox.elements[1] = 9
 
-        #expect(listElements(from: listRaw) == [1, 9, 3])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_int) == [1, 9, 3])
     }
 
     @Test func uShortArrayAsListViewReflectsMutations() throws {
         let arrayRaw = makeRuntimeArray([10, 20, 30])
         let listRaw = kk_uShortArray_asList(arrayRaw)
 
-        #expect(listElements(from: listRaw) == [10, 20, 30])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_int) == [10, 20, 30])
 
         let arrayBox = try #require(runtimeArrayBox(from: arrayRaw), "Expected a runtime array box.")
         arrayBox.elements[1] = 90
 
-        #expect(listElements(from: listRaw) == [10, 90, 30])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_int) == [10, 90, 30])
     }
 
     @Test func uLongArrayAsListViewReflectsMutations() throws {
         let arrayRaw = makeRuntimeArray([1000, 2000, 3000])
         let listRaw = kk_uLongArray_asList(arrayRaw)
 
-        #expect(listElements(from: listRaw) == [1000, 2000, 3000])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_ulong) == [1000, 2000, 3000])
 
         let arrayBox = try #require(runtimeArrayBox(from: arrayRaw), "Expected a runtime array box.")
         arrayBox.elements[1] = 9000
 
-        #expect(listElements(from: listRaw) == [1000, 9000, 3000])
+        #expect(listElements(from: listRaw, unbox: kk_unbox_ulong) == [1000, 9000, 3000])
     }
 
     @Test func unsignedPrimitiveArrayToTypedArrayCopiesElements() {
