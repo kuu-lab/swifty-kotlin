@@ -109,7 +109,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         }
 
         DispatchQueue.global().async {
-            kk_coroutine_continuation_resume(cont, 42)
+            __kk_coroutine_continuation_resume(cont, 42)
         }
 
         let waited = sem.wait(timeout: .now() + 3)
@@ -135,7 +135,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         }
 
         DispatchQueue.global().async {
-            kk_coroutine_continuation_resume_with_exception(cont, exc)
+            __kk_coroutine_continuation_resume_with_exception(cont, exc)
         }
 
         let waited = sem.wait(timeout: .now() + 3)
@@ -169,7 +169,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         }
 
         DispatchQueue.global().async {
-            kk_coroutine_continuation_resume_with(cont, resultRaw)
+            __kk_coroutine_continuation_resume_with(cont, resultRaw)
         }
 
         let waited = sem.wait(timeout: .now() + 3)
@@ -205,7 +205,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         }
 
         DispatchQueue.global().async {
-            kk_coroutine_continuation_resume_with(cont, resultRaw)
+            __kk_coroutine_continuation_resume_with(cont, resultRaw)
         }
 
         let waited = sem.wait(timeout: .now() + 3)
@@ -309,7 +309,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let nameRaw = kk_coroutine_name_create(0)  // "coroutine" default
         #expect(nameRaw != 0)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9907))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9907))
         let combined = kk_context_plus(emptyCtx, nameRaw)
         let retrievedName = kk_context_get_name(combined)
         #expect(retrievedName != 0, "empty + name-element should have a name")
@@ -320,10 +320,10 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let nameRaw = kk_coroutine_name_create(0)
         #expect(nameRaw != 0)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9908))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9908))
         let nameCtx = kk_context_plus(emptyCtx, nameRaw)
 
-        let emptyRight = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9909))
+        let emptyRight = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9909))
         let combined = kk_context_plus(nameCtx, emptyRight)
         let retrievedName = kk_context_get_name(combined)
         #expect(retrievedName != 0, "name-element + empty should preserve the name")
@@ -339,7 +339,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let nameBPtr = runtimeRegisterStringBox(nameBBox)
         let nameB = kk_coroutine_name_create(nameBPtr)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9910))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9910))
         let ctxA = kk_context_plus(emptyCtx, nameA)
         let ctxB = kk_context_plus(ctxA, nameB)
 
@@ -357,7 +357,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let namePtr = runtimeRegisterStringBox(nameBox)
         let nameElem = kk_coroutine_name_create(namePtr)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9911))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9911))
         let withName = kk_context_plus(emptyCtx, nameElem)
 
         #expect(kk_context_get_name(withName) != 0, "should have name before minusKey")
@@ -368,7 +368,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     /// minusKey on a key not present is a no-op.
     @Test func testContextMinusKeyNonPresentIsNoOp() {
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9912))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9912))
         let nameElem = kk_coroutine_name_create(0)
 
         let result = kk_context_minusKey(emptyCtx, nameElem)
@@ -400,7 +400,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let namePtr = runtimeRegisterStringBox(nameBox)
         let nameElem = kk_coroutine_name_create(namePtr)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9913))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9913))
         let ctx = kk_context_plus(emptyCtx, nameElem)
 
         let countBox = CountBox()
@@ -424,7 +424,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     /// fold on empty context returns initial value.
     @Test func testContextFoldEmptyReturnsInitial() {
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9914))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9914))
         let noopFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, _, out in
             out?.pointee = 0
             return acc + 1
@@ -552,7 +552,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
     @Test func testContextDispatchBridgesPreserveNativeFallback() {
         let nameBox = RuntimeStringBox("Native")
         let nameElem = kk_coroutine_name_create(runtimeRegisterStringBox(nameBox))
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9919))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9919))
         var thrown = 42
         let ctx = __kk_context_plus_dispatch(emptyCtx, nameElem, &thrown)
         #expect(thrown == 0)
@@ -570,7 +570,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
     /// context — the Kotlin-facing `E?` ABI reads raw 0 as `kotlin.Unit`
     /// (KUU-3752).
     @Test func testContextGetAbsentKeyReturnsNullSentinel() {
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9916))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9916))
         let nameElem = kk_coroutine_name_create(0)
         let result = kk_context_get(emptyCtx, nameElem)
         #expect(result == runtimeNullSentinelInt, "context_get for absent key should return the null sentinel")
@@ -582,7 +582,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let namePtr = runtimeRegisterStringBox(nameBox)
         let nameElem = kk_coroutine_name_create(namePtr)
 
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9917))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9917))
         let ctx = kk_context_plus(emptyCtx, nameElem)
 
         let retrieved = kk_context_get(ctx, nameElem)
@@ -593,7 +593,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
     /// kk_context_get_dispatcher on a context without dispatcher returns 0.
     @Test func testContextGetDispatcherAbsentReturnsZero() {
-        let emptyCtx = kk_coroutine_continuation_context(kk_coroutine_continuation_new(9918))
+        let emptyCtx = __kk_coroutine_continuation_context(kk_coroutine_continuation_new(9918))
         let dispatcher = kk_context_get_dispatcher(emptyCtx)
         #expect(dispatcher == 0, "context with no dispatcher should return 0")
     }
@@ -606,13 +606,13 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         #expect(retrieved == defaultDispatcher, "dispatcher tag passed directly should be returned as-is")
     }
 
-    // MARK: - kk_coroutine_continuation_context
+    // MARK: - __kk_coroutine_continuation_context
 
-    /// kk_coroutine_continuation_context returns a valid context for a valid continuation.
+    /// __kk_coroutine_continuation_context returns a valid context for a valid continuation.
     @Test func testContinuationContextIsNonZeroForValidContinuation() {
         let cont = kk_coroutine_continuation_new(9919)
         #expect(cont != 0)
-        let ctx = kk_coroutine_continuation_context(cont)
+        let ctx = __kk_coroutine_continuation_context(cont)
         #expect(ctx != 0, "continuation context should be non-zero for a valid continuation")
     }
 
@@ -631,9 +631,9 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
 
         let cont = kk_coroutine_continuation_factory(contextRaw, resumeWithRaw)
         #expect(cont != 0)
-        #expect(kk_coroutine_continuation_context(cont) == contextRaw)
+        #expect(__kk_coroutine_continuation_context(cont) == contextRaw)
 
-        kk_coroutine_continuation_resume(cont, 321)
+        __kk_coroutine_continuation_resume(cont, 321)
 
         #expect(continuationFactoryCallbackResultRaw != 0)
         #expect(continuationFactoryCallbackThrown == 0)
@@ -649,7 +649,7 @@ struct RuntimeCoroutineBaseEdgeCaseTests {
         let cont = kk_coroutine_continuation_factory(kk_context_plus(0, 0), resumeWithRaw)
         let exceptionRaw = runtimeAllocateThrowable(message: "factory boom")
 
-        kk_coroutine_continuation_resume_with_exception(cont, exceptionRaw)
+        __kk_coroutine_continuation_resume_with_exception(cont, exceptionRaw)
 
         #expect(continuationFactoryCallbackResultRaw != 0)
         #expect(runtimeResultFailureFlag(continuationFactoryCallbackResultRaw) == 1)

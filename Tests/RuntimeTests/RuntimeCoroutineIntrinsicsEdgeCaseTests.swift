@@ -223,7 +223,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let noReceiver = kk_suspend_function_create(0, 41, 0, entry)
         let prepared = kk_create_coroutine_unintercepted_no_receiver(noReceiver, 0, completion)
         #expect(state.completion == 0)
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
         #expect(Int(state.completion) == 42)
 
         let receiverCompletion = kk_coroutine_continuation_new(8898)
@@ -233,7 +233,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let received = kk_create_coroutine_unintercepted_with_receiver(withReceiver, 0, 23, receiverCompletion)
         #expect(kk_coroutine_launcher_arg_get(received, 0) == 17)
         #expect(kk_coroutine_launcher_arg_get(received, 1) == 23)
-        kk_coroutine_continuation_resume(received, 0)
+        __kk_coroutine_continuation_resume(received, 0)
         #expect(Int(receiverState.completion) == 18)
         #expect(receiverState.thrownException == 0)
     }
@@ -250,7 +250,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let continuation = kk_create_coroutine_unintercepted(entryRaw, completion)
         #expect(continuation != 0)
 
-        kk_coroutine_continuation_resume(continuation, 0)
+        __kk_coroutine_continuation_resume(continuation, 0)
         #expect(Int(completionState.completion) == 123)
         #expect(completionState.thrownException == 0)
     }
@@ -266,7 +266,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
 
         let continuation = kk_create_coroutine_unintercepted(entryRaw, completion)
         _ = kk_coroutine_launcher_arg_set(continuation, 0, 41)
-        kk_coroutine_continuation_resume(continuation, 0)
+        __kk_coroutine_continuation_resume(continuation, 0)
 
         #expect(Int(completionState.completion) == 42)
         #expect(completionState.thrownException == 0)
@@ -360,7 +360,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let completionState = try #require(runtimeContinuationState(from: completion))
         let prepared = kk_create_coroutine_unintercepted_no_receiver(object, 0, completion)
         #expect(kk_coroutine_launcher_arg_get(prepared, 0) == Int64(object))
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
         #expect(Int(completionState.completion) == 4242)
         #expect(completionState.thrownException == 0)
     }
@@ -401,7 +401,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
             completion
         )
         _ = kk_coroutine_launcher_arg_set(parent, 0, Int64(object))
-        kk_coroutine_continuation_resume(parent, 0)
+        __kk_coroutine_continuation_resume(parent, 0)
         #expect(Int(completionState.completion) == 4242)
         #expect(completionState.thrownException == 0)
     }
@@ -417,7 +417,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let prepared = kk_create_coroutine_unintercepted_with_receiver(object, 0, 555, completion)
         #expect(kk_coroutine_launcher_arg_get(prepared, 0) == Int64(object))
         #expect(kk_coroutine_launcher_arg_get(prepared, 1) == 555)
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
         #expect(Int(completionState.completion) == 555)
 
         var thrown = 0
@@ -457,7 +457,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let prepared = kk_create_coroutine_unintercepted_no_receiver(function, 0, completion)
         #expect(kk_coroutine_launcher_arg_get(prepared, 0) == Int64(function))
 
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
 
         #expect(erasedSuspendProbeInvokeCount == 1)
         #expect(erasedSuspendProbeContinuation != 0)
@@ -493,14 +493,14 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         defer { _ = kk_coroutine_state_exit(completion, 0) }
         let completionState = try #require(runtimeContinuationState(from: completion))
         let prepared = kk_create_coroutine_unintercepted_no_receiver(function, 0, completion)
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
 
         #expect(erasedSuspendProbeInvokeCount == 1)
         let child = erasedSuspendProbeContinuation
         #expect(child != 0)
         #expect(Int(completionState.completion) == 0)
 
-        kk_coroutine_continuation_resume(child, 777)
+        __kk_coroutine_continuation_resume(child, 777)
 
         #expect(erasedSuspendProbeInvokeCount == 1)
         #expect(Int(completionState.completion) == 777)
@@ -516,12 +516,12 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         defer { _ = kk_coroutine_state_exit(completion, 0) }
         let completionState = try #require(runtimeContinuationState(from: completion))
         let prepared = kk_create_coroutine_unintercepted_no_receiver(function, 0, completion)
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
         let child = erasedSuspendProbeContinuation
         #expect(child != 0)
 
         let exception = runtimeAllocateThrowable(message: "erased resume boom")
-        kk_coroutine_continuation_resume_with_exception(child, exception)
+        __kk_coroutine_continuation_resume_with_exception(child, exception)
 
         #expect(erasedSuspendProbeInvokeCount == 1)
         #expect(completionState.thrownException == exception)
@@ -547,7 +547,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         defer { _ = kk_coroutine_state_exit(completion, 0) }
         let completionState = try #require(runtimeContinuationState(from: completion))
         let prepared = kk_create_coroutine_unintercepted_with_receiver(function, 0, 41, completion)
-        kk_coroutine_continuation_resume(prepared, 0)
+        __kk_coroutine_continuation_resume(prepared, 0)
 
         #expect(erasedSuspendProbeFirstArg == 41)
         #expect(Int(completionState.completion) == 42)
@@ -570,7 +570,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
             completion
         )
         _ = kk_coroutine_launcher_arg_set(parent, 0, Int64(function))
-        kk_coroutine_continuation_resume(parent, 0)
+        __kk_coroutine_continuation_resume(parent, 0)
 
         #expect(erasedSuspendProbeInvokeCount == 1)
         #expect(Int(completionState.completion) == 910)
@@ -598,7 +598,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let state = try #require(runtimeContinuationState(from: completion))
         let entry = unsafeBitCast(coro_intrinsics_nested_throw as RuntimeCoroutineIntrinsicEntry, to: Int.self)
         let coroutine = kk_create_coroutine_unintercepted(entry, completion)
-        kk_coroutine_continuation_resume(coroutine, 0)
+        __kk_coroutine_continuation_resume(coroutine, 0)
         #expect(state.thrownException != 0)
     }
 
@@ -629,7 +629,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         #expect(__kk_continuation_intercepted(coroutine) == first)
         #expect(__kk_continuation_intercepted(first) == first)
         #expect(__kk_coroutine_continuation_context(first) == context)
-        kk_coroutine_continuation_resume(first, 0)
+        __kk_coroutine_continuation_resume(first, 0)
         #expect(completed.wait(timeout: .now() + 3) == .success)
         #expect(completionState.completion == Int64(runtimeResolveDispatcher(from: dispatcher).tag))
         #expect(completionState.thrownException == 0)
@@ -648,9 +648,9 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let wrapper = __kk_continuation_intercepted(coroutine)
         let failure = runtimeAllocateThrowable(message: "start failure")
         if failStart {
-            kk_coroutine_continuation_resume_with_exception(wrapper, failure)
+            __kk_coroutine_continuation_resume_with_exception(wrapper, failure)
         } else {
-            kk_coroutine_continuation_resume(wrapper, 0)
+            __kk_coroutine_continuation_resume(wrapper, 0)
         }
         #expect(completed.wait(timeout: .now() + 3) == .success)
         #expect(completionState.thrownException != 0)
@@ -669,7 +669,7 @@ struct RuntimeCoroutineIntrinsicsEdgeCaseTests {
         let entry = unsafeBitCast(coro_intrinsics_delay_then_return as RuntimeCoroutineIntrinsicEntry, to: Int.self)
         let coroutine = kk_create_coroutine_unintercepted(entry, completion)
         let wrapper = __kk_continuation_intercepted(coroutine)
-        kk_coroutine_continuation_resume(wrapper, 0)
+        __kk_coroutine_continuation_resume(wrapper, 0)
         #expect(completed.wait(timeout: .now() + 3) == .success)
         #expect(completionState.completion == 456)
         #expect(completionState.thrownException == 0)
