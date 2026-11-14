@@ -140,7 +140,6 @@ final class ABILoweringPass: LoweringPass {
         let channelElementSendCallees: Set<InternedString> = [
             ctx.interner.intern("kk_channel_send"),
             ctx.interner.intern("kk_channel_send_suspending"),
-            ctx.interner.intern("kk_channel_try_send"),
             ctx.interner.intern("__kk_channel_try_send"),
             ctx.interner.intern("__kk_channel_send_blocking"),
         ]
