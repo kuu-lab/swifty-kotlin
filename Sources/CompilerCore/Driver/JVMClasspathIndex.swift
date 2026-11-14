@@ -854,7 +854,9 @@ final class JVMClasspathIndex {
             guard let type = annotationElementKotlinType(vararg ?? element.type) else { return nil }
             let name = JVMProgramBuilder.isIdentifier(element.name) ? "`\(element.name)`" : "p\(index)"
             var parameter = (vararg == nil ? "" : "vararg ") + "val \(name): \(type)"
-            if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
+            if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type),
+               vararg == nil || rendered != "[]" {
+                // Omitting an annotation vararg already supplies an empty array.
                 parameter += " = \(rendered)"
             }
             return parameter
