@@ -126,7 +126,12 @@ extension JVMProgramBuilder {
     }
 
     func annotationOwner(_ node: AnnotationNode, symbol: SymbolID) -> SymbolID? {
-        guard let file = ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
+        // Resolve against the file the annotation was written in; using the
+        // first user file's imports would misresolve a same-named annotation
+        // declared there (e.g. a custom `Suppress` shadowing kotlin.Suppress).
+        let nodeFileID = node.constructionTokens?.first?.range.start.file
+        guard let file = ast.files.first(where: { $0.fileID == nodeFileID && context.sourceManager.origin(of: $0.fileID) == .user })
+                ?? ast.files.first(where: { context.sourceManager.origin(of: $0.fileID) == .user }) else { return nil }
         return resolveAnnotationSymbol(named: node.name, in: file, symbols: sema.symbols, interner: context.interner, types: sema.types, enclosingFQName: Array((sema.symbols.symbol(symbol)?.fqName ?? []).dropLast()))
     }
     func annotationTargets(_ owner: SymbolID) -> Set<String> {
