@@ -146,6 +146,20 @@ extension JVMFunctionBuilder {
         }
         guard let receiver, let name else { return nil }
         let receiverSymbol = program.sema.bindings.identifierSymbol(for: receiver)
+        if let receiverSymbol,
+           program.sema.symbols.symbol(receiverSymbol)?.kind == .enumClass,
+           let owner = try? program.className(receiverSymbol),
+           let imported = context.jvmImports?.classes[owner], imported.flags & 0x4000 != 0,
+           let method = imported.methods.first(where: {
+               switch name {
+               case "values": $0.isStatic && $0.name == name && $0.descriptor == "()[L\(owner);"
+               case "valueOf": $0.isStatic && $0.name == name && $0.descriptor == "(Ljava/lang/String;)L\(owner);"
+               default: false
+               }
+           }),
+           args.count == method.parameters.count {
+            return JVMIntrinsicResult(value: try foreign(method, receiver: nil, args: args, id: id))
+        }
         let enumPlan = receiverSymbol.flatMap { program.classes[$0] }
         if let plan = enumPlan, plan.isEnum, ["values", "valueOf", "entries"].contains(name) {
             let params: [JVMValueType] = name == "valueOf" ? [.string] : []
