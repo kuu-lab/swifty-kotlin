@@ -237,24 +237,24 @@ public func kk_sorted_set_comparator(_ setRaw: Int) -> Int {
 /// original set's greatest element, matching `descendingSet().first()`.
 @_cdecl("__kk_sorted_set_first")
 public func kk_sorted_set_first(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if let outThrown { outThrown.pointee = 0 }
-    guard let set = runtimeSetBox(from: setRaw), let first = set.values.first else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard let set = runtimeSetBox(from: setRaw), let first = set.values.first else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return first.legacyRawValue
     }
-    return first.legacyRawValue
 }
 
 /// `SortedSet.last()` — greatest element; throws NoSuchElementException on
 /// empty.
 @_cdecl("__kk_sorted_set_last")
 public func kk_sorted_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if let outThrown { outThrown.pointee = 0 }
-    guard let set = runtimeSetBox(from: setRaw), let last = set.values.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard let set = runtimeSetBox(from: setRaw), let last = set.values.last else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return last.legacyRawValue
     }
-    return last.legacyRawValue
 }
 
 private func runtimeSortedSetRangeView(
@@ -279,16 +279,16 @@ public func kk_sorted_set_head_set(
     _ toElement: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let range = RuntimeSortedRange(lowerBoundRaw: nil, upperBoundRaw: toElement)
-    if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let range = RuntimeSortedRange(lowerBoundRaw: nil, upperBoundRaw: toElement)
+        if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        }
+        return runtimeSortedSetRangeView(
+            setRaw: setRaw,
+            range: range
+        )
     }
-    return runtimeSortedSetRangeView(
-        setRaw: setRaw,
-        range: range
-    )
 }
 
 @_cdecl("__kk_sorted_set_tail_set")
@@ -297,16 +297,16 @@ public func kk_sorted_set_tail_set(
     _ fromElement: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let range = RuntimeSortedRange(lowerBoundRaw: fromElement, upperBoundRaw: nil)
-    if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let range = RuntimeSortedRange(lowerBoundRaw: fromElement, upperBoundRaw: nil)
+        if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        }
+        return runtimeSortedSetRangeView(
+            setRaw: setRaw,
+            range: range
+        )
     }
-    return runtimeSortedSetRangeView(
-        setRaw: setRaw,
-        range: range
-    )
 }
 
 @_cdecl("__kk_sorted_set_sub_set")
@@ -316,16 +316,16 @@ public func kk_sorted_set_sub_set(
     _ toElement: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let range = RuntimeSortedRange(lowerBoundRaw: fromElement, upperBoundRaw: toElement)
-    if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoints outside existing view"))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let range = RuntimeSortedRange(lowerBoundRaw: fromElement, upperBoundRaw: toElement)
+        if let set = runtimeSetBox(from: setRaw), !set.acceptsRangeView(range) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Range endpoints outside existing view"))
+        }
+        return runtimeSortedSetRangeView(
+            setRaw: setRaw,
+            range: range
+        )
     }
-    return runtimeSortedSetRangeView(
-        setRaw: setRaw,
-        range: range
-    )
 }
 
 @_cdecl("__kk_sorted_set_lower")
@@ -475,16 +475,16 @@ public func kk_sorted_map_sub_map(
     _ toKey: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let range = RuntimeSortedRange(lowerBoundRaw: fromKey, upperBoundRaw: toKey)
-    if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoints outside existing view"))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let range = RuntimeSortedRange(lowerBoundRaw: fromKey, upperBoundRaw: toKey)
+        if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Range endpoints outside existing view"))
+        }
+        return runtimeSortedMapRangeView(
+            mapRaw: mapRaw,
+            range: range
+        )
     }
-    return runtimeSortedMapRangeView(
-        mapRaw: mapRaw,
-        range: range
-    )
 }
 
 @_cdecl("__kk_sorted_map_head_map")
@@ -493,13 +493,13 @@ public func kk_sorted_map_head_map(
     _ toKey: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let range = RuntimeSortedRange(lowerBoundRaw: nil, upperBoundRaw: toKey)
-    if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let range = RuntimeSortedRange(lowerBoundRaw: nil, upperBoundRaw: toKey)
+        if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        }
+        return runtimeSortedMapRangeView(mapRaw: mapRaw, range: range)
     }
-    return runtimeSortedMapRangeView(mapRaw: mapRaw, range: range)
 }
 
 @_cdecl("__kk_sorted_map_tail_map")
@@ -508,13 +508,13 @@ public func kk_sorted_map_tail_map(
     _ fromKey: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let range = RuntimeSortedRange(lowerBoundRaw: fromKey, upperBoundRaw: nil)
-    if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
-        runtimeSetThrown(outThrown, runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        let range = RuntimeSortedRange(lowerBoundRaw: fromKey, upperBoundRaw: nil)
+        if let map = runtimeMapBox(from: mapRaw), !map.acceptsRangeView(range) {
+            throw RuntimeThrownHandle(runtimeAllocateIllegalArgumentException(message: "Range endpoint outside existing view"))
+        }
+        return runtimeSortedMapRangeView(mapRaw: mapRaw, range: range)
     }
-    return runtimeSortedMapRangeView(mapRaw: mapRaw, range: range)
 }
 
 /// Binary-search a navigable key bound over the map's key order — same
@@ -595,24 +595,24 @@ public func kk_sorted_map_comparator(_ mapRaw: Int) -> Int {
 /// the original map's greatest key, matching `descendingMap().firstKey()`.
 @_cdecl("__kk_sorted_map_first_key")
 public func kk_sorted_map_first_key(_ mapRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if let outThrown { outThrown.pointee = 0 }
-    guard let map = runtimeMapBox(from: mapRaw), let first = map.keys.first else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard let map = runtimeMapBox(from: mapRaw), let first = map.keys.first else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return first
     }
-    return first
 }
 
 /// `SortedMap.lastKey()` — greatest key; throws NoSuchElementException on
 /// empty.
 @_cdecl("__kk_sorted_map_last_key")
 public func kk_sorted_map_last_key(_ mapRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    if let outThrown { outThrown.pointee = 0 }
-    guard let map = runtimeMapBox(from: mapRaw), let last = map.keys.last else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: nil))
-        return runtimeNullSentinelInt
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        guard let map = runtimeMapBox(from: mapRaw), let last = map.keys.last else {
+            throw RuntimeThrownHandle(runtimeAllocateNoSuchElementException(message: nil))
+        }
+        return last
     }
-    return last
 }
 
 @_cdecl("__kk_sorted_map_lower_key")
