@@ -78,6 +78,7 @@ struct JVMKotlinClassProperty {
 
 struct JVMKotlinTopLevelProperty {
     let name: String
+    let typeParameters: [JVMKotlinFunction.TypeParameter]
     let receiver: String?
     let result: String
     let getterName: String
@@ -439,8 +440,12 @@ struct JVMKotlinMetadata {
     func topLevelProperties(byteLimit: Int) throws -> [JVMKotlinTopLevelProperty] {
         guard kind == 2 || kind == 5, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
-        let types = try TypeTable(declaration.message(30))
+        let packageTypes = try TypeTable(declaration.message(30))
         return try declaration.messages(4).compactMap { property in
+            var types = packageTypes
+            guard let typeParameters = try Self.sourceTypeParameters(
+                property.messages(4), types: &types, names: names
+            ) else { return nil }
             let receiver = try types.resolve(property, inline: 5, indexed: 10)
             let receiverType = try receiver.flatMap { try Self.sourceType($0, types: types, names: names) }
             guard let name = try names.resolve(property.int32(2)), JVMProgramBuilder.isIdentifier(name),
@@ -452,9 +457,35 @@ struct JVMKotlinMetadata {
                   let getterName = try names.resolve(getter.int32(1)),
                   let descriptor = try names.resolve(getter.int32(2))
             else { return nil }
-            return JVMKotlinTopLevelProperty(name: name, receiver: receiverType, result: resultType,
+            return JVMKotlinTopLevelProperty(name: name, typeParameters: typeParameters,
+                                              receiver: receiverType, result: resultType,
                                               getterName: getterName, getterDescriptor: descriptor)
         }
+    }
+
+    private static func sourceTypeParameters(
+        _ parameters: [ProtoFields], types: inout TypeTable, names: JVMMetadataNames
+    ) throws -> [JVMKotlinFunction.TypeParameter]? {
+        let ids = try parameters.compactMap { parameter -> Int32? in
+            guard parameter.bool(3) != true, let id = parameter.int32(1),
+                  let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name)
+            else { return nil }
+            types.parameterNames[id] = name
+            return id
+        }
+        guard ids.count == parameters.count else { return nil }
+        var result: [JVMKotlinFunction.TypeParameter] = []
+        for (id, parameter) in zip(ids, parameters) {
+            let inlineBounds = try parameter.messages(5).map { (type: $0, nullable: $0.bool(3) == true) }
+            let boundIDs = try parameter.int32List(6)
+            let indexedBounds = boundIDs.compactMap { types.resolve(index: $0) }
+            let allBounds = inlineBounds + indexedBounds
+            let bounds = try allBounds.compactMap { try sourceType($0, types: types, names: names) }
+            guard indexedBounds.count == boundIDs.count, bounds.count == allBounds.count,
+                  let name = types.parameterNames[id] else { return nil }
+            result.append(.init(name: name, bounds: bounds))
+        }
+        return result
     }
 
     private func declarationData(byteLimit: Int) throws -> (ProtoFields, JVMMetadataNames) {
@@ -571,26 +602,9 @@ struct JVMKotlinMetadata {
             let typeParameterMessages = try function.messages(4)
             guard typeParameterMessages.isEmpty || isFileFacade
                 || functionTypeMemberNames.contains(jvmName ?? name) else { continue }
-            let parameterIDs = try typeParameterMessages.compactMap { parameter -> Int32? in
-                guard parameter.bool(3) != true, let id = parameter.int32(1),
-                      let name = try names.resolve(parameter.int32(2)), JVMProgramBuilder.isIdentifier(name)
-                else { return nil }
-                types.parameterNames[id] = name
-                return id
-            }
-            guard parameterIDs.count == typeParameterMessages.count else { continue }
-            var typeParameters: [JVMKotlinFunction.TypeParameter] = []
-            for (id, parameter) in zip(parameterIDs, typeParameterMessages) {
-                let inlineBounds = try parameter.messages(5).map { (type: $0, nullable: $0.bool(3) == true) }
-                let boundIDs = try parameter.int32List(6)
-                let indexedBounds = boundIDs.compactMap { types.resolve(index: $0) }
-                let allBounds = inlineBounds + indexedBounds
-                let bounds = try allBounds.compactMap { try Self.sourceType($0, types: types, names: names) }
-                guard indexedBounds.count == boundIDs.count, bounds.count == allBounds.count,
-                      let parameterName = types.parameterNames[id] else { break }
-                typeParameters.append(.init(name: parameterName, bounds: bounds))
-            }
-            guard typeParameters.count == parameterIDs.count else { continue }
+            guard let typeParameters = try Self.sourceTypeParameters(
+                typeParameterMessages, types: &types, names: names
+            ) else { continue }
             guard let returnResolved = try types.resolve(function, inline: 3, indexed: 7),
                   let resultType = try Self.sourceType(returnResolved, types: types, names: names) else { continue }
             let receiver = try types.resolve(function, inline: 5, indexed: 8)
