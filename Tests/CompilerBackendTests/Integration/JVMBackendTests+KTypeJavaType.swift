@@ -19,6 +19,9 @@ extension JVMBackendTests {
                 println(typeOf<Session>().javaType == Session::class.java)
                 println(typeOf<Int>().javaType == Int::class.java)
                 println(typeOf<String>().javaType == String::class.java)
+                // Nullable primitives box on the JVM: Int? -> java.lang.Integer.
+                println(typeOf<Int?>().javaType.name == "java.lang.Integer")
+                println(typeOf<Boolean?>().javaType.name == "java.lang.Boolean")
             }
             """.write(to: root.appendingPathComponent("Consumer.kt"), atomically: true, encoding: .utf8)
             let compiled = try jvmTool("kotlinc", ["Consumer.kt", "-d", "consumer.jar"], root: root)
@@ -26,7 +29,7 @@ extension JVMBackendTests {
             let consumer = root.appendingPathComponent("consumer.jar")
             let result = try java(["-Xverify:all", "-cp", consumer.path + ":" + library.path, "ConsumerKt"])
             #expect(result.exitCode == 0, "\(result.stderr)")
-            #expect(result.stdout == "true\ntrue\ntrue\n")
+            #expect(result.stdout == "true\ntrue\ntrue\ntrue\ntrue\n")
         }
     }
 }
