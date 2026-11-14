@@ -9,7 +9,7 @@ struct SyntheticSymbolSchemeTests {
     /// every other synthetic kind and every real symbol.
     @Test
     func propertyOwnerOfGetterAccessorRoundTripsOnlyGetters() {
-        for raw in [Int32(0), 1, 7, 4999, 100_000] {
+        for raw in [Int32(0), 1, 7, 4999, 100_000, 109_999, 110_000, 110_990] {
             let property = SymbolID(rawValue: raw)
             let getter = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property)
             let setter = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property)
