@@ -7,7 +7,7 @@ abstract class ContinuationImpl(
     private var cachedInterception: Continuation<Any?>? = null
 
     constructor(completion: Continuation<Any?>?): this(completion, completion?.context)
-    override val context: CoroutineContext get() = providedContext!!
+    override val context: CoroutineContext get() = providedContext ?: EmptyCoroutineContext
 
     fun intercepted(): Continuation<Any?> {
         val cached = cachedInterception
