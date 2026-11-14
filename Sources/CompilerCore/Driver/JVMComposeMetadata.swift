@@ -6,12 +6,13 @@ extension JVMForeignMethod {
         guard isStatic, !function.isSuspend, function.descriptor == descriptor,
               annotations.contains(where: { $0.descriptor == "Landroidx/compose/runtime/Composable;" }),
               function.parameters.count <= 31 else { return nil }
-        let firstHidden = function.parameters.count + (function.receiver == nil ? 0 : 1)
+        let firstHidden = function.parameters.count + function.leadingParameterCount
         guard parameters.indices.contains(firstHidden), parameters[firstHidden].referenceName == JVMCompose.composer
         else { return nil }
         let masks = parameters.dropFirst(firstHidden + 1)
         let defaults = function.parameters.contains(where: \.hasDefaultValue) ? 1 : 0
-        guard masks.count > defaults, masks.allSatisfy({ $0 == .int }) else { return nil }
+        guard defaults == 0 || function.contextParameters.isEmpty,
+              masks.count > defaults, masks.allSatisfy({ $0 == .int }) else { return nil }
         return (changes: masks.count - defaults, defaults: defaults)
     }
 
@@ -49,12 +50,12 @@ extension JVMFunctionBuilder {
     ) throws -> JVMIntrinsicResult {
         guard let composer = activeComposer else { throw fail("JVM @Composable calls require an active Composer.", id) }
         guard activeRegions.isEmpty else { throw fail("JVM @Composable calls are unsupported inside a try expression.", id) }
-        var prefix: [JVMValue] = []
+        var prefix = try importedContextArguments(binding, method: method, id: id)
         if signature.receiver != nil {
             guard let value = try receiverValue ?? receiver.map(requireValue) ?? implicitExtensionReceiver(id) else {
                 throw fail("Missing JVM Compose extension receiver.", id)
             }
-            prefix.append(try convert(value, to: method.parameters[0]))
+            prefix.append(try convert(value, to: method.parameters[prefix.count]))
         }
         let parameters = Array(method.parameters.dropFirst(prefix.count).prefix(signature.parameters.count))
         let composableParameters = binding.flatMap { context.jvmImports?.importedComposableParameters[$0.chosenCallee] } ?? []

@@ -458,6 +458,7 @@ final class JVMFunctionBuilder {
     var inlineReturns: [InlineReturn] = []
     var inlineStack: Set<SymbolID> = []
     var contextualReceivers: [SymbolID: JVMValue] = [:]
+    var contextArguments: [(type: TypeID, value: JVMValue)] = []
     var backingProperty: JVMProperty?
     var beforeDelegation = false
     var initializingObject = false
