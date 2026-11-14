@@ -39,18 +39,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_kclass_is_companion", "kclassRaw"),
         abi.nt("__kk_kclass_is_fun", "kclassRaw"),
         abiReflection.th("__kk_kclass_get_annotations_typed", "kclassRaw outThrown"),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kclass_find_annotation_typed",
-            parameters: ["kclassRaw", "typeToken"].map { RuntimeABIParameter(name: $0, type: .intptr) }
-                + [RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)],
-            returnType: .intptr, section: "Reflection", isThrowing: true
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kclass_register_annotation_factory",
-            parameters: ["typeToken", "fqNameRaw", "argsEncodedRaw", "argCount", "factory"].map {
-                RuntimeABIParameter(name: $0, type: .intptr)
-            }, returnType: .intptr, section: "Reflection", isThrowing: false
-        ),
+        abiReflection.th("__kk_kclass_find_annotation_typed", "kclassRaw typeToken outThrown"),
+        abiReflection.nt("__kk_kclass_register_annotation_factory", "typeToken fqNameRaw argsEncodedRaw argCount factory"),
         abiReflection.nt("__kk_kclass_is_runtime", "raw"),
         abiReflection.nt("__kk_kclass_get_annotations", "kclassRaw"),
         abiReflection.nt("__kk_kclass_find_associated_object", "kclassRaw keyNameRaw"),
@@ -84,24 +74,8 @@ public extension RuntimeABISpec {
         abi.nt("__kk_class_component_type", "classRaw"),
         abi.nt("__kk_class_is_interface", "classRaw"),        abi.nt("__kk_java_class_register_declared_method", "typeToken methodNameRaw signatureRaw flags"),
         abi.nt("__kk_java_class_register_declared_field", "typeToken fieldNameRaw"),
-        RuntimeABIFunctionSpec(
-            name: "__kk_java_field_register_single_annotation",
-            parameters: ["typeToken", "fieldNameRaw", "fqNameRaw", "argsEncodedRaw", "argCount"].map {
-                RuntimeABIParameter(name: $0, type: .intptr)
-            },
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_java_field_register_annotation_factory",
-            parameters: ["typeToken", "fieldNameRaw", "fqNameRaw", "argsEncodedRaw", "argCount", "factory"].map {
-                RuntimeABIParameter(name: $0, type: .intptr)
-            },
-            returnType: .intptr,
-            section: "Reflection",
-            isThrowing: false
-        ),
+        abiReflection.nt("__kk_java_field_register_single_annotation", "typeToken fieldNameRaw fqNameRaw argsEncodedRaw argCount"),
+        abiReflection.nt("__kk_java_field_register_annotation_factory", "typeToken fieldNameRaw fqNameRaw argsEncodedRaw argCount factory"),
         abiReflection.th("__kk_java_field_get_annotations_typed", "fieldRaw outThrown"),
         abi.nt("__kk_java_field_get_name", "fieldRaw"),
         abi.nt("__kk_java_method_get_name", "methodRaw"),

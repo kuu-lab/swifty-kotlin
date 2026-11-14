@@ -32,20 +32,23 @@ public extension RuntimeABISpec {
         abi.th("kk_function_invoke_4", "functionRaw arg1 arg2 arg3 arg4 outThrown"),
         abi.th("kk_function_invoke_5", "functionRaw arg1 arg2 arg3 arg4 arg5 outThrown"),
         abi.th("kk_function_invoke_6", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 outThrown"),
-    ] + (7...22).map { arity in
-        RuntimeABIFunctionSpec(
-            name: "kk_function_invoke_\(arity)",
-            parameters: [
-                RuntimeABIParameter(name: "functionRaw", type: .intptr),
-            ] + (1...arity).map { argument in
-                RuntimeABIParameter(name: "arg\(argument)", type: .intptr)
-            } + [
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Delegate"
-        )
-    } + [
+        abi.th("kk_function_invoke_7", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 outThrown"),
+        abi.th("kk_function_invoke_8", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 outThrown"),
+        abi.th("kk_function_invoke_9", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 outThrown"),
+        abi.th("kk_function_invoke_10", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 outThrown"),
+        abi.th("kk_function_invoke_11", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 outThrown"),
+        abi.th("kk_function_invoke_12", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 outThrown"),
+        abi.th("kk_function_invoke_13", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 outThrown"),
+        abi.th("kk_function_invoke_14", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 outThrown"),
+        abi.th("kk_function_invoke_15", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 outThrown"),
+        abi.th("kk_function_invoke_16", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 outThrown"),
+        abi.th("kk_function_invoke_17", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 arg17 outThrown"),
+        abi.th("kk_function_invoke_18", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 arg17 arg18 outThrown"),
+        abi.th("kk_function_invoke_19", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 arg17 arg18 arg19 outThrown"),
+        abi.th("kk_function_invoke_20", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 arg17 arg18 arg19 arg20 outThrown"),
+        abi.th("kk_function_invoke_21", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 arg17 arg18 arg19 arg20 arg21 outThrown"),
+        abi.th("kk_function_invoke_22", "functionRaw arg1 arg2 arg3 arg4 arg5 arg6 arg7 arg8 arg9 arg10 arg11 arg12 arg13 arg14 arg15 arg16 arg17 arg18 arg19 arg20 arg21 arg22 outThrown"),
+    ] + [
         abi.th("kk_function_create_0", "bodyRaw closureRaw outThrown"),
         abi.th("kk_function_create_1", "bodyRaw closureRaw outThrown"),
         abi.nt("kk_function_value_fn_ptr", "functionRaw"),
