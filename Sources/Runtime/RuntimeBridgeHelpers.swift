@@ -28,6 +28,40 @@ public func runtimeThrowingBridge<R: BinaryInteger>(
     defaultOnFailure: R = 0,
     _ body: () throws -> R
 ) -> R {
+    runtimeBridgeRun(outThrown, defaultOnFailure: defaultOnFailure, body)
+}
+
+/// Void-returning variant for bridges whose Kotlin-facing result carries no
+/// value (Unit externals). Failures are reported through `outThrown` only.
+@inline(__always)
+public func runtimeThrowingBridge(
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    _ body: () throws -> Void
+) {
+    _ = runtimeBridgeRun(outThrown, defaultOnFailure: 0) {
+        try body()
+        return 0
+    }
+}
+
+/// Value-returning variant for bridges whose result is not a `BinaryInteger`
+/// (pointers, optionals, tuples, `Bool`, ...). `defaultOnFailure` is required
+/// so integer call sites keep resolving to the `BinaryInteger` overload.
+@inline(__always)
+public func runtimeThrowingBridge<R>(
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    defaultOnFailure: R,
+    _ body: () throws -> R
+) -> R {
+    runtimeBridgeRun(outThrown, defaultOnFailure: defaultOnFailure, body)
+}
+
+@inline(__always)
+func runtimeBridgeRun<R>(
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    defaultOnFailure: R,
+    _ body: () throws -> R
+) -> R {
     outThrown?.pointee = 0
     do {
         return try body()
