@@ -1,173 +1,187 @@
 
 @_cdecl("kk_sequence_first")
 public func kk_sequence_first(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var found = false
-    var result = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            result = elem
-            found = true
-            return false
+    return runtimeThrowingBridge(outThrown) {
+        var found = false
+        var result = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                result = elem
+                found = true
+                return false
+            }
+        } else {
+            _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
+                result = elem
+                found = true
+                return false
+            }
         }
-    } else {
-        _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
-            result = elem
-            found = true
-            return false
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        if !found {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
+            return 0
         }
+        return result
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    if !found {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
-        return 0
-    }
-    return result
 }
 
 @_cdecl("kk_sequence_firstOrNull")
 public func kk_sequence_firstOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var found = false
-    var result = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            result = elem
-            found = true
-            return false
+    return runtimeThrowingBridge(outThrown) {
+        var found = false
+        var result = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                result = elem
+                found = true
+                return false
+            }
+        } else {
+            _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
+                result = elem
+                found = true
+                return false
+            }
         }
-    } else {
-        _ = runtimeTraverseSourceSequenceObject(seqRaw, outThrown: outThrown) { elem in
-            result = elem
-            found = true
-            return false
-        }
+        if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
+        return found ? result : runtimeNullSentinelInt
     }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    return found ? result : runtimeNullSentinelInt
 }
 
 @_cdecl("kk_sequence_last")
 public func kk_sequence_last(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var found = false
-    var result = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            result = elem
-            found = true
-            return true
+    return runtimeThrowingBridge(outThrown) {
+        var found = false
+        var result = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                result = elem
+                found = true
+                return true
+            }
+        } else {
+            let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+            if let last = elements.last {
+                result = last
+                found = true
+            }
         }
-    } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if let last = elements.last {
-            result = last
-            found = true
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        if !found {
+            outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
+            return 0
         }
+        return result
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    if !found {
-        outThrown?.pointee = runtimeAllocateNoSuchElementException(message: kEmptySequenceNoSuchElement)
-        return 0
-    }
-    return result
 }
 
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var found = false
-    var result = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            result = elem
-            found = true
-            return true
+    return runtimeThrowingBridge(outThrown) {
+        var found = false
+        var result = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                result = elem
+                found = true
+                return true
+            }
+        } else {
+            let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+            if let last = elements.last {
+                result = last
+                found = true
+            }
         }
-    } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if let last = elements.last {
-            result = last
-            found = true
-        }
+        if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
+        return found ? result : runtimeNullSentinelInt
     }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    return found ? result : runtimeNullSentinelInt
 }
 
 @_cdecl("kk_sequence_singleOrNull")
 public func kk_sequence_singleOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var result = runtimeNullSentinelInt
-    var count = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            count += 1
-            if count == 1 {
-                result = elem
-                return true
+    return runtimeThrowingBridge(outThrown) {
+        var result = runtimeNullSentinelInt
+        var count = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                count += 1
+                if count == 1 {
+                    result = elem
+                    return true
+                }
+                result = runtimeNullSentinelInt
+                return false
             }
-            result = runtimeNullSentinelInt
-            return false
-        }
-    } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        if elements.count == 1 {
-            result = elements[0]
-            count = 1
         } else {
-            count = elements.count
+            let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+            if elements.count == 1 {
+                result = elements[0]
+                count = 1
+            } else {
+                count = elements.count
+            }
         }
+        if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
+        return count == 1 ? result : runtimeNullSentinelInt
     }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    return count == 1 ? result : runtimeNullSentinelInt
 }
 
 @_cdecl("kk_sequence_single")
 public func kk_sequence_single(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var result = 0
-    var count = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            count += 1
-            if count == 1 {
-                result = elem
-                return true
+    return runtimeThrowingBridge(outThrown) {
+        var result = 0
+        var count = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                count += 1
+                if count == 1 {
+                    result = elem
+                    return true
+                }
+                return false
             }
-            return false
-        }
-    } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        count = elements.count
-        if count == 1 {
-            result = elements[0]
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    guard count == 1 else {
-        if count == 0 {
-            outThrown?.pointee = runtimeAllocateNoSuchElementException(
-                message: kEmptySequenceNoSuchElement
-            )
         } else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Sequence has more than one element."
-            )
+            let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+            count = elements.count
+            if count == 1 {
+                result = elements[0]
+            }
         }
-        return 0
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        guard count == 1 else {
+            if count == 0 {
+                outThrown?.pointee = runtimeAllocateNoSuchElementException(
+                    message: kEmptySequenceNoSuchElement
+                )
+            } else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "Sequence has more than one element."
+                )
+            }
+            return 0
+        }
+        return result
     }
-    return result
 }
 
 @_cdecl("kk_sequence_count")
 public func kk_sequence_count(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var count = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { _ in
-            count += 1
-            return true
+    return runtimeThrowingBridge(outThrown) {
+        var count = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { _ in
+                count += 1
+                return true
+            }
+        } else {
+            let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+            count = elements.count
         }
-    } else {
-        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-        count = elements.count
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        return count
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    return count
 }
 
 
@@ -221,42 +235,44 @@ public func kk_sequence_indexOfFirst(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var matchIndex = -1
-    var currentIndex = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
+    return runtimeThrowingBridge(outThrown) {
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var matchIndex = -1
+        var currentIndex = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return false
+                }
+                if maybeUnbox(result) != 0 {
+                    matchIndex = currentIndex
+                    return false
+                }
+                currentIndex += 1
+                return true
             }
-            if maybeUnbox(result) != 0 {
-                matchIndex = currentIndex
-                return false
+        } else {
+            for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    return handleCollectionLambdaThrow(thrown, outThrown)
+                }
+                if maybeUnbox(result) != 0 {
+                    matchIndex = currentIndex
+                    break
+                }
+                currentIndex += 1
             }
-            currentIndex += 1
-            return true
         }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                return handleCollectionLambdaThrow(thrown, outThrown)
-            }
-            if maybeUnbox(result) != 0 {
-                matchIndex = currentIndex
-                break
-            }
-            currentIndex += 1
+        if let outThrown, outThrown.pointee != 0 {
+            return runtimeExceptionCaughtSentinel
         }
+        return matchIndex
     }
-    if let outThrown, outThrown.pointee != 0 {
-        return runtimeExceptionCaughtSentinel
-    }
-    return matchIndex
 }
 
 @_cdecl("kk_sequence_lastIndexOf")
@@ -289,40 +305,42 @@ public func kk_sequence_indexOfLast(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var matchIndex = -1
-    var currentIndex = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
+    return runtimeThrowingBridge(outThrown) {
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var matchIndex = -1
+        var currentIndex = 0
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return false
+                }
+                if maybeUnbox(result) != 0 {
+                    matchIndex = currentIndex
+                }
+                currentIndex += 1
+                return true
             }
-            if maybeUnbox(result) != 0 {
-                matchIndex = currentIndex
+        } else {
+            for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    return handleCollectionLambdaThrow(thrown, outThrown)
+                }
+                if maybeUnbox(result) != 0 {
+                    matchIndex = currentIndex
+                }
+                currentIndex += 1
             }
-            currentIndex += 1
-            return true
         }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                return handleCollectionLambdaThrow(thrown, outThrown)
-            }
-            if maybeUnbox(result) != 0 {
-                matchIndex = currentIndex
-            }
-            currentIndex += 1
+        if let outThrown, outThrown.pointee != 0 {
+            return runtimeExceptionCaughtSentinel
         }
+        return matchIndex
     }
-    if let outThrown, outThrown.pointee != 0 {
-        return runtimeExceptionCaughtSentinel
-    }
-    return matchIndex
 }
 
 @_cdecl("kk_sequence_elementAtOrNull")
@@ -336,14 +354,16 @@ public func kk_sequence_elementAtOrNull(_ seqRaw: Int, _ index: Int) -> Int {
 
 @_cdecl("kk_sequence_elementAt")
 public func kk_sequence_elementAt(_ seqRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    guard elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
-            message: "Sequence index \(index) out of bounds for length \(elements.count)."
-        )
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+        guard elements.indices.contains(index) else {
+            outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+                message: "Sequence index \(index) out of bounds for length \(elements.count)."
+            )
+            return runtimeNullSentinelInt
+        }
+        return elements[index]
     }
-    return elements[index]
 }
 
 @_cdecl("kk_sequence_elementAtOrElse")
@@ -354,18 +374,20 @@ public func kk_sequence_elementAtOrElse(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    if elements.indices.contains(index) {
-        return elements[index]
+    return runtimeThrowingBridge(outThrown) {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+        if elements.indices.contains(index) {
+            return elements[index]
+        }
+        let defaultValue = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var thrown = 0
+        let result = defaultValue(closureRaw, index, &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        return result
     }
-    let defaultValue = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    let result = defaultValue(closureRaw, index, &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return runtimeNullSentinelInt
-    }
-    return result
 }
 
 @_cdecl("kk_sequence_sum")
@@ -457,41 +479,43 @@ public func kk_sequence_any(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if fnPtr == 0 {
-        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-        return kk_box_bool(elements.isEmpty ? 0 : 1)
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var matched = false
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            matched = maybeUnbox(result) != 0
-            return !matched
+    return runtimeThrowingBridge(outThrown) {
+        if fnPtr == 0 {
+            let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+            return kk_box_bool(elements.isEmpty ? 0 : 1)
         }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return kk_box_bool(0)
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var matched = false
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return false
+                }
+                matched = maybeUnbox(result) != 0
+                return !matched
             }
-            if maybeUnbox(result) != 0 {
-                matched = true
-                break
+        } else {
+            for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return kk_box_bool(0)
+                }
+                if maybeUnbox(result) != 0 {
+                    matched = true
+                    break
+                }
             }
         }
+        if let outThrown, outThrown.pointee != 0 {
+            return kk_box_bool(0)
+        }
+        return kk_box_bool(matched ? 1 : 0)
     }
-    if let outThrown, outThrown.pointee != 0 {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(matched ? 1 : 0)
 }
 
 @_cdecl("kk_sequence_all")
@@ -501,40 +525,42 @@ public func kk_sequence_all(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var allMatched = true
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
+    return runtimeThrowingBridge(outThrown) {
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var allMatched = true
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return false
+                }
+                if maybeUnbox(result) == 0 {
+                    allMatched = false
+                    return false
+                }
+                return true
             }
-            if maybeUnbox(result) == 0 {
-                allMatched = false
-                return false
+        } else {
+            for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return kk_box_bool(0)
+                }
+                if maybeUnbox(result) == 0 {
+                    allMatched = false
+                    break
+                }
             }
-            return true
         }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return kk_box_bool(0)
-            }
-            if maybeUnbox(result) == 0 {
-                allMatched = false
-                break
-            }
+        if let outThrown, outThrown.pointee != 0 {
+            return kk_box_bool(0)
         }
+        return kk_box_bool(allMatched ? 1 : 0)
     }
-    if let outThrown, outThrown.pointee != 0 {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(allMatched ? 1 : 0)
 }
 
 @_cdecl("kk_sequence_none")
@@ -544,41 +570,43 @@ public func kk_sequence_none(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    if fnPtr == 0 {
-        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-        return kk_box_bool(elements.isEmpty ? 1 : 0)
-    }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var foundMatch = false
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            foundMatch = maybeUnbox(result) != 0
-            return !foundMatch
+    return runtimeThrowingBridge(outThrown) {
+        if fnPtr == 0 {
+            let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+            return kk_box_bool(elements.isEmpty ? 1 : 0)
         }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let result = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return kk_box_bool(1)
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var foundMatch = false
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return false
+                }
+                foundMatch = maybeUnbox(result) != 0
+                return !foundMatch
             }
-            if maybeUnbox(result) != 0 {
-                foundMatch = true
-                break
+        } else {
+            for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+                var thrown = 0
+                let result = lambda(closureRaw, elem, &thrown)
+                if thrown != 0 {
+                    outThrown?.pointee = thrown
+                    return kk_box_bool(1)
+                }
+                if maybeUnbox(result) != 0 {
+                    foundMatch = true
+                    break
+                }
             }
         }
+        if let outThrown, outThrown.pointee != 0 {
+            return kk_box_bool(1)
+        }
+        return kk_box_bool(foundMatch ? 0 : 1)
     }
-    if let outThrown, outThrown.pointee != 0 {
-        return kk_box_bool(1)
-    }
-    return kk_box_bool(foundMatch ? 0 : 1)
 }
 
 @_cdecl("kk_sequence_reduce")
@@ -588,35 +616,37 @@ public func kk_sequence_reduce(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    var hasAccumulator = false
-    var acc = 0
-    let visit: (Int) -> Bool = { elem in
-        if !hasAccumulator {
-            hasAccumulator = true
-            acc = elem
+    return runtimeThrowingBridge(outThrown) {
+        var hasAccumulator = false
+        var acc = 0
+        let visit: (Int) -> Bool = { elem in
+            if !hasAccumulator {
+                hasAccumulator = true
+                acc = elem
+                return true
+            }
+            let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+            if step.thrown != 0 { return false }
+            acc = step.accumulator
             return true
         }
-        let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-        if step.thrown != 0 { return false }
-        acc = step.accumulator
-        return true
-    }
 
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            // swiftlint:disable:next for_where
-            if !visit(elem) { break }
+        if let seq = runtimeSequenceBox(from: seqRaw) {
+            runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
+        } else {
+            for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+                // swiftlint:disable:next for_where
+                if !visit(elem) { break }
+            }
         }
-    }
 
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    if !hasAccumulator {
-        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: kEmptySequenceCannotReduce)
-        return 0
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        if !hasAccumulator {
+            outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: kEmptySequenceCannotReduce)
+            return 0
+        }
+        return acc
     }
-    return acc
 }
 
 @_cdecl("kk_sequence_reduceOrNull")
@@ -626,23 +656,25 @@ public func kk_sequence_reduceOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    var hasAccumulator = false
-    var acc = 0
-    let visit: (Int) -> Bool = { elem in
-        if !hasAccumulator {
-            hasAccumulator = true
-            acc = maybeUnbox(elem)
+    return runtimeThrowingBridge(outThrown) {
+        var hasAccumulator = false
+        var acc = 0
+        let visit: (Int) -> Bool = { elem in
+            if !hasAccumulator {
+                hasAccumulator = true
+                acc = maybeUnbox(elem)
+                return true
+            }
+            let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+            if step.thrown != 0 { return false }
+            acc = step.accumulator
             return true
         }
-        let step = runtimeApplyFoldStep(accumulator: acc, element: elem, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-        if step.thrown != 0 { return false }
-        acc = step.accumulator
-        return true
-    }
 
-    runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown, yield: visit)
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    return hasAccumulator ? acc : runtimeNullSentinelInt
+        runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown, yield: visit)
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        return hasAccumulator ? acc : runtimeNullSentinelInt
+    }
 }
 
 @_cdecl("kk_sequence_reduceRight")
@@ -652,21 +684,23 @@ public func kk_sequence_reduceRight(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    var elements: [Int] = []
-    runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        elements.append(elem)
-        return true
+    return runtimeThrowingBridge(outThrown) {
+        var elements: [Int] = []
+        runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+            elements.append(elem)
+            return true
+        }
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        return runtimeReduceRightElements(
+            elements,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            emptyResult: 0,
+            throwResult: 0,
+            emptyMessage: kEmptySequenceCannotReduce,
+            outThrown: outThrown
+        )
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    return runtimeReduceRightElements(
-        elements,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        emptyResult: 0,
-        throwResult: 0,
-        emptyMessage: kEmptySequenceCannotReduce,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_sequence_reduceRightIndexedOrNull")
@@ -676,21 +710,23 @@ public func kk_sequence_reduceRightIndexedOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    var elements: [Int] = []
-    runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        elements.append(elem)
-        return true
+    return runtimeThrowingBridge(outThrown) {
+        var elements: [Int] = []
+        runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+            elements.append(elem)
+            return true
+        }
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        return runtimeReduceRightIndexedElements(
+            elements,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            emptyResult: runtimeNullSentinelInt,
+            throwResult: 0,
+            emptyMessage: nil,
+            outThrown: outThrown
+        )
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    return runtimeReduceRightIndexedElements(
-        elements,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        emptyResult: runtimeNullSentinelInt,
-        throwResult: 0,
-        emptyMessage: nil,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_sequence_reduceRightOrNull")
@@ -700,21 +736,23 @@ public func kk_sequence_reduceRightOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    var elements: [Int] = []
-    runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        elements.append(elem)
-        return true
+    return runtimeThrowingBridge(outThrown) {
+        var elements: [Int] = []
+        runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+            elements.append(elem)
+            return true
+        }
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        return runtimeReduceRightElements(
+            elements,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            emptyResult: runtimeNullSentinelInt,
+            throwResult: 0,
+            emptyMessage: nil,
+            outThrown: outThrown
+        )
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    return runtimeReduceRightElements(
-        elements,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        emptyResult: runtimeNullSentinelInt,
-        throwResult: 0,
-        emptyMessage: nil,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_sequence_reduceRightIndexed")
@@ -724,19 +762,21 @@ public func kk_sequence_reduceRightIndexed(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    var elements: [Int] = []
-    runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
-        elements.append(elem)
-        return true
+    return runtimeThrowingBridge(outThrown) {
+        var elements: [Int] = []
+        runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+            elements.append(elem)
+            return true
+        }
+        if let outThrown, outThrown.pointee != 0 { return 0 }
+        return runtimeReduceRightIndexedElements(
+            elements,
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            emptyResult: 0,
+            throwResult: 0,
+            emptyMessage: kEmptySequenceCannotReduce,
+            outThrown: outThrown
+        )
     }
-    if let outThrown, outThrown.pointee != 0 { return 0 }
-    return runtimeReduceRightIndexedElements(
-        elements,
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        emptyResult: 0,
-        throwResult: 0,
-        emptyMessage: kEmptySequenceCannotReduce,
-        outThrown: outThrown
-    )
 }
