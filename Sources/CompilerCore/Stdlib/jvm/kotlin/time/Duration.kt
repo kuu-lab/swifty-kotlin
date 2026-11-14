@@ -19,6 +19,8 @@ public value class Duration private constructor(private val rawValue: Long) : Co
 
     public operator fun plus(other: Duration): Duration = Duration(addDurationRaw(rawValue, other.rawValue))
 
+    internal fun negated(): Duration = Duration(((-durationValue(rawValue)) shl 1) or (rawValue and 1L))
+
     public override fun toString(): String = durationToString(rawValue)
 
     public fun toDouble(unit: DurationUnit): Double = durationRawToDouble(rawValue, unit)
