@@ -272,7 +272,7 @@ public struct JVMForeignMethod {
     public var annotationDefault: JVMAnnotationValue? = nil
     // Classpath methods keep their physical descriptor until bound to a Kotlin call.
     var kotlinSuspendFunction: JVMKotlinSuspendFunction?
-    var genericResultParameter: String?
+    var genericResultParameter: (name: String, classParameterIndices: Set<Int>)?
     var kotlinFunction: JVMKotlinFunction?
     public var isConstructor: Bool { name == "<init>" }
 }
