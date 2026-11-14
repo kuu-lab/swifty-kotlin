@@ -19,6 +19,11 @@ public fun Int.coerceIn(minimumValue: Int, maximumValue: Int): Int {
     return this
 }
 
+public fun Int.coerceIn(range: ClosedRange<Int>): Int {
+    if (range.isEmpty()) throw IllegalArgumentException("Cannot coerce value to an empty range: $range.")
+    return coerceIn(range.start, range.endInclusive)
+}
+
 public fun Long.coerceIn(minimumValue: Long, maximumValue: Long): Long {
     if (minimumValue > maximumValue) throw IllegalArgumentException("Cannot coerce value to an empty range: maximum $maximumValue is less than minimum $minimumValue.")
     if (this < minimumValue) return minimumValue
