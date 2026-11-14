@@ -3,6 +3,7 @@ import kotlin.jvm.internal.*
 import kotlin.reflect.*
 
 internal class RuntimeType(private val metadata: RuntimeMetadata, private val type: Proto, private val parameters: List<Proto> = emptyList()): KType {
+    internal val hasTypeArguments: Boolean get() = type.children(2).isNotEmpty()
     override val annotations: List<Annotation> get() = emptyList()
     override val isMarkedNullable: Boolean get() = type.number(3) != 0
     override val classifier: KClassifier? get() {

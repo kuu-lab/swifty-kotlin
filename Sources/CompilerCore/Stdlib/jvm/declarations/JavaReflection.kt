@@ -1,5 +1,5 @@
 package java.lang
-class Class<T> {
+class Class<T> : java.lang.reflect.Type {
     val name: kotlin.String get() = ""
     val simpleName: kotlin.String get() = ""
     val isAnnotation: Boolean get() = false
