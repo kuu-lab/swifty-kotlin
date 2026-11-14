@@ -19,7 +19,7 @@ struct JVMClassInfo {
     var hasKotlinMetadata = false
     var kotlinAnnotationVarargElementNames: Set<String> = []
     var kotlinStaticProperties: [String: (getter: JVMForeignMethod, isNullable: Bool)] = [:]
-    var kotlinCompanionProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
+    var kotlinMemberProperties: [String: (getter: JVMForeignMethod, sourceType: String)] = [:]
     var kotlinTopLevelProperties: [(source: JVMKotlinTopLevelProperty, getter: JVMForeignMethod)] = []
     var kotlinMultifileParts: [String] = []
     var isKotlinMultifilePart = false
@@ -551,15 +551,17 @@ struct JVMClassReader {
             }
         }
         if let metadata = classAttributes.kotlinMetadata,
-           (metadata.isFileFacade == true || methods.contains(where: Self.hasFunctionTypeDescriptor)),
+           (metadata.isFileFacade == true || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && !$0.parameters.isEmpty })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
            let functions = try? metadata.functions(in: table) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
-                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method),
+                guard (metadata.isFileFacade == true && method.isStatic) || Self.hasFunctionTypeDescriptor(method) || !method.isStatic,
                       let function = functions.first(where: { candidate in
                           candidate.isSuspend == isSuspend
+                              && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
+                                  || !method.isStatic && candidate.receiver != nil && candidate.contextParameters.isEmpty)
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
                               && (candidate.parameters.count + candidate.leadingParameterCount
@@ -602,26 +604,27 @@ struct JVMClassReader {
                 info.kotlinTopLevelProperties.append((property, getter))
             }
         }
-        // Kotlin objects may expose a property's accessor only as @JvmStatic.
+        let isKotlinObject = fields.contains { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }
         if let metadata = classAttributes.kotlinMetadata,
-           fields.contains(where: { $0.name == "INSTANCE" && $0.isPublic && $0.isStatic && $0.descriptor == "L\(name);" }),
-           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
+           isKotlinObject || name.hasSuffix("$Companion") || methods.contains(where: { $0.name.hasPrefix("get") && $0.name.contains("-") }),
+           let properties = try? metadata.classPropertyCandidates(byteLimit: bytes.count) {
+            let valueCarrier = methods.first(where: { !$0.isStatic && $0.name == "unbox-impl" && $0.parameters.isEmpty })?.result
+            let hasValueAdapters = valueCarrier.map { carrier in
+                methods.contains { $0.isStatic && $0.name == "box-impl" && $0.descriptor == "(" + carrier.descriptor + ")L" + name + ";" }
+            } ?? false
             for property in properties {
                 guard let getter = methods.first(where: {
-                    $0.isStatic && !$0.isProtected && $0.name == property.getterName
-                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
+                    !$0.isProtected && $0.name == property.getterName && $0.descriptor == property.getterDescriptor && $0.result != .unit
                 }) else { continue }
-                info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
-            }
-        }
-        if name.hasSuffix("$Companion"), let metadata = classAttributes.kotlinMetadata,
-           let properties = try? metadata.staticPropertyCandidates(byteLimit: bytes.count) {
-            for property in properties {
-                guard let sourceType = property.sourceType, let getter = methods.first(where: {
-                    !$0.isStatic && !$0.isProtected && $0.name == property.getterName
-                        && $0.descriptor == property.getterDescriptor && $0.result != .unit
-                }) else { continue }
-                info.kotlinCompanionProperties[property.name] = (getter, sourceType)
+                if isKotlinObject && getter.isStatic && getter.parameters.isEmpty {
+                    // Kotlin objects may expose a property's accessor only as @JvmStatic.
+                    info.kotlinStaticProperties[property.name] = (getter, property.isNullable)
+                } else if let sourceType = property.sourceType,
+                          (name.hasSuffix("$Companion") || getter.name.contains("-")),
+                          !getter.isStatic && getter.parameters.isEmpty
+                              || hasValueAdapters && getter.isStatic && getter.parameters.map(\.descriptor) == [valueCarrier?.descriptor] {
+                    info.kotlinMemberProperties[property.name] = (getter, sourceType)
+                }
             }
         }
         return info
