@@ -148,7 +148,6 @@ public extension RuntimeABISpec {
         systemABI.nt("kk_instant_now"),
         systemABI.nt("kk_instant_plus_duration", "instantRaw durationRaw"),
         systemABI.nt("kk_instant_until", "fromRaw toRaw"),
-        systemABI.nt("kk_time_source_as_clock", "sourceRaw originRaw"),
         systemABI.th("kk_instant_from_epoch_seconds", "epochSeconds nanoOfSecond"),
         systemABI.nt("kk_platform_memoryModel", "platformRaw"),
         nativeABI.nt("kk_native_identityHashCode", "objectRaw"),

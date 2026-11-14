@@ -68,13 +68,16 @@ private func runtimeMonotonicNowNanoseconds() -> Int64 {
     return now <= UInt64(Int64.max) ? Int64(now) : Int64.max
 }
 
-@_cdecl("kk_time_source_mark_now")
+// The `_boxed` suffix marks the synthetic-stub (`--no-stdlib`) contract:
+// these return boxed `RuntimeTimeMarkBox` object handles, unlike the raw
+// nanosecond `__kk_time_source_*_mark_now` bridges bundled Kotlin uses.
+@_cdecl("__kk_time_source_mark_now_boxed")
 public func kk_time_source_mark_now(_ receiver: Int) -> Int {
     let mark = RuntimeTimeMarkBox(uptimeNanoseconds: runtimeMonotonicNowNanoseconds())
     return registerRuntimeObject(mark)
 }
 
-@_cdecl("kk_time_source_monotonic_mark_now")
+@_cdecl("__kk_time_source_monotonic_mark_now_boxed")
 public func kk_time_source_monotonic_mark_now(_ receiver: Int) -> Int {
     kk_time_source_mark_now(receiver)
 }
@@ -103,7 +106,7 @@ private func runtimeRegisterTimeSourceClockItable(_ raw: Int) {
     )
 }
 
-@_cdecl("kk_time_source_as_clock")
+@_cdecl("__kk_time_source_as_clock")
 public func kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int {
     guard let origin = runtimeKotlinInstantBox(from: originRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_source_as_clock received invalid Instant handle")
@@ -124,11 +127,6 @@ public func __kk_time_source_mark_now(_ receiver: Int) -> Int {
 @_cdecl("__kk_time_source_monotonic_mark_now")
 public func __kk_time_source_monotonic_mark_now(_ receiver: Int) -> Int {
     __kk_time_source_mark_now(receiver)
-}
-
-@_cdecl("__kk_time_source_as_clock")
-public func __kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int {
-    kk_time_source_as_clock(sourceRaw, originRaw)
 }
 
 // elapsedNow / hasPassedNow / hasNotPassedNow / plus / minus / minus-mark / compareTo now

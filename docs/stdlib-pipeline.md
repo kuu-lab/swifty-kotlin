@@ -488,7 +488,7 @@ fiction audit ダンプを起点に棚卸し）:
 KSP-712 time-surface audit confirms that these three files no longer own public
 stdlib logic: their remaining registrations are (c) nominal/bootstrap fallback
 or hidden runtime/interface-dispatch support. In particular, removing the
-`kk_instant_*`/`kk_clock_*`/`kk_time_source_*` names by string match would break
+`kk_instant_*`/`kk_clock_*`/`__kk_time_source_*` names by string match would break
 Instant handle access, OS monotonic time, `TimeSource.asClock()` boxes, or
 user-implementable `Clock` itables. The public source-backed declarations and
 these retained bridges are covered by the KSP-712 focused regressions.

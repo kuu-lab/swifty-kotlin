@@ -104,7 +104,7 @@ extension DataFlowSemaPhase {
         if !bundledIndex.contains(ownerFQName: timeSourceFQName, name: interner.intern("markNow"), arity: 0) {
             registerExperimentalTimeMemberFunction(
                 named: "markNow",
-                externalLinkName: "kk_time_source_mark_now",
+                externalLinkName: "__kk_time_source_mark_now_boxed",
                 ownerSymbol: timeSourceSymbol,
                 ownerType: timeSourceType,
                 parameters: [],
@@ -116,7 +116,7 @@ extension DataFlowSemaPhase {
         if !bundledIndex.contains(ownerFQName: timeSourceFQName, name: interner.intern("asClock"), arity: 1) {
             registerExperimentalTimeExtensionFunction(
                 named: "asClock",
-                externalLinkName: "kk_time_source_as_clock",
+                externalLinkName: "__kk_time_source_as_clock",
                 packageFQName: kotlinTimePkg,
                 receiverType: timeSourceType,
                 parameters: [(name: "origin", type: instantType)],
@@ -146,7 +146,7 @@ extension DataFlowSemaPhase {
         if !bundledIndex.contains(ownerFQName: withComparableMarksFQName, name: interner.intern("markNow"), arity: 0) {
             registerExperimentalTimeMemberFunction(
                 named: "markNow",
-                externalLinkName: "kk_time_source_mark_now",
+                externalLinkName: "__kk_time_source_mark_now_boxed",
                 ownerSymbol: withComparableMarksSymbol,
                 ownerType: withComparableMarksType,
                 parameters: [],
@@ -207,7 +207,7 @@ extension DataFlowSemaPhase {
         if !bundledIndex.contains(ownerFQName: monotonicFQName, name: interner.intern("markNow"), arity: 0) {
             registerExperimentalTimeMemberFunction(
                 named: "markNow",
-                externalLinkName: "kk_time_source_monotonic_mark_now",
+                externalLinkName: "__kk_time_source_monotonic_mark_now_boxed",
                 ownerSymbol: monotonicSymbol,
                 ownerType: monotonicType,
                 parameters: [],
