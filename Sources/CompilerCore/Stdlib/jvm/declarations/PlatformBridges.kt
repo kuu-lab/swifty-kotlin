@@ -7,6 +7,8 @@ fun __jvmCloseResource(resource: java.io.Closeable) {}
 fun __jvmByteArrayOutputStream(size: Int): Any = null!!
 fun __jvmInputStreamAvailable(stream: java.io.InputStream): Int = 0
 fun __jvmInputStreamRead(stream: java.io.InputStream, buffer: ByteArray): Int = 0
+fun __jvmInputStreamReader(stream: java.io.InputStream, charset: java.nio.charset.Charset): java.io.InputStreamReader = null!!
+fun __jvmReaderRead(reader: java.io.Reader, buffer: CharArray): Int = 0
 fun __jvmOutputStreamWrite(stream: Any, buffer: ByteArray, offset: Int, length: Int) {}
 fun __jvmOutputStreamToBytes(stream: Any): ByteArray = null!!
 fun __jvmCharDigit(character: Char, radix: Int): Int = 0

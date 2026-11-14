@@ -473,6 +473,15 @@ extension JVMClasspathIndex {
                 constructor(msg: String?): super(msg)
             }
             """, 0x0001, "java/lang/IllegalArgumentException", [method("java/security/InvalidParameterException", "<init>", [], .reference("java/security/InvalidParameterException", nullable: false)), method("java/security/InvalidParameterException", "<init>", [.reference("java/lang/String", nullable: true)], .reference("java/security/InvalidParameterException", nullable: false))]),
+            ("java/io/InputStreamReader", """
+            package java.io
+            open class InputStreamReader(input: InputStream, charset: java.nio.charset.Charset): Reader() {
+                override fun read(buffer: CharArray, offset: Int, length: Int): Int = 0
+            }
+            """, 0x0001, "java/io/Reader", [
+                method("java/io/InputStreamReader", "<init>", [.reference("java/io/InputStream", nullable: false), .reference("java/nio/charset/Charset", nullable: false)], .reference("java/io/InputStreamReader", nullable: false)),
+                method("java/io/InputStreamReader", "read", [.reference("[C", nullable: false), .int, .int], .int),
+            ]),
             ("java/nio/charset/Charset", """
             package java.nio.charset
             abstract class Charset {

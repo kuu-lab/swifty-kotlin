@@ -80,7 +80,7 @@
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/io/ByteStreamsKt",
-      "consumerIdentifiers": ["readBytes"]
+      "consumerIdentifiers": ["readBytes", "reader", "readText"]
     },
     {
       "path": "declarations/UStrings.kt",

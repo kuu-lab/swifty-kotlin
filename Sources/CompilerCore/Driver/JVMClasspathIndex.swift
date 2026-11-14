@@ -487,6 +487,7 @@ final class JVMClasspathIndex {
         if name.hasPrefix("kotlin/jvm/functions/Function") { return false }
         if name.hasPrefix("["), let element = try? JVMDescriptor.parse("()" + String(name.dropFirst())).1 { return expose(element) }
         return name == "java/lang/String" || name == "java/lang/Object" || name == "java/lang/Class"
+            || name == "java/io/InputStream"
             || name == "kotlin/coroutines/Continuation" || classes[name] != nil || sourceClassNames.contains(name)
     }
 
@@ -1080,10 +1081,10 @@ final class JVMClasspathIndex {
         // interfaces. Share those types so Java implementations participate
         // in Kotlin's Iterable extension resolution.
         covered.formUnion(["java/lang/Iterable", "java/util/Iterator", "java/lang/Comparable"])
-        // The frontend's CoroutineDispatcher contract already models its
         // Java list subinterfaces (e.g. Android's ObservableList) use the
         // same List nominal as generic signatures and Kotlin source.
         covered.insert("java/util/List")
+        // The frontend's CoroutineDispatcher contract already models its
         // CoroutineContext supertypes. An erased stub cannot reconstruct
         // the key passed to AbstractCoroutineContextElement or its generic overrides.
         covered.insert("kotlinx/coroutines/CoroutineDispatcher")
@@ -1242,8 +1243,8 @@ final class JVMClasspathIndex {
                 }
                 parents += info.interfaces.filter {
                     classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
-                        || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                         || $0 == "java/util/List"
+                        || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 let bounds = javaTypeParameterBounds(info).bounds
@@ -2403,7 +2404,6 @@ final class JVMClasspathIndex {
             let propertyType = boxedPrimitive ? sema.types.withNullability(.platformType, for: type)
                 : platform(type, includingArrayElements: true)
             sema.symbols.setPropertyType(propertyType, for: symbol.id)
-            if isBean && !isField { sema.symbols.markJVMJavaBeanProperty(symbol.id) }
             // A Java Map field can be read as MutableMap and assigned a
             // read-only Map. Both views erase to java.util.Map.
             if let field, !field.isFinal, field.descriptor == "Ljava/util/Map;",
@@ -2414,6 +2414,7 @@ final class JVMClasspathIndex {
                     classSymbol: readOnly, args: map.args, nullability: map.nullability
                 )))
             }
+            if isBean && !isField { sema.symbols.markJVMJavaBeanProperty(symbol.id) }
         }
         for symbol in sema.symbols.allSymbols() {
             guard let site = symbol.declSite, symbol.kind == .function || symbol.kind == .constructor,
