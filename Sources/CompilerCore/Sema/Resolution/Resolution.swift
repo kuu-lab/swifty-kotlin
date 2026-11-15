@@ -2690,7 +2690,27 @@ extension OverloadResolver {
         {
             let lhsGeneric = lhs.signature.typeParameterSymbols.count > lhs.signature.classTypeParameterCount
             let rhsGeneric = rhs.signature.typeParameterSymbols.count > rhs.signature.classTypeParameterCount
-            if lhsGeneric != rhsGeneric { return !lhsGeneric }
+            if lhsGeneric != rhsGeneric {
+                // A generic candidate whose SAM parameter type is a subtype
+                // of the non-generic sibling is still the more specific
+                // overload — a derived SAM (Special<T> : Callable<T>) must
+                // win over its base SAM.
+                func samInherits(_ a: TypeID, _ b: TypeID) -> Bool {
+                    guard case let .classType(na) = typeSystem.kind(of: a),
+                          case let .classType(nb) = typeSystem.kind(of: b) else { return false }
+                    var visited: Set<SymbolID> = [na.classSymbol]
+                    var queue = symbols.directSupertypes(for: na.classSymbol)
+                    while let current = queue.popLast() {
+                        if current == nb.classSymbol { return true }
+                        guard visited.insert(current).inserted else { continue }
+                        queue.append(contentsOf: symbols.directSupertypes(for: current))
+                    }
+                    return false
+                }
+                if lhsGeneric, samInherits(lhs.instantiatedParameterTypes[0], rhs.instantiatedParameterTypes[0]) { return true }
+                if rhsGeneric, samInherits(rhs.instantiatedParameterTypes[0], lhs.instantiatedParameterTypes[0]) { return false }
+                return !lhsGeneric
+            }
         }
 
         // A bare type-parameter parameter is never at least as specific as a
