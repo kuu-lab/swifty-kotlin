@@ -325,7 +325,7 @@ final class JVMClasspathIndex {
                 continue
             }
             let isSealedObject = info.isKotlinObject
-                && classes[owner].map { sealedInterfaceSubclasses(of: $0).contains(info.name) } == true
+                && classes[owner].map { sealedSubclasses(of: $0).contains(info.name) } == true
                 && !info.methods.contains { $0.isStatic && isExposed($0) }
             if isSealedObject {
                 source += indentation + visibility + "object `\(name)`"
@@ -439,14 +439,31 @@ final class JVMClasspathIndex {
             var inheritedInterfaces = info.interfaces
             var interfaceVisited: Set<String> = []
             var interfaceMethods: [String: JVMForeignMethod] = [:]
+            var inheritedConstantNames = Set(info.fields.map(\.name))
+            var inheritedConstants: [JVMForeignField] = []
+            func collectConstants(_ name: String) {
+                guard let base = hierarchyClasses[name] else { return }
+                for field in base.fields where field.isPublic && field.isStatic && field.isFinal {
+                    if inheritedConstantNames.insert(field.name).inserted {
+                        inheritedConstants.append(field)
+                    }
+                }
+                for parent in base.interfaces { collectConstants(parent) }
+            }
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
                 if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
+                    collectConstants(name)
                     return
                 }
                 guard let base = hierarchyClasses[name] else { return }
+                for field in base.fields where field.isPublic && field.isStatic && field.isFinal {
+                    if inheritedConstantNames.insert(field.name).inserted {
+                        inheritedConstants.append(field)
+                    }
+                }
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
@@ -466,6 +483,11 @@ final class JVMClasspathIndex {
             while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
+                for field in base.fields where field.isPublic && field.isStatic && field.isFinal {
+                    if inheritedConstantNames.insert(field.name).inserted {
+                        inheritedConstants.append(field)
+                    }
+                }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
                     if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
@@ -504,7 +526,7 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields + inheritedConstants)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
@@ -1637,8 +1659,9 @@ final class JVMClasspathIndex {
             source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
+            let runtimeFieldNames = Set(info.fields.compactMap { runtimeField($0) != nil ? $0.name : nil })
             for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
-                where isExposed(property.getter) {
+                where isExposed(property.getter) && !runtimeFieldNames.contains(name) {
                 let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
                 source += "val `\(name)`: \(type) get() = null!!\n"
             }

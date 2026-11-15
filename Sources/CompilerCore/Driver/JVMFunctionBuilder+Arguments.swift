@@ -200,8 +200,11 @@ extension JVMFunctionBuilder {
             instructions.append(.foreignCall(method, receiver: dispatch, arguments: [content], result: nil))
             return JVMIntrinsicResult(value: nil)
         }
+        var importedContextCount = 0
         if let method {
+            let before = prefix.count
             prefix += try importedContextArguments(binding, method: method, id: id)
+            importedContextCount = prefix.count - before
             if method.kotlinFunction?.valueOperatorParameterDescriptors != nil {
                 prefix.append(try receiverValue ?? receiver.map(requireValue) ?? instance(id))
             }
@@ -216,8 +219,13 @@ extension JVMFunctionBuilder {
         let types = Array(allTypes.dropFirst(prefix.count).dropLast(isComposable ? JVMCompose.suffix.count : 0))
         let signature = binding.flatMap { program.sema.symbols.functionSignature(for: $0.chosenCallee) }
         let contextParameterTypes = try (signature?.contextParameterTypes ?? []).map(program.type)
-        guard types.count >= contextParameterTypes.count else { throw fail("JVM context parameter signature mismatch.", id) }
-        let valueTypes = Array(types.dropFirst(contextParameterTypes.count))
+        // `importedContextArguments` already consumed the leading context slots
+        // via `prefix` — dropping the full context count again would eat the
+        // first value parameters.
+        let remainingContext = contextParameterTypes.count - importedContextCount
+        guard types.count >= remainingContext, remainingContext >= 0
+        else { throw fail("JVM context parameter signature mismatch.", id) }
+        let valueTypes = Array(types.dropFirst(remainingContext))
         let defaultSymbol = program.defaultOwner(binding?.defaultArgumentOwner ?? symbol)
         let defaultParameters = program.sourceParameters[defaultSymbol] ?? program.sourceParameters[symbol]
         let importedDefault = context.jvmImports?.importedDefaultMethods[symbol]
