@@ -100,12 +100,10 @@ func runtime_test_suspend_cancel_loop(_ continuation: Int, _ outThrown: UnsafeMu
         }
         return kk_kxmini_delay(5, continuation)
     }
-    // Resumed after delay — check cancellation again
     let cancelled = kk_coroutine_check_cancellation(continuation, outThrown)
     if cancelled != 0 {
         return 0
     }
-    // Loop: increment iteration counter, set label to 1 and delay again
     runtimeCoroutineTestState.recordCancelLoopIteration()
     _ = kk_coroutine_state_set_label(continuation, 1)
     return kk_kxmini_delay(5, continuation)
@@ -944,7 +942,6 @@ struct RuntimeCoroutineStateTests {
         let jobHandle = kk_kxmini_launch(entryRaw, runtimeKxMiniAsyncFunctionID)
         #expect(jobHandle != 0)
 
-        // Explicitly join the job and verify it completed successfully
         let result = kk_job_join(jobHandle, 0)
         #expect(result == 73)
 
@@ -1056,7 +1053,6 @@ struct RuntimeCoroutineStateTests {
             "Coroutine should have started"
         )
 
-        // Cancel the job
         _ = kk_job_cancel(jobHandle)
 
         // Join the job — should complete promptly after cancellation
