@@ -2338,8 +2338,24 @@ final class JVMClasspathIndex {
                     return
                 }
             }
-            let mangledMembers = info.methods.filter {
-                $0.sourceName == name && $0.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+            let mangledMembers = info.methods.filter { method in
+                guard method.sourceName == name,
+                      method.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+                else { return false }
+                // A value class and its underlying type share an erased
+                // descriptor (`Dp` erases to `F`), so descriptor equality
+                // alone would also match `foo(Float)` calls against a
+                // mangled `foo(Dp)` candidate — require the declared Kotlin
+                // parameter names to agree too.
+                guard let params = method.kotlinFunction?.parameters,
+                      params.count == signature.parameterTypes.count else { return false }
+                return zip(params, signature.parameterTypes).allSatisfy { param, callType in
+                    guard let declared = param.sourceType?.split(separator: ".").last.map(String.init),
+                          case let .classType(nominal) = typeSystem.kind(of: callType),
+                          let symbol = sema.symbols.symbol(nominal.classSymbol)
+                    else { return true }
+                    return ctx.interner.resolve(symbol.name) == declared
+                }
             }
             if mangledMembers.count == 1 {
                 methods[symbol.id] = mangledMembers[0]
