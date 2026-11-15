@@ -397,7 +397,6 @@ extension LoweringPassRegressionTests {
         #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        // Find the synthesized invoke wrapper.
         let wrapper = try closureWrapper(for: lambdaSym, in: module)
 
         // Wrapper should have params: (closureObj, valueParam).
