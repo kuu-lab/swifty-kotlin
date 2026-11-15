@@ -51,9 +51,12 @@ final class RuntimeJavaMethodRegistry: @unchecked Sendable {
         guard typeToken != 0, !method.name.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
-        var seen = seenMethodsByTypeToken[typeToken, default: []]
-        guard seen.insert(method).inserted else { return }
-        seenMethodsByTypeToken[typeToken] = seen
+        // Mutate through the subscript's `_modify` accessor: reading the Set
+        // into a local first would force a copy-on-write copy per insert and
+        // keep registration quadratic.
+        guard seenMethodsByTypeToken[typeToken, default: []].insert(method).inserted else {
+            return
+        }
         methodsByTypeToken[typeToken, default: []].append(method)
     }
 
