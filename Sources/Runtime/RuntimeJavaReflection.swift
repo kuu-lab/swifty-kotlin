@@ -41,15 +41,20 @@ struct RuntimeJavaMethodMetadata: Hashable {
 final class RuntimeJavaMethodRegistry: @unchecked Sendable {
     private let lock = NSLock()
     private var methodsByTypeToken: [Int: [RuntimeJavaMethodMetadata]] = [:]
+    // KUU-4591: insertion-ordered `methodsByTypeToken` is kept for
+    // `methods(for:)` determinism; dedup consults this Set instead of a
+    // linear `Array.contains` — startup reflect_init registers every
+    // declared method of every class, and the per-type scan made it O(N²).
+    private var seenMethodsByTypeToken: [Int: Set<RuntimeJavaMethodMetadata>] = [:]
 
     func register(typeToken: Int, method: RuntimeJavaMethodMetadata) {
         guard typeToken != 0, !method.name.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
-        var methods = methodsByTypeToken[typeToken, default: []]
-        guard !methods.contains(method) else { return }
-        methods.append(method)
-        methodsByTypeToken[typeToken] = methods
+        var seen = seenMethodsByTypeToken[typeToken, default: []]
+        guard seen.insert(method).inserted else { return }
+        seenMethodsByTypeToken[typeToken] = seen
+        methodsByTypeToken[typeToken, default: []].append(method)
     }
 
     func methods(for typeToken: Int) -> [RuntimeJavaMethodMetadata] {
@@ -70,6 +75,7 @@ final class RuntimeJavaMethodRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         methodsByTypeToken.removeAll()
+        seenMethodsByTypeToken.removeAll()
     }
 }
 
