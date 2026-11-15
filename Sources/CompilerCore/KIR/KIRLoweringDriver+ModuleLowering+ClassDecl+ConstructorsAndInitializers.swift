@@ -1961,6 +1961,20 @@ extension KIRLoweringDriver {
                     let getterContextParameterTypes = sema.symbols
                         .functionSignature(for: propertyReferenceAccessor.getterSymbol)?
                         .contextParameterTypes ?? []
+                    // `__kk_kproperty_stub_create_member` only seeds the
+                    // callable-metadata entry at arity 1. A context member
+                    // property is KPropertyN>1, so seed it the same way the
+                    // member-function path does — otherwise
+                    // `__kk_kcallable_register` finds no entry and the
+                    // invoker + parameter list are discarded.
+                    if !getterContextParameterTypes.isEmpty {
+                        body.append(.call(
+                            callee: interner.intern("kk_callable_ref_tag_kproperty"),
+                            arguments: [kpropResult, propNameExpr, propTypeExpr, propArityExpr],
+                            result: nil,
+                            canThrow: false
+                        ))
+                    }
                     lambdaLowerer.registerCallableReflection(
                         value: kpropResult,
                         callableSymbol: propertyReferenceAccessor.getterSymbol,
