@@ -443,8 +443,8 @@ final class JVMClasspathIndex {
             var inheritedConstants: [JVMForeignField] = []
             func collectConstants(_ name: String) {
                 guard let base = hierarchyClasses[name] else { return }
-                for field in base.fields where field.isPublic && field.isStatic && field.isFinal {
-                    if inheritedConstantNames.insert(field.name).inserted {
+                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
                         inheritedConstants.append(field)
                     }
                 }
@@ -459,8 +459,8 @@ final class JVMClasspathIndex {
                     return
                 }
                 guard let base = hierarchyClasses[name] else { return }
-                for field in base.fields where field.isPublic && field.isStatic && field.isFinal {
-                    if inheritedConstantNames.insert(field.name).inserted {
+                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
                         inheritedConstants.append(field)
                     }
                 }
@@ -483,8 +483,8 @@ final class JVMClasspathIndex {
             while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
-                for field in base.fields where field.isPublic && field.isStatic && field.isFinal {
-                    if inheritedConstantNames.insert(field.name).inserted {
+                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
                         inheritedConstants.append(field)
                     }
                 }
