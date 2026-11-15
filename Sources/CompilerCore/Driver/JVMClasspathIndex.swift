@@ -573,7 +573,7 @@ final class JVMClasspathIndex {
            let instance = metroSingleton(in: impl, named: "INSTANCE", type: name) {
             return instance
         }
-        return metroCompanionFactory(for: factoryInfo)
+        return nil
     }
 
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
@@ -2350,8 +2350,8 @@ final class JVMClasspathIndex {
                 guard let params = method.kotlinFunction?.parameters,
                       params.count == signature.parameterTypes.count else { return false }
                 return zip(params, signature.parameterTypes).allSatisfy { param, callType in
-                    guard let declared = param.sourceType?.split(separator: ".").last.map(String.init),
-                          case let .classType(nominal) = typeSystem.kind(of: callType),
+                    guard let declared = param.sourceType.split(separator: ".").last.map(String.init),
+                          case let .classType(nominal) = sema.types.kind(of: callType),
                           let symbol = sema.symbols.symbol(nominal.classSymbol)
                     else { return true }
                     return ctx.interner.resolve(symbol.name) == declared
