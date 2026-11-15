@@ -80,6 +80,7 @@ public fun IntArray.max(): Int {
     return result
 }
 
+||||||| d96966a9a1
 public fun <T> Array<out T>.indexOf(element: T): Int {
     var index = 0
     while (index < size) {
