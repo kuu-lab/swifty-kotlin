@@ -146,22 +146,23 @@ private func runtimeJDBCPrepare(
 
 @_cdecl("__kk_jdbc_open")
 public func kk_jdbc_open(_ urlRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let url = runtimeStringFromRaw(urlRaw), url.hasPrefix("jdbc:sqlite:") else {
-        runtimeJDBCSetError("Only jdbc:sqlite: URLs are supported", outThrown)
-        return 0
-    }
+    return runtimeThrowingBridge(outThrown) {
+        guard let url = runtimeStringFromRaw(urlRaw), url.hasPrefix("jdbc:sqlite:") else {
+            runtimeJDBCSetError("Only jdbc:sqlite: URLs are supported", outThrown)
+            return 0
+        }
 
-    let path = String(url.dropFirst("jdbc:sqlite:".count))
-    var database: OpaquePointer?
-    let result = path.withCString { sqlite3_open($0, &database) }
-    guard result == SQLITE_OK, let database else {
-        let message = runtimeJDBCErrorMessage(database, fallback: "Unable to open SQLite database")
-        if let database { _ = sqlite3_close_v2(database) }
-        runtimeJDBCSetError(message, outThrown)
-        return 0
+        let path = String(url.dropFirst("jdbc:sqlite:".count))
+        var database: OpaquePointer?
+        let result = path.withCString { sqlite3_open($0, &database) }
+        guard result == SQLITE_OK, let database else {
+            let message = runtimeJDBCErrorMessage(database, fallback: "Unable to open SQLite database")
+            if let database { _ = sqlite3_close_v2(database) }
+            runtimeJDBCSetError(message, outThrown)
+            return 0
+        }
+        return registerRuntimeObject(RuntimeJDBCConnectionBox(database: database))
     }
-    return registerRuntimeObject(RuntimeJDBCConnectionBox(database: database))
 }
 
 @_cdecl("__kk_jdbc_connection_is_closed")
@@ -175,16 +176,17 @@ public func kk_jdbc_connection_create_statement(
     _ connectionRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let connection = runtimeJDBCConnection(connectionRaw),
-          !connection.isClosed, connection.database != nil
-    else {
-        runtimeJDBCSetError("JDBC connection is closed or invalid", outThrown)
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let connection = runtimeJDBCConnection(connectionRaw),
+              !connection.isClosed, connection.database != nil
+        else {
+            runtimeJDBCSetError("JDBC connection is closed or invalid", outThrown)
+            return 0
+        }
+        let statement = RuntimeJDBCStatementBox(connection: connection, isPrepared: false)
+        connection.statements.append(statement)
+        return registerRuntimeObject(statement)
     }
-    let statement = RuntimeJDBCStatementBox(connection: connection, isPrepared: false)
-    connection.statements.append(statement)
-    return registerRuntimeObject(statement)
 }
 
 @_cdecl("__kk_jdbc_connection_prepare_statement")
@@ -193,30 +195,31 @@ public func kk_jdbc_connection_prepare_statement(
     _ sqlRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let connection = runtimeJDBCConnection(connectionRaw),
-          !connection.isClosed, let database = connection.database
-    else {
-        runtimeJDBCSetError("JDBC connection is closed or invalid", outThrown)
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let connection = runtimeJDBCConnection(connectionRaw),
+              !connection.isClosed, let database = connection.database
+        else {
+            runtimeJDBCSetError("JDBC connection is closed or invalid", outThrown)
+            return 0
+        }
+        guard let sql = runtimeStringFromRaw(sqlRaw) else {
+            runtimeJDBCSetError("Prepared statement SQL is invalid", outThrown)
+            return 0
+        }
+        let prepared = runtimeJDBCPrepare(database: database, sql: sql)
+        guard prepared.result == SQLITE_OK, let sqliteStatement = prepared.statement else {
+            if let sqliteStatement = prepared.statement { _ = sqlite3_finalize(sqliteStatement) }
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to prepare SQL"), outThrown)
+            return 0
+        }
+        let statement = RuntimeJDBCStatementBox(
+            connection: connection,
+            isPrepared: true,
+            sqliteStatement: sqliteStatement
+        )
+        connection.statements.append(statement)
+        return registerRuntimeObject(statement)
     }
-    guard let sql = runtimeStringFromRaw(sqlRaw) else {
-        runtimeJDBCSetError("Prepared statement SQL is invalid", outThrown)
-        return 0
-    }
-    let prepared = runtimeJDBCPrepare(database: database, sql: sql)
-    guard prepared.result == SQLITE_OK, let sqliteStatement = prepared.statement else {
-        if let sqliteStatement = prepared.statement { _ = sqlite3_finalize(sqliteStatement) }
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to prepare SQL"), outThrown)
-        return 0
-    }
-    let statement = RuntimeJDBCStatementBox(
-        connection: connection,
-        isPrepared: true,
-        sqliteStatement: sqliteStatement
-    )
-    connection.statements.append(statement)
-    return registerRuntimeObject(statement)
 }
 
 @_cdecl("__kk_jdbc_connection_close")
@@ -245,34 +248,35 @@ public func kk_jdbc_statement_execute_update(
     _ sqlRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
-          !statement.isPrepared, let database = statement.connection?.database
-    else {
-        if outThrown?.pointee == 0 { runtimeJDBCSetError("Statement is not a regular JDBC statement", outThrown) }
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
+              !statement.isPrepared, let database = statement.connection?.database
+        else {
+            if outThrown?.pointee == 0 { runtimeJDBCSetError("Statement is not a regular JDBC statement", outThrown) }
+            return 0
+        }
+        guard let sql = runtimeStringFromRaw(sqlRaw) else {
+            runtimeJDBCSetError("SQL is invalid", outThrown)
+            return 0
+        }
+        if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
+        let prepared = runtimeJDBCPrepare(database: database, sql: sql)
+        guard prepared.result == SQLITE_OK, let sqliteStatement = prepared.statement else {
+            if let sqliteStatement = prepared.statement { _ = sqlite3_finalize(sqliteStatement) }
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to prepare SQL"), outThrown)
+            return 0
+        }
+        var result = sqlite3_step(sqliteStatement)
+        while result == SQLITE_ROW {
+            result = sqlite3_step(sqliteStatement)
+        }
+        _ = sqlite3_finalize(sqliteStatement)
+        guard result == SQLITE_DONE else {
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to execute SQL"), outThrown)
+            return 0
+        }
+        return Int(sqlite3_changes(database))
     }
-    guard let sql = runtimeStringFromRaw(sqlRaw) else {
-        runtimeJDBCSetError("SQL is invalid", outThrown)
-        return 0
-    }
-    if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
-    let prepared = runtimeJDBCPrepare(database: database, sql: sql)
-    guard prepared.result == SQLITE_OK, let sqliteStatement = prepared.statement else {
-        if let sqliteStatement = prepared.statement { _ = sqlite3_finalize(sqliteStatement) }
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to prepare SQL"), outThrown)
-        return 0
-    }
-    var result = sqlite3_step(sqliteStatement)
-    while result == SQLITE_ROW {
-        result = sqlite3_step(sqliteStatement)
-    }
-    _ = sqlite3_finalize(sqliteStatement)
-    guard result == SQLITE_DONE else {
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to execute SQL"), outThrown)
-        return 0
-    }
-    return Int(sqlite3_changes(database))
 }
 
 @_cdecl("__kk_jdbc_statement_execute_query")
@@ -281,31 +285,32 @@ public func kk_jdbc_statement_execute_query(
     _ sqlRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
-          !statement.isPrepared, let database = statement.connection?.database
-    else {
-        if outThrown?.pointee == 0 { runtimeJDBCSetError("Statement is not a regular JDBC statement", outThrown) }
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
+              !statement.isPrepared, let database = statement.connection?.database
+        else {
+            if outThrown?.pointee == 0 { runtimeJDBCSetError("Statement is not a regular JDBC statement", outThrown) }
+            return 0
+        }
+        guard let sql = runtimeStringFromRaw(sqlRaw) else {
+            runtimeJDBCSetError("SQL is invalid", outThrown)
+            return 0
+        }
+        if let previousResult = statement.resultSet { runtimeJDBCCloseResultSet(previousResult) }
+        let prepared = runtimeJDBCPrepare(database: database, sql: sql)
+        guard prepared.result == SQLITE_OK, let sqliteStatement = prepared.statement else {
+            if let sqliteStatement = prepared.statement { _ = sqlite3_finalize(sqliteStatement) }
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to prepare query"), outThrown)
+            return 0
+        }
+        let resultSet = RuntimeJDBCResultSetBox(
+            statement: statement,
+            sqliteStatement: sqliteStatement,
+            ownsStatement: true
+        )
+        statement.resultSet = resultSet
+        return registerRuntimeObject(resultSet)
     }
-    guard let sql = runtimeStringFromRaw(sqlRaw) else {
-        runtimeJDBCSetError("SQL is invalid", outThrown)
-        return 0
-    }
-    if let previousResult = statement.resultSet { runtimeJDBCCloseResultSet(previousResult) }
-    let prepared = runtimeJDBCPrepare(database: database, sql: sql)
-    guard prepared.result == SQLITE_OK, let sqliteStatement = prepared.statement else {
-        if let sqliteStatement = prepared.statement { _ = sqlite3_finalize(sqliteStatement) }
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to prepare query"), outThrown)
-        return 0
-    }
-    let resultSet = RuntimeJDBCResultSetBox(
-        statement: statement,
-        sqliteStatement: sqliteStatement,
-        ownsStatement: true
-    )
-    statement.resultSet = resultSet
-    return registerRuntimeObject(resultSet)
 }
 
 @_cdecl("__kk_jdbc_statement_close")
@@ -365,25 +370,26 @@ public func kk_jdbc_prepared_statement_execute_update(
     _ statementRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
-          statement.isPrepared, let database = statement.connection?.database,
-          let sqliteStatement = statement.sqliteStatement
-    else {
-        if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement is invalid", outThrown) }
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
+              statement.isPrepared, let database = statement.connection?.database,
+              let sqliteStatement = statement.sqliteStatement
+        else {
+            if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement is invalid", outThrown) }
+            return 0
+        }
+        if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
+        _ = sqlite3_reset(sqliteStatement)
+        var result = sqlite3_step(sqliteStatement)
+        while result == SQLITE_ROW {
+            result = sqlite3_step(sqliteStatement)
+        }
+        guard result == SQLITE_DONE else {
+            runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to execute prepared SQL"), outThrown)
+            return 0
+        }
+        return Int(sqlite3_changes(database))
     }
-    if let resultSet = statement.resultSet { runtimeJDBCCloseResultSet(resultSet) }
-    _ = sqlite3_reset(sqliteStatement)
-    var result = sqlite3_step(sqliteStatement)
-    while result == SQLITE_ROW {
-        result = sqlite3_step(sqliteStatement)
-    }
-    guard result == SQLITE_DONE else {
-        runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to execute prepared SQL"), outThrown)
-        return 0
-    }
-    return Int(sqlite3_changes(database))
 }
 
 @_cdecl("__kk_jdbc_prepared_statement_execute_query")
@@ -391,22 +397,23 @@ public func kk_jdbc_prepared_statement_execute_query(
     _ statementRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
-          statement.isPrepared, let sqliteStatement = statement.sqliteStatement
-    else {
-        if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement is invalid", outThrown) }
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let statement = runtimeJDBCCheckStatement(statementRaw, outThrown: outThrown),
+              statement.isPrepared, let sqliteStatement = statement.sqliteStatement
+        else {
+            if outThrown?.pointee == 0 { runtimeJDBCSetError("Prepared statement is invalid", outThrown) }
+            return 0
+        }
+        if let previousResult = statement.resultSet { runtimeJDBCCloseResultSet(previousResult) }
+        _ = sqlite3_reset(sqliteStatement)
+        let resultSet = RuntimeJDBCResultSetBox(
+            statement: statement,
+            sqliteStatement: sqliteStatement,
+            ownsStatement: false
+        )
+        statement.resultSet = resultSet
+        return registerRuntimeObject(resultSet)
     }
-    if let previousResult = statement.resultSet { runtimeJDBCCloseResultSet(previousResult) }
-    _ = sqlite3_reset(sqliteStatement)
-    let resultSet = RuntimeJDBCResultSetBox(
-        statement: statement,
-        sqliteStatement: sqliteStatement,
-        ownsStatement: false
-    )
-    statement.resultSet = resultSet
-    return registerRuntimeObject(resultSet)
 }
 
 @_cdecl("__kk_jdbc_result_set_is_closed")
@@ -420,22 +427,23 @@ public func kk_jdbc_result_set_next(
     _ resultSetRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let resultSet = runtimeJDBCResultSet(resultSetRaw), !resultSet.isClosed,
-          !resultSet.statement.isClosed, let database = resultSet.statement.connection?.database
-    else {
-        runtimeJDBCSetError("JDBC result set is closed or invalid", outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        guard let resultSet = runtimeJDBCResultSet(resultSetRaw), !resultSet.isClosed,
+              !resultSet.statement.isClosed, let database = resultSet.statement.connection?.database
+        else {
+            runtimeJDBCSetError("JDBC result set is closed or invalid", outThrown)
+            return 0
+        }
+        let result = sqlite3_step(resultSet.sqliteStatement)
+        if result == SQLITE_ROW {
+            resultSet.hasCurrentRow = true
+            return 1
+        }
+        resultSet.hasCurrentRow = false
+        if result == SQLITE_DONE { return 0 }
+        runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to advance result set"), outThrown)
         return 0
     }
-    let result = sqlite3_step(resultSet.sqliteStatement)
-    if result == SQLITE_ROW {
-        resultSet.hasCurrentRow = true
-        return 1
-    }
-    resultSet.hasCurrentRow = false
-    if result == SQLITE_DONE { return 0 }
-    runtimeJDBCSetError(runtimeJDBCErrorMessage(database, fallback: "Unable to advance result set"), outThrown)
-    return 0
 }
 
 private func runtimeJDBCColumn(
@@ -459,9 +467,10 @@ public func kk_jdbc_result_set_get_int(
     _ columnIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let column = runtimeJDBCColumn(resultSetRaw, columnIndex: columnIndex, outThrown: outThrown) else { return 0 }
-    return Int(sqlite3_column_int(column.resultSet.sqliteStatement, column.index))
+    return runtimeThrowingBridge(outThrown) {
+        guard let column = runtimeJDBCColumn(resultSetRaw, columnIndex: columnIndex, outThrown: outThrown) else { return 0 }
+        return Int(sqlite3_column_int(column.resultSet.sqliteStatement, column.index))
+    }
 }
 
 @_cdecl("__kk_jdbc_result_set_get_string")
@@ -470,13 +479,14 @@ public func kk_jdbc_result_set_get_string(
     _ columnIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let column = runtimeJDBCColumn(resultSetRaw, columnIndex: columnIndex, outThrown: outThrown) else { return 0 }
-    guard let text = sqlite3_column_text(column.resultSet.sqliteStatement, column.index) else {
-        return runtimeMakeStringRaw("")
+    return runtimeThrowingBridge(outThrown) {
+        guard let column = runtimeJDBCColumn(resultSetRaw, columnIndex: columnIndex, outThrown: outThrown) else { return 0 }
+        guard let text = sqlite3_column_text(column.resultSet.sqliteStatement, column.index) else {
+            return runtimeMakeStringRaw("")
+        }
+        let cString = UnsafeRawPointer(text).assumingMemoryBound(to: CChar.self)
+        return runtimeMakeStringRaw(String(cString: cString))
     }
-    let cString = UnsafeRawPointer(text).assumingMemoryBound(to: CChar.self)
-    return runtimeMakeStringRaw(String(cString: cString))
 }
 
 @_cdecl("__kk_jdbc_result_set_get_double")
@@ -485,10 +495,11 @@ public func kk_jdbc_result_set_get_double(
     _ columnIndex: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let column = runtimeJDBCColumn(resultSetRaw, columnIndex: columnIndex, outThrown: outThrown) else { return 0 }
-    let value = sqlite3_column_double(column.resultSet.sqliteStatement, column.index)
-    return Int(bitPattern: UInt(value.bitPattern))
+    return runtimeThrowingBridge(outThrown) {
+        guard let column = runtimeJDBCColumn(resultSetRaw, columnIndex: columnIndex, outThrown: outThrown) else { return 0 }
+        let value = sqlite3_column_double(column.resultSet.sqliteStatement, column.index)
+        return Int(bitPattern: UInt(value.bitPattern))
+    }
 }
 
 @_cdecl("__kk_jdbc_result_set_close")

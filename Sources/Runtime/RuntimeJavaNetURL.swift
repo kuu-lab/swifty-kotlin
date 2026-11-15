@@ -172,16 +172,17 @@ private func javaNetPerformConnect(
 
 @_cdecl("__kk_net_url_open_stream")
 public func __kk_net_url_open_stream(_ specRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let spec = javaNetURLString(specRaw) ?? ""
-    let box = RuntimeURLConnectionBox(spec: spec)
-    guard javaNetPerformConnect(box, serializedHeaders: "", connectTimeoutMs: 0, readTimeoutMs: 0, outThrown: outThrown) else {
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let spec = javaNetURLString(specRaw) ?? ""
+        let box = RuntimeURLConnectionBox(spec: spec)
+        guard javaNetPerformConnect(box, serializedHeaders: "", connectTimeoutMs: 0, readTimeoutMs: 0, outThrown: outThrown) else {
+            return 0
+        }
+        return runtimeRegisterIoStream(
+            RuntimeInputStreamBox(data: box.bodyData),
+            fqName: "java.io.InputStream", input: true
+        )
     }
-    return runtimeRegisterIoStream(
-        RuntimeInputStreamBox(data: box.bodyData),
-        fqName: "java.io.InputStream", input: true
-    )
 }
 
 @_cdecl("__kk_net_url_connection_new")
@@ -218,15 +219,16 @@ public func __kk_net_url_connection_connect(
 
 @_cdecl("__kk_net_url_connection_input_stream")
 public func __kk_net_url_connection_input_stream(_ boxRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let box = javaNetURLConnection(boxRaw), box.connected else {
-        outThrown?.pointee = runtimeAllocateIOException(message: "not connected")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetURLConnection(boxRaw), box.connected else {
+            outThrown?.pointee = runtimeAllocateIOException(message: "not connected")
+            return 0
+        }
+        return runtimeRegisterIoStream(
+            RuntimeInputStreamBox(data: box.bodyData),
+            fqName: "java.io.InputStream", input: true
+        )
     }
-    return runtimeRegisterIoStream(
-        RuntimeInputStreamBox(data: box.bodyData),
-        fqName: "java.io.InputStream", input: true
-    )
 }
 
 private final class RuntimeURLConnectionBodySink: RuntimeOutputStreamSink {
@@ -246,15 +248,16 @@ private final class RuntimeURLConnectionBodySink: RuntimeOutputStreamSink {
 
 @_cdecl("__kk_net_url_connection_output_stream")
 public func __kk_net_url_connection_output_stream(_ boxRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let box = javaNetURLConnection(boxRaw) else {
-        outThrown?.pointee = runtimeAllocateIOException(message: "invalid connection")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetURLConnection(boxRaw) else {
+            outThrown?.pointee = runtimeAllocateIOException(message: "invalid connection")
+            return 0
+        }
+        return runtimeRegisterIoStream(
+            RuntimeOutputStreamBox(sink: RuntimeURLConnectionBodySink(box: box)),
+            fqName: "java.io.OutputStream", input: false
+        )
     }
-    return runtimeRegisterIoStream(
-        RuntimeOutputStreamBox(sink: RuntimeURLConnectionBodySink(box: box)),
-        fqName: "java.io.OutputStream", input: false
-    )
 }
 
 @_cdecl("__kk_net_url_connection_body_text")
@@ -344,20 +347,21 @@ public func __kk_awt_is_headless() -> Int {
 
 @_cdecl("__kk_awt_pointer_location")
 public func __kk_awt_pointer_location(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if runtimeIsHeadless() {
-        outThrown?.pointee = runtimeAllocateJavaNetExceptionShared(
-            "java.awt.HeadlessException", "HeadlessException",
-            ["java.lang.UnsupportedOperationException", "kotlin.UnsupportedOperationException",
-             "kotlin.RuntimeException"], nil)
+    return runtimeThrowingBridge(outThrown) {
+        if runtimeIsHeadless() {
+            outThrown?.pointee = runtimeAllocateJavaNetExceptionShared(
+                "java.awt.HeadlessException", "HeadlessException",
+                ["java.lang.UnsupportedOperationException", "kotlin.UnsupportedOperationException",
+                 "kotlin.RuntimeException"], nil)
+            return 0
+        }
+        #if canImport(CoreGraphics)
+        let point = CGEvent(source: nil)?.location ?? .zero
+        let x = UInt64(UInt32(truncatingIfNeeded: Int64(bitPattern: UInt64(Int(point.x)))))
+        let y = UInt64(UInt32(truncatingIfNeeded: Int64(bitPattern: UInt64(Int(point.y)))))
+        return Int(x << 32 | y)
+        #else
         return 0
+        #endif
     }
-    #if canImport(CoreGraphics)
-    let point = CGEvent(source: nil)?.location ?? .zero
-    let x = UInt64(UInt32(truncatingIfNeeded: Int64(bitPattern: UInt64(Int(point.x)))))
-    let y = UInt64(UInt32(truncatingIfNeeded: Int64(bitPattern: UInt64(Int(point.y)))))
-    return Int(x << 32 | y)
-    #else
-    return 0
-    #endif
 }

@@ -162,14 +162,15 @@ private func javaNetResolveAll(_ host: String) -> [String] {
 
 @_cdecl("__kk_net_resolve")
 public func __kk_net_resolve(_ hostRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let host = javaNetString(hostRaw) ?? ""
-    let addresses = javaNetResolveAll(host)
-    if addresses.isEmpty {
-        outThrown?.pointee = runtimeAllocateUnknownHostException(host)
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        let host = javaNetString(hostRaw) ?? ""
+        let addresses = javaNetResolveAll(host)
+        if addresses.isEmpty {
+            outThrown?.pointee = runtimeAllocateUnknownHostException(host)
+            return 0
+        }
+        return runtimeMakeUTF8StringRaw(addresses.joined(separator: " "))
     }
-    return runtimeMakeUTF8StringRaw(addresses.joined(separator: " "))
 }
 
 @_cdecl("__kk_net_reverse_lookup")
@@ -611,28 +612,30 @@ public func __kk_net_socket_bind(
 
 @_cdecl("__kk_net_socket_input_stream")
 public func __kk_net_socket_input_stream(_ boxRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let box = javaNetSocket(boxRaw), box.connected, !box.closed else {
-        outThrown?.pointee = runtimeAllocateSocketException("Socket is not connected")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetSocket(boxRaw), box.connected, !box.closed else {
+            outThrown?.pointee = runtimeAllocateSocketException("Socket is not connected")
+            return 0
+        }
+        return runtimeRegisterIoStream(
+            RuntimeSocketInputStreamBox(socket: box),
+            fqName: "java.io.InputStream", input: true
+        )
     }
-    return runtimeRegisterIoStream(
-        RuntimeSocketInputStreamBox(socket: box),
-        fqName: "java.io.InputStream", input: true
-    )
 }
 
 @_cdecl("__kk_net_socket_output_stream")
 public func __kk_net_socket_output_stream(_ boxRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let box = javaNetSocket(boxRaw), box.connected, !box.closed else {
-        outThrown?.pointee = runtimeAllocateSocketException("Socket is not connected")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetSocket(boxRaw), box.connected, !box.closed else {
+            outThrown?.pointee = runtimeAllocateSocketException("Socket is not connected")
+            return 0
+        }
+        return runtimeRegisterIoStream(
+            RuntimeOutputStreamBox(sink: RuntimeSocketOutputSink(socket: box)),
+            fqName: "java.io.OutputStream", input: false
+        )
     }
-    return runtimeRegisterIoStream(
-        RuntimeOutputStreamBox(sink: RuntimeSocketOutputSink(socket: box)),
-        fqName: "java.io.OutputStream", input: false
-    )
 }
 
 @_cdecl("__kk_net_socket_close")
@@ -854,58 +857,59 @@ public func __kk_net_server_socket_bind(
 
 @_cdecl("__kk_net_server_socket_accept")
 public func __kk_net_server_socket_accept(_ boxRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let box = javaNetServerSocket(boxRaw), box.fd >= 0, !box.closed else {
-        outThrown?.pointee = runtimeAllocateSocketException("Socket is closed")
-        return 0
-    }
-    if box.soTimeoutMillis > 0 {
-        var pollFd = pollfd(fd: box.fd, events: Int16(POLLIN), revents: 0)
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = javaNetServerSocket(boxRaw), box.fd >= 0, !box.closed else {
+            outThrown?.pointee = runtimeAllocateSocketException("Socket is closed")
+            return 0
+        }
+        if box.soTimeoutMillis > 0 {
+            var pollFd = pollfd(fd: box.fd, events: Int16(POLLIN), revents: 0)
+            let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
+            let ready = poll(&pollFd, 1, Int32(box.soTimeoutMillis))
+            if gcBlocking { runtimeGCSafepoints.endBlocking() }
+            if ready == 0 {
+                outThrown?.pointee = runtimeAllocateSocketTimeoutException("Accept timed out")
+                return 0
+            }
+            if ready < 0 {
+                outThrown?.pointee = runtimeAllocateSocketException(javaNetErrorMessage(errno))
+                return 0
+            }
+        }
+        var peer = sockaddr_storage()
+        var peerLen = socklen_t(MemoryLayout<sockaddr_storage>.size)
         let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-        let ready = poll(&pollFd, 1, Int32(box.soTimeoutMillis))
+        let clientFd = withUnsafeMutablePointer(to: &peer) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                accept(box.fd, $0, &peerLen)
+            }
+        }
         if gcBlocking { runtimeGCSafepoints.endBlocking() }
-        if ready == 0 {
-            outThrown?.pointee = runtimeAllocateSocketTimeoutException("Accept timed out")
+        guard clientFd >= 0 else {
+            let acceptErrno = errno
+            if acceptErrno == EAGAIN || acceptErrno == EWOULDBLOCK {
+                outThrown?.pointee = runtimeAllocateSocketTimeoutException("Accept timed out")
+            } else {
+                outThrown?.pointee = runtimeAllocateSocketException(javaNetErrorMessage(acceptErrno))
+            }
             return 0
         }
-        if ready < 0 {
-            outThrown?.pointee = runtimeAllocateSocketException(javaNetErrorMessage(errno))
-            return 0
+        let client = RuntimeJavaNetSocketBox()
+        client.fd = clientFd
+        client.connected = true
+        client.bound = true
+        var hostBuffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        var servBuffer = [CChar](repeating: 0, count: Int(NI_MAXSERV))
+        _ = withUnsafePointer(to: &peer) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                getnameinfo($0, peerLen, &hostBuffer, socklen_t(hostBuffer.count), &servBuffer, socklen_t(servBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV)
+            }
         }
+        client.remoteAddress = javaNetNumericHost(String(cString: hostBuffer))
+        client.remotePort = Int(String(cString: servBuffer)) ?? -1
+        client.refreshLocalPeer()
+        return registerRuntimeObject(client)
     }
-    var peer = sockaddr_storage()
-    var peerLen = socklen_t(MemoryLayout<sockaddr_storage>.size)
-    let gcBlocking = runtimeGCSafepoints.beginBlockingIfEnrolled()
-    let clientFd = withUnsafeMutablePointer(to: &peer) { ptr in
-        ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-            accept(box.fd, $0, &peerLen)
-        }
-    }
-    if gcBlocking { runtimeGCSafepoints.endBlocking() }
-    guard clientFd >= 0 else {
-        let acceptErrno = errno
-        if acceptErrno == EAGAIN || acceptErrno == EWOULDBLOCK {
-            outThrown?.pointee = runtimeAllocateSocketTimeoutException("Accept timed out")
-        } else {
-            outThrown?.pointee = runtimeAllocateSocketException(javaNetErrorMessage(acceptErrno))
-        }
-        return 0
-    }
-    let client = RuntimeJavaNetSocketBox()
-    client.fd = clientFd
-    client.connected = true
-    client.bound = true
-    var hostBuffer = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-    var servBuffer = [CChar](repeating: 0, count: Int(NI_MAXSERV))
-    _ = withUnsafePointer(to: &peer) { ptr in
-        ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-            getnameinfo($0, peerLen, &hostBuffer, socklen_t(hostBuffer.count), &servBuffer, socklen_t(servBuffer.count), NI_NUMERICHOST | NI_NUMERICSERV)
-        }
-    }
-    client.remoteAddress = javaNetNumericHost(String(cString: hostBuffer))
-    client.remotePort = Int(String(cString: servBuffer)) ?? -1
-    client.refreshLocalPeer()
-    return registerRuntimeObject(client)
 }
 
 @_cdecl("__kk_net_server_socket_close")
