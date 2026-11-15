@@ -588,7 +588,6 @@ struct RuntimeChannelTests {
         #expect(kk_channel_send(channelHandle, 10, 0) == kChannelResultSuccess)
         #expect(kk_channel_send(channelHandle, 20, 0) == kChannelResultSuccess)
 
-        // Receive both in order.
         #expect(channelReceiveValue(channelHandle, 0) == 10)
         #expect(channelReceiveValue(channelHandle, 0) == 20)
 
@@ -761,7 +760,6 @@ struct RuntimeChannelTests {
     @Test func isClosedTokenEndToEndCloseThenDrain() {
         let ch = kk_channel_create(2)
 
-        // Send two values, then close.
         _ = kk_channel_send(ch, 100, 0)
         _ = kk_channel_send(ch, 200, 0)
         _ = kk_channel_close(ch)
@@ -939,10 +937,8 @@ struct RuntimeChannelTests {
         contState.jobHandle = job
         job.continuationState = contState
 
-        // Cancel the job.
         _ = job.cancel()
 
-        // Get the continuation as an opaque Int.
         let contPtr = Unmanaged.passRetained(contState).toOpaque()
         let contInt = Int(bitPattern: contPtr)
 
@@ -952,7 +948,6 @@ struct RuntimeChannelTests {
         #expect(kk_channel_is_closed_token(result) == 1,
                 "send() with cancelled continuation should return the closed sentinel")
 
-        // Clean up.
         Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
         _ = kk_channel_close(ch)
     }
@@ -966,10 +961,8 @@ struct RuntimeChannelTests {
         contState.jobHandle = job
         job.continuationState = contState
 
-        // Cancel the job.
         _ = job.cancel()
 
-        // Get the continuation as an opaque Int.
         let contPtr = Unmanaged.passRetained(contState).toOpaque()
         let contInt = Int(bitPattern: contPtr)
 
@@ -979,7 +972,6 @@ struct RuntimeChannelTests {
         #expect(kk_channel_is_closed_token(result) == 1,
                 "receive() with cancelled continuation should return failure status")
 
-        // Clean up.
         Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
         _ = kk_channel_close(ch)
     }
