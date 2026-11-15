@@ -1661,8 +1661,9 @@ final class JVMClasspathIndex {
             source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
+            let runtimeFieldNames = Set(info.fields.compactMap { runtimeField($0) != nil ? $0.name : nil })
             for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
-                where isExposed(property.getter) {
+                where isExposed(property.getter) && !runtimeFieldNames.contains(name) {
                 let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
                 source += "val `\(name)`: \(type) get() = null!!\n"
             }
