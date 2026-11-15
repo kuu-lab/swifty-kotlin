@@ -62,7 +62,9 @@ extension JVMClasspathIndex {
                 source = String(source.prefix { $0 != "<" })
                 remaining.removeFirst()
                 var arguments: [String] = []
+                var argumentIndex = 0
                 while let marker = remaining.first, marker != ">" {
+                    defer { argumentIndex += 1 }
                     if marker == "*" {
                         remaining.removeFirst()
                         arguments.append("*")
@@ -84,15 +86,19 @@ extension JVMClasspathIndex {
                         // collections is rejected, so `List<? super X>` is
                         // exposed as `MutableList<in X>` — Java collections
                         // are mutable anyway and the lower bound survives.
-                        let readonlyToMutable = [
-                            "kotlin.collections.List": "kotlin.collections.MutableList",
-                            "kotlin.collections.Set": "kotlin.collections.MutableSet",
-                            "kotlin.collections.Map": "kotlin.collections.MutableMap",
-                            "kotlin.collections.Iterable": "kotlin.collections.MutableIterable",
-                            "kotlin.collections.Collection": "kotlin.collections.MutableCollection",
+                        // Map's key is invariant — `Map<in K, V>` is valid
+                        // there, so only covariant positions swap to Mutable.
+                        let covariantArguments: [String: Set<Int>] = [
+                            "kotlin.collections.List": [0],
+                            "kotlin.collections.Set": [0],
+                            "kotlin.collections.Map": [1],
+                            "kotlin.collections.Iterable": [0],
+                            "kotlin.collections.Collection": [0],
                         ]
-                        for (readonly, mutable) in readonlyToMutable where source.hasPrefix(readonly + "<") || source == readonly {
-                            source = mutable + source.dropFirst(readonly.count)
+                        for (readonly, positions) in covariantArguments
+                        where positions.contains(argumentIndex)
+                            && (source.hasPrefix(readonly + "<") || source == readonly) {
+                            source = "kotlin.collections.Mutable" + source.dropFirst("kotlin.collections.".count)
                             break
                         }
                     } else {
