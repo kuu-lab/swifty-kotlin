@@ -27,7 +27,6 @@ extension CallLowerer {
         )
         let capturedMap = driver.ctx.popPowerAssertCapture()
 
-        // Deduplicate columns while preserving capture entries
         var uniqueCaptures: [(columnOffset: Int, valueID: KIRExprID, type: TypeID)] = []
         var seenCols: Set<Int> = []
         for cap in info.captureExprs {
@@ -223,7 +222,6 @@ extension CallLowerer {
         }
         let headerAndPipes = callLineText + "\n" + String(pipesChars) + "\n"
 
-        // Start accumulating result string
         let headerInterned = interner.intern(headerAndPipes)
         var accExpr: KIRExprID = arena.appendExpr(.stringLiteral(headerInterned), type: stringType)
         instructions.append(.constValue(result: accExpr, value: .stringLiteral(headerInterned)))
