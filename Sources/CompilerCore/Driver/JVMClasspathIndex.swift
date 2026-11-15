@@ -2363,7 +2363,14 @@ final class JVMClasspathIndex {
                 guard let params = method.kotlinFunction?.parameters,
                       params.count == signature.parameterTypes.count else { return false }
                 return zip(params, signature.parameterTypes).allSatisfy { param, callType in
-                    let declaredName = param.sourceType.split(separator: ".").last.map(String.init)?.replacingOccurrences(of: "?", with: "")
+                    // `fixture.Box<kotlin.String>` must compare as `Box`:
+                    // drop generic arguments before taking the last path
+                    // component, or `.last` returns `String>`.
+                    let declaredName = param.sourceType
+                        .split(separator: "<").first
+                        .flatMap { $0.split(separator: ".").last }
+                        .map(String.init)?
+                        .replacingOccurrences(of: "?", with: "")
                     guard let declared = declaredName,
                           case let .classType(nominal) = sema.types.kind(of: callType),
                           let symbol = sema.symbols.symbol(nominal.classSymbol)
