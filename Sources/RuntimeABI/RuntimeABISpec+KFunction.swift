@@ -19,25 +19,10 @@ public extension RuntimeABISpec {
     ]
 
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [
-        RuntimeABIFunctionSpec(
-            name: "__kk_kcallable_register_annotation_factory",
-            parameters: ["callableRaw", "fqNameRaw", "argsEncodedRaw", "argCount", "factory"].map {
-                RuntimeABIParameter(name: $0, type: .intptr)
-            }, returnType: .intptr, section: "Reflection", isThrowing: false
-        ),
+        abi.nt("__kk_kcallable_register_annotation_factory", "callableRaw fqNameRaw argsEncodedRaw argCount factory"),
         abi.th("__kk_kcallable_get_annotations_typed", "callableRaw outThrown"),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kcallable_register_single_annotation",
-            parameters: ["callableRaw", "fqNameRaw", "argsEncodedRaw", "argCount"].map {
-                RuntimeABIParameter(name: $0, type: .intptr)
-            }, returnType: .intptr, section: "Reflection", isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_kcallable_register",
-            parameters: ["raw", "invoker", "environment", "parameters", "typeParameters", "flags", "visibility", "setterInvoker", "setterParameters"].map {
-                RuntimeABIParameter(name: $0, type: .intptr)
-            }, returnType: .intptr, section: "Reflection", isThrowing: false
-        ),
+        abi.nt("__kk_kcallable_register_single_annotation", "callableRaw fqNameRaw argsEncodedRaw argCount"),
+        abi.nt("__kk_kcallable_register", "raw invoker environment parameters typeParameters flags visibility setterInvoker setterParameters"),
         abi.nt("__kk_kcallable_register_return_type", "raw returnTypeKTypeRaw"),
         abi.nt("__kk_kcallable_set_visibility", "raw visibilityOrdinal"),
         abi.nt("__kk_kcallable_is_runtime", "raw"),

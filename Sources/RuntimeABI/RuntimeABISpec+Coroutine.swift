@@ -173,17 +173,9 @@ public extension RuntimeABISpec {
         // terminal status through outThrown (ClosedReceiveChannelException /
         // CancellationException) instead of returning a default payload.
         abi.th("kk_channel_receive", "handle continuation outValue:nullableIntptrPointer outThrown"),
-        RuntimeABIFunctionSpec(
-            name: "kk_channel_close",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine",
-            // KSP-678: bridged from bundled Kotlin (Channels.kt) as a plain
-            // Int-returning residual; it does not use the outThrown ABI path.
-            isThrowing: false
-        ),
+        // KSP-678: bridged from bundled Kotlin (Channels.kt) as a plain
+        // Int-returning residual; it does not use the outThrown ABI path.
+        abi.nt("kk_channel_close", "handle"),
         abi.th("kk_channel_is_closed_token", "status"),
         abi.nt("__kk_channel_create_with_policy", "capacity onBufferOverflow"),
         abi.nt("__kk_channel_invoke_on_close", "handle handlerFnPtr handlerClosureRaw"),
