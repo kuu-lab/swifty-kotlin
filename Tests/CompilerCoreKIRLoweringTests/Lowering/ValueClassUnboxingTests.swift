@@ -130,7 +130,6 @@ struct ValueClassUnboxingTests {
                        let sym = ctx.sema?.symbols.symbol(symbol),
                        sym.kind == .constructor,
                        sym.flags.contains(.valueType) || {
-                           // Check if the parent class is a value class
                            guard let parentID = ctx.sema?.symbols.parentSymbol(for: symbol),
                                  let parentSym = ctx.sema?.symbols.symbol(parentID)
                            else { return false }
@@ -176,7 +175,6 @@ struct ValueClassUnboxingTests {
                    callee == kk_array_get_inbounds,
                    arguments.count == 2
                 {
-                    // Check if the receiver argument has a value class type
                     if let receiverType = module.arena.exprType(arguments[0]),
                        case let .classType(classType) = ctx.sema?.types.kind(of: receiverType),
                        let sym = ctx.sema?.symbols.symbol(classType.classSymbol),
