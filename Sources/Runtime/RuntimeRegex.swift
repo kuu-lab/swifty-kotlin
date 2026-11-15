@@ -591,11 +591,15 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     if index + 2 < chars.count, chars[index + 2] == "{" {
                         var end = index + 3
                         var value = 0
+                        var overflow = false
                         while end < chars.count, chars[end] != "}", let d = chars[end].hexDigitValue {
-                            value = value * 16 + d
+                            let (shifted, mulOverflow) = value.multipliedReportingOverflow(by: 16)
+                            let (next, addOverflow) = shifted.addingReportingOverflow(d)
+                            overflow = overflow || mulOverflow || addOverflow
+                            value = next
                             end += 1
                         }
-                        if end < chars.count, chars[end] == "}",
+                        if !overflow, end < chars.count, chars[end] == "}",
                            let rewritten = regexMarkerSpaceScalarReplacement(value) {
                             out.append(rewritten)
                             index = end + 1
@@ -2003,9 +2007,14 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
                 var j = i + 2, value = 0
                 if j < chars.count, chars[j] == "{" {
                     j += 1
+                    var overflow = false
                     while j < chars.count - 1, chars[j] != "}", let d = chars[j].hexDigitValue {
-                        value = value * 16 + d; j += 1
+                        let (shifted, mulOverflow) = value.multipliedReportingOverflow(by: 16)
+                        let (next, addOverflow) = shifted.addingReportingOverflow(d)
+                        overflow = overflow || mulOverflow || addOverflow
+                        value = next; j += 1
                     }
+                    if overflow { return nil }
                     guard j < chars.count - 1, chars[j] == "}" else { return nil }
                     i = j + 1
                     return (value, String(chars[start..<j + 1]))
