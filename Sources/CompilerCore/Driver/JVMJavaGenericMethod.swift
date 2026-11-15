@@ -29,7 +29,11 @@ extension JVMClasspathIndex {
                 // `Ljava/lang/Integer;` — render the bound nullable so the
                 // erasure stays boxed.
                 if ["kotlin.Int","kotlin.Long","kotlin.Short","kotlin.Byte",
-                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double"].contains(source) {
+                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double",
+                    // A leading `Ljava/lang/Object;` bound is Java's default —
+                    // Kotlin's `Any?`, not the non-null `Any`; otherwise
+                    // `Box<String?>` would violate the synthesized bound.
+                    "kotlin.Any"].contains(source) {
                     source += "?"
                 }
                 bounds.append("`\(name)`: " + source)
