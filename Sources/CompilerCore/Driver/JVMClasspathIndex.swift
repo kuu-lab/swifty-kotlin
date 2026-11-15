@@ -542,6 +542,22 @@ final class JVMClasspathIndex {
             || name == "kotlin/Unit" || name == "kotlin/Nothing"
     }
 
+    // A function type marker "->" only counts at the top level of the
+    // source type — `List<() -> Unit>` still carries a `List` on the JVM.
+    private func sourceTypeIsTopLevelFunction(_ sourceType: String) -> Bool {
+        var depth = 0
+        var i = sourceType.startIndex
+        while i < sourceType.endIndex {
+            let c = sourceType[i]
+            if c == "<" { depth += 1 }
+            else if c == ">" { depth -= 1 }
+            else if depth == 0, c == "-",
+                    sourceType[sourceType.index(after: i)] == ">" { return true }
+            i = sourceType.index(after: i)
+        }
+        return false
+    }
+
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
         if method.isReifiedGlanceAction { return false }
         let exposedName = method.sourceName
@@ -561,7 +577,7 @@ final class JVMClasspathIndex {
                     let parameterIndex = index - function.leadingParameterCount
                     if composable.contains(parameterIndex)
                         || function.parameters.indices.contains(parameterIndex)
-                            && function.parameters[parameterIndex].sourceType.contains("->") {
+                            && sourceTypeIsTopLevelFunction(function.parameters[parameterIndex].sourceType) {
                         return type.referenceName?.hasPrefix("kotlin/jvm/functions/Function") == true
                     }
                     return exposeSuspendType(type)
