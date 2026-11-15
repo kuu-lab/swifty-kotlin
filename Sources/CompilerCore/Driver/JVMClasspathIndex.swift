@@ -594,14 +594,6 @@ final class JVMClasspathIndex {
         return metroCompanionFactory(for: factoryInfo)
     }
 
-    func metroFactoryInstance(_ factory: String) -> JVMField? {
-        let name = factory + "$Impl"
-        guard hierarchyClasses[factory]?.annotations.contains(where: { $0.descriptor == JVMMetro.factory }) == true,
-              let impl = hierarchyClasses[name], impl.flags & 1 != 0, impl.interfaces.contains(factory),
-              impl.annotations.contains(where: { $0.descriptor == JVMMetro.implementation }) else { return nil }
-        return metroSingleton(in: impl, named: "INSTANCE", type: name)
-    }
-
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
         let companion = graph + "$Companion"
         guard let info = hierarchyClasses[graph],
