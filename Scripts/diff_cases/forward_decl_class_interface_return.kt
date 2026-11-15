@@ -21,7 +21,7 @@ private class ForwardIter : Iterator<String> {
     }
 }
 
-private interface Counter {
+interface Counter {
     fun count(): Int
     fun label(): String
 }

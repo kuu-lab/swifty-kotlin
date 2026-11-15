@@ -70,7 +70,7 @@ extension BundledStdlibExecutionTests {
                 }
             }
 
-            private interface Counter {
+            interface Counter {
                 fun count(): Int
                 fun label(): String
             }
