@@ -70,9 +70,14 @@ extension JVMClasspathIndex {
                     }
                     if marker == "+" || marker == "-" { remaining.removeFirst() }
                     guard let argument = parseType(depth: depth + 1) else { return nil }
+                    // `? super X` must keep its `in` projection even on the
+                    // mapped collections — Kotlin allows a use-site `in`
+                    // projection on covariant declarations, and dropping it
+                    // would expose `List<? super String>` as `List<String>`
+                    // and let String reads compile onto Integer elements.
                     let variance = if marker == "+" {
                         "out "
-                    } else if marker == "-" && !mappedCollections.contains(name) && name != "java/lang/Iterable" {
+                    } else if marker == "-" {
                         "in "
                     } else {
                         ""
