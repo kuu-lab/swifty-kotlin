@@ -574,7 +574,23 @@ final class JVMClasspathIndex {
            let instance = metroSingleton(in: impl, named: "INSTANCE", type: name) {
             return instance
         }
-        return nil
+        return metroCompanionFactory(for: factoryInfo)
+    }
+
+    private func metroCompanionFactory(for factory: JVMClassInfo) -> JVMField? {
+        guard let graphName = innerClassMetadata[factory.name]?.outerName,
+              let graph = hierarchyClasses[graphName],
+              graph.annotations.contains(where: { $0.descriptor == JVMMetro.graph }),
+              let companion = hierarchyClasses[graphName + "$Companion"],
+              companion.flags & 1 != 0, companion.interfaces.contains(factory.name),
+              companion.methods.contains(where: { method in
+                  !method.isStatic && !method.isProtected
+                      && method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke })
+                      && factory.methods.contains(where: {
+                          $0.isAbstract && $0.name == method.name && $0.descriptor == method.descriptor
+                      })
+              }) else { return nil }
+        return metroSingleton(in: graph, named: "Companion", type: companion.name)
     }
 
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
@@ -2347,7 +2363,8 @@ final class JVMClasspathIndex {
                 guard let params = method.kotlinFunction?.parameters,
                       params.count == signature.parameterTypes.count else { return false }
                 return zip(params, signature.parameterTypes).allSatisfy { param, callType in
-                    guard let declared = param.sourceType.split(separator: ".").last.map(String.init),
+                    let declaredName = param.sourceType.split(separator: ".").last.map(String.init)?.replacingOccurrences(of: "?", with: "")
+                    guard let declared = declaredName,
                           case let .classType(nominal) = sema.types.kind(of: callType),
                           let symbol = sema.symbols.symbol(nominal.classSymbol)
                     else { return true }
