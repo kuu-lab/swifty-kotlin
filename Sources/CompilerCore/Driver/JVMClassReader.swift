@@ -441,7 +441,12 @@ struct JVMClassReader {
             let start = index
             try parseReferenceType()
             let bound = String(scalars[start..<index])
-            if bound != "Ljava/lang/Object;" { bounds[name, default: []].append(bound) }
+            // The first bound decides the erased type of the parameter, so a
+            // leading `Ljava/lang/Object;` must be kept — dropping it would
+            // shift the erasure onto a later interface bound (e.g. Runnable).
+            if bound != "Ljava/lang/Object;" || bounds[name]?.isEmpty != false {
+                bounds[name, default: []].append(bound)
+            }
         }
         if index == 1 {
             while index < scalars.count, scalars[index] != ">" {
