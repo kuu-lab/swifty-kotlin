@@ -412,7 +412,11 @@ private func compileRegexPattern(_ pattern: String, options: NSRegularExpression
     ) {
         throw RuntimeRegexCompileError.invalidPattern(propertyError)
     }
-    let translated = translateJavaPatternForICU(source)
+    let translated = translateJavaPatternForICU(
+        source,
+        dotMatchesLineSeparatorsInitially: options.contains(.dotMatchesLineSeparators),
+        unixLinesInitially: options.contains(.useUnixLineSeparators)
+    )
     let effective = translated.isEmpty ? "(?:)" : translated
     // The translated pattern is still Kotlin marker-encoded; hand ICU the
     // UTF-16 form so literal surrogate characters in the pattern survive.
@@ -471,9 +475,11 @@ private let unicodeNonWordBoundaryPattern =
 /// `[[\:alpha:]]`, a nested class matching `:alpha:` literally).
 /// Escapes, `\Q...\E` quotes and character-class structure are otherwise copied
 /// verbatim.
-func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitially: Bool = false) -> String {
+func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitially: Bool = false, dotMatchesLineSeparatorsInitially: Bool = false, unixLinesInitially: Bool = false) -> String {
     var unicodeClasses = unicodeCharacterClassesInitially
-    var savedModes: [Bool] = []
+    var dotAll = dotMatchesLineSeparatorsInitially
+    var unixLines = unixLinesInitially
+    var savedModes: [(Bool, Bool, Bool)] = []
     let chars = Array(pattern)
     var out = ""
     out.reserveCapacity(chars.count)
@@ -662,10 +668,18 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             continue
         }
         if c == "." {
-            // `.` matches any scalar except line terminators; in the encoded
-            // domain a surrogate or marker-space unit is a two-scalar pair,
-            // which a bare `.` would match half of (KUU-4590).
-            out.append("(?:[^\\uE000-\\uE801\\n\\r\\u0085\\u2028\\u2029]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
+            // `.` in the encoded domain must match a surrogate or marker-space
+            // unit as ONE pair (KUU-4590). The scalar arm carries the JVM's
+            // line-terminator rule: default `.` excludes \n \r \u0085
+            // \u2028 \u2029, (?d) UNIX_LINES leaves only \n, (?s)
+            // DOT_MATCHES_ALL excludes nothing.
+            if dotAll {
+                out.append("(?:[^\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
+            } else if unixLines {
+                out.append("(?:[^\\n\\uE000-\\uE801]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
+            } else {
+                out.append("(?:[^\\uE000-\\uE801\\n\\r\\u0085\\u2028\\u2029]|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801])")
+            }
             index += 1
             continue
         }
@@ -674,7 +688,7 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             // group opened; bare (?flags) directives set the mode only until
             // this point on the JVM.
             if let saved = savedModes.popLast() {
-                unicodeClasses = saved
+                (unicodeClasses, dotAll, unixLines) = saved
             }
             out.append(c)
             index += 1
@@ -686,6 +700,10 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             var off = ""
             var onUnicode = false
             var offUnicode = false
+            var onDotAll = false
+            var offDotAll = false
+            var onUnixLines = false
+            var offUnixLines = false
             var seenMinus = false
             while cursor < chars.count {
                 let f = chars[cursor]
@@ -695,6 +713,8 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     if seenMinus { offUnicode = true } else { onUnicode = true }
                 } else if f != "u" {
                     if seenMinus { off.append(f) } else { on.append(f) }
+                    if f == "s" { if seenMinus { offDotAll = true } else { onDotAll = true } }
+                    if f == "d" { if seenMinus { offUnixLines = true } else { onUnixLines = true } }
                 }
                 cursor += 1
             }
@@ -706,9 +726,13 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 // `(?flags:` opens a scoped group: save the enclosing mode, then
                 // apply this group's own flags. A bare `(?flags)` retargets the
                 // mode in place (the enclosing `)` restores it via savedModes).
-                if terminator == ":" { savedModes.append(unicodeClasses) }
+                if terminator == ":" { savedModes.append((unicodeClasses, dotAll, unixLines)) }
                 if onUnicode { unicodeClasses = true }
                 if offUnicode { unicodeClasses = false }
+                if onDotAll { dotAll = true }
+                if offDotAll { dotAll = false }
+                if onUnixLines { unixLines = true }
+                if offUnixLines { unixLines = false }
                 if on.isEmpty && off.isEmpty {
                     // `(?U)` vanishes entirely; `(?U:...)` becomes a plain non-capturing group.
                     if terminator == ":" { out.append("(?:") }
@@ -724,13 +748,13 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
             // Some other `(?...)` construct (lookaround, named group, atomic
             // group, ...): it still opens a group on the JVM, so flag
             // directives inside it end at its `)`.
-            savedModes.append(unicodeClasses)
+            savedModes.append((unicodeClasses, dotAll, unixLines))
             out.append(c)
             index += 1
             continue
         }
         if c == "(" {
-            savedModes.append(unicodeClasses)
+            savedModes.append((unicodeClasses, dotAll, unixLines))
             out.append(c)
             index += 1
             continue
