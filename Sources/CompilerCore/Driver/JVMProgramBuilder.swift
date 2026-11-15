@@ -420,8 +420,16 @@ final class JVMProgramBuilder {
             let duplicates = Dictionary(grouping: generatedNames, by: { $0 }).filter { $0.value.count > 1 }.keys.sorted().joined(separator: ", ")
             throw JVMFrontendError(message: "JVM generated class name clashes with a source class or facade: " + duplicates)
         }
-        for functions in [output.functions] + emittedClasses.map(\.functions) {
+        for classIndex in emittedClasses.indices {
+            let functions = emittedClasses[classIndex].functions
             let signatures = functions.map { $0.reference.name + $0.reference.descriptor }
+            guard Set(signatures).count == signatures.count else {
+                let dups = Dictionary(grouping: signatures, by: { $0 }).filter { $0.value.count > 1 }.keys.sorted().joined(separator: ", ")
+                throw JVMFrontendError(message: "Clashing JVM function/accessor signatures in " + emittedClasses[classIndex].name + ": " + dups)
+            }
+        }
+        do {
+            let signatures = output.functions.map { $0.reference.name + $0.reference.descriptor }
             guard Set(signatures).count == signatures.count else { throw JVMFrontendError(message: "Clashing JVM function/accessor signatures.") }
         }
         output.classes = emittedClasses
