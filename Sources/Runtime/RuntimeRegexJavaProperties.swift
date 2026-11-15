@@ -394,6 +394,93 @@ private func jvmRegexForPropertyICU(_ name: String, negated: Bool) -> String? {
 /// ICU subject carries isolated surrogates as `\uE800\uE0XX` pairs and real
 /// E000...E801 scalars as `\uE801\uXXXX` pairs, so property names covering
 /// those code-point spaces need sequence rewrites instead of classes.
+/// `\\p{Name}` as a character-class MEMBER in the encoded domain (KUU-4590):
+/// returns the marker-safe scalar text plus the member's coverage of the two
+/// encoded spaces — the caller union-merges the coverage to decide which
+/// escape-pair alternatives the enclosing class needs. `ranges` only reports
+/// coverage inside D800...DFFF / E000...E801; other scalars ride along in
+/// `text`. nil for property names this pass does not model.
+func jvmRegexMemberSpaceCoverage(_ name: String, negated: Bool) -> (text: String, ranges: [(Int, Int)])? {
+    let markerRange = (0xE000, 0xE801)
+    let surrogateRange = (0xD800, 0xDFFF)
+    func normalized(_ n: String) -> String {
+        n.uppercased().filter { $0 != " " && $0 != "_" && $0 != "-" }
+    }
+    if let eq = name.firstIndex(of: "=") {
+        let key = name[..<eq].lowercased()
+        let value = String(name[name.index(after: eq)...])
+        switch key {
+        case "gc", "general_category":
+            return jvmRegexMemberSpaceCoverage(value, negated: negated)
+        case "blk", "block":
+            var block = normalized(value)
+            if block.hasPrefix("IN") { block = String(block.dropFirst(2)) }
+            if block.hasPrefix("BLK") { block = String(block.dropFirst(3)) }
+            return jvmRegexMemberBlockCoverage(block, negated: negated)
+        default:
+            return nil
+        }
+    }
+    var lookup = name
+    if name.hasPrefix("Is") { lookup = String(name.dropFirst(2)) }
+    if name.hasPrefix("In") {
+        return jvmRegexMemberBlockCoverage(normalized(String(name.dropFirst(2))), negated: negated)
+    }
+    switch lookup {
+    case "Cs":
+        return negated
+            ? ("[\\P{Cs}--[\\uE000-\\uE801]]", [markerRange])
+            : ("", [surrogateRange])
+    case "C":
+        return negated
+            ? ("[\\P{C}--[\\uE000-\\uE801]]", [])
+            : ("[\\p{C}--[\\uE000-\\uE801]]", [surrogateRange, markerRange])
+    case "Co":
+        return negated
+            ? ("[\\P{Co}--[\\uE000-\\uE801]]", [surrogateRange])
+            : ("[\\p{Co}--[\\uE000-\\uE801]]", [markerRange])
+    case "Any", "all", "Assigned":
+        return negated
+            ? ("[^\\s\\S]", [])
+            : ("[^\\uE000-\\uE801]", [surrogateRange, markerRange])
+    default:
+        return nil
+    }
+}
+
+/// Surrogate Unicode-block coverage for `\\p{InBlock}` class members.
+func jvmRegexMemberBlockCoverage(_ block: String, negated: Bool) -> (text: String, ranges: [(Int, Int)])? {
+    let markerRange = (0xE000, 0xE801)
+    let markerSpace = (0xE000, 0xE801)
+    let surrogateSpace = (0xD800, 0xDFFF)
+    let subrange: (Int, Int)?
+    switch block {
+    case "HIGHSURROGATES": subrange = (0xD800, 0xDBFF)
+    case "HIGHPRIVATEUSESURROGATES": subrange = (0xDB80, 0xDBFF)
+    case "LOWSURROGATES": subrange = (0xDC00, 0xDFFF)
+    case "SURROGATESAREA", "SURROGATES":
+        // Java's SURROGATES_AREA block has no members.
+        return negated
+            ? ("[^\\uE000-\\uE801]", [surrogateSpace, markerSpace])
+            : ("[^\\s\\S]", [])
+    case "PRIVATEUSEAREA":
+        return negated
+            ? ("[^\\uE000-\\uF8FF]", [surrogateSpace])
+            : ("[\\uE802-\\uF8FF]", [markerSpace])
+    default:
+        subrange = nil
+    }
+    guard let subrange else { return nil }
+    if negated {
+        // The complement covers the rest of the surrogate space plus every
+        // marker scalar; the scalar part is the UTF-16 complement class.
+        var ranges = regexSubtractAllMarkerSpace([surrogateSpace], [subrange])
+        ranges.append(markerRange)
+        return ("[^\\u" + String(format: "%04X", subrange.0) + "-\\u" + String(format: "%04X", subrange.1) + "\\uE000-\\uE801]", ranges)
+    }
+    return ("", [subrange])
+}
+
 private func jvmRegexSurrogateSpaceReplacement(_ name: String, negated: Bool) -> String? {
     let surrogateSeq = "\\uE800[\\uE000-\\uE7FF]"
     let privateSeq = "\\uE801[\\uE000-\\uE801]"
@@ -497,6 +584,13 @@ func jvmRegexICUPropertyReplacement(_ name: String, negated: Bool, unicodeClasse
                 return negated ? jvmRegexComplementedClass(jvmRegexWordClassICU) : jvmRegexWordClassICU
             case "HEXDIGIT", "HEX_DIGIT", "XDIGIT":
                 return negated ? jvmRegexComplementedClass(jvmRegexHexDigitClassICU) : jvmRegexHexDigitClassICU
+            case "GRAPH", "PRINT":
+                // ICU's graph/print cover the private-use marker scalars, so
+                // a bare passthrough would match half an escape pair (KUU-4590).
+                if negated {
+                    return "(?:[\\P{Is\(upper)}--[\\uE000-\\uE801]]|\\uE800[\\uE000-\\uE7FF])"
+                }
+                return "[\\p{Is\(upper)}--[\\uE000-\\uE801]]"
             default:
                 return nil
             }

@@ -134,4 +134,76 @@ struct RuntimeRegexSurrogateMarkerTests {
         #expect(thrown == 0)
         #expect(runtimeString(replaced) == "aZb")
     }
+
+    @Test
+    func negatedShorthandMatchesSurrogateOnce() {
+        // \D must match an isolated surrogate as ONE unit (JVM), not as two
+        // marker scalars — otherwise replace produces "XX" per unit.
+        let regex = makeRegex("\\D")
+        let values = findAllValues(regex, units: [0x61, 0xD800, 0x62])
+        #expect(values.count == 3)
+        let unicodeRegex = makeRegex("(?U)\\D")
+        #expect(findAllValues(unicodeRegex, units: [0x61, 0xD800, 0x62]).count == 3)
+        // `\P{L}` (non-letter) skips the letters and matches the surrogate once.
+        let propRegex = makeRegex("\\P{L}")
+        #expect(findAllValues(propRegex, units: [0x61, 0xD800, 0x62]).count == 1)
+        // `\p{L}` (letter) does not match the surrogate at all.
+        let letterRegex = makeRegex("\\p{L}")
+        #expect(findAllValues(letterRegex, units: [0x61, 0xD800, 0x62]).count == 2)
+        // A negated class inside `[...]` keeps the surrogate match too.
+        let classRegex = makeRegex("[\\D]")
+        #expect(findAllValues(classRegex, units: [0x61, 0xD800, 0x62]).count == 3)
+        // `\p{Cs}` inside a class still covers the surrogate.
+        let csClass = makeRegex("[x\\p{Cs}]")
+        #expect(findAllValues(csClass, units: [0x61, 0xD800, 0x62]).count == 1)
+        // \P{Cs} inside a class covers everything but the surrogate.
+        let notCsClass = makeRegex("[\\P{Cs}]")
+        #expect(findAllValues(notCsClass, units: [0x61, 0xD800, 0x62]).count == 2)
+    }
+
+    @Test
+    func dotRespectsInlineFlags() {
+        let plain = makeRegex(".")
+        #expect(findAllValues(plain, units: [0x0A, 0x0D]).isEmpty)
+        #expect(findAllValues(plain, units: [0x61]).count == 1)
+        // (?s) DOT_MATCHES_ALL: `.` includes \n.
+        let dotAll = makeRegex("(?s).")
+        #expect(findAllValues(dotAll, units: [0x0A]).count == 1)
+        #expect(findAllValues(dotAll, units: [0xD800]).count == 1)
+        // (?d) UNIX_LINES: `.` excludes only \n, so \r matches.
+        let unix = makeRegex("(?d).")
+        #expect(findAllValues(unix, units: [0x0D]).count == 1)
+        #expect(findAllValues(unix, units: [0x0A]).isEmpty)
+        // Scoped flag group: (?s:.) inside does not leak to the outside.
+        let scoped = makeRegex("(?s:.)")
+        #expect(findAllValues(scoped, units: [0x0A]).count == 1)
+        let after = makeRegex("(?s:x).")
+        #expect(findAllValues(after, units: [0x78, 0x0A]).isEmpty)
+    }
+
+    @Test
+    func markerOnlyClassIsNotEmpty() {
+        // `[\uE005]` — every member moves to a pair alternative; the plain
+        // class is empty and must not be emitted as `[]` (ICU syntax error).
+        let regex = makeRegex("[\\uE005]")
+        #expect(regex != 0)
+        #expect(findAllValues(regex, units: [0x61, 0xE005, 0x62]).count == 1)
+        let rangeRegex = makeRegex("[\\uE800-\\uE801]")
+        #expect(findAllValues(rangeRegex, units: [0x61, 0xE800, 0x62]).count == 1)
+    }
+
+    @Test
+    func overflowingHexEscapesFailLikeJvm() {
+        // `\x{...}` values beyond Int/Unicode range must not wrap around:
+        // the escape is left for ICU to reject, matching the JVM's
+        // PatternSyntaxException.
+        for pattern in ["\\x{FFFFFFFFFFFFFFFFFF}", "\\x{110000}", "[\\x{FFFFFFFFFFFFFFFFFF}]"] {
+            var thrown = 0
+            let raw = withFlatString(pattern) { data, length, byteCount, hash in
+                kk_regex_create_flat(data, length, byteCount, hash, &thrown)
+            }
+            #expect(thrown != 0, "expected compile error: \(pattern)")
+            #expect(raw == 0)
+        }
+    }
 }

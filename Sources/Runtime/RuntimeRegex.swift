@@ -438,6 +438,39 @@ private let unicodeWordBoundaryPattern =
 private let unicodeNonWordBoundaryPattern =
     "(?:(?<!\\w)(?!\\w)|(?<=\\w)(?=\\w))"
 
+/// Wraps a translator-emitted class/escape so it cannot match half of an
+/// escape pair (KUU-4590): a negated class like `\\D` or `\\P{L}` must match
+/// an isolated surrogate as ONE unit — bare negations would match the
+/// `\\uE800`/`\\uE801` lead and the marker scalar separately, producing two
+/// matches and double replacements. The rewrite is
+/// `(?:[emission \\uE000-\\uE801 removed]|pair alternatives)`: scalars can
+/// never appear bare in the encoded domain, and which pair arms apply follows
+/// the JVM meaning of the class (surrogates match every negated class whose
+/// positive does not contain them; marker scalars are handled the same way).
+private func regexMarkerSpaceWrapEmission(_ emitted: String, negated: Bool) -> String {
+    // Emissions already written for the encoded domain (surrogate
+    // property/block rewrites, `\\P{C}` which correctly excludes surrogates).
+    if emitted.hasPrefix("(?:") || emitted.hasPrefix("\\uE800") || emitted.hasPrefix("\\uE801") || emitted == "\\P{C}" {
+        return emitted
+    }
+    let pairs = "|\\uE800[\\uE000-\\uE7FF]|\\uE801[\\uE000-\\uE801]"
+    // `\\p{Any}`/assigned-only properties: markers and surrogates are inside
+    // the match set whether the escape is negated or not.
+    if emitted == "\\p{Any}" || emitted == "\\p{Assigned}" {
+        return "(?:[\(emitted)--[\\uE000-\\uE801]]\(pairs))"
+    }
+    guard negated else { return emitted }
+    if emitted == "\\P{Any}" { return emitted }
+    if emitted == "\\P{Assigned}" { return "[\\P{Assigned}--[\\uE000-\\uE801]]" }
+    if emitted.hasPrefix("[^"), emitted.hasSuffix("]") {
+        return "(?:[^\(emitted.dropFirst(2).dropLast())\\uE000-\\uE801]\(pairs))"
+    }
+    if emitted.hasPrefix("\\P{") || (emitted.hasPrefix("\\") && emitted.count <= 2) {
+        return "(?:[\(emitted)--[\\uE000-\\uE801]]\(pairs))"
+    }
+    return emitted
+}
+
 /// Translates a `java.util.regex` pattern into the ICU dialect used by
 /// `NSRegularExpression`.
 ///
@@ -523,12 +556,24 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     while end < chars.count, chars[end] != "}" { end += 1 }
                     if end < chars.count {
                         let name = String(chars[(index + 3)..<end])
-                        if let replacement = jvmRegexICUPropertyReplacement(
-                            name, negated: escape == "P", unicodeClasses: unicodeClasses
-                        ) {
-                            out.append(replacement)
+                        let negated = escape == "P"
+                        if classDepth > 0 {
+                            // Sequence alternatives are not expressible as a
+                            // class member: emit `[...]`-form replacements
+                            // nested, and keep surrogate-space names verbatim
+                            // for regexMarkerSpaceClassReplacement to model.
+                            if let replacement = jvmRegexICUPropertyReplacement(
+                                name, negated: negated, unicodeClasses: unicodeClasses
+                            ), replacement.hasPrefix("[") {
+                                out.append(replacement)
+                            } else {
+                                out.append(contentsOf: chars[index...end])
+                            }
                         } else {
-                            out.append(contentsOf: chars[index...end])
+                            let emitted = jvmRegexICUPropertyReplacement(
+                                name, negated: negated, unicodeClasses: unicodeClasses
+                            ) ?? String(chars[index...end])
+                            out.append(regexMarkerSpaceWrapEmission(emitted, negated: negated))
                         }
                         index = end + 1
                         continue
@@ -537,14 +582,26 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                     // Unbraced single-letter categories `\pL` / `\PL`: the JVM
                     // accepts exactly one of L M N P S Z C (the major
                     // general-category codes) without braces; ICU requires
-                    // them, so the letter is wrapped. Other letters (`\pU`,
-                    // `\pl`) are invalid on the JVM too and pass through to
-                    // fail compilation the same way.
-                    out.append("\\")
-                    out.append(escape)
-                    out.append("{")
-                    out.append(chars[index + 2])
-                    out.append("}")
+                    // them, so the letter is wrapped — through the same
+                    // surrogate-aware property dispatch (`\pC` covers Cs).
+                    // Other letters (`\pU`, `\pl`) are invalid on the JVM too
+                    // and pass through to fail compilation the same way.
+                    let letter = String(chars[index + 2])
+                    let negated = escape == "P"
+                    if classDepth > 0 {
+                        if let replacement = jvmRegexICUPropertyReplacement(
+                            letter, negated: negated, unicodeClasses: unicodeClasses
+                        ), replacement.hasPrefix("[") {
+                            out.append(replacement)
+                        } else {
+                            out.append("\\\(escape){\(letter)}")
+                        }
+                    } else {
+                        let emitted = jvmRegexICUPropertyReplacement(
+                            letter, negated: negated, unicodeClasses: unicodeClasses
+                        ) ?? "\\\(escape){\(letter)}"
+                        out.append(regexMarkerSpaceWrapEmission(emitted, negated: negated))
+                    }
                     index += 3
                     continue
                 }
@@ -555,23 +612,28 @@ func translateJavaPatternForICU(_ pattern: String, unicodeCharacterClassesInitia
                 continue
             }
             if classDepth > 0 {
+                // Negated shorthand classes inside `[...]`: a nested negated
+                // class excluding the marker range — it cannot match half a
+                // pair; the class post-processor adds the pair alternatives.
                 switch escape {
                 case "w": out.append(unicodeClasses ? "\\w" : "[a-zA-Z0-9_]")
-                case "W": out.append(unicodeClasses ? "\\W" : "[^a-zA-Z0-9_]")
+                case "W": out.append(unicodeClasses ? "[^\\w]" : "[^a-zA-Z0-9_]")
                 case "d": out.append(unicodeClasses ? "\\d" : "[0-9]")
-                case "D": out.append(unicodeClasses ? "\\D" : "[^0-9]")
+                case "D": out.append(unicodeClasses ? "[^\\d]" : "[^0-9]")
                 case "s": out.append(unicodeClasses ? "\\s" : "[\\t\\n\\x0B\\f\\r ]")
-                case "S": out.append(unicodeClasses ? "\\S" : "[^\\t\\n\\x0B\\f\\r ]")
+                case "S": out.append(unicodeClasses ? "[^\\s]" : "[^ \\t\\n\\x0B\\f\\r]")
                 default: out.append(contentsOf: chars[index...index + 1])
                 }
             } else {
                 switch escape {
                 case "w": out.append(unicodeClasses ? "\\w" : "[a-zA-Z0-9_]")
-                case "W": out.append(unicodeClasses ? "\\W" : "[^a-zA-Z0-9_]")
+                case "W": out.append(regexMarkerSpaceWrapEmission(unicodeClasses ? "\\W" : "[^a-zA-Z0-9_]", negated: true))
                 case "d": out.append(unicodeClasses ? "\\d" : "[0-9]")
-                case "D": out.append(unicodeClasses ? "\\D" : "[^0-9]")
+                case "D": out.append(regexMarkerSpaceWrapEmission(unicodeClasses ? "\\D" : "[^0-9]", negated: true))
                 case "s": out.append(unicodeClasses ? "\\s" : "[ \\t\\n\\x0B\\f\\r]")
-                case "S": out.append(unicodeClasses ? "\\S" : "[^ \\t\\n\\x0B\\f\\r]")
+                case "S": out.append(regexMarkerSpaceWrapEmission(unicodeClasses ? "\\S" : "[^ \\t\\n\\x0B\\f\\r]", negated: true))
+                case "H": out.append(regexMarkerSpaceWrapEmission("\\H", negated: true))
+                case "V": out.append(regexMarkerSpaceWrapEmission("\\V", negated: true))
                 case "b": out.append(unicodeClasses ? unicodeWordBoundaryPattern : asciiWordBoundaryPattern)
                 case "B": out.append(unicodeClasses ? unicodeNonWordBoundaryPattern : asciiNonWordBoundaryPattern)
                 case "u":
@@ -1998,7 +2060,7 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
     var scalarRanges: [(Int, Int)] = []
     // Rebuilt member list for the plain class: each entry is either a literal
     // text fragment (verbatim atom) or a scalar range needing subtraction.
-    enum Member { case scalar(Int, String); case rangeSet; }
+    enum Member { case scalar(Int, String); case rangeSet; case nested; }
     var members: [(kind: Member, text: String, scalarRanges: [(Int, Int)])] = []
     var pendingScalar: (value: Int, text: String)?
 
@@ -2077,6 +2139,50 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         i += 1
     }
     while i < chars.count - 1 {
+        if chars[i] == "[", i + 1 < chars.count - 1, chars[i + 1] == "^" {
+            // Nested negated class `[^...]` — emitted for \D/\S/\W and
+            // valid user input. It contributes its text (with the marker
+            // range folded into the complement so it can't match half a
+            // pair) plus full encoded-space coverage: a negated member
+            // always covers surrogates and marker scalars.
+            var j = i + 2
+            var bail = false
+            while j < chars.count - 1, chars[j] != "]" {
+                if chars[j] == "\\", j + 1 < chars.count - 1, chars[j + 1] == "]" { bail = true; break }
+                j += 1
+            }
+            if bail || j >= chars.count - 1 { return nil }
+            flushScalar()
+            let inner = String(chars[(i + 2)..<j])
+            members.append((kind: .nested, text: "[^" + inner + "\\uE000-\\uE801]", scalarRanges: [(0, 0x10FFFF)]))
+            i = j + 1
+            continue
+        }
+        if chars[i] == "\\", i + 1 < chars.count - 1, chars[i + 1] == "p" || chars[i + 1] == "P" {
+            // `\p{Name}` / `\P{Name}` class member: surrogate-space-aware
+            // coverage (Cs/C/Co, surrogate blocks, PUA, Any/Assigned).
+            let negated = chars[i + 1] == "P"
+            var j = i + 2
+            var name = ""
+            if j < chars.count - 1, chars[j] == "{" {
+                j += 1
+                var end = j
+                while end < chars.count - 1, chars[end] != "}" { end += 1 }
+                guard end < chars.count - 1 else { return nil }
+                name = String(chars[j..<end])
+                j = end + 1
+            } else if j < chars.count - 1, "LMNPSZC".contains(chars[j]) {
+                name = String(chars[j])
+                j += 1
+            } else {
+                return nil
+            }
+            guard let coverage = jvmRegexMemberSpaceCoverage(name, negated: negated) else { return nil }
+            flushScalar()
+            members.append((kind: .nested, text: coverage.text, scalarRanges: coverage.ranges))
+            i = j
+            continue
+        }
         if chars[i] == "-" {
             // Range operator between two scalar atoms; otherwise a literal `-`.
             if pendingScalar != nil, i + 1 < chars.count - 1 {
@@ -2136,6 +2242,8 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         case .scalar(let v, let text):
             if (markerSpace.0 ... markerSpace.1).contains(v) { continue }
             plain += text
+        case .nested:
+            plain += m.text
         }
     }
     if negated {
@@ -2164,7 +2272,7 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
 
 /// Complement helper: removes the covered ranges from `space` — used to
 /// derive which encoded-space members a negated class still matches.
-private func regexSubtractAllMarkerSpace(_ spaces: [(Int, Int)], _ covered: [(Int, Int)]) -> [(Int, Int)] {
+func regexSubtractAllMarkerSpace(_ spaces: [(Int, Int)], _ covered: [(Int, Int)]) -> [(Int, Int)] {
     var remaining = spaces
     for c in covered {
         var next: [(Int, Int)] = []
