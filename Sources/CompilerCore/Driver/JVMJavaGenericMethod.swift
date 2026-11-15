@@ -23,17 +23,13 @@ extension JVMClasspathIndex {
                 // Parameterized bounds need a projection such as Enum<*>.
                 var source = kotlinType(carrier)
                 guard !source.contains("<") else { continue }
-                // A Java bound is a boxed reference. Mapping e.g.
-                // java/lang/Integer to non-null kotlin.Int would erase T to
-                // primitive `I` while the method descriptor keeps
-                // `Ljava/lang/Integer;` — render the bound nullable so the
-                // erasure stays boxed.
-                if ["kotlin.Int","kotlin.Long","kotlin.Short","kotlin.Byte",
-                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double",
-                    // A leading `Ljava/lang/Object;` bound is Java's default —
-                    // Kotlin's `Any?`, not the non-null `Any`; otherwise
-                    // `Box<String?>` would violate the synthesized bound.
-                    "kotlin.Any"].contains(source) {
+                // Java bounds are platform references: the erased descriptor
+                // accepts null, and mapping e.g. java/lang/Integer to
+                // non-null kotlin.Int would erase T to primitive `I` while
+                // the method descriptor keeps `Ljava/lang/Integer;`. Render
+                // every bound nullable so `Box<View?>` type arguments are not
+                // rejected and boxed erasures stay intact.
+                if !source.hasSuffix("?") {
                     source += "?"
                 }
                 bounds.append("`\(name)`: " + source)
