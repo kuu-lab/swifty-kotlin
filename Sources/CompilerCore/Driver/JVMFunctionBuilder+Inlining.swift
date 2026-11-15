@@ -14,7 +14,7 @@ extension JVMFunctionBuilder {
         let returns: [InlineReturn]
         let arguments: [InternedString: InlineLambda]
         let lexicalLambda: ExprID?
-        let stack: Set<SymbolID>
+        let stack: [SymbolID: Int]
     }
     func inlineArgument(_ name: InternedString) -> InlineLambda? {
         // A block-local function value can shadow an inline parameter.
