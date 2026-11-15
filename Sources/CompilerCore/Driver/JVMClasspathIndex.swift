@@ -2195,6 +2195,22 @@ final class JVMClasspathIndex {
                 where lazyClassNames.contains(ref) && isInjected(ref) {
                     markNeeded(ref)
                 }
+                // A lazy class can appear only inside the field's generic
+                // signature (e.g. `List<Lazy>` where the descriptor erases to
+                // raw List) — scan it too or its stub is never generated and
+                // the emitted field type fails to resolve.
+                if let signature = field.genericSignature {
+                    var cursor = signature.startIndex
+                    while let start = signature[cursor...].firstIndex(of: "L") {
+                        let nameStart = signature.index(after: start)
+                        let end = signature[nameStart...].firstIndex(where: { ";<>:(".contains($0) }) ?? signature.endIndex
+                        let ref = signature[nameStart..<end]
+                        if ref.contains("/"), lazyClassNames.contains(String(ref)), isInjected(String(ref)) {
+                            markNeeded(String(ref))
+                        }
+                        cursor = end
+                    }
+                }
             }
             // Nested classes are emitted inside their owner's stub but are
             // not worklist items themselves; their signature types still
