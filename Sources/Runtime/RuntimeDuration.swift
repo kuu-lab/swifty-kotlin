@@ -693,17 +693,18 @@ public func kk_duration_toString(_ durationRaw: Int) -> Int {
 
 @_cdecl("kk_duration_parse")
 public func kk_duration_parse(_ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let value = runtimeStringFromRaw( valueRaw),
-          let nanoseconds = runtimeDurationParse(value)
-    else {
-        let displayValue = runtimeStringFromRaw( valueRaw) ?? "<null>"
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Invalid duration string format: '\(displayValue)'."
-        )
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        guard let value = runtimeStringFromRaw( valueRaw),
+              let nanoseconds = runtimeDurationParse(value)
+        else {
+            let displayValue = runtimeStringFromRaw( valueRaw) ?? "<null>"
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Invalid duration string format: '\(displayValue)'."
+            )
+            return runtimeNullSentinelInt
+        }
+        return Int(nanoseconds)
     }
-    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseOrNull")
@@ -718,17 +719,18 @@ public func kk_duration_parseOrNull(_ valueRaw: Int) -> Int {
 
 @_cdecl("kk_duration_parseIsoString")
 public func kk_duration_parseIsoString(_ valueRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let value = runtimeStringFromRaw( valueRaw),
-          let nanoseconds = runtimeDurationParseISO(value)
-    else {
-        let displayValue = runtimeStringFromRaw( valueRaw) ?? "<null>"
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Invalid ISO duration string format: '\(displayValue)'."
-        )
-        return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        guard let value = runtimeStringFromRaw( valueRaw),
+              let nanoseconds = runtimeDurationParseISO(value)
+        else {
+            let displayValue = runtimeStringFromRaw( valueRaw) ?? "<null>"
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Invalid ISO duration string format: '\(displayValue)'."
+            )
+            return runtimeNullSentinelInt
+        }
+        return Int(nanoseconds)
     }
-    return Int(nanoseconds)
 }
 
 @_cdecl("kk_duration_parseIsoStringOrNull")

@@ -80,30 +80,31 @@ func runtimeRandomNextIntRange(
     until: Int,
     outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    if receiver == 0 {
-        guard until > from else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bound must be greater than origin")
-            return 0
+    return runtimeThrowingBridge(outThrown) {
+        if receiver == 0 {
+            guard until > from else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "bound must be greater than origin")
+                return 0
+            }
+            return Int.random(in: from ..< until)
         }
-        return Int.random(in: from ..< until)
-    }
-    let fnPtr = kk_itable_lookup_dynamic(
-        receiver,
-        Int(randomIntRangeSourceInterfaceTypeID),
-        0
-    )
-    guard fnPtr != 0 else {
-        guard until > from else {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random range is empty: [\(from), \(until))."
-            )
-            return 0
+        let fnPtr = kk_itable_lookup_dynamic(
+            receiver,
+            Int(randomIntRangeSourceInterfaceTypeID),
+            0
+        )
+        guard fnPtr != 0 else {
+            guard until > from else {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "Random range is empty: [\(from), \(until))."
+                )
+                return 0
+            }
+            return Int.random(in: from ..< until)
         }
-        return Int.random(in: from ..< until)
+        let fn = unsafeBitCast(fnPtr, to: RandomNextIntRangeFn.self)
+        return fn(receiver, from, until, outThrown)
     }
-    let fn = unsafeBitCast(fnPtr, to: RandomNextIntRangeFn.self)
-    return fn(receiver, from, until, outThrown)
 }
 
 func runtimeRandomNextBits64(_ receiver: Int) -> UInt64 {
@@ -269,41 +270,43 @@ public func __kk_secure_random_next_bytes(_ receiver: Int, _ arrayRaw: Int) -> I
 
 @_cdecl("__kk_random_nextULong_ulongRange")
 public func __kk_random_nextULong_ulongRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random range is empty."
-        )
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Random range is empty."
+            )
+            return 0
+        }
+        let first = ulongPayload(range.first)
+        let last = ulongPayload(range.last)
+        guard last >= first else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                message: "Random range is empty: \(first)..\(last)."
+            )
+            return 0
+        }
+        let width = last &- first &+ 1
+        let value = width == 0
+            ? runtimeRandomULongBits(receiver: receiver)
+            : first &+ runtimeRandomULongBelow(width, receiver: receiver)
+        return Int(bitPattern: UInt(truncatingIfNeeded: value))
     }
-    let first = ulongPayload(range.first)
-    let last = ulongPayload(range.last)
-    guard last >= first else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Random range is empty: \(first)..\(last)."
-        )
-        return 0
-    }
-    let width = last &- first &+ 1
-    let value = width == 0
-        ? runtimeRandomULongBits(receiver: receiver)
-        : first &+ runtimeRandomULongBelow(width, receiver: receiver)
-    return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
 @_cdecl("__kk_random_nextUInt_uintRange")
 public func __kk_random_nextUInt_uintRange(_ receiver: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Random.nextUInt expected a UIntRange.")
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let range = runtimeRangeBox(from: rangeRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Random.nextUInt expected a UIntRange.")
+            return 0
+        }
+        let first = uint32Payload(range.first)
+        let last = uint32Payload(range.last)
+        guard range.step != 0, first <= last else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Range is empty.")
+            return Int(first)
+        }
+        let exclusiveUpper = last == UInt64(UInt32.max) ? UInt64(UInt32.max) + 1 : last + 1
+        return Int(runtimeRandomUIntRange(receiver: receiver, from: first, until: exclusiveUpper))
     }
-    let first = uint32Payload(range.first)
-    let last = uint32Payload(range.last)
-    guard range.step != 0, first <= last else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Range is empty.")
-        return Int(first)
-    }
-    let exclusiveUpper = last == UInt64(UInt32.max) ? UInt64(UInt32.max) + 1 : last + 1
-    return Int(runtimeRandomUIntRange(receiver: receiver, from: first, until: exclusiveUpper))
 }
