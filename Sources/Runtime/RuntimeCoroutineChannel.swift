@@ -1565,45 +1565,45 @@ public func kk_channel_send(
     _ continuation: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    func isRegisteredChannelHandle(_ raw: Int) -> Bool {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-            return false
+    return runtimeThrowingBridge(outThrown) {
+        func isRegisteredChannelHandle(_ raw: Int) -> Bool {
+            guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+                return false
+            }
+            let isRegistered = runtimeStorage.withGCLock { state in
+                state.objectPointers.contains(UInt(bitPattern: ptr))
+            }
+            guard isRegistered else {
+                return false
+            }
+            return tryCast(ptr, to: RuntimeChannelHandle.self) != nil
         }
-        let isRegistered = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        guard isRegistered else {
-            return false
-        }
-        return tryCast(ptr, to: RuntimeChannelHandle.self) != nil
-    }
 
-    let resolvedHandle: Int
-    let resolvedValue: Int
-    if !isRegisteredChannelHandle(handle), isRegisteredChannelHandle(value) {
-        resolvedHandle = value
-        resolvedValue = handle
-    } else {
-        resolvedHandle = handle
-        resolvedValue = value
-    }
+        let resolvedHandle: Int
+        let resolvedValue: Int
+        if !isRegisteredChannelHandle(handle), isRegisteredChannelHandle(value) {
+            resolvedHandle = value
+            resolvedValue = handle
+        } else {
+            resolvedHandle = handle
+            resolvedValue = value
+        }
 
-    guard let resolvedPtr = UnsafeMutableRawPointer(bitPattern: resolvedHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_send received invalid channel handle")
+        guard let resolvedPtr = UnsafeMutableRawPointer(bitPattern: resolvedHandle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_send received invalid channel handle")
+        }
+        let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
+        var suspendedResult = 0
+        let status = channel.send(resolvedValue, continuation: continuation, suspendedResult: &suspendedResult)
+        if suspendedResult != 0 { return suspendedResult }
+        let thrown = channelStatusThrowable(status, isReceive: false, channel: channel, continuation: continuation)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+        }
+        return status.rawValue
     }
-    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
-    var suspendedResult = 0
-    let status = channel.send(resolvedValue, continuation: continuation, suspendedResult: &suspendedResult)
-    if suspendedResult != 0 { return suspendedResult }
-    let thrown = channelStatusThrowable(status, isReceive: false, channel: channel, continuation: continuation)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-    return status.rawValue
 }
 
-@_cdecl("kk_channel_try_send")
 public func kk_channel_try_send(_ handle: Int, _ value: Int) -> Int {
     let (channel, resolvedValue) = runtimeResolveChannelCall(handle, value)
     return channel.trySend(resolvedValue).rawValue
@@ -1616,31 +1616,24 @@ public func kk_channel_receive(
     _ outValue: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_receive received invalid channel handle")
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_receive received invalid channel handle")
+        }
+        let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
+        let status: ChannelOperationStatus
+        if let outValue {
+            status = channel.receive(continuation: continuation, outValue: outValue)
+        } else {
+            var scratch = 0
+            status = channel.receive(continuation: continuation, outValue: &scratch)
+        }
+        let thrown = channelStatusThrowable(status, isReceive: true, channel: channel, continuation: continuation)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+        }
+        return status.rawValue
     }
-    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    let status: ChannelOperationStatus
-    if let outValue {
-        status = channel.receive(continuation: continuation, outValue: outValue)
-    } else {
-        var scratch = 0
-        status = channel.receive(continuation: continuation, outValue: &scratch)
-    }
-    let thrown = channelStatusThrowable(status, isReceive: true, channel: channel, continuation: continuation)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-    return status.rawValue
-}
-
-/// `Channel.cancel()` bridge (KUU-1404): cancels the channel, discards pending
-/// elements, and wakes suspended senders/receivers so they report `.cancelled`.
-/// Returns 1 if this call cancelled the channel, 0 if it was already closed.
-@_cdecl("kk_channel_cancel")
-public func kk_channel_cancel(_ handle: Int) -> Int {
-    __kk_channel_cancel(handle, 0)
 }
 
 @_cdecl("kk_channel_close")
@@ -1654,35 +1647,36 @@ public func kk_channel_close(_ handle: Int) -> Int {
 
 @_cdecl("__kk_channel_await_close")
 public func __kk_channel_await_close(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let job = RuntimeJobHandle.current, job.producerChannel == handle,
-          let pointer = UnsafeMutableRawPointer(bitPattern: handle)
-    else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(
-            message: "awaitClose() can only be invoked from the producer context"
-        )
+    return runtimeThrowingBridge(outThrown) {
+        guard let job = RuntimeJobHandle.current, job.producerChannel == handle,
+              let pointer = UnsafeMutableRawPointer(bitPattern: handle)
+        else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(
+                message: "awaitClose() can only be invoked from the producer context"
+            )
+            return 0
+        }
+        let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(pointer).takeUnretainedValue()
+        let signal = DispatchSemaphore(value: 0)
+        guard channel.registerAwaitClose(signal) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Another close handler is already registered")
+            return 0
+        }
+        let handlerID = job.addCompletionHandler(onCancelling: true) { _ in signal.signal() }
+        defer {
+            job.removeCompletionHandler(id: handlerID)
+            channel.removeAwaitCloseSignal()
+        }
+        if job.cancellationSnapshot() { signal.signal() }
+        RuntimePendingLaunchQueue.flush()
+        runtimeWaitDrainingEventLoop(signal)
+        if job.cancellationSnapshot() {
+            outThrown?.pointee = runtimeAllocateCancellationException(
+                message: job.cancellationMessageSnapshot(), cause: job.cancellationCauseSnapshot()
+            )
+        }
         return 0
     }
-    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(pointer).takeUnretainedValue()
-    let signal = DispatchSemaphore(value: 0)
-    guard channel.registerAwaitClose(signal) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "Another close handler is already registered")
-        return 0
-    }
-    let handlerID = job.addCompletionHandler(onCancelling: true) { _ in signal.signal() }
-    defer {
-        job.removeCompletionHandler(id: handlerID)
-        channel.removeAwaitCloseSignal()
-    }
-    if job.cancellationSnapshot() { signal.signal() }
-    RuntimePendingLaunchQueue.flush()
-    runtimeWaitDrainingEventLoop(signal)
-    if job.cancellationSnapshot() {
-        outThrown?.pointee = runtimeAllocateCancellationException(
-            message: job.cancellationMessageSnapshot(), cause: job.cancellationCauseSnapshot()
-        )
-    }
-    return 0
 }
 
 /// Returns 1 when `status` indicates a closed or cancelled channel operation,
@@ -1750,13 +1744,22 @@ public func kk_channel_close_cause(_ handle: Int, _ cause: Int) -> Int {
     return channel.close(cause: cause) ? 1 : 0
 }
 
+/// `Channel.cancel()` bridge (KUU-1404): cancels the channel with the
+/// default cause — upstream `cancel(cause = null)` installs
+/// `CancellationException("Channel was cancelled")` as the close cause.
+/// Returns 1 if this call cancelled the channel, 0 if it was already closed.
+@_cdecl("__kk_channel_cancel")
+public func __kk_channel_cancel(_ handle: Int) -> Int {
+    __kk_channel_cancel_with_cause(handle, runtimeNullSentinelInt)
+}
+
 /// `ReceiveChannel.cancel(cause:)` bridge: closes the channel and discards
 /// buffered elements (upstream `cancelInternal`), unlike `close` which keeps
 /// them receivable. Suspended waiters wake with `.cancelled`.
-@_cdecl("__kk_channel_cancel")
-public func __kk_channel_cancel(_ handle: Int, _ cause: Int) -> Int {
+@_cdecl("__kk_channel_cancel_with_cause")
+public func __kk_channel_cancel_with_cause(_ handle: Int, _ cause: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_cancel received invalid channel handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_channel_cancel_with_cause received invalid channel handle")
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
     let didCancel = channel.cancel(cause: cause)
@@ -1872,7 +1875,7 @@ public func __kk_channel_try_receive(_ handle: Int) -> Int {
 }
 
 /// KSP-1572: `SendChannel.trySend(element)` bridge returning a `ChannelResult`
-/// box. `kk_channel_try_send` keeps its bare-status contract for runtime
+/// box. The bare-status `kk_channel_try_send` Swift helper stays for runtime
 /// tests; this variant produces the boxed shape `ChannelResult` exposes.
 @_cdecl("__kk_channel_try_send")
 public func __kk_channel_try_send(_ handle: Int, _ value: Int) -> Int {
@@ -1965,28 +1968,29 @@ public func __kk_channel_result_get_or_throw(
     _ boxRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let box = channelResultBoxFromRaw(boxRaw) else {
-        outThrown?.pointee = runtimeAllocateIllegalStateException(message: "ChannelResult is null")
-        return 0
-    }
-    switch box.status {
-    case kChannelResultSuccess:
-        return box.rootedValue()
-    case kChannelResultClosed, kChannelResultCancelled:
-        if box.cause != 0 {
-            outThrown?.pointee = box.rootedCause()
-        } else {
-            outThrown?.pointee = runtimeAllocateIllegalStateException(
-                message: "Trying to call 'getOrThrow' on a channel closed without a cause"
-            )
+    return runtimeThrowingBridge(outThrown) {
+        guard let box = channelResultBoxFromRaw(boxRaw) else {
+            outThrown?.pointee = runtimeAllocateIllegalStateException(message: "ChannelResult is null")
+            return 0
         }
-        return 0
-    default:
-        outThrown?.pointee = runtimeAllocateIllegalStateException(
-            message: "Trying to call 'getOrThrow' on a failed result of a non-closed channel"
-        )
-        return 0
+        switch box.status {
+        case kChannelResultSuccess:
+            return box.rootedValue()
+        case kChannelResultClosed, kChannelResultCancelled:
+            if box.cause != 0 {
+                outThrown?.pointee = box.rootedCause()
+            } else {
+                outThrown?.pointee = runtimeAllocateIllegalStateException(
+                    message: "Trying to call 'getOrThrow' on a channel closed without a cause"
+                )
+            }
+            return 0
+        default:
+            outThrown?.pointee = runtimeAllocateIllegalStateException(
+                message: "Trying to call 'getOrThrow' on a failed result of a non-closed channel"
+            )
+            return 0
+        }
     }
 }
 
@@ -2085,24 +2089,25 @@ public func kk_channel_iterator_hasNext(
     _ iterHandle: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: iterHandle) else {
-        return 0
-    }
-    let iter = Unmanaged<RuntimeChannelIterator>.fromOpaque(ptr).takeUnretainedValue()
-    let status = iter.advance()
-    switch status {
-    case .cancelled:
-        outThrown?.pointee = iter.channel.cancellationThrowable()
-    case .closed:
-        let cause = iter.channel.closeCauseSnapshot()
-        if cause != 0, cause != runtimeNullSentinelInt {
-            outThrown?.pointee = cause
+    return runtimeThrowingBridge(outThrown) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: iterHandle) else {
+            return 0
         }
-    default:
-        break
+        let iter = Unmanaged<RuntimeChannelIterator>.fromOpaque(ptr).takeUnretainedValue()
+        let status = iter.advance()
+        switch status {
+        case .cancelled:
+            outThrown?.pointee = iter.channel.cancellationThrowable()
+        case .closed:
+            let cause = iter.channel.closeCauseSnapshot()
+            if cause != 0, cause != runtimeNullSentinelInt {
+                outThrown?.pointee = cause
+            }
+        default:
+            break
+        }
+        return status == .success ? 1 : 0
     }
-    return status == .success ? 1 : 0
 }
 
 /// Returns the value fetched by the most recent `kk_channel_iterator_hasNext`

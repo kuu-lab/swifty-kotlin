@@ -63,13 +63,11 @@ func runtimeMutableMapEntryNew(mapRaw: Int, key: RuntimeValue, value: RuntimeVal
 // occupy slots 0/1. Runtime-backed entries participate in the same interface
 // dispatch as user implementations without changing Pair's public ABI.
 private let runtimeMapEntryKeyGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_pair_first(raw)
+    runtimeThrowingBridge(outThrown) { kk_pair_first(raw) }
 }
 
 private let runtimeMapEntryValueGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return kk_pair_second(raw)
+    runtimeThrowingBridge(outThrown) { kk_pair_second(raw) }
 }
 
 private func runtimeRegisterMapEntryGetters(_ raw: Int) {

@@ -1,5 +1,7 @@
 package kotlin.jvm.internal
 
+public object StringCompanionObject
+
 // JVM bytecode may load this singleton even when the Float constant is inlined.
 public object FloatCompanionObject {
     public const val MIN_VALUE: Float = 1.4e-45f

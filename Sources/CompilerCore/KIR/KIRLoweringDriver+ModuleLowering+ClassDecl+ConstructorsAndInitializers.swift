@@ -1928,6 +1928,14 @@ extension KIRLoweringDriver {
                     result: kpropResult,
                     canThrow: false
                 ))
+                let propertyReferenceAccessor = lambdaLowerer.ensurePropertyReferenceAccessor(
+                    targetSymbol: childID,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers
+                )
                 let propRegisterResult = arena.appendTemporary(type: intType)
                 body.append(.call(
                     callee: memberRegisterCallee,
@@ -1935,6 +1943,31 @@ extension KIRLoweringDriver {
                     result: propRegisterResult,
                     canThrow: false
                 ))
+                if memberPropertyArity == 1,
+                   let propertyReferenceAccessor,
+                   let receiverType = propertyReferenceAccessor.ownerType
+                {
+                    lambdaLowerer.registerCallableReflection(
+                        value: kpropResult,
+                        callableSymbol: propertyReferenceAccessor.getterSymbol,
+                        callableName: lambdaLowerer.callableTargetName(
+                            for: propertyReferenceAccessor.getterSymbol,
+                            sema: sema,
+                            interner: interner
+                        ),
+                        targetSymbol: propertyReferenceAccessor.getterSymbol,
+                        parameterTypes: [receiverType],
+                        returnType: propertyReferenceAccessor.propertyType,
+                        captures: [],
+                        receiverCount: 1,
+                        unboundMemberFunction: true,
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &body.instructions
+                    )
+                }
                 // KUU-4423: same visibility pin as the function branch —
                 // member property stubs carry no callable metadata.
                 let propVisibilityOrdinal = runtimeKCallableVisibilityOrdinal(childSym.visibility)
@@ -1994,14 +2027,7 @@ extension KIRLoweringDriver {
                 // property adds its extension receiver (KProperty2, arity 2)
                 // — while a bound `c::bar` keeps its receiver capture and
                 // stays unequal.
-                if let accessor = lambdaLowerer.ensurePropertyReferenceAccessor(
-                    targetSymbol: childID,
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers
-                ) {
+                if let accessor = propertyReferenceAccessor {
                     let getterExpr = arena.appendExpr(.symbolRef(accessor.getterSymbol), type: intType)
                     body.append(.constValue(result: getterExpr, value: .symbolRef(accessor.getterSymbol)))
                     let propertyKindExpr = arena.appendExpr(.intLiteral(1), type: intType)

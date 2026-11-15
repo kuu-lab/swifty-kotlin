@@ -195,6 +195,90 @@ extension CallTypeChecker {
                         selectedCompanionReceiverType = sourceCompanionType
                     }
                 }
+                if companionCandidates.isEmpty {
+                    // A nearer-scope local extension on the companion's actual
+                    // type resolves before an outer dispatch-receiver member
+                    // extension — Kotlin searches the innermost scope first.
+                    companionCandidates = request.ctx.scope.lookup(request.calleeName, matching: { candidate in
+                        guard let symbol = request.ctx.cachedSymbol(candidate),
+                              symbol.flags.contains(.localFunction),
+                              (!request.ast.arena.isInfixCall(request.id)
+                                   || symbol.flags.contains(.infixFunction)),
+                              let signature = request.sema.symbols.functionSignature(for: candidate),
+                              let declaredReceiver = signature.receiverType
+                        else { return false }
+                        return self.extensionReceiverMatchesDuringBuilderInference(
+                            callSiteReceiver: request.sema.types.makeNonNullable(companionTypeForExtensionLookup),
+                            declaredReceiver: declaredReceiver,
+                            ctx: request.ctx
+                        )
+                    }).filter {
+                        self.extensionCandidateMatchesCallShape(
+                            $0, request: request, argumentTypes: argTypes,
+                            receiverType: companionTypeForExtensionLookup
+                        )
+                    }
+                    if !companionCandidates.isEmpty {
+                        selectedCompanionReceiverType = companionTypeForExtensionLookup
+                    }
+                }
+                if companionCandidates.isEmpty {
+                    // A member extension that cannot accept this call's
+                    // argument shapes must not commit the slot — fall through
+                    // to the lower-tier extension search instead. Only the
+                    // argument SHAPE is checked: provisional argument types
+                    // like `MutableList<Nothing>` are re-inferred against the
+                    // parameter later, so an exact-type mismatch is not
+                    // disqualifying here.
+                    let memberExtensionCandidates = collectDispatchReceiverMemberExtensionCandidates(
+                        named: request.calleeName,
+                        extensionReceiverType: companionTypeForExtensionLookup,
+                        ctx: request.ctx
+                    ).filter { candidate in
+                        guard let signature = request.sema.symbols.functionSignature(for: candidate),
+                              let mapping = parameterMappingForCallArguments(
+                                  request.args, in: signature, callRange: request.range, ctx: request.ctx
+                              )
+                        else { return false }
+                        for (index, argument) in request.args.enumerated() {
+                            guard case let .lambdaLiteral(lambdaParameters, _, _, _) =
+                                    request.ctx.ast.arena.expr(argument.expr),
+                                  let parameterIndex = mapping[index],
+                                  let rawType = contextualCallArgumentType(
+                                      argument, parameterIndex: parameterIndex, in: signature, ctx: request.ctx
+                                  )
+                            else { continue }
+                            let parameterType = request.sema.types.makeNonNullable(
+                                applyReceiverClassTypeArgs(
+                                    to: rawType, signature: signature, candidate: candidate,
+                                    receiverType: companionTypeForExtensionLookup, sema: request.sema
+                                )
+                            )
+                            let functionType: FunctionType?
+                            if case let .functionType(function) = request.sema.types.kind(of: parameterType) {
+                                functionType = function
+                            } else {
+                                functionType = driver.helpers.samFunctionType(for: parameterType, sema: request.sema)
+                            }
+                            if let functionType {
+                                if lambdaParameters.isEmpty {
+                                    guard functionType.params.count <= 1 else { return false }
+                                } else {
+                                    guard functionType.params.count == lambdaParameters.count else { return false }
+                                }
+                            } else if parameterType != request.sema.types.anyType,
+                                      parameterType != request.sema.types.errorType,
+                                      !request.sema.types.typeContainsAnyTypeParam(parameterType) {
+                                return false
+                            }
+                        }
+                        return true
+                    }
+                    if !memberExtensionCandidates.isEmpty {
+                        companionCandidates = memberExtensionCandidates
+                        selectedCompanionReceiverType = companionTypeForExtensionLookup
+                    }
+                }
                 if companionCandidates.isEmpty,
                    let ownerReceiverType = companionExtensionReceiverType
                 {

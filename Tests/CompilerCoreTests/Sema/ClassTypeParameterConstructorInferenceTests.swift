@@ -71,6 +71,36 @@ struct ClassTypeParameterConstructorInferenceTests {
         #expect(errors.isEmpty, "\(errors)")
     }
 
+    @Test func expressionBodyUsesDeclaredReturnTypeAsExpectedType() throws {
+        // KUU-4577: the expression-body form must propagate the declared
+        // return type `P<T>` as the expected type of `P(key)`, exactly like
+        // the block-body `return P(key)` form.
+        let ctx = try makeTestContext("""
+        class P<T>(val a: Any?) {
+            fun f(key: T): P<T> = P(key)
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "\(errors)")
+        let sema = try #require(ctx.sema)
+        let ast = try #require(ctx.ast)
+        let call = try #require(nameRefCallExprID(named: "P", in: ast, interner: ctx.interner))
+        let type = try #require(sema.bindings.exprType(for: call))
+        guard case let .classType(classType) = sema.types.kind(of: type) else {
+            Issue.record("Expected P class type")
+            return
+        }
+        let ownerParameter = sema.types.allTypeParameterSymbols(for: classType.classSymbol).first
+        guard case let .invariant(argument) = classType.args.first,
+              case let .typeParam(parameter) = sema.types.kind(of: argument),
+              parameter.symbol == ownerParameter
+        else {
+            Issue.record("Expected P<T>, got \(sema.types.renderType(type))")
+            return
+        }
+    }
+
     @Test func covariantConstructorParameterStillInfersFromExpected() throws {
         let ctx = try makeTestContext("""
         class CBox<out T>(val a: Any?) {

@@ -37,6 +37,10 @@ inline fun <T, K, V> Iterable<T>.associateBy(keySelector: (T) -> K, valueTransfo
 inline fun <T, V> Iterable<T>.associateWith(valueSelector: (T) -> V): Map<T, V> { val result = mutableMapOf<T, V>(); for (item in this) result[item] = valueSelector(item); return result }
 inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> { val yes = mutableListOf<T>(); val no = mutableListOf<T>(); for (item in this) { if (predicate(item)) yes.add(item) else no.add(item) }; return Pair(yes, no) }
 inline fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> { val result = mutableListOf<R>(); for (item in this) result.add(transform(item)); return result }
+inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.mapTo(destination: C, transform: (T) -> R): C {
+    for (item in this) destination.add(transform(item))
+    return destination
+}
 inline fun <T, R> Iterable<T>.mapIndexed(transform: (Int, T) -> R): List<R> { val result = mutableListOf<R>(); var index = 0; for (item in this) { result.add(transform(index, item)); index++ }; return result }
 inline fun <T, R: Any> Iterable<T>.mapNotNull(transform: (T) -> R?): List<R> { val result = mutableListOf<R>(); for (item in this) { val mapped = transform(item); if (mapped != null) result.add(mapped) }; return result }
 fun <T: Any> Iterable<T?>.filterNotNull(): List<T> { val result = mutableListOf<T>(); for (item in this) if (item != null) result.add(item); return result }
@@ -50,6 +54,11 @@ public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
 }
 inline fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T> { val result = mutableListOf<T>(); val seen = mutableSetOf<K>(); for (item in this) if (seen.add(selector(item))) result.add(item); return result }
 inline fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> { val result = mutableListOf<T>(); for (item in this) if (predicate(item)) result.add(item); return result }
+inline fun <T> Iterable<T>.filterNot(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) if (!predicate(item)) result.add(item)
+    return result
+}
 inline fun <T> Iterable<T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
 inline fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
     var index = 0

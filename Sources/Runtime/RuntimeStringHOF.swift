@@ -33,6 +33,7 @@ public func __kk_string_equals_flat(
 // KSP-405: takeWhile/takeLastWhile/dropWhile are bundled Kotlin source
 // (StringTakeDrop.kt); their runtime bridges were removed.
 
+@_cdecl("__kk_string_splitToSequence")
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
@@ -40,11 +41,6 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let splitStrings = runtimeSplitString(source, delimiter: delimiter).map { runtimeMakeStringRaw($0) }
     let seq = RuntimeSequenceBox(steps: [.source(elements: splitStrings)])
     return registerRuntimeObject(seq)
-}
-
-@_cdecl("__kk_string_splitToSequence")
-public func __kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
-    kk_string_splitToSequence(strRaw, delimRaw)
 }
 
 // Retained as a private compatibility bridge for older bundled stdlib

@@ -412,7 +412,7 @@ extension DeclTypeChecker {
         addSubtype(getValue.signature.returnType, valueType)
 
         let variables = typeVarBySymbol.values.sorted { $0.rawValue < $1.rawValue }
-        let solution = ConstraintSolver().solve(
+        var solution = ConstraintSolver().solve(
             vars: variables,
             constraints: constraints,
             typeSystem: sema.types
@@ -420,6 +420,36 @@ extension DeclTypeChecker {
         guard solution.isSuccess else { return nil }
         let resultParameters = factory.signature.typeParameterSymbols
             + (returnProvidedType ? (provideDelegate?.signature.typeParameterSymbols ?? []) : [])
+        func unboundResultParameter() -> Bool {
+            resultParameters.contains { symbol in
+                guard let variable = typeVarBySymbol[symbol],
+                      let inferred = solution.substitution[variable]
+                else {
+                    return true
+                }
+                return inferred == sema.types.errorType
+                    || sema.types.typeContainsTypeParam(inferred, symbol: symbol)
+            }
+        }
+        if unboundResultParameter() {
+            // Convention contracts can leave a factory type parameter without
+            // direct argument evidence while a convention function's declared
+            // parameter bounds still tie it to the property type (for example
+            // `val x: Int by mapOf()`, where Map.getValue's `V1 : V` bound
+            // chains the property type to the factory's V). Re-run the solve
+            // with those dependent bounds and propagate concrete solutions
+            // along variable edges until every result parameter is bound.
+            guard let refined = refinedDelegateFactorySubstitution(
+                signatures: signatures,
+                typeVarBySymbol: typeVarBySymbol,
+                baseConstraints: constraints,
+                variables: variables,
+                ctx: ctx
+            ) else {
+                return nil
+            }
+            solution = Solution(substitution: refined, isSuccess: true, failure: nil)
+        }
         for symbol in resultParameters {
             guard let variable = typeVarBySymbol[symbol],
                   let inferred = solution.substitution[variable],
@@ -436,6 +466,124 @@ extension DeclTypeChecker {
         )
         guard case .classType = sema.types.kind(of: result) else { return nil }
         return result
+    }
+
+    /// Second-chance solve for delegate factories whose type parameters are
+    /// only reachable through convention bounds (for example `val x: Int by
+    /// mapOf()`, where `Map.getValue`'s `V1 : V` bound chains the property type
+    /// to the factory's `V`). The primary solve mirrors regular call inference
+    /// but omits declared type-parameter bounds; this variant adds the
+    /// dependent parameter-to-parameter edges the regular inference graph
+    /// carries, then propagates already-solved concrete types along variable
+    /// edges until every reachable parameter is bound or no progress is made.
+    /// It runs only when the primary solve left a result parameter unbound, so
+    /// delegates that already infer keep their existing behavior.
+    private func refinedDelegateFactorySubstitution(
+        signatures: [FunctionSignature],
+        typeVarBySymbol: [SymbolID: TypeVarID],
+        baseConstraints: [VariableConstraint],
+        variables: [TypeVarID],
+        ctx: TypeInferenceContext
+    ) -> [TypeVarID: TypeID]? {
+        let sema = ctx.sema
+        var constraints = baseConstraints
+        for signature in signatures {
+            for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+                guard index < signature.typeParameterUpperBoundsList.count,
+                      let parameterVariable = typeVarBySymbol[typeParamSymbol]
+                else {
+                    continue
+                }
+                let signatureBounds = signature.typeParameterUpperBoundsList[index]
+                let symbolBounds = sema.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+                for upperBound in signatureBounds + symbolBounds.filter({ !signatureBounds.contains($0) }) {
+                    guard case let .typeParam(boundTypeParam) = sema.types.kind(of: upperBound),
+                          let boundVariable = typeVarBySymbol[boundTypeParam.symbol],
+                          boundVariable != parameterVariable
+                    else {
+                        continue
+                    }
+                    constraints.append(VariableConstraint(
+                        kind: .subtype,
+                        left: .variable(parameterVariable),
+                        right: .variable(boundVariable),
+                        blameRange: nil
+                    ))
+                }
+            }
+        }
+
+        var variableEdges: [(subtype: TypeVarID, supertype: TypeVarID)] = []
+        for constraint in constraints where constraint.kind == .subtype {
+            guard case let .variable(left) = constraint.left,
+                  case let .variable(right) = constraint.right,
+                  left != right
+            else {
+                continue
+            }
+            variableEdges.append((subtype: left, supertype: right))
+        }
+
+        var solution = ConstraintSolver().solve(
+            vars: variables,
+            constraints: constraints,
+            typeSystem: sema.types
+        )
+        guard solution.isSuccess else { return nil }
+
+        func solvedConcreteType(_ variable: TypeVarID) -> TypeID? {
+            guard let value = solution.substitution[variable],
+                  value != sema.types.errorType,
+                  !ctx.resolver.containsTypeVariable(
+                      value, typeVarBySymbol: typeVarBySymbol, typeSystem: sema.types
+                  )
+            else {
+                return nil
+            }
+            return value
+        }
+
+        func isUnbound(_ variable: TypeVarID) -> Bool {
+            guard let value = solution.substitution[variable] else {
+                return true
+            }
+            return value == sema.types.errorType
+                || ctx.resolver.containsTypeVariable(
+                    value, typeVarBySymbol: typeVarBySymbol, typeSystem: sema.types
+                )
+        }
+
+        for _ in 0 ..< max(1, variables.count) {
+            var addedConstraint = false
+            for edge in variableEdges {
+                if let lower = solvedConcreteType(edge.subtype), isUnbound(edge.supertype) {
+                    constraints.append(VariableConstraint(
+                        kind: .subtype,
+                        left: .type(lower),
+                        right: .variable(edge.supertype),
+                        blameRange: nil
+                    ))
+                    addedConstraint = true
+                }
+                if let upper = solvedConcreteType(edge.supertype), isUnbound(edge.subtype) {
+                    constraints.append(VariableConstraint(
+                        kind: .subtype,
+                        left: .variable(edge.subtype),
+                        right: .type(upper),
+                        blameRange: nil
+                    ))
+                    addedConstraint = true
+                }
+            }
+            guard addedConstraint else { break }
+            solution = ConstraintSolver().solve(
+                vars: variables,
+                constraints: constraints,
+                typeSystem: sema.types
+            )
+            guard solution.isSuccess else { return nil }
+        }
+        return solution.substitution
     }
 
     private func delegateContextFactoryCandidateTiers(

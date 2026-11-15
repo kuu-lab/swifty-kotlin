@@ -198,248 +198,266 @@ private func runtimeFoundationKotlinMapToPlist(_ raw: Int) -> [String: Any]? {
 
 @_cdecl("__kk_foundation_date_now")
 public func __kk_foundation_date_now(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSDate())
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSDate())
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_date_create_reference")
 public func __kk_foundation_date_create_reference(_ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSDate(timeIntervalSinceReferenceDate: kk_bits_to_double(seconds)))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSDate(timeIntervalSinceReferenceDate: kk_bits_to_double(seconds)))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_date_create_since")
 public func __kk_foundation_date_create_since(_ seconds: Int, _ since: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let since = runtimeFoundationCounterpartDate(since) else {
-        return foundationFailure("Invalid NSDate counterpart", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let since = runtimeFoundationCounterpartDate(since) else {
+            try throwFoundationFailure("Invalid NSDate counterpart")
+        }
+        return runtimeForeignResourceCreate(NSDate(timeInterval: kk_bits_to_double(seconds), since: since))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(NSDate(timeInterval: kk_bits_to_double(seconds), since: since))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// kind: 0 = timeIntervalSince1970, 1 = timeIntervalSinceNow,
 /// 2 = timeIntervalSinceReferenceDate.
 @_cdecl("__kk_foundation_date_interval")
 public func __kk_foundation_date_interval(_ handle: Int, _ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle) else {
-        return foundationFailure("Invalid NSDate", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle) else {
+            try throwFoundationFailure("Invalid NSDate")
+        }
+        let interval: TimeInterval
+        switch kind {
+        case 0: interval = date.timeIntervalSince1970
+        case 1: interval = date.timeIntervalSinceNow
+        default: interval = date.timeIntervalSinceReferenceDate
+        }
+        return kk_double_to_bits(interval)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    let interval: TimeInterval
-    switch kind {
-    case 0: interval = date.timeIntervalSince1970
-    case 1: interval = date.timeIntervalSinceNow
-    default: interval = date.timeIntervalSinceReferenceDate
-    }
-    return kk_double_to_bits(interval)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_add")
 public func __kk_foundation_date_add(_ handle: Int, _ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle) else {
-        return foundationFailure("Invalid NSDate", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle) else {
+            try throwFoundationFailure("Invalid NSDate")
+        }
+        return runtimeForeignResourceCreate(date.addingTimeInterval(kk_bits_to_double(seconds)) as NSDate)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(date.addingTimeInterval(kk_bits_to_double(seconds)) as NSDate)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// kind: 0 = earlierDate, 1 = laterDate.
 @_cdecl("__kk_foundation_date_extreme")
 public func __kk_foundation_date_extreme(_ handle: Int, _ other: Int, _ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle),
-          let other = runtimeFoundationCounterpartDate(other) else {
-        return foundationFailure("Invalid NSDate operand", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle),
+              let other = runtimeFoundationCounterpartDate(other) else {
+            try throwFoundationFailure("Invalid NSDate operand")
+        }
+        let result = kind == 0 ? date.earlierDate(other) : date.laterDate(other)
+        return runtimeForeignResourceCreate(result as NSDate)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    let result = kind == 0 ? date.earlierDate(other) : date.laterDate(other)
-    return runtimeForeignResourceCreate(result as NSDate)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_compare")
 public func __kk_foundation_date_compare(_ handle: Int, _ other: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle),
-          let other = runtimeFoundationCounterpartDate(other) else {
-        return foundationFailure("Invalid NSDate operand", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle),
+              let other = runtimeFoundationCounterpartDate(other) else {
+            try throwFoundationFailure("Invalid NSDate operand")
+        }
+        return Int(date.compare(other).rawValue)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return Int(date.compare(other).rawValue)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_is_equal")
 public func __kk_foundation_date_is_equal(_ handle: Int, _ other: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle) else {
-        return foundationFailure("Invalid NSDate receiver", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle) else {
+            try throwFoundationFailure("Invalid NSDate receiver")
+        }
+        guard other != runtimeNullSentinelInt && other >= 0,
+              let counterpart = runtimeFoundationCounterpartDate(other) else { return 0 }
+        return date.isEqual(to: counterpart) ? 1 : 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    guard other != runtimeNullSentinelInt && other >= 0,
-          let counterpart = runtimeFoundationCounterpartDate(other) else { return 0 }
-    return date.isEqual(to: counterpart) ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_interval_since")
 public func __kk_foundation_date_interval_since(_ handle: Int, _ other: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle),
-          let other = runtimeFoundationCounterpartDate(other) else {
-        return foundationFailure("Invalid NSDate operand", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle),
+              let other = runtimeFoundationCounterpartDate(other) else {
+            try throwFoundationFailure("Invalid NSDate operand")
+        }
+        return kk_double_to_bits(date.timeIntervalSince(other))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return kk_double_to_bits(date.timeIntervalSince(other))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_description")
 public func __kk_foundation_date_description(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let date = runtimeFoundationNSDate(handle) else {
-        return foundationFailure("Invalid NSDate", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let date = runtimeFoundationNSDate(handle) else {
+            try throwFoundationFailure("Invalid NSDate")
+        }
+        return runtimeMakeStringRaw(date.description)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeStringRaw(date.description)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// kind: 0 = distantPast, 1 = distantFuture.
 @_cdecl("__kk_foundation_date_distant")
 public func __kk_foundation_date_distant(_ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    let date = kind == 0 ? NSDate.distantPast : NSDate.distantFuture
-    return runtimeForeignResourceCreate(date as NSDate)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        let date = kind == 0 ? NSDate.distantPast : NSDate.distantFuture
+        return runtimeForeignResourceCreate(date as NSDate)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_date_factory_since1970")
 public func __kk_foundation_date_factory_since1970(_ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSDate(timeIntervalSince1970: kk_bits_to_double(seconds)))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSDate(timeIntervalSince1970: kk_bits_to_double(seconds)))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_date_factory_since_now")
 public func __kk_foundation_date_factory_since_now(_ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSDate(timeIntervalSinceNow: kk_bits_to_double(seconds)))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSDate(timeIntervalSinceNow: kk_bits_to_double(seconds)))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_date_factory_since")
 public func __kk_foundation_date_factory_since(_ seconds: Int, _ since: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let since = runtimeFoundationCounterpartDate(since) else {
-        return foundationFailure("Invalid NSDate counterpart", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let since = runtimeFoundationCounterpartDate(since) else {
+            try throwFoundationFailure("Invalid NSDate counterpart")
+        }
+        return runtimeForeignResourceCreate(NSDate(timeInterval: kk_bits_to_double(seconds), since: since))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(NSDate(timeInterval: kk_bits_to_double(seconds), since: since))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 // MARK: - NSDateFormatter
 
 @_cdecl("__kk_foundation_date_formatter_create")
 public func __kk_foundation_date_formatter_create(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(DateFormatter())
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(DateFormatter())
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_date_formatter_date_format")
 public func __kk_foundation_date_formatter_date_format(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        // The Swift overlay vends "" for an unset dateFormat where the ObjC
+        // property reports nil; collapse empty to the Kotlin null.
+        guard let format = formatter.dateFormat, !format.isEmpty else {
+            return runtimeNullSentinelInt
+        }
+        return runtimeMakeStringRaw(format)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    // The Swift overlay vends "" for an unset dateFormat where the ObjC
-    // property reports nil; collapse empty to the Kotlin null.
-    guard let format = formatter.dateFormat, !format.isEmpty else {
-        return runtimeNullSentinelInt
-    }
-    return runtimeMakeStringRaw(format)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_set_date_format")
 public func __kk_foundation_date_formatter_set_date_format(_ handle: Int, _ format: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        formatter.dateFormat = runtimeStringFromRaw(format)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    formatter.dateFormat = runtimeStringFromRaw(format)
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// kind: 0 = dateStyle, 1 = timeStyle, 2 = formatterBehavior.
 @_cdecl("__kk_foundation_date_formatter_style")
 public func __kk_foundation_date_formatter_style(_ handle: Int, _ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        switch kind {
+        case 0: return Int(formatter.dateStyle.rawValue)
+        case 1: return Int(formatter.timeStyle.rawValue)
+        default: return Int(formatter.formatterBehavior.rawValue)
+        }
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    switch kind {
-    case 0: return Int(formatter.dateStyle.rawValue)
-    case 1: return Int(formatter.timeStyle.rawValue)
-    default: return Int(formatter.formatterBehavior.rawValue)
-    }
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// DateFormatter.Style/Behavior rawValue is UInt on the modern SDK overlays.
@@ -449,52 +467,55 @@ private func runtimeFoundationFormatterStyleRaw(_ raw: Int) -> UInt {
 
 @_cdecl("__kk_foundation_date_formatter_set_style")
 public func __kk_foundation_date_formatter_set_style(_ handle: Int, _ kind: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        let styleRaw = runtimeFoundationFormatterStyleRaw(value)
+        switch kind {
+        case 0:
+            if let style = DateFormatter.Style(rawValue: styleRaw) { formatter.dateStyle = style }
+        case 1:
+            if let style = DateFormatter.Style(rawValue: styleRaw) { formatter.timeStyle = style }
+        default:
+            if let behavior = DateFormatter.Behavior(rawValue: styleRaw) { formatter.formatterBehavior = behavior }
+        }
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    let styleRaw = runtimeFoundationFormatterStyleRaw(value)
-    switch kind {
-    case 0:
-        if let style = DateFormatter.Style(rawValue: styleRaw) { formatter.dateStyle = style }
-    case 1:
-        if let style = DateFormatter.Style(rawValue: styleRaw) { formatter.timeStyle = style }
-    default:
-        if let behavior = DateFormatter.Behavior(rawValue: styleRaw) { formatter.formatterBehavior = behavior }
-    }
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// kind: 0 = isLenient.
 @_cdecl("__kk_foundation_date_formatter_bool")
 public func __kk_foundation_date_formatter_bool(_ handle: Int, _ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        return formatter.isLenient ? 1 : 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return formatter.isLenient ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_set_bool")
 public func __kk_foundation_date_formatter_set_bool(_ handle: Int, _ kind: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        formatter.isLenient = value != 0
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    formatter.isLenient = value != 0
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 /// kind: 0 = locale (NSLocale token), 1 = timeZone (NSTimeZone token).
@@ -502,380 +523,405 @@ public func __kk_foundation_date_formatter_set_bool(_ handle: Int, _ kind: Int, 
 /// integer can be confused with the result.
 @_cdecl("__kk_foundation_date_formatter_object")
 public func __kk_foundation_date_formatter_object(_ handle: Int, _ kind: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
+        }
+        switch kind {
+        case 0:
+            guard let locale = formatter.locale else { return runtimeNullSentinelInt }
+            return kk_box_long(runtimeForeignResourceCreate(locale as NSLocale))
+        case 1:
+            guard let timeZone = formatter.timeZone else { return runtimeNullSentinelInt }
+            return kk_box_long(runtimeForeignResourceCreate(timeZone as NSTimeZone))
+        default:
+            return runtimeNullSentinelInt
+        }
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    switch kind {
-    case 0:
-        guard let locale = formatter.locale else { return runtimeNullSentinelInt }
-        return kk_box_long(runtimeForeignResourceCreate(locale as NSLocale))
-    case 1:
-        guard let timeZone = formatter.timeZone else { return runtimeNullSentinelInt }
-        return kk_box_long(runtimeForeignResourceCreate(timeZone as NSTimeZone))
-    default:
-        return runtimeNullSentinelInt
-    }
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_set_object")
 public func __kk_foundation_date_formatter_set_object(_ handle: Int, _ kind: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle) else {
-        return foundationFailure("Invalid NSDateFormatter", outThrown)
-    }
-    switch kind {
-    case 0:
-        if value == runtimeNullSentinelInt || value < 0 {
-            formatter.locale = nil
-        } else if let locale = runtimeForeignResource(value, as: NSLocale.self) {
-            formatter.locale = Locale(identifier: locale.localeIdentifier)
-        } else {
-            return foundationFailure("Invalid NSDateFormatter locale", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle) else {
+            try throwFoundationFailure("Invalid NSDateFormatter")
         }
-    case 1:
-        if value == runtimeNullSentinelInt || value < 0 {
-            formatter.timeZone = nil
-        } else if let zone = runtimeForeignResource(value, as: NSTimeZone.self) {
-            formatter.timeZone = TimeZone(identifier: zone.name)
-                ?? TimeZone(secondsFromGMT: zone.secondsFromGMT)
-        } else {
-            return foundationFailure("Invalid NSDateFormatter time zone", outThrown)
+        switch kind {
+        case 0:
+            if value == runtimeNullSentinelInt || value < 0 {
+                formatter.locale = nil
+            } else if let locale = runtimeForeignResource(value, as: NSLocale.self) {
+                formatter.locale = Locale(identifier: locale.localeIdentifier)
+            } else {
+                try throwFoundationFailure("Invalid NSDateFormatter locale")
+            }
+        case 1:
+            if value == runtimeNullSentinelInt || value < 0 {
+                formatter.timeZone = nil
+            } else if let zone = runtimeForeignResource(value, as: NSTimeZone.self) {
+                formatter.timeZone = TimeZone(identifier: zone.name)
+                    ?? TimeZone(secondsFromGMT: zone.secondsFromGMT)
+            } else {
+                try throwFoundationFailure("Invalid NSDateFormatter time zone")
+            }
+        default:
+            try throwFoundationFailure("Unknown NSDateFormatter object property")
         }
-    default:
-        return foundationFailure("Unknown NSDateFormatter object property", outThrown)
+        return 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_string_from_date")
 public func __kk_foundation_date_formatter_string_from_date(_ handle: Int, _ date: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle),
-          let counterpart = runtimeFoundationCounterpartDate(date) else {
-        return foundationFailure("Invalid NSDateFormatter stringFromDate", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle),
+              let counterpart = runtimeFoundationCounterpartDate(date) else {
+            try throwFoundationFailure("Invalid NSDateFormatter stringFromDate")
+        }
+        return runtimeMakeStringRaw(formatter.string(from: counterpart))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeStringRaw(formatter.string(from: counterpart))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_date_from_string")
 public func __kk_foundation_date_formatter_date_from_string(_ handle: Int, _ string: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let formatter = runtimeFoundationDateFormatter(handle),
-          let text = runtimeStringFromRaw(string) else {
-        return foundationFailure("Invalid NSDateFormatter dateFromString", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let formatter = runtimeFoundationDateFormatter(handle),
+              let text = runtimeStringFromRaw(string) else {
+            try throwFoundationFailure("Invalid NSDateFormatter dateFromString")
+        }
+        guard let date = formatter.date(from: text) else { return runtimeNullSentinelInt }
+        return kk_box_long(runtimeForeignResourceCreate(date as NSDate))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    guard let date = formatter.date(from: text) else { return runtimeNullSentinelInt }
-    return kk_box_long(runtimeForeignResourceCreate(date as NSDate))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_localized_string")
 public func __kk_foundation_date_formatter_localized_string(_ date: Int, _ dateStyle: Int, _ timeStyle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let counterpart = runtimeFoundationCounterpartDate(date) else {
-        return foundationFailure("Invalid NSDate for localized formatting", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let counterpart = runtimeFoundationCounterpartDate(date) else {
+            try throwFoundationFailure("Invalid NSDate for localized formatting")
+        }
+        let rendered = DateFormatter.localizedString(
+            from: counterpart,
+            dateStyle: DateFormatter.Style(rawValue: runtimeFoundationFormatterStyleRaw(dateStyle)) ?? .medium,
+            timeStyle: DateFormatter.Style(rawValue: runtimeFoundationFormatterStyleRaw(timeStyle)) ?? .short
+        )
+        return runtimeMakeStringRaw(rendered)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    let rendered = DateFormatter.localizedString(
-        from: counterpart,
-        dateStyle: DateFormatter.Style(rawValue: runtimeFoundationFormatterStyleRaw(dateStyle)) ?? .medium,
-        timeStyle: DateFormatter.Style(rawValue: runtimeFoundationFormatterStyleRaw(timeStyle)) ?? .short
-    )
-    return runtimeMakeStringRaw(rendered)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_date_formatter_format_from_template")
 public func __kk_foundation_date_formatter_format_from_template(_ template: Int, _ options: Int, _ locale: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let template = runtimeStringFromRaw(template) else {
-        return foundationFailure("Invalid date format template", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let template = runtimeStringFromRaw(template) else {
+            try throwFoundationFailure("Invalid date format template")
+        }
+        let localeObject: Locale?
+        if locale == runtimeNullSentinelInt || locale < 0 {
+            localeObject = nil
+        } else if let nsLocale = runtimeForeignResource(locale, as: NSLocale.self) {
+            localeObject = Locale(identifier: nsLocale.localeIdentifier)
+        } else {
+            try throwFoundationFailure("Invalid template locale")
+        }
+        guard let format = DateFormatter.dateFormat(fromTemplate: template, options: options, locale: localeObject) else {
+            return runtimeNullSentinelInt
+        }
+        return runtimeMakeStringRaw(format)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    let localeObject: Locale?
-    if locale == runtimeNullSentinelInt || locale < 0 {
-        localeObject = nil
-    } else if let nsLocale = runtimeForeignResource(locale, as: NSLocale.self) {
-        localeObject = Locale(identifier: nsLocale.localeIdentifier)
-    } else {
-        return foundationFailure("Invalid template locale", outThrown)
-    }
-    guard let format = DateFormatter.dateFormat(fromTemplate: template, options: options, locale: localeObject) else {
-        return runtimeNullSentinelInt
-    }
-    return runtimeMakeStringRaw(format)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 // MARK: - NSTimeZone
 
 @_cdecl("__kk_foundation_timezone_create_name")
 public func __kk_foundation_timezone_create_name(_ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let name = runtimeStringFromRaw(name), let zone = NSTimeZone(name: name) else {
-        return foundationFailure("Unknown NSTimeZone name", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let name = runtimeStringFromRaw(name), let zone = NSTimeZone(name: name) else {
+            try throwFoundationFailure("Unknown NSTimeZone name")
+        }
+        return runtimeForeignResourceCreate(zone)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(zone)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_name")
 public func __kk_foundation_timezone_name(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let zone = runtimeFoundationTimeZone(handle) else {
-        return foundationFailure("Invalid NSTimeZone", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let zone = runtimeFoundationTimeZone(handle) else {
+            try throwFoundationFailure("Invalid NSTimeZone")
+        }
+        return runtimeMakeStringRaw(zone.name)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeStringRaw(zone.name)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_abbreviation")
 public func __kk_foundation_timezone_abbreviation(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let zone = runtimeFoundationTimeZone(handle) else {
-        return foundationFailure("Invalid NSTimeZone", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let zone = runtimeFoundationTimeZone(handle) else {
+            try throwFoundationFailure("Invalid NSTimeZone")
+        }
+        // NSTimeZone exposes no no-argument abbreviation in Swift; the
+        // date-parameterized form at the current date is the same value KN's
+        // `abbreviation` property reports.
+        return zone.abbreviation(for: Date()).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    // NSTimeZone exposes no no-argument abbreviation in Swift; the
-    // date-parameterized form at the current date is the same value KN's
-    // `abbreviation` property reports.
-    return zone.abbreviation(for: Date()).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_seconds_from_gmt")
 public func __kk_foundation_timezone_seconds_from_gmt(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let zone = runtimeFoundationTimeZone(handle) else {
-        return foundationFailure("Invalid NSTimeZone", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let zone = runtimeFoundationTimeZone(handle) else {
+            try throwFoundationFailure("Invalid NSTimeZone")
+        }
+        return zone.secondsFromGMT
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return zone.secondsFromGMT
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_seconds_from_gmt_for_date")
 public func __kk_foundation_timezone_seconds_from_gmt_for_date(_ handle: Int, _ date: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let zone = runtimeFoundationTimeZone(handle),
-          let counterpart = runtimeFoundationCounterpartDate(date) else {
-        return foundationFailure("Invalid NSTimeZone/date operand", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let zone = runtimeFoundationTimeZone(handle),
+              let counterpart = runtimeFoundationCounterpartDate(date) else {
+            try throwFoundationFailure("Invalid NSTimeZone/date operand")
+        }
+        return zone.secondsFromGMT(for: counterpart)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return zone.secondsFromGMT(for: counterpart)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_abbreviation_for_date")
 public func __kk_foundation_timezone_abbreviation_for_date(_ handle: Int, _ date: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let zone = runtimeFoundationTimeZone(handle),
-          let counterpart = runtimeFoundationCounterpartDate(date) else {
-        return foundationFailure("Invalid NSTimeZone/date operand", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let zone = runtimeFoundationTimeZone(handle),
+              let counterpart = runtimeFoundationCounterpartDate(date) else {
+            try throwFoundationFailure("Invalid NSTimeZone/date operand")
+        }
+        return zone.abbreviation(for: counterpart).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return zone.abbreviation(for: counterpart).map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_is_equal")
 public func __kk_foundation_timezone_is_equal(_ handle: Int, _ other: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let zone = runtimeFoundationTimeZone(handle),
-          let other = runtimeFoundationTimeZone(other) else {
-        return foundationFailure("Invalid NSTimeZone operand", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let zone = runtimeFoundationTimeZone(handle),
+              let other = runtimeFoundationTimeZone(other) else {
+            try throwFoundationFailure("Invalid NSTimeZone operand")
+        }
+        return zone.isEqual(other) ? 1 : 0
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return zone.isEqual(other) ? 1 : 0
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_local")
 public func __kk_foundation_timezone_local(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    // NSTimeZone.local/system vend the TimeZone struct overlay; `as
-    // NSTimeZone` performs the toll-free bridge to the class cluster object.
-    return runtimeForeignResourceCreate(NSTimeZone.local as NSTimeZone)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        // NSTimeZone.local/system vend the TimeZone struct overlay; `as
+        // NSTimeZone` performs the toll-free bridge to the class cluster object.
+        return runtimeForeignResourceCreate(NSTimeZone.local as NSTimeZone)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_timezone_system")
 public func __kk_foundation_timezone_system(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSTimeZone.system as NSTimeZone)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSTimeZone.system as NSTimeZone)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_timezone_with_name")
 public func __kk_foundation_timezone_with_name(_ name: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let name = runtimeStringFromRaw(name) else {
-        return foundationFailure("Invalid NSTimeZone name", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let name = runtimeStringFromRaw(name) else {
+            try throwFoundationFailure("Invalid NSTimeZone name")
+        }
+        guard let zone = NSTimeZone(name: name) else { return runtimeNullSentinelInt }
+        return kk_box_long(runtimeForeignResourceCreate(zone))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    guard let zone = NSTimeZone(name: name) else { return runtimeNullSentinelInt }
-    return kk_box_long(runtimeForeignResourceCreate(zone))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_with_abbreviation")
 public func __kk_foundation_timezone_with_abbreviation(_ abbreviation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let abbreviation = runtimeStringFromRaw(abbreviation) else {
-        return foundationFailure("Invalid NSTimeZone abbreviation", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let abbreviation = runtimeStringFromRaw(abbreviation) else {
+            try throwFoundationFailure("Invalid NSTimeZone abbreviation")
+        }
+        guard let zone = NSTimeZone(abbreviation: abbreviation) else { return runtimeNullSentinelInt }
+        return kk_box_long(runtimeForeignResourceCreate(zone))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    guard let zone = NSTimeZone(abbreviation: abbreviation) else { return runtimeNullSentinelInt }
-    return kk_box_long(runtimeForeignResourceCreate(zone))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_timezone_for_seconds_from_gmt")
 public func __kk_foundation_timezone_for_seconds_from_gmt(_ seconds: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    // init(forSecondsFromGMT:) is non-failable on the modern SDK.
-    return runtimeForeignResourceCreate(NSTimeZone(forSecondsFromGMT: seconds))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        // init(forSecondsFromGMT:) is non-failable on the modern SDK.
+        return runtimeForeignResourceCreate(NSTimeZone(forSecondsFromGMT: seconds))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 // MARK: - NSLocale
 
 @_cdecl("__kk_foundation_locale_create_identifier")
 public func __kk_foundation_locale_create_identifier(_ identifier: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let identifier = runtimeStringFromRaw(identifier) else {
-        return foundationFailure("Invalid NSLocale identifier", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let identifier = runtimeStringFromRaw(identifier) else {
+            try throwFoundationFailure("Invalid NSLocale identifier")
+        }
+        return runtimeForeignResourceCreate(NSLocale(localeIdentifier: identifier))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(NSLocale(localeIdentifier: identifier))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_locale_identifier")
 public func __kk_foundation_locale_identifier(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let locale = runtimeFoundationLocale(handle) else {
-        return foundationFailure("Invalid NSLocale", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let locale = runtimeFoundationLocale(handle) else {
+            try throwFoundationFailure("Invalid NSLocale")
+        }
+        return runtimeMakeStringRaw(locale.localeIdentifier)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeMakeStringRaw(locale.localeIdentifier)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_locale_language_code")
 public func __kk_foundation_locale_language_code(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let locale = runtimeFoundationLocale(handle) else {
-        return foundationFailure("Invalid NSLocale", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let locale = runtimeFoundationLocale(handle) else {
+            try throwFoundationFailure("Invalid NSLocale")
+        }
+        // NSLocale.languageCode is nonnull on the modern SDK (empty string when
+        // absent); countryCode stays optional.
+        return runtimeMakeStringRaw(locale.languageCode)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    // NSLocale.languageCode is nonnull on the modern SDK (empty string when
-    // absent); countryCode stays optional.
-    return runtimeMakeStringRaw(locale.languageCode)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_locale_country_code")
 public func __kk_foundation_locale_country_code(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let locale = runtimeFoundationLocale(handle) else {
-        return foundationFailure("Invalid NSLocale", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let locale = runtimeFoundationLocale(handle) else {
+            try throwFoundationFailure("Invalid NSLocale")
+        }
+        return locale.countryCode.map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return locale.countryCode.map(runtimeMakeStringRaw) ?? runtimeNullSentinelInt
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 @_cdecl("__kk_foundation_locale_current")
 public func __kk_foundation_locale_current(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    // NSLocale.current/autoupdatingCurrent vend the Locale struct overlay;
-    // `as NSLocale` performs the same toll-free bridge Date uses for NSDate.
-    return runtimeForeignResourceCreate(NSLocale.current as NSLocale)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        // NSLocale.current/autoupdatingCurrent vend the Locale struct overlay;
+        // `as NSLocale` performs the same toll-free bridge Date uses for NSDate.
+        return runtimeForeignResourceCreate(NSLocale.current as NSLocale)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_locale_autoupdating")
 public func __kk_foundation_locale_autoupdating(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    return runtimeForeignResourceCreate(NSLocale.autoupdatingCurrent as NSLocale)
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        return runtimeForeignResourceCreate(NSLocale.autoupdatingCurrent as NSLocale)
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
+    }
 }
 
 @_cdecl("__kk_foundation_locale_with_identifier")
 public func __kk_foundation_locale_with_identifier(_ identifier: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    #if canImport(Darwin)
-    guard let identifier = runtimeStringFromRaw(identifier) else {
-        return foundationFailure("Invalid NSLocale identifier", outThrown)
+    runtimeThrowingBridge(outThrown, defaultOnFailure: runtimeNullSentinelInt) {
+        #if canImport(Darwin)
+        guard let identifier = runtimeStringFromRaw(identifier) else {
+            try throwFoundationFailure("Invalid NSLocale identifier")
+        }
+        return runtimeForeignResourceCreate(NSLocale(localeIdentifier: identifier))
+        #else
+        try throwFoundationFailure("Apple Foundation requires Darwin")
+        #endif
     }
-    return runtimeForeignResourceCreate(NSLocale(localeIdentifier: identifier))
-    #else
-    return foundationFailure("Apple Foundation requires Darwin", outThrown)
-    #endif
 }
 
 // MARK: - NSUserDefaults

@@ -1,0 +1,9 @@
+symbol fq=__local_0.count[kind=local;type=Int;origin=fixture] kind=local vis=private flags=_ type=Int
+symbol fq=__local_1.name[kind=local;type=String;origin=fixture] kind=local vis=private flags=_ type=String
+symbol fq=golden.sema.mapFactoryDelegateInference[kind=fun;params=;ret=Unit;origin=fixture] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fmap_factory_delegate_inference package=golden.sema
+  decl golden.sema.mapFactoryDelegateInference[kind=fun;params=;ret=Unit;origin=fixture] fun mapFactoryDelegateInference sym=golden.sema.mapFactoryDelegateInference[kind=fun;params=;ret=Unit;origin=fixture]
+expr e@6:23 call callee=e@6:23#1 args=[] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapOf[kind=fun;params=;ret=kotlin.collections.Map<T0,T1>;gen=2] targs=[String,Int]
+expr e@6:5 localDecl count mutable=0 type=Int init=e@6:23 delegated=1 type=Unit ref=__local_0.count[kind=local;type=Int;origin=fixture]
+expr e@7:25 call callee=e@7:25#1 args=[] type=kotlin.collections.Map<String, String> call=kotlin.collections.mapOf[kind=fun;params=;ret=kotlin.collections.Map<T0,T1>;gen=2] targs=[String,String]
+expr e@7:5 localDecl name mutable=0 type=String init=e@7:25 delegated=1 type=Unit ref=__local_1.name[kind=local;type=String;origin=fixture]

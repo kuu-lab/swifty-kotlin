@@ -532,30 +532,31 @@ public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
 /// including when a nested array element supplies null as the right operand.
 @_cdecl("__kk_objects_equals")
 public func __kk_objects_equals(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if let overridden = runtimeObjectEqualsOverride(lhs, rhs, outThrown: outThrown) {
-        return kk_box_bool(overridden ? 1 : 0)
-    }
-    // Erased floating operands arrive as boxes. Read their owned payloads,
-    // preserving boxed equals' canonical NaNs and distinct signed zeros.
-    if runtimeFloatingBoxBitPattern(lhs) != nil, runtimeFloatingBoxBitPattern(rhs) != nil,
-       let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
-       let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs)
-    {
-        if let left = tryCast(lhsPointer, to: RuntimeFloatBox.self),
-           let right = tryCast(rhsPointer, to: RuntimeFloatBox.self)
-        {
-            return kk_box_bool((left.value.isNaN && right.value.isNaN)
-                || left.value.bitPattern == right.value.bitPattern ? 1 : 0)
+    runtimeThrowingBridge(outThrown) {
+        if let overridden = runtimeObjectEqualsOverride(lhs, rhs, outThrown: outThrown) {
+            return kk_box_bool(overridden ? 1 : 0)
         }
-        if let left = tryCast(lhsPointer, to: RuntimeDoubleBox.self),
-           let right = tryCast(rhsPointer, to: RuntimeDoubleBox.self)
+        // Erased floating operands arrive as boxes. Read their owned payloads,
+        // preserving boxed equals' canonical NaNs and distinct signed zeros.
+        if runtimeFloatingBoxBitPattern(lhs) != nil, runtimeFloatingBoxBitPattern(rhs) != nil,
+           let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
+           let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs)
         {
-            return kk_box_bool((left.value.isNaN && right.value.isNaN)
-                || left.value.bitPattern == right.value.bitPattern ? 1 : 0)
+            if let left = tryCast(lhsPointer, to: RuntimeFloatBox.self),
+               let right = tryCast(rhsPointer, to: RuntimeFloatBox.self)
+            {
+                return kk_box_bool((left.value.isNaN && right.value.isNaN)
+                    || left.value.bitPattern == right.value.bitPattern ? 1 : 0)
+            }
+            if let left = tryCast(lhsPointer, to: RuntimeDoubleBox.self),
+               let right = tryCast(rhsPointer, to: RuntimeDoubleBox.self)
+            {
+                return kk_box_bool((left.value.isNaN && right.value.isNaN)
+                    || left.value.bitPattern == right.value.bitPattern ? 1 : 0)
+            }
         }
+        return kk_box_bool((runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 1 : 0)
     }
-    return kk_box_bool((runtimeAnyObjectEquality(lhs, rhs) ?? runtimeValuesEqual(lhs, rhs)) ? 1 : 0)
 }
 
 func runtimeObjectEqualsOverride(

@@ -1,6 +1,17 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 @testable import Runtime
 import Testing
+
+private func canonicalPath(_ path: String) -> String? {
+    guard let resolved = realpath(path, nil) else { return nil }
+    defer { free(resolved) }
+    return String(cString: resolved)
+}
 
 @Suite(.serialized, .runtimeIsolation(.gcOnly))
 struct RuntimeIoFileSystemTests {
@@ -30,7 +41,9 @@ struct RuntimeIoFileSystemTests {
         var thrown = 123
         let resolved = __kk_io_fs_resolve(runtimeMakeStringRaw(link.path), &thrown)
         #expect(thrown == 0)
-        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: resolved)) == file.resolvingSymlinksInPath().path)
+        // URL.resolvingSymlinksInPath() can retain /var on macOS while the runtime resolver uses realpath().
+        let expected = try #require(canonicalPath(file.path))
+        #expect(extractString(from: UnsafeMutableRawPointer(bitPattern: resolved)) == expected)
     }
 
     @Test func deleteIsNonRecursiveAndHonorsMustExist() throws {

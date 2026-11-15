@@ -26,6 +26,8 @@ import kotlin.experimental.ExperimentalTypeInference
 import kotlin.jvm.JvmName
 import kotlin.sequences.Sequence
 
+public fun ByteArray.decodeToString(): String = __jvmUtf8String(this, "UTF-8")
+
 public fun String.format(vararg args: Any?): String = __jvmStringFormat(this, args)
 public fun String.format(locale: java.util.Locale?, vararg args: Any?): String =
     __jvmStringFormatLocale(locale, this, args)
@@ -301,6 +303,17 @@ public fun CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boo
     while (i < this.length) {
         if (charsEqual(this[i], char, ignoreCase)) return i
         i++
+    }
+    return -1
+}
+public fun CharSequence.indexOfAny(chars: CharArray, startIndex: Int = 0, ignoreCase: Boolean = false): Int {
+    var index = if (startIndex < 0) 0 else startIndex
+    while (index < length) {
+        val candidate = this[index]
+        for (char in chars) {
+            if (charsEqual(candidate, char, ignoreCase)) return index
+        }
+        index++
     }
     return -1
 }

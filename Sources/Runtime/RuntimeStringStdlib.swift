@@ -167,6 +167,7 @@ public func __kk_string_isNormalized_flat(
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
+@_cdecl("__kk_string_split")
 public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
@@ -174,12 +175,6 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
-@_cdecl("__kk_string_split")
-public func __kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
-    kk_string_split(strRaw, delimRaw)
-}
-
-@_cdecl("kk_string_split_flat")
 public func kk_string_split_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
@@ -196,6 +191,7 @@ public func kk_string_split_flat(
     )
 }
 
+@_cdecl("__kk_string_split_limit")
 public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
@@ -205,11 +201,6 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     return runtimeMakeStringListRaw(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
-}
-
-@_cdecl("__kk_string_split_limit")
-public func __kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
-    kk_string_split_limit(strRaw, delimRaw, ignoreCaseRaw, limitRaw)
 }
 
 func runtimeStringReplace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {

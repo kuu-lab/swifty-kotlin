@@ -175,7 +175,9 @@ public fun <T> compareByDescending(selector: (T) -> Comparable<*>?): Comparator<
 public fun <T, K> compareByDescending(comparator: Comparator<in K>, selector: (T) -> K): Comparator<T> =
     ComparisonSelectorWithComparator(selector, comparator, descending = true)
 
-public fun <T : Comparable<T>> naturalOrder(): Comparator<T> =
+public fun <T : Comparable<T>> naturalOrder(): Comparator<T> = naturalOrderComparator<T>()
+
+internal fun <T : Comparable<T>> naturalOrderComparator(): Comparator<T> =
     ComparisonSelector<T>({ value -> value })
 
 public fun <T : Comparable<T>> reverseOrder(): Comparator<T> =
