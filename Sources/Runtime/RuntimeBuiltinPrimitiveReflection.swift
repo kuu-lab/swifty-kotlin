@@ -17,20 +17,21 @@ private let builtinUIntDataDelegate: @convention(c) (Int, Int, UnsafeMutablePoin
 private func invokeBuiltinPrimitiveConstructor(
     _ token: Int, _ arguments: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    if token == Int(RuntimeTypeTokenEncoding.anyBase) {
-        return kk_object_new(0, Int(runtimeStableNominalTypeID(fqName: "kotlin.Any")))
-    }
-    guard let value = runtimeListBox(from: arguments)?.elements.first else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Missing unsigned value.")
-        return runtimeNullSentinelInt
-    }
-    switch Int64(token) {
-    case RuntimeTypeTokenEncoding.uintBase: return kk_box_uint(Int(UInt32(truncatingIfNeeded: kk_unbox_int(value))))
-    case RuntimeTypeTokenEncoding.ubyteBase: return kk_box_ubyte(Int(UInt8(truncatingIfNeeded: kk_unbox_int(value))))
-    case RuntimeTypeTokenEncoding.ushortBase: return kk_box_ushort(Int(UInt16(truncatingIfNeeded: kk_unbox_int(value))))
-    case RuntimeTypeTokenEncoding.ulongBase: return kk_box_ulong_nonnull(kk_unbox_long(value))
-    default: return runtimeNullSentinelInt
+    return runtimeThrowingBridge(outThrown) {
+        if token == Int(RuntimeTypeTokenEncoding.anyBase) {
+            return kk_object_new(0, Int(runtimeStableNominalTypeID(fqName: "kotlin.Any")))
+        }
+        guard let value = runtimeListBox(from: arguments)?.elements.first else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Missing unsigned value.")
+            return runtimeNullSentinelInt
+        }
+        switch Int64(token) {
+        case RuntimeTypeTokenEncoding.uintBase: return kk_box_uint(Int(UInt32(truncatingIfNeeded: kk_unbox_int(value))))
+        case RuntimeTypeTokenEncoding.ubyteBase: return kk_box_ubyte(Int(UInt8(truncatingIfNeeded: kk_unbox_int(value))))
+        case RuntimeTypeTokenEncoding.ushortBase: return kk_box_ushort(Int(UInt16(truncatingIfNeeded: kk_unbox_int(value))))
+        case RuntimeTypeTokenEncoding.ulongBase: return kk_box_ulong_nonnull(kk_unbox_long(value))
+        default: return runtimeNullSentinelInt
+        }
     }
 }
 
@@ -111,160 +112,161 @@ func filterBuiltinDeclaredFunctions(_ functions: [Int], classRaw: Int) -> [Int] 
 private func invokeBuiltinPrimitiveMember(
     _ member: Int, _ arguments: Int, _ mask: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let values = runtimeListBox(from: arguments)?.elements, let receiver = values.first else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Missing primitive receiver.")
-        return runtimeNullSentinelInt
-    }
-    if member >= 3000 {
-        return invokeBuiltinUnsignedMember(member, values: values, outThrown: outThrown)
-    }
-    if member >= 2000 {
-        return invokeBuiltinFloatingUnary(member, receiver: receiver)
-    }
-    if member >= 1800 {
-        return invokeBuiltinFloatingArithmetic(member, values: values)
-    }
-    if member >= 1500 {
-        let value = UInt16(truncatingIfNeeded: kk_unbox_char(receiver))
-        switch member - 1500 {
-        case 0:
-            let other = UInt16(truncatingIfNeeded: kk_unbox_char(values[1]))
-            return kk_box_int(value < other ? -1 : value > other ? 1 : 0)
-        case 1: return kk_box_char(Int(value &+ 1))
-        case 2: return kk_box_char(Int(value &- 1))
-        case 3: return kk_box_int(Int(value) - kk_unbox_char(values[1]))
-        case 4: return kk_box_char(Int(UInt16(truncatingIfNeeded: Int64(value) - Int64(Int32(truncatingIfNeeded: kk_unbox_int(values[1]))))))
-        case 5: return kk_box_char(Int(UInt16(truncatingIfNeeded: Int64(value) + Int64(Int32(truncatingIfNeeded: kk_unbox_int(values[1]))))))
-        case 6: return kk_char_rangeTo(Int(value), kk_unbox_char(values[1]))
-        case 7: return __kk_char_rangeUntil(Int(value), kk_unbox_char(values[1]))
-        case 8: return kk_box_byte(Int(Int8(truncatingIfNeeded: value)))
-        case 9: return kk_box_char(Int(value))
-        case 10: return kk_box_double_nonnull(kk_double_to_bits(Double(value)))
-        case 11: return kk_box_float(kk_float_to_bits(Float(value)))
-        case 12: return kk_box_int(Int(value))
-        case 13: return kk_box_long_nonnull(Int(value))
-        default: return kk_box_short(Int(Int16(truncatingIfNeeded: value)))
+    return runtimeThrowingBridge(outThrown) {
+        guard let values = runtimeListBox(from: arguments)?.elements, let receiver = values.first else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Missing primitive receiver.")
+            return runtimeNullSentinelInt
         }
-    }
-    if member >= 1400 {
-        let lhs = kk_unbox_bool(receiver) != 0
-        switch member - 1400 {
-        case 0:
-            let rhs = kk_unbox_bool(values[1]) != 0
-            return kk_box_int(lhs == rhs ? 0 : lhs ? 1 : -1)
-        case 1: return kk_box_bool(lhs ? 0 : 1)
-        case 2: return kk_box_bool(lhs && kk_unbox_bool(values[1]) != 0 ? 1 : 0)
-        case 3: return kk_box_bool(lhs || kk_unbox_bool(values[1]) != 0 ? 1 : 0)
-        default: return kk_box_bool(lhs != (kk_unbox_bool(values[1]) != 0) ? 1 : 0)
+        if member >= 3000 {
+            return invokeBuiltinUnsignedMember(member, values: values, outThrown: outThrown)
         }
-    }
-    if member >= 1000 {
-        let kind = (member - 1000) % 4
-        let until = (member - 1000) / 4 == 1
-        let left = kk_unbox_long(receiver)
-        let right = kind == 3 ? kk_unbox_long(values[1]) : Int(Int32(truncatingIfNeeded: kk_unbox_int(values[1])))
-        return until ? __kk_long_rangeUntil(left, right) : kk_long_rangeTo(left, right)
-    }
-    if member >= 900 {
-        let lhs = Int64(kk_unbox_long(receiver))
-        let index = member - 900
-        let rhs = index < 3 ? Int64(kk_unbox_long(values[1])) : Int64(kk_unbox_int(values[1]))
-        let shift = Int(UInt64(bitPattern: rhs) & 63)
-        let result: Int64
-        switch index {
-        case 0: result = lhs & rhs
-        case 1: result = lhs | rhs
-        case 2: result = lhs ^ rhs
-        case 3: result = lhs &<< shift
-        case 4: result = lhs >> shift
-        default: result = Int64(bitPattern: UInt64(bitPattern: lhs) >> shift)
+        if member >= 2000 {
+            return invokeBuiltinFloatingUnary(member, receiver: receiver)
         }
-        return kk_box_long_nonnull(Int(result))
-    }
-    if member >= 800 {
-        let lhs = Int64(kk_unbox_long(receiver))
-        switch member - 800 {
-        case 0: return kk_box_long_nonnull(Int(lhs))
-        case 1: return kk_box_long_nonnull(Int(0 &- lhs))
-        case 2: return kk_box_long_nonnull(Int(lhs &+ 1))
-        case 3: return kk_box_long_nonnull(Int(lhs &- 1))
-        case 4: return kk_box_long_nonnull(Int(~lhs))
-        case 5: return kk_box_byte(Int(Int8(truncatingIfNeeded: lhs)))
-        case 6: return kk_box_short(Int(Int16(truncatingIfNeeded: lhs)))
-        case 7: return kk_box_int(Int(Int32(truncatingIfNeeded: lhs)))
-        case 8: return kk_box_long_nonnull(Int(lhs))
-        case 9: return kk_box_float(kk_float_to_bits(Float(lhs)))
-        case 10: return kk_box_double_nonnull(kk_double_to_bits(Double(lhs)))
-        default: return kk_box_char(Int(UInt16(truncatingIfNeeded: lhs)))
+        if member >= 1800 {
+            return invokeBuiltinFloatingArithmetic(member, values: values)
         }
-    }
-    if member >= 700 {
-        return invokeBuiltinLongArithmetic(member, values: values, outThrown: outThrown)
-    }
-    if member >= 500 {
-        let isByte = member < 600
-        let index = member - (isByte ? 500 : 600)
-        if index == 2 || index == 3 {
-            let value = Int32(truncatingIfNeeded: kk_unbox_int(receiver))
-            let adjusted = index == 2 ? value &+ 1 : value &- 1
-            return isByte ? kk_box_byte(Int(Int8(truncatingIfNeeded: adjusted)))
-                : kk_box_short(Int(Int16(truncatingIfNeeded: adjusted)))
+        if member >= 1500 {
+            let value = UInt16(truncatingIfNeeded: kk_unbox_char(receiver))
+            switch member - 1500 {
+            case 0:
+                let other = UInt16(truncatingIfNeeded: kk_unbox_char(values[1]))
+                return kk_box_int(value < other ? -1 : value > other ? 1 : 0)
+            case 1: return kk_box_char(Int(value &+ 1))
+            case 2: return kk_box_char(Int(value &- 1))
+            case 3: return kk_box_int(Int(value) - kk_unbox_char(values[1]))
+            case 4: return kk_box_char(Int(UInt16(truncatingIfNeeded: Int64(value) - Int64(Int32(truncatingIfNeeded: kk_unbox_int(values[1]))))))
+            case 5: return kk_box_char(Int(UInt16(truncatingIfNeeded: Int64(value) + Int64(Int32(truncatingIfNeeded: kk_unbox_int(values[1]))))))
+            case 6: return kk_char_rangeTo(Int(value), kk_unbox_char(values[1]))
+            case 7: return __kk_char_rangeUntil(Int(value), kk_unbox_char(values[1]))
+            case 8: return kk_box_byte(Int(Int8(truncatingIfNeeded: value)))
+            case 9: return kk_box_char(Int(value))
+            case 10: return kk_box_double_nonnull(kk_double_to_bits(Double(value)))
+            case 11: return kk_box_float(kk_float_to_bits(Float(value)))
+            case 12: return kk_box_int(Int(value))
+            case 13: return kk_box_long_nonnull(Int(value))
+            default: return kk_box_short(Int(Int16(truncatingIfNeeded: value)))
+            }
         }
-        return invokeBuiltinPrimitiveMember(200 + index, arguments, mask, outThrown)
-    }
-    if member >= 400 {
-        let kind = (member - 400) % 4
-        let until = (member - 400) / 4 == 1
-        let left = Int(Int32(truncatingIfNeeded: kk_unbox_int(receiver)))
-        let right = kind == 3 ? kk_unbox_long(values[1]) : Int(Int32(truncatingIfNeeded: kk_unbox_int(values[1])))
-        if kind == 3 { return until ? __kk_long_rangeUntil(left, right) : kk_long_rangeTo(left, right) }
-        return until ? __kk_op_rangeUntil(left, right) : kk_op_rangeTo(left, right)
-    }
-    if member >= 300 {
-        let lhs = Int32(truncatingIfNeeded: kk_unbox_int(receiver))
-        let rhs = Int32(truncatingIfNeeded: kk_unbox_int(values[1]))
-        let shift = Int(UInt32(bitPattern: rhs) & 31)
-        let result: Int32
-        switch member - 300 {
-        case 0: result = lhs & rhs
-        case 1: result = lhs | rhs
-        case 2: result = lhs ^ rhs
-        case 3: result = lhs &<< shift
-        case 4: result = lhs >> shift
-        default: result = Int32(bitPattern: UInt32(bitPattern: lhs) >> shift)
+        if member >= 1400 {
+            let lhs = kk_unbox_bool(receiver) != 0
+            switch member - 1400 {
+            case 0:
+                let rhs = kk_unbox_bool(values[1]) != 0
+                return kk_box_int(lhs == rhs ? 0 : lhs ? 1 : -1)
+            case 1: return kk_box_bool(lhs ? 0 : 1)
+            case 2: return kk_box_bool(lhs && kk_unbox_bool(values[1]) != 0 ? 1 : 0)
+            case 3: return kk_box_bool(lhs || kk_unbox_bool(values[1]) != 0 ? 1 : 0)
+            default: return kk_box_bool(lhs != (kk_unbox_bool(values[1]) != 0) ? 1 : 0)
+            }
         }
-        return kk_box_int(Int(result))
-    }
-    if member >= 200 {
-        let lhs = Int32(truncatingIfNeeded: kk_unbox_int(receiver))
-        switch member - 200 {
-        case 0: return kk_box_int(Int(lhs))
-        case 1: return kk_box_int(Int(0 &- lhs))
-        case 2: return kk_box_int(Int(lhs &+ 1))
-        case 3: return kk_box_int(Int(lhs &- 1))
-        case 4: return kk_box_int(Int(~lhs))
-        case 5: return kk_box_byte(Int(Int8(truncatingIfNeeded: lhs)))
-        case 6: return kk_box_short(Int(Int16(truncatingIfNeeded: lhs)))
-        case 7: return kk_box_int(Int(lhs))
-        case 8: return kk_box_long(Int(lhs))
-        case 9: return kk_box_float(kk_float_to_bits(Float(lhs)))
-        case 10: return kk_box_double(kk_double_to_bits(Double(lhs)))
-        default: return kk_box_char(Int(UInt16(truncatingIfNeeded: lhs)))
+        if member >= 1000 {
+            let kind = (member - 1000) % 4
+            let until = (member - 1000) / 4 == 1
+            let left = kk_unbox_long(receiver)
+            let right = kind == 3 ? kk_unbox_long(values[1]) : Int(Int32(truncatingIfNeeded: kk_unbox_int(values[1])))
+            return until ? __kk_long_rangeUntil(left, right) : kk_long_rangeTo(left, right)
         }
-    }
-    if member >= 100 {
-        return invokeBuiltinIntArithmetic(member, values: values, outThrown: outThrown)
-    }
-    switch member {
-    case 0: return Int(bitPattern: kk_any_member_to_string(receiver))
-    case 1: return kk_box_int(kk_any_member_hashCode(receiver))
-    case 2: return kk_any_member_equals(receiver, values[1])
-    case 3: return kk_box_int(Int(Int32(truncatingIfNeeded: kk_unbox_int(receiver))))
-    case 4: return kk_box_byte(Int(Int8(truncatingIfNeeded: kk_unbox_int(receiver))))
-    case 5: return kk_box_short(Int(Int16(truncatingIfNeeded: kk_unbox_int(receiver))))
-    case 6: return kk_box_long_nonnull(kk_unbox_ulong(receiver))
-    default: return runtimeNullSentinelInt
+        if member >= 900 {
+            let lhs = Int64(kk_unbox_long(receiver))
+            let index = member - 900
+            let rhs = index < 3 ? Int64(kk_unbox_long(values[1])) : Int64(kk_unbox_int(values[1]))
+            let shift = Int(UInt64(bitPattern: rhs) & 63)
+            let result: Int64
+            switch index {
+            case 0: result = lhs & rhs
+            case 1: result = lhs | rhs
+            case 2: result = lhs ^ rhs
+            case 3: result = lhs &<< shift
+            case 4: result = lhs >> shift
+            default: result = Int64(bitPattern: UInt64(bitPattern: lhs) >> shift)
+            }
+            return kk_box_long_nonnull(Int(result))
+        }
+        if member >= 800 {
+            let lhs = Int64(kk_unbox_long(receiver))
+            switch member - 800 {
+            case 0: return kk_box_long_nonnull(Int(lhs))
+            case 1: return kk_box_long_nonnull(Int(0 &- lhs))
+            case 2: return kk_box_long_nonnull(Int(lhs &+ 1))
+            case 3: return kk_box_long_nonnull(Int(lhs &- 1))
+            case 4: return kk_box_long_nonnull(Int(~lhs))
+            case 5: return kk_box_byte(Int(Int8(truncatingIfNeeded: lhs)))
+            case 6: return kk_box_short(Int(Int16(truncatingIfNeeded: lhs)))
+            case 7: return kk_box_int(Int(Int32(truncatingIfNeeded: lhs)))
+            case 8: return kk_box_long_nonnull(Int(lhs))
+            case 9: return kk_box_float(kk_float_to_bits(Float(lhs)))
+            case 10: return kk_box_double_nonnull(kk_double_to_bits(Double(lhs)))
+            default: return kk_box_char(Int(UInt16(truncatingIfNeeded: lhs)))
+            }
+        }
+        if member >= 700 {
+            return invokeBuiltinLongArithmetic(member, values: values, outThrown: outThrown)
+        }
+        if member >= 500 {
+            let isByte = member < 600
+            let index = member - (isByte ? 500 : 600)
+            if index == 2 || index == 3 {
+                let value = Int32(truncatingIfNeeded: kk_unbox_int(receiver))
+                let adjusted = index == 2 ? value &+ 1 : value &- 1
+                return isByte ? kk_box_byte(Int(Int8(truncatingIfNeeded: adjusted)))
+                    : kk_box_short(Int(Int16(truncatingIfNeeded: adjusted)))
+            }
+            return invokeBuiltinPrimitiveMember(200 + index, arguments, mask, outThrown)
+        }
+        if member >= 400 {
+            let kind = (member - 400) % 4
+            let until = (member - 400) / 4 == 1
+            let left = Int(Int32(truncatingIfNeeded: kk_unbox_int(receiver)))
+            let right = kind == 3 ? kk_unbox_long(values[1]) : Int(Int32(truncatingIfNeeded: kk_unbox_int(values[1])))
+            if kind == 3 { return until ? __kk_long_rangeUntil(left, right) : kk_long_rangeTo(left, right) }
+            return until ? __kk_op_rangeUntil(left, right) : kk_op_rangeTo(left, right)
+        }
+        if member >= 300 {
+            let lhs = Int32(truncatingIfNeeded: kk_unbox_int(receiver))
+            let rhs = Int32(truncatingIfNeeded: kk_unbox_int(values[1]))
+            let shift = Int(UInt32(bitPattern: rhs) & 31)
+            let result: Int32
+            switch member - 300 {
+            case 0: result = lhs & rhs
+            case 1: result = lhs | rhs
+            case 2: result = lhs ^ rhs
+            case 3: result = lhs &<< shift
+            case 4: result = lhs >> shift
+            default: result = Int32(bitPattern: UInt32(bitPattern: lhs) >> shift)
+            }
+            return kk_box_int(Int(result))
+        }
+        if member >= 200 {
+            let lhs = Int32(truncatingIfNeeded: kk_unbox_int(receiver))
+            switch member - 200 {
+            case 0: return kk_box_int(Int(lhs))
+            case 1: return kk_box_int(Int(0 &- lhs))
+            case 2: return kk_box_int(Int(lhs &+ 1))
+            case 3: return kk_box_int(Int(lhs &- 1))
+            case 4: return kk_box_int(Int(~lhs))
+            case 5: return kk_box_byte(Int(Int8(truncatingIfNeeded: lhs)))
+            case 6: return kk_box_short(Int(Int16(truncatingIfNeeded: lhs)))
+            case 7: return kk_box_int(Int(lhs))
+            case 8: return kk_box_long(Int(lhs))
+            case 9: return kk_box_float(kk_float_to_bits(Float(lhs)))
+            case 10: return kk_box_double(kk_double_to_bits(Double(lhs)))
+            default: return kk_box_char(Int(UInt16(truncatingIfNeeded: lhs)))
+            }
+        }
+        if member >= 100 {
+            return invokeBuiltinIntArithmetic(member, values: values, outThrown: outThrown)
+        }
+        switch member {
+        case 0: return Int(bitPattern: kk_any_member_to_string(receiver))
+        case 1: return kk_box_int(kk_any_member_hashCode(receiver))
+        case 2: return kk_any_member_equals(receiver, values[1])
+        case 3: return kk_box_int(Int(Int32(truncatingIfNeeded: kk_unbox_int(receiver))))
+        case 4: return kk_box_byte(Int(Int8(truncatingIfNeeded: kk_unbox_int(receiver))))
+        case 5: return kk_box_short(Int(Int16(truncatingIfNeeded: kk_unbox_int(receiver))))
+        case 6: return kk_box_long_nonnull(kk_unbox_ulong(receiver))
+        default: return runtimeNullSentinelInt
+        }
     }
 }
 
