@@ -45,6 +45,14 @@ private func runTimeoutBlock(
     entryPointRaw: Int,
     continuation: Int
 ) -> (timedOut: Bool, result: Int, thrown: Int) {
+    // kotlinx.coroutines short-circuits a non-positive timeout before the block
+    // runs: `withTimeoutOrNull` returns null and `withTimeout` throws
+    // TimeoutCancellationException immediately. Dispatching the block here
+    // would both run it (which the reference never does) and race the
+    // already-expired deadline, so report an immediate timeout instead.
+    if timeoutMillis <= 0 {
+        return (true, 0, 0)
+    }
     // Protect setup as well as the queued callback from a concurrent test reset.
     let callerResetLease = RuntimeGCResetWorkLease()
     defer { callerResetLease.finish() }
