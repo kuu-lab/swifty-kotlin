@@ -573,7 +573,7 @@ final class JVMClasspathIndex {
            let instance = metroSingleton(in: impl, named: "INSTANCE", type: name) {
             return instance
         }
-        return metroCompanionFactory(for: factoryInfo)
+        return nil
     }
 
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
