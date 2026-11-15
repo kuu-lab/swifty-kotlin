@@ -31,7 +31,13 @@ extension JVMProgramBuilder {
             if let expression = parameter.defaultValue {
                 let skip = b.label()
                 b.instructions.append(.defaultArgument(masks[i / 32], Int32(bitPattern: UInt32(1) << UInt32(i % 32)), skip))
-                if inline, !parameter.isCrossinline, !parameter.isNoinline, case .lambdaLiteral = ast.arena.expr(expression) {
+                let composableParam = b.functionSymbol.flatMap { sema.symbols.functionSignature(for: $0) }
+                    .map { $0.valueParameterSymbols.indices.contains(i)
+                        && sema.composableFunctionParameters.contains($0.valueParameterSymbols[i]) } ?? false
+                if composableParam, case .lambdaLiteral = ast.arena.expr(expression) {
+                    let value = try b.composeContent(expression)
+                    b.instructions.append(.copy(try b.convert(value, to: inputs[i].type), inputs[i]))
+                } else if inline, !parameter.isCrossinline, !parameter.isNoinline, case .lambdaLiteral = ast.arena.expr(expression) {
                     _ = try b.closure(expression, destination: inputs[i])
                 } else {
                     let source = try b.expression(expression)
