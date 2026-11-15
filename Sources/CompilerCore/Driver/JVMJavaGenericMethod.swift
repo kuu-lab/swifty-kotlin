@@ -21,8 +21,17 @@ extension JVMClasspathIndex {
                 guard exposeSuspendType(carrier) else { continue }
                 // A simple bound has the same erasure and source type.
                 // Parameterized bounds need a projection such as Enum<*>.
-                let source = kotlinType(carrier)
+                var source = kotlinType(carrier)
                 guard !source.contains("<") else { continue }
+                // A Java bound is a boxed reference. Mapping e.g.
+                // java/lang/Integer to non-null kotlin.Int would erase T to
+                // primitive `I` while the method descriptor keeps
+                // `Ljava/lang/Integer;` — render the bound nullable so the
+                // erasure stays boxed.
+                if ["kotlin.Int","kotlin.Long","kotlin.Short","kotlin.Byte",
+                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double"].contains(source) {
+                    source += "?"
+                }
                 bounds.append("`\(name)`: " + source)
                 references.insert(binary)
             }
