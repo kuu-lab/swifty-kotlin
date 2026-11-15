@@ -2,17 +2,20 @@ import Foundation
 
 extension JVMProgramBuilder {
     func specialized(_ id: TypeID, visiting: Set<SymbolID> = []) -> TypeID {
-        guard !inlineTypeArguments.isEmpty else { return id }
+        specialized(id, mapping: inlineTypeArguments, visiting: visiting)
+    }
+    func specialized(_ id: TypeID, mapping: [SymbolID: TypeID], visiting: Set<SymbolID> = []) -> TypeID {
+        guard !mapping.isEmpty else { return id }
         switch sema.types.kind(of: id) {
         case let .typeParam(t):
-            guard !visiting.contains(t.symbol), let replacement = inlineTypeArguments[t.symbol], replacement != id else { return id }
-            let actual = specialized(replacement, visiting: visiting.union([t.symbol]))
+            guard !visiting.contains(t.symbol), let replacement = mapping[t.symbol], replacement != id else { return id }
+            let actual = specialized(replacement, mapping: mapping, visiting: visiting.union([t.symbol]))
             return t.nullability == .nullable ? sema.types.makeNullable(actual) : actual
-        case let .intersection(parts): return sema.types.make(.intersection(parts.map { specialized($0, visiting: visiting) }))
+        case let .intersection(parts): return sema.types.make(.intersection(parts.map { specialized($0, mapping: mapping, visiting: visiting) }))
         case let .classType(t):
-            return sema.types.make(.classType(ClassType(classSymbol: t.classSymbol, args: t.args.map { arg in arg.mapTypes { specialized($0, visiting: visiting) } }, nullability: t.nullability)))
+            return sema.types.make(.classType(ClassType(classSymbol: t.classSymbol, args: t.args.map { arg in arg.mapTypes { specialized($0, mapping: mapping, visiting: visiting) } }, nullability: t.nullability)))
         case let .functionType(f):
-            return sema.types.make(.functionType(FunctionType(contextReceivers: f.contextReceivers.map { specialized($0, visiting: visiting) }, receiver: f.receiver.map { specialized($0, visiting: visiting) }, params: f.params.map { specialized($0, visiting: visiting) }, returnType: specialized(f.returnType, visiting: visiting), isSuspend: f.isSuspend, isCallableReference: f.isCallableReference, nullability: f.nullability, throws: f.throws.map { specialized($0, visiting: visiting) })))
+            return sema.types.make(.functionType(FunctionType(contextReceivers: f.contextReceivers.map { specialized($0, mapping: mapping, visiting: visiting) }, receiver: f.receiver.map { specialized($0, mapping: mapping, visiting: visiting) }, params: f.params.map { specialized($0, mapping: mapping, visiting: visiting) }, returnType: specialized(f.returnType, mapping: mapping, visiting: visiting), isSuspend: f.isSuspend, isCallableReference: f.isCallableReference, nullability: f.nullability, throws: f.throws.map { specialized($0, mapping: mapping, visiting: visiting) })))
         default: return id
         }
     }

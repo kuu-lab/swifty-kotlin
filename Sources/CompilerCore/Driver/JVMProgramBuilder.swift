@@ -456,7 +456,7 @@ final class JVMFunctionBuilder {
     var reifiedRuntimeTokens: [SymbolID: ReifiedRuntimeToken] = [:]
     var inlineArguments: [InternedString: InlineLambda] = [:]
     var inlineReturns: [InlineReturn] = []
-    var inlineStack: Set<SymbolID> = []
+    var inlineStack: [SymbolID: Int] = [:]
     var contextualReceivers: [SymbolID: JVMValue] = [:]
     var backingProperty: JVMProperty?
     var beforeDelegation = false
