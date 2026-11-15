@@ -3,7 +3,7 @@ package kotlin.reflect.jvm.internal
 import kotlin.reflect.*
 import kotlin.jvm.internal.*
 
-internal class RuntimePropertyGetter(private val owner: RuntimeProperty): KProperty.Getter<Any?> {
+internal open class RuntimePropertyGetter(protected val owner: RuntimeProperty): KProperty.Getter<Any?> {
     override val property: KProperty<Any?> get() = owner
     override val name: String get() = "<get-" + owner.name + ">"
     override val parameters: List<KParameter> get() = owner.parameters
@@ -17,6 +17,18 @@ internal class RuntimePropertyGetter(private val owner: RuntimeProperty): KPrope
     override val isExternal: Boolean get() = false
     override fun call(vararg args: Any?): Any? = owner.callArray(args)
     override fun callBy(args: Map<KParameter, Any?>): Any? = owner.callBy(args)
+}
+
+internal class RuntimeProperty2Getter(owner: RuntimeProperty): RuntimePropertyGetter(owner), KProperty2.Getter<Any?, Any?, Any?> {
+    // Route through the reference's own `get` so argless `PropertyReference2`
+    // subclasses with a custom `get` work; only use the reflective read for a
+    // non-KProperty2 owner. No Elvis: a null `get` result is a real value, not
+    // a reason to run the getter twice.
+    override fun invoke(receiver1: Any?, receiver2: Any?): Any? {
+        val reference = owner as? KProperty2<Any?, Any?, Any?>
+        if (reference != null) return reference.get(receiver1, receiver2)
+        return owner.readTwo(receiver1, receiver2)
+    }
 }
 
 internal class RuntimeProperty0Getter(private val owner: RuntimeProperty): KProperty0.Getter<Any?> {

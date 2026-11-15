@@ -28,6 +28,12 @@ interface KProperty0<out V>: KProperty<V>, kotlin.jvm.functions.Function0<V> {
     interface Getter<out V>: KProperty.Getter<V>, kotlin.jvm.functions.Function0<V>
 }
 interface KProperty1<T, out V>: KProperty<V>, kotlin.jvm.functions.Function1<T, V> { fun get(receiver: T): V }
+interface KProperty2<D, E, out V>: KProperty<V>, kotlin.jvm.functions.Function2<D, E, V> {
+    fun get(receiver1: D, receiver2: E): V
+    fun getDelegate(receiver1: D, receiver2: E): Any?
+    override val getter: Getter<D, E, V>
+    interface Getter<D, E, out V>: KProperty.Getter<V>, kotlin.jvm.functions.Function2<D, E, V>
+}
 interface KMutableProperty0<V>: KProperty0<V>, KMutableProperty<V> {
     fun set(value: V)
     override val setter: Setter<V>
