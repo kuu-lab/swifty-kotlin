@@ -416,14 +416,27 @@ final class JVMClasspathIndex {
             var inheritedInterfaces = info.interfaces
             var interfaceVisited: Set<String> = []
             var interfaceMethods: [String: JVMForeignMethod] = [:]
+            var inheritedConstantNames = Set(info.fields.map(\.name))
+            var inheritedConstants: [JVMForeignField] = []
+            func collectConstants(_ name: String) {
+                guard let base = hierarchyClasses[name] else { return }
+                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
+                        inheritedConstants.append(field)
+                    }
+                }
+                for parent in base.interfaces { collectConstants(parent) }
+            }
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
                 if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
+                    collectConstants(name)
                     return
                 }
                 guard let base = hierarchyClasses[name] else { return }
+                collectConstants(name)
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
@@ -443,6 +456,11 @@ final class JVMClasspathIndex {
             while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
+                for field in base.fields where inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
+                        inheritedConstants.append(field)
+                    }
+                }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
                     if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
@@ -481,7 +499,7 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields + inheritedConstants)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
