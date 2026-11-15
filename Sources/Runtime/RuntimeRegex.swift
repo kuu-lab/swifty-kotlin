@@ -2156,7 +2156,10 @@ func regexMarkerSpaceClassReplacement(_ emitted: String) -> String? {
         // Only marker-space member subtraction was needed.
         return "[\(plain)]"
     }
-    return "(?:[\(plain)]|\(alts.joined(separator: "|")))"
+    // `plain` can be empty when every member moved into pair alternatives
+    // (e.g. `[\uE005]`); an empty `[]` is a syntax error in ICU.
+    let plainPart = plain.isEmpty ? "" : "[\(plain)]|"
+    return "(?:\(plainPart)\(alts.joined(separator: "|")))"
 }
 
 /// Complement helper: removes the covered ranges from `space` — used to
