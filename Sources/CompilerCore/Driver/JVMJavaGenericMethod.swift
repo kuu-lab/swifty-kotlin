@@ -75,12 +75,28 @@ extension JVMClasspathIndex {
                     // projection on covariant declarations, and dropping it
                     // would expose `List<? super String>` as `List<String>`
                     // and let String reads compile onto Integer elements.
-                    let variance = if marker == "+" {
-                        "out "
+                    let variance: String
+                    if marker == "+" {
+                        variance = "out "
                     } else if marker == "-" {
-                        "in "
+                        variance = "in "
+                        // Use-site `in` on the covariant Kotlin read-only
+                        // collections is rejected, so `List<? super X>` is
+                        // exposed as `MutableList<in X>` — Java collections
+                        // are mutable anyway and the lower bound survives.
+                        let readonlyToMutable = [
+                            "kotlin.collections.List": "kotlin.collections.MutableList",
+                            "kotlin.collections.Set": "kotlin.collections.MutableSet",
+                            "kotlin.collections.Map": "kotlin.collections.MutableMap",
+                            "kotlin.collections.Iterable": "kotlin.collections.MutableIterable",
+                            "kotlin.collections.Collection": "kotlin.collections.MutableCollection",
+                        ]
+                        for (readonly, mutable) in readonlyToMutable where source.hasPrefix(readonly + "<") || source == readonly {
+                            source = mutable + source.dropFirst(readonly.count)
+                            break
+                        }
                     } else {
-                        ""
+                        variance = ""
                     }
                     arguments.append(variance + argument)
                 }
