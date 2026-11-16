@@ -114,6 +114,7 @@ struct JVMKotlinMetadataPayload {
     var multifileParts: [String] { kind == 4 ? data1 : [] }
     var isMultifilePart: Bool { kind == 5 }
 
+
     func functionTable(byteLimit: Int) throws -> FunctionTable? {
         guard kind != 4, let isFileFacade, let major = version.first, (1...2).contains(major) else { return nil }
         let bytes = try decodedData(limit: byteLimit)
@@ -135,11 +136,10 @@ struct JVMKotlinMetadataPayload {
                              ownerTypeParameters: ownerTypeParameters)
     }
 
-    func sealedInterfaceSubclasses(byteLimit: Int) throws -> [String] {
+    func sealedSubclasses(byteLimit: Int) throws -> [String] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
-        // Class flags store modality in bits 4–5. The classfile reader has
-        // already established that the owner is an interface.
+        // Class flags store modality in bits 4–5.
         guard (declaration.int32(1) ?? 0) & (3 << 4) == (3 << 4) else { return [] }
         let children = try declaration.int32List(16)
         let resolved = try children.compactMap { try names.resolve($0)?.replacingOccurrences(of: ".", with: "$") }
@@ -582,7 +582,7 @@ struct JVMKotlinMetadataPayload {
     /// Functions whose Kotlin signature cannot be recovered from the erased JVM
     /// descriptor, plus every top-level file-facade function so lazy classpath
     /// roots can be found by callable name.
-    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false, defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = []) throws -> [JVMKotlinFunction] {
+    func functions(in table: FunctionTable, isValueClass: Bool = false, hasReadOnlyListSupertype: Bool = false, functionTypeMemberNames: Set<String> = [], metroFactory: Bool = false, defaultMethodNames: Set<String> = [], composableMemberNames: Set<String> = [], ownerIsInterface: Bool = false, ownerIsSAM: Bool = false) throws -> [JVMKotlinFunction] {
         let names = table.names
         let classTypes = table.types
         let ownerTypeParameters = table.ownerTypeParameters
@@ -647,7 +647,7 @@ struct JVMKotlinMetadataPayload {
                 && parameterMessages.contains { ($0.int32(1) ?? 0) & 2 != 0 }
             let isGenericFinalGetter = isFileFacade != true && isFinal && !name.hasPrefix("get")
                 && returnResolved.type.has(2) && parameterMessages.isEmpty
-            let hasStableMemberParameters = isFileFacade != true && (isFinal || metroFactory)
+            let hasStableMemberParameters = isFileFacade != true && (isFinal || metroFactory || ownerIsInterface)
                 && receiver == nil && contextParameters.isEmpty
                 && !parameterMessages.isEmpty && flags & (1 << 15) == 0
                 && parameterMessages.allSatisfy { ($0.int32(1) ?? 0) & 2 == 0 }
@@ -687,7 +687,7 @@ struct JVMKotlinMetadataPayload {
                 nil
             }
             let hasStableParameters = hasStableMemberParameters && !isMangledMember
-                && (metroFactory || parameters.allSatisfy { parameter in
+                && (metroFactory || ownerIsSAM || parameters.allSatisfy { parameter in
                     parameter.sourceType == "kotlin.String"
                         || ["kotlin.Boolean", "kotlin.Byte", "kotlin.Short", "kotlin.Int", "kotlin.Long",
                             "kotlin.Char", "kotlin.Float", "kotlin.Double"].contains(parameter.sourceType)
