@@ -136,7 +136,7 @@ struct JVMKotlinMetadataPayload {
                              ownerTypeParameters: ownerTypeParameters)
     }
 
-    func sealedSubclasses(byteLimit: Int) throws -> [String] {
+    func sealedInterfaceSubclasses(byteLimit: Int) throws -> [String] {
         guard kind == 1, let major = version.first, (1...2).contains(major) else { return [] }
         let (declaration, names) = try declarationData(byteLimit: byteLimit)
         // Class flags store modality in bits 4–5.
