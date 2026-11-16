@@ -403,7 +403,7 @@ extension JVMFunctionBuilder {
         // Array HOF inference may leave no callee binding, including when its
         // callback is an existing function value rather than a lambda literal.
         let intrinsicHOF = binding == nil && higherOrderReceiver(receiverID) && args.last.flatMap { functionType($0.expr) } != nil
-        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), builtinHOF || intrinsicHOF {
+        if ["map", "filter", "forEach", "fold", "reduce"].contains(member), (builtinHOF || intrinsicHOF), higherOrderReceiver(receiverID) {
             return JVMIntrinsicResult(value: try higherOrder(receiverID, operation: member, args: args, id: id))
         }
         if let aggregate = try collectionAggregateMember(receiverID, name: member, args: args, id: id) { return aggregate }
@@ -415,6 +415,17 @@ extension JVMFunctionBuilder {
             return JVMIntrinsicResult(value: try constructJDK("kotlin/Pair", parameters: [object, object], arguments: [left, right]))
         }
         guard var owner = sourceType.referenceName else { return nil }
+        if ["getOrElse", "getOrPut"].contains(member),
+           let semantic = program.sema.bindings.exprType(for: receiverID),
+           let map = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Map"].map(context.interner.intern)),
+           case let .classType(nominal) = program.sema.types.kind(of: program.sema.types.makeNonNullable(semantic)),
+           program.sema.types.isNominalSubtypeSymbol(nominal.classSymbol, of: map),
+           program.sema.bindings.callBinding(for: id).map({ binding in
+               let name = program.sema.symbols.symbol(binding.chosenCallee)?.fqName.map(context.interner.resolve) ?? []
+               return name.starts(with: ["kotlin", "collections"])
+           }) ?? true {
+            return try collectionDefaultValueMember(receiverID, owner: "java/util/Map", member: member, args: args, id: id)
+        }
         if owner.hasPrefix("["), member == "copyInto" {
             guard let sourceComponent = try? arrayComponent(sourceType), args.count <= 4 else {
                 throw fail("JVM array copyInto requires a compatible array and at most four arguments.", id)
@@ -476,6 +487,22 @@ extension JVMFunctionBuilder {
         if owner == "kotlin/sequences/Sequence", ["sum", "average"].contains(member), args.isEmpty {
             return JVMIntrinsicResult(value: try sequenceAggregate(receiverID, member: member, id: id))
         }
+        if member == "toTypedArray", args.isEmpty,
+           let symbol = program.sema.symbols.lookup(fqName: ["kotlin", "collections", "Collection"].map(context.interner.intern)),
+           let receiverType = program.sema.bindings.exprType(for: receiverID),
+           program.sema.types.isSubtype(receiverType, program.sema.types.make(.classType(ClassType(classSymbol: symbol)))) {
+            let collection = JVMValueType.reference("java/util/Collection", nullable: false)
+            let array = JVMValueType.reference("[Ljava/lang/Object;", nullable: false)
+            let source = try convert(requireValue(receiverID), to: collection)
+            let emptyArray = try allocateArray(
+                program.expressionType(id), semantic: program.sema.bindings.exprType(for: id),
+                count: constant(.int(0), .int), id: id
+            )
+            return JVMIntrinsicResult(value: try jdkCall(
+                "java/util/Collection", "toArray", [array], array, receiver: source,
+                arguments: [emptyArray], interface: true, resolved: program.expressionType(id)
+            ))
+        }
         let collections: Set<String> = ["java/util/ArrayList", "java/util/HashMap", "java/util/LinkedHashMap", "java/util/LinkedHashSet", "java/lang/Iterable", "java/util/Iterator", "java/util/ListIterator", "java/util/Collection", "java/util/List", "kotlin/enums/EnumEntries", "java/util/Set", "java/util/Map", "kotlin/text/MatchGroupCollection"]
         if collections.contains(owner) {
             if member == "withIndex", args.isEmpty {
@@ -513,7 +540,8 @@ extension JVMFunctionBuilder {
                 let receiver = try requireValue(receiverID), argument = try requireValue(args[0].expr)
                 return JVMIntrinsicResult(value: try jdkCall("java/lang/Object", member, [object], .boolean, receiver: receiver, arguments: [argument]))
             }
-            if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected) { owner = selected }
+            if let selected = try mappedBuiltinMemberOwner(id), collections.contains(selected),
+               selected != "java/lang/Iterable" || member == "iterator" { owner = selected }
             if owner == "java/util/ArrayList" { owner = "java/util/List" }
             if owner == "java/util/LinkedHashSet" { owner = "java/util/Set" }
             if owner == "java/util/LinkedHashMap" || owner == "java/util/HashMap" { owner = "java/util/Map" }
