@@ -5,10 +5,17 @@
     "kotlin/Function.kt",
     "kotlin/Unit.kt",
     "kotlin/annotations/ExperimentalUnsignedTypes.kt",
+    "kotlin/random/Random.kt",
     "kotlin/time/DurationEncoding.kt",
     "kotlin/time/DurationUnit.kt"
   ],
   "declarations": [
+    {
+      "path": "declarations/Random.kt",
+      "virtualPath": "<kswiftk-jvm>/random.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/random/RandomKt"
+    },
     {
       "path": "kotlin/time/DurationUnit.kt",
       "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
@@ -20,6 +27,13 @@
       "virtualPath": "<kswiftk-jvm>/duration.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/time/DurationKt"
+    },
+    {
+      "path": "declarations/DurationConversions.kt",
+      "virtualPath": "<kswiftk-jvm>/duration-conversions.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/time/jdk8/DurationConversionsJDK8Kt",
+      "consumerIdentifiers": ["toJavaDuration", "toKotlinDuration"]
     },
     {
       "path": "declarations/Instant.kt",
@@ -118,18 +132,6 @@
       "virtualPath": "<kswiftk-jvm>/preconditions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/PreconditionsKt"
-    },
-    {
-      "path": "kotlin/time/DurationUnit.kt",
-      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
-    },
-    {
-      "path": "declarations/Duration.kt",
-      "virtualPath": "<kswiftk-jvm>/duration.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
       "path": "declarations/KotlinTimeMeasureTime.kt",
@@ -304,8 +306,8 @@
       "runtimeFacade": "kotlin/text/StringsKt"
     },
     {
-      "path": "declarations/Utf8Decoding.kt",
-      "virtualPath": "<kswiftk-jvm>/utf8-decoding.kt",
+      "path": "declarations/Utf8Conversions.kt",
+      "virtualPath": "<kswiftk-jvm>/utf8-conversions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/text/StringsKt"
     },

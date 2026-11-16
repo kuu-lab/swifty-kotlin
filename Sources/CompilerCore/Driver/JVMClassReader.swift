@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo {
+struct JVMClassInfo: Sendable {
     let name: String
     let flags: UInt16
     let superclass: String?
@@ -444,6 +444,7 @@ struct JVMClassReader {
         var index = 1
         var hasKotlinMetadata = false
         var hasMetroAnnotation = false
+        var hasComposableAnnotation = false
         // CONSTANT_String may reference a Utf8 entry declared later in the
         // pool; resolve those references once the pool is fully read.
         var pendingStringRefs: [Int: Int] = [:]
@@ -454,6 +455,7 @@ struct JVMClassReader {
                 let string = try readModifiedUTF8(length: length)
                 strings[index] = string
                 if string == "Lkotlin/Metadata;" { hasKotlinMetadata = true }
+                if string == "Landroidx/compose/runtime/Composable;" { hasComposableAnnotation = true }
                 if !hasMetroAnnotation, string.hasPrefix(JVMMetro.annotationPrefix),
                    (string == JVMMetro.invoke || JVMMetro.annotationDescriptors.contains(string)) {
                     hasMetroAnnotation = true
@@ -508,7 +510,7 @@ struct JVMClassReader {
         for _ in 0..<methodCount {
             let access = try u2(), nameIndex = try u2(), descriptorIndex = try u2()
             let methodName = try text(Int(nameIndex)), descriptor = try text(Int(descriptorIndex))
-            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations)
+            let methodInfo = try methodAttributes(parseAnnotations: parseAnnotations || hasComposableAnnotation)
             let isDefaultArgumentMethod = access & 0x1009 == 0x1009 && methodName.hasSuffix("$default")
             if access & 0x0005 != 0,
                (access & 0x1040 == 0 || access & 0x0040 != 0 || isDefaultArgumentMethod), methodName != "<clinit>",
@@ -557,8 +559,9 @@ struct JVMClassReader {
                           candidate.isSuspend == isSuspend
                               && (candidate.jvmName ?? candidate.name) == method.name
                               && (candidate.descriptor == nil || candidate.descriptor == method.descriptor)
-                              && candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
+                              && (candidate.parameters.count + (candidate.receiver == nil ? 0 : 1)
                                   + (candidate.isSuspend ? 1 : 0) == method.parameters.count
+                                  || method.composeABI(for: candidate) != nil)
                       })
                 else { continue }
                 methods[index].kotlinFunction = function
@@ -614,8 +617,9 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache {
+final class JVMDescriptorCache: @unchecked Sendable {
     private static let maximumEntries = 2_048
+    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -624,13 +628,23 @@ final class JVMDescriptorCache {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        if let signature = entries[descriptor] { return signature }
+        lock.lock()
+        if let signature = entries[descriptor] {
+            lock.unlock()
+            return signature
+        }
+        lock.unlock()
 
+        // Concurrent readers may parse the same descriptor; the results are
+        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
+
+        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
+        lock.unlock()
         return signature
     }
 }
