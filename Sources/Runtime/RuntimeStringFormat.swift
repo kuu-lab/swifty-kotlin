@@ -1508,11 +1508,11 @@ public func __kk_string_format_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
+    outThrown?.pointee = 0
     let template = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    outThrown?.pointee = 0
     do {
         return runtimeRegisterFlatString(
             try runtimeFormatString(template, values: arguments),
@@ -1544,6 +1544,7 @@ public func __kk_string_format_locale_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
+    outThrown?.pointee = 0
     let locale: Locale?
     if localeRaw == runtimeNullSentinelInt {
         locale = nil
@@ -1557,7 +1558,6 @@ public func __kk_string_format_locale_flat(
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.values
         ?? runtimeListBox(from: argsArrayRaw)?.values
         ?? []
-    outThrown?.pointee = 0
     do {
         return runtimeRegisterFlatString(
             try runtimeFormatString(template, values: arguments, locale: locale),

@@ -91,15 +91,16 @@ public func __kk_long_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ o
 
 @_cdecl("__kk_random_nextLong_rangeObject")
 public func __kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    return runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "__kk_random_nextLong_rangeObject") { range in
-        if RuntimeSignedRangeHOFKind.isEmpty(range) {
-            outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-                message: "Random range is empty: \(range.first)..\(range.last)."
-            )
-            return 0
+    runtimeThrowingBridge(outThrown) {
+        runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "__kk_random_nextLong_rangeObject") { range in
+            if RuntimeSignedRangeHOFKind.isEmpty(range) {
+                outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+                    message: "Random range is empty: \(range.first)..\(range.last)."
+                )
+                return 0
+            }
+            return RuntimeSignedRangeHOFKind.random(range, randomRaw: randomRaw, outThrown: outThrown)
         }
-        return RuntimeSignedRangeHOFKind.random(range, randomRaw: randomRaw, outThrown: outThrown)
     }
 }
 

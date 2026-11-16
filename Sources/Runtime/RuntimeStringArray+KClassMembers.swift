@@ -22,27 +22,28 @@ private let builtinStringLengthDelegate: @convention(c) (Int, Int, UnsafeMutable
 private func runtimeBuiltinStringMember(
     _ member: Int, _ arguments: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard let values = runtimeListBox(from: arguments)?.elements, let receiver = values.first else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Missing String receiver.")
-        return runtimeNullSentinelInt
-    }
-    switch member {
-    case 0: return kk_box_int(runtimeStringUTF16CodeUnits(receiver).count)
-    case 1:
-        let result = kk_string_get(receiver, kk_unbox_int(values[1]), outThrown)
-        return outThrown == nil || outThrown?.pointee == 0 ? kk_box_char(result) : runtimeNullSentinelInt
-    case 2: return receiver
-    case 3: return kk_box_int(__kk_string_compareTo_member(receiver, values[1]))
-    case 4:
-        guard let lhs = runtimeStringFromRaw(receiver), let rhs = runtimeStringFromRaw(values[1]) else {
-            return kk_box_bool(0)
+    return runtimeThrowingBridge(outThrown) {
+        guard let values = runtimeListBox(from: arguments)?.elements, let receiver = values.first else {
+            outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "Missing String receiver.")
+            return runtimeNullSentinelInt
         }
-        return kk_box_bool(runtimeStringsEqual(lhs, rhs) ? 1 : 0)
-    case 5: return kk_box_int(kk_any_member_hashCode(receiver))
-    case 6: return __kk_string_plus(receiver, values[1])
-    case 7: return kk_char_sequence_subSequence(receiver, kk_unbox_int(values[1]), kk_unbox_int(values[2]), outThrown)
-    default: return runtimeNullSentinelInt
+        switch member {
+        case 0: return kk_box_int(runtimeStringUTF16CodeUnits(receiver).count)
+        case 1:
+            let result = kk_string_get(receiver, kk_unbox_int(values[1]), outThrown)
+            return outThrown == nil || outThrown?.pointee == 0 ? kk_box_char(result) : runtimeNullSentinelInt
+        case 2: return receiver
+        case 3: return kk_box_int(__kk_string_compareTo_member(receiver, values[1]))
+        case 4:
+            guard let lhs = runtimeStringFromRaw(receiver), let rhs = runtimeStringFromRaw(values[1]) else {
+                return kk_box_bool(0)
+            }
+            return kk_box_bool(runtimeStringsEqual(lhs, rhs) ? 1 : 0)
+        case 5: return kk_box_int(kk_any_member_hashCode(receiver))
+        case 6: return __kk_string_plus(receiver, values[1])
+        case 7: return kk_char_sequence_subSequence(receiver, kk_unbox_int(values[1]), kk_unbox_int(values[2]), outThrown)
+        default: return runtimeNullSentinelInt
+        }
     }
 }
 
@@ -117,8 +118,9 @@ private func ensureBuiltinStringMembers(_ kclassRaw: Int) {
 private func runtimeEmptyStringConstructor(
     _: Int, _: Int, _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    return runtimeMakeStringRaw("")
+    return runtimeThrowingBridge(outThrown) {
+        return runtimeMakeStringRaw("")
+    }
 }
 
 private func ensureBuiltinStringConstructor(_ kclassRaw: Int) {

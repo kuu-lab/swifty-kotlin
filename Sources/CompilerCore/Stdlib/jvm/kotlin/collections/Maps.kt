@@ -12,6 +12,10 @@ import kotlin.jvm.internal.__jvmMapEntries
 import kotlin.jvm.internal.__jvmMapEntryKey
 import kotlin.jvm.internal.__jvmMapEntryValue
 
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Map<out K, V>.asSequence(): kotlin.sequences.Sequence<Map.Entry<K, V>> =
+    (__jvmMapEntries(this) as Set<Map.Entry<K, V>>).asSequence()
+
 public operator fun <K, V> Map.Entry<K, V>.component1(): K = __jvmMapEntryKey(this) as K
 public operator fun <K, V> Map.Entry<K, V>.component2(): V = __jvmMapEntryValue(this) as V
 
@@ -28,6 +32,12 @@ public fun <K, V> mutableMapOf(vararg pairs: Pair<K, V>): MutableMap<K, V> {
     for (pair in pairs) result.put(pair.first, pair.second)
     return result
 }
+public fun <K, V> hashMapOf(vararg pairs: Pair<K, V>): java.util.HashMap<K, V> {
+    val result = java.util.HashMap<K, V>()
+    for (pair in pairs) result.put(pair.first, pair.second)
+    return result
+}
+
 public fun <K, V> linkedMapOf(vararg pairs: Pair<K, V>): java.util.LinkedHashMap<K, V> {
     val result = java.util.LinkedHashMap<K, V>()
     for (pair in pairs) result.put(pair.first, pair.second)

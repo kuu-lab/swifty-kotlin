@@ -540,7 +540,6 @@ extension RuntimeSequenceTests {
 
     @Test
     func testSequenceFilterNotLazy() {
-        // Test that filterNot is lazy by using a sequence builder
         _lazyTestYieldCounter = 0
         let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
@@ -791,7 +790,6 @@ extension RuntimeSequenceTests {
 
     @Test
     func testSequenceMapNotNullCorrectness() {
-        // Test correctness of mapNotNull
         let seq = makeSequence([1, 2, 3])
         let mapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             value == runtimeNullSentinelInt ? runtimeNullSentinelInt : value * 2
@@ -936,7 +934,6 @@ extension RuntimeSequenceTests {
 
     @Test
     func testSequenceFilterNotNullCorrectness() {
-        // Test correctness of filterNotNull
         let seq = makeSequence([1, runtimeNullSentinelInt, 3, runtimeNullSentinelInt, 5])
         let filtered = kk_sequence_filterNotNull(seq)
         let result = sequenceElements(filtered)
@@ -967,7 +964,6 @@ extension RuntimeSequenceTests {
 
     @Test
     func testSequenceMapIndexedCorrectness() {
-        // Test correctness of mapIndexed
         let seq = makeSequence([10, 20, 30])
         let mapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
             index + value
@@ -1015,7 +1011,6 @@ extension RuntimeSequenceTests {
 
     @Test
     func testSequenceWithIndexCorrectness() {
-        // Test correctness of withIndex
         let seq = makeSequence([10, 20, 30])
         let withIndex = kk_sequence_withIndex(seq)
         let result = sequenceElements(withIndex)
@@ -1027,7 +1022,6 @@ extension RuntimeSequenceTests {
         let second = kk_array_get(result[0], 3, &thrown)
         #expect(first == 0)
         #expect(second == 10)
-        // Check second pair (1, 20)
         let first2 = kk_array_get(result[1], 2, &thrown)
         let second2 = kk_array_get(result[1], 3, &thrown)
         #expect(first2 == 1)
@@ -1036,7 +1030,6 @@ extension RuntimeSequenceTests {
 
     @Test
     func testSequenceFlatMapCorrectness() {
-        // Test correctness of flatMap
         let seq = makeSequence([1, 2])
         let flatMapFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
             // Create a list [value, value * 10]

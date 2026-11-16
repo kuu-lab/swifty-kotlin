@@ -60,7 +60,6 @@ final class RuntimeListIteratorTests {
     func testPreviousReturnsFirstElement() {
         let iterHandle = makeListIterator([10, 20, 30])
 
-        // Call next() first to advance to first element
         #expect(kk_list_iterator_next(iterHandle) == 10)
 
         // Now hasPrevious should return true
@@ -88,14 +87,12 @@ final class RuntimeListIteratorTests {
     func testHasPreviousReturnsTrueAfterNext() {
         let iterHandle = makeListIterator([10, 20, 30])
 
-        // Advance to second element
         #expect(kk_list_iterator_next(iterHandle) == 10)
 
         // hasPrevious should now return true
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         #expect(result1 == 1) // kk_box_bool(1) == 1
 
-        // Advance to third element
         #expect(kk_list_iterator_next(iterHandle) == 20)
 
         // hasPrevious should still return true
@@ -112,14 +109,12 @@ final class RuntimeListIteratorTests {
     func testPreviousReturnsCorrectElementAfterNext() {
         let iterHandle = makeListIterator([10, 20, 30])
 
-        // Advance to second element (position after first element)
         #expect(kk_list_iterator_next(iterHandle) == 10)
 
         // previous() should return first element (go back to position before first)
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         #expect(prevResult1 == 10)
 
-        // Advance to third element (position after second element)
         let secondNext = kk_list_iterator_next(iterHandle)
         #expect(secondNext == 10) // After previous(), we're back at position 1, so next() returns 10 again
 
@@ -208,7 +203,6 @@ final class RuntimeListIteratorTests {
     func testMultiplePreviousCalls() {
         let iterHandle = makeListIterator([10, 20, 30, 40])
 
-        // Advance to end
         #expect(kk_list_iterator_next(iterHandle) == 10)
         #expect(kk_list_iterator_next(iterHandle) == 20)
         #expect(kk_list_iterator_next(iterHandle) == 30)
@@ -300,7 +294,6 @@ final class RuntimeListIteratorTests {
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         #expect(prevResult1 == 0)
 
-        // Advance to first element
         #expect(kk_list_iterator_next(iterHandle) == 10)
 
         // Now should have previous
@@ -320,7 +313,6 @@ final class RuntimeListIteratorTests {
     func testPreviousAfterFullForwardIteration() {
         let iterHandle = makeListIterator([10, 20, 30])
 
-        // Iterate to the end
         #expect(kk_list_iterator_next(iterHandle) == 10)
         #expect(kk_list_iterator_next(iterHandle) == 20)
         #expect(kk_list_iterator_next(iterHandle) == 30)
@@ -375,7 +367,6 @@ final class RuntimeListIteratorTests {
         let result5 = kk_list_iterator_hasPrevious(iterHandle)
         #expect(result5 == 1) // Should still have previous at end
 
-        // Go back all the way
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         #expect(prevResult1 == 30) // Should return 30 at end
         let result6 = kk_list_iterator_hasPrevious(iterHandle)
@@ -401,8 +392,6 @@ final class RuntimeListIteratorTests {
         let listHandle = makeList([10, 20, 30])
         let iterHandle = kk_list_iterator(listHandle)
 
-        // Iterator should be created successfully
-        // Test that we can iterate forward
         var elements: [Int] = []
         while kk_list_iterator_hasNext(iterHandle) == 1 {
             elements.append(kk_list_iterator_next(iterHandle))
@@ -414,7 +403,6 @@ final class RuntimeListIteratorTests {
     func testListIteratorTypeSafety() {
         let iterHandle = makeListIterator([10, 20, 30])
 
-        // Advance to middle
         #expect(kk_list_iterator_next(iterHandle) == 10)
         #expect(kk_list_iterator_next(iterHandle) == 20)
 

@@ -422,6 +422,49 @@ final class DataFlowAnalyzer {
         return variables
     }
 
+    /// The completing path of `left ?: return` implies a non-null left result.
+    /// An immutable local's initializer also carries this implication when
+    /// its receiver is still the same value.
+    func narrowAfterNonNullResult(
+        _ id: ExprID,
+        base: DataFlowState,
+        locals: LocalBindings,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        func isUnchangedLocal(_ expression: ExprID) -> Bool {
+            guard case let .nameRef(name, _) = ast.arena.expr(expression),
+                  let local = locals[name], !local.isMutable
+            else { return false }
+            return sema.bindings.identifierSymbol(for: expression) == local.symbol
+        }
+        var state = base
+        var remaining: ExprID? = id
+        var visited: Set<ExprID> = []
+        while let current = remaining, visited.insert(current).inserted {
+            remaining = nil
+            switch ast.arena.expr(current) {
+            case let .safeMemberCall(receiver, _, _, _, _):
+                remaining = receiver
+            case let .asCast(operand, _, true, _) where isUnchangedLocal(operand):
+                state = narrowSafeCastOperand(
+                    current, base: state, locals: locals, ast: ast, sema: sema, interner: interner
+                )
+            case .nameRef where isUnchangedLocal(current):
+                state = narrowNonNull(current, base: state, locals: locals, ast: ast, sema: sema, interner: interner)
+                if let symbol = sema.bindings.identifierSymbol(for: current) {
+                    remaining = locals.immutableLocalInitializers[symbol]
+                }
+            default:
+                if current == id {
+                    state = narrowNonNull(current, base: state, locals: locals, ast: ast, sema: sema, interner: interner)
+                }
+            }
+        }
+        return state
+    }
+
     /// `(x as? T)?.f(args)` evaluates the call's arguments only when the
     /// safe cast produced a non-null value — i.e. the cast succeeded — so a
     /// stable cast operand narrows to the non-null target type while they

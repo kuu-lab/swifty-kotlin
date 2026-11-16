@@ -68,6 +68,14 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     for (element in this) result.add(element)
     return result
 }
+public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        for (nestedElement in element) result.add(nestedElement)
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.toList(): List<T> {
     if (this is Collection<*>) {
         if (this.size == 0) return emptyList<T>()
@@ -107,6 +115,12 @@ public fun <T> Iterable<T>.toSet(): Set<T> {
     if (result.size == 1) return setOf(result.iterator().next())
     return result
 }
+public infix fun <T> Iterable<T>.intersect(other: Iterable<T>): Set<T> {
+    val result = toMutableSet()
+    result.retainAll(other)
+    return result
+}
+
 public fun <T> Iterable<T>.distinct(): List<T> = this.toMutableSet().toList()
 private fun <T> reverseInPlace(list: MutableList<T>) {
     var left = 0
@@ -548,6 +562,18 @@ public fun <T> MutableCollection<in T>.addAll(elements: kotlin.sequences.Sequenc
     for (element in elements) if (this.add(element)) changed = true
     return changed
 }
+public fun <T> MutableIterable<T>.removeAll(predicate: (T) -> Boolean): Boolean {
+    val iterator = iterator()
+    var changed = false
+    while (iterator.hasNext()) {
+        if (predicate(iterator.next())) {
+            iterator.remove()
+            changed = true
+        }
+    }
+    return changed
+}
+
 public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean {
     val removed = if (elements is Collection<*>) elements as Collection<T> else elements.toList()
     return __jvmRemoveAllCollection(this, removed)

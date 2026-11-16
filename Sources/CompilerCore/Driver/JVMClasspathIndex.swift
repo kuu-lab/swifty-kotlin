@@ -76,6 +76,7 @@ final class JVMClasspathIndex {
         fallbackClassFiles: [(String, Data)] = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit,
+        archiveJobs: Int = min(4, ProcessInfo.processInfo.activeProcessorCount),
         archiveCache: JVMClasspathArchiveCache? = nil
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -107,12 +108,12 @@ final class JVMClasspathIndex {
                 if let archiveCache {
                     let classes = try archiveCache.load(path: url.standardizedFileURL.path, data: data) {
                         var decoded: [JVMClassInfo] = []
-                        try readArchive(data, descriptorCache: descriptors) { decoded.append($0) }
+                        try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { decoded.append($0) }
                         return decoded
                     }
                     classes.forEach { insert($0, isLazy: isLazy) }
                 } else {
-                    try readArchive(data, descriptorCache: descriptors) { insert($0, isLazy: isLazy) }
+                    try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { insert($0, isLazy: isLazy) }
                 }
             }
         }
@@ -152,13 +153,31 @@ final class JVMClasspathIndex {
     }
 
     private static func readArchive(
-        _ data: Data, descriptorCache: JVMDescriptorCache, _ insert: (JVMClassInfo) -> Void
+        _ data: Data, descriptorCache: JVMDescriptorCache,
+        archiveJobs: Int = 1, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
-        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
-            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
-                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-            insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+        let entries = archive.entries.filter { entry in
+            entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
+        }.sorted { $0.name < $1.name }
+        if archiveJobs > 1 && entries.count >= 128 {
+            let batchSize = 64
+            let batchCount = (entries.count + batchSize - 1) / batchSize
+            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs, cancelOnFirstError: true) { index in
+                let start = index * batchSize
+                let end = min(start + batchSize, entries.count)
+                return try entries[start ..< end].map { entry in
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache)
+                }
+            }
+            for batch in batches {
+                for info in batch { insert(info) }
+            }
+        } else {
+            for entry in entries {
+                insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+            }
         }
     }
 
@@ -177,7 +196,6 @@ final class JVMClasspathIndex {
         }
         return info
     }
-
     static func forEachClassFile(inDirectory directory: URL, _ body: (URL, String) throws -> Void) throws {
         let base = directory.resolvingSymlinksInPath()
         guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else {
@@ -297,7 +315,10 @@ final class JVMClasspathIndex {
             } else {
                 let classKind = info.flags & 0x0400 != 0 ? "abstract class " : (info.flags & 0x0010 != 0 ? "class " : "open class ")
                 let isInner = entry.access & 0x0008 == 0
-                source += indentation + visibility + (isInner ? "inner " : "") + classKind + "`\(name)`\(typeParameters) private constructor()"
+                let publicNoArgs = info.methods.contains { $0.isConstructor && $0.parameters.isEmpty && !$0.isProtected }
+                let constructor = publicNoArgs ? "()" : " private constructor()"
+                source += indentation + visibility + (isInner ? "inner " : "") + classKind
+                    + "`\(name)`\(typeParameters)" + constructor
             }
             var parents: [String] = []
             if !info.isInterface, let base = info.superclass, classes[base] != nil,
@@ -365,6 +386,57 @@ final class JVMClasspathIndex {
             guard let info = classes[name] else { continue }
             var methods = info.methods
             var methodKeys = Set(methods.lazy.map(key))
+            var inheritedConstants: [String: JVMForeignField] = [:]
+            var ambiguousConstants: Set<String> = []
+            // Field declarations on nearer interfaces hide same-named ancestor
+            // constants, even when the nearer declaration is runtime-initialized.
+            // Declarations at the same shallowest depth on distinct interfaces
+            // stay ambiguous, so track the declaring depth instead of a shared
+            // shadow set.
+            // Same-named fields with different descriptors are legal on the JVM,
+            // so seed the map one entry at a time instead of uniqueKeysWithValues.
+            var minDeclaredDepth: [String: Int] = [:]
+            for field in info.fields where minDeclaredDepth[field.name] == nil {
+                minDeclaredDepth[field.name] = 0
+            }
+            var visitDepth: [String: Int] = [:]
+            var queue: [(name: String, depth: Int)] = info.interfaces.map { ($0, 1) }
+            var queueIndex = 0
+            while queueIndex < queue.count {
+                let (name, depth) = queue[queueIndex]
+                queueIndex += 1
+                if let seen = visitDepth[name], seen <= depth { continue }
+                visitDepth[name] = depth
+                guard let owner = hierarchyClasses[name], owner.isInterface,
+                      owner.isKotlinFileFacade == nil else { continue }
+                for field in owner.fields where minDeclaredDepth[field.name] == nil {
+                    minDeclaredDepth[field.name] = depth
+                }
+                for parent in owner.interfaces { queue.append((parent, depth + 1)) }
+            }
+            visitDepth = [:]
+            queue = info.interfaces.map { ($0, 1) }
+            queueIndex = 0
+            while queueIndex < queue.count {
+                let (name, depth) = queue[queueIndex]
+                queueIndex += 1
+                if let seen = visitDepth[name], seen <= depth { continue }
+                visitDepth[name] = depth
+                guard let owner = hierarchyClasses[name], owner.isInterface,
+                      owner.isKotlinFileFacade == nil else { continue }
+                for field in owner.fields where field.isPublic && field.isStatic && field.isFinal
+                    && minDeclaredDepth[field.name] == depth {
+                    if field.constantValue == nil {
+                        // A runtime-initialized declaration at the shallowest
+                        // depth collides with same-named constants on sibling
+                        // interfaces even though it shadows deeper ancestors.
+                        ambiguousConstants.insert(field.name)
+                    } else if inheritedConstants.updateValue(field, forKey: field.name) != nil {
+                        ambiguousConstants.insert(field.name)
+                    }
+                }
+                for parent in owner.interfaces { queue.append((parent, depth + 1)) }
+            }
             var bridges = info.bridgeMethods
             var interfaces: [String] = []
             var inheritedInterfaces = info.interfaces
@@ -428,7 +500,11 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            let fields = info.fields + inheritedConstants.keys.sorted().compactMap { name in
+                ambiguousConstants.contains(name) ? nil : inheritedConstants[name]
+            }
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass,
+                                        interfaces: interfaces, methods: methods, fields: fields)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
@@ -440,6 +516,7 @@ final class JVMClasspathIndex {
             imported.annotations = info.annotations
             imported.hasKotlinMetadata = info.hasKotlinMetadata
             imported.kotlinAnnotationVarargElementNames = info.kotlinAnnotationVarargElementNames
+            imported.kotlinStaticProperties = info.kotlinStaticProperties
             classes[info.name] = imported
         }
     }
@@ -938,6 +1015,10 @@ final class JVMClasspathIndex {
         // java.lang.CharSequence; covering it keeps stub signatures and
         // supertypes on the same Kotlin nominal.
         covered.insert("java/lang/CharSequence")
+        // The frontend's CoroutineDispatcher contract already models its
+        // CoroutineContext supertypes. An erased stub cannot reconstruct
+        // the key passed to AbstractCoroutineContextElement or its generic overrides.
+        covered.insert("kotlinx/coroutines/CoroutineDispatcher")
         return covered
     }
 
@@ -1431,7 +1512,11 @@ final class JVMClasspathIndex {
             }
             return "var `\(field.name)`: \(kotlin) get() = null!! set(value) {}\n"
         }
-        let runtimeFields = info.fields.compactMap(runtimeField)
+        let runtimeFieldPairs = info.fields.compactMap { field -> (String, String)? in
+            guard let declaration = runtimeField(field) else { return nil }
+            return (field.name, declaration)
+        }
+        let runtimeFields = runtimeFieldPairs.map(\.1)
         if allowsCompanion, metadata?.companion == nil,
            !statics.isEmpty || !constantFields.isEmpty || !runtimeFields.isEmpty {
             source += "companion object"
@@ -1439,6 +1524,14 @@ final class JVMClasspathIndex {
             source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
+            // A @JvmStatic mutable field already declares the name; emitting the
+            // static getter as a `val` would duplicate it.
+            let runtimeFieldNames = Set(runtimeFieldPairs.map(\.0))
+            for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
+                where isExposed(property.getter) && !runtimeFieldNames.contains(name) {
+                let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
+                source += "val `\(name)`: \(type) get() = null!!\n"
+            }
             for method in statics {
                 source += "external " + functionDeclaration(method) + "\n"
             }

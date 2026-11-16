@@ -52,7 +52,9 @@ extension JVMFunctionBuilder {
               captures.reduce(1, { $0 + $1.1.type.width }) <= 255 else { throw fail("JVM inline reference parameter slot limit exceeded.", id) }
         let helper = JVMFunctionBuilder(program: program, declaration: FunDecl(range: declaration.range, name: context.interner.intern(helperRef.name), modifiers: [], body: .unit), reference: helperRef, owner: owner)
         helper.isStaticBody = true; helper.isSuspendBody = function.isSuspend; helper.functionSymbol = symbol
-        helper.inlineStack = inlineStack.union([symbol])
+        var nestedInlineStack = inlineStack
+        nestedInlineStack[symbol, default: 0] += 1
+        helper.inlineStack = nestedInlineStack
         let inputs = try helperRef.parameters.map { try helper.value($0) }
         for (i, type) in tokenTypes.enumerated() {
             if case let .typeParam(t) = program.sema.types.kind(of: type) {

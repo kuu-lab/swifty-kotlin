@@ -204,8 +204,9 @@ extension JVMProgramBuilder {
                 let methodName = numberSubclass && ref.parameters.isEmpty
                     ? numberMethodNames[sourceName] ?? ref.name
                     : ref.name
-                var method = JVMForeignMethod(owner: plan.name, name: methodName, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: false, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
-                method.isSpecial = f.modifiers.contains(.private)
+                let staticMethod = plan.isObject && plan.companionOwner == nil && isJvmStatic(symbol)
+                var method = JVMForeignMethod(owner: plan.name, name: methodName, descriptor: ref.descriptor, parameters: ref.parameters, result: ref.result, isStatic: staticMethod, isInterface: plan.isInterface, isAbstract: f.modifiers.contains(.abstract) || (plan.isInterface && f.body == .unit))
+                method.isSpecial = !method.isStatic && f.modifiers.contains(.private)
                 method.isSuspend = f.isSuspend
                 methods[symbol] = method; plan.methods.append((f, method))
                 plan.methodSymbols[method.name + method.descriptor] = symbol
@@ -300,7 +301,9 @@ extension JVMProgramBuilder {
             guard !exposedField || (hasField && p.delegateExpression == nil) else {
                 throw JVMFrontendError(message: "JVM @JvmField property must have a backing field.", range: p.range)
             }
-            let staticObjectField = exposedField && plan.isObject && plan.companionOwner == nil
+            // @JvmField inside any object — including a companion — publishes a
+            // static field on that object, matching kotlinc's layout.
+            let staticObjectField = exposedField && plan.isObject
             let immutableField = !p.isVar && (!plan.isObject || staticObjectField)
             let field = hasField && p.delegateExpression == nil ? JVMField(owner: plan.name, name: name, type: backingFieldType, access: (p.modifiers.contains(.lateinit) || exposedField ? self.access(fieldModifiers) : 2) | (plan.isFacade || staticObjectField ? 8 : 0) | (immutableField ? 16 : 0)) : nil
             var property = JVMProperty(name: name, type: type, getter: getter, setter: setter, field: field, modifiers: p.modifiers)
@@ -349,7 +352,13 @@ extension JVMProgramBuilder {
                 guard let symbol = plan.methodSymbols[method.name + method.descriptor], let signature = sema.symbols.functionSignature(for: symbol) else { throw JVMFrontendError(message: "Missing JVM member signature.") }
                 builder.functionSymbol = symbol
                 builder.semanticSignature = signature
-                let function = try annotated(describe(builder.build(), signature: signature, parameters: declaration.typeParams), symbol: symbol)
+                builder.isStaticBody = method.isStatic
+                var body = try describe(builder.build(), signature: signature, parameters: declaration.typeParams)
+                if method.isStatic {
+                    body.access = access(declaration.modifiers, final: true) | 0x0008
+                    body.isSynthetic = false
+                }
+                let function = try annotated(body, symbol: symbol)
                 functions.append(function)
                 functions += try jvmOverloads(function, declaration: declaration, symbol: symbol, owner: plan)
             }
@@ -372,6 +381,7 @@ extension JVMProgramBuilder {
             }
             functions += try delegationMethods(plan)
             functions += try nominalMethods(plan, existing: functions)
+            functions += try jvmStaticMethods(plan)
             var defaultImpls: JVMClass?
             if plan.isInterface {
                 let defaults = effectiveInterfaceMethods(plan).values.filter { !$0.isAbstract }.sorted { jvmMemberKey($0) < jvmMemberKey($1) }

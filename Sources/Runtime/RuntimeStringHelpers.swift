@@ -233,22 +233,23 @@ private func runtimeStringIndexOfFirst(
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard fnPtr != 0 else { return -1 }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (index, unit) in units.enumerated() {
-        let charRaw = Int(unit)
-        var thrown = 0
-        let result = lambda(closureRaw, charRaw, &thrown)
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfFirst predicate")
-            return -1
+    return runtimeThrowingBridge(outThrown) {
+        guard fnPtr != 0 else { return -1 }
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        for (index, unit) in units.enumerated() {
+            let charRaw = Int(unit)
+            var thrown = 0
+            let result = lambda(closureRaw, charRaw, &thrown)
+            if thrown != 0 {
+                runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfFirst predicate")
+                return -1
+            }
+            if maybeUnbox(result) != 0 {
+                return index
+            }
         }
-        if maybeUnbox(result) != 0 {
-            return index
-        }
+        return -1
     }
-    return -1
 }
 
 private func runtimeStringIndexOfLast(
@@ -257,23 +258,24 @@ private func runtimeStringIndexOfLast(
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    guard fnPtr != 0 else { return -1 }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var lastIdx = -1
-    for (index, unit) in units.enumerated() {
-        let charRaw = Int(unit)
-        var thrown = 0
-        let result = lambda(closureRaw, charRaw, &thrown)
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfLast predicate")
-            return -1
+    return runtimeThrowingBridge(outThrown) {
+        guard fnPtr != 0 else { return -1 }
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        var lastIdx = -1
+        for (index, unit) in units.enumerated() {
+            let charRaw = Int(unit)
+            var thrown = 0
+            let result = lambda(closureRaw, charRaw, &thrown)
+            if thrown != 0 {
+                runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfLast predicate")
+                return -1
+            }
+            if maybeUnbox(result) != 0 {
+                lastIdx = index
+            }
         }
-        if maybeUnbox(result) != 0 {
-            lastIdx = index
-        }
+        return lastIdx
     }
-    return lastIdx
 }
 
 /// Applies full case mapping only to valid Unicode runs. NUL and isolated

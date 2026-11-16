@@ -67,6 +67,12 @@ inline fun <T, K> kotlin.Array<out T>.associateBy(keySelector: (T) -> K): Map<K,
 inline fun <T, K, V> kotlin.Array<out T>.associateBy(keySelector: (T) -> K, valueTransform: (T) -> V): Map<K, V> { val result = mutableMapOf<K, V>(); for (item in this) { val key = keySelector(item); result[key] = valueTransform(item) }; return result }
 inline fun <T, V> kotlin.Array<out T>.associateWith(valueSelector: (T) -> V): Map<T, V> { val result = mutableMapOf<T, V>(); for (item in this) result[item] = valueSelector(item); return result }
 inline fun <T> kotlin.Array<out T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> { val yes = mutableListOf<T>(); val no = mutableListOf<T>(); for (item in this) { if (predicate(item)) yes.add(item) else no.add(item) }; return Pair(yes, no) }
+inline fun <T> kotlin.Array<out T>.find(predicate: (T) -> Boolean): T? {
+    for (item in this) {
+        if (predicate(item)) return item
+    }
+    return null
+}
 inline fun <T, R> kotlin.Array<out T>.map(transform: (T) -> R): List<R> { val result = mutableListOf<R>(); for (item in this) result.add(transform(item)); return result }
 inline fun <T> kotlin.Array<out T>.filter(predicate: (T) -> Boolean): List<T> { val result = mutableListOf<T>(); for (item in this) if (predicate(item)) result.add(item); return result }
 inline fun <T> kotlin.Array<out T>.forEach(action: (T) -> Unit): Unit { for (item in this) action(item) }
