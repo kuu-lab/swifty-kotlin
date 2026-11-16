@@ -74,7 +74,7 @@
       "virtualPath": "<kswiftk-jvm>/byte-streams.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/io/ByteStreamsKt",
-      "consumerIdentifiers": ["readBytes"]
+      "consumerIdentifiers": ["readBytes", "reader", "readText"]
     },
     {
       "path": "declarations/UStrings.kt",
@@ -143,18 +143,6 @@
       "virtualPath": "<kswiftk-jvm>/preconditions.kt",
       "excludeFromStdlibBuild": true,
       "runtimeFacade": "kotlin/PreconditionsKt"
-    },
-    {
-      "path": "kotlin/time/DurationUnit.kt",
-      "virtualPath": "<kswiftk-jvm>/durationUnit.kt",
-      "excludeFromStdlibBuild": true,
-      "commonSource": true
-    },
-    {
-      "path": "declarations/Duration.kt",
-      "virtualPath": "<kswiftk-jvm>/duration.kt",
-      "excludeFromStdlibBuild": true,
-      "runtimeFacade": "kotlin/time/DurationKt"
     },
     {
       "path": "declarations/KotlinTimeMeasureTime.kt",
@@ -785,6 +773,12 @@
       "path": "declarations/MapHigherOrderFunctions.kt",
       "virtualPath": "<kswiftk-jvm>/map-higher-order-functions.kt",
       "excludeFromStdlibBuild": true
+    },
+    {
+      "path": "declarations/MapFilter.kt",
+      "virtualPath": "<kswiftk-jvm>/map-filter.kt",
+      "excludeFromStdlibBuild": true,
+      "runtimeFacade": "kotlin/collections/MapsKt"
     },
     {
       "path": "declarations/BuilderContracts.kt",

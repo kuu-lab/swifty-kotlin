@@ -3,6 +3,15 @@
 struct JVMTerminatedExpression: Error {}
 
 extension JVMFunctionBuilder {
+    func samConstructorArgument(_ arguments: [CallArgument], id: ExprID) -> ExprID? {
+        let bindings = program.sema.bindings
+        guard bindings.callBinding(for: id) == nil, arguments.count == 1,
+              let argument = arguments.first?.expr,
+              let interface = bindings.samInterfaceType(for: argument),
+              interface == bindings.exprType(for: id) else { return nil }
+        return argument
+    }
+
     func expression(_ id: ExprID, discarded: Bool = false) throws -> JVMValue? {
         if let operand = evaluatedOperands[id] { return operand }
         let pendingConstructor = !pendingAllocations.isEmpty, start = instructions.count
