@@ -211,6 +211,11 @@ public extension RuntimeABISpec {
         abi.nt("kk_coroutine_scope_fail", "scopeHandle exception"),
         abi.nt("kk_coroutine_scope_wait", "scopeHandle"),
         abi.nt("kk_coroutine_scope_new_with_context", "contextRaw"),
+        // KUU-4592: the `TestScope(context)` factory and `runTest` mint the
+        // same RuntimeCoroutineScope handle but tagged with TestScope's
+        // nominal type ID (edge to CoroutineScope registered) so `as
+        // TestScope` receiver checkcasts succeed.
+        abi.nt("kk_test_scope_new_with_context", "contextRaw"),
         // KSP-1583: kotlinx.coroutines.test — runTest mints a TestScope over
         // the context and invokes the test body with `this` bound to it.
         // The suspend block value crosses as the (entryPointRaw, closureRaw)
