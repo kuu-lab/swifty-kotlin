@@ -102,7 +102,8 @@ extension JVMFunctionBuilder {
         let arity = params.count + (!staticTarget && !constructor && bound == nil ? 1 : 0) - (staticTarget && isExtension && bound != nil ? 1 : 0) + (suspended ? 1 : 0)
         guard arity <= 22 else { throw fail("JVM callable reference arity exceeds 22.", id) }
         let targetName = ref?.name ?? method!.name
-        let name = constructor ? "<init>" : program.sema.symbols.symbol(symbol).map { context.interner.resolve($0.name) } ?? targetName.components(separatedBy: "$unsigned$")[0]
+        let name = constructor || targetName == "constructor-impl" ? "<init>"
+            : program.sema.symbols.symbol(symbol).map { context.interner.resolve($0.name) } ?? targetName.components(separatedBy: "$unsigned$")[0]
         let signature = try value(.string)
         instructions.append(.callableSignature(ownerName, targetName, ref?.descriptor ?? method!.descriptor, signature))
         let klass = try javaClass(.reference(ownerName, nullable: false))
