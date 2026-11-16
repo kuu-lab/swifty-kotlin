@@ -25,6 +25,7 @@ final class JVMClasspathIndex {
     var composeStaticContracts: [FileID: (method: JVMForeignMethod, composable: JVMCompose.ImportedCall?)] = [:]
     var importedComposeCalls: [SymbolID: JVMCompose.ImportedCall] = [:]
     var glanceActivityFile: FileID?
+    var oneTimeWorkRequestBuilderFile: FileID?
     var composeContentSymbols: Set<SymbolID> = []
 
     private(set) var fallbackClassFiles: [(String, Data)] = []
@@ -81,7 +82,6 @@ final class JVMClasspathIndex {
         fallbackClassFiles: [(String, Data)] = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit,
-        archiveJobs: Int = min(4, ProcessInfo.processInfo.activeProcessorCount),
         archiveCache: JVMClasspathArchiveCache? = nil
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -113,12 +113,12 @@ final class JVMClasspathIndex {
                 if let archiveCache {
                     let classes = try archiveCache.load(path: url.standardizedFileURL.path, data: data) {
                         var decoded: [JVMClassInfo] = []
-                        try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { decoded.append($0) }
+                        try readArchive(data, descriptorCache: descriptors) { decoded.append($0) }
                         return decoded
                     }
                     classes.forEach { insert($0, isLazy: isLazy) }
                 } else {
-                    try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { insert($0, isLazy: isLazy) }
+                    try readArchive(data, descriptorCache: descriptors) { insert($0, isLazy: isLazy) }
                 }
             }
         }
@@ -158,31 +158,13 @@ final class JVMClasspathIndex {
     }
 
     private static func readArchive(
-        _ data: Data, descriptorCache: JVMDescriptorCache,
-        archiveJobs: Int = 1, _ insert: (JVMClassInfo) -> Void
+        _ data: Data, descriptorCache: JVMDescriptorCache, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
-        let entries = archive.entries.filter { entry in
-            entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
-                && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
-        }.sorted { $0.name < $1.name }
-        if archiveJobs > 1 && entries.count >= 128 {
-            let batchSize = 64
-            let batchCount = (entries.count + batchSize - 1) / batchSize
-            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs, cancelOnFirstError: true) { index in
-                let start = index * batchSize
-                let end = min(start + batchSize, entries.count)
-                return try entries[start ..< end].map { entry in
-                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache)
-                }
-            }
-            for batch in batches {
-                for info in batch { insert(info) }
-            }
-        } else {
-            for entry in entries {
-                insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
-            }
+        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
+            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
+                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
+            insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
         }
     }
 
@@ -201,6 +183,7 @@ final class JVMClasspathIndex {
         }
         return info
     }
+
     static func forEachClassFile(inDirectory directory: URL, _ body: (URL, String) throws -> Void) throws {
         let base = directory.resolvingSymlinksInPath()
         guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else {
@@ -433,14 +416,27 @@ final class JVMClasspathIndex {
             var inheritedInterfaces = info.interfaces
             var interfaceVisited: Set<String> = []
             var interfaceMethods: [String: JVMForeignMethod] = [:]
+            var inheritedConstantNames = Set(info.fields.map(\.name))
+            var inheritedConstants: [JVMForeignField] = []
+            func collectConstants(_ name: String) {
+                guard let base = hierarchyClasses[name] else { return }
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
+                        var f = field; f.inherited = true; inheritedConstants.append(f)
+                    }
+                }
+                for parent in base.interfaces { collectConstants(parent) }
+            }
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
                 if classes[name] != nil || info.kotlinReadOnlyCollectionSupertypes[name] != nil
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
+                    collectConstants(name)
                     return
                 }
                 guard let base = hierarchyClasses[name] else { return }
+                collectConstants(name)
                 bridges += base.bridgeMethods
                 for method in base.methods where !method.isStatic && !method.isConstructor {
                     let signature = key(method)
@@ -460,6 +456,11 @@ final class JVMClasspathIndex {
             while let name = next, visited.insert(name).inserted, let base = hierarchyClasses[name] {
                 let visible = classes[name] != nil
                 if visible && superclass == nil { superclass = name; hiddenSegment = false }
+                for field in base.fields where field.access & 0x0002 == 0 && inheritedConstantNames.insert(field.name).inserted {
+                    if field.isPublic && field.isStatic && field.isFinal {
+                        var f = field; f.inherited = true; inheritedConstants.append(f)
+                    }
+                }
                 for method in base.methods where !method.isConstructor && (method.isStatic || hiddenSegment) {
                     if methodKeys.insert(key(method)).inserted {
                         // A method reference must name an accessible class even
@@ -498,7 +499,7 @@ final class JVMClasspathIndex {
                     }
                 }
             }
-            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields)
+            var imported = JVMClassInfo(name: info.name, flags: info.flags, superclass: superclass, interfaces: interfaces, methods: methods, fields: info.fields + inheritedConstants)
             imported.bridgeMethods = bridges
             imported.defaultArgumentMethods = info.defaultArgumentMethods
             imported.classTypeParameterNames = info.classTypeParameterNames
@@ -543,7 +544,7 @@ final class JVMClasspathIndex {
     }
 
     private func isExposed(_ method: JVMForeignMethod) -> Bool {
-        if method.isReifiedGlanceAction { return false }
+        if method.isReifiedGlanceAction || method.isReifiedWorkBuilder { return false }
         let exposedName = method.sourceName
         // Exclude generated static forwarders. The companion's instance method
         // can still implement a user-declared factory interface.
@@ -591,7 +592,23 @@ final class JVMClasspathIndex {
            let instance = metroSingleton(in: impl, named: "INSTANCE", type: name) {
             return instance
         }
-        return nil
+        return metroCompanionFactory(for: factoryInfo)
+    }
+
+    private func metroCompanionFactory(for factory: JVMClassInfo) -> JVMField? {
+        guard let graphName = innerClassMetadata[factory.name]?.outerName,
+              let graph = hierarchyClasses[graphName],
+              graph.annotations.contains(where: { $0.descriptor == JVMMetro.graph }),
+              let companion = hierarchyClasses[graphName + "$Companion"],
+              companion.flags & 1 != 0, companion.interfaces.contains(factory.name),
+              companion.methods.contains(where: { method in
+                  !method.isStatic && !method.isProtected
+                      && method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke })
+                      && factory.methods.contains(where: {
+                          $0.isAbstract && $0.name == method.name && $0.descriptor == method.descriptor
+                      })
+              }) else { return nil }
+        return metroSingleton(in: graph, named: "Companion", type: companion.name)
     }
 
     func metroGraphInvoker(_ graph: String) -> (JVMField, JVMForeignMethod)? {
@@ -717,6 +734,14 @@ final class JVMClasspathIndex {
     }
 
     private func superclassReference(_ name: String, child: JVMClassInfo) -> String? {
+        let workBuilder = "androidx/work/OneTimeWorkRequest$Builder"
+        let workParent = "androidx/work/WorkRequest$Builder"
+        let workRequest = "androidx/work/OneTimeWorkRequest"
+        if name == workParent, child.name == workBuilder,
+           child.genericSignature?.contains("L\(workParent)<L\(workBuilder);L\(workRequest);>;") == true {
+            return Self.dottedTypeName(workParent) + "<" + Self.dottedTypeName(workBuilder)
+                + ", " + Self.dottedTypeName(workRequest) + ">()"
+        }
         guard let type = supertypeReference(name, childParams: child.classTypeParameterNames) else { return nil }
         // The covered class keeps its Kotlin constructor instead of the
         // placeholder no-argument constructor used by ordinary JVM stubs.
@@ -1041,6 +1066,7 @@ final class JVMClasspathIndex {
         defer { overrideSignaturesByOwner.removeAll() }
         injectComposeUIContracts(into: ctx)
         injectGlanceActivityAction(into: ctx)
+        injectOneTimeWorkRequestBuilder(into: ctx)
         let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
             entry.method.owner + "." + entry.method.name + entry.method.descriptor
         })
@@ -1635,8 +1661,9 @@ final class JVMClasspathIndex {
             source += " {\n"
             for declaration in constantFields { source += declaration }
             for declaration in runtimeFields { source += declaration }
+            let runtimeFieldNames = Set(info.fields.compactMap { runtimeField($0) != nil ? $0.name : nil })
             for (name, property) in info.kotlinStaticProperties.sorted(by: { $0.key < $1.key })
-                where isExposed(property.getter) {
+                where isExposed(property.getter) && !runtimeFieldNames.contains(name) {
                 let type = kotlinType(property.getter.result) + (property.isNullable ? "?" : "")
                 source += "val `\(name)`: \(type) get() = null!!\n"
             }
@@ -2027,7 +2054,8 @@ final class JVMClasspathIndex {
         if asExtension, let type = method.sourceParameters.first {
             receiver = kotlinType(type) + (suspend?.receiverIsNullable == true ? "?." : ".")
         }
-        let result = method.genericResultParameter.map { "`\($0.name)`" }
+        let result = method.kotlinOwnerResultParameter.map { "`\($0)`" }
+            ?? method.genericResultParameter.map { "`\($0.name)`" }
             ?? suspend?.sourceResult
             ?? (kotlinType(method.sourceResult) + (suspend != nil && method.sourceResult.isNullable ? "?" : ""))
         let generic = method.genericResultParameter.map { parameter -> String in
@@ -2331,8 +2359,43 @@ final class JVMClasspathIndex {
         }
         if !staticMember, !signature.isSuspend {
             let logicalParameters = descriptorTypes.map(\.descriptor)
-            let mangledMembers = info.methods.filter {
-                $0.sourceName == name && $0.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+            if isExtension, let receiver = descriptorTypes.first {
+                let extensions = info.methods.filter { method in
+                    !method.isStatic && method.sourceName == name
+                        && method.kotlinFunction?.mangledExtensionReceiverDescriptor == receiver.descriptor
+                        && method.parameters.dropFirst().map(\.descriptor) == Array(logicalParameters.dropFirst())
+                }
+                if extensions.count == 1 {
+                    methods[symbol.id] = extensions[0]
+                    return
+                }
+            }
+            let mangledMembers = info.methods.filter { method in
+                guard method.sourceName == name,
+                      method.kotlinFunction?.mangledMemberParameterDescriptors == logicalParameters
+                else { return false }
+                // A value class and its underlying type share an erased
+                // descriptor (`Dp` erases to `F`), so descriptor equality
+                // alone would also match `foo(Float)` calls against a
+                // mangled `foo(Dp)` candidate — require the declared Kotlin
+                // parameter names to agree too.
+                guard let params = method.kotlinFunction?.parameters,
+                      params.count == signature.parameterTypes.count else { return false }
+                return zip(params, signature.parameterTypes).allSatisfy { param, callType in
+                    // `fixture.Box<kotlin.String>` must compare as `Box`:
+                    // drop generic arguments before taking the last path
+                    // component, or `.last` returns `String>`.
+                    let declaredName = param.sourceType
+                        .split(separator: "<").first
+                        .flatMap { $0.split(separator: ".").last }
+                        .map(String.init)?
+                        .replacingOccurrences(of: "?", with: "")
+                    guard let declared = declaredName,
+                          case let .classType(nominal) = sema.types.kind(of: callType),
+                          let symbol = sema.symbols.symbol(nominal.classSymbol)
+                    else { return true }
+                    return ctx.interner.resolve(symbol.name) == declared
+                }
             }
             if mangledMembers.count == 1 {
                 methods[symbol.id] = mangledMembers[0]
