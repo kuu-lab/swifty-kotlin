@@ -1126,9 +1126,16 @@ func itableBridgeSymbolForMethod(
     // Nested singleton initializers register dispatch before their member bodies
     // are lowered. Ordinary source object methods already have their final ABI
     // in Sema, so their erasure bridges can reference the forthcoming definition.
+    // The same holds for a forward-declared class instantiated before its
+    // declaration is reached: `makeIt(): Iterator<String> = SimpleIter()` with
+    // `SimpleIter` declared later registers the construction-site itable while
+    // the member bodies are not in the arena yet — without this, a method
+    // needing ABI adaptation (e.g. a `String` return, flat aggregate vs the
+    // interface slot's representation) was registered raw and the dispatch
+    // invoked the implementation with the wrong ABI (KUU-4585).
     // Varargs, reified tokens, and member extensions alter the KIR parameter list.
     let hasForwardObjectSignature: Bool = {
-        guard sema.symbols.symbol(nominalSymbol)?.kind == .object,
+        guard [.object, .class].contains(sema.symbols.symbol(nominalSymbol)?.kind),
               sema.symbols.parentSymbol(for: implementation) == nominalSymbol,
               let implementationInfo = sema.symbols.symbol(implementation),
               implementationInfo.kind == .function,

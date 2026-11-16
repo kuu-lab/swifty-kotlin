@@ -4,13 +4,29 @@ private struct RuntimeWeakLiteralBox {
     weak let box: RuntimeStringBox?
 }
 
+/// KUU-4591: `Dictionary<[UInt8], _>` hashes element-by-element
+/// (`Hasher._combine(UInt8)` per byte), which dominated startup interning.
+/// Bulk-feeding the bytes through `Hasher.combine(bytes:)` keeps the same
+/// byte-equality semantics at a fraction of the hash cost.
+private struct LiteralByteKey: Hashable {
+    let bytes: [UInt8]
+
+    static func == (lhs: LiteralByteKey, rhs: LiteralByteKey) -> Bool {
+        lhs.bytes == rhs.bytes
+    }
+
+    func hash(into hasher: inout Hasher) {
+        bytes.withUnsafeBytes { hasher.combine(bytes: $0) }
+    }
+}
+
 /// Only compiler literals and explicit intern() calls enter this pool.
 /// Ordinary string construction must retain reference identity for AtomicReference.
 final class RuntimeStringLiteralPool: @unchecked Sendable {
     private let lock = NSLock()
     // Swift String equality normalizes Unicode. Kotlin identity pooling must
     // keep distinct UTF-8/UTF-16 sequences (e.g. composed/decomposed accents).
-    private var boxesByBytes: [[UInt8]: RuntimeWeakLiteralBox] = [:]
+    private var boxesByBytes: [LiteralByteKey: RuntimeWeakLiteralBox] = [:]
     private var insertionsUntilPruning = 64
 
     @discardableResult
@@ -37,7 +53,8 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
     func intern(bytes: [UInt8], preferred: RuntimeStringBox? = nil) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        if let box = boxesByBytes[bytes]?.box {
+        let key = LiteralByteKey(bytes: bytes)
+        if let box = boxesByBytes[key]?.box {
             let raw = Int(bitPattern: Unmanaged.passUnretained(box).toOpaque())
             if runtimeStringBox(fromRaw: raw) === box {
                 return raw
@@ -58,7 +75,7 @@ final class RuntimeStringLiteralPool: @unchecked Sendable {
         } else {
             raw = registerRuntimeObject(box)
         }
-        boxesByBytes[bytes] = RuntimeWeakLiteralBox(box: box)
+        boxesByBytes[key] = RuntimeWeakLiteralBox(box: box)
         return raw
     }
 }
