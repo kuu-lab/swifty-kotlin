@@ -1,3 +1,6 @@
+// DIFF_SKIP_NATIVE: RSA key generation uses the Apple Security framework; the
+// Linux runtime intentionally reports it unavailable (ProviderException), so
+// the kotlinc reference can never match on the native lane.
 import java.security.KeyPairGenerator
 import java.security.Signature
 

@@ -18,7 +18,12 @@ extension JVMMetroBindingEmitter {
     }
 
     private func makeExtension(_ child: JVMClassInfo, inputs: [(JVMMetroBindingKey, JVMValueType)]) throws -> JVMMetroBinding {
-        let name = implementation + "$" + (child.name.split(separator: "/").last.map(String.init) ?? child.name) + "Impl"
+        let cacheKey = child.name + "|" + inputs.map { $0.0.description + ":" + $0.1.descriptor }.joined(separator: ",")
+        if let cached = extensionGraphs[cacheKey] { return cached }
+        let base = implementation + "$" + (child.name.split(separator: "/").last.map(String.init) ?? child.name) + "Impl"
+        let ordinal = extensionNameCounts[base, default: 0]
+        extensionNameCounts[base] = ordinal + 1
+        let name = ordinal == 0 ? base : base + "_" + String(ordinal)
         let parentType = JVMValueType.reference(implementation, nullable: false)
         let parentField = JVMField(owner: name, name: "parentGraph", type: parentType, access: 0x0012)
         let fields = inputs.enumerated().map { index, input in
@@ -46,8 +51,10 @@ extension JVMMetroBindingEmitter {
                                       functions: [constructor] + entries + emitter.methods,
                                       fields: [parentField] + fields + emitter.fields)
         classes += [output] + emitter.classes
-        return JVMMetroBinding(recipe: .extensionGraph(name),
-                               type: .reference(child.name, nullable: false), scope: nil)
+        let binding = JVMMetroBinding(recipe: .extensionGraph(name),
+                                      type: .reference(child.name, nullable: false), scope: nil)
+        extensionGraphs[cacheKey] = binding
+        return binding
     }
 
     private func addExtensionFactory(_ factory: JVMClassInfo, method: JVMForeignMethod, child: JVMClassInfo) throws {

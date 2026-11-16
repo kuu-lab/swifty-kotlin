@@ -365,6 +365,7 @@ public func __kk_cancellable_continuation_complete_resume(_ handle: Int, _ token
 
 @_cdecl("__kk_cancellable_continuation_get_result")
 public func __kk_cancellable_continuation_get_result(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    return cancellableContinuation(handle).getResult(outThrown)
+    return runtimeThrowingBridge(outThrown) {
+        cancellableContinuation(handle).getResult(outThrown)
+    }
 }

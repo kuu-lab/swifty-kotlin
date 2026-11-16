@@ -27,6 +27,26 @@ extension JVMForeignMethod {
     var kotlinComposeABI: (changes: Int, defaults: Int)? {
         kotlinFunction.flatMap { composeABI(for: $0) }
     }
+
+    /// An ordinary member can accept a composable lambda. Compose adds its
+    /// Composer and change mask to the callback, leaving the member's arity intact.
+    func matchesComposeCallbackMember(parameters logical: [JVMValueType], names: [String?]) -> Bool {
+        guard !isStatic, kotlinComposeABI == nil, let function = kotlinFunction,
+              !function.isSuspend, function.parameters.map(\.name) == names,
+              parameters.count == logical.count else { return false }
+        let callbacks = function.composableParameters
+        guard !callbacks.isEmpty else { return false }
+        let functionPrefix = "kotlin/jvm/functions/Function"
+        return zip(parameters, logical).enumerated().allSatisfy { index, pair in
+            let (physical, source) = pair
+            guard callbacks.contains(index - function.leadingParameterCount) else {
+                return physical.descriptor == source.descriptor
+            }
+            guard let carrier = source.referenceName, carrier.hasPrefix(functionPrefix),
+                  let arity = Int(carrier.dropFirst(functionPrefix.count)) else { return false }
+            return physical.referenceName == functionPrefix + String(arity + 2)
+        }
+    }
 }
 
 extension JVMFunctionBuilder {
@@ -85,7 +105,10 @@ extension JVMFunctionBuilder {
             hidden.append(try constant(.int(Int32(bitPattern: explicit.masks[0])), .int))
         }
         let resultType = try expectedResult ?? program.expressionType(id)
-        let result = method.result == .unit ? nil : try value(foreignResultType(method.result, resolved: resultType))
+        // A generic composable specialized to Unit still returns an
+        // object at the JVM boundary. Discard that carrier for a Unit call.
+        let result = method.result == .unit || resultType == .unit
+            ? nil : try value(foreignResultType(method.result, resolved: resultType))
         let needsGroup = !method.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/ReadOnlyComposable;" }
         if needsGroup { try beginComposeGroup(composer, key: composeCallKey(at: id)) }
         instructions.append(.foreignCall(method, receiver: dispatch, arguments: prefix + explicit.values + hidden, result: result))
