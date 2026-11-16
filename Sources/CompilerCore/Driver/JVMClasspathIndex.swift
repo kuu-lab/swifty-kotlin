@@ -343,6 +343,8 @@ final class JVMClasspathIndex {
                 classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
             }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+            let bounds = javaTypeParameterBounds(info).bounds
+            if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
             source += " {\n"
             // Kotlin forbids companion objects inside inner (non-static
             // member) classes; their statics are unreachable anyway.
@@ -522,6 +524,7 @@ final class JVMClasspathIndex {
             imported.kotlinTypeParameterVariance = info.kotlinTypeParameterVariance
             imported.genericSignature = info.genericSignature
             imported.genericSupertypeSignatures = info.genericSupertypeSignatures
+            imported.javaClassTypeParameterBounds = info.javaClassTypeParameterBounds
             imported.innerClasses = info.innerClasses
             imported.hasInnerClassesAttribute = info.hasInnerClassesAttribute
             imported.hasEnclosingMethod = info.hasEnclosingMethod
@@ -1329,6 +1332,8 @@ final class JVMClasspathIndex {
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
+                let bounds = javaTypeParameterBounds(info).bounds
+                if !bounds.isEmpty { source += " where " + bounds.joined(separator: ", ") }
                 source += " {\n"
                 source += memberDeclarations(info: info, members: info.methods, allowsCompanion: !isObject)
                 if info.name == Self.compositionLocal, info.kotlinMemberProperties["current"] == nil,
@@ -1955,7 +1960,6 @@ final class JVMClasspathIndex {
         "java/lang/Byte": "kotlin.Byte",
         "java/lang/Short": "kotlin.Short",
         "java/lang/Character": "kotlin.Char",
-        "java/lang/Void": "kotlin.Unit",
         "java/lang/Number": "kotlin.Number",
         "java/lang/StringBuilder": "kotlin.text.StringBuilder",
         "java/lang/Appendable": "kotlin.text.Appendable",
@@ -2194,6 +2198,7 @@ final class JVMClasspathIndex {
             }
             markSourceTypes(info.kotlinMemberProperties.values.map(\.sourceType))
             markSourceTypes(info.kotlinParameterizedSupertypes.values.flatMap { $0 })
+            for name in javaTypeParameterBounds(info).referencedClasses { markNeeded(name) }
             for name in info.genericSupertypeSignatures.keys {
                 if let supertype = javaGenericSupertype(name, of: info) {
                     for reference in supertype.referencedClasses { markNeeded(reference) }
@@ -2733,6 +2738,12 @@ final class JVMClasspathIndex {
     /// Resolve their classfile descriptors and platform types when a signature
     /// is requested, including requests made by override checking or codegen.
     func bind(in ctx: CompilationContext, sema: SemaModule) throws {
+        func platform(_ type: TypeID) -> TypeID {
+            switch sema.types.kind(of: type) {
+            case .classType, .stringStruct, .any, .typeParam: return sema.types.withNullability(.platformType, for: type)
+            default: return type
+            }
+        }
         boundSymbols = sema.symbols
         let allSymbols = sema.symbols.allSymbols()
         let foreignFiles = Set(sourceClasses.keys.filter {
@@ -2776,6 +2787,22 @@ final class JVMClasspathIndex {
             } else {
                 try bindMethod(symbol, in: ctx, sema: sema)
             }
+        }
+
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .property {
+            guard let site = symbol.declSite, sourceClasses[site.start.file] != nil,
+                  let owner = sema.symbols.parentSymbol(for: symbol.id),
+                  let info = classes[Self.binaryName(owner, sema: sema, ctx: ctx)],
+                  info.isKotlinFileFacade == nil,
+                  let type = sema.symbols.propertyType(for: symbol.id) else { continue }
+            let name = ctx.interner.resolve(symbol.name)
+            let capital = String(name.prefix(1)).uppercased() + name.dropFirst()
+            let getterName = name.hasPrefix("is") && name.dropFirst(2).first?.isUppercase == true ? name : "get" + capital
+            let isBean = info.methods.contains { !$0.isStatic && $0.name == getterName && $0.parameters.isEmpty }
+            let isField = info.fields.contains { $0.name == name && info.isRuntimeInstanceField($0) }
+            guard isBean || isField else { continue }
+            sema.symbols.setPropertyType(platform(type), for: symbol.id)
+            if isBean && !isField { sema.symbols.markJVMJavaBeanProperty(symbol.id) }
         }
         sema.symbols.deferFunctionSignatures(deferred) { [weak self, weak ctx, weak sema] id in
             guard let self, let ctx, let sema, let symbol = sema.symbols.symbol(id) else { return }

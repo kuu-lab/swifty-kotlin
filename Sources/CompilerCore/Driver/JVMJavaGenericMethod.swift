@@ -11,6 +11,38 @@ extension JVMClasspathIndex {
         return (base + types.result[arguments...], types.referencedClasses)
     }
 
+    func javaTypeParameterBounds(_ info: JVMClassInfo) -> (bounds: [String], referencedClasses: Set<String>) {
+        var bounds: [String] = []
+        var references: Set<String> = []
+        for name in info.classTypeParameterNames {
+            for bound in info.javaClassTypeParameterBounds[name] ?? [] where bound.first == "L" {
+                let binary = String(bound.dropFirst().prefix { $0 != "<" && $0 != ";" })
+                let carrier: JVMValueType = .reference(binary, nullable: false)
+                guard exposeSuspendType(carrier) else { continue }
+                // A simple bound has the same erasure and source type.
+                // Parameterized bounds need a projection such as Enum<*>.
+                var source = kotlinType(carrier)
+                guard !source.contains("<") else { continue }
+                // A Java bound is a boxed reference. Mapping e.g.
+                // java/lang/Integer to non-null kotlin.Int would erase T to
+                // primitive `I` while the method descriptor keeps
+                // `Ljava/lang/Integer;` — render the bound nullable so the
+                // erasure stays boxed.
+                if ["kotlin.Int","kotlin.Long","kotlin.Short","kotlin.Byte",
+                    "kotlin.Char","kotlin.Boolean","kotlin.Float","kotlin.Double",
+                    // A leading `Ljava/lang/Object;` bound is Java's default —
+                    // Kotlin's `Any?`, not the non-null `Any`; otherwise
+                    // `Box<String?>` would violate the synthesized bound.
+                    "kotlin.Any"].contains(source) {
+                    source += "?"
+                }
+                bounds.append("`\(name)`: " + source)
+                references.insert(binary)
+            }
+        }
+        return (bounds, references)
+    }
+
     /// Recover Java source types for simple parameterized signatures. The
     /// classfile descriptor remains the source of truth for invocation.
     func javaGenericTypes(_ method: JVMForeignMethod) -> (parameters: [String], result: String, typeParameters: [String], bounds: [(name: String, type: String)], referencedClasses: Set<String>)? {

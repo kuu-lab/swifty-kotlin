@@ -343,7 +343,7 @@ extension JVMFunctionBuilder {
             }
             return result
         }
-        if property.accessesForeignField, let field = property.field {
+        if property.accessesForeignField || property.usesPrivateBackingField, let field = property.field {
             let result = try value(field.type)
             instructions.append(field.access & 8 != 0 ? .getStatic(field, result) : .getField(field, receiver, result))
             return result
@@ -396,7 +396,8 @@ extension JVMFunctionBuilder {
         if property.isDirectField, let field = property.field, field.access & 16 == 0 {
             instructions.append(.putStatic(field, converted)); return
         }
-        if property.accessesForeignField, let field = property.field, field.access & 0x0010 == 0 {
+        if property.accessesForeignField || property.usesPrivateBackingField,
+           let field = property.field, initializing || field.access & 0x0010 == 0 {
             instructions.append(field.access & 8 != 0 ? .putStatic(field, converted) : .putField(field, receiver, converted))
             return
         }
@@ -459,7 +460,7 @@ extension JVMProgramBuilder {
             accessorTypeParameters = try typeParameters(propertyParameterSymbols, declarations: declaration.typeParams)
         }
         var functions: [JVMFunction] = []
-        for setter in [false, true] where !declaration.modifiers.contains(.const) {
+        for setter in [false, true] where !declaration.modifiers.contains(.const) && !property.usesPrivateBackingField {
             guard let method = setter ? property.setter : property.getter else { continue }
             let accessor = setter ? declaration.setter : declaration.getter
             var modifiers = declaration.modifiers

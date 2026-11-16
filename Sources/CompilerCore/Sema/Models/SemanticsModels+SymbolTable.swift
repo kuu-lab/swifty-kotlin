@@ -351,6 +351,7 @@ public final class SymbolTable {
     // JVM classpath access is scoped by the binary package, independently of Kotlin visibility.
     var jvmFilePackages: [FileID: [InternedString]] = [:]
     private var jvmJavaMethods: Set<SymbolID> = []
+    private var jvmJavaBeanProperties: Set<SymbolID> = []
     private(set) var jvmPackageAccess: [SymbolID: [InternedString]] = [:]
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
@@ -499,6 +500,7 @@ public final class SymbolTable {
         worker.byDeclSite = byDeclSite
         worker.functionSignatures = functionSignatures
         worker.jvmJavaMethods = jvmJavaMethods
+        worker.jvmJavaBeanProperties = jvmJavaBeanProperties
         worker.valueParameterOwners = valueParameterOwners
         worker.propertyTypes = propertyTypes
         worker.propertyHasCustomGetter = propertyHasCustomGetter
@@ -2219,6 +2221,9 @@ public final class SymbolTable {
 
     func isJVMJavaMethod(_ symbol: SymbolID) -> Bool { jvmJavaMethods.contains(symbol) }
 
+    func markJVMJavaBeanProperty(_ symbol: SymbolID) { jvmJavaBeanProperties.insert(symbol) }
+
+    func isJVMJavaBeanProperty(_ symbol: SymbolID) -> Bool { jvmJavaBeanProperties.contains(symbol) }
 
     func setJVMPackageAccess(_ package: [InternedString], for symbol: SymbolID) {
         jvmPackageAccess[symbol] = package
