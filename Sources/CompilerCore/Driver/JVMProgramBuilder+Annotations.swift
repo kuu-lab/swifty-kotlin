@@ -262,6 +262,8 @@ extension JVMProgramBuilder {
                 KnownCompilerAnnotation.jvmInline.qualifiedName,
                 KnownCompilerAnnotation.jvmName.qualifiedName,
                 KnownCompilerAnnotation.jvmField.qualifiedName,
+                KnownCompilerAnnotation.jvmStatic.qualifiedName,
+                KnownCompilerAnnotation.jvmStatic.simpleName,
                 KnownCompilerAnnotation.jvmSynthetic.qualifiedName,
                 KnownCompilerAnnotation.suppress.qualifiedName,
                 KnownCompilerAnnotation.suppress.simpleName,

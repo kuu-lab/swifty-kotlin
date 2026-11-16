@@ -503,10 +503,11 @@ public func kk_defer_scope_defer(_ scope: Int, _ block: Int) -> Int {
 /// freeing all allocations.
 @_cdecl("kk_arena_clear")
 public func kk_arena_clear(_ scope: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let arena = resolveCInteropArenaBox(from: scope) else { return 0 }
-    arena.clear(outThrown: outThrown)
-    return 0
+    return runtimeThrowingBridge(outThrown) {
+        guard let arena = resolveCInteropArenaBox(from: scope) else { return 0 }
+        arena.clear(outThrown: outThrown)
+        return 0
+    }
 }
 
 

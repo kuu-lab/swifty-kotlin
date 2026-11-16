@@ -22,18 +22,20 @@ public func kk_sequence_ifEmpty(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
-    if elements.isEmpty {
-        var thrown = 0
-        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-        let result = lambda(closureRaw, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
+    return runtimeThrowingBridge(outThrown) {
+        let elements = runtimeSequenceSourceElements(from: seqRaw) ?? []
+        if elements.isEmpty {
+            var thrown = 0
+            let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+            let result = lambda(closureRaw, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
+            }
+            return result
         }
-        return result
+        return seqRaw
     }
-    return seqRaw
 }
 
 @_cdecl("__kk_sequence_of")

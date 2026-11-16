@@ -11,13 +11,15 @@ private let runtimeThrowableStackTraceVtableMethod: @convention(c) (Int, UnsafeM
     __kk_throwable_rawStackFrames
 
 private let runtimeThrowableMessageVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return __kk_throwable_message(raw)
+    return runtimeThrowingBridge(outThrown) {
+        return __kk_throwable_message(raw)
+    }
 }
 
 private let runtimeThrowableCauseVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
-    outThrown?.pointee = 0
-    return __kk_throwable_cause(raw)
+    return runtimeThrowingBridge(outThrown) {
+        return __kk_throwable_cause(raw)
+    }
 }
 
 // Keep these slots aligned with the bundled kotlin.Throwable layout.
@@ -385,16 +387,18 @@ public func __kk_throwable_rawStackFrames(
     _ throwableRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     let frameStrings = runtimeThrowableRawStackFrameStrings(from: throwableRaw)
     let arrayRaw = kk_array_new(frameStrings.count)
     guard let arrayBox = runtimeArrayBox(from: arrayRaw) else {
         runtimeStructuredPanic("__kk_throwable_rawStackFrames: array allocation failed")
+
     }
-    for (i, frame) in frameStrings.enumerated() {
-        arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
+        for (i, frame) in frameStrings.enumerated() {
+            arrayBox[i] = registerRuntimeObject(RuntimeStringBox(frame))
+        }
+        return arrayRaw
     }
-    return arrayRaw
 }
 
 @_cdecl("__kk_throwable_stackTrace")
@@ -441,31 +445,33 @@ public func __kk_throwable_toString(
     _ throwableRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     let typeName: String
     let message: String?
     if let throwable = runtimeThrowableBox(from: throwableRaw) {
         typeName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
         message = throwable.message
+
     } else if let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw) {
-        let object: RuntimeObjectBox? = runtimeStorage.withGCLock { state in
-            guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
-                return nil
+            let object: RuntimeObjectBox? = runtimeStorage.withGCLock { state in
+                guard state.objectPointers.contains(UInt(bitPattern: ptr)) else {
+                    return nil
+                }
+                return tryCast(ptr, to: RuntimeObjectBox.self)
             }
-            return tryCast(ptr, to: RuntimeObjectBox.self)
-        }
-        if let object {
-            typeName = runtimeJVMExceptionFQName(from: runtimeSourceThrowableQualifiedName(for: object.classID))
-            message = runtimeSourceThrowableMessage(throwableRaw, object: object)
+            if let object {
+                typeName = runtimeJVMExceptionFQName(from: runtimeSourceThrowableQualifiedName(for: object.classID))
+                message = runtimeSourceThrowableMessage(throwableRaw, object: object)
+            } else {
+                typeName = "kotlin.Throwable"
+                message = nil
+            }
         } else {
             typeName = "kotlin.Throwable"
             message = nil
         }
-    } else {
-        typeName = "kotlin.Throwable"
-        message = nil
+        return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
     }
-    return Int(bitPattern: runtimeMakeStringPointer(runtimeRenderedExceptionMessage(typeName, message)))
 }
 
 /// Storage bridge for `Throwable.initCause`: overwrites the cause slot.
@@ -520,56 +526,58 @@ public func __kk_throwable_initCause(
     _ causeRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
+    return runtimeThrowingBridge(outThrown) {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
           let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
     else {
         return throwableRaw
+
     }
-    let causeInitialized: Bool
-    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        causeInitialized = throwable.causeInitialized
-    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        causeInitialized = object.throwableCauseInitialized
-    } else {
-        return throwableRaw
-    }
-    let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    if causeInitialized {
-        // `Objects.toString(cause, "a null")`: the parameter's `toString()`,
-        // or "a null" when the argument was null.
-        let causeDescription = runtimeCauseToString(from: causeRaw) ?? "a null"
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalStateException(
-                message: "Can't overwrite cause with \(causeDescription)",
-                cause: throwableRaw
+        let causeInitialized: Bool
+        if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+            causeInitialized = throwable.causeInitialized
+        } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+            causeInitialized = object.throwableCauseInitialized
+        } else {
+            return throwableRaw
+        }
+        let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
+        if causeInitialized {
+            // `Objects.toString(cause, "a null")`: the parameter's `toString()`,
+            // or "a null" when the argument was null.
+            let causeDescription = runtimeCauseToString(from: causeRaw) ?? "a null"
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateIllegalStateException(
+                    message: "Can't overwrite cause with \(causeDescription)",
+                    cause: throwableRaw
+                )
             )
-        )
-        return throwableRaw
-    }
-    if causeValue == throwableRaw {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(
-                message: "Self-causation not permitted",
-                cause: throwableRaw
+            return throwableRaw
+        }
+        if causeValue == throwableRaw {
+            runtimeSetThrown(
+                outThrown,
+                runtimeAllocateIllegalArgumentException(
+                    message: "Self-causation not permitted",
+                    cause: throwableRaw
+                )
             )
-        )
+            return throwableRaw
+        }
+        if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+            throwable.cause = causeValue
+            throwable.causeInitialized = true
+        } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+            object.throwableCause = causeValue
+            object.throwableCauseInitialized = true
+            runtimeRegisterTypeEdge(
+                childTypeID: object.classID,
+                parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+            )
+        }
         return throwableRaw
     }
-    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        throwable.cause = causeValue
-        throwable.causeInitialized = true
-    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
-        object.throwableCause = causeValue
-        object.throwableCauseInitialized = true
-        runtimeRegisterTypeEdge(
-            childTypeID: object.classID,
-            parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
-        )
-    }
-    return throwableRaw
 }
 
 /// Copies the cause slot — value and initialized flag — from one throwable to

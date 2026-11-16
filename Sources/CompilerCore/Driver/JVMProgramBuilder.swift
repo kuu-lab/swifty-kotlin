@@ -456,7 +456,7 @@ final class JVMFunctionBuilder {
     var reifiedRuntimeTokens: [SymbolID: ReifiedRuntimeToken] = [:]
     var inlineArguments: [InternedString: InlineLambda] = [:]
     var inlineReturns: [InlineReturn] = []
-    var inlineStack: Set<SymbolID> = []
+    var inlineStack: [SymbolID: Int] = [:]
     var contextualReceivers: [SymbolID: JVMValue] = [:]
     var backingProperty: JVMProperty?
     var beforeDelegation = false
@@ -637,6 +637,17 @@ final class JVMFunctionBuilder {
             if let signature = semanticSignature, signature.parameterTypes.indices.contains(i), case let .functionType(f) = program.sema.types.kind(of: signature.parameterTypes[i]) { local.functionType = f }
             if let signature = semanticSignature, signature.valueParameterSymbols.indices.contains(i) { local.symbol = signature.valueParameterSymbols[i] }
             scopes[0][param.name] = local
+        }
+        if let owner, isStaticBody, owner.isObject,
+           let functionSymbol, program.isJvmStatic(functionSymbol) {
+            thisValue = try singleton(owner)
+        }
+        if let owner, isStaticBody, let thisValue {
+            contextualReceivers[owner.symbol] = thisValue
+            contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: owner.symbol)] = thisValue
+            if let functionSymbol, extensionValue == nil {
+                contextualReceivers[SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)] = thisValue
+            }
         }
         if reference.name != "<init>" && !isStaticBody { try prepareEnclosingInstances() }
     }

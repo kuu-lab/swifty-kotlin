@@ -59,17 +59,19 @@ public func kk_string_case_insensitive_order_trampoline(
     _ b: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    _ = closureRaw
-    _ = outThrown
-    let lhs = runtimeStringFromRawOrPanic(a, caller: #function)
-    let rhs = runtimeStringFromRawOrPanic(b, caller: #function)
-    switch lhs.caseInsensitiveCompare(rhs) {
-    case .orderedAscending:
-        return -1
-    case .orderedDescending:
-        return 1
-    case .orderedSame:
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        _ = closureRaw
+        _ = outThrown
+        let lhs = runtimeStringFromRawOrPanic(a, caller: #function)
+        let rhs = runtimeStringFromRawOrPanic(b, caller: #function)
+        switch lhs.caseInsensitiveCompare(rhs) {
+        case .orderedAscending:
+            return -1
+        case .orderedDescending:
+            return 1
+        case .orderedSame:
+            return 0
+        }
     }
 }
 
@@ -105,40 +107,41 @@ public func __kk_comparable_compareTo(
     _ rhsRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let areBoxedOperands = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: lhsRaw))
-            && state.objectPointers.contains(UInt(bitPattern: rhsRaw))
-    }
-    if areBoxedOperands,
-       let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhsRaw),
-       let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhsRaw),
-       let lhs = tryCast(lhsPointer, to: RuntimeIntBox.self),
-       let rhs = tryCast(rhsPointer, to: RuntimeIntBox.self),
-       lhs.primitiveTypeBase == rhs.primitiveTypeBase,
-       lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.byteBase
-           || lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.shortBase
-    {
-        // JVM Byte/Short Comparable bridges return the difference, unlike
-        // Kotlin's sign-normalized primitive compareTo intrinsics.
-        if lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.byteBase {
-            return Int(Int8(truncatingIfNeeded: lhs.value)) - Int(Int8(truncatingIfNeeded: rhs.value))
+    return runtimeThrowingBridge(outThrown) {
+        let areBoxedOperands = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: lhsRaw))
+                && state.objectPointers.contains(UInt(bitPattern: rhsRaw))
         }
-        return Int(Int16(truncatingIfNeeded: lhs.value)) - Int(Int16(truncatingIfNeeded: rhs.value))
+        if areBoxedOperands,
+           let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhsRaw),
+           let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhsRaw),
+           let lhs = tryCast(lhsPointer, to: RuntimeIntBox.self),
+           let rhs = tryCast(rhsPointer, to: RuntimeIntBox.self),
+           lhs.primitiveTypeBase == rhs.primitiveTypeBase,
+           lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.byteBase
+               || lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.shortBase
+        {
+            // JVM Byte/Short Comparable bridges return the difference, unlike
+            // Kotlin's sign-normalized primitive compareTo intrinsics.
+            if lhs.primitiveTypeBase == RuntimeTypeTokenEncoding.byteBase {
+                return Int(Int8(truncatingIfNeeded: lhs.value)) - Int(Int8(truncatingIfNeeded: rhs.value))
+            }
+            return Int(Int16(truncatingIfNeeded: lhs.value)) - Int(Int16(truncatingIfNeeded: rhs.value))
+        }
+        let lhs = runtimeValueFromCollectionABI(lhsRaw)
+        if lhs.tag == RuntimeValue.charTag, rhsRaw != runtimeNullSentinelInt {
+            // JVM Character.compareTo preserves the code-unit difference, unlike direct Char.compareTo.
+            return lhs.payload0 - kk_unbox_char(rhsRaw)
+        }
+        if let comparableResult = runtimeInvokeComparable(
+            lhs: lhsRaw,
+            rhs: rhsRaw,
+            outThrown: outThrown
+        ) {
+            return comparableResult
+        }
+        return runtimeCompareNullableValues(lhsRaw, rhsRaw)
     }
-    let lhs = runtimeValueFromCollectionABI(lhsRaw)
-    if lhs.tag == RuntimeValue.charTag, rhsRaw != runtimeNullSentinelInt {
-        // JVM Character.compareTo preserves the code-unit difference, unlike direct Char.compareTo.
-        return lhs.payload0 - kk_unbox_char(rhsRaw)
-    }
-    if let comparableResult = runtimeInvokeComparable(
-        lhs: lhsRaw,
-        rhs: rhsRaw,
-        outThrown: outThrown
-    ) {
-        return comparableResult
-    }
-    return runtimeCompareNullableValues(lhsRaw, rhsRaw)
 }
 
 /// Emitted for `maxOf`/`minOf` with an explicit comparator argument.
@@ -149,17 +152,19 @@ public func __kk_compare_with_comparator(
     _ b: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let compareFnPtr = kk_itable_lookup_dynamic(
-        comparatorRaw,
-        Int(runtimeComparatorInterfaceTypeID),
-        0
-    )
-    guard compareFnPtr != 0 else {
-        return kk_dispatch_error()
+    return runtimeThrowingBridge(outThrown) {
+        let compareFnPtr = kk_itable_lookup_dynamic(
+            comparatorRaw,
+            Int(runtimeComparatorInterfaceTypeID),
+            0
+        )
+        guard compareFnPtr != 0 else {
+            return kk_dispatch_error()
+        }
+        let compareFn = unsafeBitCast(
+            compareFnPtr,
+            to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return compareFn(comparatorRaw, a, b, outThrown)
     }
-    let compareFn = unsafeBitCast(
-        compareFnPtr,
-        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-    )
-    return compareFn(comparatorRaw, a, b, outThrown)
 }
