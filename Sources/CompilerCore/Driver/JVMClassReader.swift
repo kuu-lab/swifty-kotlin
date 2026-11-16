@@ -1,6 +1,6 @@
 import Foundation
 
-struct JVMClassInfo: Sendable {
+struct JVMClassInfo {
     let name: String
     let flags: UInt16
     let superclass: String?
@@ -640,6 +640,9 @@ struct JVMClassReader {
         let isMetroFactory = classAttributes.annotations.contains { $0.descriptor == JVMMetro.factory }
         let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
         let defaultMethodNames = Set(defaultArgumentMethods.map { String($0.name.dropLast("$default".count)) })
+        let typedFlowMemberNames = Set(methods.lazy.filter {
+            !$0.isStatic && $0.genericSignature?.contains(")Lkotlinx/coroutines/flow/Flow<") == true
+        }.map(\.name))
         let composableMemberNames = Set(methods.lazy.filter {
             !$0.isStatic && $0.annotations.contains { $0.descriptor == "Landroidx/compose/runtime/Composable;" }
         }.map(\.name))
@@ -647,7 +650,7 @@ struct JVMClassReader {
            (metadata.isFileFacade == true || isMetroFactory || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, metroFactory: isMetroFactory, defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames.union(typedFlowMemberNames), metroFactory: isMetroFactory, defaultMethodNames: defaultMethodNames, composableMemberNames: composableMemberNames, ownerIsInterface: flags & 0x0200 != 0, ownerIsSAM: flags & 0x0200 != 0 && methods.filter { $0.isAbstract && !$0.isStatic }.count == 1) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -660,12 +663,13 @@ struct JVMClassReader {
                           return candidate.isSuspend == isSuspend
                               && (metadata.isFileFacade == true && method.isStatic || Self.hasFunctionTypeDescriptor(method)
                                   || method.composeABI(for: candidate) != nil
+                                  || typedFlowMemberNames.contains(method.name) && candidate.descriptor == method.descriptor
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (defaultMethodNames.contains(method.name)
                                           && candidate.parameters.contains(where: \.hasDefaultValue)
-                                          || candidate.isInfix || hasReadOnlyListSupertype
+                                          || candidate.isInfix || candidate.isOperator || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
-                                          || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
+                                          || (method.isFinal || isMetroFactory || flags & 0x0200 != 0) && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
@@ -855,9 +859,8 @@ struct JVMClassReader {
     }
 }
 
-final class JVMDescriptorCache: @unchecked Sendable {
+final class JVMDescriptorCache {
     private static let maximumEntries = 2_048
-    private let lock = NSLock()
     private var entries: [String: ([JVMValueType], JVMValueType)] = [:]
 
     func parse(_ descriptor: String) throws -> ([JVMValueType], JVMValueType) {
@@ -866,23 +869,13 @@ final class JVMDescriptorCache: @unchecked Sendable {
         guard descriptor.utf8.allSatisfy({ $0 < 0x80 }) else {
             return try JVMDescriptor.parse(descriptor)
         }
-        lock.lock()
-        if let signature = entries[descriptor] {
-            lock.unlock()
-            return signature
-        }
-        lock.unlock()
+        if let signature = entries[descriptor] { return signature }
 
-        // Concurrent readers may parse the same descriptor; the results are
-        // identical, so the last store wins.
         let signature = try JVMDescriptor.parse(descriptor)
-
-        lock.lock()
         entries[descriptor] = signature
         if entries.count == Self.maximumEntries {
             entries.removeAll(keepingCapacity: true)
         }
-        lock.unlock()
         return signature
     }
 }
