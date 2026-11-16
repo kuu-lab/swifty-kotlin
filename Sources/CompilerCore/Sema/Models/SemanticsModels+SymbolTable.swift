@@ -353,6 +353,7 @@ public final class SymbolTable {
     private var jvmJavaMethods: Set<SymbolID> = []
     var jvmMutableCollectionViews: [SymbolID: SymbolID] = [:]
     private var jvmJavaBeanProperties: Set<SymbolID> = []
+    var jvmJavaFieldWriteTypes: [SymbolID: TypeID] = [:]
     private(set) var jvmPackageAccess: [SymbolID: [InternedString]] = [:]
     /// Selected symbols imported from the validated stdlib artifact, including
     /// indexed declarations whose bodies have not been materialized yet.
@@ -503,6 +504,7 @@ public final class SymbolTable {
         worker.jvmJavaMethods = jvmJavaMethods
         worker.jvmMutableCollectionViews = jvmMutableCollectionViews
         worker.jvmJavaBeanProperties = jvmJavaBeanProperties
+        worker.jvmJavaFieldWriteTypes = jvmJavaFieldWriteTypes
         worker.valueParameterOwners = valueParameterOwners
         worker.propertyTypes = propertyTypes
         worker.propertyHasCustomGetter = propertyHasCustomGetter

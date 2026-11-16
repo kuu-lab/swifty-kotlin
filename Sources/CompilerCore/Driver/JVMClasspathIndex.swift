@@ -342,6 +342,7 @@ final class JVMClasspathIndex {
             }
             parents += info.interfaces.filter {
                 classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
+                    || $0 == "java/util/List"
             }.compactMap { supertypeReference($0, child: info) }
             if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
             let bounds = javaTypeParameterBounds(info).bounds
@@ -464,6 +465,7 @@ final class JVMClasspathIndex {
             func inheritInterface(_ name: String) {
                 guard interfaceVisited.insert(name).inserted else { return }
                 if classes[name] != nil || sourceClassNames.contains(name) || info.kotlinReadOnlyCollectionSupertypes[name] != nil
+                    || name == "java/util/List"
                     || name == "java/lang/Comparable" && info.kotlinComparableSupertype != nil {
                     interfaces.append(name)
                     return
@@ -837,7 +839,7 @@ final class JVMClasspathIndex {
     /// be overridden at all.
     private func supertypeReference(_ name: String, childParams: [String]) -> String? {
         guard let base = kotlinSupertypeName(name) else { return nil }
-        let arity = hierarchyClasses[name]?.classTypeParameterNames.count ?? 0
+        let arity = hierarchyClasses[name]?.classTypeParameterNames.count ?? (name == "java/util/List" ? 1 : 0)
         guard arity > 0 else { return base }
         let args = arity == childParams.count && arity > 0
             ? childParams
@@ -1078,6 +1080,13 @@ final class JVMClasspathIndex {
             guard let typeName = annotationDescriptorTypeName(descriptor) else { return nil }
             return typeName + "." + (JVMProgramBuilder.isIdentifier(name) ? name : "`\(name)`")
         case let .classType(descriptor):
+            if descriptor.hasPrefix("L"), descriptor.hasSuffix(";"),
+               let target = hierarchyClasses[String(descriptor.dropFirst().dropLast())],
+               target.flags & 0x0001 == 0 {
+                // Keep the physical default on the original annotation; a
+                // source placeholder cannot reference its inaccessible type.
+                return "null!!"
+            }
             guard let typeName = kotlinClassLiteralType(descriptor) else { return nil }
             return typeName + "::class"
         case let .annotation(annotation):
@@ -1208,6 +1217,9 @@ final class JVMClasspathIndex {
         // in Kotlin's Iterable extension resolution.
         covered.formUnion(["java/lang/Iterable", "java/util/Iterator", "java/lang/Comparable"])
         // The frontend's CoroutineDispatcher contract already models its
+        // Java list subinterfaces (e.g. Android's ObservableList) use the
+        // same List nominal as generic signatures and Kotlin source.
+        covered.insert("java/util/List")
         // CoroutineContext supertypes. An erased stub cannot reconstruct
         // the key passed to AbstractCoroutineContextElement or its generic overrides.
         covered.insert("kotlinx/coroutines/CoroutineDispatcher")
@@ -1382,6 +1394,7 @@ final class JVMClasspathIndex {
                 parents += info.interfaces.filter {
                     classes[$0] != nil || sourceClassNames.contains($0) || info.kotlinReadOnlyCollectionSupertypes[$0] != nil
                         || $0 == "java/lang/Comparable" && info.kotlinComparableSupertype != nil
+                        || $0 == "java/util/List"
                 }.compactMap { supertypeReference($0, child: info) }
                 if !parents.isEmpty { source += " : " + parents.joined(separator: ", ") }
                 let bounds = javaTypeParameterBounds(info).bounds
@@ -2785,9 +2798,9 @@ final class JVMClasspathIndex {
         if ctx.sourceManager.path(of: site.start.file) != "<kswiftk-jvm>/abstractList.kt" {
             let returnType = method.isConstructor ? signature.returnType : platform(signature.returnType)
             sema.symbols.setFunctionSignature(FunctionSignature(
-                receiverType: signature.receiverType.map(platform),
+                receiverType: signature.receiverType.map { platform($0) },
                 contextReceiverTypes: signature.contextReceiverTypes, contextParameterSymbols: signature.contextParameterSymbols,
-                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map(platform),
+                contextParameterTypes: signature.contextParameterTypes, parameterTypes: signature.parameterTypes.map { platform($0) },
                 returnType: returnType, isSuspend: signature.isSuspend, canThrow: false,
                 valueParameterSymbols: signature.valueParameterSymbols,
                 valueParameterUnsafeVarianceTypeParameterSymbols: signature.valueParameterUnsafeVarianceTypeParameterSymbols,
@@ -2848,7 +2861,8 @@ final class JVMClasspathIndex {
                 deferred.insert(symbol.id)
             } else {
                 try bindMethod(symbol, in: ctx, sema: sema)
-
+            }
+        }
         let array = sema.symbols.lookup(fqName: ["kotlin", "Array"].map(ctx.interner.intern))
         func platform(_ type: TypeID, includingArrayElements: Bool = false) -> TypeID {
             switch sema.types.kind(of: type) {
@@ -2867,8 +2881,6 @@ final class JVMClasspathIndex {
             case .classType, .stringStruct, .any, .typeParam:
                 return sema.types.withNullability(.platformType, for: type)
             default: return type
-            }
-        }
             }
         }
         let collectionsPackage = ["kotlin", "collections"].map(ctx.interner.intern)
@@ -2906,6 +2918,16 @@ final class JVMClasspathIndex {
                 : platform(type, includingArrayElements: true)
             sema.symbols.setPropertyType(propertyType, for: symbol.id)
             if isBean && !isField { sema.symbols.markJVMJavaBeanProperty(symbol.id) }
+            // A Java Map field can be read as MutableMap and assigned a
+            // read-only Map. Both views erase to java.util.Map.
+            if let field, !field.isFinal, field.descriptor == "Ljava/util/Map;",
+               case let .classType(map) = sema.types.kind(of: propertyType),
+               let readOnly = sema.symbols.lookup(fqName: collectionsPackage + [ctx.interner.intern("Map")]),
+               sema.symbols.jvmMutableCollectionViews[readOnly] == map.classSymbol {
+                sema.symbols.jvmJavaFieldWriteTypes[symbol.id] = sema.types.make(.classType(ClassType(
+                    classSymbol: readOnly, args: map.args, nullability: map.nullability
+                )))
+            }
         }
         sema.symbols.deferFunctionSignatures(deferred) { [weak self, weak ctx, weak sema] id in
             guard let self, let ctx, let sema, let symbol = sema.symbols.symbol(id) else { return }
