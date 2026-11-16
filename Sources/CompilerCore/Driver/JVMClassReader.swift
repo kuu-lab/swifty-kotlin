@@ -21,6 +21,7 @@ struct JVMClassInfo: Sendable {
     var isKotlinObject = false
     var kotlinReadOnlyCollectionSupertypes: [String: String] = [:]
     var kotlinComparableSupertype: String?
+    var kotlinParameterizedSupertypes: [String: String] = [:]
     var kotlinLoweredConstructors: [(source: JVMKotlinValueConstructor, entry: JVMForeignMethod, defaults: JVMForeignMethod?)] = []
     var kotlinValueClassConstructors: [(source: JVMKotlinValueConstructor, adapter: JVMForeignMethod)] = []
     var annotations: [JVMAnnotation] = []
@@ -635,11 +636,13 @@ struct JVMClassReader {
                 }
             }
         }
+        let isMetroFactory = classAttributes.annotations.contains { $0.descriptor == JVMMetro.factory }
+        let functionTypeMemberNames = Set(methods.lazy.filter(Self.hasFunctionTypeDescriptor).map(\.name))
         if let metadata = classAttributes.kotlinMetadata,
-           (metadata.isFileFacade == true || hasValueAdapters || !metroAccessors.isEmpty
+           (metadata.isFileFacade == true || isMetroFactory || hasValueAdapters || !metroAccessors.isEmpty
                || methods.contains(where: { Self.hasFunctionTypeDescriptor($0) || !$0.isStatic && (!$0.parameters.isEmpty || $0.isFinal) })),
            let table = functionTable ?? (try? metadata.functionTable(byteLimit: bytes.count)),
-           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype) {
+           let functions = try? metadata.functions(in: table, isValueClass: hasValueAdapters, hasReadOnlyListSupertype: hasReadOnlyListSupertype, functionTypeMemberNames: functionTypeMemberNames, metroFactory: isMetroFactory) {
             for index in methods.indices {
                 let method = methods[index]
                 let isSuspend = method.kotlinSuspendFunction != nil
@@ -654,7 +657,7 @@ struct JVMClassReader {
                                   || !method.isStatic && candidate.contextParameters.isEmpty
                                       && (candidate.receiver != nil || (candidate.isInfix || hasReadOnlyListSupertype
                                           && candidate.name == "subList" || method.isFinal && candidate.isGenericFinalGetter
-                                          || method.isFinal && candidate.hasStableFinalParameters
+                                          || (method.isFinal || isMetroFactory) && candidate.hasStableFinalParameters
                                           || candidate.mangledMemberParameterDescriptors != nil)
                                           && candidate.descriptor != nil))
                               && (candidate.jvmName ?? candidate.name) == method.name
@@ -671,46 +674,6 @@ struct JVMClassReader {
                 guard method.annotations.contains(where: { $0.descriptor == JVMMetro.provides }) else { continue }
                 metroAccessors[index].kotlinFunction = functions.first {
                     ($0.jvmName ?? $0.name) == method.name && $0.descriptor == method.descriptor
-                }
-            }
-        }
-        if classAttributes.kotlinMetadata != nil, hasJvmOverloads {
-            let methodsByParameters = Dictionary(grouping: methods) { method in
-                method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
-            }
-            methods.removeAll { method in
-                guard !method.isConstructor,
-                      method.annotations.contains(where: { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }) else { return false }
-                let key = method.name + method.descriptor.prefix(through: method.descriptor.firstIndex(of: ")")!)
-                return methodsByParameters[key]?.contains { other in
-                    other.descriptor != method.descriptor
-                        && !other.annotations.contains { $0.descriptor == "Lkotlin/jvm/JvmOverloads;" }
-                } == true
-            }
-        }
-        if let metadata = classAttributes.kotlinMetadata, metadata.isFileFacade == false {
-            let duplicateGroups = Dictionary(grouping: methods.filter { !$0.isConstructor && !$0.isStatic }) {
-                $0.name + $0.descriptor.prefix(through: $0.descriptor.firstIndex(of: ")")!)
-            }.values.filter { $0.count > 1 }
-            if !duplicateGroups.isEmpty,
-               let sourceNames = try? metadata.collidingMemberSourceNames(byteLimit: bytes.count) {
-                var ignored: Set<String> = []
-                var renamed: [String: String] = [:]
-                for group in duplicateGroups {
-                    let names = group.compactMap { method in sourceNames[method.name + method.descriptor] }
-                    guard !names.isEmpty, Set(names).count == names.count else { continue }
-                    for method in group {
-                        let key = method.name + method.descriptor
-                        if let sourceName = sourceNames[key] {
-                            if sourceName != method.name { renamed[key] = sourceName }
-                        } else {
-                            ignored.insert(key)
-                        }
-                    }
-                }
-                methods.removeAll { ignored.contains($0.name + $0.descriptor) }
-                for index in methods.indices {
-                    methods[index].kotlinCollisionSourceName = renamed[methods[index].name + methods[index].descriptor]
                 }
             }
         }
@@ -782,6 +745,9 @@ struct JVMClassReader {
             info.kotlinTypeParameterVariance = (try? metadata.classTypeParameterVariance(byteLimit: bytes.count)) ?? [:]
         }
         info.kotlinReadOnlyCollectionSupertypes = readOnlyCollectionSupertypes
+        if !functionTypeMemberNames.isEmpty, let metadata = classAttributes.kotlinMetadata {
+            info.kotlinParameterizedSupertypes = (try? metadata.parameterizedSupertypes(byteLimit: bytes.count)) ?? [:]
+        }
         if hasValueAdapters, interfaces.contains("java/lang/Comparable"), let metadata = classAttributes.kotlinMetadata {
             info.kotlinComparableSupertype = try? metadata.comparableSupertype(byteLimit: bytes.count)
         }
