@@ -289,19 +289,20 @@ public func kk_kxmini_run_blocking_with_cont(
 
 @_cdecl("kk_suspend_coroutine")
 public func kk_suspend_coroutine(_ fnPtr: Int, _ closureRaw: Int, _ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    var thrown = 0
-    _ = runtimeInvokeCollectionLambda1(
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        value: continuation,
-        outThrown: &thrown
-    )
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-        return 0
+    return runtimeThrowingBridge(outThrown) {
+        var thrown = 0
+        _ = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: continuation,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        return Int(bitPattern: kk_coroutine_suspended())
     }
-    return Int(bitPattern: kk_coroutine_suspended())
 }
 
 @_cdecl("kk_kxmini_launch_with_cont")
