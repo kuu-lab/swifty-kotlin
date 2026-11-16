@@ -543,26 +543,34 @@ extension CallTypeChecker {
             var substitutedTypesByIndex: [Int: Set<TypeID>] = [:]
             var liftedArgumentIndices: Set<Int> = []
             for candidate in candidates {
-                guard let signature = sema.symbols.functionSignature(for: candidate),
-                      !signature.typeParameterSymbols.isEmpty
+                guard let signature = sema.symbols.functionSignature(for: candidate)
                 else { continue }
                 // A direct generic result can give a nested collection
                 // factory its arguments even beside an unrelated overload,
                 // e.g. Java's <T> T spy(T) beside <T> T spy(Class<T>).
                 if sema.symbols.isJVMJavaMethod(candidate),
-                   case let .typeParam(result) = sema.types.kind(of: signature.returnType),
-                   signature.typeParameterSymbols.contains(result.symbol),
                    let mapping = parameterMappingForCallArguments(args, in: signature, callRange: callRange, ctx: ctx) {
                     for index in args.indices where isBareCollectionFactoryCallExpr(args[index].expr, ctx: ctx) {
                         guard let parameterIndex = mapping[index],
-                              let type = contextualCallArgumentType(args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx),
-                              case let .typeParam(parameter) = sema.types.kind(of: type),
-                              parameter.symbol == result.symbol
+                              let type = contextualCallArgumentType(args[index], parameterIndex: parameterIndex, in: signature, ctx: ctx)
                         else { continue }
-                        substitutedTypesByIndex[index, default: []].insert(expectedType)
-                        liftedArgumentIndices.insert(index)
+                        if case let .typeParam(result) = sema.types.kind(of: signature.returnType),
+                           case let .typeParam(parameter) = sema.types.kind(of: type),
+                           signature.typeParameterSymbols.contains(result.symbol),
+                           parameter.symbol == result.symbol {
+                            substitutedTypesByIndex[index, default: []].insert(expectedType)
+                            liftedArgumentIndices.insert(index)
+                        } else if !sema.types.typeContainsAnyTypeParam(type) {
+                            // A concrete parameter on a sibling overload —
+                            // e.g. choose(List<Int>) beside <T> T choose(T) —
+                            // is competing evidence: the expected type must
+                            // not steer the argument on its own, or the
+                            // specific overload would be disqualified.
+                            substitutedTypesByIndex[index, default: []].insert(type)
+                        }
                     }
                 }
+                guard !signature.typeParameterSymbols.isEmpty else { continue }
                 guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType)
                 else { continue }
                 let isListOfFactory = ctx.cachedSymbol(candidate)?.fqName == [
