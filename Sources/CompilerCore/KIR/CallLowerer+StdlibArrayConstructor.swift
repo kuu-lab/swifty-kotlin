@@ -176,8 +176,8 @@ extension CallLowerer {
             }
         } else {
             guard let actionExpr = evaluated[initializerIndex] else { return nil }
+            let actionResult = arena.appendTemporary(type: anyType)
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendTemporary(type: anyType)
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
@@ -185,8 +185,19 @@ extension CallLowerer {
                     result: actionResult,
                     canThrow: true
                 ))
-                lambdaResultExpr = actionResult
+            } else {
+                // A plain function-typed value (parameter, property, ...)
+                // carries no KIRCallableValueInfo fast path; dispatch it
+                // through the generic runtime invoke so the initializer
+                // actually runs instead of silently leaving zero-init slots.
+                instructions.append(.call(
+                    callee: interner.intern("kk_function_invoke"),
+                    arguments: [actionExpr, indexExpr],
+                    result: actionResult,
+                    canThrow: true
+                ))
             }
+            lambdaResultExpr = actionResult
         }
 
         if let lambdaResult = lambdaResultExpr {

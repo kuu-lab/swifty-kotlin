@@ -153,8 +153,8 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
+            let actionResult = arena.appendTemporary(type: valueType)
             if let callableInfo = driver.ctx.callableValueInfo(for: actionExpr) {
-                let actionResult = arena.appendTemporary(type: valueType)
                 instructions.append(.call(
                     symbol: callableInfo.symbol,
                     callee: callableInfo.callee,
@@ -162,8 +162,18 @@ extension CallLowerer {
                     result: actionResult,
                     canThrow: true
                 ))
-                lambdaResultExpr = actionResult
+            } else {
+                // Same generic-invoke fallback as the Array(size, init)
+                // lowerer: function-typed parameters have no callable
+                // fast path and must go through kk_function_invoke.
+                instructions.append(.call(
+                    callee: interner.intern("kk_function_invoke"),
+                    arguments: [actionExpr, indexExpr],
+                    result: actionResult,
+                    canThrow: true
+                ))
             }
+            lambdaResultExpr = actionResult
         }
 
         if let lambdaResult = lambdaResultExpr {
