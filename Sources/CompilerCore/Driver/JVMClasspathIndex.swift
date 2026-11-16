@@ -76,6 +76,7 @@ final class JVMClasspathIndex {
         fallbackClassFiles: [(String, Data)] = [],
         requiredLazyClassNames: Set<String> = [],
         automaticLazyClasspathMemberLimit: Int = defaultAutomaticLazyClasspathMemberLimit,
+        archiveJobs: Int = min(4, ProcessInfo.processInfo.activeProcessorCount),
         archiveCache: JVMClasspathArchiveCache? = nil
     ) throws -> JVMClasspathIndex {
         let result = JVMClasspathIndex()
@@ -107,12 +108,12 @@ final class JVMClasspathIndex {
                 if let archiveCache {
                     let classes = try archiveCache.load(path: url.standardizedFileURL.path, data: data) {
                         var decoded: [JVMClassInfo] = []
-                        try readArchive(data, descriptorCache: descriptors) { decoded.append($0) }
+                        try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { decoded.append($0) }
                         return decoded
                     }
                     classes.forEach { insert($0, isLazy: isLazy) }
                 } else {
-                    try readArchive(data, descriptorCache: descriptors) { insert($0, isLazy: isLazy) }
+                    try readArchive(data, descriptorCache: descriptors, archiveJobs: archiveJobs) { insert($0, isLazy: isLazy) }
                 }
             }
         }
@@ -151,13 +152,31 @@ final class JVMClasspathIndex {
     }
 
     private static func readArchive(
-        _ data: Data, descriptorCache: JVMDescriptorCache, _ insert: (JVMClassInfo) -> Void
+        _ data: Data, descriptorCache: JVMDescriptorCache,
+        archiveJobs: Int = 1, _ insert: (JVMClassInfo) -> Void
     ) throws {
         let archive = try ZipArchive(data: data)
-        for entry in archive.entries.sorted(by: { $0.name < $1.name }) {
-            guard entry.name.hasSuffix(".class"), !entry.name.hasPrefix("META-INF/"),
-                  !entry.name.hasSuffix("module-info.class"), !entry.name.hasSuffix("package-info.class") else { continue }
-            insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+        let entries = archive.entries.filter { entry in
+            entry.name.hasSuffix(".class") && !entry.name.hasPrefix("META-INF/")
+                && !entry.name.hasSuffix("module-info.class") && !entry.name.hasSuffix("package-info.class")
+        }.sorted { $0.name < $1.name }
+        if archiveJobs > 1 && entries.count >= 128 {
+            let batchSize = 64
+            let batchCount = (entries.count + batchSize - 1) / batchSize
+            let batches = try SemaPerFileExecutor.collect(count: batchCount, jobs: archiveJobs, cancelOnFirstError: true) { index in
+                let start = index * batchSize
+                let end = min(start + batchSize, entries.count)
+                return try entries[start ..< end].map { entry in
+                    try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache)
+                }
+            }
+            for batch in batches {
+                for info in batch { insert(info) }
+            }
+        } else {
+            for entry in entries {
+                insert(try readClass(archive.contents(of: entry), path: entry.name, descriptorCache: descriptorCache))
+            }
         }
     }
 
@@ -176,7 +195,6 @@ final class JVMClasspathIndex {
         }
         return info
     }
-
     static func forEachClassFile(inDirectory directory: URL, _ body: (URL, String) throws -> Void) throws {
         let base = directory.resolvingSymlinksInPath()
         guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) else {
@@ -506,6 +524,7 @@ final class JVMClasspathIndex {
         if method.isStatic, method.annotations.contains(where: { $0.descriptor == JVMMetro.invoke }) { return false }
         guard method.isConstructor || JVMProgramBuilder.isIdentifier(exposedName) else { return false }
         if let function = method.kotlinFunction {
+            if method.kotlinComposeABI != nil { return hasComposeRuntime }
             guard function.parameters.count + (function.receiver == nil ? 0 : 1)
                 + (function.isSuspend ? 1 : 0) == method.parameters.count
             else { return false }
@@ -755,8 +774,9 @@ final class JVMClasspathIndex {
             var parameter = (element.isVararg ? "vararg val " : "val ") + name + ": " + type
             // Vararg defaults remain array literals in bytecode metadata; the
             // frontend consumes them directly, while source varargs may omit them.
-            if !element.isVararg, let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type) {
-                parameter += " = \(rendered)"
+            // Omitting an annotation vararg already supplies an empty array.
+            if let value = element.defaultValue, let rendered = annotationValueSource(value, type: element.type),
+               !element.isVararg || rendered != "[]" {                parameter += " = \(rendered)"
             }
             return parameter
         }.joined(separator: ", ")
@@ -977,6 +997,9 @@ final class JVMClasspathIndex {
         activeCoveredNames = covered
         defer { overrideSignaturesByOwner.removeAll() }
         injectComposeUIContracts(into: ctx)
+        let projectedComposeMethods = Set(composeStaticContracts.values.map { entry in
+            entry.method.owner + "." + entry.method.name + entry.method.descriptor
+        })
         if hasMetroRuntime {
             metroDeclarationsFile = ctx.sourceManager.addFile(
                 path: JVMMetro.sourcePath, contents: Data(JVMMetro.source.utf8), origin: .residualStdlib
@@ -1002,7 +1025,9 @@ final class JVMClasspathIndex {
             let package = parts.dropLast().map { "`\($0)`" }.joined(separator: ".")
             var source = package.isEmpty ? "" : "package \(package)\n"
             let own = info.methods.filter(isExposed)
-            let statics = own.filter(\.isStatic)
+            let statics = own.filter {
+                $0.isStatic && !projectedComposeMethods.contains($0.owner + "." + $0.name + $0.descriptor)
+            }
             let isFileFacade = info.isKotlinFileFacade ?? short.hasSuffix("Kt")
             if info.isAnnotation && own.allSatisfy(\.isStatic) {
                 source += "annotation class `\(short)`\n"
@@ -1036,12 +1061,13 @@ final class JVMClasspathIndex {
                         source += "external " + functionDeclaration(method, asExtension: suspend.receiverIsNullable != nil) + "\n"
                         continue
                     }
-                    let defaults = info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
-                    source += "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
-                    // A JVM file-facade descriptor does not distinguish a
-                    // top-level function from an extension receiver. Expose
-                    // the receiver form as well so Kotlin member syntax binds
-                    // to the same static method.
+                    let composeABI = method.kotlinComposeABI
+                    let defaults = composeABI?.defaults == 1
+                        || info.isKotlinFileFacade == true && defaultArgumentMethod(for: method, in: info) != nil
+                    let annotation = composeABI == nil ? "" : "@androidx.compose.runtime.Composable "
+                    source += annotation + "external " + functionDeclaration(method, acceptsDefaults: defaults) + "\n"
+                    // Preserve extension syntax for Java-authored facade
+                    // shims, where there is no Kotlin receiver metadata.
                     if info.isKotlinFileFacade == nil, method.kotlinFunction == nil,
                        kotlinFunction(method) == nil, let receiver = method.parameters.first,
                        case .reference = receiver, receiver.referenceName?.hasPrefix("[") != true {
