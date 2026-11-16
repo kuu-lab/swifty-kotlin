@@ -16,6 +16,8 @@ final class JVMProgramBuilder {
     var localFunctions: [SymbolID: JVMLocalFunctionPlan] = [:]
     var syntheticFunctions: [String: [JVMFunction]] = [:]
     var closureClasses: [JVMClass] = []
+    var metroFactoryFields: [SymbolID: JVMField] = [:]
+    var metroClasses: [JVMClass] = []
     var functionArities: Set<Int> = []
     var nextClosure = 0
     var needsSuspendCoroutine = false
@@ -316,6 +318,7 @@ final class JVMProgramBuilder {
             }
             plans.append(facadePlan); declarationsByFile.append(declarations)
         }
+        try prepareMetroGraphs()
         var facades: [JVMProgram] = []
         for (index, file) in files.enumerated() {
             facadeName = names[index].0; facadePlan = plans[index]
@@ -405,7 +408,7 @@ final class JVMProgramBuilder {
         }
         emittedClasses += try repeatableContainers()
         if context.options.stdlibOnly { functionArities.insert(0) }
-        emittedClasses += closureClasses + functionRuntime() + enumRuntime()
+        emittedClasses += metroClasses + closureClasses + functionRuntime() + enumRuntime()
         var output = facades.removeFirst()
         syntheticFunctions[coroutineIntrinsicOwner, default: []] += coroutineIntrinsics()
         output.functions += (syntheticFunctions[output.internalClassName] ?? [])

@@ -28,7 +28,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 // test scope itself (`__kk_identity` returns the same handle) until scopes
 // grow a separately cancellable child list.
 
-@KsSymbolName("kk_coroutine_scope_new_with_context")
+// KUU-4592: dedicated test-scope mint — the handle is a RuntimeCoroutineScope
+// tagged with TestScope's nominal type ID (CoroutineScope edge registered),
+// so `is TestScope`/`as TestScope` checks succeed on the returned value.
+@KsSymbolName("kk_test_scope_new_with_context")
 private external fun kkTestScopeNewWithContext(context: CoroutineContext): TestScope
 
 /**

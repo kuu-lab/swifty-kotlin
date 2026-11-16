@@ -168,6 +168,7 @@ extension JVMClasspathIndex {
                     val err: java.io.PrintStream get() = null!!
                     external fun getProperty(propertyName: kotlin.String): kotlin.String?
                     external fun getProperty(propertyName: kotlin.String, defaultValue: kotlin.String): kotlin.String
+                    external fun nanoTime(): Long
                     external fun arraycopy(src: Any?, srcPos: Int, dest: Any?, destPos: Int, length: Int): Unit
                     external fun exit(status: Int): Unit
                 }
@@ -175,6 +176,7 @@ extension JVMClasspathIndex {
             """, 0x0011, "java/lang/Object", [
                 method("java/lang/System", "getProperty", [.string], .reference("java/lang/String", nullable: true), staticMember: true),
                 method("java/lang/System", "getProperty", [.string, .string], .reference("java/lang/String", nullable: false), staticMember: true),
+                method("java/lang/System", "nanoTime", [], .long, staticMember: true),
                 method("java/lang/System", "arraycopy", [object, .int, object, .int, .int], .unit, staticMember: true),
                 method("java/lang/System", "exit", [.int], .unit, staticMember: true),
             ]),
@@ -497,6 +499,103 @@ extension JVMClasspathIndex {
             sourceClasses[file] = info
             classes[name] = info
         }
+        let randomName = "java/util/Random"
+        if classes[randomName] == nil {
+            let randomType = JVMValueType.reference(randomName, nullable: false)
+            let methods = [
+                method(randomName, "<init>", [], randomType),
+                method(randomName, "<init>", [.long], randomType),
+                method(randomName, "next", [.int], .int),
+                method(randomName, "nextInt", [], .int),
+                method(randomName, "nextInt", [.int], .int),
+                method(randomName, "nextLong", [], .long),
+                method(randomName, "nextBoolean", [], .boolean),
+                method(randomName, "nextDouble", [], .double),
+                method(randomName, "nextFloat", [], .float),
+                method(randomName, "nextBytes", [.reference("[B", nullable: false)], .unit),
+                method(randomName, "setSeed", [.long], .unit),
+            ]
+            let source = """
+                package java.util
+                open class Random {
+                    constructor()
+                    constructor(seed: Long)
+                    protected open fun next(bits: Int): Int = 0
+                    open fun nextInt(): Int = 0
+                    open fun nextInt(bound: Int): Int = 0
+                    open fun nextLong(): Long = 0L
+                    open fun nextBoolean(): Boolean = false
+                    open fun nextDouble(): Double = 0.0
+                    open fun nextFloat(): Float = 0.0f
+                    open fun nextBytes(bytes: ByteArray) {}
+                    open fun setSeed(seed: Long) {}
+                }
+                """
+            let info = JVMClassInfo(name: randomName, flags: 0x0001, superclass: "java/lang/Object",
+                                    interfaces: ["java/io/Serializable"], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/util/Random.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[randomName] = info
+        }
+        let instantName = "java/time/Instant"
+        if classes[instantName] == nil {
+            let instantType = JVMValueType.reference(instantName, nullable: false)
+            let methods = [
+                method(instantName, "now", [], instantType, staticMember: true),
+                method(instantName, "ofEpochSecond", [.long, .long], instantType, staticMember: true),
+                method(instantName, "getEpochSecond", [], .long),
+                method(instantName, "getNano", [], .int),
+            ]
+            let source = """
+                package java.time
+                class Instant private constructor() {
+                    fun getEpochSecond(): Long = 0L
+                    fun getNano(): Int = 0
+                    companion object {
+                        external fun now(): Instant
+                        external fun ofEpochSecond(epochSecond: Long, nanoAdjustment: Long): Instant
+                    }
+                }
+                """
+            let info = JVMClassInfo(name: instantName, flags: 0x0011, superclass: "java/lang/Object",
+                                    interfaces: [], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/time/Instant.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[instantName] = info
+        }
+        let durationName = "java/time/Duration"
+        if classes[durationName] == nil {
+            let durationType = JVMValueType.reference(durationName, nullable: false)
+            let methods = [
+                method(durationName, "ofSeconds", [.long, .long], durationType, staticMember: true),
+                method(durationName, "getSeconds", [], .long),
+                method(durationName, "getNano", [], .int),
+            ]
+            let source = """
+                package java.time
+                class Duration private constructor() {
+                    fun getSeconds(): Long = 0L
+                    fun getNano(): Int = 0
+                    companion object {
+                        external fun ofSeconds(seconds: Long, nanoAdjustment: Long): Duration
+                    }
+                }
+                """
+            let info = JVMClassInfo(name: durationName, flags: 0x0011, superclass: "java/lang/Object",
+                                    interfaces: [], methods: methods)
+            let file = ctx.sourceManager.addFile(path: "<kswiftk-jvm>/platform/java/time/Duration.kt",
+                                                 contents: Data(source.utf8), origin: .residualStdlib)
+            sourceClasses[file] = info
+            classes[durationName] = info
+        }
+        let closeableName = "java/io/Closeable"
+        if classes[closeableName] == nil {
+            classes[closeableName] = JVMClassInfo(name: closeableName, flags: 0x0601, superclass: nil,
+                                                interfaces: ["java/lang/AutoCloseable"], methods: [])
+        }
+
         // The generic Kotlin declaration provides the Java collection shape;
         // associate its implicit constructor with the real JDK owner so a
         // fully qualified `java.util.ArrayList()` call is emitted as `new`.
