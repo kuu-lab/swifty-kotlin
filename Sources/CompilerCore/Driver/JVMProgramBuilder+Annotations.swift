@@ -245,6 +245,7 @@ extension JVMProgramBuilder {
         if let unsupported = records.first(where: { $0.useSiteTarget.map { !["field", "get", "set", "property", "param", "setparam", "receiver", "file", "delegate"].contains($0) } ?? false }) { throw JVMFrontendError(message: "Unsupported JVM annotation use-site target: " + unsupported.useSiteTarget!) }
         for record in records where record.useSiteTarget == target {
             let name = record.annotationFQName
+            if isThrowsAnnotation(name) { continue }
             if [KnownCompilerAnnotation.repeatable.qualifiedName, KnownCompilerAnnotation.jvmRepeatable.qualifiedName].contains(name), classes[symbol]?.isAnnotation != true { throw JVMFrontendError(message: "JVM repeatable can only annotate annotation classes.") }
             if KnownCompilerAnnotation.jvmOverloads.matches(name) {
                 guard sema.symbols.symbol(symbol)?.kind == .function else {
@@ -256,6 +257,9 @@ extension JVMProgramBuilder {
             // user code can never apply it legally, and no emitted JVM decl
             // carries it (its bundled-stdlib usages live on non-emitted files).
             if [
+                "kotlin.jvm.JvmStatic", "JvmStatic",
+                "kotlin.jvm.JvmOverloads", "JvmOverloads",
+                "kotlin.jvm.JvmSuppressWildcards",
                 KnownCompilerAnnotation.metadata.qualifiedName,
                 KnownCompilerAnnotation.publishedApi.qualifiedName,
                 KnownCompilerAnnotation.publishedApi.simpleName,
@@ -368,8 +372,44 @@ extension JVMProgramBuilder {
         }
     }
 
+    private func isThrowsAnnotation(_ name: String) -> Bool {
+        ["Throws", "kotlin.Throws", "kotlin.jvm.Throws"].contains(name)
+    }
+
+    private func declaredExceptions(for symbol: SymbolID) throws -> [String] {
+        guard let annotation = try annotationRecords(for: symbol).first(where: {
+            $0.useSiteTarget == nil && isThrowsAnnotation($0.annotationFQName)
+        }) else { return [] }
+        if let declaration = sourceDeclarations[symbol],
+           let node = declaration.annotations.first(where: { $0.usageID != nil && $0.usageID == annotation.usageID }),
+           var tokens = node.constructionTokens, let last = tokens.last {
+            try rememberRawAnnotationConstruction(node, tokens: &tokens, lastToken: last, message: "Unsupported JVM @Throws annotation arguments.")
+        }
+        let construction = annotationConstruction(annotation)
+        let arguments: [CallArgument]
+        switch construction.flatMap(ast.arena.expr) {
+        case let .call(_, _, args, _), let .memberCall(_, _, _, args, _): arguments = args
+        default: arguments = []
+        }
+        if arguments.isEmpty, !annotation.arguments.isEmpty {
+            throw JVMFrontendError(message: "Cannot resolve JVM @Throws class literals.")
+        }
+        let constants = try arguments.flatMap { argument -> [JVMAnnotationValue] in
+            let value = try annotationConstant(argument.expr)
+            if case let .array(elements) = value { return elements }
+            return [value]
+        }
+        return try constants.map { value in
+            guard case let .classType(descriptor) = value, descriptor.hasPrefix("L"), descriptor.hasSuffix(";") else {
+                throw JVMFrontendError(message: "JVM @Throws requires Throwable class literals.")
+            }
+            return String(descriptor.dropFirst().dropLast())
+        }
+    }
+
     func annotated(_ function: JVMFunction, symbol: SymbolID, signature providedSignature: FunctionSignature? = nil) throws -> JVMFunction {
         var f = function; f.annotations = try annotations(for: symbol, target: nil)
+        f.declaredExceptions = try declaredExceptions(for: symbol)
         applyDeprecation(f.annotations, to: &f)
         if let raw = sema.symbols.annotations(for: symbol).first(where: {
             $0.annotationFQName == KnownCompilerAnnotation.jvmName.qualifiedName && $0.useSiteTarget != "file"
