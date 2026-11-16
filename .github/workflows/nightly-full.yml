@@ -448,7 +448,9 @@ jobs:
     name: JS annotations native source/artifact O0/O2 evidence
     needs: build-release-kswiftc
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # The full O0/O2 evidence matrix has hit the 120-minute deadline on every
+    # recent nightly; give it headroom.
+    timeout-minutes: 180
     env:
       KOTLINC: /not-used-by-js-annotations
       JAVA_BIN: /not-used-by-js-annotations
@@ -658,7 +660,11 @@ jobs:
         env:
           DIFF_REPORT: ${{ runner.temp }}/diff_kotlinc_report.tsv
           DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_kotlinc_artifacts
-          DIFF_COMPILE_TIMEOUT: "180"
+          # Early-alphabetical cases in each shard run while all DIFF_WORKERS
+          # are cold-starting their first compiles in parallel; trivial cases
+          # flake past 180s under that contention. 300s matches the
+          # candidate-only lane's timeout below.
+          DIFF_COMPILE_TIMEOUT: "300"
           DIFF_STDLIB_COMPILE_TIMEOUT: "1800"
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
@@ -929,7 +935,9 @@ jobs:
         if: matrix.engine == 'node'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "22"
+          # Pin to a known-good 22.x: node 22.23.x segfaults under node:wasi
+          # (every WASI candidate exits 139); 22.21.0 runs them correctly.
+          node-version: "22.21.0"
       - name: Install wasmtime
         if: matrix.engine == 'wasmtime'
         run: |
