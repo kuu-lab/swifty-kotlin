@@ -14,7 +14,6 @@ struct JobComprehensiveTests {
         #expect(!job.completedSnapshot())
         #expect(!job.cancellationSnapshot())
 
-        // Start job
         job.markStarted()
         #expect(job.isActiveSnapshot())
         #expect(!job.completedSnapshot())
@@ -31,16 +30,13 @@ struct JobComprehensiveTests {
     @Test func jobStateTransitionsCancellationLifecycle() {
         let job = RuntimeJobHandle()
 
-        // Start job
         job.markStarted()
         #expect(job.isActiveSnapshot())
 
-        // Cancel job
         #expect(job.cancel())
         #expect(!job.isActiveSnapshot())
         #expect(job.cancellationSnapshot())
 
-        // Complete cancellation
         #expect(job.complete(with: 0))
         #expect(job.completedSnapshot())
         #expect(job.cancellationSnapshot())
@@ -128,7 +124,6 @@ struct JobComprehensiveTests {
         let job = RuntimeJobHandle()
         job.markStarted()
 
-        // Complete first
         #expect(job.complete(with: 42))
         #expect(job.completedSnapshot())
 
@@ -228,21 +223,18 @@ struct JobComprehensiveTests {
         #expect(kk_job_is_cancelled(jobHandle) == 0)
         #expect(kk_job_is_failed(jobHandle) == 0)
 
-        // Start job
         job.markStarted()
         #expect(kk_job_is_active(jobHandle) == 1)
         #expect(kk_job_is_completed(jobHandle) == 0)
         #expect(kk_job_is_cancelled(jobHandle) == 0)
         #expect(kk_job_is_failed(jobHandle) == 0)
 
-        // Complete job
         #expect(job.complete(with: 789))
         #expect(kk_job_is_active(jobHandle) == 0)
         #expect(kk_job_is_completed(jobHandle) == 1)
         #expect(kk_job_is_cancelled(jobHandle) == 0)
         #expect(kk_job_is_failed(jobHandle) == 0)
 
-        // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 
@@ -263,7 +255,6 @@ struct JobComprehensiveTests {
         #expect(kk_job_is_cancelled(jobHandle) == 1)
         #expect(kk_job_is_failed(jobHandle) == 1)
 
-        // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 
@@ -277,7 +268,6 @@ struct JobComprehensiveTests {
         #expect(kk_job_cancel(jobHandle) == 0)
         #expect(job.cancellationSnapshot())
 
-        // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 
@@ -300,7 +290,6 @@ struct JobComprehensiveTests {
         #expect(kk_job_complete_exceptionally(job2Handle, exception) == 1)
         #expect(job2.isFailedSnapshot())
 
-        // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: job2Handle)!).release()
     }
@@ -316,13 +305,11 @@ struct JobComprehensiveTests {
         #expect(kk_job_is_completed(taskHandle) == 0)
         #expect(kk_job_is_cancelled(taskHandle) == 0)
 
-        // Complete task
         task.complete(with: 555)
         #expect(kk_job_is_active(taskHandle) == 0)
         #expect(kk_job_is_completed(taskHandle) == 1)
         #expect(kk_job_is_cancelled(taskHandle) == 0)
 
-        // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: taskHandle)!).release()
     }
 
@@ -363,7 +350,6 @@ struct JobComprehensiveTests {
 
         #expect(group.wait(timeout: .now() + 5.0) == .success)
 
-        // Clean up
         Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: jobHandle)!).release()
     }
 }

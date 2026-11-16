@@ -10,6 +10,14 @@ import kotlin.jvm.internal.__jvmNewArrayList
 import kotlin.jvm.internal.__jvmNewList
 import kotlin.jvm.internal.__jvmSingletonList
 import kotlin.jvm.internal.__jvmArrayList
+import kotlin.random.Random
+
+public fun <T> Collection<T>.random(): T = random(Random.Default)
+
+public fun <T> Collection<T>.random(random: Random): T {
+    if (isEmpty()) throw NoSuchElementException("Collection is empty.")
+    return elementAt(random.nextInt(size))
+}
 
 public fun <T> emptyList(): List<T> = RepositoryEmptyList as List<T>
 public fun <T> listOf(element: T): List<T> = __jvmSingletonList(element)
